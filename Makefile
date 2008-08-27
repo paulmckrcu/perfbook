@@ -1,0 +1,105 @@
+LATEXSOURCES = \
+	SMPdesign/SMPdesign.tex \
+	ack.tex \
+	advsync/advsync.tex \
+	advsync/memorybarriers.tex \
+	analysis/analysis.tex \
+	appendix/appendix.tex \
+	appendix/questions/after.tex \
+	appendix/questions/questions.tex \
+	appendix/srcu/srcu.tex \
+	appendix/whymb/whymemorybarriers.tex \
+	articles/srcu.tex \
+	articles/whymb.tex \
+	cpu/cpu.tex \
+	datastruct/datastruct.tex \
+	debugging/debugging.tex \
+	easy/easy.tex \
+	glossary.tex \
+	hw/hw.tex \
+	intro/hwhabits.tex \
+	intro/intro.tex \
+	intro/primitives.tex \
+	legal.tex \
+	memalloc/memalloc.tex \
+	owned/owned.tex \
+	perfbook.tex \
+	preface.tex \
+	refcnt/refcnt.tex \
+	stats/stats.tex \
+	sync/sync.tex \
+	time/time.tex
+
+EPSSOURCES = \
+	SMPdesign/AllocatorPool.eps \
+	SMPdesign/LockGranularity.eps \
+	SMPdesign/MemoryBarrierPairing.eps \
+	SMPdesign/ParallelFastpath.eps \
+	SMPdesign/allocatorcache.eps \
+	SMPdesign/clockfreq.eps \
+	SMPdesign/smpalloc.eps \
+	SMPdesign/smpalloc.old.eps \
+	advsync/AbstractMemoryAccessModel.eps \
+	advsync/DataDependencyNeeded.eps \
+	advsync/DataDependencySupplied.eps \
+	advsync/MemoryArchitecture.eps \
+	advsync/MemoryBarrierPairing.eps \
+	advsync/ReadBarrierNeeded.eps \
+	advsync/ReadBarrierSupplied.eps \
+	advsync/ReadBarrierSupplied1.eps \
+	advsync/ReadBarrierSupplied2.eps \
+	advsync/SpeculativeLoad.eps \
+	advsync/SpeculativeLoadBarrier.eps \
+	advsync/SpeculativeLoadBarrierCancel.eps \
+	advsync/SplitCache.eps \
+	advsync/WriteBarrierOrdering.eps \
+	appendix/questions/after.eps \
+	appendix/srcu/srcuds.eps \
+	appendix/whymb/MESI.eps \
+	appendix/whymb/cacheSB.eps \
+	appendix/whymb/cacheSBf.eps \
+	appendix/whymb/cacheSBfIQ.eps \
+	appendix/whymb/cacheSC.eps \
+	appendix/whymb/cacheSCwrite.eps \
+	appendix/whymb/hostileordering.eps \
+	cartoons/CPU_toon_outoforder_colored.eps \
+	cartoons/LD,ACQ.eps \
+	cartoons/ManyFighting.eps \
+	cartoons/ManyHappy.eps \
+	cartoons/OldManAndBrat.eps \
+	cartoons/OneFighting.eps \
+	cartoons/ShavingTheMandelbrotSet.eps \
+	cartoons/atomic.eps \
+	cartoons/barrier.eps \
+	cartoons/pipeline.eps \
+	cartoons/ref.eps \
+	cartoons/tollbooth.eps \
+	cartoons/trackmeet.eps \
+	cartoons/whippersnapper300.eps \
+	cartoons/whippersnapper600.eps \
+	easy/Mandel_zoom_00_mandelbrot_set.eps
+
+all: perfbook.pdf
+
+2up: perfbook-2up.pdf
+
+perfbook.pdf: perfbook.dvi $(EPSSOURCES)
+	dvipdf perfbook
+
+perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
+	dvips perfbook
+	psnup -2 perfbook.ps perfbook-2up.ps
+	ps2pdf perfbook-2up.ps perfbook-2up.pdf
+	rm perfbook.ps perfbook-2up.ps
+
+perfbook.dvi: $(LATEXSOURCES)
+	latex perfbook || :
+	latex perfbook || :
+	bibtex perfbook
+	latex perfbook || :
+	latex perfbook || :
+
+clean:
+	#find . -name '*.aux' -o -name '*.bbl' -o -name '*.blg' \
+	#	-o -name '*.dvi' -o -name '*.log' -o -name '*.pdf' \
+	#	-o -name '*.qqz' -o -name '*.toc' | xargs rm

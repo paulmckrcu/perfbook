@@ -1,0 +1,474 @@
+% intro/primitives.tex
+
+\section{Synchonization Primitives}
+\label{sec:intro:Synchonization Primitives}
+
+All but the simplest parallel programs require synchronization
+primitives.
+This section gives a quick overview of a set of primitives based
+loosely on those in the Linux kernel.
+
+Why Linux?
+Because it is one of the well-known, largest, and easily obtained
+bodies of parallel code available.
+We believe that reading code is, if anything, more important to learning 
+than is writing code, so by using examples similar to real code in
+the Linux kernel, we are enabling you to use Linux to continue your
+learning as you progress beyond the confines of this book.
+
+Why based loosely rather than following the Linux kernel API exactly?
+First, the Linux API changes with time, so any attempt to track it
+exactly would likely end in total frustration for all involved.
+Second, many of the members of the Linux kernel API are specialized for
+use in a production-quality operating-system kernel.
+This specialization introduces complexities that, though absolutely
+necessary in the Linux kernel itself, are often more trouble than they are
+worth in the ``toy'' programs that we will be using to demonstrate
+SMP and realtime design principles and practices.
+For example, properly checking for error conditions such as memory
+exhaustion is a ``must'' in the Linux kernel, however, in ``toy'' programs
+it is perfectly acceptable to simply \url{abort()} the program,
+correct the problem, and rerun.
+
+Finally, it should be possible to implement a trivial mapping layer between
+this API and most production-level APIs.
+A pthreads implementation is available \emph{(@@@ where?)}, and
+a Linux-kernel-module API would not be difficult to create.
+
+\QuickQuiz{Give an example of a parallel program that could be written
+	   without synchronization primitives.}{
+	   There are many examples.
+	   One of the simplest would be a parametric study using a
+	   single independent variable.
+	   If the program {\tt run\_study} took a single argument,
+	   then we could use the following bash script to run two
+	   instances in parallel, as might be appropriate on a
+	   two-CPU system:
+
+	   { \scriptsize \tt run\_study 1 > 1.out\& run\_study 2 > 2.out; wait}
+
+	   One could of course argue that the bash ampersand operator and
+	   the ``wait'' primitive are in fact synchronization primitives.
+	   If so, then consider that 
+	   this script could be run manually in two separate
+	   command windows, so that the only synchronization would be
+	   supplied by the user himself or herself.}
+\QuickQuizEnd
+
+The following sections describe commonly used classes of synchronization
+primitives.
+More esoteric primitives will be introduced in later chapters, with
+a full reference (and comparison to other primitives) in
+Appendix @@@.
+
+\emph{@@@ roadmap?}
+
+\subsection{Organization and Initialization}
+\label{sec:intro:Organization and Initialization}
+
+\emph{@@@ currently include ../api.h, and there is only pthreads.
+Expand and complete once the CodeSamples structure settles down.}
+
+\paragraph{smp\_init():}
+You must invoke \url{smp_init()} before invoking any other primitives.
+
+\subsection{Thread Creation, Destruction, and Control}
+\label{sec:intro:Thread Creation, Destruction and Control}
+
+This API focuses on ``threads'', which are a locus of control.\footnote{
+	There are many other names for similar software constructs, including
+	``process'', ``task'', ``fiber'', ``event'', and so on.
+	Similar design principles apply to all of them.}
+Each such thread has an identifier of type \url{thread_id_t},
+and no two threads running at a given time will have the same
+identifier.
+Threads share everything except for per-thread local state,\footnote{
+	How is that for a circular definition?}
+which includes program counter and stack.
+
+The thread API is shown in
+Figure~\ref{fig:intro:Thread API}, and members are described in the
+following sections.
+
+\begin{figure*}[htbp] 
+{ \scriptsize
+\begin{verbatim}
+int smp_thread_id(void)
+thread_id_t create_thread(void *(*func)(void *), void *arg)
+for_each_thread(t)
+for_each_running_thread(t)
+void *wait_thread(thread_id_t tid)
+void wait_all_threads(void)
+\end{verbatim}
+}
+\caption{Thread API}
+\label{fig:intro:Thread API}
+\end{figure*}
+
+\subsubsection{create\_thread()}
+
+The \url{create_thread} primitive creates a new thread,
+starting the new thread's execution
+at the function \url{func} specified by \url{create_thread()}'s
+first argument, and passing it the argument specified by
+\url{create_thread()}'s second argument.
+This newly created thread will terminate when it returns from the
+starting function specified by \url{func}.
+The \url{create_thread()} primitive returns the \url{thread_id_t}
+corresponding to the newly created child thread.
+
+This primitive will abort the program if more than \url{NR_THREADS}
+threads are created, counting the one implicitly created by running
+the program.
+\url{NR_THREADS} is a compile-time constant that may be modified,
+though some systems may have an upper bound for the allowable number
+of threads.
+
+\subsubsection{smp\_thread\_id()}
+
+Because the \url{thread_id_t} returned from \url{create_thread()} is
+system-dependent, the \url{smp_thread_id()} primitive returns a thread
+index corresponding to the thread making the request.
+This index is guaranteed to be less than the maximum number of threads
+that have been in existence since the program started,
+and is therefore useful for bitmasks, array indices, and
+the like.
+
+\subsubsection{for\_each\_thread()}
+
+The \url{for_each_thread()} macro loops through all threads that exist,
+including all threads that \emph{would} exist if created.
+This macro is useful for handling per-thread variables as will be
+seen in Section~\ref{sec:intro:Per-Thread Variables}.
+
+\subsubsection{for\_each\_running\_thread()}
+
+The \url{for_each_running_thread()}
+macro loops through only those threads that currently exist.
+It is the caller's responsibility to synchronize with thread
+creation and deletion if required.
+
+\subsubsection{wait\_thread()}
+
+The \url{wait_thread()} primitive waits for completion of the thread
+specified by the \url{thread_id_t} passed to it.
+This in no way interferes with the execution of the specified thread;
+instead, it merely waits for it.
+Note that \url{wait_thread()} returns the value that was returned by
+the corresponding thread.
+
+\subsubsection{wait\_all\_threads()}
+
+The \url{wait_all_thread()}
+primitive waits for completion of all currently running threads.
+It is the caller's responsibility to synchronize with thread creation
+and deletion if required.
+However, this primitive is normally used to clean up and the end of
+a run, so such synchronization is normally not needed.
+
+\subsubsection{Example Usage}
+
+Figure~\ref{fig:intro:Example Child Thread}
+shows an example hello-world-like child thread.
+As noted earlier, each thread is allocated its own stack, so
+each thread has its own private \url{arg} argument and \url{myarg} variable.
+Each child simply prints its argument and its \url{smp_thread_id()}
+before exiting.
+Note that the \url{return} statement on line~7 terminates the thread,
+returning a \url{NULL} to whoever invokes \url{wait_thread()} on this
+thread.
+
+\begin{figure}[htbp] 
+{ \scriptsize
+\begin{verbatim}
+  1 void *thread_test(void *arg)
+  2 {
+  3   int myarg = (int)arg;
+  4 
+  5   printf("child thread %d: smp_thread_id() = %d\n",
+  6          myarg, smp_thread_id());
+  7   return NULL;
+  8 }
+\end{verbatim}
+}
+\caption{Example Child Thread}
+\label{fig:intro:Example Child Thread}
+\end{figure}
+
+The parent program is shown in
+Figure~\ref{fig:intro:Example Parent Thread}.
+It invokes \url{smp_init()} to initialize the threading system on
+line~6,
+parse arguments on lines~7-14, and announces its presence on line~15.
+It creates the specified number of child threads on lines~16-17,
+and waits for them to complete on line~18.
+Note that \url{wait_all_threads()} discards the threads return values,
+as in this case they are all \url{NULL}, which is not very interesting.
+
+\begin{figure}[htbp] 
+{ \scriptsize
+\begin{verbatim}
+  1 int main(int argc, char *argv[])
+  2 {
+  3   int i;
+  4   int nkids = 1;
+  5 
+  6   smp_init();
+  7   if (argc > 1) {
+  8     nkids = strtoul(argv[1], NULL, 0);
+  9     if (nkids > NR_THREADS) {
+ 10       fprintf(stderr, "nkids=%d too big, max=%d\n",
+ 11         nkids, NR_THREADS);
+ 12       usage(argv[0]);
+ 13     }
+ 14   }
+ 15   printf("Parent spawning %d threads.\n", nkids);
+ 16   for (i = 0; i < nkids; i++)
+ 17     create_thread(thread_test, (void *)i);
+ 18   wait_all_threads();
+ 19   printf("All threads completed.\n", nkids);
+ 20   exit(0);
+ 21 }
+\end{verbatim}
+}
+\caption{Example Parent Thread}
+\label{fig:intro:Example Parent Thread}
+\end{figure}
+
+\subsection{Locking}
+\label{sec:intro:Locking}
+
+The locking API is shown in
+Figure~\ref{fig:intro:Locking API},
+each API element being described in the following sections.
+
+\begin{figure}[htbp] 
+{ \scriptsize
+\begin{verbatim}
+void spin_lock_init(spinlock_t *sp);
+void spin_lock(spinlock_t *sp);
+int spin_trylock(spinlock_t *sp);
+void spin_unlock(spinlock_t *sp);
+\end{verbatim}
+}
+\caption{Locking API}
+\label{fig:intro:Locking API}
+\end{figure}
+
+\subsubsection{spin\_lock\_init()}
+
+The \url{spin_lock_init()} primitive initializes the specified
+\url{spinlock_t} variable, and must be invoked before
+this variable is passed to any other spinlock primitive.
+
+\subsubsection{spin\_lock()}
+
+The \url{spin_lock()} primitive acquires the specified spinlock,
+if necessary, waiting until the spinlock becomes available.
+In some environments, such as pthreads, this waiting will involve
+``spinning'', while
+in others, such as the Linux kernel, it will involve blocking.
+
+The key point is that only one thread may hold a spinlock at any
+given time.
+
+\subsubsection{spin\_trylock()}
+
+The \url{spin_trylock()} primitive acquires the specified spinlock,
+but only if it is immediately available.
+It returns \url{TRUE} if it was able to acquire the spinlock and
+\url{FALSE} otherwise.
+
+\subsubsection{spin\_unlock()}
+
+The \url{spin_unlock()} primitive releases the specified spinlock,
+allowing other threads to acquire it.
+
+\emph{@@@ likely need to add reader-writer locking.}
+
+\subsubsection{Example Usage}
+
+A spinlock named \url{mutex} may be used to protect a variable
+\url{counter} as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+spin_lock(&mutex);
+counter++;
+spin_unlock(&mutex);
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+\QuickQuiz{What problems could occur if the variable {\tt counter} were
+	incremented without the protection of {\tt mutex}?}{
+	On CPUs with load-store architectures, incrementing {\tt counter}
+	might compile into something like the following: \\
+	\\
+	{\tt
+	LOAD counter,r0 \\
+	INC r0 \\
+	STORE r0,counter \\
+	}
+
+	On such machines, two threads might simultaneously load the
+	value of {\tt counter}, each increment it, and each store the
+	result.
+	The new value of {\tt counter} will then only be one greater
+	than before, despite two threads each incrementing it.}
+\QuickQuizEnd
+
+However, the \url{spin_lock()} and \url{spin_unlock()} primitives
+do have performance consequences, as will be seen in
+Section~\ref{sec:intro:Performance}.
+
+\subsection{Per-Thread Variables}
+\label{sec:intro:Per-Thread Variables}
+
+Figure~\ref{fig:intro:Per-Thread-Variable API}
+shows the per-thread-variable API.
+This API provides the per-thread equivalent of global variables.
+Although this API is, strictly speaking, not necessary, it can
+greatly simply coding.
+
+\begin{figure}[htbp] 
+{ \scriptsize
+\begin{verbatim}
+DEFINE_PER_THREAD(type, name)
+DECLARE_PER_THREAD(type, name)
+per_thread(name, thread)
+__get_thread_var(name)
+init_per_thread(name, v)
+\end{verbatim}
+}
+\caption{Per-Thread-Variable API}
+\label{fig:intro:Per-Thread-Variable API}
+\end{figure}
+
+\QuickQuiz{How could you work around the lack of a per-thread-variable
+	API on systems that do not provide it?}{
+	One approach would be to create an array indexed by
+	{\tt smp\_thread\_id()}, and another would be to use a hash
+	table to map from {\tt smp\_thread\_id()} to an array
+	index --- which is in fact what this
+	set of APIs does in pthread environments.
+
+	Another approach would be for the parent to allocate a structure
+	containing fields for each desired per-thread variable, then
+	pass this to the child during thread creation.
+	However, this approach can impose large software-engineering
+	costs in large systems.
+	To see this, imagine if all global variables in a large system
+	had to be declared in a single file, regardless of whether or
+	not they were C static variables!}
+\QuickQuizEnd
+
+\subsubsection{DEFINE\_PER\_THREAD()}
+
+The \url{DEFINE_PER_THREAD()} primitive defines a per-thread variable.
+Unfortunately, it is not possible to provide an initializer in the way
+permitted by the Linux kernel's \url{DEFINE_PER_THREAD()} primitive,
+but there is an \url{init_per_thread()} primitive that permits easy
+runtime initialization.
+
+\subsubsection{DECLARE\_PER\_THREAD()}
+
+The \url{DECLARE_PER_THREAD()} primitive is a declaration in the C sense,
+as opposed to a definition.
+Thus, a \url{DECLARE_PER_THREAD()} primitive may be used to access
+a per-thread variable defined in some other file.
+
+\subsubsection{per\_thread()}
+
+The \url{per_thread()} primitive accesses the specified thread's variable.
+
+\subsubsection{\_\_get\_thread\_var()}
+
+The \url{__get_thread_var()} primitive accesses the current thread's variable.
+
+\subsubsection{init\_per\_thread()}
+
+The \url{init_per_thread()} primitive sets all threads' instances of
+the specified variable to the specified value.
+
+\subsubsection{Usage Example}
+
+Suppose that we have a counter that is incremented very frequently
+but read out quite rarely.
+As will become clear in
+Section~\ref{sec:intro:Performance},
+it is helpful to implement such a counter using a per-CPU variable.
+Such a variable can be defined as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small 
+\begin{verbatim}
+DEFINE_PER_THREAD(int, counter);
+\end{verbatim}
+\end{minipage} 
+\vspace{5pt}
+
+The counter must be initialized as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small 
+\begin{verbatim}
+init_per_thread(counter, 0);
+\end{verbatim}
+\end{minipage} 
+\vspace{5pt}
+
+A thread can increment its instance of this counter as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small 
+\begin{verbatim}
+__get_thread_var(counter)++;
+\end{verbatim}
+\end{minipage} 
+\vspace{5pt}
+
+The value of the counter is then the sum of its instances.
+A snapshot of the value of the counter can thus be collected
+as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small 
+\begin{verbatim}
+for_each_thread(i)
+  sum += per_thread(counter, i);
+\end{verbatim}
+\end{minipage} 
+\vspace{5pt}
+
+Again, it is possible to gain a similar effect using other mechanisms,
+but per-thread variables combine convenience and high performance.
+
+\subsection{Performance}
+\label{sec:intro:Performance}
+
+It is instructive to compare the performance of the locked increment
+shown in
+Section~\ref{sec:intro:Locking}
+to that of per-thread variables
+(see Section~\ref{sec:intro:Per-Thread Variables}),
+as well as to conventional increment (as in ``counter++'').
+
+\emph{@@@ need parable on cache thrashing.}
+
+\emph{@@@ more here using performance results from a modest multiprocessor.}
+
+\emph{@@@ Also work in something about critical-section size? Or put later?}
+
+The difference in performance is quite large, to put it mildly.
+The purpose of this book is to help you write SMP programs,
+perhaps with realtime response, while avoiding such performance
+pitfalls.
+The next section starts this process by describing some of the
+reasons for this performance shortfall.

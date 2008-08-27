@@ -1,0 +1,1 @@
+/home/paulmck/bin/latex2c.sh

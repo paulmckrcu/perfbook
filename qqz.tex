@@ -1,0 +1,600 @@
+\QuickQuizChapterAnswer{chp:Introduction}
+% intro/primitives.tex:38
+\QuickQuizAnswer{Give an example of a parallel program that could be written
+	   without synchronization primitives.}{
+	   There are many examples.
+	   One of the simplest would be a parametric study using a
+	   single independent variable.
+	   If the program {\tt run\_study} took a single argument,
+	   then we could use the following bash script to run two
+	   instances in parallel, as might be appropriate on a
+	   two-CPU system:
+
+	   { \scriptsize \tt run\_study 1 > 1.out\& run\_study 2 > 2.out; wait}
+
+	   One could of course argue that the bash ampersand operator and
+	   the ``wait'' primitive are in fact synchronization primitives.
+	   If so, then consider that 
+	   this script could be run manually in two separate
+	   command windows, so that the only synchronization would be
+	   supplied by the user himself or herself.}
+% intro/primitives.tex:305
+\QuickQuizAnswer{What problems could occur if the variable {\tt counter} were
+	incremented without the protection of {\tt mutex}?}{
+	On CPUs with load-store architectures, incrementing {\tt counter}
+	might compile into something like the following: \\
+	\\
+	{\tt
+	LOAD counter,r0 \\
+	INC r0 \\
+	STORE r0,counter \\
+	}
+
+	On such machines, two threads might simultaneously load the
+	value of {\tt counter}, each increment it, and each store the
+	result.
+	The new value of {\tt counter} will then only be one greater
+	than before, despite two threads each incrementing it.}
+% intro/primitives.tex:350
+\QuickQuizAnswer{How could you work around the lack of a per-thread-variable
+	API on systems that do not provide it?}{
+	One approach would be to create an array indexed by
+	{\tt smp\_thread\_id()}, and another would be to use a hash
+	table to map from {\tt smp\_thread\_id()} to an array
+	index --- which is in fact what this
+	set of APIs does in pthread environments.
+
+	Another approach would be for the parent to allocate a structure
+	containing fields for each desired per-thread variable, then
+	pass this to the child during thread creation.
+	However, this approach can impose large software-engineering
+	costs in large systems.
+	To see this, imagine if all global variables in a large system
+	had to be declared in a single file, regardless of whether or
+	not they were C static variables!}
+\QuickQuizChapterAnswer{cha:SMP Synchronization Design}
+% SMPdesign/SMPdesign.tex:791
+\QuickQuizAnswer{In what situation would hierarchical locking work well?}{
+	If the comparison on line~31 of
+	Figure~\ref{fig:SMPdesign:Hierarchical-Locking Hash Table Search}
+	were replaced by a much heavier-weight operation,
+	then releasing {\tt bp->bucket\_lock} \emph{might} reduce lock
+	contention enough to outweigh the overhead of the extra
+	acquisition and release of {\tt cur->node\_lock}.}
+% SMPdesign/SMPdesign.tex:1061
+\QuickQuizAnswer{In Figure~\ref{fig:SMPdesign:Allocator Cache Performance},
+	there is a pattern of performance rising with increasing run
+	length in groups of three samples, for example, for run lengths
+	10, 11, and 12.
+	Why?}{
+	This is due to the per-CPU target value being three.
+	A run length of 12 must acquire the global-pool lock twice,
+	while a run length of 13 must acquire the global-pool lock
+	three times.}
+% SMPdesign/SMPdesign.tex:1072
+\QuickQuizAnswer{Allocation failures were observed in the two-thread
+	tests at run lengths of 19 and greater.
+	Given the global-pool size of 40 and the per-CPU target
+	pool size of three, what is the smallest allocation run
+	length at which failures can occur?}{
+	The exact solution to this problem is left as an exercise to
+	the reader.
+	The first solution received will be credited to its submitter.
+	As a rough rule of thumb, the global pool size should be at least
+	$m+2sn$, where
+	``m'' is the maximum number of elements allocated at a given time,
+	``s'' is the per-CPU pool size,
+	and ``n'' is the number of CPUs.}
+\QuickQuizChapterAnswer{chp:Analysis}
+\QuickQuizChapterAnswer{chp:defer:Deferred Processing}
+% defer/refcnt.tex:191
+\QuickQuizAnswer{Why isn't it necessary to guard against cases where
+	   one CPU acquires a reference just after another
+	   CPU releases the last reference?}{
+	  Because a CPU must already hold a reference in order
+	  to legally acquire another reference.
+	  Therefore, if one CPU releases the last reference,
+	  there cannot possibly be any CPU that is permitted
+	  to acquire a new reference.
+	  This same fact allows the non-atomic check in line~22
+	  of Figure~\ref{fig:defer:Linux Kernel kref API}.}
+% defer/refcnt.tex:268
+\QuickQuizAnswer{If the check on line~22 of
+	   Figure~\ref{fig:defer:Linux Kernel kref API} fails, how
+	   could the check on line~23 possibly succeed?}{
+	  Suppose that {\tt kref\_put()} is protected by RCU, so
+	  that two CPUs might be executing line~22 concurrently.
+	  Both might see the value ``2'', causing both to then
+	  execute line~23.
+	  One of the two instances of {\tt atomic\_dec\_and\_test()}
+	  will decrement the value to zero and thus return 1.}
+% defer/refcnt.tex:279
+\QuickQuizAnswer{How can it possibly be safe to non-atomically check
+	   for equality with ``1'' on line~22 of
+	   Figure~\ref{fig:defer:Linux Kernel kref API}?}{
+	  Remember that it is not legal to call either {\tt kref\_get()}
+	  or {\tt kref\_put()} unless you hold a reference.
+	  If the reference count is equal to ``1'', then there
+	  can't possibly be another CPU authorized to change the
+	  value of the reference count.}
+% defer/refcnt.tex:361
+\QuickQuizAnswer{Why can't the check for a zero reference count be
+	   made in a simple ``if'' statement with an atomic
+	   increment in its ``then'' clause?}{
+	  Suppose that the ``if'' condition completed, finding
+	  the reference counter value equal to one.
+	  Suppose that a release operation executes, decrementing
+	  the reference counter to zero and therefore starting
+	  cleanup operations.
+	  But now the ``then'' clause can increment the counter
+	  back to a value of one, allowing the object to be
+	  used after it has been cleaned up.}
+% defer/rcufundamental.tex:28
+\QuickQuizAnswer{But doesn't seqlock also permit readers and updaters to get
+work done concurrently?}{
+Yes and no.
+Although seqlock readers can run concurrently with
+seqlock writers, whenever this happens, the {\tt read\_seqretry()}
+primitive will force the reader to retry.
+This means that any work done by a seqlock reader running concurrently
+with a seqlock updater will be discarded and redone.
+So seqlock readers can \emph{run} concurrently with updaters,
+but they cannot actually get any work done in this case.
+
+In contrast, RCU readers can perform useful work even in presence
+of concurrent RCU updaters.}
+% defer/rcufundamental.tex:282
+\QuickQuizAnswer{What prevents the {\tt list\_for\_each\_entry\_rcu()} from
+getting a segfault if it happens to execute at exactly the same
+time as the {\tt list\_add\_rcu()}?}{
+On all systems running Linux, loads from and stores
+to pointers are atomic, that is, if a store to a pointer occurs at
+the same time as a load from that same pointer, the load will return
+either the initial value or the value stored, never some bitwise mashup
+of the two.
+In addition, the {\tt list\_for\_each\_entry\_rcu()} always proceeds
+forward through the list, never looking back.
+Therefore, the {\tt list\_for\_each\_entry\_rcu()} will either see
+the element being added by {\tt list\_add\_rcu()} or it will not,
+but either way, it will see a valid well-formed list.}
+% defer/rcufundamental.tex:363
+\QuickQuizAnswer{Why do we need to pass two pointers into
+{\tt hlist\_for\_each\_entry\_rcu()}
+when only one is needed for {\tt list\_for\_each\_entry\_rcu()}?}{
+Because in an hlist it is necessary to check for
+NULL rather than for encountering the head.
+(Try coding up a single-pointer {\tt hlist\_for\_each\_entry\_rcu()}
+If you come up with a nice solution, it would be a very good thing!)}
+% defer/rcufundamental.tex:767
+\QuickQuizAnswer{How would you modify the deletion example to permit more than two
+versions of the list to be active?}{
+One way of accomplishing this is as follows:
+\\
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+{\tt
+  1 spin\_lock(\&mylock);\\
+  2 p = search(head, key);\\
+  3 if (p == NULL)\\
+  4 ~~spin\_unlock(\&mylock);\\
+  5 else \{\\
+  6 ~~list\_del\_rcu(\&p->list);\\
+  7 ~~spin\_unlock(\&mylock);\\
+  8 ~~synchronize\_rcu();\\
+  9 ~~kfree(p);\\
+ 10 \}\\
+}
+\end{minipage}
+\vspace{5pt}
+\\
+Note that this means that multiple concurrent deletions might be
+waiting in {\tt synchronize\_rcu()}.}
+% defer/rcufundamental.tex:792
+\QuickQuizAnswer{How many RCU versions of a given list can be
+active at any given time?}{
+That depends on the synchronization design.
+If a semaphore protecting the update is held across the grace period,
+then there can be at most two versions, the old and the new.
+
+However, if only the search, the update, and the
+{\tt list\_replace\_rcu()} were protected by a lock, then
+there could be an arbitrary number of versions active, limited only
+by memory and by how many updates could be completed within a
+grace period.
+But please note that data structures that are updated so frequently
+probably are not good candidates for RCU.
+That said, RCU can handle high update rates when necessary.}
+% defer/rcufundamental.tex:830
+\QuickQuizAnswer{How can RCU updaters possibly delay RCU readers, given that the
+{\tt rcu\_read\_lock()} and {\tt rcu\_read\_unlock()}
+primitives neither spin nor block?}{
+The modifications undertaken by a given RCU updater will cause the
+corresponding CPU to invalidate cache lines containing the data,
+forcing the CPUs running concurrent RCU readers to incur expensive
+cache misses.
+(Can you design an algorithm that changes a data structure \emph{without}
+inflicting expensive cache misses on concurrent readers?
+On subsequent readers?)}
+% defer/rcuusage.tex:82
+\QuickQuizAnswer{
+WTF???
+How the heck do you expect me to believe that RCU has a
+100-femtosecond overhead when the clock period at 3GHz is more than
+300 \emph{picoseconds}?}{
+First, consider that the inner loop used to
+take this measurement is as follows:
+\\
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+{\tt
+  1 for (i = 0; i < CSCOUNT\_SCALE; i++) \{\\
+  2 ~~rcu\_read\_lock();\\
+  3 ~~rcu\_read\_unlock();\\
+  4 \}
+}
+\end{minipage}
+\vspace{5pt}
+\\
+Next, consider the effective definitions of \url{rcu_read_lock()}
+and \url{rcu_read_unlock()}:
+\\
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+~\\
+{\tt
+  1 \#define rcu\_read\_lock()   do { } while (0)\\
+  2 \#define rcu\_read\_unlock() do { } while (0)
+}
+\end{minipage}
+\vspace{5pt}
+\\
+Consider also that the compiler does simple optimizations,
+allowing it to replace the loop with:
+\\ ~ \\
+\begin{minipage}[t]{\columnwidth}
+~\\
+{\tt
+i = CSCOUNT\_SCALE;
+}
+\end{minipage}
+\vspace{5pt}
+\\ ~ \\
+So the "measurement" of 100 femtoseconds is simply the fixed
+overhead of the timing measurements divided by the number of
+passes through the inner loop containing the calls
+to \url{rcu_read_lock()} and \url{rcu_read_unlock()}.
+And therefore, this measurement really is in error, in fact,
+in error by an arbitrary number of orders of magnitude.
+As you can see by the definition of \url{rcu_read_lock()}
+and \url{rcu_read_unlock()} above, the actual overhead
+is precisely zero.
+\\ ~ \\
+It certainly is not every day that a timing measurement of
+100 femtoseconds turns out to be an overestimate!}
+% defer/rcuusage.tex:179
+\QuickQuizAnswer{
+Why does both the variability and overhead of rwlock decrease as the
+critical-section overhead increases?}{
+Because the contention on the underlying
+\url{rwlock_t} decreases as the critical-section overhead
+increases.
+However, the rwlock overhead will not quite drop to that on a single
+CPU because of cache-thrashing overhead.}
+% defer/rcuusage.tex:209
+\QuickQuizAnswer{
+Is there an exception to this deadlock immunity, and if so,
+what sequence of events could lead to deadlock?}{
+One way to cause a deadlock cycle involving
+RCU read-side primitives is via the following (illegal) sequence
+of statements:
+
+\begin{minipage}[t]{\columnwidth}
+~\\
+{\tt
+idx = srcu\_read\_lock(\&srcucb);\\
+synchronize\_srcu(\&srcucb);\\
+srcu\_read\_unlock(\&srcucb, idx);
+}
+\end{minipage}
+\vspace{5pt}
+
+The \url{synchronize_rcu()} cannot return until all
+pre-existing SRCU read-side critical sections complete, but
+is enclosed in an SRCU read-side critical section that cannot
+complete until the \url{synchronize_srcu()} returns.
+The result is a classic self-deadlock--you get the same
+effect when attempting to write-acquire a reader-writer lock
+while read-holding it.
+
+Note that this self-deadlock scenario does not apply to
+RCU Classic, because the context switch performed by the
+\url{synchronize_rcu()} would act as a quiescent state
+for this CPU, allowing a grace period to complete.
+However, this is if anything even worse, because data used
+by the RCU read-side critical section might be freed as a
+result of the grace period completing.
+
+In short, do not invoke synchronous RCU update-side primitives
+from within an RCU read-side critical section.}
+% defer/rcuusage.tex:527
+\QuickQuizAnswer{
+But wait!
+This is exactly the same code that might be used when thinking
+of RCU as a replacement for reader-writer locking!
+What gives?}{
+This is an effect of the Law of Toy Examples:
+beyond a certain point, the code fragments look the same.
+The only difference is in how we think about the code.
+However, this difference can be extremely important.
+For but one example of the importance, consider that if we think
+of RCU as a restricted reference counting scheme, we would never
+be fooled into thinking that the updates would exclude the RCU
+read-side critical sections.
+\\ ~ \\
+It nevertheless is often useful to think of RCU as a replacement
+for reader-writer locking, for example, when you are replacing reader-writer
+locking with RCU.}
+% defer/rcuusage.tex:563
+\QuickQuizAnswer{
+Why the dip in refcnt overhead near 6 CPUs?}{
+Most likely NUMA effects.
+However, there is substantial variance in the values measured for the
+refcnt line, as can be seen by the error bars.
+In fact, standard deviations range in excess of 10% of measured
+values in some cases.
+The dip in overhead therefore might well be a statistical aberration.}
+% defer/rcuusage.tex:790
+\QuickQuizAnswer{
+Suppose that the \url{nmi_profile()} function was preemptible.
+What would need to change to make this example work correctly?}{
+One approach would be to use
+\url{rcu_read_lock()} and \url{rcu_read_unlock()}
+in \url{nmi_profile()}, and to replace the
+\url{synchronize_sched()} with \url{synchronize_rcu()},
+perhaps as shown in
+Figure~\ref{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}.
+\\ ~ \\
+\begin{figure}[tbp]
+{ \tt \scriptsize
+~\\
+~~1 struct profile\_buffer \{\\
+~~2 ~~long size;\\
+~~3 ~~atomic\_t entry[0];\\
+~~4 \};\\
+~~5 static struct profile\_buffer *buf = NULL;\\
+~~6 \\
+~~7 void nmi\_profile(unsigned long pcvalue)\\
+~~8 \{\\
+~~9 ~~struct profile\_buffer *p;\\
+~10 \\
+~11 ~~rcu\_read\_lock();\\
+~12 ~~p = rcu\_dereference(buf);\\
+~13 ~~if (p == NULL) \{\\
+~14 ~~~~rcu\_read\_unlock();\\
+~15 ~~~~return;\\
+~16 ~~\}\\
+~17 ~~if (pcvalue $>$= p-$>$size) \{\\
+~18 ~~~~rcu\_read\_unlock();\\
+~19 ~~~~return;\\
+~20 ~~\}\\
+~21 ~~atomic\_inc(\&p-$>$entry[pcvalue]);\\
+~22 ~~rcu\_read\_unlock();\\
+~23 \}\\
+~24 \\
+~25 void nmi\_stop(void)\\
+~26 \{\\
+~27 ~~struct profile\_buffer *p = buf;\\
+~28 \\
+~29 ~~if (p == NULL)\\
+~30 ~~~~return;\\
+~31 ~~rcu\_assign\_pointer(buf, NULL);\\
+~32 ~~synchronize\_rcu();\\
+~33 ~~kfree(p);\\
+~34 \}\\
+}
+\caption{Using RCU to Wait for Mythical Preemptable NMIs to Finish}
+\label{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
+\end{figure}
+}
+\QuickQuizChapterAnswer{sec:advsync:Advanced Synchronization}
+% advsync/memorybarriers.tex:165
+\QuickQuizAnswer{How on earth could the assertion on line~21 of the code in
+	Section~\ref{minipage:advsync:Intuition Considered Harmful} on
+	page~\pageref{minipage:advsync:Intuition Considered Harmful}
+	\emph{possibly} fail???}{
+	The key point is that the intuitive analysis missed is that
+	there is nothing preventing the assignment to C from overtaking
+	the assignment to A as both race to reach {\tt thread2()}.
+	This is explained in the remainder of this section.}
+% advsync/memorybarriers.tex:205
+\QuickQuizAnswer{What assumption is the code fragment
+	   in Figure~\ref{fig:advsync:Software Logic Analyzer}
+	   making that might not be valid on real hardware?}{
+	   The code assumes that as soon as a given CPU stops
+	   seeing its own value, it will immediately see the
+	   final agreed-upon value.
+	   On real hardware, some of the CPUs might well see several
+	   intermediate results before converging on the final value.}
+% advsync/memorybarriers.tex:265
+\QuickQuizAnswer{How could CPUs possibly have different views of the
+	   value of a single variable \emph{at the same time?}}{
+	   Many CPUs have write buffers that record the values of
+	   recent writes, which are applied once the corresponding
+	   cache line makes its way to the CPU.
+	   Therefore, it is quite possible for each CPU to see a
+	   different value for a given variable at a single point
+	   in time --- and for main memory to hold yet another value.
+	   One of the reasons that memory barriers were invented was
+	   to allow software to deal gracefully with situations like
+	   this one.}
+% advsync/memorybarriers.tex:278
+\QuickQuizAnswer{Why do CPUs~2 and 3 come to agreement so quickly, when it
+	   takes so long for CPUs~1 and 4 to come to the party?}{
+	   CPUs~2 and 3 are a pair of hardware threads on the same
+	   core, sharing the same cache hierarchy, and therefore have
+	   very low communications latencies.
+	   This is a NUMA, or, more accurately, a NUCA effect.
+
+	   This leads to the question of why CPUs~2 and 3 ever disagree
+	   at all.
+	   One possible reason is that they each might have a small amount
+	   of private cache in addition to a larger shared cache.
+	   Another possible reason is instruction reordering, given the
+	   short 10-nanosecond duration of the disagreement and the
+	   total lack of memory barriers in the code fragment.}
+% advsync/memorybarriers.tex:405
+\QuickQuizAnswer{But if the memory barriers do not unconditionally force
+	ordering, how the heck can a device driver reliably execute
+	sequences of loads and stores to MMIO registers???}{
+	MMIO registers are special cases: because they appear
+	in uncached regions of physical memory.
+	Memory barriers \emph{do} unconditionally force ordering
+	of loads and stores to uncached memory.
+	See Section~@@@ for more information on memory barriers
+	and MMIO regions.}
+% advsync/memorybarriers.tex:690
+\QuickQuizAnswer{How could the assertion {\tt b==2} on
+	page~\pageref{codesample:advsync:What Can You Count On? 1}
+	possibly fail?}{
+	If the CPU is not required to see all of its loads and
+	stores in order, then the {\tt b=1+a} might well see an
+	old version of the variable ``a''.
+	
+	This is why it is so very important that each CPU or thread
+	see all of its own loads and stores in program order.}
+% advsync/memorybarriers.tex:716
+\QuickQuizAnswer{How could the code on 
+	page~\pageref{codesample:advsync:What Can You Count On? 2}
+	possibly leak memory?}{
+	Only the first execution of the critical section should
+	see {\tt p==NULL}.
+	However, if there is no global ordering of critical sections for
+	{\tt mylock}, then how can you say that a particular one was
+	first?
+	If several different executions of that critical section thought
+	that they were first, they would all see {\tt p==NULL}, and
+	they would all allocate memory.
+	All but one of those allocations would be leaked.
+	
+	This is why it is so very important that all the critical sections
+	for a given exclusive lock appear to execute in some well-defined
+	order.}
+% advsync/memorybarriers.tex:750
+\QuickQuizAnswer{How could the code on 
+	page~\pageref{codesample:advsync:What Can You Count On? 2}
+	possibly count backwards?}{
+	Suppose that the counter started out with the value zero,
+	and that three executions of the critical section had therefore
+	brought its value to three.
+	If the fourth execution of the critical section is not constrained
+	to see the most recent store to this variable, it might well see
+	the original value of zero, and therefore set the counter to
+	one, which would be going backwards.
+	
+	This is why it is so very important that loads from a given variable
+	in a given critical
+	section see the last store from the last prior critical section to
+	store to that variable.}
+% advsync/memorybarriers.tex:1354
+\QuickQuizAnswer{What effect does the following sequence have on the
+	order of stores to variables ``a'' and ``b''? \\
+	{\tt ~~~~a = 1;} \\
+	{\tt ~~~~b = 1;} \\
+	{\tt ~~~~<write barrier>}}{
+	Absolutely none.  This barrier {\em would} ensure that the
+	assignments to ``a'' and ``b'' happened before any subsequent
+	assignments, but it does nothing to enforce any order of
+	assignments to ``a'' and ``b'' themselves.}
+% advsync/memorybarriers.tex:2006
+\QuickQuizAnswer{What sequence of LOCK-UNLOCK operations \emph{would}
+	act as a full memory barrier?}{
+	A series of two back-to-back LOCK-UNLOCK operations, or, somewhat
+	less conventionally, an UNLOCK operations followed by a LOCK
+	operation.}
+% advsync/memorybarriers.tex:2013
+\QuickQuizAnswer{What (if any) CPUs have memory-barrier instructions
+	from which these semi-permiable locking primitives might
+	be constructed?}{
+	Itanium is one example.
+	The identification of any others is left as an
+	exercise for the reader.}
+% advsync/memorybarriers.tex:2088
+\QuickQuizAnswer{Given that operations grouped in curly braces are executed
+	concurrently, which of the rows of
+	Table~\ref{tab:advsync:Lock-Based Critical Sections}
+	are legitimate reorderings of the assignments to variables
+	``A'' through ``F'' and the LOCK/UNLOCK operations?
+	(The order in the code is A, B, LOCK, C, D, UNLOCK, E, F.)
+	Why or why not?}{
+	(1) Legitimate, executed in order.
+
+	(2) Legitimate, the lock acquisition was executed concurrently
+	with the last assignment preceding the critical section.
+
+	(3) Illegitimate, the assignment to ``F'' must follow the LOCK
+	operation.
+
+	(4) Illegitimate, the LOCK must complete before any operation in
+	the critical section.  However, the UNLOCK may legitimately
+	be executed concurrently with subsequent operations.
+
+	(5) Legitimate, the assignment to ``A'' precedes the UNLOCK,
+	as required, and all other operations are in order.
+
+	(6) Illegitimate, the assignment to ``C'' must follow the LOCK.
+
+	(7) Illegitimate, the assignment to ``D'' must precede the UNLOCK.
+
+	(8) Legitimate, all assignments are ordered with respect to the
+	LOCK and UNLOCK operations.
+
+	(9) Illegitimate, the assignment to ``A'' must precede the UNLOCK.
+	}
+% advsync/memorybarriers.tex:2148
+\QuickQuizAnswer{What are the constraints for 
+	   Table~\ref{tab:advsync:Lock-Based Critical Sections}?}{
+	   They are as follows: \\
+	   (1) LOCK M must precede B, C, and D. \\
+	   (2) UNLOCK M must follow A, B, and C. \\
+	   (3) LOCK Q must precede F, G, and H. \\
+	   (4) UNLOCK Q must follow E, F, and G.}
+\QuickQuizChapterAnswer{chp:Ease of Use}
+% easy/easy.tex:133
+\QuickQuizAnswer{Can a similar algorithm be used when deleting elements?}{
+	Yes.
+	However, since each thread must hold the locks of three
+	consecutive elements to delete the middle one, if there
+	are $N$ threads, there must be $2N+1$ elements (rather than
+	just $N+1$ in order to avoid deadlock.}
+% easy/easy.tex:153
+\QuickQuizAnswer{Yetch!!!
+	What ever possessed someone to come up with an algorithm
+	that deserves to be shaved as much as this one does???}{
+	That would be Paul.
+
+	He was considering the \emph{Dining Philosopher's Problem}, which
+	involves a rather unsanitary spaghetti dinner attended by
+	five philosphers.
+	Given that there are five plates and but five forks on the table, and
+	given that each philosopher requires two forks at a time to eat,
+	one is supposed to come up with a fork-allocation algorithm that
+	avoids deadlock.
+	Paul's response was ``Sheesh!!!  Just get five more forks!!!''.
+
+	This in itself was OK, but Paul then applied this same solution to
+	circular linked lists.
+
+	This would not have been so bad either, but he had to go and tell
+	someone about it!!!}
+% easy/easy.tex:181
+\QuickQuizAnswer{Give an exception to this rule.}{
+	One exception would be a difficult and complex algorithm that
+	was the only one known to work in a given situation.
+	Another exception would be a difficult and complex algorithm
+	that was nonetheless the simplest of the set known to work in
+	a given situation.
+	However, even in these cases, it may be very worthwhile to spend
+	a little time trying to come up with a simpler algorithm!
+	After all, if you managed to invent the first algorithm
+	to do some task, it shouldn't be that hard to go on to
+	invent a simpler one.}

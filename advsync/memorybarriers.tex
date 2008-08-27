@@ -1,0 +1,2297 @@
+% advsync/memorybarriers.tex
+
+\section{Memory Barriers}
+\label{sec:advsync:Memory Barriers}
+
+Author: David Howells and Paul McKenney.
+
+Causality and sequencing are deeply intuitive, and hackers often
+tend to have a much stronger grasp of these concepts than does
+the general population.
+These intuitions can be extremely powerful tools when writing, analyzing,
+and debugging both sequential code and parallel code that makes
+use of standard mutual-exclusion mechanisms, such as locking and
+RCU.
+
+Unfortunately, these intuitions break down completely in face of
+code that makes direct use of explicit memory barriers for data structures
+in shared memory (driver writers making use of MMIO registers can
+place greater trust in their intuition, but more on this @@@ later).
+The following sections show exactly where this intuition breaks down,
+and then puts forward a mental model of memory barriers that can help
+you avoid these pitfalls.
+
+Section~\ref{sec:advsync:Memory Ordering and Memory Barriers}
+gives a brief overview of memory ordering and memory barriers.
+Once this background is in place, the next step is to get you to admit
+that your intuition has a problem.
+This painful task is taken up by
+Section~\ref{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?},
+which shows an intuitively correct code fragment that fails miserably
+on real hardware, and by
+Section~\ref{sec:advsync:Variables Can Have More Than One Value},
+which presents some code demonstrating that scalar variables can
+take on multiple values simultaneously.
+Once your intuition has made it through the grieving process,
+Section~\ref{sec:advsync:What Can You Trust?}
+provides the basic rules that memory barriers follow, rules that we
+will build upon.
+
+@@@ roadmap...
+
+\subsection{Memory Ordering and Memory Barriers}
+\label{sec:advsync:Memory Ordering and Memory Barriers}
+
+But why are memory barriers needed in the first place?
+Can't CPUs keep track of ordering on their own?
+Isn't that why we have computers in the first place, to keep track of things?
+
+Many people do indeed expect their computers to keep track of things,
+but many also insist that they keep track of things quickly.
+One difficulty that modern computer-system vendors face is that
+the main memory cannot keep up with the CPU -- modern CPUs can execute
+hundreds of instructions in time required to fetch a single variable
+from memory.
+CPUs therefore sport increasingly large caches, as shown in
+Figure~\ref{fig:advsync:Modern Computer System Cache Structure}.
+Variables that are heavily used by a given CPU will tend to remain
+in that CPU's cache, allowing high-speed access to the corresponding
+data.
+
+\begin{figure}[htb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{appendix/whymb/cacheSC}}
+\end{center}
+\caption{Modern Computer System Cache Structure}
+\label{fig:advsync:Modern Computer System Cache Structure}
+\end{figure}
+
+Unfortunately, when a CPU accesses data that is not yet in its cache
+will result in an expensive ``cache miss'', requiring the data to
+be fetched from main memory.
+Doubly unfortunately, running typical code results in a significant
+number of cache misses.
+To limit the resulting performance degradation, CPUs have been designed to
+execute other instructions and memory references while waiting for the
+a cache miss to fetch data from memory.
+This clearly causes instructions and memory references to execute out
+of order, which could cause serious confusion, as illustrated in
+Figure~\ref{fig:advsync:CPUs Can Do Things Out of Order}.
+Compilers and synchronization primitives (such as locking and RCU)
+are responsible for maintaining the illusion of ordering through use of
+``memory barriers'' (for example, \url{smp_mb()} in the Linux kernel).
+These memory barriers can be explicit instructions, as they are on
+ARM, POWER, Itanium, and Alpha, or they can be implied by other instructions,
+as they are on x86.
+
+\begin{figure}[htb]
+\begin{center}
+\resizebox{3in}{2in}{\includegraphics{cartoons/CPU_toon_outoforder_colored}}
+\end{center}
+\caption{CPUs Can Do Things Out of Order}
+\label{fig:advsync:CPUs Can Do Things Out of Order}
+\end{figure}
+
+Since the standard synchronization primitives preserve the illusion of
+ordering, your path of least resistance is to stop reading
+this section and simply use these primitives.
+
+However, if you need to implement the synchronization primitives
+themselves, or if you are simply interested in understanding how memory
+ordering and memory barriers work, read on!
+
+The next sections present counter-intuitive scenarios that you might
+encounter when using explicit memory barriers.
+
+\subsection{If B Follows A, and C Follows B, Why Doesn't C Follow A?}
+\label{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?}
+
+Memory ordering and memory barriers can be extremely counter-intuitive.
+For example, consider the following functions executing in parallel
+where variables A, B, and C are initially zero:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+  1 thread0(void)
+  2 {
+  3   A = 1;
+  4   smp_wmb();
+  5   B = 1;
+  6 }
+  7 
+  8 thread1(void)
+  9 {
+ 10   while (B != 1)
+ 11     continue;
+ 12   barrier();
+ 13   C = 1;
+ 14 }
+ 15 
+ 16 thread2(void)
+ 17 {
+ 18   while (C != 1)
+ 19     continue;
+ 20   smp_mb();
+ 21   assert(A != 0);
+ 22 }
+ 23 assert(b == 2);
+\end{verbatim}
+\label{minipage:advsync:Intuition Considered Harmful}
+\end{minipage}
+\vspace{5pt}
+
+Intuitively, \url{thread0()} assigns to B after it assigns to A,
+\url{thread1()} waits until \url{thread0()} has assigned to B before
+assigning to C, and \url{thread2()} waits until \url{thread1()} has
+assigned to C before referencing A.
+Therefore, again intuitively, the assertion on line~21 cannot possibly
+fire.
+
+This line of reasoning, intuitively obvious though it may be, is completely
+and utterly incorrect.
+Please note that this is \emph{not} a theoretical assertion:
+actually running this code on real-world weakly-ordered hardware
+(a 1.5GHz 16-CPU POWER 5 system) resulted in the assertion firing
+16 times out of 10 million runs.
+Clearly, anyone who produces code with explicit memory barriers
+should do some extreme testing -- although a proof of correctness might
+be helpful, the strongly counter-intuitive nature of the behavior of
+memory barriers should in turn strongly limit one's trust in such proofs.
+The requirement for extreme testing should not be taken lightly, given
+that a number of dirty hardware-dependent tricks were used to
+greatly \emph{increase} the probability of failure in this run.
+
+\QuickQuiz{How on earth could the assertion on line~21 of the code in
+	Section~\ref{minipage:advsync:Intuition Considered Harmful} on
+	page~\pageref{minipage:advsync:Intuition Considered Harmful}
+	\emph{possibly} fail???}{
+	The key point is that the intuitive analysis missed is that
+	there is nothing preventing the assignment to C from overtaking
+	the assignment to A as both race to reach {\tt thread2()}.
+	This is explained in the remainder of this section.}
+\QuickQuizEnd
+
+So what should you do?
+Your best strategy, if possible, is to use existing primitives that
+incorporate any needed memory barriers, so that you can simply ignore
+the rest of this chapter.
+
+Of course, if you are implementing synchronization primitives,
+you don't have this luxury.
+The following discussion of memory ordering and memory barriers
+is for you.
+
+\subsection{Variables Can Have More Than One Value}
+\label{sec:advsync:Variables Can Have More Than One Value}
+
+It is natural to think of a variable as taking on a well-defined
+sequence of variables in a well-defined, global order.
+Unfortunately, it is time to say ``goodbye'' to this sort of comforting
+fiction.
+
+To see this, consider the program fragment shown in
+Figure~\ref{fig:advsync:Software Logic Analyzer}.
+This code fragment is executed in parallel by several CPUs.
+Line~1 sets a shared variable to the current CPU's ID, line~2
+initializes several variables from a \url{gettb()} function that
+delivers a the value of fine-grained hardware ``timebase'' counter that is
+synchronized among all CPUs (not available from all CPU architectures,
+unfortunately!), and the loop from lines~3-8 records the length of
+time that the variable retains the value that this CPU assigned to it.
+Of course, one of the CPUs will ``win'', and would thus never exit
+the loop if not for the check on lines~7-8.
+
+\QuickQuiz{What assumption is the code fragment
+	   in Figure~\ref{fig:advsync:Software Logic Analyzer}
+	   making that might not be valid on real hardware?}{
+	   The code assumes that as soon as a given CPU stops
+	   seeing its own value, it will immediately see the
+	   final agreed-upon value.
+	   On real hardware, some of the CPUs might well see several
+	   intermediate results before converging on the final value.}
+\QuickQuizEnd
+
+\begin{figure}[htbp] 
+{ \scriptsize
+\begin{verbatim}
+  1 state.variable = mycpu;
+  2 lasttb = oldtb = firsttb = gettb();
+  3 while (state.variable == mycpu) {
+  4   lasttb = oldtb;
+  5   oldtb = gettb();
+  6   if (lasttb - firsttb > 1000)
+  7     break;
+  8 }
+\end{verbatim}
+}
+\caption{Software Logic Analyzer}
+\label{fig:advsync:Software Logic Analyzer}
+\end{figure}
+
+Upon exit from the loop, \url{firsttb} will hold a timestamp
+taken shortly after the assignment and \url{lasttb} will hold
+a timestamp taken before the last sampling of the shared variable
+that still retained the assigned value, or a value equal to \url{firsttb}
+if the shared variable had changed before entry into the loop.
+This allows us to plot each CPU's view of the value of \url{state.variable}
+over a 532-nanosecond time period, as shown in
+Figure~\ref{fig:advsync:A Variable With Multiple Simultaneous Values}.
+This data was collected on 1.5GHz POWER5 system with 8 cores, each containing
+a pair of hardware threads.
+CPUs~1, 2, 3, and 4 recorded the values, while CPU 0 controlled the test.
+The timebase counter period was about 5.32ns, sufficiently fine-grained
+to allow observations of intermediate cache states.
+
+\begin{figure}[htb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{advsync/MoreThanOneValue}}
+\end{center}
+\caption{A Variable With Multiple Simultaneous Values}
+\label{fig:advsync:A Variable With Multiple Simultaneous Values}
+\end{figure}
+
+Each horizontal bar represents the observations of a given CPU over time,
+with the black regions to the left indicating the time before the
+corresponding CPU's first measurement.
+During the first 5ns, only CPU~3 has an opinion about the value of the
+variable.
+During the next 10ns, CPUs~2 and 3 disagree on the value of the variable,
+but thereafter agree that the value is ``2'', which is in fact
+the final agreed-upon value.
+However, CPU~1 believes that the value is ``1'' for almost 300ns, and
+CPU~4 believes that the value is ``4'' for almost 500ns.
+
+\QuickQuiz{How could CPUs possibly have different views of the
+	   value of a single variable \emph{at the same time?}}{
+	   Many CPUs have write buffers that record the values of
+	   recent writes, which are applied once the corresponding
+	   cache line makes its way to the CPU.
+	   Therefore, it is quite possible for each CPU to see a
+	   different value for a given variable at a single point
+	   in time --- and for main memory to hold yet another value.
+	   One of the reasons that memory barriers were invented was
+	   to allow software to deal gracefully with situations like
+	   this one.}
+\QuickQuizEnd
+
+\QuickQuiz{Why do CPUs~2 and 3 come to agreement so quickly, when it
+	   takes so long for CPUs~1 and 4 to come to the party?}{
+	   CPUs~2 and 3 are a pair of hardware threads on the same
+	   core, sharing the same cache hierarchy, and therefore have
+	   very low communications latencies.
+	   This is a NUMA, or, more accurately, a NUCA effect.
+
+	   This leads to the question of why CPUs~2 and 3 ever disagree
+	   at all.
+	   One possible reason is that they each might have a small amount
+	   of private cache in addition to a larger shared cache.
+	   Another possible reason is instruction reordering, given the
+	   short 10-nanosecond duration of the disagreement and the
+	   total lack of memory barriers in the code fragment.}
+\QuickQuizEnd
+
+We have entered a regime where we must bade a fond farewell to
+comfortable intuitions about values of variables and the passage of time.
+This is the regime where memory barriers are needed.
+
+% Abandon all hope, ye who enter here! @@@  Too snarky?
+
+\subsection{What Can You Trust?}
+\label{sec:advsync:What Can You Trust?}
+
+You most definitely cannot trust your intuition.
+
+What \emph{can} you trust?
+
+It turns out that there are a few reasonably simple rules that
+allow you to make good use of memory barriers.
+This section derives those rules, for those who wish to get
+to the bottom of the memory-barrier story, at least from the viewpoint
+of portable code.
+If you just want to be told what the rules are rather than suffering
+through the actual derivation,
+please feel free to skip to Section~\ref{sec:advsync:A Few Simple Rules}.
+
+The exact semantics of memory barriers vary wildly from one CPU to
+another, so portable code must rely only on the least-common-denominator
+semantics of memory barriers.
+
+Fortunately, all CPUs impose the following rules:
+\begin{enumerate}
+\item	All accesses by a given CPU will appear to that CPU to have
+	occurred in program order.
+\item	All CPUs' accesses to a single variable will be consistent with
+	some global ordering of stores to that variable.
+\item	Memory barriers will operate in a pair-wise fashion.
+\item	Operations will be provided from which exclusive locking
+	primitives may be constructed.
+\end{enumerate}
+
+Therefore, if you need to use memory barriers in portable code,
+you can rely on all of these properties.\footnote{
+	Or, better yet, you can avoid explicit use of memory barriers
+	entirely.
+	But that would be the subject of other sections.}
+Each of these properties is described in the following sections.
+
+\subsubsection{Self-References Are Ordered}
+
+A given CPU will see its own accesses as occuring in ``program order'',
+as if the CPU was executing only one instruction at a time with no
+reordering or speculation.
+For older CPUs, this restriction is necessary for binary compatibility,
+and only secondarily for the sanity of us software types.
+There have been a few CPUs that violate this rule to a limited extent,
+but in those cases, the compiler has been responsible
+for ensuring that ordering is explicitly enforced as needed.
+
+Either way, from the programmer's viewpoint, the CPU sees its own accesses
+in program order.
+
+\subsubsection{Single-Variable Memory Consistency}
+
+If a group of CPUs all do concurrent stores to a single variable,
+the series of values seen by all CPUs will be consistent with at
+least one global ordering.
+For example, in the series of accesses shown in
+Figure~\ref{fig:advsync:A Variable With Multiple Simultaneous Values},
+CPU~1 sees the sequence \url{{1,2}},
+CPU~2 sees the sequence \url{{2}},
+CPU~3 sees the sequence \url{{3,2}},
+and
+CPU~4 sees the sequence \url{{4,2}}.
+This is consistent with the global sequence \url{{3,1,4,2}},
+but also with all five of the other sequence of these four numbers that end
+in ``2''.
+
+Had the CPUs used atomic operations (such as the Linux kernel's
+\url{atomic_inc_return()} primitive) rather than simple stores of
+unique values, their observations would
+be guaranteed to determine a single globally consistent sequence of values.
+
+\subsubsection{Pair-Wise Memory Barriers}
+
+Pair-wise memory barriers provide conditional ordering semantics.
+For example, in the following set of operations, CPU~1's access to
+A does not unconditionally precede its access to B from the viewpoint
+of an external logic analyzer
+\IfInBook{(see Appendix~\ref{chp:app:whymb:Why Memory Barriers?}
+	  for examples).
+	 }
+	 {(the system is only to act \emph{as if} the accesses
+	  are in order; it is not necessarily required to actually
+	  force them to be in order).}
+However, if CPU~2's access to B sees the result of CPU~1's access
+to B, then CPU~2's access to A is guaranteed to see the result of
+CPU~1's access to A.
+Although some CPUs' memory barriers do in fact provide stronger,
+unconditional ordering guarantees, portable code may rely only
+on this weaker if-then conditional ordering guarantee.
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|l}
+	CPU 1 &			CPU 2 \\
+	\hline
+	\url{access(A);} &	\url{access(B);} \\
+	\url{smp_mb();} &	\url{smp_mb();} \\
+	\url{access(B);} &	\url{access(A);} \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+\QuickQuiz{But if the memory barriers do not unconditionally force
+	ordering, how the heck can a device driver reliably execute
+	sequences of loads and stores to MMIO registers???}{
+	MMIO registers are special cases: because they appear
+	in uncached regions of physical memory.
+	Memory barriers \emph{do} unconditionally force ordering
+	of loads and stores to uncached memory.
+	See Section~@@@ for more information on memory barriers
+	and MMIO regions.}
+\QuickQuizEnd
+
+Of course, accesses must be either loads or stores, and these
+do have different properties.
+Table~\ref{tab:advsync:Memory-Barrier Combinations}
+shows all possible combinations of loads and stores from a pair
+of CPUs.
+Of course, to enforce conditional ordering, there must be
+a memory barrier between each CPU's pair of operations.
+
+\begin{table*}
+\begin{center}
+\begin{tabular}{r||c|c||c|c||l}
+	\multicolumn{2}{c||}{CPU 1} &
+		\multicolumn{2}{c||}{CPU 2} & Description \\
+	\hline
+	\hline
+	0 & load(A) & load(B) & load(B) & load(A) &
+		Ears to ears. \\
+	1 & load(A) & load(B) & load(B) & store(A) &
+		Only one store. \\
+	2 & load(A) & load(B) & store(B) & load(A) &
+		Only one store. \\
+	3 & load(A) & load(B) & store(B) & store(A) &
+		Pairing 1. \\
+	\hline
+	4 & load(A) & store(B) & load(B) & load(A) &
+		Only one store. \\
+	5 & load(A) & store(B) & load(B) & store(A) &
+		Pairing 2. \\
+	6 & load(A) & store(B) & store(B) & load(A) &
+		Mouth to mouth, ear to ear. \\
+	7 & load(A) & store(B) & store(B) & store(A) &
+		Pairing 3. \\
+	\hline
+	8 & store(A) & load(B) & load(B) & load(A) &
+		Only one store. \\
+	9 & store(A) & load(B) & load(B) & store(A) &
+		Mouth to mouth, ear to ear. \\
+	A & store(A) & load(B) & store(B) & load(A) &
+		Ears to mouths. \\
+	B & store(A) & load(B) & store(B) & store(A) &
+		Stores ``pass in the night''. \\
+	\hline
+	C & store(A) & store(B) & load(B) & load(A) &
+		Pairing 1. \\
+	D & store(A) & store(B) & load(B) & store(A) &
+		Pairing 3. \\
+	E & store(A) & store(B) & store(B) & load(A) &
+		Stores ``pass in the night''. \\
+	F & store(A) & store(B) & store(B) & store(A) &
+		Stores ``pass in the night''. \\
+\end{tabular}
+\end{center}
+\caption{Memory-Barrier Combinations}
+\label{tab:advsync:Memory-Barrier Combinations}
+\end{table*}
+
+\subsubsection{Pair-Wise Memory Barriers: Portable Combinations}
+
+The following pairings from
+Table~\ref{tab:advsync:Memory-Barrier Combinations},
+enumerate all the combinations of memory-barrier
+pairings that portable software may depend on.
+
+\paragraph{Pairing 1.}
+	In this pairing, one CPU executes a pair of loads separated
+	by a memory barrier, while a second CPU executes a pair
+	of stores also separated by a memory barrier, as follows
+	(both A and B are initially equal to zero):
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\tt
+	\begin{tabular}{l|l}
+		CPU 1 &			CPU 2 \\
+		\hline
+		\url{A=1;} &		\url{Y=B;} \\
+		\url{smp_mb();} &	\url{smp_mb();} \\
+		\url{B=1;} &		\url{X=A;} \\
+	\end{tabular}
+	\end{minipage}
+	\vspace{5pt}
+	After both CPUs have completed executing these code sequences,
+	if \url{Y==1}, then we must also have \url{X==1}.
+	In this case, the fact that \url{Y==1} means that
+	CPU~2's load prior to its memory barrier has
+	seen the store following CPU~1's memory barrier.
+	Due to the pairwise nature of memory barriers, CPU~2's
+	load following its memory barrier must therefore see
+	the store that precedes CPU~1's memory barrier, so that
+	\url{Y==1}.
+
+	On the other hand, if \url{Y==0}, the memory-barrier condition
+	does not hold, and so in this case, X could be either 0 or 1.
+
+\paragraph{Pairing 2.}
+	In this pairing, each CPU executes a load followed by a
+	memory barrier followed by a store, as follows
+	(both A and B are initially equal to zero):
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\tt
+	\begin{tabular}{l|l}
+		CPU 1 &			CPU 2 \\
+		\hline
+		\url{X=A;} &		\url{Y=B;} \\
+		\url{smp_mb();} &	\url{smp_mb();} \\
+		\url{B=1;} &		\url{A=1;} \\
+	\end{tabular}
+	\end{minipage}
+	\vspace{5pt}
+	After both CPUs have completed executing these code sequences,
+	if \url{X==1}, then we must also have \url{Y==0}.
+	In this case, the fact that \url{X==1} means that
+	CPU~1's load prior to its memory barrier has
+	seen the store following CPU~2's memory barrier.
+	Due to the pairwise nature of memory barriers, CPU~1's
+	store following its memory barrier must therefore see
+	the results of CPU~2's load preceding its memory barrier,
+	so that \url{Y==0}.
+
+	On the other hand, if \url{X==0}, the memory-barrier condition
+	does not hold, and so in this case, Y could be either 0 or 1.
+
+	The two CPUs' code sequences are symmetric, so if \url{Y==1}
+	after both CPUs have finished executing these code sequences,
+	then we must have \url{X==0}.
+
+\paragraph{Pairing 3.}
+	In this pairing, one CPU executes a load followed by a
+	memory barrier followed by a store, while the other CPU
+	executes a pair of stores separated by a memory barrier,
+	as follows (both A and B are initially equal to zero):
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\tt
+	\begin{tabular}{l|l}
+		CPU 1 &			CPU 2 \\
+		\hline
+		\url{X=A;} &		\url{B=2;} \\
+		\url{smp_mb();} &	\url{smp_mb();} \\
+		\url{B=1;} &		\url{A=1;} \\
+	\end{tabular}
+	\end{minipage}
+	\vspace{5pt}
+	After both CPUs have completed executing these code sequences,
+	if \url{X==1}, then we must also have \url{B==1}.
+	In this case, the fact that \url{X==1} means that
+	CPU~1's load prior to its memory barrier has
+	seen the store following CPU~2's memory barrier.
+	Due to the pairwise nature of memory barriers, CPU~1's
+	store following its memory barrier must therefore see
+	the results of CPU~2's store preceding its memory barrier.
+	This means that CPU~1's store to B will overwrite CPU~2's
+	store to B, resulting in \url{B==1}.
+
+	On the other hand, if \url{X==0}, the memory-barrier condition
+	does not hold, and so in this case, B could be either 1 or 2.
+
+\subsubsection{Pair-Wise Memory Barriers: Non-Portable Combinations}
+
+In the following pairings from
+Table~\ref{tab:advsync:Memory-Barrier Combinations},
+the memory barriers have no effect that portable code can
+safely depend on.
+
+\paragraph{Ears to Ears.}
+	Since loads do not change the state of memory
+	(ignoring MMIO registers for the moment),
+	it is not possible for one of the loads to see the
+	results of the other load.
+
+\paragraph{Ears to Mouths.}
+	Since the stores cannot see the results of the loads
+	(again, ignoring MMIO registers for the moment),
+	it is not possible to determine whether the memory-barrier
+	condition has been met.
+
+\paragraph{Mouth to Mouth, Ear to Ear.}
+	One of the variables is only loaded from, and the other
+	is only stored to.
+	Because (once again, ignoring MMIO registers) it is not
+	possible for one load to see the results of the other,
+	it is not possible to detect the conditional ordering
+	provided by the memory barrier.
+	(Yes, it is possible to determine which store happened
+	last, but this does not depend on the memory barrier.)
+
+\paragraph{Only One Store.}
+	Because there is only one store, only one of the variables
+	permits one CPU to see the results of the other CPU's
+	access.
+	Therefore, there is no way to detect the
+	conditional ordering provided by the memory barriers.
+	(Yes, it is possible to determine whether or not the
+	load saw the result of the corresponding store, but this
+	does not depend on the memory barrier.)
+
+\paragraph{Stores ``Pass in the Night''.}
+	In the following example, after both CPUs have finished
+	executing their code sequences, it is quite tempting ot
+	conclude that the result \url{{A==1,B==2}} cannot happen.
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\tt
+	\begin{tabular}{l|l}
+		CPU 1 &			CPU 2 \\
+		\hline
+		\url{A=1;} &		\url{B=2;} \\
+		\url{smp_mb();} &	\url{smp_mb();} \\
+		\url{B=1;} &		\url{A=2;} \\
+	\end{tabular}
+	\end{minipage}
+	\vspace{5pt}
+	Unfortunately, such a conclusion does not necessarily hold.
+	Suppose that the cache line containing A is initially owned
+	by CPU~2, and that containing B is initially owned by CPU~1.
+	Then, in systems that have invalidation queues and store
+	buffers, it is possible for the first assigments to ``pass
+	in the night'', so that the second assignments actually
+	happen first.
+	\IfInBook{This strange (but quite common) effect is explained in
+	          Appendix~\ref{chp:app:whymb:Why Memory Barriers?}.
+		 }
+		 {}
+
+	This same effect can happen in any memory-barrier pairing
+	where each CPU's memory barrier is preceded by a store,
+	including the ``ears to mouths'' pairing.
+
+\subsubsection{Semantics Sufficient to Implement Locking}
+
+Suppose we have an exclusive lock (\url{spinlock_t} in the Linux
+kernel, \url{pthread_mutex_t} in pthreads code) that guards a number
+of variables (in other words, these variables are not accessed except
+from the lock's critical sections).
+The following properties must then hold true:
+\begin{enumerate}
+\item	A given CPU or thread must see all of its own loads and stores
+	as if they had occurred in program order.
+\item	The lock acquisitions and releases must appear to have executed
+	in a single global order.\footnote{
+		Of course, this order might be different from one run
+		to the next.
+		On any given run, however, all CPUs and threads must
+		have a consistent view of the order of critical sections
+		for a given exclusive lock.}
+\item	Suppose a given variable has not yet been stored to in a
+	critical section that is currently executing.
+	Then any load from a given variable performed in that critical section
+	must see the last store to that variable from the last previous
+	critical section that stored to it.
+\end{enumerate}
+
+The difference between the last two properties is a bit subtle:
+the second requires that the lock acquisitions and releases occur
+in a well-defined order, while the third requires that the critical
+sections not ``bleed out'' far enough to cause difficulties for
+other critical section.
+
+Why are these properties necessary?
+
+Suppose the first property did not hold.
+Then the assertion in the following code might well fail!
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+a = 1;
+b = 1 + a;
+assert(b == 2);
+\end{verbatim}
+\end{minipage}
+\label{codesample:advsync:What Can You Count On? 1}
+\vspace{5pt}
+
+\QuickQuiz{How could the assertion {\tt b==2} on
+	page~\pageref{codesample:advsync:What Can You Count On? 1}
+	possibly fail?}{
+	If the CPU is not required to see all of its loads and
+	stores in order, then the {\tt b=1+a} might well see an
+	old version of the variable ``a''.
+	
+	This is why it is so very important that each CPU or thread
+	see all of its own loads and stores in program order.}
+\QuickQuizEnd
+
+Suppose that the second property did not hold.
+Then the following code might leak memory!
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+spin_lock(&mylock);
+if (p == NULL)
+  p = kmalloc(sizeof(*p), GFP_KERNEL);
+spin_unlock(&mylock);
+\end{verbatim}
+\end{minipage}
+\label{codesample:advsync:What Can You Count On? 2}
+\vspace{5pt}
+
+\QuickQuiz{How could the code on 
+	page~\pageref{codesample:advsync:What Can You Count On? 2}
+	possibly leak memory?}{
+	Only the first execution of the critical section should
+	see {\tt p==NULL}.
+	However, if there is no global ordering of critical sections for
+	{\tt mylock}, then how can you say that a particular one was
+	first?
+	If several different executions of that critical section thought
+	that they were first, they would all see {\tt p==NULL}, and
+	they would all allocate memory.
+	All but one of those allocations would be leaked.
+	
+	This is why it is so very important that all the critical sections
+	for a given exclusive lock appear to execute in some well-defined
+	order.}
+\QuickQuizEnd
+
+Suppose that the third property did not hold.
+Then the counter shown in the following code might well count backwards.
+This third property is crucial, as it cannot be strictly with
+pairwise memory barriers.
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+spin_lock(&mylock);
+ctr = ctr + 1;
+spin_unlock(&mylock);
+\end{verbatim}
+\end{minipage}
+\label{codesample:advsync:What Can You Count On? 3}
+\vspace{5pt}
+
+\QuickQuiz{How could the code on 
+	page~\pageref{codesample:advsync:What Can You Count On? 2}
+	possibly count backwards?}{
+	Suppose that the counter started out with the value zero,
+	and that three executions of the critical section had therefore
+	brought its value to three.
+	If the fourth execution of the critical section is not constrained
+	to see the most recent store to this variable, it might well see
+	the original value of zero, and therefore set the counter to
+	one, which would be going backwards.
+	
+	This is why it is so very important that loads from a given variable
+	in a given critical
+	section see the last store from the last prior critical section to
+	store to that variable.}
+\QuickQuizEnd
+
+If you are convinced that these rules are necessary, let's look at how
+they interact with a typical locking implementation.
+
+\subsection{Review of Locking Implementations}
+\label{sec:advsync:Review of Locking Implementations}
+
+Naive pseudocode for simple lock and unlock operations are shown below.
+Note that the \url{atomic_xchg()} primitive implies a memory barrier
+both before and after the atomic exchange operation.
+Note also that, despite the names, \url{atomic_read()} and
+\url{atomic_set()} do \emph{not}
+execute any atomic instructions, instead, it merely executes a
+simple load and store, respectively.
+This pseudocode follows a number of Linux implementations for
+the unlock operation, which is a simple non-atomic store following a
+memory barrier.
+These minimal implementations must possess all the locking properties
+laid out in Section~\ref{sec:advsync:What Can You Trust?}.
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+  1 void spin_lock(spinlock_t *lck)
+  2 {
+  3   while (atomic_xchg(&lck->a, 1) != 0)
+  4     while (atomic_read(&lck->a) != 0)
+  5       continue;
+  6   smp_mb();
+  7 }
+  8 
+  9 void spin_unlock(spinlock_t lck)
+ 10 {
+ 11   smp_mb();
+ 12   atomic_set(&lck->a, 0);
+ 13 }
+\end{verbatim}
+\end{minipage}
+\label{codesample:advsync:Naive Lock and Unlock Pseudocode}
+\vspace{5pt}
+
+However, a \url{spin_lock()} primitive cannot proceed until
+the preceding \url{spin_unlock()} primitive completes.
+If CPU~1 is releasing a lock that CPU~2 is attempting to acquire,
+the sequence of operations might be as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|l}
+	CPU 1 &			CPU 2 \\
+	\hline
+	(critical section) &	\url{atomic_xchg(&lck->a, 1)->1} \\
+	\url{smp_mb();} &	\url{lck->a->1} \\
+	\url{lck->a=0;} &	\url{lck->a->1} \\
+	&			\url{lck->a->0} \\
+	&			(implicit \url{smp_mb()} 1) \\
+	&			\url{atomic_xchg(&lck->a, 1)->0} \\
+	&			(implicit \url{smp_mb()} 2) \\
+	&			(critical section) \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+In this particular case, pairwise memory barriers suffice to keep
+the two critical sections in place.
+CPU~2's \url{atomic_xchg(&lck->a, 1)} has seen CPU~1's \url{lck->a=0},
+so therefore everything in CPU~2's following critical section must see
+everything that CPU~1's preceding critical section did.
+Conversely, CPU~1's critical section cannot see anything that CPU~2's
+critical section will do.
+
+@@@
+
+\subsection{A Few Simple Rules}
+\label{sec:advsync:A Few Simple Rules}
+
+@@@
+
+Probably the easiest way to understand memory barriers is to understand
+a few simple rules:
+
+\begin{enumerate}
+\item	Each CPU sees its own accesses in order.
+\item	If a single shared variable is loaded and stored by multiple
+	CPUs, then the series of values seen by a given CPU will be
+	consistent with the series seen by the other CPUs, and there
+	will be at least one sequence consisting of all values stored
+	to that variable with which each CPUs series will be
+	consistent.\footnote{
+		A given CPU's series may of course be incomplete,
+		for example, if a given CPU never loaded or stored
+		the shared variable, then it can have no opinion about
+		that variable's value.}
+\item	If one CPU does ordered stores to variables A and B,\footnote{
+		For example, by executing the store to A, a
+		memory barrier, and then the store to B.},
+	and if a second CPU does ordered loads from B and A,\footnote{
+		For example, by executing the load from B, a
+		memory barrier, and then the load from A.},
+	then if the second CPU's load from B gives the value stored
+	by the first CPU, then the second CPU's load from A must
+	give the value stored by the first CPU.
+\item	If one CPU does a load from A ordered before a store to B,
+	and if a second CPU does a load from B ordered before a store from A,
+	and if the second CPU's load from B gives the value stored by
+	the first CPU, then the first CPU's load from a must \emph{not}
+	give the value stored by the second CPU.
+\item	If one CPU does a load from A ordered before a store to B,
+	and if a second CPU does a store to B ordered before a
+	store to A, and if the first CPU's load from A gives
+	the value stored by the second CPU, then the first CPU's
+	store to B must happen after the second CPU's store to B,
+	hence the value stored by the first CPU persists.\footnote{
+		Or, for the more competitively oriented, the first
+		CPU's store to B ``wins''.}
+\end{enumerate}
+
+So what exactly @@@
+
+\subsection{Abstract Memory Access Model}
+
+Consider the abstract model of the system shown in
+Figure~\ref{fig:advsync:Abstract Memory Access Model}.
+
+\begin{figure}[htb]
+\begin{center}
+\includegraphics{advsync/AbstractMemoryAccessModel}
+\end{center}
+\caption{Abstract Memory Access Model}
+\label{fig:advsync:Abstract Memory Access Model}
+\end{figure}
+
+Each CPU executes a program that generates memory access operations.  In the
+abstract CPU, memory operation ordering is very relaxed, and a CPU may actually
+perform the memory operations in any order it likes, provided program causality
+appears to be maintained.  Similarly, the compiler may also arrange the
+instructions it emits in any order it likes, provided it doesn't affect the
+apparent operation of the program.
+
+So in the above diagram, the effects of the memory operations performed by a
+CPU are perceived by the rest of the system as the operations cross the
+interface between the CPU and rest of the system (the dotted lines).
+
+
+For example, consider the following sequence of events given the
+initial values \url{{A = 1, B = 2}}:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|l}
+	CPU 1 &		CPU 2 \\
+	\hline
+	A = 3; &	x = A; \\
+	B = 4; &	y = B; \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+The set of accesses as seen by the memory system in the middle can be arranged
+in 24 different combinations, with loads denoted by ``ld'' and stores
+denoted by ``st'':
+
+~ \\
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{llll}
+	st A=3, & st B=4, & x=ld A$\rightarrow$3, & y=ld B$\rightarrow$4 \\
+	st A=3, & st B=4, & y=ld B$\rightarrow$4, & x=ld A$\rightarrow$3 \\
+	st A=3, & x=ld A$\rightarrow$3, & st B=4, & y=ld B$\rightarrow$4 \\
+	st A=3, & x=ld A$\rightarrow$3, & y=ld B$\rightarrow$2, & st B=4 \\
+	st A=3, & y=ld B$\rightarrow$2, & st B=4, & x=ld A$\rightarrow$3 \\
+	st A=3, & y=ld B$\rightarrow$2, & x=ld A$\rightarrow$3, & st B=4 \\
+	st B=4, & st A=3, & x=ld A$\rightarrow$3, & y=ld B$\rightarrow$4 \\
+	st B=4, & ... & & \\
+	... & & & \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+and can thus result in four different combinations of values:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{ll}
+	x == 1, & y == 2 \\
+	x == 1, & y == 4 \\
+	x == 3, & y == 2 \\
+	x == 3, & y == 4 \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+Furthermore, the stores committed by a CPU to the memory system may not be
+perceived by the loads made by another CPU in the same order as the stores were
+committed.
+
+As a further example, consider this sequence of events given the
+initial values \url{{A = 1, B = 2, C = 3, P = &A, Q = &C}}:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|l}
+	CPU 1 &		CPU 2 \\
+	\hline
+	B = 4; &	Q = P; \\
+	P = \&B &	D = *Q; \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+There is an obvious data dependency here,
+as the value loaded into \url{D} depends on
+the address retrieved from \url{P} by CPU~2.
+At the end of the sequence, any of the
+following results are possible:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{c@{ and }c}
+	(Q == \&A) & (D == 1) \\
+	(Q == \&B) & (D == 2) \\
+	(Q == \&B) & (D == 4) \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+Note that CPU~2 will never try and load C into D because the CPU will load P
+into Q before issuing the load of *Q.
+
+\subsection{Device Operations}
+\label{sec:advsync:Device Operations}
+
+Some devices present their control interfaces as collections of memory
+locations, but the order in which the control registers are accessed is very
+important.  For instance, imagine an ethernet card with a set of internal
+registers that are accessed through an address port register (A) and a data
+port register (D).  To read internal register 5, the following code might then
+be used:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+*A = 5;
+x = *D;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+but this might show up as either of the following two sequences:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+STORE *A = 5, x = LOAD *D
+x = LOAD *D, STORE *A = 5
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+the second of which will almost certainly result in a malfunction, since it set
+the address \emph{after} attempting to read the register.
+
+\subsection{Guarantees}
+\label{sec:advsync:Guarantees}
+
+There are some minimal guarantees that may be expected of a CPU:
+
+\begin{enumerate}
+\item	On any given CPU, dependent memory accesses will be issued in order,
+	with respect to itself.  This means that for:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+Q = P; D = *Q;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	the CPU will issue the following memory operations:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+Q = LOAD P, D = LOAD *Q
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	and always in that order.
+
+\item	Overlapping loads and stores within a particular CPU will appear to be
+	ordered within that CPU.  This means that for:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+a = *X; *X = b;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	the CPU will only issue the following sequence of memory operations:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+a = LOAD *X, STORE *X = b
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	And for:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+*X = c; d = *X;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	the CPU will only issue:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+STORE *X = c, d = LOAD *X
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	(Loads and stores overlap if they are targetted at overlapping pieces of
+	memory).
+\item	A series of stores to a single variable will appear to all
+	CPUs to have occurred in a single order, thought this order
+	might not be predictable from the code, and in fact the
+	order might vary from one run to another.
+\end{enumerate}
+
+And there are a number of things that \emph{must} or \emph{must not} be assumed:
+
+\begin{enumerate}
+\item	It \emph{must not} be assumed that independent loads and stores will
+	be issued in the order given.  This means that for:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+X = *A; Y = *B; *D = Z;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	we may get any of the following sequences:
+
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+X = LOAD *A,   Y = LOAD *B,  STORE *D = Z
+X = LOAD *A,   STORE *D = Z, Y = LOAD *B
+Y = LOAD *B,   X = LOAD *A,  STORE *D = Z
+Y = LOAD *B,   STORE *D = Z, X = LOAD *A
+STORE *D = Z,  X = LOAD *A,  Y = LOAD *B
+STORE *D = Z,  Y = LOAD *B,  X = LOAD *A
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+\item	It \emph{must} be assumed that overlapping memory accesses may
+	be merged or discarded.  This means that for:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+X = *A; Y = *(A + 4);
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	we may get any one of the following sequences:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+X = LOAD *A; Y = LOAD *(A + 4);
+Y = LOAD *(A + 4); X = LOAD *A;
+{X, Y} = LOAD {*A, *(A + 4) };
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	And for:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+*A = X; Y = *A;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	we may get either of:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+STORE *A = X; Y = LOAD *A;
+STORE *A = Y = X;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+\end{enumerate}
+
+\subsection{What Are Memory Barriers?}
+\label{sec:advsync:What Are Memory Barriers?}
+
+As can be seen above, independent memory operations are effectively performed
+in random order, but this can be a problem for CPU-CPU interaction and for I/O.
+What is required is some way of intervening to instruct the compiler and the
+CPU to restrict the order.
+
+Memory barriers are such interventions.  They impose a perceived partial
+ordering over the memory operations on either side of the barrier.
+
+Such enforcement is important because the CPUs and other devices in a system
+can use a variety of tricks to improve performance - including reordering,
+deferral and combination of memory operations; speculative loads; speculative
+branch prediction and various types of caching.  Memory barriers are used to
+override or suppress these tricks, allowing the code to sanely control the
+interaction of multiple CPUs and/or devices.
+
+\subsubsection{Explicit Memory Barriers}
+\label{sec:advsync:Explicit Memory Barriers}
+
+Memory barriers come in four basic varieties:
+
+\begin{enumerate}
+\item	Write (or store) memory barriers,
+\item	Data dependency barriers,
+\item	Read (or load) memory barriers, and
+\item	General memory barriers.
+\end{enumerate}
+
+Each variety is described below.
+
+\paragraph{Write Memory Barriers}
+
+A write memory barrier gives a guarantee that all the STORE operations
+specified before the barrier will appear to happen before all the STORE
+operations specified after the barrier with respect to the other
+components of the system.
+
+A write barrier is a partial ordering on stores only; it is not required
+to have any effect on loads.
+
+A CPU can be viewed as committing a sequence of store operations to the
+memory system as time progresses.  All stores before a write barrier will
+occur in the sequence \emph{before} all the stores after the write barrier.
+
+$\dagger$ Note that write barriers should normally be paired with read
+or data dependency barriers; see the "SMP barrier pairing" subsection.
+
+\paragraph{Data Dependency Barriers}
+
+A data dependency barrier is a weaker form of read barrier.  In the case
+where two loads are performed such that the second depends on the result
+of the first (eg: the first load retrieves the address to which the second
+load will be directed), a data dependency barrier would be required to
+make sure that the target of the second load is updated before the address
+obtained by the first load is accessed.
+
+A data dependency barrier is a partial ordering on interdependent loads
+only; it is not required to have any effect on stores, independent loads
+or overlapping loads.
+
+As mentioned for write memory barriers,
+the other CPUs in the system can be viewed as
+committing sequences of stores to the memory system that the CPU being
+considered can then perceive.  A data dependency barrier issued by the CPU
+under consideration guarantees that for any load preceding it, if that
+load touches one of a sequence of stores from another CPU, then by the
+time the barrier completes, the effects of all the stores prior to that
+touched by the load will be perceptible to any loads issued after the data
+dependency barrier.
+
+See the "Examples of memory barrier sequences" subsection for diagrams
+showing the ordering constraints.
+
+$\dagger$ Note that the first load really has to have a
+\emph{data} dependency and
+not a control dependency.  If the address for the second load is dependent
+on the first load, but the dependency is through a conditional rather than
+actually loading the address itself, then it's a \emph{control} dependency and
+a full read barrier or better is required.  See the "Control dependencies"
+subsection for more information.
+
+$\dagger$ Note that data dependency barriers should normally be paired with
+write barriers; see the "SMP barrier pairing" subsection.
+
+\paragraph{Read Memory Barriers}
+
+A read barrier is a data dependency barrier plus a guarantee that all the
+LOAD operations specified before the barrier will appear to happen before
+all the LOAD operations specified after the barrier with respect to the
+other components of the system.
+
+A read barrier is a partial ordering on loads only; it is not required to
+have any effect on stores.
+
+Read memory barriers imply data dependency barriers, and so can substitute
+for them.
+
+$\dagger$ Note that read barriers should normally be paired with write barriers;
+see the "SMP barrier pairing" subsection.
+
+\paragraph{General Memory Barriers}
+
+A general memory barrier gives a guarantee that all the LOAD and STORE
+operations specified before the barrier will appear to happen before all
+the LOAD and STORE operations specified after the barrier with respect to
+the other components of the system.
+
+A general memory barrier is a partial ordering over both loads and stores.
+
+General memory barriers imply both read and write memory barriers, and so
+can substitute for either.
+
+\subsubsection{Implicit Memory Barriers}
+
+There are a couple of types of implicit memory barriers, so called
+because they are embedded into locking primitives:
+
+\begin{enumerate}
+\item	LOCK operations and
+\item	UNLOCK operations.
+\end{enumerate}
+
+\paragraph{LOCK Operations}
+
+A lock operation acts as a one-way permeable barrier.
+It guarantees that all memory
+operations after the LOCK operation will appear to happen after the LOCK
+operation with respect to the other components of the system.
+
+Memory operations that occur before a LOCK operation may appear to happen
+after it completes.
+
+A LOCK operation should almost always be paired with an UNLOCK operation.
+
+\paragraph{UNLOCK Operations}
+
+Unlock operations also act as a one-way permeable barrier.
+It guarantees that all
+memory operations before the UNLOCK operation will appear to happen before
+the UNLOCK operation with respect to the other components of the system.
+
+Memory operations that occur after an UNLOCK operation may appear to
+happen before it completes.
+
+LOCK and UNLOCK operations are guaranteed to appear with respect to each
+other strictly in the order specified.
+
+The use of LOCK and UNLOCK operations generally precludes the need for
+other sorts of memory barrier (but note the exceptions mentioned in the
+subsection "MMIO write barrier").
+
+\QuickQuiz{What effect does the following sequence have on the
+	order of stores to variables ``a'' and ``b''? \\
+	{\tt ~~~~a = 1;} \\
+	{\tt ~~~~b = 1;} \\
+	{\tt ~~~~<write barrier>}}{
+	Absolutely none.  This barrier {\em would} ensure that the
+	assignments to ``a'' and ``b'' happened before any subsequent
+	assignments, but it does nothing to enforce any order of
+	assignments to ``a'' and ``b'' themselves.}
+\QuickQuizEnd
+
+\subsubsection{What May Not Be Assumed About Memory Barriers?}
+\label{sec:advsync:What May Not Be Assumed About Memory Barriers?}
+
+There are certain things that memory barriers cannot guarantee outside
+of the confines of a given architecture:
+
+\begin{enumerate}
+\item	There is no guarantee that any of the memory accesses specified
+	before a memory barrier will be \emph{complete} by the completion
+	of a memory barrier instruction; the barrier can be considered
+	to draw a line in that CPU's access queue that accesses of the
+	appropriate type may not cross.
+\item	There is no guarantee that issuing a memory barrier on one CPU
+	will have any direct effect on another CPU or any other hardware
+	in the system.	The indirect effect will be the order in which
+	the second CPU sees the effects of the first CPU's accesses occur,
+	but see the next point.
+\item	There is no guarantee that the a CPU will see the correct order
+	of effects from a second CPU's accesses, even \emph{if} the second CPU
+	uses a memory barrier, unless the first CPU \emph{also} uses a matching
+	memory barrier (see the subsection on "SMP Barrier Pairing").
+\item	There is no guarantee that some intervening piece of off-the-CPU
+	hardware\footnote{
+		This is of concern primarily in operating-system kernels.
+		For more information on hardware operations and memory
+		ordering, see the files \url{pci.txt}, \url{DMA-mapping.txt},
+		and \url{DMA-API.txt} in the \url{Documentation} directory in
+		the Linux source tree~\cite{Torvalds2.6kernel}.}
+	will not reorder the memory accesses.  CPU cache
+	coherency mechanisms should propagate the indirect effects of
+	a memory barrier between CPUs, but might not do so in order.
+\end{enumerate}
+
+\subsubsection{Data Dependency Barriers}
+\label{sec:advsync:Data Dependency Barriers}
+
+The usage requirements of data dependency barriers are a little subtle, and
+it's not always obvious that they're needed.  To illustrate, consider the
+following sequence of events, with initial values
+\url{{A = 1, B = 2, C = 3, P = &A, Q = &C}}:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|l}
+	CPU 1 &		CPU 2 \\
+	\hline
+	B = 4; & \\
+	<write barrier> & \\
+	P = \&B; &	\\
+		&	Q = P; \\
+		&	D = *Q; \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+There's a clear data dependency here, and it would seem intuitively
+obvious that by the end of the sequence, \url{Q} must be either \url{&A}
+or \url{&B}, and that:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{c@{ implies }c}
+	(Q == \&A) & (D == 1) \\
+	(Q == \&B) & (D == 4) \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+Counter-intuitive though it might be, it is quite possible that
+CPU~2's perception of \url{P} might be updated \emph{before} its perception
+of \url{B}, thus leading to the following situation:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{c@{ and }c}
+	(Q == \&B) & (D == 2) ???? \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+Whilst this may seem like a failure of coherency or causality maintenance, it
+isn't, and this behaviour can be observed on certain real CPUs (such as the DEC
+Alpha).
+
+To deal with this, a data dependency barrier must be inserted between the
+address load and the data load (again with initial values of
+\url{{A = 1, B = 2, C = 3, P = &A, Q = &C}}):
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+	B = 4; & \\
+	<write barrier> & \\
+	P = \&B; &	\\
+		&	Q = P; \\
+		&	<data dependency barrier> \\
+		&	D = *Q; \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+This enforces the occurrence of one of the two implications, and prevents the
+third possibility from arising.
+
+Note that this extremely counterintuitive situation arises most easily on
+machines with split caches, so that, for example, one cache bank processes
+even-numbered cache lines and the other bank processes odd-numbered cache
+lines.
+The pointer \url{P} might be stored in an odd-numbered cache line, and the
+variable \url{B} might be stored in an even-numbered cache line.  Then, if the
+even-numbered bank of the reading CPU's cache is extremely busy while the
+odd-numbered bank is idle, one can see the new value of the
+pointer \url{P} (which is \url{&B}),
+but the old value of the variable \url{B} (which is 1).
+
+Another example of where data dependency barriers might by required is where a
+number is read from memory and then used to calculate the index for an array
+access with initial values
+\url{{M[0] = 1, M[1] = 2, M[3] = 3, P = 0, Q = 3}}:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+	M[1] = 4; & \\
+	<write barrier> & \\
+	P = 1;	&	\\
+		&	Q = P; \\
+		&	<data dependency barrier> \\
+		&	D = M[Q]; \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+The data dependency barrier is very important to the Linux kernel's
+RCU system, for example,
+see \url{rcu_dereference()} in \url{include/linux/rcupdate.h}.
+This permits the current
+target of an RCU'd pointer to be replaced with a new modified target, without
+the replacement target appearing to be incompletely initialised.
+
+See also the subsection on @@@"Cache Coherency" for a more thorough example.
+
+\subsubsection{Control Dependencies}
+\label{sec:advsync:Control Dependencies}
+
+A control dependency requires a full read memory barrier, not simply a data
+dependency barrier to make it work correctly.  Consider the following bit of
+code:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 q = &a;
+  2 if (p)
+  3   q = &b;
+  4 <data dependency barrier>
+  5 x = *q;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+This will not have the desired effect because there is no actual data
+dependency, but rather a control dependency that the CPU may short-circuit by
+attempting to predict the outcome in advance.  In such a case what's actually
+required is:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 q = &a;
+  2 if (p)
+  3   q = &b;
+  4 <read barrier>
+  5 x = *q;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+\subsubsection{SMP Barrier Pairing}
+\label{sec:advsync:SMP Barrier Pairing}
+
+When dealing with CPU-CPU interactions, certain types of memory barrier should
+always be paired.  A lack of appropriate pairing is almost certainly an error.
+
+A write barrier should always be paired with a data dependency barrier or read
+barrier, though a general barrier would also be viable.  Similarly a read
+barrier or a data dependency barrier should always be paired with at least an
+write barrier, though, again, a general barrier is viable:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+	a = 1; & \\
+	<write barrier> & \\
+	b = 2;	&	\\
+		&	x = b; \\
+		&	<read barrier> \\
+		&	y = a; \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+Or:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+	a = 1; & \\
+	<write barrier> & \\
+	b = \&a; &	\\
+		&	x = b; \\
+		&	<data dependency barrier> \\
+		&	y = *x; \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+One way or another, the read barrier must always be present, even though
+it might be of a weaker type.\footnote{
+	By ``weaker'', we mean "makes fewer ordering guarantees".
+	A weaker barrier is usually also lower-overhead than is a
+	stronger barrier.}
+
+Note that the stores before the write barrier would normally be expected to
+match the loads after the read barrier or data dependency barrier, and vice
+versa:
+
+\begin{center}
+\includegraphics{advsync/MemoryBarrierPairing}
+\end{center}
+
+\subsubsection{Examples of Memory Barrier Pairings}
+\label{sec:advsync:Examples of Memory Barrier Pairings}
+
+Firstly, write barriers act as a partial orderings on store operations.
+Consider the following sequence of events:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l}
+	STORE A = 1 \\
+	STORE B = 2 \\
+	STORE C = 3 \\
+	<write barrier> \\
+	STORE D = 4 \\
+	STORE E = 5 \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+This sequence of events is committed to the memory coherence system in an order
+that the rest of the system might perceive as the unordered set of
+\url{{A=1,B=2,C=3}}
+all occuring before the unordered set of
+\url{{D=4,E=5}}, as shown in
+Figure~\ref{fig:advsync:Write Barrier Ordering Semantics}.
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/WriteBarrierOrdering}
+\end{center}
+\caption{Write Barrier Ordering Semantics}
+\label{fig:advsync:Write Barrier Ordering Semantics}
+\end{figure*}
+
+Secondly, data dependency barriers act as a partial orderings on data-dependent
+loads.  Consider the following sequence of events with initial values
+\url{{B = 7, X = 9, Y = 8, C = &Y}}:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+	a = 1; & \\
+	b = 2; & \\
+	<write barrier> & \\
+	c = \&b; & 	LOAD X\\
+	d = 4;	&	LOAD C (gets \&B) \\
+		&	LOAD *C (reads B) \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+Without intervention, CPU~2 may perceive the events on CPU~1 in some
+effectively random order, despite the write barrier issued by CPU~1:
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/DataDependencyNeeded}
+\end{center}
+\caption{Data Dependency Barrier Omitted}
+\label{fig:advsync:Data Dependency Barrier Omitted}
+\end{figure*}
+
+In the above example, CPU~2 perceives that \url{B} is 7,
+despite the load of \url{*C}
+(which would be \url{B}) coming after the the \url{LOAD} of \url{C}.
+
+If, however, a data dependency barrier were to be placed between the load of C
+and the load of \url{*C} (i.e.: \url{B}) on CPU~2, again with initial values of
+\url{{B = 7, X = 9, Y = 8, C = &Y}}:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+	a = 1; & \\
+	b = 2; & \\
+	<write barrier> & \\
+	c = \&b; & 	LOAD X\\
+	d = 4;	&	LOAD C (gets \&B) \\
+		&	<data dependency barrier> \\
+		&	LOAD *C (reads B) \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+then ordering will be as intuitively expected, as shown in
+Figure~\ref{fig:advsync:Data Dependency Barrier Supplied}.
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/DataDependencySupplied}
+\end{center}
+\caption{Data Dependency Barrier Supplied}
+\label{fig:advsync:Data Dependency Barrier Supplied}
+\end{figure*}
+
+And thirdly, a read barrier acts as a partial order on loads.  Consider the
+following sequence of events, with initial values
+\url{{A = 0, B = 9}}:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+	a = 1; & \\
+	<write barrier> & \\
+	b = 2; & \\
+		&	LOAD B \\
+		&	LOAD A \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+Without intervention, CPU~2 may then choose to perceive the events on CPU~1 in
+some effectively random order, despite the write barrier issued by CPU~1:
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/ReadBarrierNeeded}
+\end{center}
+\caption{Read Barrier Needed}
+\label{fig:advsync:Read Barrier Needed}
+\end{figure*}
+
+If, however, a read barrier were to be placed between the load of \url{B}
+and the load of \url{A} on CPU~2, again with initial values of
+\url{{A = 0, B = 9}}:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+	a = 1; & \\
+	<write barrier> & \\
+	b = 2; & \\
+		&	LOAD B \\
+		&	<read barrier> \\
+		&	LOAD A \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+then the partial ordering imposed by CPU~1's write barrier will be
+perceived correctly by CPU~2, as shown in
+Figure~\ref{fig:advsync:Read Barrier Supplied}.
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/ReadBarrierSupplied}
+\end{center}
+\caption{Read Barrier Supplied}
+\label{fig:advsync:Read Barrier Supplied}
+\end{figure*}
+
+To illustrate this more completely, consider what could happen if the code
+contained a load of A either side of the read barrier, once again
+with the same initial values of
+\url{{A = 0, B = 9}}:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+	a = 1; & \\
+	<write barrier> & \\
+	b = 2; & \\
+		&	LOAD B \\
+		&	LOAD A (1\textsuperscript{st}) \\
+		&	<read barrier> \\
+		&	LOAD A (2\textsuperscript{nd}) \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+Even though the two loads of \url{A}
+both occur after the load of \url{B}, they may both
+come up with different values, as shown in
+Figure~\ref{fig:advsync:Read Barrier Supplied, Double Load}.
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/ReadBarrierSupplied1}
+\end{center}
+\caption{Read Barrier Supplied, Double Load}
+\label{fig:advsync:Read Barrier Supplied, Double Load}
+\end{figure*}
+
+Of course, it may well be that CPU~1's update to \url{A} becomes perceptible
+to CPU~2 before the read barrier completes, as shown in
+Figure~\ref{fig:advsync:Read Barrier Supplied, Take Two}.
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/ReadBarrierSupplied2}
+\end{center}
+\caption{Read Barrier Supplied, Take Two}
+\label{fig:advsync:Read Barrier Supplied, Take Two}
+\end{figure*}
+
+The guarantee is that the second load will always come up with \url{A == 1}
+if the
+load of \url{B} came up with \url{B == 2}.
+No such guarantee exists for the first load of
+\url{A}; that may come up with either \url{A == 0} or \url{A == 1}.
+
+\subsubsection{Read Memory Barriers vs. Load Speculation}
+\label{sec:advsync:Read Memory Barriers vs. Load Speculation}
+
+Many CPUs speculate with loads: that is, they see that they will need to
+load an item from memory, and they find a time where they're not using
+the bus for any other loads, and then do the load in advance --- even though
+they haven't actually got to that point in the instruction execution
+flow yet. 
+Later on, this potentially permits the actual load instruction to
+complete immediately because the CPU already has the value on hand.
+
+It may turn out that the CPU didn't actually need the value (perhaps because a
+branch circumvented the load) in which case it can discard the value or just
+cache it for later use.
+For example, consider the following:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+		&	LOAD B \\
+		&	DIVIDE \\
+		&	DIVIDE \\
+		&	LOAD A \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+On some CPUs, divide insturctions can take a long time to complete,
+which means that CPU~2's bus might go idle during that time.
+CPU~2 might therefore speculatively load \url{A} before the divides
+complete.
+In the (hopefully) unlikely event of an exception from one of the dividees,
+this speculative load will have been wasted, but in the (again, hopefully)
+common case, overlapping the load with the divides will permit the load
+to complete more quickly, as illustrated by
+Figure~\ref{fig:advsync:Speculative Load}.
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/SpeculativeLoad}
+\end{center}
+\caption{Speculative Load}
+\label{fig:advsync:Speculative Load}
+\end{figure*}
+
+Placing a read barrier or a data dependency barrier just before the second
+load:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\begin{tabular}{l|p{1.5in}}
+	CPU 1 &		CPU 2 \\
+	\hline
+		&	LOAD B \\
+		&	DIVIDE \\
+		&	DIVIDE \\
+		&	<read barrier> \\
+		&	LOAD A \\
+\end{tabular}
+\end{minipage}
+\vspace{5pt}
+
+will force any value speculatively obtained to be reconsidered to an extent
+dependent on the type of barrier used.  If there was no change made to the
+speculated memory location, then the speculated value will just be used,
+as shown in
+Figure~\ref{fig:advsync:Speculative Loads and Barrier}.
+On the other hand, if there was an update or invalidation to \url{A}
+from some other CPU, then the speculation will be cancelled and the
+value of \url{A} will be reloaded,
+as shown in Figure~\ref{fig:advsync:Speculative Loads Cancelled by Barrier}.
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/SpeculativeLoadBarrier}
+\end{center}
+\caption{Speculative Load and Barrier}
+\label{fig:advsync:Speculative Loads and Barrier}
+\end{figure*}
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/SpeculativeLoadBarrierCancel}
+\end{center}
+\caption{Speculative Load Cancelled by Barrier}
+\label{fig:advsync:Speculative Loads Cancelled by Barrier}
+\end{figure*}
+
+\subsection{Locking Constraints}
+\label{sec:advsync:Locking Constraints}
+
+As noted earlier, locking primitives contain implicit memory barriers.
+These implicit memory barriers provide the following guarantees:
+\begin{enumerate}
+\item	LOCK operation guarantee:
+	\begin{itemize}
+	\item	Memory operations issued after the LOCK will be completed
+		after the LOCK operation has completed.
+	\item	Memory operations issued before the LOCK may be completed
+		after the LOCK operation has completed.
+	\end{itemize}
+\item	UNLOCK operation guarantee:
+	\begin{itemize}
+	\item	Memory operations issued before the UNLOCK will be
+		completed before the UNLOCK operation has completed.
+	\item	Memory operations issued after the UNLOCK may be completed
+		before the UNLOCK operation has completed.
+	\end{itemize}
+\item	LOCK vs LOCK guarantee:
+	\begin{itemize}
+	\item	All LOCK operations issued before another LOCK operation
+		will be completed before that LOCK operation.
+	\end{itemize}
+\item	LOCK vs UNLOCK guarantee:
+	\begin{itemize}
+	\item	All LOCK operations issued before an UNLOCK operation
+		will be completed before the UNLOCK operation.
+	\item	All UNLOCK operations issued before a LOCK operation
+		will be completed before the LOCK operation.
+	\end{itemize}
+\item	Failed conditional LOCK guarantee:
+	\begin{itemize}
+	\item	Certain variants of the LOCK operation may fail, either
+		due to being unable to get the lock immediately, or due
+		to receiving an unblocked signal or exception
+		whilst asleep waiting
+		for the lock to become available.  Failed locks do not
+		imply any sort of barrier.
+	\end{itemize}
+\end{enumerate}
+
+\subsection{Memory-Barrier Examples}
+\label{sec:advsync:Memory-Barrier Examples}
+
+\subsubsection{Locking Examples}
+
+\paragraph{LOCK Followed by UNLOCK:}
+A LOCK followed by an UNLOCK may not be assumed to be full memory barrier
+because it is possible for an access preceding the LOCK to happen after the
+LOCK, and an access following the UNLOCK to happen before the UNLOCK, and the
+two accesses can themselves then cross.
+For example, the following:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 *A = a;
+  2 LOCK
+  3 UNLOCK
+  4 *B = b;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+might well execute in the following order:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  2 LOCK
+  4 *B = b;
+  1 *A = a;
+  3 UNLOCK
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+Again, always remember that both LOCK and UNLOCK are permitted to let
+preceding operations ``bleed in'' to the critical section.
+
+\QuickQuiz{What sequence of LOCK-UNLOCK operations \emph{would}
+	act as a full memory barrier?}{
+	A series of two back-to-back LOCK-UNLOCK operations, or, somewhat
+	less conventionally, an UNLOCK operations followed by a LOCK
+	operation.}
+\QuickQuizEnd
+
+\QuickQuiz{What (if any) CPUs have memory-barrier instructions
+	from which these semi-permiable locking primitives might
+	be constructed?}{
+	Itanium is one example.
+	The identification of any others is left as an
+	exercise for the reader.}
+\QuickQuizEnd
+
+\paragraph{LOCK-Based Critical Sections:}
+Although a LOCK-UNLOCK pair does not act as a full memory barrier,
+these operations \emph{do} affect memory ordering.
+
+Consider the following code:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 *A = a;
+  2 *B = b;
+  3 LOCK
+  4 *C = c;
+  5 *D = d;
+  6 UNLOCK
+  7 *E = e;
+  8 *F = f;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+This could legimately execute in the following order, where pairs
+of operations on the same line indicate that the CPU executed those
+operations concurrently:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  3 LOCK
+  1 *A = a; *F = f;
+  7 *E = e;
+  4 *C = c; *D = d;
+  2 *B = b;
+  6 UNLOCK
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+\begin{table}[htbp]
+\begin{tabular}{r|l}
+  \# & Ordering: legitimate or not? \\
+  \hline
+  \hline
+  1 & \url{*A; *B; LOCK; *C; *D; UNLOCK; *E; *F;} \\
+  \hline
+  2 & \url{*A; {*B; LOCK;} *C; *D; UNLOCK; *E; *F;} \\
+  \hline
+  3 & \url{{*F; *A;} *B; LOCK; *C; *D; UNLOCK; *E;} \\
+  \hline
+  4 & \url{*A; *B; {LOCK; *C;} *D; {UNLOCK; *E;} *F;} \\
+  \hline
+  5 & \url{*B; LOCK; *C; *D; *A; UNLOCK; *E; *F;} \\
+  \hline
+  6 & \url{*A; *B; *C; LOCK; *D; UNLOCK; *E; *F;} \\
+  \hline
+  7 & \url{*A; *B; LOCK; *C; UNLOCK; *D; *E; *F;} \\
+  \hline
+  8 & \url{{*B; *A; LOCK;} {*D; *C;} {UNLOCK; *F; *E;}} \\
+  \hline
+  9 & \url{*B; LOCK; *C; *D; UNLOCK; {*F; *A;} *E; } \\
+\end{tabular}
+\caption{Lock-Based Critical Sections}
+\label{tab:advsync:Lock-Based Critical Sections}
+\end{table}
+
+\QuickQuiz{Given that operations grouped in curly braces are executed
+	concurrently, which of the rows of
+	Table~\ref{tab:advsync:Lock-Based Critical Sections}
+	are legitimate reorderings of the assignments to variables
+	``A'' through ``F'' and the LOCK/UNLOCK operations?
+	(The order in the code is A, B, LOCK, C, D, UNLOCK, E, F.)
+	Why or why not?}{
+	(1) Legitimate, executed in order.
+
+	(2) Legitimate, the lock acquisition was executed concurrently
+	with the last assignment preceding the critical section.
+
+	(3) Illegitimate, the assignment to ``F'' must follow the LOCK
+	operation.
+
+	(4) Illegitimate, the LOCK must complete before any operation in
+	the critical section.  However, the UNLOCK may legitimately
+	be executed concurrently with subsequent operations.
+
+	(5) Legitimate, the assignment to ``A'' precedes the UNLOCK,
+	as required, and all other operations are in order.
+
+	(6) Illegitimate, the assignment to ``C'' must follow the LOCK.
+
+	(7) Illegitimate, the assignment to ``D'' must precede the UNLOCK.
+
+	(8) Legitimate, all assignments are ordered with respect to the
+	LOCK and UNLOCK operations.
+
+	(9) Illegitimate, the assignment to ``A'' must precede the UNLOCK.
+	}
+\QuickQuizEnd
+
+\paragraph{Ordering with Multiple Locks:}
+Code containing multiple locks still sees ordering constraints from
+those locks, but one must be careful to keep track of which lock is which.
+For example, consider the code shown in
+Table~\ref{tab:advsync:Lock-Based Critical Sections}, which uses
+a pair of locks named ``M'' and ``Q''.
+
+\begin{table}[htbp]
+\begin{tabular}{r|l}
+  CPU 1     & CPU 2 \\
+  \hline
+  A = a;    & E = e; \\
+  LOCK M;   & LOCK Q; \\
+  B = b;    & F = f; \\
+  C = c;    & G = g; \\
+  UNLOCK M; & UNLOCK Q; \\
+  D = d;    & H = h; \\
+\end{tabular}
+\caption{Ordering With Multiple Locks}
+\label{tab:advsync:Ordering With Multiple Locks}
+\end{table}
+
+In this example, there are no guarantees as to what order the
+assignments to variables ``A'' through ``H'' will appear in, other
+than the constraints imposed by the locks themselves, as
+described in the previous section.
+
+\QuickQuiz{What are the constraints for 
+	   Table~\ref{tab:advsync:Lock-Based Critical Sections}?}{
+	   They are as follows: \\
+	   (1) LOCK M must precede B, C, and D. \\
+	   (2) UNLOCK M must follow A, B, and C. \\
+	   (3) LOCK Q must precede F, G, and H. \\
+	   (4) UNLOCK Q must follow E, F, and G.}
+\QuickQuizEnd
+
+\paragraph{Ordering with Multiple CPUs on One Lock:}
+Suppose, instead of the two different locks as shown in
+Table~\ref{tab:advsync:Lock-Based Critical Sections}, both CPUs acquire
+the same lock, as shown in
+Table~\ref{tab:advsync:Ordering With Multiple CPUs on One Lock}?
+
+\begin{table}[htbp]
+\begin{tabular}{r|l}
+  CPU 1     & CPU 2 \\
+  \hline
+  A = a;    & E = e; \\
+  LOCK M;   & LOCK M; \\
+  B = b;    & F = f; \\
+  C = c;    & G = g; \\
+  UNLOCK M; & UNLOCK M; \\
+  D = d;    & H = h; \\
+\end{tabular}
+\caption{Ordering With Multiple CPUs on One Lock}
+\label{tab:advsync:Ordering With Multiple CPUs on One Lock}
+\end{table}
+
+In this case, either CPU~1 acquires M before CPU~2 does, or vice versa.
+In the first case, the assignments to A, B, and C must precede
+those to F, G, and H.
+On the other hand, if CPU~2 acquires the lock first, then the
+assignments to E, F, and G must precede those to B, C, and D.
+
+\subsection{The Effects of the CPU Cache}
+\label{sec:advsync:The Effects of the CPU Cache}
+
+The perceived ordering of memory operations is affected by the caches
+that lie between the CPUs and memory, as well as by the cache coherence
+protocol that maintains memory consistency and ordering.
+From a software viewpoint, these caches are for all intents and purposes
+part of memory.
+Memory barriers can be thought of as acting on the vertical dotted line in
+Figure~\ref{fig:advsync:Memory Architecture}, ensuring that the CPU
+present its values to memory in the proper order, as well as ensuring
+that it see changes made by other CPUs in the proper order.
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/MemoryArchitecture}
+\end{center}
+\caption{Memory Architecture}
+\label{fig:advsync:Memory Architecture}
+\end{figure*}
+
+Although the caches can ``hide'' a given CPU's memory accesses from the rest of
+the system, the cache-coherence protocol ensures that all other CPUs see
+any effects of these hidden accesses, migrating and invalidating cachelines
+as required.
+Furthermore, the CPU core may execute instructions in any order, restricted
+only by the requirement that program causality and memory ordering
+appear to be maintained.
+Some of these instructions may generate memory accesses that must be queued
+in the CPU's memory access queue, but execution may nonetheless continue
+until the CPU either fills up its internal resources or until it must
+wait for some queued memory access to complete.
+
+\subsubsection{Cache Coherency}
+
+Although cache-coherence protocols guarantee that a given CPU sees its
+own accesses in order, and that all CPUs agree on the order of modifications
+to a single variable contained within a single cache line, there is no
+guarantee that modifications to different variables will be seen in
+the same order by all CPUs --- although some computer systems do make
+some such guarantees, portable software cannot rely on them.
+
+\begin{figure*}[htb]
+\begin{center}
+\includegraphics{advsync/SplitCache}
+\end{center}
+\caption{Split Caches}
+\label{fig:advsync:Split Caches}
+\end{figure*}
+
+To see why reordering can occur, consider the two-CPU system shown in
+Figure~\ref{fig:advsync:Split Caches}, in which each CPU has a split
+cache.
+This system has the following properties:
+\begin{enumerate}
+\item	An odd-numbered cache line may be in cache A, cache C,
+	in memory, or some combination of the above.
+\item	An even-numbered cache line may be in cache B, cache D,
+	in memory, or some combination of the above.
+\item	While the CPU core is interrogating one of its caches,\footnote{
+		But note that in ``superscalar'' systems, the CPU
+		might well be accessing both halves of its cache at
+		once, and might in fact be performing multiple concurrent
+		accesses to each of the halves.}
+	its other cache is not necessarily quiescent.
+	This other cache may instead be responding to an invalidation
+	request, writing back a dirty cache line,
+	processing elements in the CPU's memory-access queue, and
+	so on.
+\item	Each cache has queues of operations that need to be applied
+	to that cache in order to maintain the required coherence
+	and ordering properties.
+\item	These queues are not necessarily flushed by loads from or
+	stores to cache lines affected by entries in those queues.
+\end{enumerate}
+
+In short, if cache A is busy, but cache B is idle, then CPU~1's
+stores to odd-numbered cache lines may be delayed compared to
+CPU~2's stores to even-numbered cache lines.
+In not-so-extreme cases, CPU~2 may see CPU~1's operations out
+of order.
+
+\IfInBook{Much more detail on memory ordering in hardware and software
+	  may be found in Appendix~\ref{chp:app:whymb:Why Memory Barriers?}.
+	 }
+	 {}
+
+\subsection{Where Are Memory Barriers Needed?}
+\label{sec:advsync:Where Are Memory Barriers Needed?}
+
+Memory barriers are only required where there's a possibility of interaction
+between two CPUs or between a CPU and a device.  If it can be guaranteed that
+there won't be any such interaction in any particular piece of code, then
+memory barriers are unnecessary in that piece of code.
+
+Note that these are the \emph{minimum} guarantees.
+Different architectures may give
+more substantial guarantees,
+\IfInBook{as discussed in Appendix~\ref{chp:app:whymb:Why Memory Barriers?},}{}
+but they may \emph{not}
+be relied upon outside of code specifically designed to run only on
+the corresponding architecture.
+
+However, primitives that implement atomic operations, such as locking
+primitives and atomic data-structure manipulation and traversal primitives,
+will normally include any needed memory barriers in their definitions.
+However, there are some exceptions, such as \url{atomic_inc()} in the
+Linux kernel, so be sure to review the documentation, and, if possible,
+the actual implementations, for your software environment.
+
+One final word of advice: use of raw memory-barrier primitives should
+be a last resort.
+It is almost always better to use an existing primitive that takes
+care of memory barriers.

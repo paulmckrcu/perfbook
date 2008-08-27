@@ -1,0 +1,204 @@
+% easy/easy.tex
+
+\chapter{Ease of Use}
+\label{chp:Ease of Use}
+
+\QuickQuizChapter{chp:Ease of Use}
+
+``Creating a perfect API is like committing the perfect crime.
+There are at least fifty things that can go wrong, and if you are
+a genious, you might be able to anticipate twenty-five of them.''
+
+\section{Rusty Scale for API Design}
+\label{sec:easy:Rusty Scale for API Design}
+
+% Rusty is OK with this: July 19, 2006.
+
+\begin{enumerate}
+\item	It is impossible to get wrong.  \url{dwim()}
+\item	The compiler or linker won't let you get it wrong.
+\item	The compiler or linker will warn you if you get it wrong.
+\item	The simplest use is the correct one.
+\item	The name tells you how to use it.
+\item	Do it right or it will always break at runtime.
+\item	Follow common convention and you will get it right.  \url{malloc()}
+\item	Read the documentation and you will get it right.
+\item	Read the implementation and you will get it right.
+\item	Read the right mailing-list archive and you will get it right.
+\item	Read the right mailing-list archive and you will get it wrong.
+\item	Read the implementation and you will get it wrong.
+	The non-\url{CONFIG_PREEMPT} implementation of \url{rcu_read_lock()}.
+\item	Read the documentation and you will get it wrong.  DEC Alpha \url{wmb}
+	instruction.
+\item	Follow common convention and you will get it wrong.
+	printf() (failing to check for error return).
+\item	Do it right and it will break at runtime.
+\item	The name tells you how not to use it.
+\item	The obvious use is wrong.  \url{smp_mb()}.
+\item	The compiler or linker will warn you if you get it right.
+\item	The compiler or linker won't let you get it right.
+\item	It is impossible to get right.  \url{gets()}.
+\end{enumerate}
+
+\section{Shaving the Mandelbrot Set}
+\label{sec:easy:Shaving the Mandelbrot Set}
+
+The set of useful programs resembles the Mandelbrot set
+(shown in Figure~\ref{fig:easy:Mandelbrot Set})
+in that it does
+not have a clear-cut smooth boundary --- if it did, the halting problem
+would be solvable.
+But we need APIs that real people can use, not ones that require a
+Ph.D. dissertation be completed for each and every potential use.
+So, we ``shave the Mandelbrot set'',\footnote{
+	Due to Josh Triplett.}
+restricting the use of the
+API to an easily described subset of the full set of potential uses.
+
+\begin{figure}[htb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{easy/Mandel_zoom_00_mandelbrot_set}}
+\end{center}
+\caption{Mandelbrot Set (Courtesy of Wikipedia)}
+\label{fig:easy:Mandelbrot Set}
+\end{figure}
+
+Such shaving may seem counterproductive.
+After all, if an algorithm works, why shouldn't it be used?
+
+To see why at least some shaving is absolutely necessary, consider
+a locking design that avoids deadlock, but in perhaps the worst possible way.
+This design uses a circular doubly linked list, which contains one
+element for each thread in the system along with a header element.
+When a new thread is spawned, the parent thread must insert a new
+element into this list, which requires some sort of synchronization.
+
+One way to protect the list is to use a global lock.
+However, this might be a bottleneck if threads were being created and
+deleted frequently.\footnote{
+	Those of you with strong operating-system backgrounds, please
+	suspend disbelief.
+	If you are unable to suspend disbelief, send us a better example.}
+Another approach would be to use a hash table and to lock the individual
+hash buckets, but this can perform poorly when scanning the list in order.
+
+A third approach is to lock the individual list elements, and to require
+the locks for both the predecessor and successor to be held during the
+insertion.
+Since both locks must be acquired, we need to decide which order to
+acquire them in.
+Two conventional approaches would be to acquire the locks in address
+order, or to acquire them in the order that they appear in the list,
+so that the header is always acquired first when it is one of the two
+elements being locked.
+However, both of these methods require special checks and branches.
+
+The to-be-shaven solution is to unconditionally acquire the locks in
+list order.
+But what about deadlock?
+
+Deadlock cannot occur.
+
+To see this, number the elements in the list starting with zero for the
+header up to $N$ for the last element in the list (the one preceding the
+header, given that the list is circular).
+Similarly, number the threads from zero to $N-1$.
+If each thread attempts to lock some consecutive pair of elements,
+at least one of the threads is guaranteed to be able to acquire both
+locks.
+
+Why?
+
+Because there are not enough threads to reach all the way around the list.
+Suppose thread~0 acquires element~0's lock.
+To be blocked, some other thread must have already acquired element~1's
+lock, so let us assume that thread~1 has done so.
+Similarly, for thread~1 to be blocked, some other thread must have acquired
+element~2's lock, and so on, up through thread~$N-1$, who acquires
+element~$N-1$'s lock.
+For thread~$N-1$ to be blocked, some other thread must have acquired
+element~$N$'s lock.
+But there are no more threads, and so thread~$N-1$ cannot be blocked.
+Therefore, deadlock cannot occur.
+
+So why should we prohibit use of this delightful little algorithm?
+
+The fact is that if you \emph{really} want to use it, we cannot stop you.
+We \emph{can}, however, recommend against such code being included
+in any project that we care about.
+
+But, before you use this algorithm, please think through the following
+Quick Quiz.
+
+\QuickQuiz{Can a similar algorithm be used when deleting elements?}{
+	Yes.
+	However, since each thread must hold the locks of three
+	consecutive elements to delete the middle one, if there
+	are $N$ threads, there must be $2N+1$ elements (rather than
+	just $N+1$ in order to avoid deadlock.}
+\QuickQuizEnd
+
+The fact is that this algorithm is extremely specialized (it only works
+on certain sized lists), and also quite fragile.
+Any bug that accidentally failed to add a node to the list could result
+in deadlock.
+In fact, simply adding the node a bit too late could result in deadlock.
+
+In addition, the other algorithms described above are ``good and sufficient''.
+For example, simply acquiring the locks in address order is fairly simple
+and quick, while allowing the use of lists of any size.
+Just be careful of the special cases presented by empty lists and lists
+containing only one element!
+
+\QuickQuiz{Yetch!!!
+	What ever possessed someone to come up with an algorithm
+	that deserves to be shaved as much as this one does???}{
+	That would be Paul.
+
+	He was considering the \emph{Dining Philosopher's Problem}, which
+	involves a rather unsanitary spaghetti dinner attended by
+	five philosphers.
+	Given that there are five plates and but five forks on the table, and
+	given that each philosopher requires two forks at a time to eat,
+	one is supposed to come up with a fork-allocation algorithm that
+	avoids deadlock.
+	Paul's response was ``Sheesh!!!  Just get five more forks!!!''.
+
+	This in itself was OK, but Paul then applied this same solution to
+	circular linked lists.
+
+	This would not have been so bad either, but he had to go and tell
+	someone about it!!!}
+\QuickQuizEnd
+
+In summary, we do not use algorithms simply because they happen to work.
+We instead restrict ourselves to algorithms that are useful enough to
+make it worthwhile learning about them.
+The more difficult and complex the algorithm, the more generally useful
+it must be in order for the pain of learning it and fixing its bugs to
+be worthwhile.
+
+\QuickQuiz{Give an exception to this rule.}{
+	One exception would be a difficult and complex algorithm that
+	was the only one known to work in a given situation.
+	Another exception would be a difficult and complex algorithm
+	that was nonetheless the simplest of the set known to work in
+	a given situation.
+	However, even in these cases, it may be very worthwhile to spend
+	a little time trying to come up with a simpler algorithm!
+	After all, if you managed to invent the first algorithm
+	to do some task, it shouldn't be that hard to go on to
+	invent a simpler one.}
+\QuickQuizEnd
+
+Exceptions aside, we must continue to shave the software ``Mandelbrot
+set'' so that our programs remain maintainable, as shown in
+Figure~\ref{fig:easy:Shaving the Mandelbrot Set}.
+
+\begin{figure}[htb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{cartoons/ShavingTheMandelbrotSet}}
+\end{center}
+\caption{Shaving the Mandelbrot Set}
+\label{fig:easy:Shaving the Mandelbrot Set}
+\end{figure}
