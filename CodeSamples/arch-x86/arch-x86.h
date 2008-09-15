@@ -36,8 +36,8 @@ typedef struct { volatile int counter; } atomic_t;
 
 #define ATOMIC_INIT(i)  { (i) }
 
-#define atomic_read(v)	((v)->counter)
-#define atomic_set(v)	(((v)->counter) = (i))
+#define atomic_read(v)		((v)->counter)
+#define atomic_set(v, i)	(((v)->counter) = (i))
 
 /*
  * Atomic operations.
