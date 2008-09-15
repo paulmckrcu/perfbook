@@ -1,4 +1,7 @@
-all: lockinc nakedinc perthreadinc threadcreate
+all: initrace lockinc nakedinc perthreadinc threadcreate
+
+initrace: initrace.c ../api.h
+	cc -g -o initrace initrace.c -lpthread
 
 lockinc: lockinc.c ../api.h
 	cc -g -o lockinc lockinc.c -lpthread
