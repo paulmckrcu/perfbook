@@ -9,14 +9,11 @@ LATEXSOURCES = \
 	appendix/questions/questions.tex \
 	appendix/srcu/srcu.tex \
 	appendix/whymb/whymemorybarriers.tex \
-	articles/srcu.tex \
-	articles/whymb.tex \
 	cpu/cpu.tex \
 	datastruct/datastruct.tex \
 	debugging/debugging.tex \
 	easy/easy.tex \
 	glossary.tex \
-	hw/hw.tex \
 	intro/hwhabits.tex \
 	intro/intro.tex \
 	intro/primitives.tex \
@@ -25,7 +22,7 @@ LATEXSOURCES = \
 	owned/owned.tex \
 	perfbook.tex \
 	preface.tex \
-	refcnt/refcnt.tex \
+	defer/refcnt.tex \
 	stats/stats.tex \
 	sync/sync.tex \
 	time/time.tex
