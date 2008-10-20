@@ -80,7 +80,7 @@ all: perfbook.pdf
 
 2up: perfbook-2up.pdf
 
-perfbook.pdf: perfbook.dvi $(EPSSOURCES)
+perfbook.pdf: perfbook_dvi $(EPSSOURCES)
 	dvipdf perfbook
 
 perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
@@ -89,14 +89,18 @@ perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
 	ps2pdf perfbook-2up.ps perfbook-2up.pdf
 	rm perfbook.ps perfbook-2up.ps
 
-perfbook.dvi: $(LATEXSOURCES)
+perfbook_dvi: $(LATEXSOURCES) qqz_tex
 	latex perfbook || :
 	latex perfbook || :
 	bibtex perfbook
 	latex perfbook || :
 	latex perfbook || :
 
+qqz_tex: $(LATEXSOURCES)
+	sh utilities/extractqqz.sh > qqz.tex
+
 clean:
-	#find . -name '*.aux' -o -name '*.bbl' -o -name '*.blg' \
-	#	-o -name '*.dvi' -o -name '*.log' -o -name '*.pdf' \
-	#	-o -name '*.qqz' -o -name '*.toc' | xargs rm
+	find . -name '*.aux' -o -name '*.bbl' -o -name '*.blg' \
+		-o -name '*.dvi' -o -name '*.log' -o -name '*.pdf' \
+		-o -name '*.qqz' -o -name '*.toc' | xargs rm
+	rm -f qqz.tex

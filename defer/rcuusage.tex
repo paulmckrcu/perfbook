@@ -83,7 +83,8 @@ Figure~\ref{fig:defer:Performance Advantage of RCU Over Reader-Writer Locking}.
 WTF???
 How the heck do you expect me to believe that RCU has a
 100-femtosecond overhead when the clock period at 3GHz is more than
-300 \emph{picoseconds}?}{
+300 \emph{picoseconds}?}
+\QuickQuizAnswer{
 First, consider that the inner loop used to
 take this measurement is as follows:
 \\
@@ -133,8 +134,8 @@ and \url{rcu_read_unlock()} above, the actual overhead
 is precisely zero.
 \\ ~ \\
 It certainly is not every day that a timing measurement of
-100 femtoseconds turns out to be an overestimate!}
-\QuickQuizEnd
+100 femtoseconds turns out to be an overestimate!
+} \QuickQuizEnd
 
 Note that reader-writer locking is orders of magnitude slower than RCU
 on a single CPU, and is almost two \emph{additional} orders of magnitude
@@ -178,13 +179,14 @@ of the read-side primitives and that of the critical section.
 
 \QuickQuiz{
 Why does both the variability and overhead of rwlock decrease as the
-critical-section overhead increases?}{
+critical-section overhead increases?}
+\QuickQuizAnswer{
 Because the contention on the underlying
 \url{rwlock_t} decreases as the critical-section overhead
 increases.
 However, the rwlock overhead will not quite drop to that on a single
-CPU because of cache-thrashing overhead.}
-\QuickQuizEnd
+CPU because of cache-thrashing overhead.
+} \QuickQuizEnd
 
 However, this observation must be tempered by the fact that
 a number of system calls (and thus any RCU read-side critical sections
@@ -208,7 +210,8 @@ cycle.
 
 \QuickQuiz{
 Is there an exception to this deadlock immunity, and if so,
-what sequence of events could lead to deadlock?}{
+what sequence of events could lead to deadlock?}
+\QuickQuizAnswer{
 One way to cause a deadlock cycle involving
 RCU read-side primitives is via the following (illegal) sequence
 of statements:
@@ -240,8 +243,8 @@ by the RCU read-side critical section might be freed as a
 result of the grace period completing.
 
 In short, do not invoke synchronous RCU update-side primitives
-from within an RCU read-side critical section.}
-\QuickQuizEnd
+from within an RCU read-side critical section.
+} \QuickQuizEnd
 
 An interesting consequence of RCU's read-side deadlock immunity is
 that it is possible to unconditionally upgrade an RCU
@@ -530,7 +533,8 @@ waits for any previously acquired references to be released.
 But wait!
 This is exactly the same code that might be used when thinking
 of RCU as a replacement for reader-writer locking!
-What gives?}{
+What gives?}
+\QuickQuizAnswer{
 This is an effect of the Law of Toy Examples:
 beyond a certain point, the code fragments look the same.
 The only difference is in how we think about the code.
@@ -542,8 +546,8 @@ read-side critical sections.
 \\ ~ \\
 It nevertheless is often useful to think of RCU as a replacement
 for reader-writer locking, for example, when you are replacing reader-writer
-locking with RCU.}
-\QuickQuizEnd
+locking with RCU.
+} \QuickQuizEnd
 
 Of course, RCU can also be combined with traditional reference counting,
 as has been discussed on LKML and as summarized in
@@ -563,14 +567,15 @@ Figure~\ref{fig:defer:Performance of RCU vs. Reference Counting},
 again showing data taken on a 16-CPU 3GHz Intel x86 system.
 
 \QuickQuiz{
-Why the dip in refcnt overhead near 6 CPUs?}{
+Why the dip in refcnt overhead near 6 CPUs?}
+\QuickQuizAnswer{
 Most likely NUMA effects.
 However, there is substantial variance in the values measured for the
 refcnt line, as can be seen by the error bars.
 In fact, standard deviations range in excess of 10% of measured
 values in some cases.
-The dip in overhead therefore might well be a statistical aberration.}
-\QuickQuizEnd
+The dip in overhead therefore might well be a statistical aberration.
+} \QuickQuizEnd
 
 \begin{figure}[tb]
 \begin{center}
@@ -791,7 +796,8 @@ It is therefore safe to free the buffer, in this case using the
 
 \QuickQuiz{
 Suppose that the \url{nmi_profile()} function was preemptible.
-What would need to change to make this example work correctly?}{
+What would need to change to make this example work correctly?}
+\QuickQuizAnswer{
 One approach would be to use
 \url{rcu_read_lock()} and \url{rcu_read_unlock()}
 in \url{nmi_profile()}, and to replace the
@@ -801,47 +807,48 @@ Figure~\ref{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 \\ ~ \\
 \begin{figure}[tbp]
 { \tt \scriptsize
-~\\
-~~1 struct profile\_buffer \{\\
-~~2 ~~long size;\\
-~~3 ~~atomic\_t entry[0];\\
-~~4 \};\\
-~~5 static struct profile\_buffer *buf = NULL;\\
-~~6 \\
-~~7 void nmi\_profile(unsigned long pcvalue)\\
-~~8 \{\\
-~~9 ~~struct profile\_buffer *p;\\
-~10 \\
-~11 ~~rcu\_read\_lock();\\
-~12 ~~p = rcu\_dereference(buf);\\
-~13 ~~if (p == NULL) \{\\
-~14 ~~~~rcu\_read\_unlock();\\
-~15 ~~~~return;\\
-~16 ~~\}\\
-~17 ~~if (pcvalue $>$= p-$>$size) \{\\
-~18 ~~~~rcu\_read\_unlock();\\
-~19 ~~~~return;\\
-~20 ~~\}\\
-~21 ~~atomic\_inc(\&p-$>$entry[pcvalue]);\\
-~22 ~~rcu\_read\_unlock();\\
-~23 \}\\
-~24 \\
-~25 void nmi\_stop(void)\\
-~26 \{\\
-~27 ~~struct profile\_buffer *p = buf;\\
-~28 \\
-~29 ~~if (p == NULL)\\
-~30 ~~~~return;\\
-~31 ~~rcu\_assign\_pointer(buf, NULL);\\
-~32 ~~synchronize\_rcu();\\
-~33 ~~kfree(p);\\
-~34 \}\\
+\begin{verbatim}
+  1 struct profile_buffer {
+  2   long size;
+  3   atomic_t entry[0];
+  4 };
+  5 static struct profile_buffer *buf = NULL;
+  6 
+  7 void nmi_profile(unsigned long pcvalue)
+  8 {
+  9   struct profile_buffer *p;
+ 10 
+ 11   rcu_read_lock();
+ 12   p = rcu_dereference(buf);
+ 13   if (p == NULL) {
+ 14     rcu_read_unlock();
+ 15     return;
+ 16   }
+ 17   if (pcvalue >= p->size) {
+ 18     rcu_read_unlock();
+ 19     return;
+ 20   }
+ 21   atomic_inc(&p->entry[pcvalue]);
+ 22   rcu_read_unlock();
+ 23 }
+ 24 
+ 25 void nmi_stop(void)
+ 26 {
+ 27   struct profile_buffer *p = buf;
+ 28 
+ 29   if (p == NULL)
+ 30     return;
+ 31   rcu_assign_pointer(buf, NULL);
+ 32   synchronize_rcu();
+ 33   kfree(p);
+ 34 }
+\end{verbatim}
 }
 \caption{Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 \label{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 \end{figure}
-}
-\QuickQuizEnd
+
+} \QuickQuizEnd
 
 In short, RCU makes it easy to dynamically switch among profile
 buffers (you just \emph{try} doing this efficiently with atomic

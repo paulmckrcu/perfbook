@@ -1,7 +1,7 @@
-\QuickQuizChapterAnswer{chp:Introduction}
-% intro/primitives.tex:38
-\QuickQuizAnswer{Give an example of a parallel program that could be written
-	   without synchronization primitives.}{
+\QuickQAC{chp:Introduction}
+\QuickQ{Give an example of a parallel program that could be written
+	   without synchronization primitives.}
+
 	   There are many examples.
 	   One of the simplest would be a parametric study using a
 	   single independent variable.
@@ -17,10 +17,11 @@
 	   If so, then consider that 
 	   this script could be run manually in two separate
 	   command windows, so that the only synchronization would be
-	   supplied by the user himself or herself.}
-% intro/primitives.tex:305
-\QuickQuizAnswer{What problems could occur if the variable {\tt counter} were
-	incremented without the protection of {\tt mutex}?}{
+	   supplied by the user himself or herself.
+
+\QuickQ{What problems could occur if the variable {\tt counter} were
+	incremented without the protection of {\tt mutex}?}
+
 	On CPUs with load-store architectures, incrementing {\tt counter}
 	might compile into something like the following: \\
 	\\
@@ -34,10 +35,11 @@
 	value of {\tt counter}, each increment it, and each store the
 	result.
 	The new value of {\tt counter} will then only be one greater
-	than before, despite two threads each incrementing it.}
-% intro/primitives.tex:350
-\QuickQuizAnswer{How could you work around the lack of a per-thread-variable
-	API on systems that do not provide it?}{
+	than before, despite two threads each incrementing it.
+
+\QuickQ{How could you work around the lack of a per-thread-variable
+	API on systems that do not provide it?}
+
 	One approach would be to create an array indexed by
 	{\tt smp\_thread\_id()}, and another would be to use a hash
 	table to map from {\tt smp\_thread\_id()} to an array
@@ -51,32 +53,35 @@
 	costs in large systems.
 	To see this, imagine if all global variables in a large system
 	had to be declared in a single file, regardless of whether or
-	not they were C static variables!}
-\QuickQuizChapterAnswer{cha:SMP Synchronization Design}
-% SMPdesign/SMPdesign.tex:791
-\QuickQuizAnswer{In what situation would hierarchical locking work well?}{
+	not they were C static variables!
+
+\QuickQAC{cha:SMP Synchronization Design}
+\QuickQ{In what situation would hierarchical locking work well?}
+
 	If the comparison on line~31 of
 	Figure~\ref{fig:SMPdesign:Hierarchical-Locking Hash Table Search}
 	were replaced by a much heavier-weight operation,
 	then releasing {\tt bp->bucket\_lock} \emph{might} reduce lock
 	contention enough to outweigh the overhead of the extra
-	acquisition and release of {\tt cur->node\_lock}.}
-% SMPdesign/SMPdesign.tex:1061
-\QuickQuizAnswer{In Figure~\ref{fig:SMPdesign:Allocator Cache Performance},
+	acquisition and release of {\tt cur->node\_lock}.
+
+\QuickQ{In Figure~\ref{fig:SMPdesign:Allocator Cache Performance},
 	there is a pattern of performance rising with increasing run
 	length in groups of three samples, for example, for run lengths
 	10, 11, and 12.
-	Why?}{
+	Why?}
+
 	This is due to the per-CPU target value being three.
 	A run length of 12 must acquire the global-pool lock twice,
 	while a run length of 13 must acquire the global-pool lock
-	three times.}
-% SMPdesign/SMPdesign.tex:1072
-\QuickQuizAnswer{Allocation failures were observed in the two-thread
+	three times.
+
+\QuickQ{Allocation failures were observed in the two-thread
 	tests at run lengths of 19 and greater.
 	Given the global-pool size of 40 and the per-CPU target
 	pool size of three, what is the smallest allocation run
-	length at which failures can occur?}{
+	length at which failures can occur?}
+
 	The exact solution to this problem is left as an exercise to
 	the reader.
 	The first solution received will be credited to its submitter.
@@ -84,43 +89,115 @@
 	$m+2sn$, where
 	``m'' is the maximum number of elements allocated at a given time,
 	``s'' is the per-CPU pool size,
-	and ``n'' is the number of CPUs.}
-\QuickQuizChapterAnswer{chp:Analysis}
-\QuickQuizChapterAnswer{chp:defer:Deferred Processing}
-% defer/refcnt.tex:191
-\QuickQuizAnswer{Why isn't it necessary to guard against cases where
+	and ``n'' is the number of CPUs.
+
+\QuickQAC{chp:Analysis}
+\QuickQ{Why is there an unreached statement in
+locker?  After all, isn't this a \emph{full} state-space
+search???}
+
+The locker process is an infinite loop, so control
+never reaches the end of this process.
+However, since there are no monotonically increasing variables,
+Promela is able to model this infinite loop with a small
+number of states.
+
+\QuickQ{What are some Promela code-style issues with this example?}
+
+There are several:
+\begin{enumerate}
+\item	The declaration of {\tt sum} should be moved to within
+	the init block, since it is not used anywhere else.
+\item	The assertion code should be moved outside of the
+	initialization loop.  The initialization loop can
+	then be placed in an atomic block, greatly reducing
+	the state space (by how much?).
+\item	The atomic block covering the assertion code should
+	be extended to include the initialization of {\tt sum}
+	and {\tt j}, and also to cover the assertion.
+	This also reduces the state space (again, by how
+	much?).
+\end{enumerate}
+
+\QuickQ{Is there a more straightforward way to code the do-od statement?}
+
+Yes.  Replace it with {\tt if-fi} and remove the two {\tt break} statements.
+
+\QuickQ{Why are there atomic blocks at lines 12-21
+and lines 44-56, when the operations within those atomic
+blocks have no atomic implementation on any current
+production microprocessor?}
+
+Because those operations are for the benefit of the
+assertion only.  They are not part of the algorithm itself.
+There is therefore no harm in marking them atomic, and
+so marking them greatly reduces the state space that must
+be searched by the Promela model.
+
+\QuickQ{Is the re-summing of the counters on lines 24-27
+\emph{really} necessary???}
+
+Yes.  To see this, delete these lines and run the model.
+
+Alternatively, consider the following sequence of steps:
+
+\begin{enumerate}
+\item	One process is within its RCU read-side critical
+	section, so that the value of {\tt ctr[0]} is zero and
+	the value of {\tt ctr[1]} is two.
+\item	An updater starts executing, and sees that the sum of
+	the counters is two so that the fastpath cannot be
+	executed.  It therefore acquires the lock.
+\item	A second updater starts executing, and fetches the value
+	of {\tt ctr[0]}, which is zero.
+\item	The first updater adds one to {\tt ctr[0]}, flips
+	the index (which now becomes zero), then subtracts
+	one from {\tt ctr[1]} (which now becomes one).
+\item	The second updater fetches the value of {\tt ctr[1]},
+	which is now one.
+\item	The second updater now incorrectly concludes that it
+	is safe to proceed on the fastpath, despite the fact
+	that the original reader has not yet completed.
+\end{enumerate}
+
+\QuickQAC{chp:defer:Deferred Processing}
+\QuickQ{Why isn't it necessary to guard against cases where
 	   one CPU acquires a reference just after another
-	   CPU releases the last reference?}{
+	   CPU releases the last reference?}
+
 	  Because a CPU must already hold a reference in order
 	  to legally acquire another reference.
 	  Therefore, if one CPU releases the last reference,
 	  there cannot possibly be any CPU that is permitted
 	  to acquire a new reference.
 	  This same fact allows the non-atomic check in line~22
-	  of Figure~\ref{fig:defer:Linux Kernel kref API}.}
-% defer/refcnt.tex:268
-\QuickQuizAnswer{If the check on line~22 of
+	  of Figure~\ref{fig:defer:Linux Kernel kref API}.
+
+\QuickQ{If the check on line~22 of
 	   Figure~\ref{fig:defer:Linux Kernel kref API} fails, how
-	   could the check on line~23 possibly succeed?}{
+	   could the check on line~23 possibly succeed?}
+
 	  Suppose that {\tt kref\_put()} is protected by RCU, so
 	  that two CPUs might be executing line~22 concurrently.
 	  Both might see the value ``2'', causing both to then
 	  execute line~23.
 	  One of the two instances of {\tt atomic\_dec\_and\_test()}
-	  will decrement the value to zero and thus return 1.}
-% defer/refcnt.tex:279
-\QuickQuizAnswer{How can it possibly be safe to non-atomically check
+	  will decrement the value to zero and thus return 1.
+
+\QuickQ{How can it possibly be safe to non-atomically check
 	   for equality with ``1'' on line~22 of
-	   Figure~\ref{fig:defer:Linux Kernel kref API}?}{
+	   Figure~\ref{fig:defer:Linux Kernel kref API}?}
+
 	  Remember that it is not legal to call either {\tt kref\_get()}
 	  or {\tt kref\_put()} unless you hold a reference.
 	  If the reference count is equal to ``1'', then there
 	  can't possibly be another CPU authorized to change the
-	  value of the reference count.}
-% defer/refcnt.tex:361
-\QuickQuizAnswer{Why can't the check for a zero reference count be
+	  value of the reference count.
+
+\QuickQ{Why can't the check for a zero reference count be
 	   made in a simple ``if'' statement with an atomic
-	   increment in its ``then'' clause?}{
+	   increment in its ``then'' clause?}
+
 	  Suppose that the ``if'' condition completed, finding
 	  the reference counter value equal to one.
 	  Suppose that a release operation executes, decrementing
@@ -128,10 +205,11 @@
 	  cleanup operations.
 	  But now the ``then'' clause can increment the counter
 	  back to a value of one, allowing the object to be
-	  used after it has been cleaned up.}
-% defer/rcufundamental.tex:28
-\QuickQuizAnswer{But doesn't seqlock also permit readers and updaters to get
-work done concurrently?}{
+	  used after it has been cleaned up.
+
+\QuickQ{But doesn't seqlock also permit readers and updaters to get
+work done concurrently?}
+
 Yes and no.
 Although seqlock readers can run concurrently with
 seqlock writers, whenever this happens, the {\tt read\_seqretry()}
@@ -142,11 +220,12 @@ So seqlock readers can \emph{run} concurrently with updaters,
 but they cannot actually get any work done in this case.
 
 In contrast, RCU readers can perform useful work even in presence
-of concurrent RCU updaters.}
-% defer/rcufundamental.tex:282
-\QuickQuizAnswer{What prevents the {\tt list\_for\_each\_entry\_rcu()} from
+of concurrent RCU updaters.
+
+\QuickQ{What prevents the {\tt list\_for\_each\_entry\_rcu()} from
 getting a segfault if it happens to execute at exactly the same
-time as the {\tt list\_add\_rcu()}?}{
+time as the {\tt list\_add\_rcu()}?}
+
 On all systems running Linux, loads from and stores
 to pointers are atomic, that is, if a store to a pointer occurs at
 the same time as a load from that same pointer, the load will return
@@ -156,18 +235,20 @@ In addition, the {\tt list\_for\_each\_entry\_rcu()} always proceeds
 forward through the list, never looking back.
 Therefore, the {\tt list\_for\_each\_entry\_rcu()} will either see
 the element being added by {\tt list\_add\_rcu()} or it will not,
-but either way, it will see a valid well-formed list.}
-% defer/rcufundamental.tex:363
-\QuickQuizAnswer{Why do we need to pass two pointers into
+but either way, it will see a valid well-formed list.
+
+\QuickQ{Why do we need to pass two pointers into
 {\tt hlist\_for\_each\_entry\_rcu()}
-when only one is needed for {\tt list\_for\_each\_entry\_rcu()}?}{
+when only one is needed for {\tt list\_for\_each\_entry\_rcu()}?}
+
 Because in an hlist it is necessary to check for
 NULL rather than for encountering the head.
 (Try coding up a single-pointer {\tt hlist\_for\_each\_entry\_rcu()}
-If you come up with a nice solution, it would be a very good thing!)}
-% defer/rcufundamental.tex:767
-\QuickQuizAnswer{How would you modify the deletion example to permit more than two
-versions of the list to be active?}{
+If you come up with a nice solution, it would be a very good thing!)
+
+\QuickQ{How would you modify the deletion example to permit more than two
+versions of the list to be active?}
+
 One way of accomplishing this is as follows:
 \\
 \vspace{5pt}
@@ -188,10 +269,11 @@ One way of accomplishing this is as follows:
 \vspace{5pt}
 \\
 Note that this means that multiple concurrent deletions might be
-waiting in {\tt synchronize\_rcu()}.}
-% defer/rcufundamental.tex:792
-\QuickQuizAnswer{How many RCU versions of a given list can be
-active at any given time?}{
+waiting in {\tt synchronize\_rcu()}.
+
+\QuickQ{How many RCU versions of a given list can be
+active at any given time?}
+
 That depends on the synchronization design.
 If a semaphore protecting the update is held across the grace period,
 then there can be at most two versions, the old and the new.
@@ -203,24 +285,26 @@ by memory and by how many updates could be completed within a
 grace period.
 But please note that data structures that are updated so frequently
 probably are not good candidates for RCU.
-That said, RCU can handle high update rates when necessary.}
-% defer/rcufundamental.tex:830
-\QuickQuizAnswer{How can RCU updaters possibly delay RCU readers, given that the
+That said, RCU can handle high update rates when necessary.
+
+\QuickQ{How can RCU updaters possibly delay RCU readers, given that the
 {\tt rcu\_read\_lock()} and {\tt rcu\_read\_unlock()}
-primitives neither spin nor block?}{
+primitives neither spin nor block?}
+
 The modifications undertaken by a given RCU updater will cause the
 corresponding CPU to invalidate cache lines containing the data,
 forcing the CPUs running concurrent RCU readers to incur expensive
 cache misses.
 (Can you design an algorithm that changes a data structure \emph{without}
 inflicting expensive cache misses on concurrent readers?
-On subsequent readers?)}
-% defer/rcuusage.tex:82
-\QuickQuizAnswer{
+On subsequent readers?)
+
+\QuickQ{
 WTF???
 How the heck do you expect me to believe that RCU has a
 100-femtosecond overhead when the clock period at 3GHz is more than
-300 \emph{picoseconds}?}{
+300 \emph{picoseconds}?}
+
 First, consider that the inner loop used to
 take this measurement is as follows:
 \\
@@ -270,20 +354,22 @@ and \url{rcu_read_unlock()} above, the actual overhead
 is precisely zero.
 \\ ~ \\
 It certainly is not every day that a timing measurement of
-100 femtoseconds turns out to be an overestimate!}
-% defer/rcuusage.tex:179
-\QuickQuizAnswer{
+100 femtoseconds turns out to be an overestimate!
+
+\QuickQ{
 Why does both the variability and overhead of rwlock decrease as the
-critical-section overhead increases?}{
+critical-section overhead increases?}
+
 Because the contention on the underlying
 \url{rwlock_t} decreases as the critical-section overhead
 increases.
 However, the rwlock overhead will not quite drop to that on a single
-CPU because of cache-thrashing overhead.}
-% defer/rcuusage.tex:209
-\QuickQuizAnswer{
+CPU because of cache-thrashing overhead.
+
+\QuickQ{
 Is there an exception to this deadlock immunity, and if so,
-what sequence of events could lead to deadlock?}{
+what sequence of events could lead to deadlock?}
+
 One way to cause a deadlock cycle involving
 RCU read-side primitives is via the following (illegal) sequence
 of statements:
@@ -315,13 +401,14 @@ by the RCU read-side critical section might be freed as a
 result of the grace period completing.
 
 In short, do not invoke synchronous RCU update-side primitives
-from within an RCU read-side critical section.}
-% defer/rcuusage.tex:527
-\QuickQuizAnswer{
+from within an RCU read-side critical section.
+
+\QuickQ{
 But wait!
 This is exactly the same code that might be used when thinking
 of RCU as a replacement for reader-writer locking!
-What gives?}{
+What gives?}
+
 This is an effect of the Law of Toy Examples:
 beyond a certain point, the code fragments look the same.
 The only difference is in how we think about the code.
@@ -333,20 +420,22 @@ read-side critical sections.
 \\ ~ \\
 It nevertheless is often useful to think of RCU as a replacement
 for reader-writer locking, for example, when you are replacing reader-writer
-locking with RCU.}
-% defer/rcuusage.tex:563
-\QuickQuizAnswer{
-Why the dip in refcnt overhead near 6 CPUs?}{
+locking with RCU.
+
+\QuickQ{
+Why the dip in refcnt overhead near 6 CPUs?}
+
 Most likely NUMA effects.
 However, there is substantial variance in the values measured for the
 refcnt line, as can be seen by the error bars.
 In fact, standard deviations range in excess of 10% of measured
 values in some cases.
-The dip in overhead therefore might well be a statistical aberration.}
-% defer/rcuusage.tex:790
-\QuickQuizAnswer{
+The dip in overhead therefore might well be a statistical aberration.
+
+\QuickQ{
 Suppose that the \url{nmi_profile()} function was preemptible.
-What would need to change to make this example work correctly?}{
+What would need to change to make this example work correctly?}
+
 One approach would be to use
 \url{rcu_read_lock()} and \url{rcu_read_unlock()}
 in \url{nmi_profile()}, and to replace the
@@ -356,68 +445,213 @@ Figure~\ref{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 \\ ~ \\
 \begin{figure}[tbp]
 { \tt \scriptsize
-~\\
-~~1 struct profile\_buffer \{\\
-~~2 ~~long size;\\
-~~3 ~~atomic\_t entry[0];\\
-~~4 \};\\
-~~5 static struct profile\_buffer *buf = NULL;\\
-~~6 \\
-~~7 void nmi\_profile(unsigned long pcvalue)\\
-~~8 \{\\
-~~9 ~~struct profile\_buffer *p;\\
-~10 \\
-~11 ~~rcu\_read\_lock();\\
-~12 ~~p = rcu\_dereference(buf);\\
-~13 ~~if (p == NULL) \{\\
-~14 ~~~~rcu\_read\_unlock();\\
-~15 ~~~~return;\\
-~16 ~~\}\\
-~17 ~~if (pcvalue $>$= p-$>$size) \{\\
-~18 ~~~~rcu\_read\_unlock();\\
-~19 ~~~~return;\\
-~20 ~~\}\\
-~21 ~~atomic\_inc(\&p-$>$entry[pcvalue]);\\
-~22 ~~rcu\_read\_unlock();\\
-~23 \}\\
-~24 \\
-~25 void nmi\_stop(void)\\
-~26 \{\\
-~27 ~~struct profile\_buffer *p = buf;\\
-~28 \\
-~29 ~~if (p == NULL)\\
-~30 ~~~~return;\\
-~31 ~~rcu\_assign\_pointer(buf, NULL);\\
-~32 ~~synchronize\_rcu();\\
-~33 ~~kfree(p);\\
-~34 \}\\
+\begin{verbatim}
+  1 struct profile_buffer {
+  2   long size;
+  3   atomic_t entry[0];
+  4 };
+  5 static struct profile_buffer *buf = NULL;
+  6 
+  7 void nmi_profile(unsigned long pcvalue)
+  8 {
+  9   struct profile_buffer *p;
+ 10 
+ 11   rcu_read_lock();
+ 12   p = rcu_dereference(buf);
+ 13   if (p == NULL) {
+ 14     rcu_read_unlock();
+ 15     return;
+ 16   }
+ 17   if (pcvalue >= p->size) {
+ 18     rcu_read_unlock();
+ 19     return;
+ 20   }
+ 21   atomic_inc(&p->entry[pcvalue]);
+ 22   rcu_read_unlock();
+ 23 }
+ 24 
+ 25 void nmi_stop(void)
+ 26 {
+ 27   struct profile_buffer *p = buf;
+ 28 
+ 29   if (p == NULL)
+ 30     return;
+ 31   rcu_assign_pointer(buf, NULL);
+ 32   synchronize_rcu();
+ 33   kfree(p);
+ 34 }
+\end{verbatim}
 }
 \caption{Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 \label{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 \end{figure}
+
+
+\QuickQ{Why do some of the cells in
+Table~\ref{tab:defer:RCU Wait-to-Finish APIs}
+have exclamation marks (``!'')?}
+
+The green API members (\url{rcu_read_lock()},
+\url{rcu_read_unlock()}, and \url{call_rcu()}) were the
+only members of the Linux RCU API that Paul E. McKenney was aware of back
+in the mid-90s.
+During this timeframe, he was under the mistaken impression that
+he knew all that there is to know about RCU.
+
+\QuickQ{What happens if you mix and match?
+For example, suppose you use \url{rcu_read_lock()} and
+\url{rcu_read_unlock()} to delimit RCU read-side critical
+sections, but then use \url{call_rcu_bh()} to post an
+RCU callback?}
+
+If there happened to be no RCU read-side critical
+sections delimited by \url{rcu_read_lock_bh()} and
+\url{rcu_read_unlock_bh()} at the time \url{call_rcu_bh()}
+was invoked, RCU would be within its rights to invoke the callback
+immediately, possibly freeing a data structure still being used by
+the RCU read-side critical section!
+This is not merely a theoretical possibility: a long-running RCU
+read-side critical section delimited by \url{rcu_read_lock()}
+and \url{rcu_read_unlock()} is vulnerable to this failure mode.
+
+This vulnerability disappears in -rt kernels, where
+RCU Classic and RCU BH both map onto a common implementation.
+
+\QuickQ{What happens if you mix and match RCU Classic and RCU Sched?}
+
+In a non-\url{PREEMPT} or a \url{PREEMPT} kernel, mixing these
+two works "by accident" because in those kernel builds, RCU Classic and RCU
+Sched map to the same implementation.
+However, this mixture is fatal in \url{PREEMPT_RT} builds using the -rt
+patchset, due to the fact that Realtime RCU's read-side critical
+sections can be preempted, which would permit
+\url{synchronize_sched()} to return before the
+RCU read-side critical section reached its \url{rcu_read_unlock()}
+call.
+This could in turn result in a data structure being freed before the
+read-side critical section was finished with it,
+which could in turn greatly increase the actuarial risk experienced
+by your kernel.
+
+In fact, the split between RCU Classic and RCU Sched was inspired
+by the need for preemptible RCU read-side critical sections.
+
+\QuickQ{Why do both SRCU and QRCU lack asynchronous \url{call_srcu()}
+or \url{call_qrcu()} interfaces?}
+
+Given an asynchronous interface, a single task
+could register an arbitrarily large number of SRCU or QRCU callbacks,
+thereby consuming an arbitrarily large quantity of memory.
+In contrast, given the current synchronous
+\url{synchronize_srcu()} and \url{synchronize_qrcu()}
+interfaces, a given task must finish waiting for a given grace period
+before it can start waiting for the next one.
+
+\QuickQ{Under what conditions can \url{synchronize_srcu()} be safely
+used within an SRCU read-side critical section?}
+
+In principle, you can use
+\url{synchronize_srcu()} with a given \url{srcu_struct}
+within an SRCU read-side critical section that uses some other
+\url{srcu_struct}.
+In practice, however, doing this is almost certainly a bad idea.
+In particular, the following could still result in deadlock:
+\\
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+{\tt
+~~1 idx = srcu\_read\_lock(\&ssa);\\
+~~2 synchronize\_srcu(\&ssb);\\
+~~3 srcu\_read\_unlock(\&ssa, idx);\\
+~~4 \\
+~~5 /* . . . */\\
+~~6 \\
+~~7 idx = srcu\_read\_lock(\&ssb);\\
+~~8 synchronize\_srcu(\&ssa);\\
+~~9 srcu\_read\_unlock(\&ssb, idx);\\
 }
-\QuickQuizChapterAnswer{sec:advsync:Advanced Synchronization}
-% advsync/memorybarriers.tex:165
-\QuickQuizAnswer{How on earth could the assertion on line~21 of the code in
+\end{minipage}
+
+
+\QuickQ{Why doesn't \url{list_del_rcu()} poison both the \url{next}
+and \url{prev} pointers?}
+
+Poisoning the \url{next} pointer would interfere
+with concurrent RCU readers, who must use this pointer.
+However, RCU readers are forbidden from using the \url{prev}
+pointer, so it may safely be poisoned.
+
+\QuickQ{Normally, any pointer subject to \url{rcu_dereference()} \emph{must}
+always be updated using \url{rcu_assign_pointer()}.
+What is an exception to this rule?}
+
+One such exception is when a multi-element linked
+data structure is initialized as a unit while inaccessible to other
+CPUs, and then a single \url{rcu_assign_pointer()} is used
+to plant a global pointer to this data structure.
+The initialization-time pointer assignments need not use
+\url{rcu_assign_pointer()}, though any such assignments that
+happen after the structure is globally visible \url{must} use
+\url{rcu_assign_pointer()}.
+\\
+However, unless this initialization code is on an impressively hot
+code-path, it is probably wise to use \url{rcu_assign_pointer()}
+anyway, even though it is in theory unnecessary.
+It is all too easy for a "minor" change to invalidate your cherished
+assumptions about the initialization happening privately.
+
+\QuickQ{Are there any downsides to the fact that these traversal and update
+primitives can be used with any of the RCU API family members?}
+
+It can sometimes be difficult for automated
+code checkers such as "sparse" (or indeed for human beings) to
+work out which type of RCU read-side critical section a given
+RCU traversal primitive corresponds to.
+For example, consider the following:
+\\
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+{ \tt
+~~1 rcu\_read\_lock();\\
+~~2 preempt\_disable();\\
+~~3 p = rcu\_dereference(global\_pointer);\\
+~~4 \\
+~~5 /* . . . */\\
+~~6 \\
+~~7 preempt\_enable();\\
+~~8 rcu\_read\_unlock();\\
+}
+\end{minipage}
+\vspace{5pt}
+\\
+Is the \url{rcu_dereference()} primitive in an RCU Classic
+or an RCU Sched critical section?
+What would you have to do to figure this out?
+
+\QuickQAC{sec:advsync:Advanced Synchronization}
+\QuickQ{How on earth could the assertion on line~21 of the code in
 	Section~\ref{minipage:advsync:Intuition Considered Harmful} on
 	page~\pageref{minipage:advsync:Intuition Considered Harmful}
-	\emph{possibly} fail???}{
+	\emph{possibly} fail???}
+
 	The key point is that the intuitive analysis missed is that
 	there is nothing preventing the assignment to C from overtaking
 	the assignment to A as both race to reach {\tt thread2()}.
-	This is explained in the remainder of this section.}
-% advsync/memorybarriers.tex:205
-\QuickQuizAnswer{What assumption is the code fragment
+	This is explained in the remainder of this section.
+
+\QuickQ{What assumption is the code fragment
 	   in Figure~\ref{fig:advsync:Software Logic Analyzer}
-	   making that might not be valid on real hardware?}{
+	   making that might not be valid on real hardware?}
+
 	   The code assumes that as soon as a given CPU stops
 	   seeing its own value, it will immediately see the
 	   final agreed-upon value.
 	   On real hardware, some of the CPUs might well see several
-	   intermediate results before converging on the final value.}
-% advsync/memorybarriers.tex:265
-\QuickQuizAnswer{How could CPUs possibly have different views of the
-	   value of a single variable \emph{at the same time?}}{
+	   intermediate results before converging on the final value.
+
+\QuickQ{How could CPUs possibly have different views of the
+	   value of a single variable \emph{at the same time?}}
+
 	   Many CPUs have write buffers that record the values of
 	   recent writes, which are applied once the corresponding
 	   cache line makes its way to the CPU.
@@ -426,10 +660,11 @@ Figure~\ref{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 	   in time --- and for main memory to hold yet another value.
 	   One of the reasons that memory barriers were invented was
 	   to allow software to deal gracefully with situations like
-	   this one.}
-% advsync/memorybarriers.tex:278
-\QuickQuizAnswer{Why do CPUs~2 and 3 come to agreement so quickly, when it
-	   takes so long for CPUs~1 and 4 to come to the party?}{
+	   this one.
+
+\QuickQ{Why do CPUs~2 and 3 come to agreement so quickly, when it
+	   takes so long for CPUs~1 and 4 to come to the party?}
+
 	   CPUs~2 and 3 are a pair of hardware threads on the same
 	   core, sharing the same cache hierarchy, and therefore have
 	   very low communications latencies.
@@ -441,31 +676,34 @@ Figure~\ref{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 	   of private cache in addition to a larger shared cache.
 	   Another possible reason is instruction reordering, given the
 	   short 10-nanosecond duration of the disagreement and the
-	   total lack of memory barriers in the code fragment.}
-% advsync/memorybarriers.tex:405
-\QuickQuizAnswer{But if the memory barriers do not unconditionally force
+	   total lack of memory barriers in the code fragment.
+
+\QuickQ{But if the memory barriers do not unconditionally force
 	ordering, how the heck can a device driver reliably execute
-	sequences of loads and stores to MMIO registers???}{
+	sequences of loads and stores to MMIO registers???}
+
 	MMIO registers are special cases: because they appear
 	in uncached regions of physical memory.
 	Memory barriers \emph{do} unconditionally force ordering
 	of loads and stores to uncached memory.
 	See Section~@@@ for more information on memory barriers
-	and MMIO regions.}
-% advsync/memorybarriers.tex:690
-\QuickQuizAnswer{How could the assertion {\tt b==2} on
+	and MMIO regions.
+
+\QuickQ{How could the assertion {\tt b==2} on
 	page~\pageref{codesample:advsync:What Can You Count On? 1}
-	possibly fail?}{
+	possibly fail?}
+
 	If the CPU is not required to see all of its loads and
 	stores in order, then the {\tt b=1+a} might well see an
 	old version of the variable ``a''.
 	
 	This is why it is so very important that each CPU or thread
-	see all of its own loads and stores in program order.}
-% advsync/memorybarriers.tex:716
-\QuickQuizAnswer{How could the code on 
+	see all of its own loads and stores in program order.
+
+\QuickQ{How could the code on 
 	page~\pageref{codesample:advsync:What Can You Count On? 2}
-	possibly leak memory?}{
+	possibly leak memory?}
+
 	Only the first execution of the critical section should
 	see {\tt p==NULL}.
 	However, if there is no global ordering of critical sections for
@@ -478,11 +716,12 @@ Figure~\ref{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 	
 	This is why it is so very important that all the critical sections
 	for a given exclusive lock appear to execute in some well-defined
-	order.}
-% advsync/memorybarriers.tex:750
-\QuickQuizAnswer{How could the code on 
+	order.
+
+\QuickQ{How could the code on 
 	page~\pageref{codesample:advsync:What Can You Count On? 2}
-	possibly count backwards?}{
+	possibly count backwards?}
+
 	Suppose that the counter started out with the value zero,
 	and that three executions of the critical section had therefore
 	brought its value to three.
@@ -494,38 +733,42 @@ Figure~\ref{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 	This is why it is so very important that loads from a given variable
 	in a given critical
 	section see the last store from the last prior critical section to
-	store to that variable.}
-% advsync/memorybarriers.tex:1354
-\QuickQuizAnswer{What effect does the following sequence have on the
+	store to that variable.
+
+\QuickQ{What effect does the following sequence have on the
 	order of stores to variables ``a'' and ``b''? \\
 	{\tt ~~~~a = 1;} \\
 	{\tt ~~~~b = 1;} \\
-	{\tt ~~~~<write barrier>}}{
+	{\tt ~~~~<write barrier>}}
+
 	Absolutely none.  This barrier {\em would} ensure that the
 	assignments to ``a'' and ``b'' happened before any subsequent
 	assignments, but it does nothing to enforce any order of
-	assignments to ``a'' and ``b'' themselves.}
-% advsync/memorybarriers.tex:2006
-\QuickQuizAnswer{What sequence of LOCK-UNLOCK operations \emph{would}
-	act as a full memory barrier?}{
+	assignments to ``a'' and ``b'' themselves.
+
+\QuickQ{What sequence of LOCK-UNLOCK operations \emph{would}
+	act as a full memory barrier?}
+
 	A series of two back-to-back LOCK-UNLOCK operations, or, somewhat
 	less conventionally, an UNLOCK operations followed by a LOCK
-	operation.}
-% advsync/memorybarriers.tex:2013
-\QuickQuizAnswer{What (if any) CPUs have memory-barrier instructions
+	operation.
+
+\QuickQ{What (if any) CPUs have memory-barrier instructions
 	from which these semi-permiable locking primitives might
-	be constructed?}{
+	be constructed?}
+
 	Itanium is one example.
 	The identification of any others is left as an
-	exercise for the reader.}
-% advsync/memorybarriers.tex:2088
-\QuickQuizAnswer{Given that operations grouped in curly braces are executed
+	exercise for the reader.
+
+\QuickQ{Given that operations grouped in curly braces are executed
 	concurrently, which of the rows of
 	Table~\ref{tab:advsync:Lock-Based Critical Sections}
 	are legitimate reorderings of the assignments to variables
 	``A'' through ``F'' and the LOCK/UNLOCK operations?
 	(The order in the code is A, B, LOCK, C, D, UNLOCK, E, F.)
-	Why or why not?}{
+	Why or why not?}
+
 	(1) Legitimate, executed in order.
 
 	(2) Legitimate, the lock acquisition was executed concurrently
@@ -549,27 +792,30 @@ Figure~\ref{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 	LOCK and UNLOCK operations.
 
 	(9) Illegitimate, the assignment to ``A'' must precede the UNLOCK.
-	}
-% advsync/memorybarriers.tex:2148
-\QuickQuizAnswer{What are the constraints for 
-	   Table~\ref{tab:advsync:Lock-Based Critical Sections}?}{
+	
+
+\QuickQ{What are the constraints for 
+	   Table~\ref{tab:advsync:Lock-Based Critical Sections}?}
+
 	   They are as follows: \\
 	   (1) LOCK M must precede B, C, and D. \\
 	   (2) UNLOCK M must follow A, B, and C. \\
 	   (3) LOCK Q must precede F, G, and H. \\
-	   (4) UNLOCK Q must follow E, F, and G.}
-\QuickQuizChapterAnswer{chp:Ease of Use}
-% easy/easy.tex:133
-\QuickQuizAnswer{Can a similar algorithm be used when deleting elements?}{
+	   (4) UNLOCK Q must follow E, F, and G.
+
+\QuickQAC{chp:Ease of Use}
+\QuickQ{Can a similar algorithm be used when deleting elements?}
+
 	Yes.
 	However, since each thread must hold the locks of three
 	consecutive elements to delete the middle one, if there
 	are $N$ threads, there must be $2N+1$ elements (rather than
-	just $N+1$ in order to avoid deadlock.}
-% easy/easy.tex:153
-\QuickQuizAnswer{Yetch!!!
+	just $N+1$ in order to avoid deadlock.
+
+\QuickQ{Yetch!!!
 	What ever possessed someone to come up with an algorithm
-	that deserves to be shaved as much as this one does???}{
+	that deserves to be shaved as much as this one does???}
+
 	That would be Paul.
 
 	He was considering the \emph{Dining Philosopher's Problem}, which
@@ -585,9 +831,10 @@ Figure~\ref{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 	circular linked lists.
 
 	This would not have been so bad either, but he had to go and tell
-	someone about it!!!}
-% easy/easy.tex:181
-\QuickQuizAnswer{Give an exception to this rule.}{
+	someone about it!!!
+
+\QuickQ{Give an exception to this rule.}
+
 	One exception would be a difficult and complex algorithm that
 	was the only one known to work in a given situation.
 	Another exception would be a difficult and complex algorithm
@@ -597,4 +844,206 @@ Figure~\ref{fig:defer:Using RCU to Wait for Mythical Preemptable NMIs to Finish}
 	a little time trying to come up with a simpler algorithm!
 	After all, if you managed to invent the first algorithm
 	to do some task, it shouldn't be that hard to go on to
-	invent a simpler one.}
+	invent a simpler one.
+
+\QuickQAC{cha:app:Important Questions}
+\QuickQ{What SMP coding errors can you see in these examples?
+See @@@ for full code.}
+
+(1)	Missing barrier() or volatile on tight loops.
+(2)	Missing Memory barriers on update side.
+(3)	Lack of synchronization between producer and consumer.
+
+\QuickQ{How could there be such a large gap between successive
+consumer reads?
+See @@@ for full code.}
+
+(1)	The consumer might be preempted for long time periods.
+(2)	A long-running interrupt might delay the consumer.
+(3)	The producer might also be running on a faster CPU than is the
+	consumer (for example, one of the CPUs might have had to decrease its
+	clock frequency due to heat-dissipation or power-consumption
+	constraints).
+
+\QuickQAC{chp:app:whymb:Why Memory Barriers?}
+\QuickQ{What happens if two CPUs attempt to invalidate the
+same cache line concurrently?}
+One of the CPUs gains access
+to the shared bus first,
+and that CPU ``wins''.  The other CPU must invalidate its copy of the
+cache line and transmit an ``invalidate acknowledge'' message
+to the other CPU. \\
+Of course, the losing CPU can be expected to immediately issue a
+``read invalidate'' transaction, so the winning CPU's victory will
+be quite ephemeral.
+
+\QuickQ{When an ``invalidate'' message appears in a
+	   large multiprocessor, every CPU must give an ``invalidate
+	   acknowledge'' response.  Wouldn't the resulting ``storm''
+	   of ``invalidate acknowledge'' responses totally saturate the
+	   system bus?}
+
+	It might, if large-scale multiprocessors were in fact implemented
+	that way.  Larger multiprocessors, particularly NUMA machines,
+	tend to use so-called ``directory-based'' cache-coherence
+	protocols to avoid this and other problems.
+
+\QuickQ{If SMP machines are really using message passing
+	   anyway, why bother with SMP at all?}
+
+	There has been quite a bit of controversy on this topic over
+	the past few decades.  One answer is that the cache-coherence
+	protocols are quite simple, and therefore can be implemented
+	directly in hardware, gaining bandwidths and latencies
+	unattainable by software message passing.  Another answer is that
+	the real truth is to be found in economics due to the relative
+	prices of large SMP machines and that of clusters of smaller
+	SMP machines.  A third answer is that the SMP programming
+	model is easier to use than that of distributed systems, but
+	a rebuttal might note the appearance of HPC clusters and MPI.
+	And so the argument continues.
+
+\QuickQ{How does the hardware handle the delayed transitions
+	   described above?}
+
+	Usually by adding additional states, though these additional
+	states need not be actually stored with the cache line, due to
+	the fact that only a few lines at a time will be transitioning.
+	The need to delay transitions is but one issue that results in
+	real-world cache coherence protocols being much more complex than
+	the over-simplified MESI protocol described in this appendix.
+	Hennessy and Patterson's classic introduction to computer
+	architecture~\cite{Hennessy95a} covers many of these issues.
+
+\QuickQ{What sequence of operations would put the CPUs' caches
+	   all back into the ``invalid'' state?}
+
+	There is no such sequence, at least in absence of special
+	``flush my cache'' instructions in the CPU's instruction set.
+	Most CPUs do have such instructions.
+
+\QuickQ{Does the guarantee that each CPU sees its own memory accesses
+	   in order also guarantee that each user-level thread will see
+	   its own memory accesses in order?  Why or why not?}
+
+	No.  Consider the case where a thread migrates from one CPU to
+	another, and where the destination CPU perceives the source
+	CPU's recent memory operations out of order.  To preserve
+	user-mode sanity, kernel hackers must use memory barriers in
+	the context-switch path.  However, the locking already required
+	to safely do a context switch should automatically provide
+	the memory barriers needed to cause the user-level task to see
+	its own accesses in order.  That said, if you are designing a
+	super-optimized scheduler, either in the kernel or at user level,
+	please keep this scenario in mind!
+
+\QuickQ{Could this code be fixed by inserting a memory barrier
+between CPU~1's ``while'' and assignment to ``c''?  Why or why not?}
+
+No.  Such a memory barrier would only force ordering local to CPU~1.
+It would have no effect on the relative ordering of CPU~0's and
+CPU~1's accesses, so the assertion could still fire.
+
+\QuickQ{Suppose that lines~3-5 for CPUs~1 and 2 are in an interrupt
+handler, and that the CPU~2's line~9 is run at process level.
+What changes, if any, are required to enable the code to work
+correctly, in other words, to prevent the assertion from firing?}
+
+The assertion will need to coded so as to ensure that the load of
+``e'' precedes that of ``a''.
+In the Linux kernel, the barrier() primitive may be used to accomplish
+this in much the same way that the memory barrier was used in the
+assertions in the previous examples.
+
+\QuickQAC{app:Sleepable Read-Copy Update}
+\QuickQ{Why is sleeping prohibited within Classic RCU read-side
+critical sections?}
+
+Because sleeping implies a context switch, which in Classic RCU is
+a quiescent state, and RCU's grace-period detection requires that
+quiescent states never appear in RCU read-side critical sections.
+
+\QuickQ{Why not permit sleeping in Classic RCU read-side critical sections
+by eliminating context switch as a quiescent state, leaving user-mode
+execution and idle loop as the remaining quiescent states?}
+
+This would mean that a system undergoing heavy kernel-mode execution load
+(e.g., due to kernel threads) might never complete a grace period, which
+would cause it to exhaust memory sooner or later.
+
+\QuickQ{Why is it OK to assume that updates separated by
+	{\tt synchronize\_sched()} will be performed in order?}
+
+	Because this property is required for the {\tt synchronize\_sched()}
+	aspect of RCU to work at all.
+	For example, consider a code sequence that removes an object
+	from a list, invokes {\tt synchronize\_sched()}, then frees
+	the object.
+	If this property did not hold, then that object might appear
+	to be freed before it was
+	removed from the list, which is precisely the situation that
+	{\tt synchronize\_sched()} is supposed to prevent!
+
+\QuickQ{Why must line~17 in {\tt synchronize\_srcu()}
+	(Figure~\ref{fig:app:srcu:Update-Side Implementation})
+	precede the release of the mutex on line~18?
+	What would have to change to permit these two lines to be
+	interchanged?
+	Would such a change be worthwhile?
+	Why or why not?}
+
+	Suppose that the order was reversed, and that CPU~0
+	has just reached line~13 of
+	{\tt synchronize\_srcu()}, while both CPU~1 and CPU~2 start executing
+	another {\tt synchronize\_srcu()} each, and CPU~3 starts executing a
+	{\tt srcu\_read\_lock()}.
+	Suppose that CPU~1 reaches line~6 of {\tt synchronize\_srcu()}
+	just before CPU~0 increments the counter on line~13.
+	Most importantly, suppose that
+	CPU~3 executes {\tt srcu\_read\_lock()}
+	out of order with the following SRCU read-side critical section,
+	so that it acquires a reference to some SRCU-protected data
+	structure \emph{before} CPU~0 increments {\tt sp->completed}, but
+	executes the {\tt srcu\_read\_lock()} \emph{after} CPU~0 does
+	this increment.
+	
+	Then CPU~0 will \emph{not} wait for CPU~3 to complete its
+	SRCU read-side critical section before exiting the ``while''
+	loop on lines~15-16 and releasing the mutex (remember, the
+	CPU could be reordering the code).
+	
+	Now suppose that CPU~2 acquires the mutex next,
+	and again increments {\tt sp->completed}.
+	This CPU will then have to wait for CPU~3 to exit its SRCU
+	read-side critical section before exiting the loop on
+	lines~15-16 and releasing the mutex.
+	But suppose that CPU~3 again executes out of order,
+	completing the {\tt srcu\_read\_unlock()} prior to
+	executing a final reference to the pointer it obtained
+	when entering the SRCU read-side critical section.
+
+	CPU~1 will then acquire the mutex, but see that the
+	{\tt sp->completed} counter has incremented twice, and
+	therefore take the early exit.
+	The caller might well free up the element that CPU~3 is
+	still referencing (due to CPU~3's out-of-order execution).
+
+	To prevent this perhaps improbable, but entirely possible,
+	scenario, the final {\tt synchronize\_sched()} must precede
+	the mutex release in {\tt synchronize\_srcu()}.
+
+	Another approach would be to change to comparison on
+	line~7 of {\tt synchronize\_srcu()} to check for at
+	least three increments of the counter.
+	However, such a change would increase the latency of a
+	``bulk update'' scenario, where a hash table is being updated
+	or unloaded using multiple threads.
+	In the current code, the latency of the resulting concurrent
+	{\tt synchronize\_srcu()} calls would take at most two SRCU
+	grace periods, while with this change, three would be required.
+
+	More experience will be required to determine which approach
+	is really better.
+	For one thing, there must first be some use of SRCU with
+	multiple concurrent updaters.
+
