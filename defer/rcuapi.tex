@@ -63,7 +63,7 @@ Read-side primitives &
 { Update-side primitives (asynchronous/callback) } &
     \url{call_rcu()} ! &
 	\url{call_rcu_bh()} &
-	    &
+	    \url{call_rcu_sched()} &
 	        \url{call_rcu()} \\
 \hline
 { Update-side primitives (wait for callbacks) } &
@@ -207,7 +207,7 @@ serve as a useful reference.
 Table~\ref{tab:defer:RCU Wait-to-Finish APIs}
 have exclamation marks (``!'')?}
 \QuickQuizAnswer{
-The green API members (\url{rcu_read_lock()},
+The API members with exclamation marks (\url{rcu_read_lock()},
 \url{rcu_read_unlock()}, and \url{call_rcu()}) were the
 only members of the Linux RCU API that Paul E. McKenney was aware of back
 in the mid-90s.
@@ -271,9 +271,10 @@ This RCU API family was added in the 2.6.12 kernel, which split the
 old \url{synchronize_kernel()} API into the current
 \url{synchronize_rcu()} (for RCU Classic) and
 \url{synchronize_sched()} (for RCU Sched).
-Note that RCU Sched does not have an asynchronous
-\url{call_rcu_sched()} interface,
-though one could be added if required.
+Note that RCU Sched did not originally have an asynchronous
+\url{call_rcu_sched()} interface, but one was added in 2.6.26.
+In accordance with the quasi-minimalist philosophy of the Linux
+community, APIs are added on an as-needed basis.
 
 \QuickQuiz{What happens if you mix and match RCU Classic and RCU Sched?}
 \QuickQuizAnswer{
@@ -347,22 +348,27 @@ In principle, you can use
 within an SRCU read-side critical section that uses some other
 \url{srcu_struct}.
 In practice, however, doing this is almost certainly a bad idea.
-In particular, the following could still result in deadlock:
-\\
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-{\tt
-~~1 idx = srcu\_read\_lock(\&ssa);\\
-~~2 synchronize\_srcu(\&ssb);\\
-~~3 srcu\_read\_unlock(\&ssa, idx);\\
-~~4 \\
-~~5 /* . . . */\\
-~~6 \\
-~~7 idx = srcu\_read\_lock(\&ssb);\\
-~~8 synchronize\_srcu(\&ssa);\\
-~~9 srcu\_read\_unlock(\&ssb, idx);\\
+In particular, the code shown in
+Figure~\ref{fig:defer:Multistage SRCU Deadlocks}
+could still result in deadlock.
+
+\begin{figure}[htbp]
+{ \centering
+\begin{verbatim}
+  1 idx = srcu_read_lock(&ssa);
+  2 synchronize_srcu(&ssb);
+  3 srcu_read_unlock(&ssa, idx);
+  4 
+  5 /* . . . */
+  6 
+  7 idx = srcu_read_lock(&ssb);
+  8 synchronize_srcu(&ssa);
+  9 srcu_read_unlock(&ssb, idx);
+\end{verbatim}
 }
-\end{minipage}
+\caption{Multistage SRCU Deadlocks}
+\label{fig:defer:Multistage SRCU Deadlocks}
+\end{figure}
 
 } \QuickQuizEnd
 
@@ -545,26 +551,29 @@ assumptions about the initialization happening privately.
 primitives can be used with any of the RCU API family members?}
 \QuickQuizAnswer{
 It can sometimes be difficult for automated
-code checkers such as "sparse" (or indeed for human beings) to
+code checkers such as ``sparse'' (or indeed for human beings) to
 work out which type of RCU read-side critical section a given
 RCU traversal primitive corresponds to.
-For example, consider the following:
-\\
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-{ \tt
-~~1 rcu\_read\_lock();\\
-~~2 preempt\_disable();\\
-~~3 p = rcu\_dereference(global\_pointer);\\
-~~4 \\
-~~5 /* . . . */\\
-~~6 \\
-~~7 preempt\_enable();\\
-~~8 rcu\_read\_unlock();\\
+For example, consider the code shown in
+Figure~\ref{fig:defer:Diverse RCU Read-Side Nesting}.
+
+\begin{figure}[htbp]
+{ \centering
+\begin{verbatim}
+  1 rcu_read_lock();
+  2 preempt_disable();
+  3 p = rcu_dereference(global_pointer);
+  4 
+  5 /* . . . */
+  6 
+  7 preempt_enable();
+  8 rcu_read_unlock();
+\end{verbatim}
 }
-\end{minipage}
-\vspace{5pt}
-\\
+\caption{Diverse RCU Read-Side Nesting}
+\label{fig:defer:Diverse RCU Read-Side Nesting}
+\end{figure}
+
 Is the \url{rcu_dereference()} primitive in an RCU Classic
 or an RCU Sched critical section?
 What would you have to do to figure this out?

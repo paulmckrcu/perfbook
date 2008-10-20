@@ -770,25 +770,28 @@ versions of the list active at a given time.
 \QuickQuiz{How would you modify the deletion example to permit more than two
 versions of the list to be active?}
 \QuickQuizAnswer{
-One way of accomplishing this is as follows:
-\\
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-{\tt
-  1 spin\_lock(\&mylock);\\
-  2 p = search(head, key);\\
-  3 if (p == NULL)\\
-  4 ~~spin\_unlock(\&mylock);\\
-  5 else \{\\
-  6 ~~list\_del\_rcu(\&p->list);\\
-  7 ~~spin\_unlock(\&mylock);\\
-  8 ~~synchronize\_rcu();\\
-  9 ~~kfree(p);\\
- 10 \}\\
+One way of accomplishing this is as shown in
+Figure~\ref{fig:defer:Concurrent RCU Deletion}.
+
+\begin{figure}[htbp]
+{ \centering
+\begin{verbatim}
+  1 spin_lock(&mylock);
+  2 p = search(head, key);
+  3 if (p == NULL)
+  4   spin_unlock(&mylock);
+  5 else {
+  6   list_del_rcu(&p->list);
+  7   spin_unlock(&mylock);
+  8   synchronize_rcu();
+  9   kfree(p);
+ 10 }
+\end{verbatim}
 }
-\end{minipage}
-\vspace{5pt}
-\\
+\caption{Concurrent RCU Deletion}
+\label{fig:defer:Concurrent RCU Deletion}
+\end{figure}
+
 Note that this means that multiple concurrent deletions might be
 waiting in {\tt synchronize\_rcu()}.
 } \QuickQuizEnd

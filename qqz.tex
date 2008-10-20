@@ -23,13 +23,18 @@
 	incremented without the protection of {\tt mutex}?}
 
 	On CPUs with load-store architectures, incrementing {\tt counter}
-	might compile into something like the following: \\
-	\\
-	{\tt
-	LOAD counter,r0 \\
-	INC r0 \\
-	STORE r0,counter \\
-	}
+	might compile into something like the following:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small 
+\begin{verbatim}
+LOAD counter,r0
+INC r0
+STORE r0,counter
+\end{verbatim}
+\end{minipage} 
+\vspace{5pt}
 
 	On such machines, two threads might simultaneously load the
 	value of {\tt counter}, each increment it, and each store the
@@ -249,25 +254,28 @@ If you come up with a nice solution, it would be a very good thing!)
 \QuickQ{How would you modify the deletion example to permit more than two
 versions of the list to be active?}
 
-One way of accomplishing this is as follows:
-\\
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-{\tt
-  1 spin\_lock(\&mylock);\\
-  2 p = search(head, key);\\
-  3 if (p == NULL)\\
-  4 ~~spin\_unlock(\&mylock);\\
-  5 else \{\\
-  6 ~~list\_del\_rcu(\&p->list);\\
-  7 ~~spin\_unlock(\&mylock);\\
-  8 ~~synchronize\_rcu();\\
-  9 ~~kfree(p);\\
- 10 \}\\
+One way of accomplishing this is as shown in
+Figure~\ref{fig:defer:Concurrent RCU Deletion}.
+
+\begin{figure}[htbp]
+{ \centering
+\begin{verbatim}
+  1 spin_lock(&mylock);
+  2 p = search(head, key);
+  3 if (p == NULL)
+  4   spin_unlock(&mylock);
+  5 else {
+  6   list_del_rcu(&p->list);
+  7   spin_unlock(&mylock);
+  8   synchronize_rcu();
+  9   kfree(p);
+ 10 }
+\end{verbatim}
 }
-\end{minipage}
-\vspace{5pt}
-\\
+\caption{Concurrent RCU Deletion}
+\label{fig:defer:Concurrent RCU Deletion}
+\end{figure}
+
 Note that this means that multiple concurrent deletions might be
 waiting in {\tt synchronize\_rcu()}.
 
@@ -307,42 +315,44 @@ How the heck do you expect me to believe that RCU has a
 
 First, consider that the inner loop used to
 take this measurement is as follows:
-\\
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
-{\tt
-  1 for (i = 0; i < CSCOUNT\_SCALE; i++) \{\\
-  2 ~~rcu\_read\_lock();\\
-  3 ~~rcu\_read\_unlock();\\
-  4 \}
-}
+\small
+\begin{verbatim}
+  1 for (i = 0; i < CSCOUNT_SCALE; i++) {
+  2   rcu_read_lock();
+  3   rcu_read_unlock();
+  4 }
+\end{verbatim}
 \end{minipage}
 \vspace{5pt}
-\\
+
 Next, consider the effective definitions of \url{rcu_read_lock()}
 and \url{rcu_read_unlock()}:
-\\
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
-~\\
-{\tt
-  1 \#define rcu\_read\_lock()   do { } while (0)\\
-  2 \#define rcu\_read\_unlock() do { } while (0)
-}
+\small
+\begin{verbatim}
+  1 #define rcu_read_lock()   do { } while (0)
+  2 #define rcu_read_unlock() do { } while (0)
+\end{verbatim}
 \end{minipage}
 \vspace{5pt}
-\\
+
 Consider also that the compiler does simple optimizations,
 allowing it to replace the loop with:
-\\ ~ \\
+
+\vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
-~\\
-{\tt
-i = CSCOUNT\_SCALE;
-}
+\small
+\begin{verbatim}
+i = CSCOUNT_SCALE;
+\end{verbatim}
 \end{minipage}
 \vspace{5pt}
-\\ ~ \\
+
 So the "measurement" of 100 femtoseconds is simply the fixed
 overhead of the timing measurements divided by the number of
 passes through the inner loop containing the calls
@@ -352,7 +362,7 @@ in error by an arbitrary number of orders of magnitude.
 As you can see by the definition of \url{rcu_read_lock()}
 and \url{rcu_read_unlock()} above, the actual overhead
 is precisely zero.
-\\ ~ \\
+
 It certainly is not every day that a timing measurement of
 100 femtoseconds turns out to be an overestimate!
 
@@ -374,13 +384,14 @@ One way to cause a deadlock cycle involving
 RCU read-side primitives is via the following (illegal) sequence
 of statements:
 
+\vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
-~\\
-{\tt
-idx = srcu\_read\_lock(\&srcucb);\\
-synchronize\_srcu(\&srcucb);\\
-srcu\_read\_unlock(\&srcucb, idx);
-}
+\small
+\begin{verbatim}
+idx = srcu_read_lock(&srcucb);
+synchronize_srcu(&srcucb);
+srcu_read_unlock(&srcucb, idx);
+\end{verbatim}
 \end{minipage}
 \vspace{5pt}
 
@@ -555,22 +566,27 @@ In principle, you can use
 within an SRCU read-side critical section that uses some other
 \url{srcu_struct}.
 In practice, however, doing this is almost certainly a bad idea.
-In particular, the following could still result in deadlock:
-\\
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-{\tt
-~~1 idx = srcu\_read\_lock(\&ssa);\\
-~~2 synchronize\_srcu(\&ssb);\\
-~~3 srcu\_read\_unlock(\&ssa, idx);\\
-~~4 \\
-~~5 /* . . . */\\
-~~6 \\
-~~7 idx = srcu\_read\_lock(\&ssb);\\
-~~8 synchronize\_srcu(\&ssa);\\
-~~9 srcu\_read\_unlock(\&ssb, idx);\\
+In particular, the code shown in
+Figure~\ref{fig:defer:Multistage SRCU Deadlocks}
+could still result in deadlock.
+
+\begin{figure}[htbp]
+{ \centering
+\begin{verbatim}
+  1 idx = srcu_read_lock(&ssa);
+  2 synchronize_srcu(&ssb);
+  3 srcu_read_unlock(&ssa, idx);
+  4 
+  5 /* . . . */
+  6 
+  7 idx = srcu_read_lock(&ssb);
+  8 synchronize_srcu(&ssa);
+  9 srcu_read_unlock(&ssb, idx);
+\end{verbatim}
 }
-\end{minipage}
+\caption{Multistage SRCU Deadlocks}
+\label{fig:defer:Multistage SRCU Deadlocks}
+\end{figure}
 
 
 \QuickQ{Why doesn't \url{list_del_rcu()} poison both the \url{next}
@@ -604,26 +620,29 @@ assumptions about the initialization happening privately.
 primitives can be used with any of the RCU API family members?}
 
 It can sometimes be difficult for automated
-code checkers such as "sparse" (or indeed for human beings) to
+code checkers such as ``sparse'' (or indeed for human beings) to
 work out which type of RCU read-side critical section a given
 RCU traversal primitive corresponds to.
-For example, consider the following:
-\\
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-{ \tt
-~~1 rcu\_read\_lock();\\
-~~2 preempt\_disable();\\
-~~3 p = rcu\_dereference(global\_pointer);\\
-~~4 \\
-~~5 /* . . . */\\
-~~6 \\
-~~7 preempt\_enable();\\
-~~8 rcu\_read\_unlock();\\
+For example, consider the code shown in
+Figure~\ref{fig:defer:Diverse RCU Read-Side Nesting}.
+
+\begin{figure}[htbp]
+{ \centering
+\begin{verbatim}
+  1 rcu_read_lock();
+  2 preempt_disable();
+  3 p = rcu_dereference(global_pointer);
+  4 
+  5 /* . . . */
+  6 
+  7 preempt_enable();
+  8 rcu_read_unlock();
+\end{verbatim}
 }
-\end{minipage}
-\vspace{5pt}
-\\
+\caption{Diverse RCU Read-Side Nesting}
+\label{fig:defer:Diverse RCU Read-Side Nesting}
+\end{figure}
+
 Is the \url{rcu_dereference()} primitive in an RCU Classic
 or an RCU Sched critical section?
 What would you have to do to figure this out?
@@ -769,39 +788,34 @@ What would you have to do to figure this out?
 	(The order in the code is A, B, LOCK, C, D, UNLOCK, E, F.)
 	Why or why not?}
 
-	(1) Legitimate, executed in order.
-
-	(2) Legitimate, the lock acquisition was executed concurrently
-	with the last assignment preceding the critical section.
-
-	(3) Illegitimate, the assignment to ``F'' must follow the LOCK
-	operation.
-
-	(4) Illegitimate, the LOCK must complete before any operation in
-	the critical section.  However, the UNLOCK may legitimately
-	be executed concurrently with subsequent operations.
-
-	(5) Legitimate, the assignment to ``A'' precedes the UNLOCK,
-	as required, and all other operations are in order.
-
-	(6) Illegitimate, the assignment to ``C'' must follow the LOCK.
-
-	(7) Illegitimate, the assignment to ``D'' must precede the UNLOCK.
-
-	(8) Legitimate, all assignments are ordered with respect to the
-	LOCK and UNLOCK operations.
-
-	(9) Illegitimate, the assignment to ``A'' must precede the UNLOCK.
-	
+	\begin{enumerate}
+	\item	Legitimate, executed in order.
+	\item	Legitimate, the lock acquisition was executed concurrently
+		with the last assignment preceding the critical section.
+	\item	Illegitimate, the assignment to ``F'' must follow the LOCK
+		operation.
+	\item	Illegitimate, the LOCK must complete before any operation in
+		the critical section.  However, the UNLOCK may legitimately
+		be executed concurrently with subsequent operations.
+	\item	Legitimate, the assignment to ``A'' precedes the UNLOCK,
+		as required, and all other operations are in order.
+	\item	Illegitimate, the assignment to ``C'' must follow the LOCK.
+	\item	Illegitimate, the assignment to ``D'' must precede the UNLOCK.
+	\item	Legitimate, all assignments are ordered with respect to the
+		LOCK and UNLOCK operations.
+	\item	Illegitimate, the assignment to ``A'' must precede the UNLOCK.
+	\end{enumerate}
 
 \QuickQ{What are the constraints for 
-	   Table~\ref{tab:advsync:Lock-Based Critical Sections}?}
+	Table~\ref{tab:advsync:Lock-Based Critical Sections}?}
 
-	   They are as follows: \\
-	   (1) LOCK M must precede B, C, and D. \\
-	   (2) UNLOCK M must follow A, B, and C. \\
-	   (3) LOCK Q must precede F, G, and H. \\
-	   (4) UNLOCK Q must follow E, F, and G.
+	They are as follows:
+	\begin{enumerate}
+	\item	LOCK M must precede B, C, and D.
+	\item	UNLOCK M must follow A, B, and C.
+	\item	LOCK Q must precede F, G, and H.
+	\item	UNLOCK Q must follow E, F, and G.
+	\end{enumerate}
 
 \QuickQAC{chp:Ease of Use}
 \QuickQ{Can a similar algorithm be used when deleting elements?}
