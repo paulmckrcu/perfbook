@@ -107,11 +107,13 @@ encounter when using explicit memory barriers.
 \label{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?}
 
 Memory ordering and memory barriers can be extremely counter-intuitive.
-For example, consider the following functions executing in parallel
+For example, consider the functions shown in
+Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal}
+executing in parallel
 where variables A, B, and C are initially zero:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
+\begin{figure}[htbp]
+{ \centering
 \begin{verbatim}
   1 thread0(void)
   2 {
@@ -137,9 +139,10 @@ where variables A, B, and C are initially zero:
  22 }
  23 assert(b == 2);
 \end{verbatim}
-\label{minipage:advsync:Intuition Considered Harmful}
-\end{minipage}
-\vspace{5pt}
+}
+\caption{Parallel Hardware is Non-Causal}
+\label{fig:advsync:Parallel Hardware is Non-Causal}
+\end{figure}
 
 Intuitively, \url{thread0()} assigns to B after it assigns to A,
 \url{thread1()} waits until \url{thread0()} has assigned to B before
@@ -163,14 +166,20 @@ that a number of dirty hardware-dependent tricks were used to
 greatly \emph{increase} the probability of failure in this run.
 
 \QuickQuiz{How on earth could the assertion on line~21 of the code in
-	Section~\ref{minipage:advsync:Intuition Considered Harmful} on
-	page~\pageref{minipage:advsync:Intuition Considered Harmful}
+	Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal} on
+	page~\pageref{fig:advsync:Parallel Hardware is Non-Causal}
 	\emph{possibly} fail???}
 \QuickQuizAnswer{
 	The key point is that the intuitive analysis missed is that
 	there is nothing preventing the assignment to C from overtaking
 	the assignment to A as both race to reach {\tt thread2()}.
 	This is explained in the remainder of this section.
+} \QuickQuizEnd
+
+\QuickQuiz{Great...  So how do I fix it?}
+\QuickQuizAnswer{
+	The easiest fix is to replace the \url{barrier()} on
+	line~12 with an \url{smp_mb()}.
 } \QuickQuizEnd
 
 So what should you do?
@@ -215,7 +224,7 @@ the loop if not for the check on lines~7-8.
 } \QuickQuizEnd
 
 \begin{figure}[htbp] 
-{ \scriptsize
+{ \centering
 \begin{verbatim}
   1 state.variable = mycpu;
   2 lasttb = oldtb = firsttb = gettb();

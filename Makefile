@@ -92,7 +92,7 @@ perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
 perfbook_dvi: $(LATEXSOURCES) qqz_tex
 	latex perfbook || :
 	latex perfbook || :
-	bibtex perfbook
+	test -d bib/. && bibtex perfbook
 	latex perfbook || :
 	latex perfbook || :
 
