@@ -1,11 +1,13 @@
-% intro/primitives.tex
+% appendix/primitives/primitives.tex
 
-\section{Synchonization Primitives}
-\label{sec:intro:Synchonization Primitives}
+\chapter{Synchronization Primitives}
+\label{app:primitives:Synchronization Primitives}
+
+\QuickQuizChapter{app:primitives:Synchronization Primitives}
 
 All but the simplest parallel programs require synchronization
 primitives.
-This section gives a quick overview of a set of primitives based
+This appendix gives a quick overview of a set of primitives based
 loosely on those in the Linux kernel.
 
 Why Linux?
@@ -58,23 +60,30 @@ a Linux-kernel-module API would not be difficult to create.
 
 The following sections describe commonly used classes of synchronization
 primitives.
-More esoteric primitives will be introduced in later chapters, with
-a full reference (and comparison to other primitives) in
-Appendix @@@.
+@@@ More esoteric primitives will be introduced in later revision.
 
-\emph{@@@ roadmap?}
+Section~\ref{app:primitives:Organization and Initialization}
+covers organization/initialization primitives;
+Section~\ref{app:primitives:Thread Creation, Destruction, and Control}
+presents thread creation, destruction, and control primitives;
+Section~\ref{app:primitives:Locking}
+presents locking primitives;
+Section~\ref{app:primitives:Per-Thread Variables}
+presents per-thread and per-CPU variable primitives; and
+Section~\ref{app:primitives:Performance}
+gives an overview of the relative performance of the various primitives.
 
-\subsection{Organization and Initialization}
-\label{sec:intro:Organization and Initialization}
+\section{Organization and Initialization}
+\label{app:primitives:Organization and Initialization}
 
 \emph{@@@ currently include ../api.h, and there is only pthreads.
 Expand and complete once the CodeSamples structure settles down.}
 
-\paragraph{smp\_init():}
+\subsection{smp\_init():}
 You must invoke \url{smp_init()} before invoking any other primitives.
 
-\subsection{Thread Creation, Destruction, and Control}
-\label{sec:intro:Thread Creation, Destruction and Control}
+\section{Thread Creation, Destruction, and Control}
+\label{app:primitives:Thread Creation, Destruction, and Control}
 
 This API focuses on ``threads'', which are a locus of control.\footnote{
 	There are many other names for similar software constructs, including
@@ -106,7 +115,7 @@ void wait_all_threads(void)
 \label{fig:intro:Thread API}
 \end{figure*}
 
-\subsubsection{create\_thread()}
+\subsection{create\_thread()}
 
 The \url{create_thread} primitive creates a new thread,
 starting the new thread's execution
@@ -125,7 +134,7 @@ the program.
 though some systems may have an upper bound for the allowable number
 of threads.
 
-\subsubsection{smp\_thread\_id()}
+\subsection{smp\_thread\_id()}
 
 Because the \url{thread_id_t} returned from \url{create_thread()} is
 system-dependent, the \url{smp_thread_id()} primitive returns a thread
@@ -135,21 +144,21 @@ that have been in existence since the program started,
 and is therefore useful for bitmasks, array indices, and
 the like.
 
-\subsubsection{for\_each\_thread()}
+\subsection{for\_each\_thread()}
 
 The \url{for_each_thread()} macro loops through all threads that exist,
 including all threads that \emph{would} exist if created.
 This macro is useful for handling per-thread variables as will be
-seen in Section~\ref{sec:intro:Per-Thread Variables}.
+seen in Section~\ref{app:primitives:Per-Thread Variables}.
 
-\subsubsection{for\_each\_running\_thread()}
+\subsection{for\_each\_running\_thread()}
 
 The \url{for_each_running_thread()}
 macro loops through only those threads that currently exist.
 It is the caller's responsibility to synchronize with thread
 creation and deletion if required.
 
-\subsubsection{wait\_thread()}
+\subsection{wait\_thread()}
 
 The \url{wait_thread()} primitive waits for completion of the thread
 specified by the \url{thread_id_t} passed to it.
@@ -158,7 +167,7 @@ instead, it merely waits for it.
 Note that \url{wait_thread()} returns the value that was returned by
 the corresponding thread.
 
-\subsubsection{wait\_all\_threads()}
+\subsection{wait\_all\_threads()}
 
 The \url{wait_all_thread()}
 primitive waits for completion of all currently running threads.
@@ -167,7 +176,7 @@ and deletion if required.
 However, this primitive is normally used to clean up and the end of
 a run, so such synchronization is normally not needed.
 
-\subsubsection{Example Usage}
+\subsection{Example Usage}
 
 Figure~\ref{fig:intro:Example Child Thread}
 shows an example hello-world-like child thread.
@@ -236,8 +245,8 @@ as in this case they are all \url{NULL}, which is not very interesting.
 \label{fig:intro:Example Parent Thread}
 \end{figure}
 
-\subsection{Locking}
-\label{sec:intro:Locking}
+\section{Locking}
+\label{app:primitives:Locking}
 
 The locking API is shown in
 Figure~\ref{fig:intro:Locking API},
@@ -256,13 +265,13 @@ void spin_unlock(spinlock_t *sp);
 \label{fig:intro:Locking API}
 \end{figure}
 
-\subsubsection{spin\_lock\_init()}
+\subsection{spin\_lock\_init()}
 
 The \url{spin_lock_init()} primitive initializes the specified
 \url{spinlock_t} variable, and must be invoked before
 this variable is passed to any other spinlock primitive.
 
-\subsubsection{spin\_lock()}
+\subsection{spin\_lock()}
 
 The \url{spin_lock()} primitive acquires the specified spinlock,
 if necessary, waiting until the spinlock becomes available.
@@ -273,21 +282,21 @@ in others, such as the Linux kernel, it will involve blocking.
 The key point is that only one thread may hold a spinlock at any
 given time.
 
-\subsubsection{spin\_trylock()}
+\subsection{spin\_trylock()}
 
 The \url{spin_trylock()} primitive acquires the specified spinlock,
 but only if it is immediately available.
 It returns \url{TRUE} if it was able to acquire the spinlock and
 \url{FALSE} otherwise.
 
-\subsubsection{spin\_unlock()}
+\subsection{spin\_unlock()}
 
 The \url{spin_unlock()} primitive releases the specified spinlock,
 allowing other threads to acquire it.
 
 \emph{@@@ likely need to add reader-writer locking.}
 
-\subsubsection{Example Usage}
+\subsection{Example Usage}
 
 A spinlock named \url{mutex} may be used to protect a variable
 \url{counter} as follows:
@@ -329,10 +338,10 @@ STORE r0,counter
 
 However, the \url{spin_lock()} and \url{spin_unlock()} primitives
 do have performance consequences, as will be seen in
-Section~\ref{sec:intro:Performance}.
+Section~\ref{app:primitives:Performance}.
 
-\subsection{Per-Thread Variables}
-\label{sec:intro:Per-Thread Variables}
+\section{Per-Thread Variables}
+\label{app:primitives:Per-Thread Variables}
 
 Figure~\ref{fig:intro:Per-Thread-Variable API}
 shows the per-thread-variable API.
@@ -373,7 +382,7 @@ init_per_thread(name, v)
 	not they were C static variables!
 } \QuickQuizEnd
 
-\subsubsection{DEFINE\_PER\_THREAD()}
+\subsection{DEFINE\_PER\_THREAD()}
 
 The \url{DEFINE_PER_THREAD()} primitive defines a per-thread variable.
 Unfortunately, it is not possible to provide an initializer in the way
@@ -381,32 +390,32 @@ permitted by the Linux kernel's \url{DEFINE_PER_THREAD()} primitive,
 but there is an \url{init_per_thread()} primitive that permits easy
 runtime initialization.
 
-\subsubsection{DECLARE\_PER\_THREAD()}
+\subsection{DECLARE\_PER\_THREAD()}
 
 The \url{DECLARE_PER_THREAD()} primitive is a declaration in the C sense,
 as opposed to a definition.
 Thus, a \url{DECLARE_PER_THREAD()} primitive may be used to access
 a per-thread variable defined in some other file.
 
-\subsubsection{per\_thread()}
+\subsection{per\_thread()}
 
 The \url{per_thread()} primitive accesses the specified thread's variable.
 
-\subsubsection{\_\_get\_thread\_var()}
+\subsection{\_\_get\_thread\_var()}
 
 The \url{__get_thread_var()} primitive accesses the current thread's variable.
 
-\subsubsection{init\_per\_thread()}
+\subsection{init\_per\_thread()}
 
 The \url{init_per_thread()} primitive sets all threads' instances of
 the specified variable to the specified value.
 
-\subsubsection{Usage Example}
+\subsection{Usage Example}
 
 Suppose that we have a counter that is incremented very frequently
 but read out quite rarely.
 As will become clear in
-Section~\ref{sec:intro:Performance},
+Section~\ref{app:primitives:Performance},
 it is helpful to implement such a counter using a per-CPU variable.
 Such a variable can be defined as follows:
 
@@ -458,14 +467,14 @@ for_each_thread(i)
 Again, it is possible to gain a similar effect using other mechanisms,
 but per-thread variables combine convenience and high performance.
 
-\subsection{Performance}
-\label{sec:intro:Performance}
+\section{Performance}
+\label{app:primitives:Performance}
 
 It is instructive to compare the performance of the locked increment
 shown in
-Section~\ref{sec:intro:Locking}
+Section~\ref{app:primitives:Locking}
 to that of per-thread variables
-(see Section~\ref{sec:intro:Per-Thread Variables}),
+(see Section~\ref{app:primitives:Per-Thread Variables}),
 as well as to conventional increment (as in ``counter++'').
 
 \emph{@@@ need parable on cache thrashing.}

@@ -5,6 +5,7 @@ LATEXSOURCES = \
 	advsync/memorybarriers.tex \
 	analysis/analysis.tex \
 	appendix/appendix.tex \
+	appendix/primitives/primitives.tex \
 	appendix/questions/after.tex \
 	appendix/questions/questions.tex \
 	appendix/srcu/srcu.tex \
@@ -16,7 +17,6 @@ LATEXSOURCES = \
 	glossary.tex \
 	intro/hwhabits.tex \
 	intro/intro.tex \
-	intro/primitives.tex \
 	legal.tex \
 	memalloc/memalloc.tex \
 	owned/owned.tex \
