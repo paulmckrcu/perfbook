@@ -8,7 +8,8 @@ LATEXSOURCES = \
 	appendix/primitives/primitives.tex \
 	appendix/questions/after.tex \
 	appendix/questions/questions.tex \
-	appendix/srcu/srcu.tex \
+	appendix/rcuimpl/rcu.tex \
+	appendix/rcuimpl/srcu.tex \
 	appendix/whymb/whymemorybarriers.tex \
 	cpu/cpu.tex \
 	datastruct/datastruct.tex \
@@ -51,7 +52,7 @@ EPSSOURCES = \
 	advsync/SplitCache.eps \
 	advsync/WriteBarrierOrdering.eps \
 	appendix/questions/after.eps \
-	appendix/srcu/srcuds.eps \
+	appendix/rcuimpl/srcuds.eps \
 	appendix/whymb/MESI.eps \
 	appendix/whymb/cacheSB.eps \
 	appendix/whymb/cacheSBf.eps \
