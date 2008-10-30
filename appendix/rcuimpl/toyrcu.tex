@@ -3,6 +3,17 @@
 \section{``Toy'' RCU Implementations}
 \label{app:rcuimpl:``Toy'' RCU Implementations}
 
+The toy RCU implementations in this section are designed not for
+high performance, practicality, or any kind of production use,
+but rather for clarity.
+Appendix~\ref{app:rcuimpl:Lock-Based RCU} presents a rudimentary
+RCU implementation based on simple locking,
+Appendix~\ref{app:rcuimpl:Simple Counter-Based RCU} presents a very
+simple RCU implementation based on a single global reference counter,
+and
+Appendix~\ref{app:rcuimpl:Starvation-Free Counter-Based RCU} presents
+an reference-counter-based implementation that avoids starvation.
+
 \subsection{Lock-Based RCU}
 \label{app:rcuimpl:Lock-Based RCU}
 
@@ -55,14 +66,94 @@ critical sections are guaranteed to have completed.
 	\item	Only a single thread can be in an RCU read-side
 		critical section at a time, which negates RCU's
 		scalability advantages.
+		This could be overcome by using reader-writer
+		locking~\cite{PaulMcKenney2005e}, but only for
+		unusually long RCU read-side critical sections.
 	\item	RCU read-side critical sections cannot be nested.
 	\end{enumerate}
 	It is hard to imagine this implementation being useful
 	in a production setting.
 } \QuickQuizEnd
 
+The counter-based implementation described next overcomes some of
+these shortcomings.
+
 \subsection{Simple Counter-Based RCU}
 \label{app:rcuimpl:Simple Counter-Based RCU}
+
+\begin{figure}[bp]
+{ \scriptsize
+\begin{verbatim}
+  1 atomic_t rcu_refcnt;
+  2 
+  3 static void rcu_read_lock(void)
+  4 {
+  5   atomic_inc(&rcu_refcnt);
+  6   smp_mb();
+  7 }
+  8 
+  9 static void rcu_read_unlock(void)
+ 10 {
+ 11   smp_mb();
+ 12   atomic_dec(&rcu_refcnt);
+ 13 }
+ 14 
+ 15 void synchronize_rcu(void)
+ 16 {
+ 17   smp_mb();
+ 18   while (atomic_read(&rcu_refcnt) != 0) {
+ 19     /* @@@ poll(NULL, 0, 10); */
+ 20   }
+ 21   smp_mb();
+ 22 }
+\end{verbatim}
+}
+\caption{RCU Implementation Using Single Global Reference Counter}
+\label{fig:app:rcuimpl:RCU Implementation Using Single Global Reference Counter}
+\end{figure}
+
+A slightly more sophisticated RCU implementation is shown in
+Figure~\ref{fig:app:rcuimpl:RCU Implementation Using Single Global Reference Counter}.
+This implementation makes use of a global reference counter
+\url{rcu_refcnt} defined on line~1.
+The \url{rcu_read_lock()} primitive atomically increments this
+counter, then executes a memory barrier to ensure that the
+RCU read-side critical section is ordered after the atomic
+increment.
+Similarly, \url{rcu_read_unlock()} executes a memory barrier to
+confine the RCU read-side critical section, then atomically
+decrements the counter.
+The \url{synchronize_rcu()} primitive spins waiting for the reference
+counter to reach zero, surrounded by memory barriers.
+Again, once \url{synchronize_rcu()} returns, all prior
+RCU read-side critical sections are guaranteed to have completed.
+
+In happy contrast to the lock-based implementation shown in
+Appendix~\ref{app:rcuimpl:Lock-Based RCU}, this implementation
+allows parallel execution of RCU read-side critical sections,
+and also allows them to be nested.
+In addition, the \url{rcu_read_lock()} primitive cannot possibly
+participate in deadlock cycles.
+
+\QuickQuiz{What are some of the shortcomings of the counter-based
+	implementation shown in
+	Figure~\ref{fig:app:rcuimpl:RCU Implementation Using Single Global Reference Counter}?}
+\QuickQuizAnswer{
+	There are still some serious shortcomings:
+	\begin{enumerate}
+	\item	The lock operations in \url{rcu_read_lock()} and
+		\url{rcu_read_unlock()} are still quite  heavyweight.
+	\item	A large number of RCU readers with long read-side
+		critical sections could prevent \url{synchronize_rcu()}
+		from ever completing, as the global counter might
+		never reach zero.
+		This could result in starvation of RCU updates, which
+		is unacceptable in production settings.
+	\end{enumerate}
+	It is still hard to imagine this implementation being useful
+	in a production setting, though it has a bit more potential
+	than the lock-based mechanism.
+} \QuickQuizEnd
 
 \subsection{Starvation-Free Counter-Based RCU}
 \label{app:rcuimpl:Starvation-Free Counter-Based RCU}
