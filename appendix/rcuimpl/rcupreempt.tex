@@ -3,7 +3,7 @@
 \section{Preemptable RCU}
 \label{app:rcuimpl:Preemptable RCU}
 
-The RCU implementation for the -rt patchset is unusual in that
+The preemptable RCU implementation is unusual in that
 it permits read-side critical
 sections to be preempted and to be blocked waiting for locks.
 However, it does not handle general blocking
@@ -17,8 +17,8 @@ non-\url{CONFIG_PREEMPT} kernel.
 This ability to acquire blocking locks and to be preempted within
 RCU read-side critical sections is required for the aggressive real-time
 capabilities provided by Ingo Molnar's -rt patchset.
-However, the initial preemptible RCU implementation
-that was added to -rt in August 2005 has some limitations, including:
+However, the initial preemptible RCU implementation~\cite{PaulMcKenney2005d}
+had some limitations, including:
 
 \begin{enumerate}
 \item	Its read-side primitives cannot be called from within
@@ -30,9 +30,10 @@ that was added to -rt in August 2005 has some limitations, including:
 	sections~\cite{PaulEMcKenney2007BoostRCU}.
 \end{enumerate}
 
-The new preemptible RCU implementation that was submitted to LKML (most
-recently at http://lkml.org/lkml/2007/9/10/213 as of this writing)
-removes these limitations, and this document describes its design.
+The new preemptible RCU implementation that accepted into the 2.6.26
+Linux kernel
+removes these limitations, and this appendix describes its design,
+serving as an update to the LWN article~\cite{PaulEMcKenney2007PreemptibleRCU}.
 
 \QuickQuiz{Why is it important that blocking primitives
 	called from within a preemptible-RCU read-side critical section be
@@ -57,7 +58,7 @@ removes these limitations, and this document describes its design.
 	used in the Linux kernel, so this is what is used for RCU.
 } \QuickQuizEnd
 
-\QuickQuiz}Could the prohibition against using primitives
+\QuickQuiz{Could the prohibition against using primitives
 	that would block in a non-\url{CONFIG_PREEMPT} kernel be lifted,
 	and if so, under what conditions?}
 \QuickQuizAnswer{
@@ -284,7 +285,7 @@ This section describes preemptible RCU's major data structures, including
 \url{rcu_try_flip_state}, \url{rcu_try_flip_flag}, and
 \url{rcu_mb_flag}.
 
-\paragraph{rcu_ctrlblk}
+\paragraph{{\tt rcu\_ctrlblk}}
 \label{app:rcuimpl:rcu_ctrlblk}
 
 The \url{rcu_ctrlblk} structure is global, and holds the lock
@@ -293,7 +294,7 @@ as holding the global grace-period counter (\url{completed}).
 The least-significant bit of \url{completed} is used by
 \url{rcu_read_lock()} to select which set of counters to increment.
 
-\paragraph{rcu_data}
+\paragraph{{\tt rcu\_data}}
 \label{app:rcuimpl:rcu_data}
 
 The \url{rcu_data} structure is a per-CPU structure, and
@@ -335,7 +336,7 @@ which is described in a later section.
 
 
 
-\paragraph{rcu_flipctr}
+\paragraph{{\tt rcu\_flipctr}}
 \label{app:rcuimpl:rcu_flipctr}
 
 As noted earlier, the \url{rcu_flipctr}
@@ -348,13 +349,13 @@ However, the sum of the counters will
 still remain positive throughout the corresponding grace period, and will
 furthermore go to zero at the end of that grace period.
 
-\paragraph{rcu_try_flip_state}
+\paragraph{{\tt rcu\_try\_flip\_state}}
 \label{app:rcuimpl:rcu_try_flip_state}
 
 The \url{rcu_try_flip_state} variable tracks the current state of
 the grace-period state machine, as described in the next section.
 
-\paragraph{rcu_try_flip_flag}
+\paragraph{{\tt rcu\_try\_flip\_flag}}
 \label{app:rcuimpl:rcu_try_flip_flag}
 
 The \url{rcu_try_flip_flag} per-CPU variable alerts the corresponding
@@ -365,7 +366,7 @@ taken by \url{rcu_read_lock()} on that CPU must account for the
 new value of the grace-period counter, in particular, when incrementing
 \url{rcu_flipctr} in \url{rcu_read_lock()}.
 
-\paragraph{rcu_mb_flag}
+\paragraph{{\tt rcu\_mb\_flag}}
 \label{app:rcuimpl:rcu_mb_flag}
 
 The \url{rcu_mb_flag} per-CPU variable alerts the corresponding
@@ -486,14 +487,10 @@ In the meantime, here are some important things to note:
 \paragraph{Grace-Period State Machine Walkthrough}
 \label{app:rcuimpl:Grace-Period State Machine Walkthrough}
 
-This section walks through the C code that implements the RCU
-grace-period state machine, which is invoked from the scheduling-clock
-interrupt, which invokes \url{rcu_check_callbacks()} with
-irqs (and thus also preemption) disabled.
-This function is implemented as follows:
-
-<blockquote>
-<pre>  1 void rcu_check_callbacks(int cpu, int user)
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void rcu_check_callbacks(int cpu, int user)
   2 {
   3   unsigned long flags;
   4   struct rcu_data *rdp = RCU_DATA_CPU(cpu);
@@ -506,9 +503,18 @@ This function is implemented as follows:
  11   __rcu_advance_callbacks(rdp);
  12   spin_unlock_irqrestore(&rdp->lock, flags);
  13 }
-</pre>
-</blockquote>
+\end{verbatim}
+}
+\caption{{\tt rcu\_check\_callbacks()} Implementation}
+\label{fig:app:rcuimpl:rcu_check_callbacks() Implementation}
+\end{figure}
 
+This section walks through the C code that implements the RCU
+grace-period state machine, which is invoked from the scheduling-clock
+interrupt, which invokes \url{rcu_check_callbacks()} with
+irqs (and thus also preemption) disabled.
+This function is implemented as shown in
+Figure~\ref{fig:app:rcuimpl:rcu_check_callbacks() Implementation}.
 Line~4 selects the \url{rcu_data} structure corresponding
 to the current CPU, and line~6 checks to see if this CPU needs
 to execute a memory barrier to advance the state machine out of the
@@ -521,20 +527,25 @@ line~11 advances callbacks if appropriate.
 Line~10 updates RCU tracing statistics, if enabled via
 \url{CONFIG_RCU_TRACE}.
 
-The \url{rcu_check_mb()} function executes a memory barrier
-as needed:
-
-<blockquote>
-<pre>  1 static void rcu_check_mb(int cpu)
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void rcu_check_mb(int cpu)
   2 {
   3   if (per_cpu(rcu_mb_flag, cpu) == rcu_mb_needed) {
   4     smp_mb();
   5     per_cpu(rcu_mb_flag, cpu) = rcu_mb_done;
   6   }
   7 }
-</pre>
-</blockquote>
+\end{verbatim}
+}
+\caption{{\tt rcu\_check\_mb()} Implementation}
+\label{fig:app:rcuimpl:rcu_check_mb() Implementation}
+\end{figure}
 
+The \url{rcu_check_mb()} function executes a memory barrier
+as needed as shown in
+Figure~\ref{fig:app:rcuimpl:rcu_check_mb() Implementation}.
 Line~3 checks to see if this CPU needs to execute a memory barrier,
 and, if so, line~4 executes one and line~5 informs the state
 machine.
@@ -542,11 +553,10 @@ Note that this memory barrier ensures that any CPU that sees the new
 value of \url{rcu_mb_flag} will also see the memory operations
 executed by this CPU in any prior RCU read-side critical section.
 
-The \url{rcu_try_flip()} function implements the top level of
-the RCU grace-period state machine:
-
-<blockquote>
-<pre>  1 static void rcu_try_flip(void)
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void rcu_try_flip(void)
   2 {
   3   unsigned long flags;
   4 
@@ -574,9 +584,15 @@ the RCU grace-period state machine:
  26   }
  27   spin_unlock_irqrestore(&rcu_ctrlblk.fliplock, flags);
  28 }
-</pre>
-</blockquote>
+\end{verbatim}
+}
+\caption{{\tt rcu\_try\_flip()} Implementation}
+\label{fig:app:rcuimpl:rcu_try_flip() Implementation}
+\end{figure}
 
+The \url{rcu_try_flip()} function implements the top level of
+the RCU grace-period state machine, as shown in
+Figure~\ref{fig:app:rcuimpl:rcu_try_flip() Implementation}.
 Line~6 attempts to acquire the global RCU state-machine lock,
 and returns if unsuccessful.
 Lines;~5 and 7 accumulate RCU-tracing statistics (again, if
@@ -590,13 +606,10 @@ but in practice we choose not to do so in order to reduce latency.
 Finally, line~27 releases the global RCU state-machine lock
 that was acquired by line~6.
 
-The \url{rcu_try_flip_idle()} function is called when the
-RCU grace-period state machine is idle, and is thus responsible for
-getting it started when needed.
-Its code is as follows:
-
-<blockquote>
-<pre>  1 static int rcu_try_flip_idle(void)
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static int rcu_try_flip_idle(void)
   2 {
   3   int cpu;
   4 
@@ -612,9 +625,17 @@ Its code is as follows:
  14     per_cpu(rcu_flip_flag, cpu) = rcu_flipped;
  15   return 1;
  16 }
-</pre>
-</blockquote>
+\end{verbatim}
+}
+\caption{{\tt rcu\_try\_flip\_idle()} Implementation}
+\label{fig:app:rcuimpl:rcu_try_flip_idle() Implementation}
+\end{figure}
 
+The \url{rcu_try_flip_idle()} function is called when the
+RCU grace-period state machine is idle, and is thus responsible for
+getting it started when needed.
+Its code is shown in
+Figure~\ref{fig:app:rcuimpl:rcu_try_flip_idle() Implementation}.
 Line~6 checks to see if there is any RCU grace-period work
 pending for this CPU, and if not, line~8 leaves, telling
 the top-level state machine to remain in the idle state.
@@ -626,15 +647,10 @@ the online CPUs' \url{rcu_flip_flag}.
 Finally, line~15 tells the top-level state machine to
 advance to the next state.
 
-The \url{rcu_try_flip_waitack()} function checks to see
-if all online CPUs have acknowledged the counter flip (AKA "increment",
-but called "flip" because the bottom bit, which \url{rcu_read_lock()}
-uses to index the \url{rcu_flipctr} array, <i>does</i> flip).
-If they have, it tells the top-level grace-period state machine to
-move to the next state.
-
-<blockquote>
-<pre>  1 static int rcu_try_flip_waitack(void)
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static int rcu_try_flip_waitack(void)
   2 {
   3   int cpu;
   4 
@@ -648,8 +664,20 @@ move to the next state.
  12   RCU_TRACE_ME(rcupreempt_trace_try_flip_a2);
  13   return 1;
  14 }
-</pre>
-</blockquote>
+\end{verbatim}
+}
+\caption{{\tt rcu\_try\_flip\_waitack()} Implementation}
+\label{fig:app:rcuimpl:rcu_try_flip_waitack() Implementation}
+\end{figure}
+
+The \url{rcu_try_flip_waitack()} function, shown in
+Figure~\ref{fig:app:rcuimpl:rcu_try_flip_waitack() Implementation},
+checks to see
+if all online CPUs have acknowledged the counter flip (AKA "increment",
+but called "flip" because the bottom bit, which \url{rcu_read_lock()}
+uses to index the \url{rcu_flipctr} array, \emph{does} flip).
+If they have, it tells the top-level grace-period state machine to
+move to the next state.
 
 Line~6 cycles through all of the online CPUs, and line~7
 checks to see if the current such CPU has acknowledged the last counter
@@ -664,13 +692,10 @@ things.
 Finally, line~13 tells the top-level grace-period state machine
 to advance to the next state.
 
-The \url{rcu_try_flip_waitzero()} function checks to see if
-all pre-existing RCU read-side critical sections have completed,
-telling the state machine to advance if so.
-
-
-<blockquote>
-<pre>  1 static int rcu_try_flip_waitzero(void)
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static int rcu_try_flip_waitzero(void)
   2 {
   3   int cpu;
   4   int lastidx = !(rcu_ctrlblk.completed & 0x1);
@@ -689,10 +714,17 @@ telling the state machine to advance if so.
  17   RCU_TRACE_ME(rcupreempt_trace_try_flip_z2);
  18   return 1;
  19 }
-</pre>
-</blockquote>
+\end{verbatim}
+}
+\caption{{\tt rcu\_try\_flip\_waitzero()} Implementation}
+\label{fig:app:rcuimpl:rcu_try_flip_waitzero() Implementation}
+\end{figure}
 
-
+The \url{rcu_try_flip_waitzero()} function, shown in
+Figure~\ref{fig:app:rcuimpl:rcu_try_flip_waitzero() Implementation},
+checks to see if
+all pre-existing RCU read-side critical sections have completed,
+telling the state machine to advance if so.
 Lines~8 and 9 sum the counters, and line~10 checks
 to see if the result is zero, and, if not, line~12 tells
 the state machine to stay right where it is.
@@ -705,13 +737,10 @@ Lines~15 and 16 set all online CPUs' \url{rcu_mb_flag}
 variables, and line~18 tells the state machine to advance to
 the next state.
 
-The \url{rcu_try_flip_waitmb()} function checks to see
-if all online CPUs have executed the requested memory barrier,
-telling the state machine to advance if so.
-
-
-<blockquote>
-<pre>  1 static int rcu_try_flip_waitmb(void)
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static int rcu_try_flip_waitmb(void)
   2 {
   3   int cpu;
   4 
@@ -725,10 +754,17 @@ telling the state machine to advance if so.
  12   RCU_TRACE_ME(rcupreempt_trace_try_flip_m2);
  13   return 1;
  14 }
-</pre>
-</blockquote>
+\end{verbatim}
+}
+\caption{{\tt rcu\_try\_flip\_waitmb()} Implementation}
+\label{fig:app:rcuimpl:rcu_try_flip_waitmb() Implementation}
+\end{figure}
 
-
+The \url{rcu_try_flip_waitmb()} function, shown in
+Figure~\ref{fig:app:rcuimpl:rcu_try_flip_waitmb() Implementation},
+checks to see
+if all online CPUs have executed the requested memory barrier,
+telling the state machine to advance if so.
 Lines~6 and 7 check each online CPU to see if it has
 done the needed memory barrier, and if not, line~9 tells
 the state machine not to advance.
@@ -737,12 +773,10 @@ executes a memory barrier to ensure that any RCU callback invocation
 follows all of the memory barriers, and line~13 tells the
 state machine to advance.
 
-The \url{__rcu_advance_callbacks()} function advances
-callbacks and acknowledges the counter flip.
-
-
-<blockquote>
-<pre>  1 static void __rcu_advance_callbacks(struct rcu_data *rdp)
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void __rcu_advance_callbacks(struct rcu_data *rdp)
   2 {
   3   int cpu;
   4   int i;
@@ -786,10 +820,15 @@ callbacks and acknowledges the counter flip.
  42     smp_mb();
  43   }
  44 }
-</pre>
-</blockquote>
+\end{verbatim}
+}
+\caption{{\tt \_\_rcu\_advance\_callbacks()} Implementation}
+\label{fig:app:rcuimpl:__rcu_advance_callbacks() Implementation}
+\end{figure}
 
-
+The \url{__rcu_advance_callbacks()} function, shown in
+Figure~\ref{fig:app:rcuimpl:__rcu_advance_callbacks() Implementation},
+advances callbacks and acknowledges the counter flip.
 Line~7 checks to see if the global \url{rcu_ctrlblk.completed}
 counter has advanced since the last call by the current CPU to this
 function.
@@ -815,7 +854,7 @@ Consider the following sequence of events:
 	Because \url{rcu_ctrlblk.completed} has been
 	incremented, lines~7-37 execute.
 	However, none of the \url{rcu_flip_flag} variables
-	have been set, so lines~38-43 do <i>not</i> execute.
+	have been set, so lines~38-43 do \emph{not} execute.
 
 \item	CPU 0 executes lines~13-15 of
 	\url{rcu_try_flip_idle()}.
@@ -836,39 +875,40 @@ This section examines the \url{rcu_read_lock()} and
 discussion of how this implementation deals with the fact
 that these two primitives do not contain memory barriers.
 
-\paragraph{rcu_read_lock()}
+\paragraph{{\tt rcu\_read\_lock()}}
 \label{app:rcuimpl:rcu_read_lock()}
 
-The implementation of \url{rcu_read_lock()} is as follows:
-
-<pre>  1 void __rcu_read_lock(void)
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void __rcu_read_lock(void)
   2 {
   3   int idx;
-  4   struct task_struct *me = current;
+  4   struct task_struct *t = current;
   5   int nesting;
   6 
-  7   nesting = ACCESS_ONCE(me->rcu_read_lock_nesting);
+  7   nesting = ACCESS_ONCE(t->rcu_read_lock_nesting);
   8   if (nesting != 0) {
-  9     me->rcu_read_lock_nesting = nesting + 1;
+  9     t->rcu_read_lock_nesting = nesting + 1;
  10   } else {
  11     unsigned long flags;
  12 
  13     local_irq_save(flags);
  14     idx = ACCESS_ONCE(rcu_ctrlblk.completed) & 0x1;
- 15     smp_read_barrier_depends();  /* @@@@ might be unneeded */
- 16     ACCESS_ONCE(__get_cpu_var(rcu_flipctr)[idx])++;
- 17     ACCESS_ONCE(me->rcu_read_lock_nesting) = nesting + 1;
- 18     ACCESS_ONCE(me->rcu_flipctr_idx) = idx;
- 19     local_irq_restore(flags);
- 20   }
- 21 }
-</pre>
+ 15     ACCESS_ONCE(__get_cpu_var(rcu_flipctr)[idx])++;
+ 16     ACCESS_ONCE(t->rcu_read_lock_nesting) = nesting + 1;
+ 17     ACCESS_ONCE(t->rcu_flipctr_idx) = idx;
+ 18     local_irq_restore(flags);
+ 19   }
+ 20 }
+\end{verbatim}
+}
+\caption{{\tt \_\_rcu\_read\_lock()} Implementation}
+\label{fig:app:rcuimpl:__rcu_read_lock() Implementation}
+\end{figure}
 
-(Note: this code is under review and will likely change somewhat.
-This version matches
-<a href="http://lkml.org/lkml/2007/9/10/213">
-that posted to LKML on September 10, 2007</a>.)
-
+The implementation of \url{rcu_read_lock()} is as shown in
+Figure~\ref{fig:app:rcuimpl:__rcu_read_lock() Implementation}.
 Line~7 fetches this task's RCU read-side critical-section nesting
 counter.
 If line~8 finds that this counter is non-zero,
@@ -878,15 +918,13 @@ this counter.
 
 However, if this is the outermost \url{rcu_read_lock()},
 then more work is required.
-Lines~13 and 19 suppress and restore irqs to ensure that the
+Lines~13 and 18 suppress and restore irqs to ensure that the
 intervening code is neither preempted nor interrupted by a
 scheduling-clock interrupt (which runs the grace period state machine).
-Line~14 fetches the grace-period counter, line~15 is likely
-to be unnecessary (but was intended to ensure that changes to the index
-and value remain ordered, and is a no-op on all CPUs other than Alpha),
-line~16 increments the current counter for
-this CPU, line~17 increments the nesting counter,
-and line~18 records the old/new counter index so that
+Line~14 fetches the grace-period counter,
+line~15 increments the current counter for
+this CPU, line~16 increments the nesting counter,
+and line~17 records the old/new counter index so that
 \url{rcu_read_unlock()} can decrement the corresponding
 counter (but on whatever CPU it ends up running on).
 
@@ -1009,42 +1047,39 @@ by requiring an additional grace-period stage, however, it is not
 clear that disabling preemption is much faster than disabling
 interrupts on modern CPUs.
 
-\paragraph{rcu_read_unlock()}
+\paragraph{{\tt rcu\_read\_unlock()}}
 \label{app:rcuimpl:rcu_read_unlock()}
 
-The implementation of \url{rcu_read_unlock()} is as follows:
-
-<blockquote>
-<pre>  1 void __rcu_read_unlock(void)
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void __rcu_read_unlock(void)
   2 {
   3   int idx;
-  4   struct task_struct *me = current;
+  4   struct task_struct *t = current;
   5   int nesting;
   6 
-  7   nesting = ACCESS_ONCE(me->rcu_read_lock_nesting);
+  7   nesting = ACCESS_ONCE(t->rcu_read_lock_nesting);
   8   if (nesting > 1) {
-  9     me->rcu_read_lock_nesting = nesting - 1;
+  9     t->rcu_read_lock_nesting = nesting - 1;
  10   } else {
  11     unsigned long flags;
  12 
  13     local_irq_save(flags);
- 14     idx = ACCESS_ONCE(me->rcu_flipctr_idx);
- 15     smp_read_barrier_depends();  /* @@@ Needed??? */
- 16     ACCESS_ONCE(me->rcu_read_lock_nesting) = nesting - 1;
- 17     ACCESS_ONCE(__get_cpu_var(rcu_flipctr)[idx])--;
- 18     rcu_read_unlock_unboost();
- 19     local_irq_restore(flags);
- 20   }
- 21 }
-</pre>
-</blockquote>
+ 14     idx = ACCESS_ONCE(t->rcu_flipctr_idx);
+ 15     ACCESS_ONCE(t->rcu_read_lock_nesting) = nesting - 1;
+ 16     ACCESS_ONCE(__get_cpu_var(rcu_flipctr)[idx])--;
+ 17     local_irq_restore(flags);
+ 18   }
+ 19 }
+\end{verbatim}
+}
+\caption{{\tt \_\_rcu\_read\_unlock()} Implementation}
+\label{fig:app:rcuimpl:__rcu_read_unlock() Implementation}
+\end{figure}
 
-(Again, please note that this code is under review and will likely change
-somewhat.
-This version matches
-<a href="http://lkml.org/lkml/2007/9/10/213">
-that posted to LKML on September 10, 2007</a>.)
-
+The implementation of \url{rcu_read_unlock()} is shown in
+Figure~\ref{fig:app:rcuimpl:__rcu_read_unlock() Implementation}.
 Line~7 fetches the \url{rcu_read_lock_nesting} counter,
 which line~8 checks to see if we are under the protection of an
 enclosing \url{rcu_read_lock()} primitive.
@@ -1052,24 +1087,17 @@ If so, line~9 simply decrements the counter.
 
 However, as with \url{rcu_read_lock()}, we otherwise must do
 more work.
-Lines~13 and 19 disable and restore irqs in order to prevent
+Lines~13 and 17 disable and restore irqs in order to prevent
 the scheduling-clock interrupt from invoking the grace-period state machine 
 while in the midst of \url{rcu_read_unlock()} processing.
 Line~14 picks up the \url{rcu_flipctr_idx} that was
 saved by the matching \url{rcu_read_lock()},
-line~15 is likely
-to be unnecessary (but was intended to ensure that changes to the index
-and value remain ordered, and is a no-op on all CPUs other than Alpha),
-line~16
+line~15
 decrements \url{rcu_read_lock_nesting} so that irq and
 NMI/SMI handlers will henceforth update \url{rcu_flipctr},
-line~17 decrements the counter (with the same index as, but possibly
+line~16 decrements the counter (with the same index as, but possibly
 on a different CPU than, that incremented by the matching
 \url{rcu_read_lock()}.
-Finally, line~18 checks to see if this task has been subject to
-RCU priority boosting, deboosting it if so (see the
-<a href="http://lwn.net/Articles/220677/">LWN RCU priority-boosting article</a>
-for more details).
 
 The \url{ACCESS_ONCE()} macros and irq disabling
 are required for similar reasons that they are in
@@ -1258,7 +1286,7 @@ section can possibly extend relative to the grace-period state machine.
 \end{figure}
 
 The worst-case scenario is shown in
-Figure~\ref{}.
+Figure~\ref{app:rcuimpl:Preemptable RCU Worst-Case Scenario}.
 Here, CPU~0 is executing the shortest possible
 removal and reclamation sequence,
 while CPU~1 executes the longest possible RCU read-side critical
@@ -1306,8 +1334,14 @@ earliest possible callback invocation by CPU~0, two passes
 through the grace-period state machine suffice to constitute
 a full grace period, and hence it is safe to do:
 
-<pre>    #define GP_STAGES 2
-</pre>
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+    #define GP_STAGES 2
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
 
 \QuickQuiz{Suppose that the irq disabling in
 	\url{rcu_read_lock()} was replaced by preemption disabling.
@@ -1408,7 +1442,7 @@ dispense with irq disabling.
 Formal validation of this algorithm is quite important, but remains
 as future work.
 One tool for doing this validation is described in
-<a href="http://lwn.net/Articles/243851/">an earlier LWN article</a>.
+Section~\ref{sec:analysis:Using Promela and Spin to Verify Parallel Algorithms}.
 
 \QuickQuiz{What is a more precise way to say "CPU~0
 	might see CPU~1's increment as early as CPU~1's last previous
