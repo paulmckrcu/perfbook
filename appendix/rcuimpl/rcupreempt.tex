@@ -320,7 +320,7 @@ contains the following fields:
 
 \begin{figure}[htb]
 \begin{center}
-\resizebox{3in}{!}{\includegraphics{appendix/rcuimpl/RCUpreemptLists}}
+\resizebox{1.5in}{!}{\includegraphics{appendix/rcuimpl/RCUpreemptLists}}
 \end{center}
 \caption{Preemptable RCU Callback Flow}
 \label{app:rcuimpl:Preemptable RCU Callback Flow}
@@ -396,20 +396,17 @@ can take on the following values:
 	is incremented upon exit from this state, and all of the
 	per-CPU \url{rcu_flip_flag} variables are set
 	to \url{rcu_flipped}.
-
 \item	\url{rcu_try_flip_waitack_state}:
 	waiting for all CPUs to acknowledge that they have seen the
 	previous state's increment, which they do by setting their
 	\url{rcu_flip_flag} variables to \url{rcu_flip_seen}.
 	Once all CPUs have so acknowledged, we know that the old
 	set of counters can no longer be incremented.
-
 \item	\url{rcu_try_flip_waitzero_state}:
 	waiting for the old counters to sum to zero.
 	Once the counters sum to zero, all of the per-CPU
 	\url{rcu_mb_flag} variables are set to
 	\url{rcu_mb_needed}.
-
 \item	\url{rcu_try_flip_waitmb_state}:
 	waiting for all CPUs to execute a memory-barrier instruction,
 	which they signify by setting their \url{rcu_mb_flag}
@@ -561,7 +558,7 @@ executed by this CPU in any prior RCU read-side critical section.
   3   unsigned long flags;
   4 
   5   RCU_TRACE_ME(rcupreempt_trace_try_flip_1);
-  6   if (unlikely(!spin_trylock_irqsave(&rcu_ctrlblk.fliplock, flags))) {
+  6   if (!spin_trylock_irqsave(&rcu_ctrlblk.fliplock, flags)) {
   7     RCU_TRACE_ME(rcupreempt_trace_try_flip_e1);
   8     return;
   9   }
@@ -849,16 +846,13 @@ Consider the following sequence of events:
 \begin{enumerate}
 \item	CPU 0 executes lines~5-12 of
 	\url{rcu_try_flip_idle()}.
-
 \item	CPU 1 executes \url{__rcu_advance_callbacks()}.
 	Because \url{rcu_ctrlblk.completed} has been
 	incremented, lines~7-37 execute.
 	However, none of the \url{rcu_flip_flag} variables
 	have been set, so lines~38-43 do \emph{not} execute.
-
 \item	CPU 0 executes lines~13-15 of
 	\url{rcu_try_flip_idle()}.
-
 \item	Later, CPU 1 again executes \url{__rcu_advance_callbacks()}.
 	The counter has not been incremented since the earlier
 	execution, but the \url{rcu_flip_flag} variables have
@@ -946,7 +940,6 @@ This is critically important:
 	If the value of \url{rcu_ctrlblk.completed} had
 	changed in the meantime, this would corrupt the
 	\url{rcu_flipctr} values.
-
 \item	If the assignment to \url{rcu_read_lock_nesting}
 	(line~17) were to be reordered to precede the increment
 	of \url{rcu_flipctr} (line~16), and if an
@@ -954,7 +947,6 @@ This is critically important:
 	\url{rcu_read_lock()} in that NMI's handler
 	would incorrectly conclude that it was already under the
 	protection of \url{rcu_read_lock()}.
-
 \item	If the assignment to \url{rcu_read_lock_nesting}
         (line~17) were to be reordered to follow the assignment
 	to \url{rcu_flipctr_idx} (line~18), and if an
@@ -991,7 +983,6 @@ line~19 are as follows:
 	end up incrementing the counter at some random point
 	in the future.
 	Either situation could disrupt grace-period detection.
-
 \item	Disabling irqs has the side effect of disabling preemption.
 	If this code were to be preempted between fetching
 	\url{rcu_ctrlblk.completed} (line~14) and
@@ -1007,7 +998,6 @@ line~19 are as follows:
 	occurred in the middle of the increment (after the fetch of
 	the old counter but before the store of the newly incremented
 	counter).
-
 \item	Permitting preemption in the midst
 	of line~16, between selecting the current CPU's copy
 	of the \url{rcu_flipctr} array and the increment of
@@ -1020,7 +1010,6 @@ line~19 are as follows:
 	an increment or decrement might be lost, resulting in either
 	premature termination of a grace period, indefinite extension
 	of a grace period, or even both.
-
 \item	Failing to disable preemption can also defeat RCU priority
 	boosting, which relies on \url{rcu_read_lock_nesting}
 	to determine when a given task is in an RCU read-side
@@ -1120,7 +1109,6 @@ are required for similar reasons that they are in
 	in the meantime, resulting in corruption of the
 	\url{rcu_flipctr} values, destroying the ability
 	to correctly identify grace periods.
-
 \item	Another failure that could result from omitting the
 	\url{ACCESS_ONCE()} from line~14 is due to
 	the compiler reordering this statement to follow the
@@ -1134,7 +1122,6 @@ are required for similar reasons that they are in
 	As with the analogous situation in \url{rcu_read_lock()},
 	this could result in premature grace-period termination,
 	an indefinite grace period, or even both.
-
 \item	If \url{ACCESS_ONCE()} macros were omitted such that
 	the update of \url{rcu_read_lock_nesting} could be
 	interchanged by the compiler with the decrement of
@@ -1179,7 +1166,6 @@ fetch of \url{rcu_read_lock_nesting} (line~7) is required.
 	an increment or decrement might be lost, resulting in either
 	premature termination of a grace period, indefinite extension
 	of a grace period, or even both.
-
 \item	Failing to disable preemption can also defeat RCU priority
 	boosting, which relies on \url{rcu_read_lock_nesting}
 	to determine which tasks to boost.
@@ -1361,7 +1347,6 @@ Given this situation, consider the following sequence of events:
 \item	Task~B starts executing \url{rcu_read_lock()}, also on
 	CPU 0, picking up the low-order bit of
 	\url{rcu_ctrlblk.completed}, which is still equal to zero.
-
 \item	Task~B is interrupted by a sufficient number of scheduling-clock
 	interrupts to allow the current grace-period stage to complete,
 	and also be sufficient long-running interrupts to allow the
@@ -1369,27 +1354,21 @@ Given this situation, consider the following sequence of events:
 	\url{rcu_ctrlblk.complete} counter so that its bottom bit
 	is now equal to one and all CPUs have acknowledged this increment
 	operation.
-
 \item	CPU 1 starts summing the index==0 counters, starting with
 	\url{per_cpu(rcu_flipctr, 0)[0]}, which is equal to one
 	due to Task~A's increment.
 	CPU 1's local variable \url{sum} is therefore equal to one.
-
 \item	Task~B returns from interrupt, resuming its execution of
 	\url{rcu_read_lock()}, incrementing
 	\url{per_cpu(rcu_flipctr, 0)[0]}, which now has a value
 	of two.
-
 \item	Task~B is migrated to CPU 2.
-
 \item	Task~B completes its RCU read-side critical section, and executes
 	\url{rcu_read_unlock()}, which decrements
 	\url{per_cpu(rcu_flipctr, 2)[0]}, which is now -1.
-
 \item	CPU 1 now adds \url{per_cpu(rcu_flipctr, 1)[0]} and 
 	\url{per_cpu(rcu_flipctr, 2)[0]} to its
 	local variable \url{sum}, obtaining the value zero.
-
 \item	CPU 1 then incorrectly concludes that all prior RCU read-side
 	critical sections have completed, and advances to the next
 	RCU grace-period stage.

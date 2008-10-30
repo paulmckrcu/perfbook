@@ -1,0 +1,68 @@
+% appendix/rcuimpl/toyrcu.tex
+
+\section{``Toy'' RCU Implementations}
+\label{app:rcuimpl:``Toy'' RCU Implementations}
+
+\subsection{Lock-Based RCU}
+\label{app:rcuimpl:Lock-Based RCU}
+
+\begin{figure}[bp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void rcu_read_lock(void)
+  2 {
+  3   spin_lock(&rcu_gp_lock);
+  4 }
+  5 
+  6 static void rcu_read_unlock(void)
+  7 {
+  8   spin_unlock(&rcu_gp_lock);
+  9 }
+ 10 
+ 11 void synchronize_rcu(void)
+ 12 {
+ 13   spin_lock(&rcu_gp_lock);
+ 14   spin_unlock(&rcu_gp_lock);
+ 15 }
+\end{verbatim}
+}
+\caption{Lock-Based RCU Implementation}
+\label{fig:app:rcuimpl:Lock-Based RCU Implementation}
+\end{figure}
+
+Perhaps the simplest RCU implementation leverages locking, as
+shown in
+Figure~\ref{fig:app:rcuimpl:Lock-Based RCU Implementation}.
+In this implementation, \url{rcu_read_lock()} acquires a global
+spinlock, \url{rcu_read_unlock()} releases it, and
+\url{synchronize_rcu()} acquires it then immediately releases it.
+
+This implementation has numerous shortcomings, but does faithfully
+implement the most basic RCU semantics.
+Once \url{synchronize_rcu()} returns, all prior RCU read-side
+critical sections are guaranteed to have completed.
+
+\QuickQuiz{What are some of the shortcomings of the lock-based
+	implementation shown in
+	Figure~\ref{fig:app:rcuimpl:Lock-Based RCU Implementation}?}
+\QuickQuizAnswer{
+	There are a number of serious shortcomings:
+	\begin{enumerate}
+	\item	The lock operations in \url{rcu_read_lock()} and
+		\url{rcu_read_unlock()} are extremely heavyweight.
+	\item	These same lock operations permit \url{rcu_read_lock()}
+		to participate in deadlock cycles.
+	\item	Only a single thread can be in an RCU read-side
+		critical section at a time, which negates RCU's
+		scalability advantages.
+	\item	RCU read-side critical sections cannot be nested.
+	\end{enumerate}
+	It is hard to imagine this implementation being useful
+	in a production setting.
+} \QuickQuizEnd
+
+\subsection{Simple Counter-Based RCU}
+\label{app:rcuimpl:Simple Counter-Based RCU}
+
+\subsection{Starvation-Free Counter-Based RCU}
+\label{app:rcuimpl:Starvation-Free Counter-Based RCU}
