@@ -24,25 +24,29 @@
 
 void synchronize_rcu(void)
 {
+	int i;
+
 	smp_mb();
 	spin_lock(&rcu_gp_lock);
 
 	/* Flip counter once and wait for old counts to go away. */
 
-	atomic_set(&rcu_idx, !atomic_read(&rcu_idx));
+	i = atomic_read(&rcu_idx);
+	atomic_set(&rcu_idx, !i);
 	smp_mb();
-	while (atomic_read(&rcu_refcnt[!atomic_read(&rcu_idx)]) != 0) {
+	while (atomic_read(&rcu_refcnt[i]) != 0) {
 		/* @@@ poll(NULL, 0, 10); */
 	}
+	smp_mb();
 
 	/*
 	 * But someone might have been preempted while we waited, so
 	 * we must flip and wait one more time.
 	 */
 
-	atomic_set(&rcu_idx, !atomic_read(&rcu_idx));
+	atomic_set(&rcu_idx, i);
 	smp_mb();
-	while (atomic_read(&rcu_refcnt[!atomic_read(&rcu_idx)]) != 0) {
+	while (atomic_read(&rcu_refcnt[!i]) != 0) {
 		/* @@@ poll(NULL, 0, 10); */
 	}
 	spin_unlock(&rcu_gp_lock);
