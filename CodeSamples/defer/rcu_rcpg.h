@@ -1,5 +1,6 @@
 /*
- * rcu.h: simple user-level implementation of RCU.
+ * rcu_rcpg.h: simple user-level implementation of RCU based on a single
+ * pair of global reference counter.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,41 +22,46 @@
 #include "rcu_pointer.h"
 
 DEFINE_SPINLOCK(rcu_gp_lock);
-long rcu_gp_ctr = 0;	/* always even, +=2 at start of each grace period. */
-DEFINE_PER_THREAD(long, rcu_reader_gp);
-DEFINE_PER_THREAD(long, rcu_reader_gp_snap);
+atomic_t rcu_refcnt[2];
+atomic_t rcu_idx;
+DEFINE_PER_THREAD(int, rcu_nesting);
+DEFINE_PER_THREAD(int, rcu_read_idx);
 
 static void rcu_init(void)
 {
-	init_per_thread(rcu_reader_gp, 0);
-	init_per_thread(rcu_reader_gp_snap, 0);
+	atomic_set(&rcu_refcnt[0], 0);
+	atomic_set(&rcu_refcnt[1], 0);
+	atomic_set(&rcu_idx, 0);
+	init_per_thread(rcu_nesting, 0);
 }
 
 static void rcu_read_lock(void)
 {
-	/*
-	 * Copy the current GP counter to this thread's counter, setting
-	 * the lower bit to indicate that it is in an RCU read-side 
-	 * critical section.  Do a memory barrier to keep the critical
-	 * section penned in.  (Dropping the memory barrier requires
-	 * periodic per-thread processing.)
-	 */
+	int i;
+	int n;
 
-	__get_thread_var(rcu_reader_gp) = rcu_gp_ctr + 1;
+	n = __get_thread_var(rcu_nesting);
+	if (n == 0) {
+		i = atomic_read(&rcu_idx);
+		__get_thread_var(rcu_read_idx) = i;
+		atomic_inc(&rcu_refcnt[i]);
+	}
+	__get_thread_var(rcu_nesting) = n + 1;
 	smp_mb();
 }
 
 static void rcu_read_unlock(void)
 {
-	/*
-	 * Copy the current GP counter to this thread's counter, but
-	 * leaving the lower bit clear to indicate that it is no longer
-	 * in an RCU read-side critical section.  (As before, dropping
-	 * the memory barrier requires periodic per-thread processing.)
-	 */
+	int i;
+	int n;
 
 	smp_mb();
-	__get_thread_var(rcu_reader_gp) = rcu_gp_ctr;
+	n = __get_thread_var(rcu_nesting);
+	if (n == 1) {
+		 i = __get_thread_var(rcu_read_idx);
+		atomic_dec(&rcu_refcnt[i]);
+	}
+	__get_thread_var(rcu_nesting) = n - 1;
 }
 
 extern void synchronize_rcu(void);

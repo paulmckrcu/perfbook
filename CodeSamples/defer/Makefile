@@ -14,7 +14,7 @@
 #
 # Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
 
-all: gettimestamp gettimestampmp rcu rcu64 rcu_lock rcu_lock_percpu rcu_nest rcu_nest_qs rcu_qs rcu_rcg rcu_ts
+all: gettimestamp gettimestampmp rcu rcu64 rcu_lock rcu_lock_percpu rcu_nest rcu_nest_qs rcu_qs rcu_rcg rcu_rcpg rcu_ts
 
 gettimestamp: gettimestamp.c ../api.h rcutorture.h
 	cc -g -o gettimestamp -DTEST gettimestamp.c -lpthread
@@ -45,6 +45,9 @@ rcu_qs: rcu_qs.c rcu_qs.h ../api.h rcutorture.h
 
 rcu_rcg: rcu_rcg.c rcu_rcg.h ../api.h rcutorture.h
 	cc -g -o rcu_rcg -DTEST rcu_rcg.c -lpthread
+
+rcu_rcpg: rcu_rcpg.c rcu_rcpg.h ../api.h rcutorture.h
+	cc -g -o rcu_rcpg -DTEST rcu_rcpg.c -lpthread
 
 rcu_ts: rcu_ts.c rcu_ts.h ../api.h rcutorture.h
 	cc -g -o rcu_ts -DTEST rcu_ts.c -lpthread
