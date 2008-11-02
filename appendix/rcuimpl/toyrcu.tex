@@ -434,6 +434,152 @@ scheme with greatly improved scalability.
 \subsection{Scalable Counter-Based RCU}
 \label{app:rcuimpl:Scalable Counter-Based RCU}
 
-\subsection{Scalable Counter-Based RCU}
-\label{app:rcuimpl:Scalable Counter-Based RCU}
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void rcu_read_lock(void)
+  2 {
+  3   int i;
+  4   int n;
+  5 
+  6   n = __get_thread_var(rcu_nesting);
+  7   if (n == 0) {
+  8     i = atomic_read(&rcu_idx);
+  9     __get_thread_var(rcu_read_idx) = i;
+ 10     __get_thread_var(rcu_refcnt)[i]++;
+ 11   }
+ 12   __get_thread_var(rcu_nesting) = n + 1;
+ 13   smp_mb();
+ 14 }
+ 15 
+ 16 static void rcu_read_unlock(void)
+ 17 {
+ 18   int i;
+ 19   int n;
+ 20 
+ 21   smp_mb();
+ 22   n = __get_thread_var(rcu_nesting);
+ 23   if (n == 1) {
+ 24      i = __get_thread_var(rcu_read_idx);
+ 25     __get_thread_var(rcu_refcnt)[i]--;
+ 26   }
+ 27   __get_thread_var(rcu_nesting) = n - 1;
+ 28 }
+\end{verbatim}
+}
+\caption{RCU Read-Side Using Per-Thread Reference-Count Pair}
+\label{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair}
+\end{figure}
 
+Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair}
+shows the read-side primitives of an RCU implementation that uses per-thread
+pairs of reference counters.
+This implementation is quite similar to that shown in
+Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Global Reference-Count Pair},
+the only difference being that \url{rcu_refcnt} is now a per-thread
+variable, so the \url{rcu_read_lock()} and
+\url{rcu_read_unlock()} primitives no longer perform atomic operations.
+
+\QuickQuiz{Come off it!
+	We can see the \url{atomic_read()} primitive in
+	\url{rcu_read_lock()}!!!
+	So why are you trying to pretend that \url{rcu_read_lock()}
+	contains no atomic operations???}
+\QuickQuizAnswer{
+	The \url{atomic_read()} primitives does not actually execute
+	atomic machine instructions, but rather does a normal load
+	from an \url{atomic_t}.
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void flip_counter_and_wait(int i)
+  2 {
+  3   int t;
+  4 
+  5   atomic_set(&rcu_idx, !i);
+  6   smp_mb();
+  7   for_each_thread(t) {
+  8     while (per_thread(rcu_refcnt, t)[i] != 0) {
+  9       poll(NULL, 0, 10);
+ 10     }
+ 11   }
+ 12   smp_mb();
+ 13 }
+ 14 
+ 15 void synchronize_rcu(void)
+ 16 {
+ 17   int i;
+ 18 
+ 19   smp_mb();
+ 20   spin_lock(&rcu_gp_lock);
+ 21   i = atomic_read(&rcu_idx);
+ 22   flip_counter_and_wait(i);
+ 23   flip_counter_and_wait(!i);
+ 24   spin_unlock(&rcu_gp_lock);
+ 25   smp_mb();
+ 26 }
+\end{verbatim}
+}
+\caption{RCU Update Using Per-Thread Reference-Count Pair}
+\label{fig:app:rcuimpl:RCU Update Using Per-Thread Reference-Count Pair}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:RCU Update Using Per-Thread Reference-Count Pair}
+shows the implementation of \url{synchronize_rcu()}, along with a helper
+function named \url{flip_counter_and_wait()}.
+The \url{synchronize_rcu()} function resembles that shown in
+Figure~\ref{fig:app:rcuimpl:RCU Update Using Global Reference-Count Pair},
+except that the repeated counter flip is replaced by a pair of calls
+on lines~22 and 23 to the new helper function.
+
+The new \url{flip_counter_and_wait()} function updates the
+\url{rcu_idx} variable on line~5, executes a memory barrier on line~6,
+then lines~7-11 spin on each thread's prior \url{rcu_refcnt} element,
+waiting for it to go to zero.
+Once all such elements have gone to zero,
+it executes another memory barrier on line~12 and returns.
+
+\QuickQuiz{Great, if we have $N$ threads, we can have $2N$ ten-millisecond
+	waits (one set per \url{flip_counter_and_wait()} invocation,
+	and even that assumes that we wait only once for each thread.
+	Don't we need the grace period to complete \emph{much} more quickly?}
+\QuickQuizAnswer{
+	Keep in mind that we only wait for a given thread if that thread
+	is still in a pre-existing RCU read-side critical section,
+	and that waiting for one hold-out thread gives all the other
+	threads a chance to complete any pre-existing RCU read-side
+	critical sections that they might still be executing.
+	So the only way that we would wait for $2N$ intervals
+	would be if the last thread still remained in a pre-existing
+	RCU read-side critical section despite all the waiting for
+	all the prior threads.
+	In short, this implementation will not wait unnecessarily.
+} \QuickQuizEnd
+
+\QuickQuiz{What are some of the remaining shortcomings of the
+	counter-pair-based implementation shown in
+	Figures~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair}
+	\ref{fig:app:rcuimpl:RCU Update Using Per-Thread Reference-Count Pair}?}
+\QuickQuizAnswer{
+	There are still a few serious shortcomings:
+	\begin{enumerate}
+	\item	The need to flip \url{rcu_idx} twice imposes substantial
+		overhead on updates, especially if there are large
+		numbers of threads.
+	\item	Although concurrent RCU updates could in principle be
+		satisfied by a common grace period, this implementation
+		serializes grace periods, preventing grace-period
+		sharing.
+	\end{enumerate}
+	Despite these shortcomings, one could imagine this variant
+	of RCU being used on small tightly coupled multiprocessors.
+	However, it would not not likely scale well beyond a few CPUs.
+} \QuickQuizEnd
+
+\subsection{Scalable Counter-Based RCU With Shared Grace Periods}
+\label{app:rcuimpl:Scalable Counter-Based RCU With Shared Grace Periods}
+
+
+% @@@ cover one of the user-level RCU implementations after LCA2009.

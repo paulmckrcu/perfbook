@@ -1007,6 +1007,10 @@ assertions in the previous examples.
 		locking~\cite{PaulMcKenney2005e}, but only for
 		unusually long RCU read-side critical sections.
 	\item	RCU read-side critical sections cannot be nested.
+	\item	Although concurrent RCU updates could in principle be
+		satisfied by a common grace period, this implementation
+		serializes grace periods, preventing grace-period
+		sharing.
 	\end{enumerate}
 	These shortcomings are problematic for all the reasons
 	discussed in Chapter~\ref{chp:Introduction}.
@@ -1037,6 +1041,10 @@ assertions in the previous examples.
 		never reach zero.
 		This could result in starvation of RCU updates, which
 		is unacceptable in production settings.
+	\item	Although concurrent RCU updates could in principle be
+		satisfied by a common grace period, this implementation
+		serializes grace periods, preventing grace-period
+		sharing.
 	\end{enumerate}
 	It is still hard to imagine this implementation being useful
 	in a production setting, though it has a bit more potential
@@ -1063,7 +1071,7 @@ assertions in the previous examples.
 	are really needed.
 	See Section~\ref{sec:analysis:Using Promela and Spin to Verify Parallel Algorithms}
 	for information on using these tools.
-	The first correct and complete ressponse will be credited.
+	The first correct and complete response will be credited.
 
 \QuickQ{Why is the counter flipped twice in
 	Figure~\ref{fig:app:rcuimpl:RCU Update Using Global Reference-Count Pair}?
@@ -1114,7 +1122,7 @@ assertions in the previous examples.
 	line~8?
 	Does this implementation operate correctly in that case?
 	Why or why not?
-	The first correct and complete ressponse will be credited.
+	The first correct and complete response will be credited.
 
 \QuickQ{What are some of the remaining shortcomings of the
 	counter-pair-based implementation shown in
@@ -1137,6 +1145,58 @@ assertions in the previous examples.
 		elements, resulting in expensive cache misses.
 		This further extends the RCU read-side critical-section
 		duration required to provide parallel read-side access.
+	\item	The need to flip \url{rcu_idx} twice imposes substantial
+		overhead on updates, especially if there are large
+		numbers of threads.
+	\item	Although concurrent RCU updates could in principle be
+		satisfied by a common grace period, this implementation
+		serializes grace periods, preventing grace-period
+		sharing.
+	\end{enumerate}
+	Despite these shortcomings, one could imagine this variant
+	of RCU being used on small tightly coupled multiprocessors.
+	However, it would not not likely scale well beyond a few CPUs.
+
+\QuickQ{Come off it!
+	We can see the \url{atomic_read()} primitive in
+	\url{rcu_read_lock()}!!!
+	So why are you trying to pretend that \url{rcu_read_lock()}
+	contains no atomic operations???}
+
+	The \url{atomic_read()} primitives does not actually execute
+	atomic machine instructions, but rather does a normal load
+	from an \url{atomic_t}.
+
+\QuickQ{Great, if we have $N$ threads, we can have $2N$ ten-millisecond
+	waits (one set per \url{flip_counter_and_wait()} invocation,
+	and even that assumes that we wait only once for each thread.
+	Don't we need the grace period to complete \emph{much} more quickly?}
+
+	Keep in mind that we only wait for a given thread if that thread
+	is still in a pre-existing RCU read-side critical section,
+	and that waiting for one hold-out thread gives all the other
+	threads a chance to complete any pre-existing RCU read-side
+	critical sections that they might still be executing.
+	So the only way that we would wait for $2N$ intervals
+	would be if the last thread still remained in a pre-existing
+	RCU read-side critical section despite all the waiting for
+	all the prior threads.
+	In short, this implementation will not wait unnecessarily.
+
+\QuickQ{What are some of the remaining shortcomings of the
+	counter-pair-based implementation shown in
+	Figures~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair}
+	\ref{fig:app:rcuimpl:RCU Update Using Per-Thread Reference-Count Pair}?}
+
+	There are still a few serious shortcomings:
+	\begin{enumerate}
+	\item	The need to flip \url{rcu_idx} twice imposes substantial
+		overhead on updates, especially if there are large
+		numbers of threads.
+	\item	Although concurrent RCU updates could in principle be
+		satisfied by a common grace period, this implementation
+		serializes grace periods, preventing grace-period
+		sharing.
 	\end{enumerate}
 	Despite these shortcomings, one could imagine this variant
 	of RCU being used on small tightly coupled multiprocessors.
