@@ -1,6 +1,6 @@
 /*
  * rcu_rcpg.h: simple user-level implementation of RCU based on a single
- * pair of global reference counter.
+ * pair of global reference counters.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
