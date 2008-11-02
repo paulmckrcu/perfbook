@@ -556,11 +556,18 @@ it executes another memory barrier on line~12 and returns.
 	RCU read-side critical section despite all the waiting for
 	all the prior threads.
 	In short, this implementation will not wait unnecessarily.
+
+	However, if you are stress-testing code that uses RCU, you
+	might want to comment out the \url{poll()} statement in
+	order to better catch bugs that incorrectly retain a reference
+	to an RCU-protected data element outside of an RCU
+	read-side critical section.
 } \QuickQuizEnd
 
 \QuickQuiz{What are some of the remaining shortcomings of the
 	counter-pair-based implementation shown in
 	Figures~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair}
+	and
 	\ref{fig:app:rcuimpl:RCU Update Using Per-Thread Reference-Count Pair}?}
 \QuickQuizAnswer{
 	There are still a few serious shortcomings:
@@ -575,11 +582,178 @@ it executes another memory barrier on line~12 and returns.
 	\end{enumerate}
 	Despite these shortcomings, one could imagine this variant
 	of RCU being used on small tightly coupled multiprocessors.
-	However, it would not not likely scale well beyond a few CPUs.
+	However, it has a serious update-side bottleneck.
 } \QuickQuizEnd
+
+The next section describes an algorithm permitting more efficient
+concurrent RCU updates.
 
 \subsection{Scalable Counter-Based RCU With Shared Grace Periods}
 \label{app:rcuimpl:Scalable Counter-Based RCU With Shared Grace Periods}
 
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void rcu_read_lock(void)
+  2 {
+  3   int i;
+  4   int n;
+  5 
+  6   n = __get_thread_var(rcu_nesting);
+  7   if (n == 0) {
+  8     i = ACCESS_ONCE(rcu_idx) & 0x1;
+  9     __get_thread_var(rcu_read_idx) = i;
+ 10     __get_thread_var(rcu_refcnt)[i]++;
+ 11   }
+ 12   __get_thread_var(rcu_nesting) = n + 1;
+ 13   smp_mb();
+ 14 }
+ 15 
+ 16 static void rcu_read_unlock(void)
+ 17 {
+ 18   int i;
+ 19   int n;
+ 20 
+ 21   smp_mb();
+ 22   n = __get_thread_var(rcu_nesting);
+ 23   if (n == 1) {
+ 24      i = __get_thread_var(rcu_read_idx);
+ 25     __get_thread_var(rcu_refcnt)[i]--;
+ 26   }
+ 27   __get_thread_var(rcu_nesting) = n - 1;
+ 28 }
+\end{verbatim}
+}
+\caption{RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update}
+\label{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update}
+shows the read-side primitives for an RCU implementation using per-thread
+reference count pairs, as before, but permitting updates to share
+grace periods.
+The main difference from the earlier implementation shown in
+Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair}
+is that \url{rcu_idx} is now a \url{long} that counts freely,
+so that line~8 of
+Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update}
+must mask off the low-order bit.
+We also switched from using \url{atomic_read()} and \url{atomic_set()}
+to using \url{ACCESS_ONCE()}.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void flip_counter_and_wait(int ctr)
+  2 {
+  3   int i;
+  4   int t;
+  5 
+  6   ACCESS_ONCE(rcu_idx) = ctr + 1;
+  7   i = ctr & 0x1;
+  8   smp_mb();
+  9   for_each_thread(t) {
+ 10     while (per_thread(rcu_refcnt, t)[i] != 0) {
+ 11       poll(NULL, 0, 10);
+ 12     }
+ 13   }
+ 14   smp_mb();
+ 15 }
+ 16 
+ 17 void synchronize_rcu(void)
+ 18 {
+ 19   int ctr;
+ 20   int oldctr;
+ 21 
+ 22   smp_mb();
+ 23   oldctr = ACCESS_ONCE(rcu_idx);
+ 24   smp_mb();
+ 25   spin_lock(&rcu_gp_lock);
+ 26   ctr = ACCESS_ONCE(rcu_idx);
+ 27   if (ctr - oldctr >= 3) {
+ 28     spin_unlock(&rcu_gp_lock);
+ 29     smp_mb();
+ 30     return;
+ 31   }
+ 32   flip_counter_and_wait(ctr);
+ 33   if (ctr - oldctr < 2)
+ 34     flip_counter_and_wait(ctr + 1);
+ 35   spin_unlock(&rcu_gp_lock);
+ 36   smp_mb();
+ 37 }
+\end{verbatim}
+}
+\caption{RCU Shared Update Using Per-Thread Reference-Count Pair}
+\label{fig:app:rcuimpl:RCU Shared Update Using Per-Thread Reference-Count Pair}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:RCU Shared Update Using Per-Thread Reference-Count Pair}
+shows the implementation of \url{synchronize_rcu()} and its helper
+function \url{flip_counter_and_wait()}.
+These are similar to those in
+Figure~\ref{fig:app:rcuimpl:RCU Update Using Per-Thread Reference-Count Pair}.
+The differences in \url{flip_counter_and_wait()} include:
+\begin{enumerate}
+\item	Line~6 uses \url{ACCESS_ONCE()} instead of \url{atomic_set()},
+	and increments rather than complementing.
+\item	A new line~7 masks the counter down to its bottom bit.
+\end{enumerate}
+
+The changes to \url{synchronize_rcu()} are more pervasive:
+\begin{enumerate}
+\item	There is a new \url{oldctr} local variable that captures
+	the pre-lock-acquisition value of \url{rcu_idx} on
+	line~23.
+\item	Line~26 uses \url{ACCESS_ONCE()} instead of \url{atomic_read()}.
+\item	Lines~27-30 check to see if at least three counter flips were
+	performed by other threads while the lock was being acquired,
+	and, if so, releases the lock, does a memory barrier, and returns.
+	In this case, there were two full waits for the counters to
+	go to zero, so those other threads already did all the required work.
+\item	At lines~33-34, \url{flip_counter_and_wait()} is only
+	invoked a second time if there were fewer than two counter flips
+	while the lock was being acquired.
+	On the other hand, if there were two counter flips, some other
+	thread did one full wait for all the counters to go to zero,
+	so only one more is required.
+\end{enumerate}
+
+With this approach, if an arbitrarily large number of threads invoke
+\url{synchronize_rcu()} concurrently, with one CPU for each thread, there
+will be a total of only three waits for counters to go to zero.
+
+\QuickQuiz{What are some of the remaining shortcomings of the
+	parallel-update counter-pair-based implementation shown in
+	Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update}
+	and
+	\ref{fig:app:rcuimpl:RCU Shared Update Using Per-Thread Reference-Count Pair}?}
+\QuickQuizAnswer{
+	There are still a few shortcomings:
+	\begin{enumerate}
+	\item	The need to flip \url{rcu_idx} twice imposes substantial
+		overhead on updates, especially if there are large
+		numbers of threads.
+		% Point to user-level RCU implementation after LCA2009.
+	\item	Each updater still acquires \url{rcu_gp_lock}, even if there
+		is no work to be done.
+		This can result in a severe scalability limitation
+		if there are large numbers of concurrent updates.
+		Appendix~\ref{app:rcuimpl:Preemptable RCU} shows
+		one way to avoid this in a production-quality real-time
+		implementation of RCU for the Linux kernel.
+	\item	On 32-bit machines, a given update thread might be
+		preempted long enough for the \url{rcu_idx}
+		counter to overflow.
+		This could cause such a thread to force an unnecessary
+		pair of counter flips.
+		However, even if each grace period took only one
+		microsecond, the offending thread would need to be
+		preempted for more than an hour, in which case an
+		extra pair of counter flips is likely the least of
+		your worries.
+	\end{enumerate}
+	Despite these shortcomings, one could imagine this variant
+	of RCU being used in real life.
+} \QuickQuizEnd
 
 % @@@ cover one of the user-level RCU implementations after LCA2009.

@@ -195,6 +195,19 @@ void *rcu_update_stress_test(void *arg)
 	}
 }
 
+void *rcu_fake_update_stress_test(void *arg)
+{
+	int i;
+	struct rcu_stress *p;
+
+	while (goflag == GOFLAG_INIT)
+		poll(NULL, 0, 10);
+	while (goflag == GOFLAG_RUN) {
+		synchronize_rcu();
+		poll(NULL, 0, 10);
+	}
+}
+
 void stresstest(int nreaders)
 {
 	int i;
@@ -214,6 +227,8 @@ void stresstest(int nreaders)
 	for (i = 0; i < nreaders; i++)
 		create_thread(rcu_read_stress_test, NULL);
 	create_thread(rcu_update_stress_test, NULL);
+	for (i = 0; i < 5; i++)
+		create_thread(rcu_fake_update_stress_test, NULL);
 	smp_mb();
 	goflag = GOFLAG_RUN;
 	smp_mb();

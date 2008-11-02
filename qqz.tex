@@ -1183,9 +1183,16 @@ assertions in the previous examples.
 	all the prior threads.
 	In short, this implementation will not wait unnecessarily.
 
+	However, if you are stress-testing code that uses RCU, you
+	might want to comment out the \url{poll()} statement in
+	order to better catch bugs that incorrectly retain a reference
+	to an RCU-protected data element outside of an RCU
+	read-side critical section.
+
 \QuickQ{What are some of the remaining shortcomings of the
 	counter-pair-based implementation shown in
 	Figures~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair}
+	and
 	\ref{fig:app:rcuimpl:RCU Update Using Per-Thread Reference-Count Pair}?}
 
 	There are still a few serious shortcomings:
@@ -1197,6 +1204,31 @@ assertions in the previous examples.
 		satisfied by a common grace period, this implementation
 		serializes grace periods, preventing grace-period
 		sharing.
+	\end{enumerate}
+	Despite these shortcomings, one could imagine this variant
+	of RCU being used on small tightly coupled multiprocessors.
+	However, it would not not likely scale well beyond a few CPUs.
+
+\QuickQ{What are some of the remaining shortcomings of the
+	parallel-update counter-pair-based implementation shown in
+	Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update}
+	and
+	\ref{fig:app:rcuimpl:RCU Shared Update Using Per-Thread Reference-Count Pair}?}
+
+	There are still a few serious shortcomings:
+	\begin{enumerate}
+	\item	The need to flip \url{rcu_idx} twice imposes substantial
+		overhead on updates, especially if there are large
+		numbers of threads.
+	\item	Each updater still acquires \url{rcu_gp_lock}, even if there
+		is no work to be done.
+		This can result in a severe scalability limitation
+		if there are large numbers of concurrent updates.
+	\item	On 32-bit machines, a given update thread might be
+		preempted long enough for the \url{rcu_idx}
+		counter to overflow.
+		This could cause such a thread to force an unnecessary
+		pair of counter flips.
 	\end{enumerate}
 	Despite these shortcomings, one could imagine this variant
 	of RCU being used on small tightly coupled multiprocessors.
