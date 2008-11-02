@@ -1207,7 +1207,7 @@ assertions in the previous examples.
 	\end{enumerate}
 	Despite these shortcomings, one could imagine this variant
 	of RCU being used on small tightly coupled multiprocessors.
-	However, it would not not likely scale well beyond a few CPUs.
+	However, it has a serious update-side bottleneck.
 
 \QuickQ{What are some of the remaining shortcomings of the
 	parallel-update counter-pair-based implementation shown in
@@ -1215,24 +1215,32 @@ assertions in the previous examples.
 	and
 	\ref{fig:app:rcuimpl:RCU Shared Update Using Per-Thread Reference-Count Pair}?}
 
-	There are still a few serious shortcomings:
+	There are still a few shortcomings:
 	\begin{enumerate}
 	\item	The need to flip \url{rcu_idx} twice imposes substantial
 		overhead on updates, especially if there are large
 		numbers of threads.
+		% Point to user-level RCU implementation after LCA2009.
 	\item	Each updater still acquires \url{rcu_gp_lock}, even if there
 		is no work to be done.
 		This can result in a severe scalability limitation
 		if there are large numbers of concurrent updates.
+		Appendix~\ref{app:rcuimpl:Preemptable RCU} shows
+		one way to avoid this in a production-quality real-time
+		implementation of RCU for the Linux kernel.
 	\item	On 32-bit machines, a given update thread might be
 		preempted long enough for the \url{rcu_idx}
 		counter to overflow.
 		This could cause such a thread to force an unnecessary
 		pair of counter flips.
+		However, even if each grace period took only one
+		microsecond, the offending thread would need to be
+		preempted for more than an hour, in which case an
+		extra pair of counter flips is likely the least of
+		your worries.
 	\end{enumerate}
 	Despite these shortcomings, one could imagine this variant
-	of RCU being used on small tightly coupled multiprocessors.
-	However, it would not not likely scale well beyond a few CPUs.
+	of RCU being used in real life.
 
 \QuickQ{Why is sleeping prohibited within Classic RCU read-side
 critical sections?}
