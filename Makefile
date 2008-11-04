@@ -81,7 +81,7 @@ all: perfbook.pdf
 
 2up: perfbook-2up.pdf
 
-perfbook.pdf: perfbook_dvi $(EPSSOURCES)
+perfbook.pdf: perfbook.dvi $(EPSSOURCES)
 	dvipdf perfbook
 
 perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
@@ -90,14 +90,14 @@ perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
 	ps2pdf perfbook-2up.ps perfbook-2up.pdf
 	rm perfbook.ps perfbook-2up.ps
 
-perfbook_dvi: $(LATEXSOURCES) qqz_tex
+perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex
 	latex perfbook || :
 	latex perfbook || :
-	test -d bib/. && bibtex perfbook
+	test -d bib/. && bibtex perfbook || :
 	latex perfbook || :
 	latex perfbook || :
 
-qqz_tex: $(LATEXSOURCES)
+qqz.tex: $(LATEXSOURCES) $(EPSSOURCES)
 	sh utilities/extractqqz.sh > qqz.tex
 
 clean:
