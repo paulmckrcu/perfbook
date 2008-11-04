@@ -77,7 +77,9 @@ EPSSOURCES = \
 	cartoons/whippersnapper600.eps \
 	easy/Mandel_zoom_00_mandelbrot_set.eps
 
-all: perfbook.pdf
+all: 2up
+
+1up: perfbook.pdf
 
 2up: perfbook-2up.pdf
 
