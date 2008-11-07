@@ -9,7 +9,9 @@ LATEXSOURCES = \
 	appendix/questions/after.tex \
 	appendix/questions/questions.tex \
 	appendix/rcuimpl/rcu.tex \
+	appendix/rcuimpl/toyrcu.tex \
 	appendix/rcuimpl/srcu.tex \
+	appendix/rcuimpl/rcupreempt.tex \
 	appendix/whymb/whymemorybarriers.tex \
 	cpu/cpu.tex \
 	datastruct/datastruct.tex \
@@ -23,7 +25,12 @@ LATEXSOURCES = \
 	owned/owned.tex \
 	perfbook.tex \
 	preface.tex \
+	defer/defer.tex \
 	defer/refcnt.tex \
+	defer/rcu.tex \
+	defer/rcufundamental.tex \
+	defer/rcuapi.tex \
+	defer/rcuusage.tex \
 	stats/stats.tex \
 	sync/sync.tex \
 	time/time.tex

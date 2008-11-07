@@ -18,7 +18,7 @@ presents concluding remarks.
 \begin{table*}[p]
 \begin{center}
 \scriptsize
-\begin{tabular}{p{1.1in}|p{1.0in}|p{1.1in}|p{1.0in}|p{0.9in}}
+\begin{tabular}{p{1.1in}|p{1.0in}|p{1.1in}|p{1.0in}|p{1.0in}}
 Attribute &
     RCU Classic &
 	RCU BH &
@@ -72,11 +72,17 @@ Read-side primitives &
 	    \url{rcu_barrier_sched()} &
 	        \url{rcu_barrier()} \\
 \hline
+Type-safe memory &
+    \url{SLAB_DESTROY_BY_RCU} &
+	&
+	    &
+	        \url{SLAB_DESTROY_BY_RCU} \\
+\hline
 Read side constraints &
     No blocking &
 	No irq enabling &
 	    No blocking &
-	        No blocking except preemption and lock acquisition \\
+	        Only preemption and lock acquisition \\
 \hline
 Read side overhead &
     Preempt disable/enable (free on non-PREEMPT) &
@@ -84,7 +90,7 @@ Read side overhead &
 	    Preempt disable/enable (free on non-PREEMPT) &
 	        Simple instructions, irq disable/enable \\
 \hline
-Asynchronous update-side overhead (for example, \url{call_rcu()}) &
+Asynchronous update-side overhead &
     sub-microsecond &
 	sub-microsecond &
 	    &
@@ -150,6 +156,10 @@ Read-side primitives &
     N/A &
 	N/A \\
 \hline
+Type-safe memory &
+    &
+	\\
+\hline
 Read side constraints &
     No \url{synchronize_srcu()} &
 	No \url{synchronize_qrcu()} \\
@@ -158,7 +168,7 @@ Read side overhead &
     Simple instructions, preempt disable/enable &
 	Atomic increment and decrement of shared variable \\
 \hline
-Asynchronous update-side overhead (for example, \url{call_rcu()}) &
+Asynchronous update-side overhead &
     N/A &
 	N/A \\
 \hline
@@ -235,6 +245,30 @@ such as when unloading a Linux-kernel module that uses \url{call_rcu()},
 when it is necessary to wait for all
 outstanding RCU callbacks to complete~\cite{PaulEMcKenney2007rcubarrier}.
 The \url{rcu_barrier()} primitive does this job.
+
+Finally, RCU may be used to provide
+type-safe memory, as described in
+Section~\ref{sec:deferRCU is a Way of Providing Type-Safe Memory}.
+In the context of RCU, type-safe memory guarantees that a given
+data element will not change type during any RCU read-side critical section
+that accesses it.
+To make use of RCU-based type-safe memory, pass
+\url{SLAB_DESTROY_BY_RCU} to
+\url{kmem_cache_create()}.
+It is important to note that \url{SLAB_DESTROY_BY_RCU} will
+\emph{in no way}
+prevent \url{kmem_cache_alloc()} from immediately reallocating
+memory that was just now freed via \url{kmem_cache_free()}!
+In fact, the \url{SLAB_DESTROY_BY_RCU}-protected data structure
+just returned by \url{rcu_dereference} might be freed and reallocated
+an arbitrarily large number of times, even when under the protection
+of \url{rcu_read_lock()}.
+Instead, \url{SLAB_DESTROY_BY_RCU} operates by preventing
+\url{kmem_cache_free()}
+from returning a completely freed-up slab of data structures
+to the system until after an RCU grace period elapses.
+In short, although the data element might be freed and reallocated arbitrarily
+often, at least its type will remain the same.
 
 In the ``RCU BH'' column, \url{rcu_read_lock_bh()} and
 \url{rcu_read_unlock_bh()} delimit RCU read-side critical
@@ -314,7 +348,9 @@ interfaces, a given task must finish waiting for a given grace period
 before it can start waiting for the next one.
 } \QuickQuizEnd
 
-The ``SRCU'' column displays a specialized RCU API that permits
+The ``SRCU'' column in
+Table~\ref{tab:defer:Sleepable RCU Wait-to-Finish APIs}
+displays a specialized RCU API that permits
 general sleeping in RCU read-side critical sections
 (see Appendix~\ref{app:rcuimpl:Sleepable Read-Copy Update} for more details).
 Of course,
@@ -334,10 +370,12 @@ The ``QRCU'' column presents an RCU implementation with the same
 API structure as SRCU, but optimized for extremely low-latency
 grace periods in absence of readers, as described
 elsewhere~\cite{PaulEMcKenney2007QRCUspin}.
-As with SRCU, use of \url{synchronize_qrcu()} can result in
+As with SRCU, use of \url{synchronize_qrcu()} in a QRCU read-side
+critical section can result in
 self-deadlock, so should be avoided.
 Although QRCU has not yet been accepted into the Linux kernel, it
-is worth mentioning given that it is the only RCU implementation
+is worth mentioning given that it is the only kernel-level
+RCU implementation
 that can boast deep sub-microsecond grace-period latencies.
 
 \QuickQuiz{Under what conditions can \url{synchronize_srcu()} be safely

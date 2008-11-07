@@ -20,6 +20,8 @@ Poor man's garbage collector &
 	Section~\ref{sec:defer:RCU is a Poor Man's Garbage Collector} \\
 Existence Guarantees &
 	Section~\ref{sec:defer:RCU is a Way of Providing Existence Guarantees} \\
+Type-Safe Memory &
+	Section~\ref{sec:deferRCU is a Way of Providing Type-Safe Memory} \\
 Wait for things to finish &
 	Section~\ref{sec:deferRCU is a Way of Waiting for Things to Finish} \\
 \end{tabular}
@@ -674,6 +676,35 @@ read-side critical section.
 Alert readers will recognize this as only a slight variation on
 the original "RCU is a way of waiting for things to finish" theme,
 which is addressed in the following section.
+
+\subsubsection{RCU is a Way of Providing Type-Safe Memory}
+\label{sec:deferRCU is a Way of Providing Type-Safe Memory}
+
+A number of lockless algorithms do not require that a given data
+element keep the same identity through a given RCU read-side critical
+section referencing it---but only if that data element retains the
+same type.
+In other words, these lockless algorithms can tolerate a given data
+element being freed and reallocated as the same type of structure
+while they are referencing it, but must prohibit a change in type.
+This is a weaker guarantee than the existence guarantees in the
+previous section, and is therefore quite a bit harder to work with.
+Such algorithms in the Linux kernel make use of slab caches, specially
+marking these caches so that RCU is used when returning a freed-up
+slab to system memory.
+
+These algorithms typically use a validation step that checks to make
+sure that the newly referenced data structure really is the one that
+was requested.
+These validation checks require that portions of the data structure
+remain untouched by the free-reallocate process.
+Such validation checks are usually very hard to get right, and can
+hide subtle and difficult bugs.
+
+Therefore, although type-safety-based lockless algorithms can be extremely
+helpful in a very few difficult situations, you should instead use existence
+guarantees where possible.
+Simpler is after all almost always better.
 
 \subsubsection{RCU is a Way of Waiting for Things to Finish}
 \label{sec:deferRCU is a Way of Waiting for Things to Finish}
