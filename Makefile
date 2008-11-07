@@ -14,11 +14,11 @@ LATEXSOURCES = \
 	appendix/rcuimpl/rcupreempt.tex \
 	appendix/whymb/whymemorybarriers.tex \
 	cpu/cpu.tex \
+	cpu/overview.tex \
 	datastruct/datastruct.tex \
 	debugging/debugging.tex \
 	easy/easy.tex \
 	glossary.tex \
-	intro/hwhabits.tex \
 	intro/intro.tex \
 	legal.tex \
 	memalloc/memalloc.tex \
