@@ -113,75 +113,6 @@
 	``s'' is the per-CPU pool size,
 	and ``n'' is the number of CPUs.
 
-\QuickQAC{chp:Analysis}
-\QuickQ{Why is there an unreached statement in
-locker?  After all, isn't this a \emph{full} state-space
-search???}
-
-The locker process is an infinite loop, so control
-never reaches the end of this process.
-However, since there are no monotonically increasing variables,
-Promela is able to model this infinite loop with a small
-number of states.
-
-\QuickQ{What are some Promela code-style issues with this example?}
-
-There are several:
-\begin{enumerate}
-\item	The declaration of {\tt sum} should be moved to within
-	the init block, since it is not used anywhere else.
-\item	The assertion code should be moved outside of the
-	initialization loop.  The initialization loop can
-	then be placed in an atomic block, greatly reducing
-	the state space (by how much?).
-\item	The atomic block covering the assertion code should
-	be extended to include the initialization of {\tt sum}
-	and {\tt j}, and also to cover the assertion.
-	This also reduces the state space (again, by how
-	much?).
-\end{enumerate}
-
-\QuickQ{Is there a more straightforward way to code the do-od statement?}
-
-Yes.  Replace it with {\tt if-fi} and remove the two {\tt break} statements.
-
-\QuickQ{Why are there atomic blocks at lines 12-21
-and lines 44-56, when the operations within those atomic
-blocks have no atomic implementation on any current
-production microprocessor?}
-
-Because those operations are for the benefit of the
-assertion only.  They are not part of the algorithm itself.
-There is therefore no harm in marking them atomic, and
-so marking them greatly reduces the state space that must
-be searched by the Promela model.
-
-\QuickQ{Is the re-summing of the counters on lines 24-27
-\emph{really} necessary???}
-
-Yes.  To see this, delete these lines and run the model.
-
-Alternatively, consider the following sequence of steps:
-
-\begin{enumerate}
-\item	One process is within its RCU read-side critical
-	section, so that the value of {\tt ctr[0]} is zero and
-	the value of {\tt ctr[1]} is two.
-\item	An updater starts executing, and sees that the sum of
-	the counters is two so that the fastpath cannot be
-	executed.  It therefore acquires the lock.
-\item	A second updater starts executing, and fetches the value
-	of {\tt ctr[0]}, which is zero.
-\item	The first updater adds one to {\tt ctr[0]}, flips
-	the index (which now becomes zero), then subtracts
-	one from {\tt ctr[1]} (which now becomes one).
-\item	The second updater fetches the value of {\tt ctr[1]},
-	which is now one.
-\item	The second updater now incorrectly concludes that it
-	is safe to proceed on the fastpath, despite the fact
-	that the original reader has not yet completed.
-\end{enumerate}
-
 \QuickQAC{chp:defer:Deferred Processing}
 \QuickQ{Why isn't it necessary to guard against cases where
 	   one CPU acquires a reference just after another
@@ -459,6 +390,36 @@ refcnt line, as can be seen by the error bars.
 In fact, standard deviations range in excess of 10% of measured
 values in some cases.
 The dip in overhead therefore might well be a statistical aberration.
+
+\QuickQ{
+	But what if there is an arbitrarily long series of RCU
+	read-side critical sections in multiple threads, so that at
+	any point in time there is at least one thread in the system
+	executing in an RCU read-side critical section?
+	Wouldn't that prevent any data from a \url{SLAB_DESTROY_BY_RCU}
+	slab ever being returned to the system, possibly resulting
+	in OOM events?}
+
+	There could certainly be an arbitrarily long period of time
+	during which at least one thread is always in an RCU read-side
+	critical section.
+	However, the key words in the description in
+	Section~\ref{sec:deferRCU is a Way of Providing Type-Safe Memory}
+	are ``in-use'' and ``pre-existing''.
+	Keep in mind that a given RCU read-side critical section is
+	conceptually only permitted to gain references to data elements
+	that were in use at the beginning of that critical section.
+	Furthermore, remember that a slab cannot be returned to the
+	system until all of its data elements have been freed, in fact,
+	the RCU grace period cannot start until after they have all been
+	freed.
+
+	Therefore, the slab cache need only wait for those RCU read-side
+	critical sections that started before the freeing of the last element
+	of the slab.
+	This in turn means that any RCU grace period that begins after
+	the freeing of the last element will do---the slab may be returned
+	to the system after that grace period ends.
 
 \QuickQ{
 Suppose that the \url{nmi_profile()} function was preemptible.
@@ -1133,7 +1094,7 @@ assertions in the previous examples.
 	to determine which (if any) of the memory barriers in
 	Figure~\ref{fig:app:rcuimpl:RCU Update Using Global Reference-Count Pair}
 	are really needed.
-	See Section~\ref{sec:analysis:Using Promela and Spin to Verify Parallel Algorithms}
+	See Section~\ref{app:formal:Formal Verification}
 	for information on using these tools.
 	The first correct and complete response will be credited.
 
@@ -1659,4 +1620,276 @@ dispense with irq disabling.
 	or \url{smp_mb()}.
 
 	In general, much care is required when proving parallel algorithms.
+
+\QuickQAC{app:formal:Formal Verification}
+\QuickQ{Why is there an unreached statement in
+locker?  After all, isn't this a \emph{full} state-space
+search???}
+
+The locker process is an infinite loop, so control
+never reaches the end of this process.
+However, since there are no monotonically increasing variables,
+Promela is able to model this infinite loop with a small
+number of states.
+
+\QuickQ{What are some Promela code-style issues with this example?}
+
+There are several:
+\begin{enumerate}
+\item	The declaration of {\tt sum} should be moved to within
+	the init block, since it is not used anywhere else.
+\item	The assertion code should be moved outside of the
+	initialization loop.  The initialization loop can
+	then be placed in an atomic block, greatly reducing
+	the state space (by how much?).
+\item	The atomic block covering the assertion code should
+	be extended to include the initialization of {\tt sum}
+	and {\tt j}, and also to cover the assertion.
+	This also reduces the state space (again, by how
+	much?).
+\end{enumerate}
+
+\QuickQ{Is there a more straightforward way to code the do-od statement?}
+
+Yes.  Replace it with {\tt if-fi} and remove the two {\tt break} statements.
+
+\QuickQ{Why are there atomic blocks at lines 12-21
+and lines 44-56, when the operations within those atomic
+blocks have no atomic implementation on any current
+production microprocessor?}
+
+Because those operations are for the benefit of the
+assertion only.  They are not part of the algorithm itself.
+There is therefore no harm in marking them atomic, and
+so marking them greatly reduces the state space that must
+be searched by the Promela model.
+
+\QuickQ{Is the re-summing of the counters on lines 24-27
+\emph{really} necessary???}
+
+Yes.  To see this, delete these lines and run the model.
+
+Alternatively, consider the following sequence of steps:
+
+\begin{enumerate}
+\item	One process is within its RCU read-side critical
+	section, so that the value of {\tt ctr[0]} is zero and
+	the value of {\tt ctr[1]} is two.
+\item	An updater starts executing, and sees that the sum of
+	the counters is two so that the fastpath cannot be
+	executed.  It therefore acquires the lock.
+\item	A second updater starts executing, and fetches the value
+	of {\tt ctr[0]}, which is zero.
+\item	The first updater adds one to {\tt ctr[0]}, flips
+	the index (which now becomes zero), then subtracts
+	one from {\tt ctr[1]} (which now becomes one).
+\item	The second updater fetches the value of {\tt ctr[1]},
+	which is now one.
+\item	The second updater now incorrectly concludes that it
+	is safe to proceed on the fastpath, despite the fact
+	that the original reader has not yet completed.
+\end{enumerate}
+
+\QuickQ{Yeah, that's great!!!
+	Now, just what am I supposed to do if I don't happen to have a
+	machine with 40GB of main memory???}
+
+	Relax, there are a number of lawful answers to
+	this question:
+	\begin{enumerate}
+	\item	Further optimize the model, reducing its memory consumption.
+	\item	Work out a pencil-and-paper proof, perhaps starting with the
+		comments in the code in the Linux kernel.
+	\item	Devise careful torture tests, which, though they cannot prove
+		the code correct, can find hidden bugs.
+	\item	There is some movement towards tools that do model
+		checking on clusters of smaller machines.
+		However, please note that we have not actually used such
+		tools myself, courtesy of some large machines that Paul has
+		occasional access to.
+	\end{enumerate}
+
+\QuickQ{Why not simply increment \url{rcu_update_flag}, and then only
+	increment \url{dynticks_progress_counter} if the old value
+	of \url{rcu_update_flag} was zero???}
+
+	This fails in presence of NMIs.
+	To see this, suppose an NMI was received just after
+	\url{rcu_irq_enter()} incremented \url{rcu_update_flag},
+	but before it incremented \url{dynticks_progress_counter}.
+	The instance of \url{rcu_irq_enter()} invoked by the NMI
+	would see that the original value of \url{rcu_update_flag}
+	was non-zero, and would therefore refrain from incrementing
+	\url{dynticks_progress_counter}.
+	This would leave the RCU grace-period machinery no clue that the
+	NMI handler was executing on this CPU, so that any RCU read-side
+	critical sections in the NMI handler would lose their RCU protection.
+
+	The possibility of NMI handlers, which, by definition cannot
+	be masked, does complicate this code.
+
+\QuickQ{But if line~7 finds that we are the outermost interrupt,
+	wouldn't we \emph{always} need to increment
+	\url{dynticks_progress_counter}?}
+
+	Not if we interrupted a running task!
+	In that case, \url{dynticks_progress_counter} would
+	have already been incremented by \url{rcu_exit_nohz()},
+	and there would be no need to increment it again.
+
+\QuickQ{Can you spot any bugs in any of the code in this section?}
+
+	Read the next section to see if you were correct.
+
+\QuickQ{Why isn't the memory barrier in \url{rcu_exit_nohz()}
+	and \url{rcu_enter_nohz()} modeled in Promela?}
+
+	Promela assumes sequential consistency, so
+	it is not necessary to model memory barriers.
+	In fact, one must instead explicitly model lack of memory barriers,
+	for example, as shown in
+	Figure~\ref{fig:analysis:QRCU Unordered Summation} on
+	page~\pageref{fig:analysis:QRCU Unordered Summation}.
+
+\QuickQ{Isn't it a bit strange to model \url{rcu_exit_nohz()}
+	followed by \url{rcu_enter_nohz()}?
+	Wouldn't it be more natural to instead model entry before exit?}
+
+	It probably would be more natural, but we will need
+	this particular order for the liveness checks that we will add later.
+
+\QuickQ{Wait a minute!
+	In the Linux kernel, both \url{dynticks_progress_counter} and
+	\url{rcu_dyntick_snapshot} are per-CPU variables.
+	So why are they instead being modeled as single global variables?}
+
+	Because the grace-period code processes each
+	CPU's \url{dynticks_progress_counter} and
+	\url{rcu_dyntick_snapshot} variables separately,
+	we can collapse the state onto a single CPU.
+	If the grace-period code were instead to do something special
+	given specific values on specific CPUs, then we would indeed need
+	to model multiple CPUs.
+	But fortunately, we can safely confine ourselves to two CPUs, the
+	one running the grace-period processing and the one entering and
+	leaving dynticks-idle mode.
+
+\QuickQ{Given there are a pair of back-to-back changes to
+	\url{grace_period_state} on lines~25 and 26,
+	how can we be sure that line~25's changes won't be lost?}
+
+	Recall that Promela and spin trace out
+	every possible sequence of state changes.
+	Therefore, timing is irrelevant: Promela/spin will be quite
+	happy to jam the entire rest of the model between those two
+	statements unless some state variable specifically prohibits
+	doing so.
+
+\QuickQ{But what would you do if you needed the statements in a single
+	\url{EXECUTE_MAINLINE()} group to execute non-atomically?}
+
+	The easiest thing to do would be to put
+	each such statement in its own \url{EXECUTE_MAINLINE()}
+	statement.
+
+\QuickQ{But what if the \url{dynticks_nohz()} process had
+	``if'' or ``do'' statements with conditions,
+	where the statement bodies of these constructs
+	needed to execute non-atomically?}
+
+	One approach, as we will see in a later section,
+	is to use explicit labels and ``goto'' statements.
+	For example, the construct:
+
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\scriptsize
+	\begin{verbatim}
+		if
+		:: i == 0 -> a = -1;
+		:: else -> a = -2;
+		fi;
+	\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+
+	could be modeled as something like:
+
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\scriptsize
+	\begin{verbatim}
+		EXECUTE_MAINLINE(stmt1,
+				 if
+				 :: i == 0 -> goto stmt1_then;
+				 :: else -> goto stmt1_else;
+				 fi)
+		stmt1_then: skip;
+		EXECUTE_MAINLINE(stmt1_then1, a = -1; goto stmt1_end)
+		stmt1_else: skip;
+		EXECUTE_MAINLINE(stmt1_then1, a = -2)
+		stmt1_end: skip;
+	\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+
+	However, it is not clear that the macro is helping much in the case
+	of the ``if'' statement, so these sorts of situations will
+	be open-coded in the following sections.
+
+\QuickQ{Why are lines~45 and 46 (the \url{in_dyntick_irq = 0;}
+	and the \url{i++;}) executed atomically?}
+
+	These lines of code pertain to controlling the
+	model, not to the code being modeled, so there is no reason to
+	model them non-atomically.
+	The motivation for modeling them atomically is to reduce the size
+	of the state space.
+
+\QuickQ{What property of interrupts is this \url{dynticks_irq()}
+	process unable to model?}
+
+	One such property is nested interrupts,
+	which are handled in the following section.
+
+\QuickQ{Does Paul always write his code in this painfully incremental
+	manner???}
+
+	Not always, but more and more frequently.
+	In this case, Paul started with the smallest slice of code that included
+	an interrupt handler, because he was not sure how best to model interrupts
+	in Promela.
+	Once he got that working, he added other features.
+	(But if he was doing it again, he would start with a ``toy'' handler.
+	For example, he might have the handler increment a variable twice and
+	have the mainline code verify that the value was always even.)
+
+	Why the incremental approach?
+	Consider the following, attributed to Brian W. Kernighan:
+
+	\begin{quote}
+		Debugging is twice as hard as writing the code in the first
+		place. Therefore, if you write the code as cleverly as possible,
+		you are, by definition, not smart enough to debug it.
+	\end{quote}
+
+	This means that any attempt to optimize the production of code should
+	place at least 66% of its emphasis on optimizing the debugging process,
+	even at the expense of increasing the time and effort spent coding.
+	Incremental coding and testing is one way to optimize the debugging
+	process, at the expense of some increase in coding effort.
+	Paul uses this approach because he rarely has the luxury of
+	devoting full days (let alone weeks) to coding and debugging.
+
+\QuickQ{But what happens if an NMI handler starts running before
+	an irq handler completes, and if that NMI handler continues
+	running until a second irq handler starts?}
+
+	This cannot happen within the confines of a single CPU.
+	The first irq handler cannot complete until the NMI handler
+	returns.
+	Therefore, if each of the \url{dynticks} and \url{dynticks_nmi}
+	variables have taken on an even value during a given time
+	interval, the corresponding CPU really was in a quiescent
+	state at some time during that interval.
 

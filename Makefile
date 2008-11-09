@@ -5,6 +5,9 @@ LATEXSOURCES = \
 	advsync/memorybarriers.tex \
 	analysis/analysis.tex \
 	appendix/appendix.tex \
+	appendix/formal/formal.tex \
+	appendix/formal/spinhint.tex \
+	appendix/formal/dyntickrcu.tex \
 	appendix/primitives/primitives.tex \
 	appendix/questions/after.tex \
 	appendix/questions/questions.tex \
@@ -101,8 +104,8 @@ perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
 
 perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex
 	latex perfbook || :
-	latex perfbook || :
 	test -d bib/. && bibtex perfbook || :
+	latex perfbook || :
 	latex perfbook || :
 	latex perfbook || :
 

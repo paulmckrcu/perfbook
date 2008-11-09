@@ -687,11 +687,47 @@ same type.
 In other words, these lockless algorithms can tolerate a given data
 element being freed and reallocated as the same type of structure
 while they are referencing it, but must prohibit a change in type.
-This is a weaker guarantee than the existence guarantees in the
+This guarantee, called ``type-safe memory'' in
+academic literature~\cite{Cheriton96a},
+is weaker than the existence guarantees in the
 previous section, and is therefore quite a bit harder to work with.
-Such algorithms in the Linux kernel make use of slab caches, specially
-marking these caches so that RCU is used when returning a freed-up
+Type-safe memory algorithms in the Linux kernel make use of slab caches,
+specially marking these caches so that RCU is used when returning a freed-up
 slab to system memory.
+This use of RCU guarantees that any in-use element of
+such a slab will remain in that slab, thus retaining its type,
+for the duration of any pre-existing RCU read-side critical sections.
+
+\QuickQuiz{
+	But what if there is an arbitrarily long series of RCU
+	read-side critical sections in multiple threads, so that at
+	any point in time there is at least one thread in the system
+	executing in an RCU read-side critical section?
+	Wouldn't that prevent any data from a \url{SLAB_DESTROY_BY_RCU}
+	slab ever being returned to the system, possibly resulting
+	in OOM events?}
+\QuickQuizAnswer{
+	There could certainly be an arbitrarily long period of time
+	during which at least one thread is always in an RCU read-side
+	critical section.
+	However, the key words in the description in
+	Section~\ref{sec:deferRCU is a Way of Providing Type-Safe Memory}
+	are ``in-use'' and ``pre-existing''.
+	Keep in mind that a given RCU read-side critical section is
+	conceptually only permitted to gain references to data elements
+	that were in use at the beginning of that critical section.
+	Furthermore, remember that a slab cannot be returned to the
+	system until all of its data elements have been freed, in fact,
+	the RCU grace period cannot start until after they have all been
+	freed.
+
+	Therefore, the slab cache need only wait for those RCU read-side
+	critical sections that started before the freeing of the last element
+	of the slab.
+	This in turn means that any RCU grace period that begins after
+	the freeing of the last element will do---the slab may be returned
+	to the system after that grace period ends.
+} \QuickQuizEnd
 
 These algorithms typically use a validation step that checks to make
 sure that the newly referenced data structure really is the one that
