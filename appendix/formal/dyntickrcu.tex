@@ -1726,7 +1726,7 @@ states, passing without errors.
 	\end{quote}
 
 	This means that any attempt to optimize the production of code should
-	place at least 66% of its emphasis on optimizing the debugging process,
+	place at least 66\% of its emphasis on optimizing the debugging process,
 	even at the expense of increasing the time and effort spent coding.
 	Incremental coding and testing is one way to optimize the debugging
 	process, at the expense of some increase in coding effort.
@@ -1756,7 +1756,7 @@ states, passing without errors.
 \end{verbatim}
 }
 \caption{Memory-Barrier Fix Patch}
-\label{fig:analysis:Memory-Barrier Fix Patch}
+\label{fig:app:formal:Memory-Barrier Fix Patch}
 \end{figure}
 
 \begin{figure}[tbp]
@@ -1767,7 +1767,7 @@ states, passing without errors.
 \end{verbatim}
 }
 \caption{Variable-Name-Typo Fix Patch}
-\label{fig:analysis:Variable-Name-Typo Fix Patch}
+\label{fig:app:formal:Variable-Name-Typo Fix Patch}
 \end{figure}
 
 This effort provided some lessons (re)learned:
@@ -1780,14 +1780,14 @@ This effort provided some lessons (re)learned:
 	a misplaced memory barrier in
 	\url{rcu_enter_nohz()} and \url{rcu_exit_nohz()},
 	as shown by the patch in
-	Figure~\ref{fig:analysis:Memory-Barrier Fix Patch}.
+	Figure~\ref{fig:app:formal:Memory-Barrier Fix Patch}.
 \item	{\bf Validate your code early, often, and up to the point
 	of destruction.}
 	This effort located one subtle bug in
 	\url{rcu_try_flip_waitack_needed()}
 	that would have been quite difficult to test or debug, as
 	shown by the patch in
-	Figure~\ref{fig:analysis:Variable-Name-Typo Fix Patch}.
+	Figure~\ref{fig:app:formal:Variable-Name-Typo Fix Patch}.
 \item	{\bf Always validate your validation code.}
 	The usual way to do this is to insert a deliberate bug
 	and verify that the validation code catches it.  Of course,
@@ -1802,10 +1802,11 @@ This effort provided some lessons (re)learned:
 	are not appropriate in this case.
 \item	{\bf The need for complex formal validation often indicates
 	a need to re-think your design.}
-	And in fact much simpler design is presented in the following section.
+	In fact the design validated in this section turns out to have
+	a much simpler solution, which is presented in the next section.
 \end{enumerate}
 
-\subsection{Simplicity Avoids Formal Validation}
+\section{Simplicity Avoids Formal Validation}
 \label{app:formal:Simplicity Avoids Formal Validation}
 
 The complexity of the dynticks interface for preemptable RCU is primarily
@@ -1813,6 +1814,9 @@ due to the fact that both irqs and NMIs use the same code path and the
 same state variables.
 This leads to the notion of providing separate code paths and variables
 for irqs and NMIs, as has been done for hierarchical RCU @@@ref@@@.
+
+\subsection{State Variables for Simplified Dynticks Interface}
+\label{app:formal:State Variables for Simplified Dynticks Interface}
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1831,11 +1835,11 @@ for irqs and NMIs, as has been done for hierarchical RCU @@@ref@@@.
  12 };
 \end{verbatim}
 }
-\caption{Variables for Simple dynticks Interface}
-\label{fig:analysis:Variables for Simple dynticks Interface}
+\caption{Variables for Simple Dynticks Interface}
+\label{fig:app:formal:Variables for Simple Dynticks Interface}
 \end{figure}
 
-Figure~\ref{fig:analysis:Variables for Simple dynticks Interface}
+Figure~\ref{fig:app:formal:Variables for Simple Dynticks Interface}
 shows the new per-CPU state variables.
 These variables are grouped into structs to allow multiple independent
 RCU implementations (e.g., \url{rcu} and \url{rcu_bh}) to conveniently
@@ -1850,28 +1854,28 @@ the NMI code path will also reference (but not modify) the
 These variables are used as follows:
 
 \begin{description}
-\item[\url{dynticks_nesting}]
+\item[\url{dynticks_nesting}:]
 	This counts the number of reasons that the corresponding
 	CPU should be monitored for RCU read-side critical sections.
 	If the CPU is in dynticks-idle mode, then this counts the
 	irq nesting level, otherwise it is one greater than the
 	irq nesting level.
-\item[\url{dynticks}]
+\item[\url{dynticks}:]
 	This counter's value is even if the corresponding CPU is
 	in dynticks-idle mode and there are no irq handlers currently
 	running on that CPU, otherwise the counter's value is odd.
 	In other words, if this counter's value is odd, then the
 	corresponding CPU might be in an RCU read-side critical section.
-\item[\url{dynticks_nmi}]
+\item[\url{dynticks_nmi}:]
 	This counter's value is odd if the corresponding CPU is
 	in an NMI handler, but only if the NMI arrived while this
 	CPU was in dyntick-idle mode with no irq handlers running.
 	Otherwise, the counter's value will be even.
-\item[\url{dynticks_snap}]
+\item[\url{dynticks_snap}:]
 	This will be a snapshot of the \url{dynticks} counter, but
 	only if the current RCU grace period has extended for too
 	long a duration.
-\item[\url{dynticks_nmi_snap}]
+\item[\url{dynticks_nmi_snap}:]
 	This will be a snapshot of the \url{dynticks_nmi} counter, but
 	again only if the current RCU grace period has extended for too
 	long a duration.
@@ -1893,6 +1897,9 @@ passed through a quiescent state during that interval.
 	interval, the corresponding CPU really was in a quiescent
 	state at some time during that interval.
 } \QuickQuizEnd
+
+\subsection{Entering and Leaving Dynticks-Idle Mode}
+\label{app:formal:Entering and Leaving Dynticks-Idle Mode}
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1927,10 +1934,10 @@ passed through a quiescent state during that interval.
 \end{verbatim}
 }
 \caption{Entering and Exiting Dynticks-Idle Mode}
-\label{fig:analysis:Entering and Exiting Dynticks-Idle Mode}
+\label{fig:app:formal:Entering and Exiting Dynticks-Idle Mode}
 \end{figure}
 
-Figure~\ref{fig:analysis:Entering and Exiting Dynticks-Idle Mode}
+Figure~\ref{fig:app:formal:Entering and Exiting Dynticks-Idle Mode}
 shows the \url{rcu_enter_nohz()} and \url{rcu_exit_nohz()},
 which enter and exit dynticks-idle mode, also known as ``nohz'' mode.
 These two functions are invoked from process context.
@@ -1949,3 +1956,239 @@ Finally, line~10 decrements \url{dynticks_nesting}, which should now be zero.
 The \url{rcu_exit_nohz()} function is quite similar, but increments
 \url{dynticks_nesting} rather than decrementing it and checks for
 the opposite \url{dynticks} polarity.
+
+\subsection{NMIs From Dynticks-Idle Mode}
+\label{app:formal:NMIs From Dynticks-Idle Mode}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void rcu_nmi_enter(void)
+  2 {
+  3   struct rcu_dynticks *rdtp;
+  4 
+  5   rdtp = &__get_cpu_var(rcu_dynticks);
+  6   if (rdtp->dynticks & 0x1)
+  7     return;
+  8   rdtp->dynticks_nmi++;
+  9   WARN_ON_RATELIMIT(!(rdtp->dynticks_nmi & 0x1),
+ 10                     &rcu_rs);
+ 11   smp_mb();
+ 12 }
+ 13 
+ 14 void rcu_nmi_exit(void)
+ 15 {
+ 16   struct rcu_dynticks *rdtp;
+ 17 
+ 18   rdtp = &__get_cpu_var(rcu_dynticks);
+ 19   if (rdtp->dynticks & 0x1)
+ 20     return;
+ 21   smp_mb();
+ 22   rdtp->dynticks_nmi++;
+ 23   WARN_ON_RATELIMIT(rdtp->dynticks_nmi & 0x1, &rcu_rs);
+ 24 }
+\end{verbatim}
+}
+\caption{NMIs From Dynticks-Idle Mode}
+\label{fig:app:formal:NMIs From Dynticks-Idle Mode}
+\end{figure}
+
+Figure~\ref{fig:app:formal:NMIs From Dynticks-Idle Mode}
+show the \url{rcu_nmi_enter()} and \url{rcu_nmi_exit()} functions,
+which inform RCU of NMI entry and exit, respectively, from dynticks-idle
+mode.
+However, if the NMI arrives during an irq handler, then RCU will already
+be on the lookout for RCU read-side critical sections from this CPU,
+so lines~6 and 7 of \url{rcu_nmi_enter} and lines~19 and 20
+of \url{rcu_nmi_exit} silently return if \url{dynticks} is odd.
+Otherwise, the two functions increment \url{dynticks_nmi}, with
+\url{rcu_nmi_enter()} leaving it with an odd value and \url{rcu_nmi_exit()}
+leaving it with an even value.
+Both functions execute memory barriers between this increment
+and possible RCU read-side critical sections on lines~11 and 21,
+respectively.
+
+\subsection{Interrupts From Dynticks-Idle Mode}
+\label{app:formal:Interrupts From Dynticks-Idle Mode}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void rcu_irq_enter(void)
+  2 {
+  3   struct rcu_dynticks *rdtp;
+  4 
+  5   rdtp = &__get_cpu_var(rcu_dynticks);
+  6   if (rdtp->dynticks_nesting++)
+  7     return;
+  8   rdtp->dynticks++;
+  9   WARN_ON_RATELIMIT(!(rdtp->dynticks & 0x1), &rcu_rs);
+ 10   smp_mb();
+ 11 }
+ 12 
+ 13 void rcu_irq_exit(void)
+ 14 {
+ 15   struct rcu_dynticks *rdtp;
+ 16 
+ 17   rdtp = &__get_cpu_var(rcu_dynticks);
+ 18   if (--rdtp->dynticks_nesting)
+ 19     return;
+ 20   smp_mb();
+ 21   rdtp->dynticks++;
+ 22   WARN_ON_RATELIMIT(rdtp->dynticks & 0x1, &rcu_rs);
+ 23   if (__get_cpu_var(rcu_data).nxtlist ||
+ 24       __get_cpu_var(rcu_bh_data).nxtlist)
+ 25     set_need_resched();
+ 26 }
+\end{verbatim}
+}
+\caption{Interrupts From Dynticks-Idle Mode}
+\label{fig:app:formal:Interrupts From Dynticks-Idle Mode}
+\end{figure}
+
+Figure~\ref{fig:app:formal:Interrupts From Dynticks-Idle Mode}
+shows \url{rcu_irq_enter()} and \url{rcu_irq_exit()}, which
+inform RCU of entry to and exit from, respectively, irq context.
+Line~6 of \url{rcu_irq_enter()} increments \url{dynticks_nesting},
+and if this variable was already non-zero, line~7 silently returns.
+Otherwise, line~8 increments \url{dynticks}, which will then have
+an odd value, consistent with the fact that this CPU can now
+execute RCU read-side critical sections.
+Line~10 therefore executes a memory barrier to ensure that
+the increment of \url{dynticks} is seen before any
+RCU read-side critical sections that the subsequent irq handler
+might execute.
+
+Line~18 of \url{rcu_irq_exit} decrements \url{dynticks_nesting}, and
+if the result is non-zero, line~19 silently returns.
+Otherwise, line~20 executes a memory barrier to ensure that the
+increment of \url{dynticks} on line~21 is seen after any RCU
+read-side critical sections that the prior irq handler might have executed.
+Line~22 verifies that \url{dynticks} is now even, consistent with
+the fact that no RCU read-side critical sections may appear in
+dynticks-idle mode.
+Lines~23-25 check to see if the prior irq handlers enqueued any
+RCU callbacks, forcing this CPU out of dynticks-idle mode via
+an reschedule IPI if so.
+
+\subsection{Checking For Dynticks Quiescent States}
+\label{app:formal:Checking For Dynticks Quiescent States}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static int
+  2 dyntick_save_progress_counter(struct rcu_data *rdp)
+  3 {
+  4   int ret;
+  5   int snap;
+  6   int snap_nmi;
+  7 
+  8   snap = rdp->dynticks->dynticks;
+  9   snap_nmi = rdp->dynticks->dynticks_nmi;
+ 10   smp_mb();
+ 11   rdp->dynticks_snap = snap;
+ 12   rdp->dynticks_nmi_snap = snap_nmi;
+ 13   ret = ((snap & 0x1) == 0) && ((snap_nmi & 0x1) == 0);
+ 14   if (ret)
+ 15     rdp->dynticks_fqs++;
+ 16   return ret;
+ 17 }
+\end{verbatim}
+}
+\caption{Saving Dyntick Progress Counters}
+\label{fig:app:formal:Saving Dyntick Progress Counters}
+\end{figure}
+
+Figure~\ref{fig:app:formal:Saving Dyntick Progress Counters}
+shows \url{dyntick_save_progress_counter()}, which takes a snapshot
+of the specified CPU's \url{dynticks} and \url{dynticks_nmi}
+counters.
+Lines~8 and 9 snapshot these two variables to locals, line~10
+executes a memory barrier to pair with the memory barriers in
+the functions in
+Figures~\ref{fig:app:formal:Entering and Exiting Dynticks-Idle Mode},
+\ref{fig:app:formal:NMIs From Dynticks-Idle Mode}, and
+\ref{fig:app:formal:Interrupts From Dynticks-Idle Mode}.
+Lines~11 and 12 record the snapshots for later calls to
+\url{rcu_implicit_dynticks_qs},
+and 13 checks to see if the CPU is in dynticks-idle mode with
+neither irqs nor NMIs in progress (in other words, both snapshots
+have even values), hence in an extended quiescent state.
+If so, lines~14 and 15 count this event, and line~16 returns
+true if the CPU was in a quiescent state.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static int
+  2 rcu_implicit_dynticks_qs(struct rcu_data *rdp)
+  3 {
+  4   long curr;
+  5   long curr_nmi;
+  6   long snap;
+  7   long snap_nmi;
+  8 
+  9   curr = rdp->dynticks->dynticks;
+ 10   snap = rdp->dynticks_snap;
+ 11   curr_nmi = rdp->dynticks->dynticks_nmi;
+ 12   snap_nmi = rdp->dynticks_nmi_snap;
+ 13   smp_mb();
+ 14   if ((curr != snap || (curr & 0x1) == 0) &&
+ 15       (curr_nmi != snap_nmi || (curr_nmi & 0x1) == 0)) {
+ 16     rdp->dynticks_fqs++;
+ 17     return 1;
+ 18   }
+ 19   return rcu_implicit_offline_qs(rdp);
+ 20 }
+\end{verbatim}
+}
+\caption{Checking Dyntick Progress Counters}
+\label{fig:app:formal:Checking Dyntick Progress Counters}
+\end{figure}
+
+Figure~\ref{fig:app:formal:Checking Dyntick Progress Counters}
+shows \url{dyntick_save_progress_counter}, which is called to check
+whether a CPU has entered dyntick-idle mode subsequent to a call
+to \url{dynticks_save_progress_counter()}.
+Lines~9 and 11 take new snapshots of the corresponding CPU's
+\url{dynticks} and \url{dynticks_nmi} variables, while lines~10 and 12
+retrieve the snapshots saved earlier by
+\url{dynticks_save_progress_counter()}.
+Line~13 then
+executes a memory barrier to pair with the memory barriers in
+the functions in
+Figures~\ref{fig:app:formal:Entering and Exiting Dynticks-Idle Mode},
+\ref{fig:app:formal:NMIs From Dynticks-Idle Mode}, and
+\ref{fig:app:formal:Interrupts From Dynticks-Idle Mode}.
+Lines~14 and 15 then check to see if the CPU is either currently in
+a quiescent state (\url{curr} and \url{curr_nmi} having even values) or
+has passed through a quiescent state since the last call to
+\url{dynticks_save_progress_counter()} (the values of
+\url{dynticks} and \url{dynticks_nmi} having changed).
+If these checks confirm that the CPU has passed through a dyntick-idle
+quiescent state, then line~16 counts that fact and line~16 returns
+an indication of this fact.
+Either way, line~19 checks for race conditions that can result in RCU
+waiting for a CPU that is offline.
+
+\subsection{Discussion}
+\label{app:formal:Discussion}
+
+A slight shift in viewpoint resulted in a substantial simplification
+of the dynticks interface for RCU.
+The key change leading to this simplification was minimizing of
+sharing between irq and NMI contexts.
+The only sharing in this simplified interface is references from NMI
+context to irq variables (the \url{dynticks} variable).
+This type of sharing is benign, because the NMI functions never update
+this variable, so that its value remains constant through the lifetime
+of the NMI handler.
+This limitation of sharing allows the individual functions to be
+understood one at a time, in happy contrast to the situation
+described in
+Section~\ref{app:formal:Promela Parable: dynticks and Preemptable RCU},
+where an NMI might change shared state at any point during execution of
+the irq functions.
+
+Validation can be a good thing, but simplicity is even better.
