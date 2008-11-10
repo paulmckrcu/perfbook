@@ -396,7 +396,7 @@ needed by the \url{rcu_try_flip_waitmb_state()} state.
 
 We now have seen all the code involved in the interface between
 RCU and the dynticks-idle state.
-The next section builds up the Promela model used to validate this
+The next section builds up the Promela model used to verify this
 code.
 
 \QuickQuiz{Can you spot any bugs in any of the code in this section?}
@@ -673,9 +673,9 @@ progresses through the grace-period phases, as shown below:
 
 Lines~6, 10, 25, 26, 29, and 44 update this variable (combining
 atomically with algorithmic operations where feasible) to
-allow the \url{dyntick_nohz()} process to validate the basic
+allow the \url{dyntick_nohz()} process to verify the basic
 RCU safety property.
-The form of this validation is to assert that the value of the
+The form of this verification is to assert that the value of the
 \url{grace_period_state} variable cannot jump from
 \url{GP_IDLE} to \url{GP_DONE} during a time period
 over which RCU readers could plausibly persist.
@@ -693,7 +693,7 @@ over which RCU readers could plausibly persist.
 } \QuickQuizEnd
 
 The \url{dyntick_nohz()} Promela process implements
-this validation as shown below:
+this verification as shown below:
 
 { \scriptsize
 \begin{verbatim}
@@ -741,7 +741,7 @@ when run with the \url{runspin.sh} script,
 generates 964 states and passes without errors, which is reassuring.
 That said, although safety is critically important, it is also quite
 important to avoid indefinitely stalling grace periods.
-The next section therefore covers validating liveness.
+The next section therefore covers verifying liveness.
 
 \subsubsection{Validating Liveness}
 \label{app:formal:Validating Liveness}
@@ -971,16 +971,16 @@ A similar simplification can be applied to
 
 Making the corresponding correction in the
 model (\url{dyntickRCU-base-sl.spin})
-results in a correct validation with 661 states that passes without
+results in a correct verification with 661 states that passes without
 errors.
 However, it is worth noting that the first version of the liveness
-validation failed to catch this bug, due to a bug in the liveness
-validation itself.
-This liveness-validation bug was located by inserting an infinite
+verification failed to catch this bug, due to a bug in the liveness
+verification itself.
+This liveness-verification bug was located by inserting an infinite
 loop in the \url{grace_period()} process, and noting that
-the liveness-validation code failed to detect this problem!
+the liveness-verification code failed to detect this problem!
 
-We have now successfully validated both safety and liveness
+We have now successfully verified both safety and liveness
 conditions, but only for processes running and blocking.
 We also need to handle interrupts, a task taken up in the next section.
 
@@ -1202,7 +1202,7 @@ incrementing the control variable.
 Line~10 tells \url{dyntick_nohz()} that an interrupt handler
 is running, and line~45 tells \url{dyntick_nohz()} that this
 handler has completed.
-Line~49 is used for liveness validation, much as is the corresponding
+Line~49 is used for liveness verification, much as is the corresponding
 line of \url{dyntick_nohz()}.
 
 \QuickQuiz{Why are lines~45 and 46 (the \url{in_dyntick_irq = 0;}
@@ -1217,7 +1217,7 @@ line of \url{dyntick_nohz()}.
 
 Lines~11-25 model \url{rcu_irq_enter()}, and
 lines~26 and 27 model the relevant snippet of \url{__irq_enter()}.
-Lines~28 and 29 validate safety in much the same manner as do the
+Lines~28 and 29 verifies safety in much the same manner as do the
 corresponding lines of \url{dynticks_nohz()}.
 Lines~30 and 31 model the relevant snippet of \url{__irq_exit()},
 and finally lines~32-43 model \url{rcu_irq_exit()}.
@@ -1293,7 +1293,7 @@ add the new \url{dyntick_irq_done} variable to the liveness
 checks, and of course the optimizations on lines~22 and 42.
 
 This model (\url{dyntickRCU-irqnn-ssl.spin})
-results in a correct validation with roughly half a million
+results in a correct verification with roughly half a million
 states, passing without errors.
 However, this version of the model does not handle nested
 interrupts.
@@ -1409,7 +1409,7 @@ and, if this is the outermost interrupt level, clears
 \url{in_dyntick_irq}.
 
 This model (\url{dyntickRCU-irq-ssl.spin})
-results in a correct validation with a bit more than half a million
+results in a correct verification with a bit more than half a million
 states, passing without errors.
 However, this version of the model does not handle NMIs,
 which are taken up in the nest section.
@@ -1701,7 +1701,7 @@ added \url{dyntick_nmi_done} to the \url{shouldexit}
 assignments on lines~22 and 44.
 
 The model (\url{dyntickRCU-irq-nmi-ssl.spin})
-results in a correct validation with several hundred million
+results in a correct verification with several hundred million
 states, passing without errors.
 
 \QuickQuiz{Does Paul always write his code in this painfully incremental
@@ -1773,7 +1773,7 @@ states, passing without errors.
 This effort provided some lessons (re)learned:
 
 \begin{enumerate}
-\item	{\bf Promela and spin can validate interrupt/NMI-handler
+\item	{\bf Promela and spin can verify interrupt/NMI-handler
 	interactions}.
 \item	{\bf Documenting code can help locate bugs}.
 	In this case, the documentation effort located
@@ -1788,26 +1788,26 @@ This effort provided some lessons (re)learned:
 	that would have been quite difficult to test or debug, as
 	shown by the patch in
 	Figure~\ref{fig:app:formal:Variable-Name-Typo Fix Patch}.
-\item	{\bf Always validate your validation code.}
+\item	{\bf Always verify your verification code.}
 	The usual way to do this is to insert a deliberate bug
-	and verify that the validation code catches it.  Of course,
-	if the validation code fails to catch this bug, you may also
+	and verify that the verification code catches it.  Of course,
+	if the verification code fails to catch this bug, you may also
 	need to verify the bug itself, and so on, recursing infinitely.
 	However, if you find yourself in this position,
 	getting a good night's sleep
 	can be an extremely effective debugging technique.
-\item	{\bf Use of atomic instructions can simplify validation.}
+\item	{\bf Use of atomic instructions can simplify verification.}
 	Unfortunately, use of the \url{cmpxchg} atomic instruction
 	would also slow down the critical irq fastpath, so they
 	are not appropriate in this case.
-\item	{\bf The need for complex formal validation often indicates
+\item	{\bf The need for complex formal verification often indicates
 	a need to re-think your design.}
-	In fact the design validated in this section turns out to have
+	In fact the design verified in this section turns out to have
 	a much simpler solution, which is presented in the next section.
 \end{enumerate}
 
-\section{Simplicity Avoids Formal Validation}
-\label{app:formal:Simplicity Avoids Formal Validation}
+\section{Simplicity Avoids Formal Verification}
+\label{app:formal:Simplicity Avoids Formal Verification}
 
 The complexity of the dynticks interface for preemptable RCU is primarily
 due to the fact that both irqs and NMIs use the same code path and the
@@ -2191,4 +2191,4 @@ Section~\ref{app:formal:Promela Parable: dynticks and Preemptable RCU},
 where an NMI might change shared state at any point during execution of
 the irq functions.
 
-Validation can be a good thing, but simplicity is even better.
+Verification can be a good thing, but simplicity is even better.

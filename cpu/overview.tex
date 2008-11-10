@@ -22,13 +22,10 @@ the typical program more closely resembles an obstacle course than
 a race track.
 This is because the internal architecture of CPUs has changed dramatically
 over the past few decades, courtesy of Moore's Law.
-In the early 1980s, the typical microprocessor fetched an instruction,
-decoded it, and executed it, typically taking \emph{at least} three
-clock cycles to complete one instruction before proceeding to the next.
-In contrast, the CPU of the late 1990s and early 2000s will be executing
-many instructions simultaneously, using a deep ``pipeline'' to control
-the flow of instructions internally to the CPU, this difference being
-illustrated by Figure~\ref{fig:cpu:CPUs Old and New}.
+These changes are described in the following sections.
+
+\subsection{Pipelined CPUs}
+\label{sec:cpu:Pipelined CPUs}
 
 \begin{figure}[htb]
 \begin{center}
@@ -38,8 +35,13 @@ illustrated by Figure~\ref{fig:cpu:CPUs Old and New}.
 \label{fig:cpu:CPUs Old and New}
 \end{figure}
 
-\emph{@@@ check up on better .eps for figure.  Also insert block diagram
-of CPU.}
+In the early 1980s, the typical microprocessor fetched an instruction,
+decoded it, and executed it, typically taking \emph{at least} three
+clock cycles to complete one instruction before proceeding to the next.
+In contrast, the CPU of the late 1990s and early 2000s will be executing
+many instructions simultaneously, using a deep ``pipeline'' to control
+the flow of instructions internally to the CPU, this difference being
+illustrated by Figure~\ref{fig:cpu:CPUs Old and New}.
 
 Achieving full performance with a CPU having a long pipeline requires
 highly predictable control flow through the program.
@@ -50,6 +52,14 @@ The CPU can then correctly predict that the branch at the end of the loop
 will be taken in almost all cases.
 In such programs, the pipeline can be kept full and the CPU can execute
 at full speed.
+
+\begin{figure}[htb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{cartoons/pipeline}}
+\end{center}
+\caption{CPU Meets a Pipeline Flush}
+\label{fig:cpu:CPU Meets a Pipeline Flush}
+\end{figure}
 
 If, on the other hand, the program has many loops with small loop counts,
 or if the program is object oriented with many virtual objects that
@@ -63,16 +73,13 @@ In either case, the pipeline will empty and have to be refilled, leading
 to stalls that can drastically reduce performance,
 as fancifully depicted in Figure~\ref{fig:cpu:CPU Meets a Pipeline Flush}.
 
-\begin{figure}[htb]
-\begin{center}
-\resizebox{3in}{!}{\includegraphics{cartoons/pipeline}}
-\end{center}
-\caption{CPU Meets a Pipeline Flush}
-\label{fig:cpu:CPU Meets a Pipeline Flush}
-\end{figure}
-
 Unfortunately, pipeline flushes are not the only hazards in the obstacle
 course that modern CPUs must run.
+The next section covers the hazards of referencing memory.
+
+\subsection{Memory References}
+\label{sec:cpu:Memory References}
+
 In the 1980s, it often took less time for a microprocessor to load a value
 from memory than it did to execute an instruction.
 In 2006, a microprocessor might be capable of executing hundreds or even
@@ -80,26 +87,22 @@ thousands of instructions in the time required to access memory.
 This disparity is due to the fact that Moore's Law has increased CPU
 performance at a much greater rate than it has increased memory
 performance, in part due to the rate at which memory sizes have
-grown.\footnote{
-	A typical 1980 computer might have 64KB (yes, kilobytes,
-	not megabytes, let along gigabytes) of main memory.
-	In 2006, CPU designers really can construct a 64KB memory
-	with single-cycle access.
-	And in fact they do, but it is now called a ``cache''.}
+grown.
+For example, a typical 1970s minicomputer might have 4KB (yes, kilobytes,
+not megabytes, let along gigabytes) of main memory, with single-cycle access.
+In 2008, CPU designers stil can construct a 4KB memory with single-cycle
+access, even on systems with multi-GHz clock frequencies.
+And in fact they frequently do construct such memories, but they now
+call them ``level-0 caches''.
 
 Although the large caches found on modern microprocessors can do quite
-a bit to combat memory-access latencies,
-just as keeping pipelines full requires highly predictable control flow,
+a bit to help combat memory-access latencies,
 these caches require highly predictable data-access patterns to
 successfully hide memory latencies.
 Unfortunately, common operations, such as traversing a linked list,
 have extremely unpredictable memory-access patterns --- after all,
 if the pattern was predictable, us software types would not bother
 with the pointers, right?
-
-Therefore, as shown in
-Figure~\ref{fig:cpu:CPU Meets a Memory Reference},
-memory references are often severe obstacles for modern CPUs.
 
 \begin{figure}[htb]
 \begin{center}
@@ -109,21 +112,26 @@ memory references are often severe obstacles for modern CPUs.
 \label{fig:cpu:CPU Meets a Memory Reference}
 \end{figure}
 
+Therefore, as shown in
+Figure~\ref{fig:cpu:CPU Meets a Memory Reference},
+memory references are often severe obstacles for modern CPUs.
+
 Thus far, we have only been considering obstacles that can arise during
 a given CPU's execution of single-threaded code.
-Multi-threading presents additional obstacles to the CPU.
+Multi-threading presents additional obstacles to the CPU, as
+described in the following sections.
+
+\subsection{Atomic Operations}
+\label{sec:cpu:Atomic Operations}
 
 One such obstacle is atomic operations.
 The whole idea of an atomic operation in some sense conflicts with
 the piece-at-a-time assembly-line operation of a CPU pipeline.
-To hardware designers' credit, modern CPUs use a number of very clever
+To hardware designers' credit, modern CPUs use a number of extremely clever
 tricks to make such operations \emph{look} atomic even though they
 are in fact being executed piece-at-a-time, but even so, there are
 cases where the pipeline must be delayed or even flushed in order to
 permit a given atomic operation to complete correctly.
-
-The resulting effect on performance is depicted in
-Figure~\ref{fig:cpu:CPU Meets an Atomic Operation}.
 
 \begin{figure}[htb]
 \begin{center}
@@ -133,9 +141,37 @@ Figure~\ref{fig:cpu:CPU Meets an Atomic Operation}.
 \label{fig:cpu:CPU Meets an Atomic Operation}
 \end{figure}
 
-Another multi-threading obstacle to CPU performance stems from the
-need of concurrent algorithms to maintain proper ordering of their
-operations, as will be discussed in more detail in
+The resulting effect on performance is depicted in
+Figure~\ref{fig:cpu:CPU Meets an Atomic Operation}.
+
+Unfortunately, atomic operations usually apply only to single elements
+of data.
+Because many parallel algorithms require that ordering constraints
+be maintained between updates of multiple data elements, most CPUs
+provide memory barriers.
+These memory barriers also serve as performance-sapping obstacles,
+as described in the next section.
+
+\QuickQuiz{What types of machines would allow atomic operations on
+	multiple data elements?}
+\QuickQuizAnswer{
+	One answer to this question is that it is often possible to
+	pack multiple elements of data into a single machine word,
+	which can then be manipulated atomically.
+
+	A more trendy answer would be machines supporting transactional
+	memory~\cite{DBLomet1977SIGSOFT}.
+	However, such machines are still (as of 2008) research
+	curiosities.
+	The jury is still out on the applicability of transactional
+	memory~\cite{McKenney2007PLOSTM,DonaldEPorter2007TRANSACT,
+	ChistopherJRossbach2007a}.
+} \QuickQuizEnd
+
+\subsection{Memory Barriers}
+\label{sec:cpu:Memory Barriers}
+
+Memory barriers will be considered in more detail in
 Section~\ref{sec:advsync:Memory Barriers} and
 Appendix~\ref{chp:app:whymb:Why Memory Barriers?}.
 In the meantime, consider the following simple lock-based critical
@@ -152,6 +188,14 @@ section:
 \end{minipage}
 \vspace{5pt}
 
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{cartoons/barrier}}
+\end{center}
+\caption{CPU Meets a Memory Barrier}
+\label{fig:cpu:CPU Meets a Memory Barrier}
+\end{figure}
+
 If the CPU were not constrained to execute these statements in the
 order shown, the effect would be that the variable ``a'' would be
 incremented without the protection of ``mylock'', which would certainly
@@ -163,12 +207,15 @@ that the CPU would otherwise undertake in order to increase performance,
 memory barriers almost always reduce performance, as depicted in
 Figure~\ref{fig:cpu:CPU Meets a Memory Barrier}.
 
+\subsection{Cache Misses}
+\label{sec:cpu:Cache Misses}
+
 \begin{figure}[htb]
 \begin{center}
-\resizebox{3in}{!}{\includegraphics{cartoons/barrier}}
+\resizebox{3in}{!}{\includegraphics{cartoons/tollbooth}}
 \end{center}
-\caption{CPU Meets a Memory Barrier}
-\label{fig:cpu:CPU Meets a Memory Barrier}
+\caption{CPU Meets a Cache Miss}
+\label{fig:cpu:CPU Meets a Cache Miss}
 \end{figure}
 
 The final multi-threading obstacle to CPU performance is the ``cache miss''.
@@ -185,17 +232,9 @@ in this CPU's cache, which will therefore incur an expensive cache miss
 Such cache misses form a major obstacle to CPU performance, as shown
 in Figure~\ref{fig:cpu:CPU Meets a Cache Miss}.
 
-\begin{figure}[htb]
-\begin{center}
-\resizebox{3in}{!}{\includegraphics{cartoons/tollbooth}}
-\end{center}
-\caption{CPU Meets a Cache Miss}
-\label{fig:cpu:CPU Meets a Cache Miss}
-\end{figure}
-
 These obstacles can easily prevent your program from attaining its
-potential on today's multi-core and multi-threaded hardware,
-in fact, as we will see in Chapter~\ref{cha:SMP Synchronization Design}.
-Much of the remainder of this book is dedicated to presenting
+potential on today's multi-core and multi-threaded hardware.
+Chapter~\ref{cha:SMP Synchronization Design}
+is dedicated to presenting
 design rules, algorithms, and techniques that can help you
-overcome these obstacles.
+avoid these obstacles.
