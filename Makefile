@@ -14,6 +14,7 @@ LATEXSOURCES = \
 	appendix/rcuimpl/rcu.tex \
 	appendix/rcuimpl/toyrcu.tex \
 	appendix/rcuimpl/srcu.tex \
+	appendix/rcuimpl/rcutreewt.tex \
 	appendix/rcuimpl/rcupreempt.tex \
 	appendix/whymb/whymemorybarriers.tex \
 	cpu/cpu.tex \

@@ -1,0 +1,207 @@
+% appendix/rcuimpl/rcutreewt.tex
+
+% todo...
+
+% Data structures and module parameters
+
+% External interfaces.
+% rcu_check_callbacks, __rcu_process_callbacks, rcu_process_callbacks
+%	__call_rcu, call_rcu, call_rcu_bh, __rcu_pending, rcu_pending,
+%	rcu_needs_cpu, rcu_cpu_notify, __rcu_init
+
+% initialization, online/offline
+% __rcu_offline_cpu, rcu_offline_cpu (empty if !CONFIG_HOTPLUG_CPU)
+%	rcu_init_percpu_data, rcu_online_cpu,
+%	rcu_init_levelspread (CONFIG_RCU_FANOUT_EXACT and not)
+%	rcu_init_one, 
+
+% simple functions: rcu_batches_completed, rcu_batches_completed_bh,
+%	cpu_has_callbacks_ready_to_invoke, cpu_needs_another_gp,
+%	rcu_get_root,
+
+% rcu_implicit_offline_qs (CONFIG_SMP only)
+
+% rcu_enter_nohz, rcu_exit_nohz, rcu_nmi_enter, rcu_nmi_exit,
+%	rcu_irq_enter, rcu_irq_exit -- covered in formal.  Reference.
+%	app:formal:Simplicity Avoids Formal Verification
+%	Ditto dyntick_save_progress_counter, rcu_implicit_dynticks_qs,
+% Cover dyntick_record_completed, dyntick_recall_completed
+% Note that dyntick_record_completed() is empty if !CONFIG_NO_HZ.
+% Note that dyntick_recall_completed() is subtly different if !CONFIG_NO_HZ.
+% Note that dyntick_recall_completed() and rcu_implicit_dynticks_qs are
+% 	trivial if !CONFIG_NO_HZ.
+
+% Stall stuff.  record_gp_stall_check_time, print_other_cpu_stall,
+%	print_cpu_stall(), check_cpu_stall().
+% Note that record_gp_stall_check_time and check_cpu_stall are empty if
+%	!CONFIG_RCU_CPU_STALL_DETECTOR
+
+% GP detection.
+% note_new_gpnum, check_for_new_grace_period, rcu_start_gp, rcu_process_gp_end,
+%	cpu_quiet_msk(), cpu_quiet(), rcu_check_quiescent_state(),
+%	rcu_do_batch
+
+\section{Hierarchical RCU Code Walkthrough}
+\label{app:rcuimpl:rcutreewt:Hierarchical RCU Code Walkthrough}
+
+This section walks through selected sections of the Linux-kernel
+hierarchical RCU code.
+As such, this section is intended for hard-core hackers who wish
+to understand hierarchical RCU at a very low level.
+Hard-core masochists might also be interested in reading this section.
+
+\subsection{Forcing Quiescent States}
+\label{app:rcuimpl:rcutreewt:Forcing Quiescent States}
+
+% rcu_process_dyntick
+
+\begin{figure}[htbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 force_quiescent_state(struct rcu_state *rsp, int relaxed)
+  3 {
+  4   unsigned long flags;
+  5   long lastcomp;
+  6   struct rcu_node *rnp = rcu_get_root(rsp);
+  7   u8 signaled;
+  8 
+  9   if (ACCESS_ONCE(rsp->completed) ==
+ 10       ACCESS_ONCE(rsp->gpnum))
+ 11     return;
+ 12   if (!spin_trylock_irqsave(&rsp->fqslock, flags)) {
+ 13     rsp->n_force_qs_lh++;
+ 14     return;
+ 15   }
+ 16   if (relaxed &&
+ 17       (long)(rsp->jiffies_force_qs - jiffies) >= 0)
+ 18     goto unlock_ret;
+ 19   rsp->n_force_qs++;
+ 20   spin_lock(&rnp->lock);
+ 21   lastcomp = rsp->completed;
+ 22   signaled = rsp->signaled;
+ 23   rsp->jiffies_force_qs =
+ 24     jiffies + RCU_JIFFIES_TILL_FORCE_QS;
+ 25   if (rsp->completed == rsp->gpnum) {
+ 26     rsp->n_force_qs_ngp++;
+ 27     spin_unlock(&rnp->lock);
+ 28     goto unlock_ret;
+ 29   }
+ 30   spin_unlock(&rnp->lock);
+ 31   switch (signaled) {
+ 32   case RCU_SAVE_DYNTICK:
+ 33     if (RCU_SIGNAL_INIT != RCU_SAVE_DYNTICK)
+ 34       break;
+ 35     if (rcu_process_dyntick(rsp, lastcomp,
+ 36           dyntick_save_progress_counter))
+ 37       goto unlock_ret;
+ 38     spin_lock(&rnp->lock);
+ 39     if (lastcomp == rsp->completed) {
+ 40       rsp->signaled = RCU_FORCE_QS;
+ 41       dyntick_record_completed(rsp, lastcomp);
+ 42     }
+ 43     spin_unlock(&rnp->lock);
+ 44     break;
+ 45   case RCU_FORCE_QS:
+ 46     if (rcu_process_dyntick(rsp,
+ 47           dyntick_recall_completed(rsp),
+ 48           rcu_implicit_dynticks_qs))
+ 49       goto unlock_ret;
+ 50     break;
+ 51   }
+ 52 unlock_ret:
+ 53   spin_unlock_irqrestore(&rsp->fqslock, flags);
+ 54 }
+\end{verbatim}
+}
+\caption{rcutree {\tt force\_quiescent\_state()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcutree force-quiescent-state}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree force-quiescent-state}
+shows the code for \url{force_quiescent_state()} for
+\url{CONFIG_SMP},\footnote{
+	For non-\url{CONFIG_SMP}, \url{force_quiescent_state} is a
+	simple wrapper around \url{set_need_resched()}.}
+which is invoked when RCU feels the need to expedite the current
+grace period by forcing CPUs through quiescent states.
+RCU feels this need when either:
+\begin{enumerate}
+\item	the current grace period has gone on for more than three jiffies
+	(or as specified by the compile-time value of
+	\url{RCU_JIFFIES_TILL_FORCE_QS}), or
+\item	a CPU enqueuing an RCU callback via either \url{call_rcu()}
+	or \url{call_rcu_bh()} sees more than 10,000 callbacks enqueued
+	(or as specified by the boot-time parameter \url{qhimark}).
+\end{enumerate}
+
+Lines~9-11 check to see if there is a grace period in progress,
+silently exiting if not.
+Lines~12-15 attempt to acquire \url{->fqslock}, which prevents concurrent
+attempts to expedite a grace period.
+The \url{->n_force_qs_lh} counter is incremented when this lock is
+already held, and is visible via the \url{fqlh=} field
+in the \url{rcuhier} debugfs file when the \url{CONFIG_RCU_TRACE} kernel
+parameter is enabled.
+Lines~16-18 check to see if it is really necessary to expedite the
+current grace period, in other words, if (1) the current CPU has 10,000
+RCU callbacks waiting, or (2) at least three jiffies have passed
+since either the beginning of the current grace period or since the
+last attempt to expedite the current grace period.
+Line~19 then counts the number of attempts to expedite the current
+grace period.
+
+Lines~20-30 are executed with the root \url{rcu_node} structure's lock
+held in order to prevent confusion should the current grace period
+happen to end just as we try to expedite it.
+Lines~21 and 22 snapshot the \url{->completed} and \url{\signaled} fields,
+line~23 sets the soonest time that a subsequent non-relaxed
+\url{force_quiescent_state()} will be allowed to actually do
+any expediting, and lines~25-29 check to see if the grace period
+ended while we were acquiring the \url{rcu_node} structure's lock,
+releasing locks and returning if so.
+
+Lines~30-51 drive the \url{force_quiescent_state()} state machine.
+If dynticks are enabled (via the \url{CONFIG_NO_HZ} kernel
+parameter), the first call
+to \url{force_quiescent_state()} in a given grace period will
+execute lines~32-44, and the second and subsequent calls will
+execute lines~45-50.
+On the other hand, if dynticks is not enabled, then all calls to
+\url{force_quiescent_state()} will execute lines~45-50.
+
+The purpose of lines~32-44 is to record the current dynticks-idle state
+of all CPUs that have not yet passed through a quiescent state, and
+to record a quiescent state for any that are currently in dynticks-idle
+state (but not currently in an irq or NMI handler).
+Lines~33-34 serve to inform gcc that this branch of the switch statement
+is dead code for non-\url{CONFIG_NO_HZ} kernels.
+Lines 35-37 invoke \url{rcu_process_dyntick()} in order to invoke
+\url{dyntick_save_progress_counter()} for each CPU that has not yet
+passed through a quiescent state for the current grace period,
+exiting \url{force_quiescent_state()} if the grace period ends in
+the meantime (possibly due to having found that all the CPUs that
+had not yet passed through a quiescent state were sleeping in
+dyntick-idle mode).
+Lines~38 and 43 acquire and release the root \url{rcu_node} structure's
+lock, again to avoid possible confusion with a concurrent end of the
+current grace period.
+Line~39 checks to see if the current grace period is still in force, and,
+if so, line~40 advances the state machine to the \url{RCU_FORCE_QS} state
+and line~41 saves the current grace-period number for the benefit of
+the next invocation of \url{force_quiescent_state()}.
+The reason for saving the current grace-period number is to correctly
+handle race conditions involving the current grace period ending
+concurrently with the next invocation of \url{force_quiescent_state()}.
+
+As noted earlier, lines~45-50 handle the second and subsequent invocations
+of \url{force_quiescent_state()} in \url{CONFIG_NO_HZ} kernels, and \emph{all}
+invocations in non-\url{CONFIG_NO_HZ} kernels.
+Lines~47 and 48 invoke \url{rcu_process_dyntick()}, which cycles through
+the CPUs that have still not passed through a quiescent state, invoking
+\url{rcu_implicit_dynticks_qs()} on them, which in turn checks to see
+if any of these CPUs have passed through dyntick-idle state (if
+\url{CONFIG_NO_HZ} is enabled), checks to see if we are waiting on
+any offline CPUs, and finally sends a reschedule IPI to any remaining
+CPUs not in the first two groups.
+
