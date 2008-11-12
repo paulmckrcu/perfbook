@@ -53,6 +53,30 @@ Hard-core masochists might also be interested in reading this section.
 \subsection{Forcing Quiescent States}
 \label{app:rcuimpl:rcutreewt:Forcing Quiescent States}
 
+Normally, CPUs pass through quiescent states which are duly recorded,
+resulting in grace periods ending in a timely manner.
+However, any of the following three conditions can prevent CPUs from
+passing through quiescent states:
+
+\begin{enumerate}
+\item	The CPU is in dyntick-idle state, and is sleeping in a low-power
+	mode.
+	Although such a CPU is officially in an extended quiescent state,
+	because it is not executing instructions, it cannot do anything
+	on its own.
+\item	The CPU is in the process of coming online, and RCU has been
+	informed that it is online, but this CPU is not yet actually
+	executing code, nor is it marked as online in \url{cpu_online_map}.
+	The current grace period will therefore wait on it, but it cannot
+	yet pass through quiescent states on its own.
+\item	The CPU is running user-level code, but has avoided
+	entering the scheduler for an extended time period.
+\end{enumerate}
+
+In each of these cases, RCU needs to take action on behalf of the
+non-responding CPU.
+This section describes the functions that take such action.
+
 % rcu_process_dyntick
 
 \begin{figure}[htbp]
