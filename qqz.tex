@@ -1374,6 +1374,218 @@ would cause it to exhaust memory sooner or later.
 	For one thing, there must first be some use of SRCU with
 	multiple concurrent updaters.
 
+\QuickQ{Wait a minute!  With all those new locks, how do you avoid deadlock?}
+
+Deadlock is avoided by never holding more than one of the
+\url{rcu_node} structures' locks at a given time.
+This algorithm uses two more locks, one to prevent CPU hotplug operations
+from running concurrently with grace-period advancement
+(\url{onofflock}) and another
+to permit only one CPU at a time from forcing a quiescent state
+to end quickly (\url{fqslock}).
+These are subject to a locking hierarchy, so that
+\url{fqslock} must be acquired before
+\url{onofflock}, which in turn must be acquired before
+any of the \url{rcu_node} structures' locks.
+
+Also, as a practical matter, refusing to ever hold more than
+one of the \url{rcu_node} locks means that it is unnecessary
+to track which ones are held.
+Such tracking would be painful as well as unnecessary.
+
+\QuickQ{Why stop at a 64-times reduction?
+Why not go for a few orders of magnitude instead?}
+
+RCU works with no problems on
+systems with a few hundred CPUs, so allowing 64 CPUs to contend on
+a single lock leaves plenty of headroom.
+Keep in mind that these locks are acquired quite rarely, as each
+CPU will check in about one time per grace period, and grace periods
+extend for milliseconds.
+
+\QuickQ{But I don't care about McKenney's lame excuses in the answer to
+Quick Quiz 2!!!
+I want to get the number of CPUs contending on a single lock down
+to something reasonable, like sixteen or so!!!}
+
+OK, have it your way, then!!!
+Set \url{CONFIG_RCU_FANOUT=16} and (for \url{NR_CPUS=4096})
+you will get a
+three-level hierarchy with with 256 \url{rcu_node} structures
+at the lowest level, 16 \url{rcu_node} structures as intermediate
+nodes, and a single root-level \url{rcu_node}.
+The penalty you will pay is that more \url{rcu_node} structures
+will need to be scanned when checking to see which CPUs need help
+completing their quiescent states (256 instead of only 64).
+
+\QuickQ{OK, so what is the story with the colors?}
+
+Data structures analogous to \url{rcu_state} (including
+\url{rcu_ctrlblk}) are yellow,
+those containing the bitmaps used to determine when CPUs have checked
+in are pink,
+and the per-CPU \url{rcu_data} structures are blue.
+Later on, we will see that data structures used to conserve energy
+(such as \url{rcu_dynticks}) will be green.
+
+\QuickQ{Given such an egregious bug, why does Linux run at all?}
+
+Because the Linux kernel contains device drivers that are (relatively)
+well behaved.
+Few if any of them spin in RCU read-side critical sections for the
+many milliseconds that would be required to provoke this bug.
+The bug nevertheless does need to be fixed, and this variant of
+RCU does fix it.
+
+\QuickQ{But doesn't this state diagram indicate that dyntick-idle CPUs will
+get hit with reschedule IPIs?  Won't that wake them up?}
+
+No.
+Keep in mind that RCU is handling groups of CPUs.
+One particular group might contain both dyntick-idle CPUs and
+CPUs in normal mode that have somehow managed to avoid passing through
+a quiescent state.
+Only the latter group will be sent a reschedule IPI; the dyntick-idle
+CPUs will merely be marked as being in an extended quiescent state.
+
+\QuickQ{But what happens if a CPU tries to report going through a quiescent
+state (by clearing its bit) before the bit-setting CPU has finished?}
+
+There are three cases to consider here:
+
+\begin{enumerate}
+\item	A CPU corresponding to a non-yet-initialized leaf \url{rcu_node}
+	structure tries to report a quiescent state.
+	This CPU will see its bit already cleared, so will give up on
+	reporting its quiescent state.
+	Some later quiescent state will serve for the new grace period.
+\item	A CPU corresponding to a leaf \url{rcu_node} structure that
+	is currently being initialized tries to report a quiescent state.
+	This CPU will see that the \url{rcu_node} structure's
+	\url{->lock} is held, so will spin until it is
+	released.
+	But once the lock is released, the \url{rcu_node}
+	structure will have been initialized, reducing to the
+	following case.
+\item	A CPU corresponding to a leaf \url{rcu_node} that has
+	already been initialized tries to report a quiescent state.
+	This CPU will find its bit set, and will therefore clear it.
+	If it is the last CPU for that leaf node, it will
+	move up to the next level of the hierarchy.
+	However, this CPU cannot possibly be the last CPU in the system to
+	report a quiescent state, given that the CPU doing the initialization
+	cannot yet have checked in.
+\end{enumerate}
+
+So, in all three cases, the potential race is resolved correctly.
+
+\QuickQ{And what happens if \emph{all} CPUs try to report going
+through a quiescent
+state before the bit-setting CPU has finished, thus ending the new
+grace period before it starts?}
+
+The bit-setting CPU cannot pass through a
+quiescent state during initialization, as it has irqs disabled.
+Its bits therefore remain non-zero, preventing the grace period from
+ending until the data structure has been fully initialized.
+
+\QuickQ{And what happens if one CPU comes out of dyntick-idle mode and then
+passed through a quiescent state just as another CPU notices that the
+first CPU was in dyntick-idle mode?
+Couldn't they both attempt to report a quiescent state at the same
+time, resulting in confusion?}
+
+They will both attempt to acquire the lock on the same leaf
+\url{rcu_node} structure.
+The first one to acquire the lock will report the quiescent state
+and clear the appropriate bit, and the second one to acquire the
+lock will see that this bit has already been cleared.
+
+\QuickQ{But what if \emph{all} the CPUs end up in dyntick-idle mode?
+Wouldn't that prevent the current RCU grace period from ever ending?}
+
+Indeed it will!
+However, CPUs that have RCU callbacks are not permitted to enter
+dyntick-idle mode, so the only way that \emph{all} the CPUs could
+possibly end up in dyntick-idle mode would be if there were
+absolutely no RCU callbacks in the system.
+And if there are no RCU callbacks in the system, then there is no
+need for the RCU grace period to end.
+In fact, there is no need for the RCU grace period to even \emph{start}.
+
+RCU will restart if some irq handler does a \url{call_rcu()},
+which will cause an RCU callback to appear on the corresponding CPU,
+which will force that CPU out of dyntick-idle mode, which will in turn
+permit the current RCU grace period to come to an end.
+
+\QuickQ{Given that \url{force_quiescent_state()} is a two-phase state
+machine, don't we have double the scheduling latency due to scanning
+all the CPUs?}
+
+Ah, but the two phases will not execute back-to-back on the same CPU.
+Therefore, the scheduling-latency hit of the two-phase algorithm is no
+different than that of a single-phase algorithm.
+If the scheduling latency becomes a problem, one approach would be to
+recode the state machine to scan the CPUs incrementally.
+But first show me a problem in the real world, \emph{then}
+I will consider fixing it!
+
+\QuickQ{But the other reason to hold \url{->onofflock} is to prevent
+multiple concurrent online/offline operations, right?}
+
+Actually, no!
+The CPU-hotplug code's synchronization design prevents multiple
+concurrent CPU online/offline operations, so only one CPU online/offline
+operation can be executing at any given time.
+Therefore, the only purpose of \url{->onofflock} is to prevent a CPU
+online or offline operation from running concurrently with grace-period
+initialization.
+
+\QuickQ{Given all these acquisitions of the global \url{->onofflock},
+won't there
+be horrible lock contention when running with thousands of CPUs?}
+
+Actually, there can be only three acquisitions of this lock per grace
+period, and each grace period lasts many milliseconds.
+One of the acquisitions is by the CPU initializing for the current
+grace period, and the other two onlining and offlining some CPU.
+These latter two cannot run concurrently due to the CPU-hotplug
+locking, so at most two CPUs can be contending for this lock at any
+given time.
+
+Lock contention on \url{->onofflock} should therefore
+be no problem, even on systems with thousands of CPUs.
+
+\QuickQ{Why not simplify the code by merging the detection of dyntick-idle
+CPUs with that of offline CPUs?}
+
+It might well be that such merging may eventually be the right thing to
+do.
+In the meantime, however, there are some challenges:
+
+\begin{enumerate}
+\item	CPUs are not allowed to go into dyntick-idle mode while they
+	have RCU callbacks pending, but CPUs \emph{are} allowed to go
+	offline with callbacks pending.
+	This means that CPUs going offline need to have their callbacks
+	migrated to some other CPU, thus, we cannot allow CPUs to simply
+	go quietly offline.
+\item	Present-day Linux systems run with \url{NR_CPUS}
+	much larger than the actual number of CPUs.
+	A unified approach could thus end up uselessly waiting on
+	CPUs that are not just offline, but which never existed in
+	the first place.
+\item	RCU is already operational when CPUs get onlined one
+	at a time during boot, and therefore must handle the online
+	process.
+	This onlining must exclude grace-period initialization, so
+	the \url{->onofflock} must still be used.
+\item	CPUs often switch into and out of dyntick-idle mode
+	extremely frequently, so it is not reasonable to use the
+	heavyweight online/offline code path for entering and exiting
+	dyntick-idle mode.
+\end{enumerate}
+
 \QuickQ{Why is it important that blocking primitives
 	called from within a preemptible-RCU read-side critical section be
 	subject to priority inheritance?}
