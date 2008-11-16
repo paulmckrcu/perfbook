@@ -1,10 +1,14 @@
 LATEXSOURCES = \
-	SMPdesign/SMPdesign.tex \
+	perfbook.tex \
 	ack.tex \
+	legal.tex \
+	preface.tex \
+	qqz.sty origpub.sty \
 	advsync/advsync.tex \
 	advsync/memorybarriers.tex \
 	analysis/analysis.tex \
 	appendix/appendix.tex \
+	appendix/ack/ack.tex \
 	appendix/formal/formal.tex \
 	appendix/formal/spinhint.tex \
 	appendix/formal/dyntickrcu.tex \
@@ -25,17 +29,15 @@ LATEXSOURCES = \
 	easy/easy.tex \
 	glossary.tex \
 	intro/intro.tex \
-	legal.tex \
 	memalloc/memalloc.tex \
 	owned/owned.tex \
-	perfbook.tex \
-	preface.tex \
 	defer/defer.tex \
 	defer/refcnt.tex \
 	defer/rcu.tex \
 	defer/rcufundamental.tex \
 	defer/rcuapi.tex \
 	defer/rcuusage.tex \
+	SMPdesign/SMPdesign.tex \
 	stats/stats.tex \
 	sync/sync.tex \
 	time/time.tex
@@ -123,7 +125,7 @@ perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
 	ps2pdf perfbook-2up.ps perfbook-2up.pdf
 	rm perfbook.ps perfbook-2up.ps
 
-perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex
+perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex origpub.tex
 	latex perfbook || :
 	test -d bib/. && bibtex perfbook || :
 	latex perfbook || :
@@ -132,6 +134,9 @@ perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex
 
 qqz.tex: $(LATEXSOURCES) $(EPSSOURCES)
 	sh utilities/extractqqz.sh > qqz.tex
+
+origpub.tex: $(LATEXSOURCES)
+	sh utilities/extractorigpub.sh > origpub.tex
 
 clean:
 	find . -name '*.aux' -o -name '*.bbl' -o -name '*.blg' \
