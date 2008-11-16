@@ -156,14 +156,12 @@ is a very good start:
 	places in the Linux kernel where the update-side lock is
 	acquired within the RCU read-side critical section.
 \item	Compatible API.
-\end{enumerate}
 
-Because this is not to be a real-time RCU, the requirement for
-preemptable RCU read-side critical sections can be dropped.
-However, we need to add a few more requirements to account for changes
-over the past few years:
+\item	Because this is not to be a real-time RCU, the requirement for
+	preemptable RCU read-side critical sections can be dropped.
+	However, we need to add the following new requirements to account
+	for changes over the past few years.
 
-\begin{enumerate}
 \item	Scalability with extremely low internal-to-RCU lock contention.
 	RCU must support at least 1,024 CPUs gracefully, and preferably
 	at least 4,096.
@@ -247,7 +245,8 @@ with the root of the tree in element zero, as shown in
 Figure~\ref{fig:app:rcuimpl:rcutree:Mapping rcu-node Hierarchy Into Array}
 for an eight-CPU
 system with a three-level hierarchy.
-The arrows link a given \url{rcu_node} structure to its parent.
+Each arrow links a given \url{rcu_node} structure to its parent,
+representing the \url{rcu_node}'s \url{->parent} field.
 Each \url{rcu_node} indicates the range of CPUs covered,
 so that the root node covers all of the CPUs, each node in the second
 level covers half of the CPUs, and each node in the leaf level covering
@@ -724,15 +723,21 @@ this counter with an even value.
 \label{app:rcuimpl:rcutree:Note That a CPU is in Dynticks Idle Mode}
 
 The \url{force_quiescent_state()} function implements a
-two-phase state machine.
-In the first phase (\url{RCU_SAVE_DYNTICK}), the
+three-phase state machine.
+The first phase (\url{RCU_INITIALIZING}) waits for \url{rcu_start_gp()}
+to complete grace-period initialization.
+This state is not exited by \url{force_quiescent_state()}, but rather
+by \url{rcu_start_gp()}.
+
+In the second phase (\url{RCU_SAVE_DYNTICK}), the
 \url{dyntick_save_progress_counter()} function scans the CPUs that
 have not yet reported a quiescent state, recording their per-CPU
 \url{dynticks} and \url{dynticks_nmi} counters.
 If these counters both have even-numbered values, then the corresponding
 CPU is in dynticks-idle state, which is therefore noted as an extended
 quiescent state (reported via \url{cpu_quiet_msk()}).
-In the second phase (\url{RCU_FORCE_QS}), the
+
+In the third phase (\url{RCU_FORCE_QS}), the
 \url{rcu_implicit_dynticks_qs()} function again scans the CPUs
 that have not yet reported a quiescent state (either explicitly or
 implicitly during the \url{RCU_SAVE_DYNTICK} phase), again checking the
@@ -788,15 +793,17 @@ which will force that CPU out of dyntick-idle mode, which will in turn
 permit the current RCU grace period to come to an end.
 } \QuickQuizEnd
 
-\QuickQuiz{Given that \url{force_quiescent_state()} is a two-phase state
-machine, don't we have double the scheduling latency due to scanning
+\QuickQuiz{Given that \url{force_quiescent_state()} is a three-phase state
+machine, don't we have triple the scheduling latency due to scanning
 all the CPUs?}
 \QuickQuizAnswer{
-Ah, but the two phases will not execute back-to-back on the same CPU.
-Therefore, the scheduling-latency hit of the two-phase algorithm is no
+Ah, but the three phases will not execute back-to-back on the same CPU,
+and, furthermore, the first (initialization) phase doesn't do any scanning.
+Therefore, the scheduling-latency hit of the three-phase algorithm is no
 different than that of a single-phase algorithm.
 If the scheduling latency becomes a problem, one approach would be to
-recode the state machine to scan the CPUs incrementally.
+recode the state machine to scan the CPUs incrementally, most likely
+by keeping state on a per-leaf-\url{rcu_node} basis.
 But first show me a problem in the real world, \emph{then}
 I will consider fixing it!
 } \QuickQuizEnd
@@ -1026,6 +1033,7 @@ The 15 test cases are as follows:
 
 \begin{enumerate}
 \item	Force single-node ``tree'' for small systems:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1040,7 +1048,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Force two-level tree for large systems:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1055,7 +1065,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Force three-level tree for huge systems:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1070,7 +1082,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Test autobalancing to a balanced tree:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1085,7 +1099,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Test unbalanced tree:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1101,7 +1117,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Disable CPU-stall detection:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1117,7 +1135,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Disable CPU-stall detection and dyntick idle mode:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1133,7 +1153,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Disable CPU-stall detection and CPU hotplug:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1149,7 +1171,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Disable CPU-stall detection, dyntick idle mode, and CPU hotplug:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1165,7 +1189,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Disable SMP, CPU-stall detection, dyntick idle mode, and CPU hotplug:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1182,7 +1208,9 @@ The 15 test cases are as follows:
 \end{minipage}
 \vspace{5pt}
 	This combination located a number of compiler warnings.
+
 \item	Disable SMP and CPU hotplug:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1198,7 +1226,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Test Classic RCU with dynticks idle but without preemption:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1212,7 +1242,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Test Classic RCU with preemption but without dynticks idle:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1226,7 +1258,9 @@ The 15 test cases are as follows:
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
 \item	Test Preemptable RCU with dynticks idle:
+
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
 \small
@@ -1241,7 +1275,9 @@ The 15 test cases are as follows:
 \end{minipage}
 \vspace{5pt}
 \item	Test Preemptable RCU without dynticks idle:
+
 \vspace{5pt}
+
 \begin{minipage}[t]{\columnwidth}
 \small
 \begin{verbatim}
