@@ -53,8 +53,6 @@ Hard-core masochists might also be interested in reading this section.
 \subsection{Data Structures and Module Parameters}
 \label{app:rcuimpl:rcutreewt:Data Structures and Module Parameters}
 
-% @@@ Tree mapping: \ref{fig:app:rcuimpl:rcutree:Mapping rcu-node Hierarchy Into Array}
-
 \subsubsection{Tracking Dyntick State}
 \label{app:rcuimpl:rcutreewt:Tracking Dyntick State}
 
@@ -82,6 +80,104 @@ following fields:
 \end{description}
 
 This state is shared between the rcu and rcu\_bh implementations.
+
+\subsubsection{Nodes in the Hierarchy}
+\label{app:rcuimpl:rcutreewt:Nodes in the Hierarchy}
+
+As noted earlier, the \url{rcu_node} hierarchy is flattened into
+the \url{rcu_state} structure as shown in
+Figure~\ref{fig:app:rcuimpl:rcutree:Mapping rcu-node Hierarchy Into Array}
+on
+page~\pageref{fig:app:rcuimpl:rcutree:Mapping rcu-node Hierarchy Into Array}.
+Each \url{rcu_node} in this hierarchy has fields as follows:
+
+\begin{description}
+\item[\url{lock}:]
+	This spinlock guards the non-constant fields in this structure.
+	This lock is acquired from softirq context, so must disable
+	irqs.
+
+\QuickQuiz{Why not simply disable bottom halves (softirq)?
+	Wouldn't this be faster?}
+\QuickQuizAnswer{
+	Because this lock can be acquired from functions
+	called by \url{call_rcu()}, which in turn can be
+	invoked from irq handlers.
+	Therefore, irqs \emph{must} be disabled when
+	holding this lock.
+} \QuickQuizEnd
+
+	The \url{lock} field of the root \url{rcu_node} has additional
+	responsibilities:
+	\begin{enumerate}
+	\item	Serializes CPU-stall checking, so that a given stall
+		is reported by only one CPU.
+		This can be important on systems with thousands of
+		CPUs!
+	\item	Serializes starting a new grace period, so that
+		multiple CPUs don't start conflicting grace periods
+		concurrently.
+	\item	Prevents new grace periods from starting in code that
+		needs to run within the confines of a single grace period.
+	\item	Serializes the state machine forcing quiescent states
+		(in \url{force_quiescent_state()}) in order to
+		keep the number of reschedule IPIs down to a dull
+		roar.
+	\end{enumerate}
+\item[\url{qsmask}:]
+	This bitmask tracks which CPUs (for leaf \url{rcu_node} structures)
+	or groups of CPUs (for non-leaf \url{rcu_node} structures)
+	still need to pass through a quiescent state in order for the
+	current grace period to end.
+\item[\url{qsmaskinit}:]
+	This bitmask tracks which CPUs or groups of CPUs will need to
+	pass through a quiescent state for subsequent grace periods
+	to end.
+	The online/offline code manipulates the \url{qsmaskinit} fields,
+	which are copied to the corresponding \url{qsmask} fields at
+	the beginning of each grace period.
+	This copy operation is one reason why grace period initialization
+	must exclude online/offline operations.
+\item[\url{grpmask}:]
+	This bitmask has a single bit set, and that is the bit corresponding
+	to the this \url{rcu_node} structure's position in the parent
+	\url{rcu_node} structure's \url{qsmask} and \url{qsmaskinit}
+	fields.
+
+\QuickQuiz{How about the \url{qsmask} and \url{qsmaskinit}
+	fields for the leaf \url{rcu_node} structures?
+	Doesn't there have to be some way to work out
+	which of the bits in these fields corresponds
+	to each CPU covered by the \url{rcu_node} structure
+	in question?}
+\QuickQuizAnswer{
+	Indeed there does!
+	The \url{grpmask} field in each CPU's \url{rcu_data}
+	structure does this job.
+} \QuickQuizEnd
+
+\item[\url{grplo}:]
+	This field contains the number of the lowest-numbered CPU covered
+	by this \url{rcu_node} structure.
+\item[\url{grphi}:]
+	This field contains the number of the highest-numbered CPU covered
+	by this \url{rcu_node} structure.
+\item[\url{grpnum}:]
+	This field contains the bit number in the parent \url{rcu_node}
+	structure's \url{qsmask} and \url{qsmaskinit} fields that this
+	\url{rcu_node} structure corresponds to.
+	In otherwords, given a pointer \url{rnp} to a given
+	\url{rcu_node} structure, it will always be the case that
+	\url{1UL << rnp->grpnum == rnp->grpmask}.
+	The \url{grpnum} field is used only for tracing output.
+\item[\url{level}:]
+	This field contains zero for the root \url{rcu_node} structure,
+	one for the \url{rcu_node} structures that are children of
+	the root, and so on down the hierarchy.
+\item[\url{parent}:]
+	This field is a pointer to the parent \url{rcu_node} structure,
+	or NULL for the root \url{rcu_node} structure.
+\end{description}
 
 \subsection{Forcing Quiescent States}
 \label{app:rcuimpl:rcutreewt:Forcing Quiescent States}
