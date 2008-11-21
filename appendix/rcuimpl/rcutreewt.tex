@@ -180,6 +180,141 @@ Each \url{rcu_node} in this hierarchy has fields as follows:
 	or NULL for the root \url{rcu_node} structure.
 \end{description}
 
+\subsection{Per-CPU Data}
+\label{app:rcuimpl:rcutreewt:Per-CPU Data}
+
+The \url{rcu_data} structure contains RCU's per-CPU state.
+It contains control variables governing grace periods and
+quiescent states (\url{completed}, \url{gpnum}, \url{passed_quiesc_completed},
+\url{passed_quiesc}, \url{qs_pending}, \url{beenonline}, \url{mynode},
+and \url{grpmask}).
+The \url{rcu_data} structure also contains control variables pertaining
+to RCU callbacks
+(\url{nxtlist}, \url{nxttail}, \url{qlen}, and \url{blimit}).
+Kernels with dynticks enabled will have relevant control variables in
+the \url{rcu_data} structure
+(\url{dynticks}, \url{dynticks_snap}, and \url{dynticks_nmi_snap}).
+The \url{rcu_data} structure contains event counters used by tracing
+(\url{dynticks_fqs} given dynticks, \url{offline_fqs}, and \url{resched_ipi}).
+Finally, a pair of fields count calls to \url{rcu_pending()} in order
+to determine when to force quiescent states (\url{n_rcu_pending} and
+\url{n_rcu_pending_force_qs}), and a \url{cpu} field indicates which
+CPU to which a given \url{rcu_data} structure corresponds.
+
+Each of these fields is described below.
+
+\begin{description}
+\item[\url{completed}:]
+	This field contains the number of the most recent grace period
+	that this CPU is aware of having completed.
+\item[\url{gpnum}:]
+	This field contains the number of the most recent grace period
+	that this CPU is aware of having started.
+\item[\url{passed_quiesc_completed}:]
+	This field contains the number of the grace period that had most
+	recently completed when this
+	CPU last passed through a quiescent state.
+	The "most recently completed" will be from the viewpoint of
+	the CPU passing through the quiescent state: if the CPU is
+	not yet aware that grace period (say) 42 has completed, it
+	will still record the old value of 41.
+	This is OK, because the only way that the grace period can
+	complete is if this CPU has already passed through a
+	quiescent state.
+	This field is initialized to a (possibly mythical) past
+	grace period number to avoid race conditions when booting
+	and when onlining a CPU.
+\item[\url{passed_quiesc}:]
+	This field indicates whether this CPU has passed
+	through a quiescent state since the grace period number
+	stored in \url{passed_quiesc_completed} completed.
+	This field is cleared each time the corresponding CPU
+	becomes aware of the start of a new grace period.
+\item[\url{qs_pending}:]
+	This field indicates that this CPU is aware that the core
+	RCU mechanism is waiting for it to pass through a quiescent state.
+	This field is set to one when the CPU detects a new grace
+	period or when a CPU is coming online.
+
+\QuickQuiz{But why bother setting \url{qs_pending} to one when a CPU
+	is coming online, given that being offline is an extended
+	quiescent state that should cover any ongoing grace period?}
+\QuickQuizAnswer{
+	Because this helps to resolve a race between a CPU coming online
+	just as a new grace period is starting.
+} \QuickQuizEnd
+
+\item[\url{beenonline}:]
+	This field, initially zero, is set to one whenever the corresponding
+	CPU comes online.
+	This is used to avoid producing useless tracing output for CPUs
+	that never have been online, which is useful in kernels where
+	\url{NR_CPUS} greatly exceeds the actual number of CPUs.
+
+\QuickQuiz{What is the point of running a system with \url{NR_CPUS}
+	way bigger than the actual number of CPUs?}
+\QuickQuizAnswer{
+	Because this allows producing a single binary of the Linux kernel
+	that runs on a wide variety of systems, greatly easing administration
+	and validation.
+} \QuickQuizEnd
+
+\item[\url{mynode}:]
+	This field is a pointer to the leaf \url{rcu_node} structure that
+	handles the corresponding CPU.
+\item[\url{grpmask}:]
+	This field is a bitmask that has the single bit set that indicates
+	which bit in \url{mynode->qsmask} signifies the corresponding CPU.
+\item[\url{nxtlist}:]
+	This field is a pointer to the oldest RCU callback (\url{rcu_head}
+	structure) residing on this CPU, or \url{NULL} if this CPU currently
+	has no such callbacks.
+	Additional callbacks may be chained via their \url{next} pointers.
+\item[\url{nxttail}:]
+	This field is an array of double-indirect tail pointers
+	into the \url{nxtlist} callback list.
+	If \url{nxtlist} is empty, then all of the \url{nxttail} pointers
+	directly reference the \url{nxtlist} field.
+	Each element of the \url{nxttail} array has meaning as follows:
+	\begin{description}
+	\item[\url{RCU_DONE_TAIL=0}:]
+		This element references the \url{->next} field of
+		the last callback that has passed through its grace
+		period and is ready to invoke, or references the \url{nxtlist}
+		field if there is no such callback.
+	\item[\url{RCU_WAIT_TAIL=1}:]
+		This element references the \url{next} field of the
+		last callback that is waiting for the current grace
+		period to end, or is equal to the \url{RCU_DONE_TAIL}
+		element if there is no such callback.
+	\item[\url{RCU_NEXT_READY_TAIL=2}:]
+		This element references the \url{next} field of the
+		last callback that is ready to wait for the next
+		grace period, or is equal to the \url{RCU_WAIT_TAIL}
+		element if there is no such callback.
+	\item[\url{RCU_NEXT_TAIL=3}:]
+		This element references the \url{next} field of the
+		last callback in the list, or references the \url{nxtlist}
+		field if the list is empty.
+	\end{description}
+
+\QuickQuiz{Why not simply have multiple lists rather than this funny
+	multi-tailed list?}
+\QuickQuizAnswer{
+	Because this multi-tailed approach, due to Lai Jiangshan,
+	simplifies callback processing.
+} \QuickQuizEnd
+
+\item[\url{qlen}:]
+	This field contains the number of callbacks queued on
+	\url{nxtlist}.
+\item[\url{blimit}:]
+	This field contains the maximum number of callbacks that may
+	be invoked at a time.
+	This limitation improves system responsiveness under heavy load.
+	@@@
+\end{description}
+
 \subsection{Forcing Quiescent States}
 \label{app:rcuimpl:rcutreewt:Forcing Quiescent States}
 
@@ -236,7 +371,7 @@ This section describes the functions that take such action.
  22   signaled = rsp->signaled;
  23   rsp->jiffies_force_qs =
  24     jiffies + RCU_JIFFIES_TILL_FORCE_QS;
- 25   if (rsp->completed == rsp->gpnum) {
+ 25   if (lastcomp == rsp->gpnum) {
  26     rsp->n_force_qs_ngp++;
  27     spin_unlock(&rnp->lock);
  28     goto unlock_ret;
