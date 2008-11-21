@@ -244,6 +244,31 @@ Each of these fields is described below.
 	just as a new grace period is starting.
 } \QuickQuizEnd
 
+\QuickQuiz{Why record the last completed grace period number in
+	\url{passed_quiesc_completed}?
+	Doesn't that cause this RCU implementation to be vulnerable
+	to quiescent states seen while no grace period was in progress
+	being incorrectly applied to the next grace period that starts?}
+\QuickQuizAnswer{
+	We record the last completed grace period number in order
+	to avoid races where a quiescent state noted near the end of
+	one grace period is incorrectly applied to the next grace
+	period, especially for dyntick and CPU-offline grace periods.
+	Therefore, \url{force_quiescent_state()} and friends all
+	check the last completed grace period number to avoid such races.
+
+	Now these dyntick and CPU-offline grace periods are only checked
+	for when a grace period is actually active.
+	The only quiescent states that can be recorded when no grace
+	period is in progress are self-detected quiescent states,
+	which are recorded in the \url{passed_quiesc_completed},
+	\url{passed_quiesc}, and \url{qs_pending}.
+	These variables are initialized every time the corresponding
+	CPU notices that a new grace period has started, preventing
+	any obsolete quiescent states from being applied to the
+	new grace period.
+} \QuickQuizEnd
+
 \item[\url{beenonline}:]
 	This field, initially zero, is set to one whenever the corresponding
 	CPU comes online.
@@ -312,7 +337,63 @@ Each of these fields is described below.
 	This field contains the maximum number of callbacks that may
 	be invoked at a time.
 	This limitation improves system responsiveness under heavy load.
-	@@@
+\item[\url{dynticks}:]
+	This field references the \url{rcu_dynticks} structure for
+	the corresponding CPU, which is described in
+	Section~\ref{app:rcuimpl:rcutreewt:Tracking Dyntick State}.
+\item[\url{dynticks_snap}:]
+	This field contains a past value of \url{dynticks->dynticks},
+	which is used to detect when a CPU passes through a dynticks
+	idle state when this CPU happens to be in an irq
+	handler each time that \url{force_quiescent_state()} checks it.
+\item[\url{dynticks_nmi_snap}:]
+	This field contains a past value of \url{dynticks->dynticks_nmi},
+	which is used to detect when a CPU passes through a dynticks
+	idle state when this CPU happens to be in an NMI
+	handler each time that \url{force_quiescent_state()} checks it.
+\item[\url{dynticks_fqs}:]
+	This field counts the number of times that some other CPU noted
+	a quiescent state on behalf of
+	the CPU corresponding to this \url{rcu_data} structure due to
+	its being in dynticks-idle mode.
+\item[\url{offline_fqs}:]
+	This field counts the number of times that some other CPU noted
+	a quiescent state on behalf of
+	the CPU corresponding to this \url{rcu_data} structure due to
+	its being offline.
+
+\QuickQuiz{So some poor CPU has to note quiescent states on behalf of
+	each and every offline CPU?
+	Yecch!
+	Won't that result in excessive overheads in the not-uncommon
+	case of a system with a small number of CPUs but a large value
+	for \url{NR_CPUS}?}
+\QuickQuizAnswer{
+	Actually, no it will not!
+
+	Offline CPUs are excluded from both the \url{qsmask} and
+	\url{qsmaskinit} bit masks, so RCU normally ignores them.
+	However, there are races with online/offline operations that
+	can result in an offline CPU having its \url{qsmask} bit set.
+	These races must of course be handled correctly, and the way
+	they are handled is to permit other CPUs to note that RCU
+	is waiting on a quiescent state from an offline CPU.
+} \QuickQuizEnd
+
+\item[\url{resched_ipi}:]
+	This field counts the number of times that a reschedule IPI
+	is sent to the corresponding CPU.
+	Such IPIs are sent to CPUs that fail to report passing through
+	a quiescent states in a timely manner, but are neither offline
+	nor in dynticks idle state.
+\item[\url{n_rcu_pending}:]
+	This field counts the number of calls to \url{rcu_pending()},
+	which is called once per jiffy on non-dynticks-idle CPUs.
+\item[\url{n_rcu_pending_force_qs}:]
+	This field holds a threshold value for \url{n_rcu_pending}.
+	If \url{n_rcu_pending} reaches this threshold, that indicates
+	that the current grace period has extended too long, so
+	\url{force_quiescent_state()} is invoked to expedite it.
 \end{description}
 
 \subsection{Forcing Quiescent States}

@@ -1609,6 +1609,67 @@ In the meantime, however, there are some challenges:
 	The \url{grpmask} field in each CPU's \url{rcu_data}
 	structure does this job.
 
+\QuickQ{But why bother setting \url{qs_pending} to one when a CPU
+	is coming online, given that being offline is an extended
+	quiescent state that should cover any ongoing grace period?}
+
+	Because this helps to resolve a race between a CPU coming online
+	just as a new grace period is starting.
+
+\QuickQ{Why record the last completed grace period number in
+	\url{passed_quiesc_completed}?
+	Doesn't that cause this RCU implementation to be vulnerable
+	to quiescent states seen while no grace period was in progress
+	being incorrectly applied to the next grace period that starts?}
+
+	We record the last completed grace period number in order
+	to avoid races where a quiescent state noted near the end of
+	one grace period is incorrectly applied to the next grace
+	period, especially for dyntick and CPU-offline grace periods.
+	Therefore, \url{force_quiescent_state()} and friends all
+	check the last completed grace period number to avoid such races.
+
+	Now these dyntick and CPU-offline grace periods are only checked
+	for when a grace period is actually active.
+	The only quiescent states that can be recorded when no grace
+	period is in progress are self-detected quiescent states,
+	which are recorded in the \url{passed_quiesc_completed},
+	\url{passed_quiesc}, and \url{qs_pending}.
+	These variables are initialized every time the corresponding
+	CPU notices that a new grace period has started, preventing
+	any obsolete quiescent states from being applied to the
+	new grace period.
+
+\QuickQ{What is the point of running a system with \url{NR_CPUS}
+	way bigger than the actual number of CPUs?}
+
+	Because this allows producing a single binary of the Linux kernel
+	that runs on a wide variety of systems, greatly easing administration
+	and validation.
+
+\QuickQ{Why not simply have multiple lists rather than this funny
+	multi-tailed list?}
+
+	Because this multi-tailed approach, due to Lai Jiangshan,
+	simplifies callback processing.
+
+\QuickQ{So some poor CPU has to note quiescent states on behalf of
+	each and every offline CPU?
+	Yecch!
+	Won't that result in excessive overheads in the not-uncommon
+	case of a system with a small number of CPUs but a large value
+	for \url{NR_CPUS}?}
+
+	Actually, no it will not!
+
+	Offline CPUs are excluded from both the \url{qsmask} and
+	\url{qsmaskinit} bit masks, so RCU normally ignores them.
+	However, there are races with online/offline operations that
+	can result in an offline CPU having its \url{qsmask} bit set.
+	These races must of course be handled correctly, and the way
+	they are handled is to permit other CPUs to note that RCU
+	is waiting on a quiescent state from an offline CPU.
+
 \QuickQ{Why is it important that blocking primitives
 	called from within a preemptible-RCU read-side critical section be
 	subject to priority inheritance?}
