@@ -24,7 +24,4 @@
 
 texexpand perfbook.tex |
 	sed -n -e '/^\\OriginallyPublished{/p' |
-	sed -e 's/^\\OriginallyPublished{/\\OrigPubItem{/' \
-	    -e 's/^\\QuickQuiz{/\\QuickQ{/' \
-	    -e 's/^\\QuickQuizAnswer{//' \
-	    -e 's/^} \\QuickQuizEnd//'
+	sed -e 's/^\\OriginallyPublished{/\\OrigPubItem{/'
