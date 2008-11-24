@@ -6,11 +6,11 @@
 The toy RCU implementations in this section are designed not for
 high performance, practicality, or any kind of production use,
 but rather for clarity.
-Nevertheless, you must have a thorough understanding of
+Nevertheless, you will need a thorough understanding of
 Chapters~\ref{chp:Introduction},
 \ref{chp:defer:Deferred Processing}, and
 \ref{sec:advsync:Advanced Synchronization}
-for even these toy RCU implementations to make much sense.
+for even these toy RCU implementations to be easily understandable.
 
 Appendix~\ref{app:rcuimpl:Lock-Based RCU} presents a rudimentary
 RCU implementation based on simple locking, while
@@ -47,7 +47,8 @@ simple RCU implementations based on a reference counters.
 
 Perhaps the simplest RCU implementation leverages locking, as
 shown in
-Figure~\ref{fig:app:rcuimpl:Lock-Based RCU Implementation}.
+Figure~\ref{fig:app:rcuimpl:Lock-Based RCU Implementation}
+(\url{rcu_lock.h} and \url{rcu_lock.c}).
 In this implementation, \url{rcu_read_lock()} acquires a global
 spinlock, \url{rcu_read_unlock()} releases it, and
 \url{synchronize_rcu()} acquires it then immediately releases it.
@@ -69,6 +70,7 @@ critical sections have completed, thereby releasing the lock so that
 		\url{rcu_read_unlock()} are extremely heavyweight.
 	\item	These same lock operations permit \url{rcu_read_lock()}
 		to participate in deadlock cycles.
+		(Exercise for reader: construct such a deadlock.)
 	\item	Only a single thread can be in an RCU read-side
 		critical section at a time, which negates RCU's
 		scalability advantages.
@@ -126,7 +128,8 @@ these shortcomings.
 \end{figure}
 
 A slightly more sophisticated RCU implementation is shown in
-Figure~\ref{fig:app:rcuimpl:RCU Implementation Using Single Global Reference Counter}.
+Figure~\ref{fig:app:rcuimpl:RCU Implementation Using Single Global Reference Counter}
+(\url{rcu_rcg.h} and \url{rcu_rcg.c}).
 This implementation makes use of a global reference counter
 \url{rcu_refcnt} defined on line~1.
 The \url{rcu_read_lock()} primitive atomically increments this
@@ -138,6 +141,8 @@ confine the RCU read-side critical section, then atomically
 decrements the counter.
 The \url{synchronize_rcu()} primitive spins waiting for the reference
 counter to reach zero, surrounded by memory barriers.
+The \url{poll()} on line~19 merely provides pure delay, and from
+a pure RCU-semantics point of view could be omitted.
 Again, once \url{synchronize_rcu()} returns, all prior
 RCU read-side critical sections are guaranteed to have completed.
 
@@ -225,6 +230,7 @@ scheme that is more favorable to writers.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Global Reference-Count Pair}
+(\url{rcu_rcgp.h})
 shows the read-side primitives of an RCU implementation that uses a pair
 of reference counters (\url{rcu_refcnt[]}),
 along with a global index that
@@ -299,6 +305,7 @@ instance of \url{rcu_nesting}.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:RCU Update Using Global Reference-Count Pair}
+(\url{rcu_rcpg.c})
 shows the corresponding \url{synchronize_rcu()} implementation.
 Lines~6 and 19 acquire and release \url{rcu_gp_lock} in order to
 prevent more than one concurrent instance of \url{synchronize_rcu()}.
@@ -472,6 +479,7 @@ scheme with greatly improved scalability.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair}
+(\url{rcu_rcpl.h})
 shows the read-side primitives of an RCU implementation that uses per-thread
 pairs of reference counters.
 This implementation is quite similar to that shown in
@@ -527,6 +535,7 @@ variable, so the \url{rcu_read_lock()} and
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:RCU Update Using Per-Thread Reference-Count Pair}
+(\url{rcu_rcpl.c})
 shows the implementation of \url{synchronize_rcu()}, along with a helper
 function named \url{flip_counter_and_wait()}.
 The \url{synchronize_rcu()} function resembles that shown in
@@ -629,6 +638,7 @@ concurrent RCU updates.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update}
+(\url{rcu_rcpls.h})
 shows the read-side primitives for an RCU implementation using per-thread
 reference count pairs, as before, but permitting updates to share
 grace periods.
@@ -688,6 +698,7 @@ to using \url{ACCESS_ONCE()}.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:RCU Shared Update Using Per-Thread Reference-Count Pair}
+(\url{rcu_rcpls.c})
 shows the implementation of \url{synchronize_rcu()} and its helper
 function \url{flip_counter_and_wait()}.
 These are similar to those in
