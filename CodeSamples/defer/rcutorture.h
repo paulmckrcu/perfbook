@@ -23,6 +23,7 @@
  */
 
 DEFINE_PER_THREAD(long long, n_reads_pt);
+DEFINE_PER_THREAD(long long, n_updates_pt);
 
 long long n_reads = 0LL;
 long n_updates = 0L;
@@ -86,19 +87,20 @@ void *rcu_update_perf_test(void *arg)
 		poll(NULL, 0, 10);
 	while (goflag == GOFLAG_RUN) {
 		synchronize_rcu();
-		n_updates++;
+		__get_thread_var(n_updates_pt)++;
 	}
 }
 
-void perftest(int nreaders)
+void perftestinit(void)
 {
-	int i;
+	init_per_thread(n_reads_pt, 0LL);
+	init_per_thread(n_updates_pt, 0LL);
+}
+
+void perftestrun(void)
+{
 	int t;
 
-	init_per_thread(n_reads_pt, 0LL);
-	for (i = 0; i < nreaders; i++)
-		create_thread(rcu_read_perf_test, NULL);
-	create_thread(rcu_update_perf_test, NULL);
 	smp_mb();
 	goflag = GOFLAG_RUN;
 	smp_mb();
@@ -107,10 +109,45 @@ void perftest(int nreaders)
 	goflag = GOFLAG_STOP;
 	smp_mb();
 	wait_all_threads();
-	for_each_thread(t)
+	for_each_thread(t) {
 		n_reads += per_thread(n_reads_pt, t);
+		n_updates += per_thread(n_updates_pt, t);
+	}
 	printf("n_reads: %lld  n_updates: %ld\n", n_reads, n_updates);
 	exit(0);
+}
+
+void perftest(int nreaders)
+{
+	int i;
+
+	perftestinit();
+	for (i = 0; i < nreaders; i++)
+		create_thread(rcu_read_perf_test, NULL);
+	create_thread(rcu_update_perf_test, NULL);
+	perftestrun();
+}
+
+void rperftest(int nreaders)
+{
+	int i;
+
+	perftestinit();
+	init_per_thread(n_reads_pt, 0LL);
+	for (i = 0; i < nreaders; i++)
+		create_thread(rcu_read_perf_test, NULL);
+	perftestrun();
+}
+
+void uperftest(int nupdaters)
+{
+	int i;
+
+	perftestinit();
+	init_per_thread(n_reads_pt, 0LL);
+	for (i = 0; i < nupdaters; i++)
+		create_thread(rcu_update_perf_test, NULL);
+	perftestrun();
 }
 
 /*
@@ -276,6 +313,10 @@ int main(int argc, char *argv[])
 			perftest(nreaders);
 		if (strcmp(argv[2], "perf") == 0)
 			perftest(nreaders);
+		else if (strcmp(argv[2], "rperf") == 0)
+			rperftest(nreaders);
+		else if (strcmp(argv[2], "uperf") == 0)
+			uperftest(nreaders);
 		else if (strcmp(argv[2], "stress") == 0)
 			stresstest(nreaders);
 		usage(argc, argv);
