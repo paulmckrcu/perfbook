@@ -641,6 +641,259 @@ Is the \url{rcu_dereference()} primitive in an RCU Classic
 or an RCU Sched critical section?
 What would you have to do to figure this out?
 
+\QuickQ{What are some of the shortcomings of the lock-based
+	implementation shown in
+	Figure~\ref{fig:defer:Lock-Based RCU Implementation}?}
+
+	There are a number of serious shortcomings:
+	\begin{enumerate}
+	\item	The lock operations in \url{rcu_read_lock()} and
+		\url{rcu_read_unlock()} are extremely heavyweight.
+	\item	These same lock operations permit \url{rcu_read_lock()}
+		to participate in deadlock cycles.
+		(Exercise for reader: construct such a deadlock.)
+	\item	Only a single thread can be in an RCU read-side
+		critical section at a time, which negates RCU's
+		scalability advantages.
+		This could be overcome by using reader-writer
+		locking~\cite{PaulMcKenney2005e}, but only for
+		unusually long RCU read-side critical sections.
+	\item	RCU read-side critical sections cannot be nested.
+	\item	Although concurrent RCU updates could in principle be
+		satisfied by a common grace period, this implementation
+		serializes grace periods, preventing grace-period
+		sharing.
+	\end{enumerate}
+	These shortcomings are problematic for all the reasons
+	discussed in Chapter~\ref{chp:Introduction}.
+	It is hard to imagine this implementation being useful
+	in a production setting, though it does have the virtue
+	of being implementable in user-level applications.
+
+\QuickQ{What are some of the shortcomings of the counter-based
+	implementation shown in
+	Figure~\ref{fig:defer:RCU Implementation Using Single Global Reference Counter}?}
+
+	There are still some serious shortcomings:
+	\begin{enumerate}
+	\item	The atomic operations in \url{rcu_read_lock()} and
+		\url{rcu_read_unlock()} are still quite  heavyweight.
+		This means that the RCU read-side critical sections
+		have to be quite long in order to get any real
+		read-side parallelism.
+	\item	If there are many concurrent \url{rcu_read_lock()}
+		and \url{rcu_read_unlock()} operations, there will
+		be extreme memory contention on \url{rcu_refcnt},
+		resulting in expensive cache misses.
+		This further extends the RCU read-side critical-section
+		duration required to provide parallel read-side access.
+	\item	A large number of RCU readers with long read-side
+		critical sections could prevent \url{synchronize_rcu()}
+		from ever completing, as the global counter might
+		never reach zero.
+		This could result in starvation of RCU updates, which
+		is unacceptable in production settings.
+	\item	Although concurrent RCU updates could in principle be
+		satisfied by a common grace period, this implementation
+		serializes grace periods, preventing grace-period
+		sharing.
+	\end{enumerate}
+	It is still hard to imagine this implementation being useful
+	in a production setting, though it has a bit more potential
+	than the lock-based mechanism.
+
+\QuickQ{Why the memory barrier on line~5 of \url{synchronize_rcu()} in
+	Figure~\ref{fig:defer:RCU Update Using Global Reference-Count Pair}
+	given that there is a spin-lock acquisition immediately after?}
+
+	The spin-lock acquisition only guarantees that the spin-lock's
+	critical section will not ``bleed out'' to precede the
+	acquisition.
+	It in no way guarantees that code preceding the spin-lock
+	acquisitoin won't be reordered into the critical section.
+	Such reordering could cause a removal from an RCU-protected
+	list to be reordered to follow the complementing of
+	\url{rcu_idx}, which could allow a newly starting RCU
+	read-side critical section to see the recently removed
+	data element.
+
+	Exercise for the reader: use a tool such as Promela/spin
+	to determine which (if any) of the memory barriers in
+	Figure~\ref{fig:defer:RCU Update Using Global Reference-Count Pair}
+	are really needed.
+	See Section~\ref{app:formal:Formal Verification}
+	for information on using these tools.
+	The first correct and complete response will be credited.
+
+\QuickQ{Why is the counter flipped twice in
+	Figure~\ref{fig:defer:RCU Update Using Global Reference-Count Pair}?
+	Shouldn't a single flip-and-wait cycle be sufficient?}
+
+	Both flips are absolutely required.
+	To see this, consider the following sequence of events:
+	\begin{enumerate}
+	\item	Line~8 of \url{rcu_read_lock()} in
+		Figure~\ref{fig:defer:RCU Read-Side Using Global Reference-Count Pair}
+		picks up \url{rcu_idx}, finding its value to be zero.
+	\item	Line~8 of \url{synchronize_rcu()} in
+		Figure~\ref{fig:defer:RCU Update Using Global Reference-Count Pair}
+		complements the value of \url{rcu_idx}, setting its
+		value to one.
+	\item	Lines~10-13 of \url{synchronize_rcu()} find that the
+		value of \url{rcu_refcnt[0]} is zero, and thus
+		returns.
+		(Recall that the question is asking what happens if
+		lines~14-20 are omitted.)
+	\item	Lines~9 and 10 of \url{rcu_read_lock()} store the
+		value zero to this thread's instance of \url{rcu_read_idx}
+		and increments \url{rcu_refcnt[0]}, respectively.
+		Execution then proceeds into the RCU read-side critical
+		section.
+		\label{defer:rcu_rcgp:RCU Read Side Start}
+	\item	Another instance of \url{synchronize_rcu()} again complements
+		\url{rcu_idx}, this time setting its value to zero.
+		Because \url{rcu_refcnt[1]} is zero, \url{synchronize_rcu()}
+		returns immediately.
+		(Recall that \url{rcu_read_lock()} incremented
+		\url{rcu_refcnt[0]}, not \url{rcu_refcnt[1]}!)
+		\label{defer:rcu_rcgp:RCU Grace Period Start}
+	\item	The grace period that started in
+		step~\ref{defer:rcu_rcgp:RCU Grace Period Start}
+		has been allowed to end, despite
+		the fact that the RCU read-side critical section
+		that started beforehand in
+		step~\ref{defer:rcu_rcgp:RCU Read Side Start}
+		has not completed.
+		This violates RCU semantics, and could allow the update
+		to free a data element that the RCU read-side critical
+		section was still referencing.
+	\end{enumerate}
+
+	Exercise for the reader: What happens if \url{rcu_read_lock()}
+	is preempted for a very long time (hours!) just after
+	line~8?
+	Does this implementation operate correctly in that case?
+	Why or why not?
+	The first correct and complete response will be credited.
+
+\QuickQ{What are some of the remaining shortcomings of the
+	counter-pair-based implementation shown in
+	Figures~\ref{fig:defer:RCU Read-Side Using Global Reference-Count Pair}
+	and \ref{fig:defer:RCU Update Using Global Reference-Count Pair}?}
+
+	There are still some serious shortcomings:
+	\begin{enumerate}
+	\item	The atomic operations in \url{rcu_read_lock()} and
+		\url{rcu_read_unlock()} are still quite heavyweight,
+		in fact, they are more complex than those of the
+		single-counter variant shown in
+		Figure~\ref{fig:defer:RCU Implementation Using Single Global Reference Counter}.
+		This means that the RCU read-side critical sections
+		have to be quite long in order to get any real
+		read-side parallelism.
+	\item	If there are many concurrent \url{rcu_read_lock()}
+		and \url{rcu_read_unlock()} operations, there will
+		be extreme memory contention on the \url{rcu_refcnt}
+		elements, resulting in expensive cache misses.
+		This further extends the RCU read-side critical-section
+		duration required to provide parallel read-side access.
+	\item	The need to flip \url{rcu_idx} twice imposes substantial
+		overhead on updates, especially if there are large
+		numbers of threads.
+	\item	Although concurrent RCU updates could in principle be
+		satisfied by a common grace period, this implementation
+		serializes grace periods, preventing grace-period
+		sharing.
+	\end{enumerate}
+	Despite these shortcomings, one could imagine this variant
+	of RCU being used on small tightly coupled multiprocessors.
+	However, it would not not likely scale well beyond a few CPUs.
+
+\QuickQ{Come off it!
+	We can see the \url{atomic_read()} primitive in
+	\url{rcu_read_lock()}!!!
+	So why are you trying to pretend that \url{rcu_read_lock()}
+	contains no atomic operations???}
+
+	The \url{atomic_read()} primitives does not actually execute
+	atomic machine instructions, but rather does a normal load
+	from an \url{atomic_t}.
+
+\QuickQ{Great, if we have $N$ threads, we can have $2N$ ten-millisecond
+	waits (one set per \url{flip_counter_and_wait()} invocation,
+	and even that assumes that we wait only once for each thread.
+	Don't we need the grace period to complete \emph{much} more quickly?}
+
+	Keep in mind that we only wait for a given thread if that thread
+	is still in a pre-existing RCU read-side critical section,
+	and that waiting for one hold-out thread gives all the other
+	threads a chance to complete any pre-existing RCU read-side
+	critical sections that they might still be executing.
+	So the only way that we would wait for $2N$ intervals
+	would be if the last thread still remained in a pre-existing
+	RCU read-side critical section despite all the waiting for
+	all the prior threads.
+	In short, this implementation will not wait unnecessarily.
+
+	However, if you are stress-testing code that uses RCU, you
+	might want to comment out the \url{poll()} statement in
+	order to better catch bugs that incorrectly retain a reference
+	to an RCU-protected data element outside of an RCU
+	read-side critical section.
+
+\QuickQ{What are some of the remaining shortcomings of the
+	counter-pair-based implementation shown in
+	Figures~\ref{fig:defer:RCU Read-Side Using Per-Thread Reference-Count Pair}
+	and
+	\ref{fig:defer:RCU Update Using Per-Thread Reference-Count Pair}?}
+
+	There are still a few serious shortcomings:
+	\begin{enumerate}
+	\item	The need to flip \url{rcu_idx} twice imposes substantial
+		overhead on updates, especially if there are large
+		numbers of threads.
+	\item	Although concurrent RCU updates could in principle be
+		satisfied by a common grace period, this implementation
+		serializes grace periods, preventing grace-period
+		sharing.
+	\end{enumerate}
+	Despite these shortcomings, one could imagine this variant
+	of RCU being used on small tightly coupled multiprocessors.
+	However, it has a serious update-side bottleneck.
+
+\QuickQ{What are some of the remaining shortcomings of the
+	parallel-update counter-pair-based implementation shown in
+	Figure~\ref{fig:defer:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update}
+	and
+	\ref{fig:defer:RCU Shared Update Using Per-Thread Reference-Count Pair}?}
+
+	There are still a few shortcomings:
+	\begin{enumerate}
+	\item	The need to flip \url{rcu_idx} twice imposes substantial
+		overhead on updates, especially if there are large
+		numbers of threads.
+		% Point to user-level RCU implementation after LCA2009.
+	\item	Each updater still acquires \url{rcu_gp_lock}, even if there
+		is no work to be done.
+		This can result in a severe scalability limitation
+		if there are large numbers of concurrent updates.
+		Appendix~\ref{app:rcuimpl:Preemptable RCU} shows
+		one way to avoid this in a production-quality real-time
+		implementation of RCU for the Linux kernel.
+	\item	On 32-bit machines, a given update thread might be
+		preempted long enough for the \url{rcu_idx}
+		counter to overflow.
+		This could cause such a thread to force an unnecessary
+		pair of counter flips.
+		However, even if each grace period took only one
+		microsecond, the offending thread would need to be
+		preempted for more than an hour, in which case an
+		extra pair of counter flips is likely the least of
+		your worries.
+	\end{enumerate}
+	Despite these shortcomings, one could imagine this variant
+	of RCU being used in real life.
+
 \QuickQAC{sec:advsync:Advanced Synchronization}
 \QuickQ{How on earth could the assertion on line~21 of the code in
 	Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal} on
@@ -1031,258 +1284,6 @@ this in much the same way that the memory barrier was used in the
 assertions in the previous examples.
 
 \QuickQAC{app:rcuimpl:Read-Copy Update Implementations}
-\QuickQ{What are some of the shortcomings of the lock-based
-	implementation shown in
-	Figure~\ref{fig:app:rcuimpl:Lock-Based RCU Implementation}?}
-
-	There are a number of serious shortcomings:
-	\begin{enumerate}
-	\item	The lock operations in \url{rcu_read_lock()} and
-		\url{rcu_read_unlock()} are extremely heavyweight.
-	\item	These same lock operations permit \url{rcu_read_lock()}
-		to participate in deadlock cycles.
-	\item	Only a single thread can be in an RCU read-side
-		critical section at a time, which negates RCU's
-		scalability advantages.
-		This could be overcome by using reader-writer
-		locking~\cite{PaulMcKenney2005e}, but only for
-		unusually long RCU read-side critical sections.
-	\item	RCU read-side critical sections cannot be nested.
-	\item	Although concurrent RCU updates could in principle be
-		satisfied by a common grace period, this implementation
-		serializes grace periods, preventing grace-period
-		sharing.
-	\end{enumerate}
-	These shortcomings are problematic for all the reasons
-	discussed in Chapter~\ref{chp:Introduction}.
-	It is hard to imagine this implementation being useful
-	in a production setting, though it does have the virtue
-	of being implementable in user-level applications.
-
-\QuickQ{What are some of the shortcomings of the counter-based
-	implementation shown in
-	Figure~\ref{fig:app:rcuimpl:RCU Implementation Using Single Global Reference Counter}?}
-
-	There are still some serious shortcomings:
-	\begin{enumerate}
-	\item	The atomic operations in \url{rcu_read_lock()} and
-		\url{rcu_read_unlock()} are still quite  heavyweight.
-		This means that the RCU read-side critical sections
-		have to be quite long in order to get any real
-		read-side parallelism.
-	\item	If there are many concurrent \url{rcu_read_lock()}
-		and \url{rcu_read_unlock()} operations, there will
-		be extreme memory contention on \url{rcu_refcnt},
-		resulting in expensive cache misses.
-		This further extends the RCU read-side critical-section
-		duration required to provide parallel read-side access.
-	\item	A large number of RCU readers with long read-side
-		critical sections could prevent \url{synchronize_rcu()}
-		from ever completing, as the global counter might
-		never reach zero.
-		This could result in starvation of RCU updates, which
-		is unacceptable in production settings.
-	\item	Although concurrent RCU updates could in principle be
-		satisfied by a common grace period, this implementation
-		serializes grace periods, preventing grace-period
-		sharing.
-	\end{enumerate}
-	It is still hard to imagine this implementation being useful
-	in a production setting, though it has a bit more potential
-	than the lock-based mechanism.
-
-\QuickQ{Why the memory barrier on line~5 of \url{synchronize_rcu()} in
-	Figure~\ref{fig:app:rcuimpl:RCU Update Using Global Reference-Count Pair}
-	given that there is a spin-lock acquisition immediately after?}
-
-	The spin-lock acquisition only guarantees that the spin-lock's
-	critical section will not ``bleed out'' to precede the
-	acquisition.
-	It in no way guarantees that code preceding the spin-lock
-	acquisitoin won't be reordered into the critical section.
-	Such reordering could cause a removal from an RCU-protected
-	list to be reordered to follow the complementing of
-	\url{rcu_idx}, which could allow a newly starting RCU
-	read-side critical section to see the recently removed
-	data element.
-
-	Exercise for the reader: use a tool such as Promela/spin
-	to determine which (if any) of the memory barriers in
-	Figure~\ref{fig:app:rcuimpl:RCU Update Using Global Reference-Count Pair}
-	are really needed.
-	See Section~\ref{app:formal:Formal Verification}
-	for information on using these tools.
-	The first correct and complete response will be credited.
-
-\QuickQ{Why is the counter flipped twice in
-	Figure~\ref{fig:app:rcuimpl:RCU Update Using Global Reference-Count Pair}?
-	Shouldn't a single flip-and-wait cycle be sufficient?}
-
-	Both flips are absolutely required.
-	To see this, consider the following sequence of events:
-	\begin{enumerate}
-	\item	Line~8 of \url{rcu_read_lock()} in
-		Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Global Reference-Count Pair}
-		picks up \url{rcu_idx}, finding its value to be zero.
-	\item	Line~8 of \url{synchronize_rcu()} in
-		Figure~\ref{fig:app:rcuimpl:RCU Update Using Global Reference-Count Pair}
-		complements the value of \url{rcu_idx}, setting its
-		value to one.
-	\item	Lines~10-13 of \url{synchronize_rcu()} find that the
-		value of \url{rcu_refcnt[0]} is zero, and thus
-		returns.
-		(Recall that the question is asking what happens if
-		lines~14-20 are omitted.)
-	\item	Lines~9 and 10 of \url{rcu_read_lock()} store the
-		value zero to this thread's instance of \url{rcu_read_idx}
-		and increments \url{rcu_refcnt[0]}, respectively.
-		Execution then proceeds into the RCU read-side critical
-		section.
-		\label{app:rcuimpl:rcu_rcgp:RCU Read Side Start}
-	\item	Another instance of \url{synchronize_rcu()} again complements
-		\url{rcu_idx}, this time setting its value to zero.
-		Because \url{rcu_refcnt[1]} is zero, \url{synchronize_rcu()}
-		returns immediately.
-		(Recall that \url{rcu_read_lock()} incremented
-		\url{rcu_refcnt[0]}, not \url{rcu_refcnt[1]}!)
-		\label{app:rcuimpl:rcu_rcgp:RCU Grace Period Start}
-	\item	The grace period that started in
-		step~\ref{app:rcuimpl:rcu_rcgp:RCU Grace Period Start}
-		has been allowed to end, despite
-		the fact that the RCU read-side critical section
-		that started beforehand in
-		step~\ref{app:rcuimpl:rcu_rcgp:RCU Read Side Start}
-		has not completed.
-		This violates RCU semantics, and could allow the update
-		to free a data element that the RCU read-side critical
-		section was still referencing.
-	\end{enumerate}
-
-	Exercise for the reader: What happens if \url{rcu_read_lock()}
-	is preempted for a very long time (hours!) just after
-	line~8?
-	Does this implementation operate correctly in that case?
-	Why or why not?
-	The first correct and complete response will be credited.
-
-\QuickQ{What are some of the remaining shortcomings of the
-	counter-pair-based implementation shown in
-	Figures~\ref{fig:app:rcuimpl:RCU Read-Side Using Global Reference-Count Pair}
-	and \ref{fig:app:rcuimpl:RCU Update Using Global Reference-Count Pair}?}
-
-	There are still some serious shortcomings:
-	\begin{enumerate}
-	\item	The atomic operations in \url{rcu_read_lock()} and
-		\url{rcu_read_unlock()} are still quite heavyweight,
-		in fact, they are more complex than those of the
-		single-counter variant shown in
-		Figure~\ref{fig:app:rcuimpl:RCU Implementation Using Single Global Reference Counter}.
-		This means that the RCU read-side critical sections
-		have to be quite long in order to get any real
-		read-side parallelism.
-	\item	If there are many concurrent \url{rcu_read_lock()}
-		and \url{rcu_read_unlock()} operations, there will
-		be extreme memory contention on the \url{rcu_refcnt}
-		elements, resulting in expensive cache misses.
-		This further extends the RCU read-side critical-section
-		duration required to provide parallel read-side access.
-	\item	The need to flip \url{rcu_idx} twice imposes substantial
-		overhead on updates, especially if there are large
-		numbers of threads.
-	\item	Although concurrent RCU updates could in principle be
-		satisfied by a common grace period, this implementation
-		serializes grace periods, preventing grace-period
-		sharing.
-	\end{enumerate}
-	Despite these shortcomings, one could imagine this variant
-	of RCU being used on small tightly coupled multiprocessors.
-	However, it would not not likely scale well beyond a few CPUs.
-
-\QuickQ{Come off it!
-	We can see the \url{atomic_read()} primitive in
-	\url{rcu_read_lock()}!!!
-	So why are you trying to pretend that \url{rcu_read_lock()}
-	contains no atomic operations???}
-
-	The \url{atomic_read()} primitives does not actually execute
-	atomic machine instructions, but rather does a normal load
-	from an \url{atomic_t}.
-
-\QuickQ{Great, if we have $N$ threads, we can have $2N$ ten-millisecond
-	waits (one set per \url{flip_counter_and_wait()} invocation,
-	and even that assumes that we wait only once for each thread.
-	Don't we need the grace period to complete \emph{much} more quickly?}
-
-	Keep in mind that we only wait for a given thread if that thread
-	is still in a pre-existing RCU read-side critical section,
-	and that waiting for one hold-out thread gives all the other
-	threads a chance to complete any pre-existing RCU read-side
-	critical sections that they might still be executing.
-	So the only way that we would wait for $2N$ intervals
-	would be if the last thread still remained in a pre-existing
-	RCU read-side critical section despite all the waiting for
-	all the prior threads.
-	In short, this implementation will not wait unnecessarily.
-
-	However, if you are stress-testing code that uses RCU, you
-	might want to comment out the \url{poll()} statement in
-	order to better catch bugs that incorrectly retain a reference
-	to an RCU-protected data element outside of an RCU
-	read-side critical section.
-
-\QuickQ{What are some of the remaining shortcomings of the
-	counter-pair-based implementation shown in
-	Figures~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair}
-	and
-	\ref{fig:app:rcuimpl:RCU Update Using Per-Thread Reference-Count Pair}?}
-
-	There are still a few serious shortcomings:
-	\begin{enumerate}
-	\item	The need to flip \url{rcu_idx} twice imposes substantial
-		overhead on updates, especially if there are large
-		numbers of threads.
-	\item	Although concurrent RCU updates could in principle be
-		satisfied by a common grace period, this implementation
-		serializes grace periods, preventing grace-period
-		sharing.
-	\end{enumerate}
-	Despite these shortcomings, one could imagine this variant
-	of RCU being used on small tightly coupled multiprocessors.
-	However, it has a serious update-side bottleneck.
-
-\QuickQ{What are some of the remaining shortcomings of the
-	parallel-update counter-pair-based implementation shown in
-	Figure~\ref{fig:app:rcuimpl:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update}
-	and
-	\ref{fig:app:rcuimpl:RCU Shared Update Using Per-Thread Reference-Count Pair}?}
-
-	There are still a few shortcomings:
-	\begin{enumerate}
-	\item	The need to flip \url{rcu_idx} twice imposes substantial
-		overhead on updates, especially if there are large
-		numbers of threads.
-		% Point to user-level RCU implementation after LCA2009.
-	\item	Each updater still acquires \url{rcu_gp_lock}, even if there
-		is no work to be done.
-		This can result in a severe scalability limitation
-		if there are large numbers of concurrent updates.
-		Appendix~\ref{app:rcuimpl:Preemptable RCU} shows
-		one way to avoid this in a production-quality real-time
-		implementation of RCU for the Linux kernel.
-	\item	On 32-bit machines, a given update thread might be
-		preempted long enough for the \url{rcu_idx}
-		counter to overflow.
-		This could cause such a thread to force an unnecessary
-		pair of counter flips.
-		However, even if each grace period took only one
-		microsecond, the offending thread would need to be
-		preempted for more than an hour, in which case an
-		extra pair of counter flips is likely the least of
-		your worries.
-	\end{enumerate}
-	Despite these shortcomings, one could imagine this variant
-	of RCU being used in real life.
-
 \QuickQ{Why is sleeping prohibited within Classic RCU read-side
 critical sections?}
 
@@ -1639,6 +1640,9 @@ In the meantime, however, there are some challenges:
 	CPU notices that a new grace period has started, preventing
 	any obsolete quiescent states from being applied to the
 	new grace period.
+
+	All that said, optimizing grace-period latency may require that
+	\url{gpnum} be tracked in addition to \url{completed}.
 
 \QuickQ{What is the point of running a system with \url{NR_CPUS}
 	way bigger than the actual number of CPUs?}

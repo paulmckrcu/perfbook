@@ -16,7 +16,6 @@ LATEXSOURCES = \
 	appendix/questions/after.tex \
 	appendix/questions/questions.tex \
 	appendix/rcuimpl/rcu.tex \
-	appendix/rcuimpl/toyrcu.tex \
 	appendix/rcuimpl/srcu.tex \
 	appendix/rcuimpl/rcutree.tex \
 	appendix/rcuimpl/rcutreewt.tex \
@@ -37,6 +36,7 @@ LATEXSOURCES = \
 	defer/rcufundamental.tex \
 	defer/rcuapi.tex \
 	defer/rcuusage.tex \
+	defer/toyrcu.tex \
 	SMPdesign/SMPdesign.tex \
 	stats/stats.tex \
 	sync/sync.tex \
