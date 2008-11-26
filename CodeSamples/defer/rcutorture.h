@@ -97,7 +97,7 @@ void perftestinit(void)
 	init_per_thread(n_updates_pt, 0LL);
 }
 
-void perftestrun(void)
+void perftestrun(int nreaders, int nupdaters)
 {
 	int t;
 
@@ -113,7 +113,9 @@ void perftestrun(void)
 		n_reads += per_thread(n_reads_pt, t);
 		n_updates += per_thread(n_updates_pt, t);
 	}
-	printf("n_reads: %lld  n_updates: %ld\n", n_reads, n_updates);
+	printf("n_reads: %g  n_updates: %g\n",
+	       (1000*1000*1000.*(double)nreaders) / (double)n_reads,
+	       (1000*1000*1000.*(double)nupdaters) / (double)n_updates);
 	exit(0);
 }
 
@@ -125,7 +127,7 @@ void perftest(int nreaders)
 	for (i = 0; i < nreaders; i++)
 		create_thread(rcu_read_perf_test, NULL);
 	create_thread(rcu_update_perf_test, NULL);
-	perftestrun();
+	perftestrun(nreaders, 1);
 }
 
 void rperftest(int nreaders)
@@ -136,7 +138,7 @@ void rperftest(int nreaders)
 	init_per_thread(n_reads_pt, 0LL);
 	for (i = 0; i < nreaders; i++)
 		create_thread(rcu_read_perf_test, NULL);
-	perftestrun();
+	perftestrun(nreaders, 0);
 }
 
 void uperftest(int nupdaters)
@@ -147,7 +149,7 @@ void uperftest(int nupdaters)
 	init_per_thread(n_reads_pt, 0LL);
 	for (i = 0; i < nupdaters; i++)
 		create_thread(rcu_update_perf_test, NULL);
-	perftestrun();
+	perftestrun(0, nupdaters);
 }
 
 /*

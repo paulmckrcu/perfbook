@@ -249,6 +249,7 @@ __asm__ __volatile__(LOCK_PREFIX "orl %0,%1" \
 
 #define smp_mb() \
 __asm__ __volatile__("mfence" : : : "memory")
+/* __asm__ __volatile__("lock; addl $0,0(%%esp)" : : : "memory") */
 
 
 /*
