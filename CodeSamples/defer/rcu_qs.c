@@ -1,9 +1,11 @@
 /*
- * rcu_qs.c: user-level implementation of RCU forbidding nesting, but
- * eliminating all read-side memory barriers, while still permitting
- * threads to block indefinitely outside of an RCU read-side critical
- * section without also blocking grace periods, as long as the last
- * RCU read-side critical section is followed by a quiescent state.
+ * rcu_qs.c: user-level implementation of Classic RCU, eliminating all
+ * read-side memory barriers, while still permitting threads to block
+ * indefinitely outside of an RCU read-side critical section without
+ * also blocking grace periods, as long as the last RCU read-side critical
+ * section is followed by a call to thread_offline().  A call to
+ * thread_online() must appear between a call to thread_offline() and the
+ * next RCU read-side critical section.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
