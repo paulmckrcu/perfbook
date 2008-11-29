@@ -75,7 +75,7 @@ void *rcu_read_perf_test(void *arg)
 	sched_setaffinity(0, sizeof(mask), &mask);
 	atomic_inc(&nthreadsrunning);
 	while (goflag == GOFLAG_INIT)
-		poll(NULL, 0, 10);
+		poll(NULL, 0, 1);
 	while (goflag == GOFLAG_RUN) {
 		for (i = 0; i < RCU_READ_RUN; i++) {
 			rcu_read_lock();
@@ -95,7 +95,7 @@ void *rcu_update_perf_test(void *arg)
 {
 	atomic_inc(&nthreadsrunning);
 	while (goflag == GOFLAG_INIT)
-		poll(NULL, 0, 10);
+		poll(NULL, 0, 1);
 	while (goflag == GOFLAG_RUN) {
 		synchronize_rcu();
 		__get_thread_var(n_updates_pt)++;
@@ -116,7 +116,7 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 
 	smp_mb();
 	while (atomic_read(&nthreadsrunning) < nthreads)
-		poll(NULL, 0, 10);
+		poll(NULL, 0, 1);
 	goflag = GOFLAG_RUN;
 	smp_mb();
 	sleep(duration);
@@ -209,7 +209,7 @@ void *rcu_read_stress_test(void *arg)
 	int pc;
 
 	while (goflag == GOFLAG_INIT)
-		poll(NULL, 0, 10);
+		poll(NULL, 0, 1);
 	while (goflag == GOFLAG_RUN) {
 		rcu_read_lock();
 		p = rcu_dereference(rcu_stress_current);
@@ -243,7 +243,7 @@ void *rcu_update_stress_test(void *arg)
 	struct rcu_stress *p;
 
 	while (goflag == GOFLAG_INIT)
-		poll(NULL, 0, 10);
+		poll(NULL, 0, 1);
 	while (goflag == GOFLAG_RUN) {
 		i = rcu_stress_idx + 1;
 		if (i >= RCU_STRESS_PIPE_LEN)
@@ -269,10 +269,10 @@ void *rcu_fake_update_stress_test(void *arg)
 	struct rcu_stress *p;
 
 	while (goflag == GOFLAG_INIT)
-		poll(NULL, 0, 10);
+		poll(NULL, 0, 1);
 	while (goflag == GOFLAG_RUN) {
 		synchronize_rcu();
-		poll(NULL, 0, 10);
+		poll(NULL, 0, 1);
 	}
 }
 
