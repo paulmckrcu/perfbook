@@ -93,6 +93,7 @@ void *rcu_read_perf_test(void *arg)
 
 void *rcu_update_perf_test(void *arg)
 {
+	atomic_inc(&nthreadsrunning);
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 10);
 	while (goflag == GOFLAG_RUN) {
@@ -129,7 +130,7 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 	}
 	printf("n_reads: %lld  n_updates: %ld  nreaders: %d  nupdaters: %d duration: %d\n",
 	       n_reads, n_updates, nreaders, nupdaters, duration);
-	printf("n_reads: %g  n_updates: %g\n",
+	printf("ns/read: %g  ns/update: %g\n",
 	       ((duration * 1000*1000*1000.*(double)nreaders) /
 	        (double)n_reads),
 	       ((duration * 1000*1000*1000.*(double)nupdaters) /
