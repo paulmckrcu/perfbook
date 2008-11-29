@@ -18,6 +18,9 @@
  * Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
  */
 
+#define __USE_GNU
+#include <sched.h>
+
 /*
  * Test variables.
  */
@@ -27,12 +30,13 @@ DEFINE_PER_THREAD(long long, n_updates_pt);
 
 long long n_reads = 0LL;
 long n_updates = 0L;
+atomic_t nthreadsrunning;
 
 #define GOFLAG_INIT 0
 #define GOFLAG_RUN  1
 #define GOFLAG_STOP 2
 
-int goflag = GOFLAG_INIT;
+int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
 
 #define RCU_READ_RUN 1000
 
@@ -63,7 +67,13 @@ int goflag = GOFLAG_INIT;
 void *rcu_read_perf_test(void *arg)
 {
 	int i;
+	int me = (long)arg;
+	cpu_set_t mask;
 
+	__CPU_ZERO(&mask);
+	__CPU_SET(me, &mask);
+	sched_setaffinity(0, sizeof(mask), &mask);
+	atomic_inc(&nthreadsrunning);
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 10);
 	while (goflag == GOFLAG_RUN) {
@@ -95,16 +105,20 @@ void perftestinit(void)
 {
 	init_per_thread(n_reads_pt, 0LL);
 	init_per_thread(n_updates_pt, 0LL);
+	atomic_set(&nthreadsrunning, 0);
 }
 
-void perftestrun(int nreaders, int nupdaters)
+void perftestrun(int nthreads, int nreaders, int nupdaters)
 {
 	int t;
+	int duration = 1;
 
 	smp_mb();
+	while (atomic_read(&nthreadsrunning) < nthreads)
+		poll(NULL, 0, 10);
 	goflag = GOFLAG_RUN;
 	smp_mb();
-	sleep(1);
+	sleep(duration);
 	smp_mb();
 	goflag = GOFLAG_STOP;
 	smp_mb();
@@ -113,43 +127,57 @@ void perftestrun(int nreaders, int nupdaters)
 		n_reads += per_thread(n_reads_pt, t);
 		n_updates += per_thread(n_updates_pt, t);
 	}
+	printf("n_reads: %lld  n_updates: %ld  nreaders: %d  nupdaters: %d duration: %d\n",
+	       n_reads, n_updates, nreaders, nupdaters, duration);
 	printf("n_reads: %g  n_updates: %g\n",
-	       (1000*1000*1000.*(double)nreaders) / (double)n_reads,
-	       (1000*1000*1000.*(double)nupdaters) / (double)n_updates);
+	       ((duration * 1000*1000*1000.*(double)nreaders) /
+	        (double)n_reads),
+	       ((duration * 1000*1000*1000.*(double)nupdaters) /
+	        (double)n_updates));
 	exit(0);
 }
 
-void perftest(int nreaders)
+void perftest(int nreaders, int cpustride)
 {
 	int i;
+	long arg;
 
 	perftestinit();
-	for (i = 0; i < nreaders; i++)
-		create_thread(rcu_read_perf_test, NULL);
-	create_thread(rcu_update_perf_test, NULL);
-	perftestrun(nreaders, 1);
+	for (i = 0; i < nreaders; i++) {
+		arg = (long)(i * cpustride);
+		create_thread(rcu_read_perf_test, (void *)arg);
+	}
+	arg = (long)(i * cpustride);
+	create_thread(rcu_update_perf_test, (void *)arg);
+	perftestrun(i + 1, nreaders, 1);
 }
 
-void rperftest(int nreaders)
+void rperftest(int nreaders, int cpustride)
 {
 	int i;
+	long arg;
 
 	perftestinit();
 	init_per_thread(n_reads_pt, 0LL);
-	for (i = 0; i < nreaders; i++)
-		create_thread(rcu_read_perf_test, NULL);
-	perftestrun(nreaders, 0);
+	for (i = 0; i < nreaders; i++) {
+		arg = (long)(i * cpustride);
+		create_thread(rcu_read_perf_test, (void *)arg);
+	}
+	perftestrun(i, nreaders, 0);
 }
 
-void uperftest(int nupdaters)
+void uperftest(int nupdaters, int cpustride)
 {
 	int i;
+	long arg;
 
 	perftestinit();
 	init_per_thread(n_reads_pt, 0LL);
-	for (i = 0; i < nupdaters; i++)
-		create_thread(rcu_update_perf_test, NULL);
-	perftestrun(0, nupdaters);
+	for (i = 0; i < nupdaters; i++) {
+		arg = (long)(i * cpustride);
+		create_thread(rcu_update_perf_test, (void *)arg);
+	}
+	perftestrun(i, 0, nupdaters);
 }
 
 /*
@@ -305,6 +333,7 @@ void usage(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
 	int nreaders = 1;
+	int cpustride = 1;
 
 	smp_init();
 	rcu_init();
@@ -312,16 +341,18 @@ int main(int argc, char *argv[])
 	if (argc > 1) {
 		nreaders = strtoul(argv[1], NULL, 0);
 		if (argc == 2)
-			perftest(nreaders);
+			perftest(nreaders, cpustride);
+		if (argc > 3)
+			cpustride = strtoul(argv[3], NULL, 0);
 		if (strcmp(argv[2], "perf") == 0)
-			perftest(nreaders);
+			perftest(nreaders, cpustride);
 		else if (strcmp(argv[2], "rperf") == 0)
-			rperftest(nreaders);
+			rperftest(nreaders, cpustride);
 		else if (strcmp(argv[2], "uperf") == 0)
-			uperftest(nreaders);
+			uperftest(nreaders, cpustride);
 		else if (strcmp(argv[2], "stress") == 0)
 			stresstest(nreaders);
 		usage(argc, argv);
 	}
-	perftest(1);
+	perftest(nreaders, cpustride);
 }

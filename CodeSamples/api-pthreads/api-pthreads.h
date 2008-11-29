@@ -122,14 +122,23 @@ spinlock_t __thread_id_map_mutex;
 		if ((__thread_id_map[t] != __THREAD_ID_MAP_EMPTY) && \
 		    (__thread_id_map[t] != __THREAD_ID_MAP_WAITING))
 
-static int smp_thread_id(void)
+pthread_key_t thread_id_key;
+
+static int __smp_thread_id(void)
 {
 	int i;
 	thread_id_t tid = pthread_self();
 
 	for (i = 0; i < NR_THREADS; i++) {
-		if (__thread_id_map[i] == tid)
+		if (__thread_id_map[i] == tid) {
+			long v = i;
+
+			if (pthread_setspecific(thread_id_key, (void *)v) != 0) {
+				perror("pthread_setspecific");
+				exit(-1);
+			}
 			return i;
+		}
 	}
 	spin_lock(&__thread_id_map_mutex);
 	for (i = 0; i < NR_THREADS; i++) {
@@ -140,6 +149,16 @@ static int smp_thread_id(void)
 	spin_unlock(&__thread_id_map_mutex);
 	fprintf(stderr, "smp_thread_id: Rogue thread, id: %d(%#x)\n", tid, tid);
 	exit(-1);
+}
+
+static int smp_thread_id(void)
+{
+	void *id;
+
+	id = pthread_getspecific(thread_id_key);
+	if (id == NULL)
+		return __smp_thread_id();
+	return (long)id;
 }
 
 static thread_id_t create_thread(void *(*func)(void *), void *arg)
@@ -352,4 +371,8 @@ static void smp_init(void)
 	for (i = 1; i < NR_THREADS; i++)
 		__thread_id_map[i] = __THREAD_ID_MAP_EMPTY;
 	init_per_thread(smp_processor_id, 0);
+	if (pthread_key_create(&thread_id_key, NULL) != 0) {
+		perror("pthread_key_create");
+		exit(-1);
+	}
 }
