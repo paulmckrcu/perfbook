@@ -25,12 +25,14 @@ for rcu in rcu rcu64 rcu_lock rcu_lock_percpu rcu_nest \
 do
 	for ncpu in 1 2 3 4 6 8
 	do
-		echo $rcu $ncpu rperf
-		./$rcu $ncpu rperf
+		echo $rcu $ncpu rperf 2
+		./$rcu $ncpu rperf 2
+		sleep 1
 	done
 	for ncpu in 1 2 3 4 6 8
 	do
-		echo $rcu $ncpu uperf
-		./$rcu $ncpu uperf
+		echo $rcu $ncpu uperf 2
+		./$rcu $ncpu uperf 2
+		sleep 1
 	done
 done

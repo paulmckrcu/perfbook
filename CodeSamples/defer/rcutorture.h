@@ -31,6 +31,7 @@ DEFINE_PER_THREAD(long long, n_updates_pt);
 long long n_reads = 0LL;
 long n_updates = 0L;
 atomic_t nthreadsrunning;
+char argsbuf[64];
 
 #define GOFLAG_INIT 0
 #define GOFLAG_RUN  1
@@ -69,6 +70,7 @@ void *rcu_read_perf_test(void *arg)
 	int i;
 	int me = (long)arg;
 	cpu_set_t mask;
+	long long n_reads_local = 0;
 
 	__CPU_ZERO(&mask);
 	__CPU_SET(me, &mask);
@@ -79,13 +81,14 @@ void *rcu_read_perf_test(void *arg)
 	while (goflag == GOFLAG_RUN) {
 		for (i = 0; i < RCU_READ_RUN; i++) {
 			rcu_read_lock();
-			rcu_read_lock_nest();
-			rcu_read_unlock_nest();
+			/* rcu_read_lock_nest(); */
+			/* rcu_read_unlock_nest(); */
 			rcu_read_unlock();
 		}
-		__get_thread_var(n_reads_pt) += RCU_READ_RUN;
+		n_reads_local += RCU_READ_RUN;
 		mark_rcu_quiescent_state();
 	}
+	__get_thread_var(n_reads_pt) += n_reads_local;
 	put_thread_offline();
 
 	return (NULL);
@@ -93,13 +96,16 @@ void *rcu_read_perf_test(void *arg)
 
 void *rcu_update_perf_test(void *arg)
 {
+	long long n_updates_local = 0;
+
 	atomic_inc(&nthreadsrunning);
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 1);
 	while (goflag == GOFLAG_RUN) {
 		synchronize_rcu();
-		__get_thread_var(n_updates_pt)++;
+		n_updates_local++;
 	}
+	__get_thread_var(n_updates_pt) += n_updates_local;
 }
 
 void perftestinit(void)

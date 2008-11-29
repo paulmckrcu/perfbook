@@ -131,7 +131,7 @@ static int __smp_thread_id(void)
 
 	for (i = 0; i < NR_THREADS; i++) {
 		if (__thread_id_map[i] == tid) {
-			long v = i;
+			long v = i + 1;  /* must be non-NULL. */
 
 			if (pthread_setspecific(thread_id_key, (void *)v) != 0) {
 				perror("pthread_setspecific");
@@ -158,7 +158,7 @@ static int smp_thread_id(void)
 	id = pthread_getspecific(thread_id_key);
 	if (id == NULL)
 		return __smp_thread_id();
-	return (long)id;
+	return (long)(id - 1);
 }
 
 static thread_id_t create_thread(void *(*func)(void *), void *arg)
