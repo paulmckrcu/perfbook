@@ -14,7 +14,10 @@
 #
 # Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
 
-GCC_ARGS=-g -O
+GCC_ARGS=-g -O3
+
+# http://www.ibm.com/developerworks/wikis/display/hpccentral/Tuning+options+to+consider+with+gcc#Tuningoptionstoconsiderwithgcc-mcpuandmtune
+# GCC_ARGS=-g -O3 -m64 -mcpu=power5 -mtune=power5
 
 all: gettimestamp gettimestampmp rcu rcu64 rcu_lock rcu_lock_percpu rcu_nest rcu_nest_qs rcu_qs rcu_rcg rcu_rcpg rcu_rcpl rcu_rcpls rcu_ts
 
