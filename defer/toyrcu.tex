@@ -61,7 +61,10 @@ RCU semantics.
 Of course, only one RCU reader may be in its read-side critical section
 at a time, which almost entirely defeats the purpose of RCU.
 In addition, the lock operations in \url{rcu_read_lock()} and
-\url{rcu_read_unlock()} are extremely heavyweight, and, worse yet,
+\url{rcu_read_unlock()} are extremely heavyweight,
+with read-side overhead ranging from about 100~nanoseconds on a single Power5
+CPU up to almost 18~\emph{microseconds} on a 64-CPU system.
+Worse yet,
 these same lock operations permit \url{rcu_read_lock()}
 to participate in deadlock cycles.
 Furthermore, in absence of recursive locks, 
@@ -140,6 +143,9 @@ preventing grace-period sharing.
 It is hard to imagine this implementation being useful
 in a production setting, though it does have the virtue
 of being implementable in almost any user-level application.
+Furthermore, similar implementations having one lock per CPU
+or using reader-writer locks actually have been used in production
+in the 2.4 Linux kernel.
 
 The counter-based RCU implementation described next overcomes some of
 the shortcomings of the lock-based implementation.
@@ -206,10 +212,16 @@ participate in deadlock cycles, as it never spins nor blocks.
 
 However, this implementations still has some serious shortcomings.
 First, the atomic operations in \url{rcu_read_lock()} and
-\url{rcu_read_unlock()} are still quite  heavyweight.
+\url{rcu_read_unlock()} are still quite  heavyweight,
+with read-side overhead ranging from about 100~nanoseconds on
+a single Power5 CPU up to more than 20~\emph{microseconds}
+on a 64-CPU system.
 This means that the RCU read-side critical sections
 have to be extremely long in order to get any real
 read-side parallelism.
+On the other hand, in the absence of readers, grace periods elapse
+in about 40~\emph{nanoseconds}, many orders of magnitude faster
+than production-quality implementations in the Linux kernel.
 Second, if there are many concurrent \url{rcu_read_lock()}
 and \url{rcu_read_unlock()} operations, there will
 be extreme memory contention on \url{rcu_refcnt},
@@ -247,7 +259,8 @@ sharing.
 
 Therefore, it is still hard to imagine this implementation being useful
 in a production setting, though it has a bit more potential
-than the lock-based mechanism.
+than the lock-based mechanism, for example, as an RCU implementation
+suitable for a high-stress debugging environment.
 The next section describes a variation on the reference-counting
 scheme that is more favorable to writers.
 
@@ -466,9 +479,15 @@ Figure~\ref{fig:defer:RCU Implementation Using Single Global Reference Counter}.
 There are still some serious shortcomings.
 First, the atomic operations in \url{rcu_read_lock()}
 and \url{rcu_read_unlock()}
-are still quite heavyweight, in fact, they are more complex than those
+are still quite heavyweight.
+In fact, they are more complex than those
 of the single-counter variant shown in
-Figure~\ref{fig:defer:RCU Implementation Using Single Global Reference Counter}.
+Figure~\ref{fig:defer:RCU Implementation Using Single Global Reference Counter},
+with the read-side primitives consuming about 150~nanoseconds on a single
+Power5 CPU and almost 40~\emph{microseconds} on a 64-CPU system.
+The updates-side \url{synchronize_rcu()} primitive is more costly as
+well, ranging from about 200~nanoseconds on a single Power5 CPU to
+more than 40~\emph{microseconds} on a 64-CPU system.
 This means that the RCU read-side critical sections
 have to be extremely long in order to get any real
 read-side parallelism.
@@ -668,7 +687,13 @@ Finally, as noted in the text, the need for per-thread variables
 and for enumerating threads may be problematic in some software
 environments.
 
-Nevertheles, this implementation could conceivably form the basis for a
+That said, the read-side primitives scale very nicely, requiring about
+115~nanoseconds regardless of whether running on a single-CPU or a 64-CPU
+Power5 system.
+As noted above, the \url{synchronize_rcu()} primitive does not scale,
+ranging in overhead from about a microsecond on a single Power5 CPU
+up to almost 200~microseconds on a 64-CPU system.
+this implementation could conceivably form the basis for a
 production-quality user-level RCU implementation.
 
 The next section describes an algorithm permitting more efficient
@@ -837,10 +862,17 @@ preempted for more than an hour, in which case an
 extra pair of counter flips is likely the least of
 your worries.
 
-Despite these shortcomings, one could imagine this variant
-of RCU being used in production in real-life applications.
-
-% @@@ cover one of the user-level RCU implementations after LCA2009.
+As with the implementation described in
+Section~\ref{defer:Simple Counter-Based RCU},
+the read-side primitives scale extremely well, incurring roughly
+115~nanoseconds of overhead regardless of the number of CPUs.
+The \url{synchronize_rcu()} primitives is still expensive,
+ranging from about one microsecond up to about 16~microseconds.
+This is nevertheless much cheaper than the roughly 200~microseconds
+incurred by the implementation in
+Section~\ref{defer:Scalable Counter-Based RCU}.
+So, despite its shortcomings, one could imagine this
+RCU implementation being used in production in real-life applications.
 
 \QuickQuiz{All of these toy RCU implementations have either atomic operations
 	in \url{rcu_read_lock()} and \url{rcu_read_unlock()},
@@ -854,3 +886,58 @@ of RCU being used in production in real-life applications.
 	this ideal.
 	See @@@.
 } \QuickQuizEnd
+
+Referring back to
+Figure~\ref{fig:defer:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update},
+we see that there is one global-variable access and no fewer than four
+accesses to thread-local variables.
+Given the relatively high cost of thread-local accesses on systems
+implementing POSIX threads, it is tempting to collapse the three
+thread-local variables into a single structure, permitting
+\url{rcu_read_lock()} and \url{rcu_read_unlock()} to access their
+thread-local data with a single thread-local-storage access.
+However, an even better approach would be to reduce the number of
+thread-local accesses to one, as is done in the next section.
+
+\subsection{RCU Based on Free-Running Counter}
+\label{defer:RCU Based on Free-Running Counter}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void rcu_read_lock(void)
+  2 {
+  3   __get_thread_var(rcu_reader_gp) = rcu_gp_ctr + 1;
+  4   smp_mb();
+  5 }
+  6 
+  7 static void rcu_read_unlock(void)
+  8 {
+  9   smp_mb();
+ 10   __get_thread_var(rcu_reader_gp) = rcu_gp_ctr;
+ 11 }
+ 12 
+ 13 void synchronize_rcu(void)
+ 14 {
+ 15   int t;
+ 16 
+ 17   smp_mb();
+ 18   spin_lock(&rcu_gp_lock);
+ 19   rcu_gp_ctr += 2;
+ 20   smp_mb();
+ 21   for_each_thread(t) {
+ 22     while ((per_thread(rcu_reader_gp, t) & 0x1) &&
+ 23            ((per_thread(rcu_reader_gp, t) -
+ 24              rcu_gp_ctr) < 0)) {
+ 25       poll(NULL, 0, 10);
+ 26     }
+ 27   }
+ 28   spin_unlock(&rcu_gp_lock);
+ 29   smp_mb();
+ 30 }
+\end{verbatim}
+}
+\caption{Free-Running Counter Using RCU}
+\label{fig:defer:Free-Running Counter Using RCU}
+\end{figure}
+
