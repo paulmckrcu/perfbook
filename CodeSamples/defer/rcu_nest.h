@@ -42,6 +42,7 @@ static void rcu_init(void)
 static void rcu_read_lock(void)
 {
 	long tmp;
+	long *rrgp;
 
 	/*
 	 * If this is the outermost RCU read-side critical section,
@@ -49,11 +50,12 @@ static void rcu_read_lock(void)
 	 * increment the nesting count held in the low-order bits.
 	 */
 
-	tmp = __get_thread_var(rcu_reader_gp);
+	rrgp = &__get_thread_var(rcu_reader_gp);
+	tmp = *rrgp;
 	if ((tmp & RCU_GP_CTR_NEST_MASK) == 0)
 		tmp = rcu_gp_ctr;
 	tmp++;
-	__get_thread_var(rcu_reader_gp) = tmp;
+	*rrgp = tmp;
 	smp_mb();
 }
 
