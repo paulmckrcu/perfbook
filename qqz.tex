@@ -852,6 +852,137 @@ What would you have to do to figure this out?
 	this ideal.
 	See @@@.
 
+\QuickQ{Why are the memory barriers on lines~17 and 29 of
+	Figure~\ref{fig:defer:Free-Running Counter Using RCU}
+	needed?
+	Aren't the memory barriers inherent in the locking
+	primitives on lines~18 and 28 sufficient?}
+
+	These memory barriers are required because the locking
+	primitives are only guaranteed to confine the critical
+	section.
+	The locking primitives are under absolutely no obligation
+	to keep other code from bleeding in to the critical section.
+	The pair of memory barriers are therefore requires to prevent
+	this sort of code motion, whether performed by the compiler
+	or by the CPU.
+
+\QuickQ{Couldn't the update-side optimization described in
+	Section~\ref{defer:Scalable Counter-Based RCU With Shared Grace Periods}
+	be applied to the implementation shown in
+	Figure~\ref{fig:defer:Free-Running Counter Using RCU}?}
+
+	Indeed it could, with a few modifications.
+	This work is left as an exercise for the reader.
+
+\QuickQ{Why not simply maintain a separate per-thread nesting-level
+	variable, as was done in previous section, rather than having
+	all this complicated bit manipulation?}
+
+	The apparent simplicity of the separate per-thread variable
+	is a red herring.
+	This approach incurs much greater complexity in the guise
+	of careful ordering of operations, especially if signal
+	handlers are to be permitted to contain RCU read-side
+	critical sections.
+	But don't take my word for it, code it up and see what you
+	end up with!
+
+\QuickQ{Given the algorithm shown in
+	Figure~\ref{fig:defer:Nestable RCU Using a Free-Running Counter},
+	how could you double the time required to overflow the global
+	\url{rcu_gp_ctr}?}
+
+	One way would be to replace the magnitude comparison on
+	lines~33 and 34 with an inequality check of the per-thread
+	\url{rcu_reader_gp} variable against
+	\url{rcu_gp_ctr+RCU_GP_CTR_BOTTOM_BIT}.
+
+\QuickQ{Again, given the algorithm shown in
+	Figure~\ref{fig:defer:Nestable RCU Using a Free-Running Counter},
+	is counter overflow fatal?
+	Why or why not?
+	If it is fatal, what can be done to fix it?}
+
+	It can indeed be fatal.
+	To see this, consider the following sequence of events:
+	\begin{enumerate}
+	\item	Thread~0 enters \url{rcu_read_lock()}, determines
+		that it is not nested, and therefore fetches the
+		value of the global \url{rcu_gp_ctr}.
+		Thread~0 is then preempted for an extremely long time
+		(before storing to its per-thread \url{rcu_reader_gp}
+		variable).
+	\item	Other threads repeatedly invoke \url{synchronize_rcu()},
+		so that the new value of the global \url{rcu_gp_ctr}
+		is now \url{RCU_GP_CTR_BOTTOM_BIT}
+		less than it was when thread~0 fetched it.
+	\item	Thread~0 now starts running again, and stores into
+		its per-thread \url{rcu_reader_gp} variable.
+		The value it stores is
+		\url{RCU_GP_CTR_BOTTOM_BIT+1}
+		greater than that of the global \url{rcu_gp_ctr}.
+	\item	Thread~0 acquires a reference to RCU-protected data
+		element~A.
+	\item	Thread 1 now removes the data element~A that thread~0
+		just acquired a reference to.
+	\item	Thread 1 invokes \url{synchronize_rcu()}, which
+		increments the global \url{rcu_gp_ctr} by
+		\url{RCU_GP_CTR_BOTTOM_BIT}.
+		It then checks all of the per-thread \url{rcu_reader_gp}
+		variables, but thread~0's value (incorrectly) indicates
+		that it started after thread~1's call to
+		\url{syncrhonize_rcu()}, so thread~1 does not wait
+		for thread~0 to complete its RCU read-side critical
+		section.
+	\item	Thread 1 then frees up data element~A, which thread~0
+		is still referencing.
+	\end{enumerate}
+
+	Note that scenario can also occur in the implementation presented in
+	Section~\ref{defer:RCU Based on Free-Running Counter}.
+
+	One strategy for fixing this problem is to use 64-bit
+	counters so that the time required to overflow them would exceed
+	the useful lifetime of the computer system.
+	Note that non-antique members of the 32-bit x86 CPU family 
+	allow atomic manipulation of 64-bit counters via the
+	\url{cmpxchg64b} instruction.
+
+	Another strategy is to limit the rate at which grace periods are
+	permitted to occur in order to achieve a similar effect.
+	For example, \url{synchronize_rcu()} could record the last time
+	that it was invoked, and any subsequent invocation would then
+	check this time and block as needed to force the desired
+	spacing.
+	For example, if the low-order four bits of the counter were
+	reserved for nesting, and if grace periods were permitted to
+	occur at most ten times per second, then it would take more
+	than 300 days for the counter to overflow.
+	However, this approach is not helpful if there is any possibility
+	that the system will be fully loaded with CPU-bound high-priority
+	real-time threads for the full 300 days.
+	(A remote possibility, perhaps, but best to consider it ahead
+	of time.)
+
+	A third approach is to adminstratively abolish real-time threads
+	from the system in question.
+	In this case, the preempted process will age up in priority,
+	thus getting to run long before the counter had a chance to
+	overflow.
+	Of course, this approach is less than helpful for real-time
+	applications.
+
+	A final approach would be for \url{rcu_read_lock()} to recheck
+	the value of the global \url{rcu_gp_ctr} after storing to its
+	per-thread \url{rcu_reader_gp} counter, retrying if the new
+	value of the global \url{rcu_gp_ctr} is inappropriate.
+	This works, but introduces non-deterministic execution time
+	into \url{rcu_read_lock()}.
+	On the other hand, if your application is being preempted long
+	enough for the counter to overflow, you have no hope of
+	deterministic execution time in any case!
+
 \QuickQAC{sec:advsync:Advanced Synchronization}
 \QuickQ{How on earth could the assertion on line~21 of the code in
 	Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal} on
