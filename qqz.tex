@@ -706,6 +706,19 @@ What would you have to do to figure this out?
 	read-acquired in \url{rcu_read_lock()} would avoid the
 	deadlock condition noted above.
 
+\QuickQ{How can the grace period possibly elapse in 40 nanoseconds when
+	\url{synchronize_rcu()} contains a 10-millisecond delay?}
+
+	The update-side test was run in absence of readers, so the
+	\url{poll()} system call was never invoked.
+	In addition, the actual code has this \url{poll()}
+	system call commented out, the better to evaluate the
+	true overhead of the update-side code.
+	Any production uses of this code would be better served by
+	using the \url{poll()} system call, but then again,
+	production uses would be even better served by other implementations
+	shown later in this section.
+
 \QuickQ{Why not simply make \url{rcu_read_lock()} wait when a concurrent
 	\url{synchronize_rcu()} has been waiting too long in
 	the RCU implementation in
@@ -852,6 +865,17 @@ What would you have to do to figure this out?
 	this ideal.
 	See @@@.
 
+\QuickQ{If any even value is sufficient to tell \url{synchronize_rcu()}
+	to ignore a given task, why doesn't line~10 of
+	Figure~\ref{fig:defer:Free-Running Counter Using RCU}
+	simply assign zero to \url{rcu_reader_gp}?}
+
+	Assigning zero (or any other even-numbered constant)
+	would in fact work, but assigning the value of
+	\url{rcu_gp_ctr} can provide a valuable debugging aid,
+	as it gives the developer an idea of when the corresponding
+	thread last exited an RCU read-side critical section.
+
 \QuickQ{Why are the memory barriers on lines~17 and 29 of
 	Figure~\ref{fig:defer:Free-Running Counter Using RCU}
 	needed?
@@ -982,6 +1006,61 @@ What would you have to do to figure this out?
 	On the other hand, if your application is being preempted long
 	enough for the counter to overflow, you have no hope of
 	deterministic execution time in any case!
+
+\QuickQ{Doesn't the additional memory barrier shown on line~19 of
+	Figure~\ref{fig:defer:RCU Read Side Using Quiescent States},
+	greatly increase the overhead of \url{rcu_quiescent_state}?}
+
+	Indeed it does!
+	An application using this implementation of RCU should therefore
+	invoke \url{rcu_quiescent_state} sparingly, instead using
+	\url{rcu_read_lock()} and \url{rcu_read_unlock()} most of the
+	time.
+
+	Alternatively, the application might ensure that all counters
+	are at least 64 bits wide in order to prevent overflow from
+	happening during the machine's lifetime.
+	However, given 64-bit counters, a simpler algorithm is possible
+	(see for example \url{rcu64.h} and \url{rcu64.c}).
+
+\QuickQ{Why are the two memory barriers on lines~30 and 31 of
+	Figure~\ref{fig:defer:RCU Read Side Using Quiescent States}
+	needed?}
+
+	The memory barrier on line~30 prevents any RCU read-side
+	critical sections that might precede the
+	call to \url{rcu_thread_offline()} won't be reordered by either
+	the compiler or the CPU to follow the assignment on line~31.
+	The memory barrier on line~31 is, strictly speaking, unnecessary,
+	as it is illegal to have any RCU read-side critical sections
+	following the call to \url{rcu_thread_offline()}.
+
+\QuickQ{To be sure, the clock frequencies of ca-2008 Power
+	systems were quite high, but even 5GHz doesn't permit
+	loops to be executed in a tenth of a nanosecond!
+	What is going on here?}
+
+	Since the measurement loop contains a pair of empty functions,
+	the compiler optimizes it away.
+	The measurement loop takes 1,000 passes between each call to
+	\url{rcu_quiescent_state()}, so this measurement is roughly
+	one thousandth of the overhead of a single call to
+	\url{rcu_quiescent_state()}.
+
+\QuickQ{Why would the fact that the code is in a library make
+	any difference for how easy it is to use the RCU
+	implementation shown in
+	Figures~\ref{fig:defer:RCU Read Side Using Quiescent States} and
+	\ref{fig:defer:RCU Update Side Using Quiescent States}?}
+
+	A library function has absolutely no control over the caller,
+	and thus cannot force the caller to invoke \url{rcu_quiescent_state()}
+	periodically.
+	On the other hand, a library function that made many references
+	to a given RCU-protected data structure might be able to invoke
+	\url{rcu_thread_online()} upon entry,
+	\url{rcu_quiescent_state()} periodically, and
+	\url{rcu_thread_offline()} upon exit.
 
 \QuickQAC{sec:advsync:Advanced Synchronization}
 \QuickQ{How on earth could the assertion on line~21 of the code in

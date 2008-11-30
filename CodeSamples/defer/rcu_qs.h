@@ -3,9 +3,9 @@
  * read-side memory barriers, while still permitting threads to block
  * indefinitely outside of an RCU read-side critical section without
  * also blocking grace periods, as long as the last RCU read-side critical
- * section is followed by a call to thread_offline().  A call to
- * thread_online() must appear between a call to thread_offline() and the
- * next RCU read-side critical section.
+ * section is followed by a call to rcu_thread_offline().  A call to
+ * rcu_thread_online() must appear between a call to rcu_thread_offline()
+ * and the next RCU read-side critical section.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,8 +31,8 @@ long rcu_gp_ctr = 0;	/* increment by RCU_GP_CTR_BOTTOM_BIT each gp. */
 DEFINE_PER_THREAD(long, rcu_reader_qs_gp);
 
 #define mark_rcu_quiescent_state() rcu_quiescent_state()
-#define put_thread_offline() thread_offline()
-#define put_thread_online() thread_online()
+#define put_thread_offline() rcu_thread_offline()
+#define put_thread_online() rcu_thread_online()
 
 static inline int rcu_gp_ongoing(int thread)
 {
@@ -72,14 +72,14 @@ retry:
 	}
 }
 
-static void thread_offline(void)
+static void rcu_thread_offline(void)
 {
 	smp_mb();
 	__get_thread_var(rcu_reader_qs_gp) = rcu_gp_ctr;
 	smp_mb();
 }
 
-static void thread_online(void)
+static void rcu_thread_online(void)
 {
 	rcu_quiescent_state();
 }

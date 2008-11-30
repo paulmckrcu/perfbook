@@ -33,8 +33,8 @@ DEFINE_PER_THREAD(long, rcu_reader_gp);
 DEFINE_PER_THREAD(long, rcu_reader_qs_gp);
 
 #define mark_rcu_quiescent_state() rcu_quiescent_state()
-#define put_thread_offline() thread_offline()
-#define put_thread_online() thread_online()
+#define put_thread_offline() rcu_thread_offline()
+#define put_thread_online() rcu_thread_online()
 
 static inline int rcu_gp_ongoing(int cpu)
 {
@@ -99,14 +99,14 @@ static void rcu_quiescent_state(void)
 	smp_mb();
 }
 
-static void thread_offline(void)
+static void rcu_thread_offline(void)
 {
 	smp_mb();
 	__get_thread_var(rcu_reader_qs_gp) = rcu_gp_ctr;
 	smp_mb();
 }
 
-static void thread_online(void)
+static void rcu_thread_online(void)
 {
 	smp_mb();
 	__get_thread_var(rcu_reader_qs_gp) = rcu_gp_ctr + 1;

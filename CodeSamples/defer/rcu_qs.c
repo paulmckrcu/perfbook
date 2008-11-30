@@ -3,9 +3,9 @@
  * read-side memory barriers, while still permitting threads to block
  * indefinitely outside of an RCU read-side critical section without
  * also blocking grace periods, as long as the last RCU read-side critical
- * section is followed by a call to thread_offline().  A call to
- * thread_online() must appear between a call to thread_offline() and the
- * next RCU read-side critical section.
+ * section is followed by a call to rcu_thread_offline().  A call to
+ * rcu_thread_online() must appear between a call to rcu_thread_offline()
+ * and the next RCU read-side critical section.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -52,7 +52,7 @@ void synchronize_rcu(void)
 	for_each_thread(t) {
 		while (rcu_gp_ongoing(t) &&
 		       ((per_thread(rcu_reader_qs_gp, t) - rcu_gp_ctr) < 0)) {
-			poll(NULL, 0, 10);
+			/* @@@ poll(NULL, 0, 10); */
 		}
 	}
 
