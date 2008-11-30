@@ -55,8 +55,10 @@ static void rcu_read_lock(void)
 	if ((tmp & RCU_GP_CTR_NEST_MASK) == 0)
 		tmp = rcu_gp_ctr;
 	tmp++;
+	/* BUG!!!  Counter overflow while preempted here can break RCU. */
 	*rrgp = tmp;
 	smp_mb();
+
 }
 
 static void rcu_read_unlock(void)
