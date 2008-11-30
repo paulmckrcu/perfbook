@@ -56,9 +56,20 @@ static void rcu_read_unlock(void)
 
 rcu_quiescent_state(void)
 {
+	long tmp1;
+	long tmp2;
+	long delta;
+
+retry:
 	smp_mb();
-	__get_thread_var(rcu_reader_qs_gp) = rcu_gp_ctr + 1;
+	tmp1 = ACCESS_ONCE(rcu_gp_ctr);
+	__get_thread_var(rcu_reader_qs_gp) = tmp1 + 1;
 	smp_mb();
+	if (unlikely(tmp1 != (tmp2 = ACCESS_ONCE(rcu_gp_ctr)))) {
+		delta = tmp2 - tmp1;
+		if (unlikely(delta < 0 || delta > (~0UL >> 2)))
+			goto retry;
+	}
 }
 
 static void thread_offline(void)
