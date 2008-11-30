@@ -34,9 +34,9 @@ DEFINE_PER_THREAD(long, rcu_reader_qs_gp);
 #define put_thread_offline() thread_offline()
 #define put_thread_online() thread_online()
 
-static inline int rcu_gp_ongoing(int cpu)
+static inline int rcu_gp_ongoing(int thread)
 {
-	return per_thread(rcu_reader_qs_gp, cpu) & 1;
+	return per_thread(rcu_reader_qs_gp, thread) & 1;
 }
 
 static void rcu_init(void)
