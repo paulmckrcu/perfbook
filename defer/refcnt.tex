@@ -6,21 +6,67 @@
 Reference counting tracks the number of references
 to a given object in order to prevent that object from being prematurely
 freed.
-Although this is a conceptually simple technique, there are a great
-many variants adapted to different situations.
-This is analogous to similar situations in construction, for example,
-a hinge is simply a hinge, but there is an astonishing variety
-of hinges for different purposes.
-Insisting that programmers use a single style of reference counting
-is as nonsensical as insisting that all doors and cabinets use a single
-style of hinge -- after all, a hinge designed for a bank vault might
-be inappropriate for a kitchen cabinet.\footnote{
-	My wife concurs, with the possible exception of kitchen
-	cabinets filled with truffles.
-	Your mileage with your own spouse may vary.}
-The examples herein are taken from the Linux 2.6.19 kernel,
-with primitives described in
-Section~\ref{sec:defer:Linux Primitives Supporting Reference Counting}.
+Although this is a conceptually simple technique, many devils hide in
+the details.
+After all, if the object was not subject to being prematurely freed,
+there would be no need for the reference counter.
+But if the object \emph{is} subject to being prematurely freed,
+what prevents that object from being freed during
+the reference-acquisition process itself?
+
+There are a number of possible answers to this question, including:
+
+\begin{enumerate}
+\item	A lock residing outside of the object must be held while
+	manipulating the reference count.
+	Note that there are a wide variety of types of locks,
+	however, pretty much any type will suffice.
+\item	The object is created with a non-zero reference count, and new
+	references may be acquired only when the current value of
+	the reference counter is non-zero.
+	Once acquired, a reference may be handed off to some
+	other entity.
+\item	An existence guarantee is provided for the object, so that
+	it cannot be freed during any time interval when some
+	entity might be attempting to acquire a reference.
+	Existence guarantees are often provided by automatic
+	garbage collectors, and, as will be seen in
+	Section~\ref{sec:defer:Read-Copy Update (RCU)}, they can
+	also be provided by RCU.
+\item	A type-safety guarantee is provided for the object, and there
+	is in addition some identity check that can be performed once
+	the reference is acquired.
+	Type-safety guarantees can be provided by special-purpose
+	memory allocators, and can also be provided by the
+	\url{SLAB_DESTROY_BY_RCU} feature within the Linux kernel,
+	again, as will be seen in
+	Section~\ref{sec:defer:Read-Copy Update (RCU)}.
+\end{enumerate}
+
+Of course, any mechanism that provides existence guarantees
+by definition also provides type-safety guarantees.
+This section will therefore group the last two answers together under the
+rubric of RCU, leaving us with three general categories of
+reference-acquisition protection, namely, locking, reference counting,
+and RCU.
+
+\QuickQuiz{Why not implement reference-acquisition using
+	a simple compare-and-swap operation that only
+	acquires a reference if the reference counter is
+	non-zero?}
+\QuickQuizAnswer{
+	Although this can resolve the race between the release of
+	the last reference and acquisition of a new reference,
+	it does absolutely nothing to prevent the data structure
+	from being freed and reallocated, possibly as some completely
+	different type of structure.
+	It is quite likely that the ``simple compare-and-swap
+	operation'' would give undefined results if applied to the
+	differently typed structure.
+
+	In short, use of atomic operations such as compare-and-swap
+	absolutely requires either type-safety or existence guarantees.
+} \QuickQuizEnd
 
 \begin{table}
 \centering
@@ -42,16 +88,12 @@ Section~\ref{sec:defer:Linux Primitives Supporting Reference Counting}.
 \label{tab:defer:Reference Counting and Synchronization Mechanisms}
 \end{table}
 
-A key reason for the variety of reference-counting techniques is the
-wide variety of mechanisms used to protect objects from concurrent
-access.
-Furthermore, the same object might be protected by different mechanisms
-at different times, which further increases the required number
-of styles of reference counting.
-In the Linux kernel, the main categories of synchronization
-mechanisms are (1) locking,
-including semaphores and mutexes, (2) reference counts, and (3) RCU.
-Table~\ref{tab:defer:Reference Counting and Synchronization Mechanisms}
+Given that the key reference-counting issue
+is synchronization between acquisition
+of a reference and freeing of the object, we have nine possible
+combinations of mechanisms, as shown in
+Table~\ref{tab:defer:Reference Counting and Synchronization Mechanisms}.
+This table
 divides reference-counting mechanisms into the following broad categories:
 \begin{enumerate}
 \item	Simple counting with neither atomic operations, memory
@@ -72,8 +114,8 @@ However, because all Linux-kernel atomic operations that return a
 value are defined to contain memory barriers, all release operations
 contain memory barriers, and all checked acquisition operations also
 contain memory barriers.
-Therefore, cases ``CA'' and ``MCA'' are equivalent to ``CAM''.
-Therefore, there are sections below for only the first four cases:
+Therefore, cases ``CA'' and ``MCA'' are equivalent to ``CAM'', so that
+there are sections below for only the first four cases:
 \makebox{``-''}, ``A'', ``AM'', and ``CAM''.
 The Linux primitives that support reference counting are presented in
 Section~\ref{sec:defer:Linux Primitives Supporting Reference Counting}.
@@ -563,6 +605,7 @@ counter.
 	  for an example of this technique.}{
 	  See the paper on sleepable read-copy update
 	  (SRCU) for an example of this technique~\cite{PaulEMcKenney2006c}.}
+% @@@ need a section or chapter on counting...
 This approach eliminates the need for atomic instructions or memory
 barriers on the increment and decrement primitives, but still requires
 that code-motion compiler optimizations be disabled.
