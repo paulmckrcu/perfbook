@@ -50,8 +50,8 @@ As such, this section is intended for hard-core hackers who wish
 to understand hierarchical RCU at a very low level.
 Hard-core masochists might also be interested in reading this section.
 
-\subsection{Data Structures and Module Parameters}
-\label{app:rcuimpl:rcutreewt:Data Structures and Module Parameters}
+\subsection{Data Structures and Kernel Parameters}
+\label{app:rcuimpl:rcutreewt:Data Structures and Kernel Parameters}
 
 @@@ roadmap @@@
 
@@ -182,7 +182,7 @@ Each \url{rcu_node} in this hierarchy has fields as follows:
 	or NULL for the root \url{rcu_node} structure.
 \end{description}
 
-\subsection{Per-CPU Data}
+\subsubsection{Per-CPU Data}
 \label{app:rcuimpl:rcutreewt:Per-CPU Data}
 
 The \url{rcu_data} structure contains RCU's per-CPU state.
@@ -401,16 +401,326 @@ Each of these fields is described below.
 	\url{force_quiescent_state()} is invoked to expedite it.
 \end{description}
 
-\subsection{RCU Global State}
+\subsubsection{RCU Global State}
 \label{app:rcuimpl:rcutreewt:RCU Global State}
 
-@@@
+The \url{rcu_state} structure contains RCU's global state for
+each instance of RCU (rcu and rcu\_bh).
+It includes fields relating to
+the hierarchy of \url{rcu_node} structures, including
+the \url{node} array itself,
+the \url{level} array that contains
+pointers to the levels of the hierarchy,
+the \url{levelcnt} array that contains the count of nodes at each level
+of the hierarchy,
+the \url{levelspread} array that contains the number of children
+per node for each level of the hierarchy,
+and the \url{rda} array of pointer to each of the CPU's
+\url{rcu_data} structures.
+The \url{rcu_state} structure also contains a number of fields
+coordinating various details of the current grace period and its
+interaction with other mechanisms (\url{signaled},
+\url{gpnum}, \url{completed}, \url{onofflock}, \url{fqslock},
+\url{jiffies_force_qs}, \url{n_force_qs}, \url{n_force_qs_lh},
+\url{n_force_qs_ngp}, \url{gp_start}, \url{jiffies_stall},
+and \url{dynticks_completed}).
+
+Each of these fields are described below.
+
+\begin{description}
+\item[\url{node}:]
+	This field is the array of \url{rcu_node} structures,
+	with the root node of the hierarchy being located at
+	\url{->node[0]}.
+	The size of this array is specified by the
+	\url{NUM_RCU_NODES} C-preprocessor macro, which is computed
+	from \url{NR_CPUS} and \url{CONFIG_RCU_FANOUT}
+	as described in
+	Section~\ref{app:rcuimpl:rcutreewt:Kernel Parameters}.
+	Note that traversing the \url{->node} array starting at
+	element zero has the effect of doing a breadth-first search
+	of the \url{rcu_node} hierarchy.
+\item[\url{level}:]
+	This field is an array of pointers into the \url{node} array.
+	The root node of the hierarchy is referenced by
+	\url{->level[0]}, the first node of the second level of
+	the hierarchy (if there is one) by \url{->level[1]}, and so on.
+	The first leaf node is referenced by
+	\url{->level[NUM_RCU_LVLS-1]}, and the size of the \url{level}
+	array is thus specified by \url{NUM_RCU_LVLS}, which is
+	computed as described in
+	Section~\ref{app:rcuimpl:rcutreewt:Kernel Parameters}.
+	The \url{->level} field is often used in combination with 
+	\url{->node} to scan a level of the \url{rcu_node} hierarchy,
+	for example, all of the leaf nodes.
+	The elements of \url{->level} are filled in by the
+	boot-time \url{rcu_init_one()} function.
+\item[\url{levelcnt}:]
+	This field is an array containing the number of \url{rcu_node}
+	structures in each level of the hierarchy, including the
+	number of \url{rcu_data} structures referencing the leaf
+	\url{rcu_node} structures, so that this array has one more
+	element than does the \url{->level} array.
+	Note that \url{->levelcnt[0]} will always contain a value of
+	one, corresponding to the single root \url{rcu_node} at the
+	top of the hierarchy.
+	This array is initialized with the values
+	\url{NUM_RCU_LVL_0},
+	\url{NUM_RCU_LVL_1},
+	\url{NUM_RCU_LVL_2}, and
+	\url{NUM_RCU_LVL_3},
+	which are C-preprocessor macros computed as described in
+	Section~\ref{app:rcuimpl:rcutreewt:Kernel Parameters}.
+	The \url{->levelcnt} field is used to initialize
+	other parts of the hierarchy and for debugging purposes.
+\item[\url{levelspread}:]
+	Each element of this field contains the desired number of children
+	for the corresponding level of the \url{rcu_node} hierarchy.
+	This array's element's values are computed at runtime
+	by one of the two \url{rcu_init_levelspread()} functions,
+	selected by the \url{CONFIG_RCU_FANOUT_EXACT} kernel parameter.
+\item[\url{rda}:]
+	Each element of this field contains a pointer to the
+	corresponding CPU's \url{rcu_data} structure.
+	This array is initialized at boot time by the
+	\url{RCU_DATA_PTR_INIT()} macro.
+\item[\url{signaled}:]
+	This field is used to maintain state used by the
+	\url{force_quiescent_state()} function, as described in
+	Section~\ref{app:rcuimpl:rcutreewt:Forcing Quiescent States}.
+	This field takes on values as follows:
+	\begin{description}
+	\item[\url{RCU_GP_INIT}:]
+		This value indicates that the current grace period
+		is still in the process of being initialized,
+		so that \url{force_quiescent_state()} should take
+		no action.
+		Of course, grace-period initialization would need
+		to stretch out for three jiffies before this race
+		could arise, but if you have a very large number
+		of CPUs, this race could in fact occur.
+		Once grace-period initialization is complete,
+		this value is set to either \url{RCU_SAVE_DYNTICK}
+		(if \url{CONFIG_NO_HZ}) or \url{RCU_FORCE_QS} otherwise.
+	\item[\url{RCU_SAVE_DYNTICK}:]
+		This value indicates that \url{force_quiescent_state()}
+		should check the dynticks state of any CPUs that have
+		not yet reported quiescent states for the current
+		grace period.
+		Quiescent states will be reported on behalf of any
+		CPUs that are in dyntick-idle mode.
+	\item[\url{RCU_FORCE_QS}:]
+		This value indicates that \url{force_quiescent_state()}
+		should recheck dynticks state along with the online/offline
+		state of any CPUs that have
+		not yet reported quiescent states for the current
+		grace period.
+		The rechecking of dynticks states allows the implementation
+		to handle cases where a given CPU might be in dynticks-idle
+		state, but have been in an irq or NMI handler both
+		times it was checked.
+		If all else fails, a reschedule IPI will be sent to
+		the laggart CPU.
+	\end{description}
+	This field is guarded by the root \url{rcu_node} structure's lock.
+
+\QuickQuiz{So what guards the earlier fields in this structure?}
+\QuickQuizAnswer{
+	Nothing does, as they are constants set at compile time
+	or boot time.
+	Of course, the fields internal to each \url{rcu_node}
+	in the \url{->node} array may change, but they are
+	guarded separately.
+} \QuickQuizEnd
+
+\item[\url{gpnum}:]
+	This field contains the number of the current grace period,
+	or that of the last grace period if no grace period is currently
+	in effect.
+	This field is guarded by the root \url{rcu_node} structure's lock,
+	but is frequently accessed (but never modified) without holding
+	this lock.
+\item[\url{completed}:]
+	This field contains the number of the last completed grace period.
+	As such, it is equal to \url{->gpnum} when there is no grace period
+	in progress, or one less than \url{->gpnum} when there is a
+	grace period in progress.
+	In principle, one could replace this pair of fields with a single
+	boolean, as is done in Classic RCU in some versions of Linux,
+	but in practice race resolution is much simpler given the pair
+	of numbers.
+	This field is guarded by the root \url{rcu_node} structure's lock,
+	but is frequently accessed (but never modified) without holding
+	this lock.
+\item[\url{onofflock}:]
+	This field prevents online/offline processing from running
+	concurrently with grace-period initialization.
+	There is one exception to this: if the \url{rcu_node}
+	hierarchy consists of but a single structure, then
+	that single structure's \url{->lock} field will instead take on
+	this job.
+\item[\url{fqslock}:]
+	This field prevents more than one task from forcing quiescent
+	states with \url{force_quiescent_state()}.
+\item[\url{jiffies_force_qs}:]
+	This field contains the time, in jiffies, when
+	\url{force_quiescent_state()} should be invoked in order to
+	force CPUs into quiescent states and/or report extended
+	quiescent states.
+	This field is guarded by the root \url{rcu_node} structure's lock,
+	but is frequently accessed (but never modified) without holding
+	this lock.
+\item[\url{n_force_qs}:]
+	This field counts the number of calls to \url{force_quiescent_state()}
+	that actually do work, as opposed to leaving early due to
+	the grace period having already completed, some other
+	CPU currently running \url{force_quiescent_state()},
+	or \url{force_quiescent_state()} having run too recently.
+	This field is used for tracing and debugging, and
+	is guarded by \url{->fqslock}.
+\item[\url{n_force_qs_lh}:]
+	This field holds an approximate count of the number of times that
+	\url{force_quiescent_state()} returned early due to the
+	\url{->fqslock} being held by some other CPU.
+	This field is used for tracing and debugging, and is not
+	guarded by any lock, hence its approximate nature.
+\item[\url{n_force_qs_ngp}:]
+	This field counts the number of times that
+	\url{force_quiescent_state()} that successfully acquire
+	\url{->fqslock}, but then find that there is no grace period
+	in progress.
+	This field is used for tracing and debugging, and
+	is guarded by \url{->fqslock}.
+\item[\url{gp_start}:]
+	This field records the time at which the most recent grace period
+	began, in jiffies.
+	This is used to detect stalled CPUs, but only when the
+	\url{CONFIG_RCU_CPU_STALL_DETECTOR} kernel parameter is selected.
+	This field is guarded by the root \url{rcu_node}'s \url{->lock},
+	but is sometimes accessed (but not modified) outside of this
+	lock.
+\item[\url{jiffies_stall}:]
+	This field holds the time, in jiffies, at which the current
+	grace period will have extended for so long that it will
+	be appropriate to check for CPU stalls.
+	As with \url{->gp_start}, this field exists only when the
+	\url{CONFIG_RCU_CPU_STALL_DETECTOR} kernel parameter is selected.
+	This field is guarded by the root \url{rcu_node}'s \url{->lock},
+	but is sometimes accessed (but not modified) outside of this
+	lock.
+\item[\url{dynticks_completed}:]
+	This field records the value of \url{->completed} at the time when
+	\url{force_quiescent_state()} snapshots dyntick state, but
+	is also initialized to an earlier grace period at the beginning
+	of each grace period.
+	This field is used to prevent dyntick-idle quiescent states
+	from a prior grace period from being applied to the current
+	grace period.
+	As such, this field exists only when the \url{CONFIG_NO_HZ}
+	kernel parameter is selected.
+	This field is guarded by the root \url{rcu_node}'s \url{->lock},
+	but is sometimes accessed (but not modified) outside of this
+	lock.
+\end{description}
+
+\subsubsection{Kernel Parameters}
+\label{app:rcuimpl:rcutreewt:Kernel Parameters}
+
+The following kernel parameters affect this variant of RCU:
+
+\begin{itemize}
+\item	\url{NR_CPUS}, the maximum number of CPUs in the system.
+\item	\url{CONFIG_RCU_FANOUT}, the desired number of children for
+	each node in the \url{rcu_node} hierarchy.
+\item	\url{CONFIG_RCU_FANOUT_EXACT}, a boolean preventing rebalancing
+	of the \url{rcu_node} hierarchy.
+\item	\url{CONFIG_HOTPLUG_CPU}, permitting CPUs to come online and go
+	offline.
+\item	\url{CONFIG_NO_HZ}, indicating that dynticks-idle mode is supported.
+\item	\url{CONFIG_SMP}, indicating that multiple CPUs may be present.
+\item	\url{CONFIG_RCU_CPU_STALL_DETECTOR}, indicating that RCU should
+	check for stalled CPUs when RCU grace periods extend too long.
+\item	\url{CONFIG_RCU_TRACE}, indicating that RCU should provide
+	tracing information in \url{debugfs}.
+\end{itemize}
+
+\begin{figure*}[htbp]
+{
+\begin{verbatim}
+  1 #define MAX_RCU_LVLS    3
+  2 #define RCU_FANOUT      (CONFIG_RCU_FANOUT)
+  3 #define RCU_FANOUT_SQ   (RCU_FANOUT * RCU_FANOUT)
+  4 #define RCU_FANOUT_CUBE (RCU_FANOUT_SQ * RCU_FANOUT)
+  5 
+  6 #if NR_CPUS <= RCU_FANOUT
+  7 #  define NUM_RCU_LVLS  1
+  8 #  define NUM_RCU_LVL_0 1
+  9 #  define NUM_RCU_LVL_1 (NR_CPUS)
+ 10 #  define NUM_RCU_LVL_2 0
+ 11 #  define NUM_RCU_LVL_3 0
+ 12 #elif NR_CPUS <= RCU_FANOUT_SQ
+ 13 #  define NUM_RCU_LVLS  2
+ 14 #  define NUM_RCU_LVL_0 1
+ 15 #  define NUM_RCU_LVL_1 (((NR_CPUS) + RCU_FANOUT - 1) / RCU_FANOUT)
+ 16 #  define NUM_RCU_LVL_2 (NR_CPUS)
+ 17 #  define NUM_RCU_LVL_3 0
+ 18 #elif NR_CPUS <= RCU_FANOUT_CUBE
+ 19 #  define NUM_RCU_LVLS  3
+ 20 #  define NUM_RCU_LVL_0 1
+ 21 #  define NUM_RCU_LVL_1 (((NR_CPUS) + RCU_FANOUT_SQ - 1) / RCU_FANOUT_SQ)
+ 22 #  define NUM_RCU_LVL_2 (((NR_CPUS) + (RCU_FANOUT) - 1) / (RCU_FANOUT))
+ 23 #  define NUM_RCU_LVL_3 NR_CPUS
+ 24 #else
+ 25 # error "CONFIG_RCU_FANOUT insufficient for NR_CPUS"
+ 26 #endif /* #if (NR_CPUS) <= RCU_FANOUT */
+ 27 
+ 28 #define RCU_SUM (NUM_RCU_LVL_0 + NUM_RCU_LVL_1 + NUM_RCU_LVL_2 + NUM_RCU_LVL_3)
+ 29 #define NUM_RCU_NODES (RCU_SUM - NR_CPUS)
+\end{verbatim}
+}
+\caption{Determining Shape of RCU Hierarchy}
+\label{fig:app:rcuimpl:rcutreewt:Determining Shape of RCU Hierarchy}
+\end{figure*}
+
+The \url{CONFIG_RCU_FANOUT} and \url{NR_CPUS} parameters are used to
+determine the shape of the \url{rcu_node} hierarchy at compile time,
+as shown in
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Determining Shape of RCU Hierarchy}.
+Line~1 defines the maximum depth of the \url{rcu_node} hierarchy,
+currently three.
+Note that increasing the maximum permitted depth requires changes
+elsewhere, for example, adding another leg to the \url{#if}
+statement running from lines~6-26.
+Lines~2-4 compute the fanout, the square of the fanout, and the cube
+of the fanout, respectively.
+
+Then these values are compared to \url{NR_CPUS} to determine the required
+depth of the \url{rcu_node} hierarchy, which is placed into
+\url{NUM_RCU_LVLS}, which is used to size a number of arrays
+in the \url{rcu_state} structure.
+There is always one node at the root level, and there are always
+\url{NUM_CPUS} number of \url{rcu_data} structures below the leaf
+level.
+If there is more than just the root level, the number of nodes at
+the leaf level is computed
+by dividing \url{NR_CPUS} by \url{RCU_FANOUT}, rounding up.
+The number of nodes at other levels is computed in a similar manner,
+but using (for example) \url{RCU_FANOUT_SQ} instead of \url{RCU_FANOUT}.
+
+Line~28 then sums up all of the levels, resulting in the number of
+\url{rcu_node} structures plus the number of \url{rcu_data} structures.
+Finally, line~29 subtracts \url{NR_CPUS} (which is the number of
+\url{rcu_data} structures) from the sum, resulting in the number
+of \url{rcu_node} structures, which is retained in
+\url{NUM_RCU_NODES}.
+This value is then used to size the \url{->nodes} array in the
+\url{rcu_state} structure.
 
 \subsection{Forcing Quiescent States}
 \label{app:rcuimpl:rcutreewt:Forcing Quiescent States}
 
 Normally, CPUs pass through quiescent states which are duly recorded,
-resulting in grace periods ending in a timely manner.
+so that grace periods end in a timely manner.
 However, any of the following three conditions can prevent CPUs from
 passing through quiescent states:
 
@@ -434,6 +744,8 @@ non-responding CPU.
 This section describes the functions that take such action.
 
 % rcu_process_dyntick
+
+% @@@ the code in the following figure needs to be redone: recently changed.
 
 \begin{figure}[htbp]
 { \scriptsize
