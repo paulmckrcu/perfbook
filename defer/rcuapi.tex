@@ -215,15 +215,15 @@ If you are already familiar with RCU, these tables can
 serve as a useful reference.
 
 \QuickQuiz{Why do some of the cells in
-Table~\ref{tab:defer:RCU Wait-to-Finish APIs}
-have exclamation marks (``!'')?}
+	Table~\ref{tab:defer:RCU Wait-to-Finish APIs}
+	have exclamation marks (``!'')?}
 \QuickQuizAnswer{
-The API members with exclamation marks (\url{rcu_read_lock()},
-\url{rcu_read_unlock()}, and \url{call_rcu()}) were the
-only members of the Linux RCU API that Paul E. McKenney was aware of back
-in the mid-90s.
-During this timeframe, he was under the mistaken impression that
-he knew all that there is to know about RCU.
+	The API members with exclamation marks (\url{rcu_read_lock()},
+	\url{rcu_read_unlock()}, and \url{call_rcu()}) were the
+	only members of the Linux RCU API that Paul E. McKenney was aware
+	of back in the mid-90s.
+	During this timeframe, he was under the mistaken impression that
+	he knew all that there is to know about RCU.
 } \QuickQuizEnd
 
 The ``RCU Classic'' column corresponds to the original RCU implementation,
@@ -271,6 +271,17 @@ to the system until after an RCU grace period elapses.
 In short, although the data element might be freed and reallocated arbitrarily
 often, at least its type will remain the same.
 
+\QuickQuiz{The \url{synchronize_rcu()} API waits for all pre-existing
+	interrupt handlers to complete, right?}
+\QuickQuizAnswer{
+	Absolutely not!!!
+	And especially not when using preemptable RCU!
+	You instead want \url{synchronize_irq()}.
+	Alternatively, you can place calls to \url{rcu_read_lock()}
+	and \url{rcu_read_unlock()} in the specific interrupt handlers that
+	you want \url{synchronize_rcu()} to wait for.
+} \QuickQuizEnd
+
 In the ``RCU BH'' column, \url{rcu_read_lock_bh()} and
 \url{rcu_read_unlock_bh()} delimit RCU read-side critical
 sections, and \url{call_rcu_bh()} invokes the specified
@@ -280,23 +291,34 @@ interface,
 though one could easily be added if required.
 
 \QuickQuiz{What happens if you mix and match?
-For example, suppose you use \url{rcu_read_lock()} and
-\url{rcu_read_unlock()} to delimit RCU read-side critical
-sections, but then use \url{call_rcu_bh()} to post an
-RCU callback?}
+	For example, suppose you use \url{rcu_read_lock()} and
+	\url{rcu_read_unlock()} to delimit RCU read-side critical
+	sections, but then use \url{call_rcu_bh()} to post an
+	RCU callback?}
 \QuickQuizAnswer{
-If there happened to be no RCU read-side critical
-sections delimited by \url{rcu_read_lock_bh()} and
-\url{rcu_read_unlock_bh()} at the time \url{call_rcu_bh()}
-was invoked, RCU would be within its rights to invoke the callback
-immediately, possibly freeing a data structure still being used by
-the RCU read-side critical section!
-This is not merely a theoretical possibility: a long-running RCU
-read-side critical section delimited by \url{rcu_read_lock()}
-and \url{rcu_read_unlock()} is vulnerable to this failure mode.
+	If there happened to be no RCU read-side critical
+	sections delimited by \url{rcu_read_lock_bh()} and
+	\url{rcu_read_unlock_bh()} at the time \url{call_rcu_bh()}
+	was invoked, RCU would be within its rights to invoke the callback
+	immediately, possibly freeing a data structure still being used by
+	the RCU read-side critical section!
+	This is not merely a theoretical possibility: a long-running RCU
+	read-side critical section delimited by \url{rcu_read_lock()}
+	and \url{rcu_read_unlock()} is vulnerable to this failure mode.
 
-This vulnerability disappears in -rt kernels, where
-RCU Classic and RCU BH both map onto a common implementation.
+	This vulnerability disappears in -rt kernels, where
+	RCU Classic and RCU BH both map onto a common implementation.
+} \QuickQuizEnd
+
+\QuickQuiz{Hardware interrupt handlers can be thought of as being
+	under the protection of an implicit \url{rcu_read_lock_bh()},
+	right?}
+\QuickQuizAnswer{
+	Absolutely not!!!
+	And especially not when using preemptable RCU!
+	If you need to access ``rcu\_bh''-protected data structures
+	in an interrupt handler, you need to provide explicit calls to
+	\url{rcu_read_lock_bh()} and \url{rcu_read_unlock_bh()}.
 } \QuickQuizEnd
 
 In the ``RCU Sched'' column, anything that disables preemption
@@ -313,22 +335,39 @@ community, APIs are added on an as-needed basis.
 
 \QuickQuiz{What happens if you mix and match RCU Classic and RCU Sched?}
 \QuickQuizAnswer{
-In a non-\url{PREEMPT} or a \url{PREEMPT} kernel, mixing these
-two works "by accident" because in those kernel builds, RCU Classic and RCU
-Sched map to the same implementation.
-However, this mixture is fatal in \url{PREEMPT_RT} builds using the -rt
-patchset, due to the fact that Realtime RCU's read-side critical
-sections can be preempted, which would permit
-\url{synchronize_sched()} to return before the
-RCU read-side critical section reached its \url{rcu_read_unlock()}
-call.
-This could in turn result in a data structure being freed before the
-read-side critical section was finished with it,
-which could in turn greatly increase the actuarial risk experienced
-by your kernel.
+	In a non-\url{PREEMPT} or a \url{PREEMPT} kernel, mixing these
+	two works "by accident" because in those kernel builds, RCU Classic
+	and RCU Sched map to the same implementation.
+	However, this mixture is fatal in \url{PREEMPT_RT} builds using the -rt
+	patchset, due to the fact that Realtime RCU's read-side critical
+	sections can be preempted, which would permit
+	\url{synchronize_sched()} to return before the
+	RCU read-side critical section reached its \url{rcu_read_unlock()}
+	call.
+	This could in turn result in a data structure being freed before the
+	read-side critical section was finished with it,
+	which could in turn greatly increase the actuarial risk experienced
+	by your kernel.
 
-In fact, the split between RCU Classic and RCU Sched was inspired
-by the need for preemptible RCU read-side critical sections.
+	In fact, the split between RCU Classic and RCU Sched was inspired
+	by the need for preemptible RCU read-side critical sections.
+} \QuickQuizEnd
+
+\QuickQuiz{In general, you cannot rely on \url{synchronize_sched()} to
+	wait for all pre-existing interrupt handlers,
+	right?}
+\QuickQuizAnswer{
+	That is correct!
+	Because -rt Linux uses threaded interrupt handlers, there can
+	be context switches in the middle of an interrupt handler.
+	Because \url{synchronize_sched()} waits only until each
+	CPU has passed through a context switch, it can return
+	before a given interrupt handler completes.
+
+	If you need to wait for a given interrupt handler to complete,
+	you should instead use \url{synchronize_irq()} or place
+	explicit RCU read-side critical sections in the interrupt
+	handlers that you wish to wait on.
 } \QuickQuizEnd
 
 The ``Realtime RCU'' column has the same API as does
