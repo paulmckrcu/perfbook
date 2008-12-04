@@ -1968,6 +1968,26 @@ In the meantime, however, there are some challenges:
 	``rcu\_bh'' read-side critical sections to complete,
 	we need only check \url{in_softirq()}.
 
+\QuickQ{But don't we also need to check that a grace period is
+	actually in progress in \url{__rcu_process_callbacks} in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}?}
+
+	Indeed we do!
+	And the first thing that \url{force_quiescent_state()} does
+	is to perform exactly that check.
+
+\QuickQ{What happens if two CPUs attempt to start a new grace
+	period concurrently in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}?}
+
+	One of the CPUs will be the first to acquire the root
+	\url{rcu_node} structure's lock, and that CPU will start
+	the grace period.
+	The other CPU will then acquire the lock and invoke
+	\url{rcu_start_gp()}, which, seeing that a grace period
+	is already in progress, will immediately release the
+	lock and return.
+
 \QuickQ{Why is it important that blocking primitives
 	called from within a preemptible-RCU read-side critical section be
 	subject to priority inheritance?}

@@ -4,13 +4,14 @@
 
 %DONE% Data structures and module parameters
 
-% External interfaces.
-% rcu_check_callbacks, __rcu_process_callbacks, rcu_process_callbacks
-%	__call_rcu, call_rcu, call_rcu_bh, __rcu_pending, rcu_pending,
-%	rcu_needs_cpu, rcu_cpu_notify, __rcu_init
+%DONE% External interfaces.
+%DONE% rcu_check_callbacks, __rcu_process_callbacks, rcu_process_callbacks
+%DONE%	__call_rcu, call_rcu, call_rcu_bh, __rcu_pending, rcu_pending,
+%DONE%	rcu_needs_cpu, rcu_cpu_notify, __rcu_init
 
 % initialization, online/offline
 % __rcu_offline_cpu, rcu_offline_cpu (empty if !CONFIG_HOTPLUG_CPU)
+% \url{__rcu_init()}.
 %	rcu_init_percpu_data, rcu_online_cpu,
 %	rcu_init_levelspread (CONFIG_RCU_FANOUT_EXACT and not)
 %	rcu_init_one, 
@@ -1052,11 +1053,126 @@ scheduler-clock interrupt).
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}
-@@@
+shows the code for \url{rcu_process_callbacks()}, which is a wrapper around
+\url{__rcu_process_callbacks()}.
+These functions are invoked as a result of a call to
+\url{raise_softirq(RCU_SOFTIRQ)}, for example, line~47 of
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-check-callbacks},
+which is normally done if there is reason to believe that the RCU core
+needs this CPU to do something.
 
-% \url{rcu_needs_cpu()},
-% \url{rcu_cpu_notify()}, and
-% \url{__rcu_init()}.
+Lines~7-10 check to see if it has been awhile since the current grace
+period started, and, if so, line~11 invokes \url{force_quiescent_state()}
+in order to try to convince holdout CPUs to pass through a quiescent
+state for this grace period.
+
+\QuickQuiz{But don't we also need to check that a grace period is
+	actually in progress in \url{__rcu_process_callbacks} in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}?}
+\QuickQuizAnswer{
+	Indeed we do!
+	And the first thing that \url{force_quiescent_state()} does
+	is to perform exactly that check.
+} \QuickQuizEnd
+
+In any case, line~12 invokes \url{rcu_process_gp_end()}, which checks to
+see if some other CPU ended the
+last grace period that this CPU was aware of, and, if so, notes the
+end of the grace period and advances this CPU's RCU callbacks
+accordingly.
+Line~13 invokes \url{rcu_check_quiescent_state()}, which checks to
+see if some other CPU has started a new grace period, and also whether
+the current CPU has passed through a quiescent state for the current
+grace period, updating state appropriately if so.
+Line~14 checks to see if there is no grace period in progress and whether
+the current CPU has callbacks that need another grace period.
+If so, line~15 acquires the root \url{rcu_node} structure's lock,
+and line~17 invokes \url{rcu_start_gp()}, which starts a new grace
+period (and also releases the root \url{rcu_node} structure's lock).
+In either case, line~18 invokes \url{rcu_do_batch()}, which
+invokes any of this CPU's callbacks whose grace period has completed.
+
+\QuickQuiz{What happens if two CPUs attempt to start a new grace
+	period concurrently in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}?}
+\QuickQuizAnswer{
+	One of the CPUs will be the first to acquire the root
+	\url{rcu_node} structure's lock, and that CPU will start
+	the grace period.
+	The other CPU will then acquire the lock and invoke
+	\url{rcu_start_gp()}, which, seeing that a grace period
+	is already in progress, will immediately release the
+	lock and return.
+} \QuickQuizEnd
+
+Lines~21-30 are \url{rcu_process_callbacks()}, which is again a
+wrapper for \url{__rcu_process_callbacks()}.
+Line~24 executes a memory barrier to ensure that any prior RCU
+read-side critical sections are seen to have ended before any
+subsequent RCU processing.
+Lines~25-26 and 27-28 invoke \url{__rcu_process_callbacks()} for
+``rcu'' and ``rcu\_bh'', respectively, and, finally,
+line~29 executes a memory barrier to ensure that any RCU
+processing carried out by \url{__rcu_process_callbacks()}
+is seen prior to any subsequent RCU read-side critical sections.
+
+\subsubsection{{\tt rcu\_needs\_cpu()} and {\tt rcu\_cpu\_notify()}}
+\label{app:rcuimpl:rcutreewt:rcu-needs-cpu and rcu-cpu-notify}
+
+\begin{figure}[htbp]
+{ \scriptsize
+\begin{verbatim}
+  1 int rcu_needs_cpu(int cpu)
+  2 {
+  3   return per_cpu(rcu_data, cpu).nxtlist ||
+  4          per_cpu(rcu_bh_data, cpu).nxtlist;
+  5 }
+  6 
+  7 static int __cpuinit
+  8 rcu_cpu_notify(struct notifier_block *self,
+  9                unsigned long action, void *hcpu)
+ 10 {
+ 11   long cpu = (long)hcpu;
+ 12 
+ 13   switch (action) {
+ 14   case CPU_UP_PREPARE:
+ 15   case CPU_UP_PREPARE_FROZEN:
+ 16     rcu_online_cpu(cpu);
+ 17     break;
+ 18   case CPU_DEAD:
+ 19   case CPU_DEAD_FROZEN:
+ 20   case CPU_UP_CANCELED:
+ 21   case CPU_UP_CANCELED_FROZEN:
+ 22     rcu_offline_cpu(cpu);
+ 23     break;
+ 24   default:
+ 25     break;
+ 26   }
+ 27   return NOTIFY_OK;
+ 28 }
+\end{verbatim}
+}
+\caption{{\tt rcu\_process\_callbacks()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}
+shows the code for \url{rcu_needs_cpu()} and \url{rcu_cpu_notify()},
+which are invoked by the Linux kernel to check on switching to
+dynticks-idle mode and to handle CPU hotplug, respectively.
+
+Lines~1-5 show \url{rcu_needs_cpu()}, which simply checks if the specified
+CPU has either ``rcu'' (line~3) or ``rcu\_bh'' (line 4) callbacks.
+
+Lines~7-28 show \url{rcu_cpu_notify()}, which is a very typical
+CPU-hotplug notifier function with the typical \url{switch} statement.
+Line~16 invokes \url{rcu_online_cpu()} if the specified CPU is going
+to be coming online, and line~22 invokes \url{rcu_offline_cpu()} if
+the specified CPU has gone to be going offline.
+It is important to note that CPU-hotplug operations are not atomic,
+but rather happen in stages that can extend for multiple grace periods.
+RCU must therefore gracefully handle CPUs that are in the process
+of coming or going.
 
 \subsection{Forcing Quiescent States}
 \label{app:rcuimpl:rcutreewt:Forcing Quiescent States}
