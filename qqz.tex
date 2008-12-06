@@ -781,6 +781,57 @@ What would you have to do to figure this out?
 	read-acquired in \url{rcu_read_lock()} would avoid the
 	deadlock condition noted above.
 
+\QuickQ{Wouldn't it be cleaner to acquire all the locks, and then
+	release them all in the loop from lines~15-18 of
+	Figure~\ref{fig:defer:Per-Thread Lock-Based RCU Implementation}?}
+
+	Making this change would re-introduce the deadlock, so
+	no, it would not be cleaner.
+
+\QuickQ{Is the implementation shown in
+	Figure~\ref{fig:defer:Per-Thread Lock-Based RCU Implementation}
+	free from deadlocks?
+	Why or why not?}
+
+	One deadlock is where a lock is
+	held across \url{synchronize_rcu()}, and that same lock is
+	acquired within an RCU read-side critical section.
+	However, this situation will deadlock any correctly designed
+	RCU implementation.
+	After all, the \url{synchronize_rcu()} primitive must wait for all
+	pre-existing RCU read-side critical sections to complete,
+	but if one of those critical sections is spinning on a lock
+	held by the thread executing the \url{synchronize_rcu()},
+	we have a deadlock inherent in the definition of RCU.
+
+	Another deadlock happens when attempting to nest RCU read-side
+	critical sections.
+	This deadlock is peculiar to this implementation, and might
+	be avoided by using recursive locks, or by using reader-writer
+	locks that are read-acquired by \url{rcu_read_lock()} and
+	write-acquired by \url{synchronize_rcu()}.
+
+	However, if we exclude the above two cases,
+	this implementation of RCU does not introduce any deadlock
+	situations.
+	This is because only time some other thread's lock is acquired is when
+	executing \url{synchronize_rcu()}, and in that case, the lock
+	is immediately released, prohibiting a deadlock cycle that
+	does not involve a lock held across the \url{synchronize_rcu()}
+	which is the first case above.
+
+\QuickQ{But what if you hold a lock across a call to
+	\url{synchronize_rcu()}, and then acquire that same lock within
+	an RCU read-side critical section?}
+
+	Indeed, this would deadlock any legal RCU implementation.
+	But is \url{rcu_read_lock()} \emph{really} participating in
+	the deadlock cycle?
+	If you believe that it is, then please
+	ask yourself this same question when looking at the
+	RCU implementation in
+	Section~\ref{defer:RCU Based on Quiescent States}.
+
 \QuickQ{How can the grace period possibly elapse in 40 nanoseconds when
 	\url{synchronize_rcu()} contains a 10-millisecond delay?}
 
@@ -1137,6 +1188,23 @@ What would you have to do to figure this out?
 	\url{rcu_thread_online()} upon entry,
 	\url{rcu_quiescent_state()} periodically, and
 	\url{rcu_thread_offline()} upon exit.
+
+\QuickQ{But what if you hold a lock across a call to
+	\url{synchronize_rcu()}, and then acquire that same lock within
+	an RCU read-side critical section?
+	This should be a deadlock, but how can a primitive that
+	generates absolutely no code possibly participate in a
+	deadlock cycle?}
+
+	\url{rcu_read_lock()} and \url{rcu_read_unlock()}, out to
+	the previous and next call to \url{rcu_quiescent_state()}.
+	This \url{rcu_quiescent_state} can be thought of as a
+	\url{rcu_read_unlock()} immediately followed by an
+	\url{rcu_read_lock()}.
+
+	Even so, the actual deadlock itself will involve the lock
+	acquisition in the RCU read-side critical section and
+	the \url{synchronize_rcu()}, never the \url{rcu_quiescent_state()}.
 
 \QuickQAC{sec:advsync:Advanced Synchronization}
 \QuickQ{How on earth could the assertion on line~21 of the code in

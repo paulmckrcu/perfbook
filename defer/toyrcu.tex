@@ -144,8 +144,104 @@ It is hard to imagine this implementation being useful
 in a production setting, though it does have the virtue
 of being implementable in almost any user-level application.
 Furthermore, similar implementations having one lock per CPU
-or using reader-writer locks actually have been used in production
+or using reader-writer locks have been used in production
 in the 2.4 Linux kernel.
+
+A modified version of this one-lock-per-CPU approach, but instead using
+one lock per thread, is described
+in the next section.
+
+\subsubsection{Per-Thread Lock-Based RCU}
+\label{defer:Per-Thread Lock-Based RCU}
+
+\begin{figure}[bp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void rcu_read_lock(void)
+  2 {
+  3   spin_lock(&__get_thread_var(rcu_gp_lock));
+  4 }
+  5 
+  6 static void rcu_read_unlock(void)
+  7 {
+  8   spin_unlock(&__get_thread_var(rcu_gp_lock));
+  9 }
+ 10 
+ 11 void synchronize_rcu(void)
+ 12 {
+ 13   int t;
+ 14 
+ 15   for_each_running_thread(t) {
+ 16     spin_lock(&per_thread(rcu_gp_lock, t));
+ 17     spin_unlock(&per_thread(rcu_gp_lock, t));
+ 18   }
+ 19 }
+\end{verbatim}
+}
+\caption{Per-Thread Lock-Based RCU Implementation}
+\label{fig:defer:Per-Thread Lock-Based RCU Implementation}
+\end{figure}
+
+Figure~\ref{fig:defer:Per-Thread Lock-Based RCU Implementation}
+(\url{rcu_lock_percpu.h} and \url{rcu_lock_percpu.c})
+shows an implementation based on one lock per thread.
+The \url{rcu_read_lock()} and \url{rcu_read_unlock()} functions
+acquire and release, respectively, the current thread's lock.
+The \url{synchronize_rcu()} function acquires and releases each thread's
+lock in turn.
+Therefore, all RCU read-side critical sections running
+when \url{synchronize_rcu()} starts must have completed before
+\url{synchronize_rcu()} can return.
+
+This implementation does have the virtue of permitting concurrent
+RCU readers, and does avoid the deadlock condition that can arise
+with a single global lock.
+Furthermore, the read-side overhead, though high at roughly 140 nanoseconds,
+remains at about 140 nanoseconds regardless of the number of CPUs.
+However, the update-side overhead ranges from about 600 nanoseconds
+on a single Power5 CPU
+up to more than 100 \emph{microseconds} on 64 CPUs.
+
+\QuickQuiz{Wouldn't it be cleaner to acquire all the locks, and then
+	release them all in the loop from lines~15-18 of
+	Figure~\ref{fig:defer:Per-Thread Lock-Based RCU Implementation}?}
+\QuickQuizAnswer{
+	Making this change would re-introduce the deadlock, so
+	no, it would not be cleaner.
+} \QuickQuizEnd
+
+\QuickQuiz{Is the implementation shown in
+	Figure~\ref{fig:defer:Per-Thread Lock-Based RCU Implementation}
+	free from deadlocks?
+	Why or why not?}
+\QuickQuizAnswer{
+	One deadlock is where a lock is
+	held across \url{synchronize_rcu()}, and that same lock is
+	acquired within an RCU read-side critical section.
+	However, this situation will deadlock any correctly designed
+	RCU implementation.
+	After all, the \url{synchronize_rcu()} primitive must wait for all
+	pre-existing RCU read-side critical sections to complete,
+	but if one of those critical sections is spinning on a lock
+	held by the thread executing the \url{synchronize_rcu()},
+	we have a deadlock inherent in the definition of RCU.
+
+	Another deadlock happens when attempting to nest RCU read-side
+	critical sections.
+	This deadlock is peculiar to this implementation, and might
+	be avoided by using recursive locks, or by using reader-writer
+	locks that are read-acquired by \url{rcu_read_lock()} and
+	write-acquired by \url{synchronize_rcu()}.
+
+	However, if we exclude the above two cases,
+	this implementation of RCU does not introduce any deadlock
+	situations.
+	This is because only time some other thread's lock is acquired is when
+	executing \url{synchronize_rcu()}, and in that case, the lock
+	is immediately released, prohibiting a deadlock cycle that
+	does not involve a lock held across the \url{synchronize_rcu()}
+	which is the first case above.
+} \QuickQuizEnd
 
 The counter-based RCU implementation described next overcomes some of
 the shortcomings of the lock-based implementation.
@@ -204,11 +300,26 @@ Again, once \url{synchronize_rcu()} returns, all prior
 RCU read-side critical sections are guaranteed to have completed.
 
 In happy contrast to the lock-based implementation shown in
-Appendix~\ref{defer:Lock-Based RCU}, this implementation
-allows parallel execution of RCU read-side critical sections,
-and also allows them to be nested.
+Section~\ref{defer:Lock-Based RCU}, this implementation
+allows parallel execution of RCU read-side critical sections.
+In happy contrast to the per-thread lock-based implementation shown in
+Section~\ref{defer:Per-Thread Lock-Based RCU},
+it also allows them to be nested.
 In addition, the \url{rcu_read_lock()} primitive cannot possibly
 participate in deadlock cycles, as it never spins nor blocks.
+
+\QuickQuiz{But what if you hold a lock across a call to
+	\url{synchronize_rcu()}, and then acquire that same lock within
+	an RCU read-side critical section?}
+\QuickQuizAnswer{
+	Indeed, this would deadlock any legal RCU implementation.
+	But is \url{rcu_read_lock()} \emph{really} participating in
+	the deadlock cycle?
+	If you believe that it is, then please
+	ask yourself this same question when looking at the
+	RCU implementation in
+	Section~\ref{defer:RCU Based on Quiescent States}.
+} \QuickQuizEnd
 
 However, this implementations still has some serious shortcomings.
 First, the atomic operations in \url{rcu_read_lock()} and
@@ -1546,9 +1657,27 @@ certain types of library functions.
 	\url{rcu_thread_offline()} upon exit.
 } \QuickQuizEnd
 
+\QuickQuiz{But what if you hold a lock across a call to
+	\url{synchronize_rcu()}, and then acquire that same lock within
+	an RCU read-side critical section?
+	This should be a deadlock, but how can a primitive that
+	generates absolutely no code possibly participate in a
+	deadlock cycle?}
+\QuickQuizAnswer{
+	\url{rcu_read_lock()} and \url{rcu_read_unlock()}, out to
+	the previous and next call to \url{rcu_quiescent_state()}.
+	This \url{rcu_quiescent_state} can be thought of as a
+	\url{rcu_read_unlock()} immediately followed by an
+	\url{rcu_read_lock()}.
+
+	Even so, the actual deadlock itself will involve the lock
+	acquisition in the RCU read-side critical section and
+	the \url{synchronize_rcu()}, never the \url{rcu_quiescent_state()}.
+} \QuickQuizEnd
+
 In addition, this implementation does not permit concurrent calls
 to \url{synchronize_rcu()} to share grace periods.
-That said, it is not hard to imagine a production-quality RCU
+That said, one could easily imagine a production-quality RCU
 implementation based on this version of RCU.
 
 \subsubsection{Summary of Toy RCU Implementations}
