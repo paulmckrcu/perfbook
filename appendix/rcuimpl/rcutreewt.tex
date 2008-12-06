@@ -20,8 +20,6 @@
 %	cpu_has_callbacks_ready_to_invoke, cpu_needs_another_gp,
 %	rcu_get_root,
 
-% rcu_implicit_offline_qs (CONFIG_SMP only)
-
 % rcu_enter_nohz, rcu_exit_nohz, rcu_nmi_enter, rcu_nmi_exit,
 %	rcu_irq_enter, rcu_irq_exit -- covered in formal.  Reference.
 %	app:formal:Simplicity Avoids Formal Verification
@@ -31,6 +29,7 @@
 % Note that dyntick_recall_completed() is subtly different if !CONFIG_NO_HZ.
 % Note that dyntick_recall_completed() and rcu_implicit_dynticks_qs are
 % 	trivial if !CONFIG_NO_HZ.
+% rcu_implicit_offline_qs (CONFIG_SMP only)
 
 % Stall stuff.  record_gp_stall_check_time, print_other_cpu_stall,
 %	print_cpu_stall(), check_cpu_stall().
@@ -1152,11 +1151,11 @@ is seen prior to any subsequent RCU read-side critical sections.
  28 }
 \end{verbatim}
 }
-\caption{{\tt rcu\_process\_callbacks()} Code}
-\label{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}
+\caption{{\tt rcu\_needs\_cpu()} and {\tt rcu\_cpu\_notify}  Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcu-needs-cpu and rcu-cpu-notify}
 \end{figure}
 
-Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-needs-cpu and rcu-cpu-notify}
 shows the code for \url{rcu_needs_cpu()} and \url{rcu_cpu_notify()},
 which are invoked by the Linux kernel to check on switching to
 dynticks-idle mode and to handle CPU hotplug, respectively.
@@ -1173,6 +1172,204 @@ It is important to note that CPU-hotplug operations are not atomic,
 but rather happen in stages that can extend for multiple grace periods.
 RCU must therefore gracefully handle CPUs that are in the process
 of coming or going.
+
+\subsection{Initialization and CPU Hotplug}
+\label{app:rcuimpl:rcutreewt:Initialization and CPU Hotplug}
+
+\subsubsection{\tt rcu\_init\_levelspread()}
+\label{app:rcuimpl:rcutreewt:rcu-init-levelspread}
+
+\begin{figure}[htbp]
+{ \scriptsize
+\begin{verbatim}
+  1 #ifdef CONFIG_RCU_FANOUT_EXACT
+  2 static void __init
+  3 rcu_init_levelspread(struct rcu_state *rsp)
+  4 {
+  5   int i;
+  6 
+  7   for (i = NUM_RCU_LVLS - 1; i >= 0; i--)
+  8     rsp->levelspread[i] = CONFIG_RCU_FANOUT;
+  9 }
+ 10 #else
+ 11 static void __init
+ 12 rcu_init_levelspread(struct rcu_state *rsp)
+ 13 {
+ 14   int ccur;
+ 15   int cprv;
+ 16   int i;
+ 17 
+ 18   cprv = NR_CPUS;
+ 19   for (i = NUM_RCU_LVLS - 1; i >= 0; i--) {
+ 20     ccur = rsp->levelcnt[i];
+ 21     rsp->levelspread[i] = (cprv + ccur - 1) / ccur;
+ 22     cprv = ccur;
+ 23   }
+ 24 }
+ 25 #endif
+\end{verbatim}
+}
+\caption{{\tt rcu\_init\_levelspread()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcu-init-levelspread}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init-levelspread}
+shows the code for the \url{rcu_init_levelspread()} function, which controls
+the fanout, or the number of children per parent,
+in the \url{rcu_node} hierarchy.
+There are two versions of this function, one shown on lines~2-9 that
+enforces the exact fanout (specified by \url{CONFIG_RCU_FANOUT}),
+and the other on lines~11-25 that determines the number of child nodes
+based indirectly on the specified fanout, but then balances the tree.
+The \url{CONFIG_RCU_FANOUT_EXACT} kernel parameter selects which version
+to use for a given kernel build.
+
+The exact-fanout version simply assigns all of the elements of the
+specified \url{rcu_state} structure's \url{->levelspread} array to
+the \url{CONFIG_RCU_FANOUT} kernel parameter, as shown by the loop
+on lines~7 and 8.
+
+The hierarchy-balancing version on lines~11-24
+uses a pair of local variables \url{ccur} and \url{cprv} which track
+the number of \url{rcu_node} structures on the current and previous
+levels, respectively.
+This function works from the leaf level up the hierarchy, so \url{cprv}
+is initialized by line~18 to \url{NR_CPUS}, which corresponds
+to the number of \url{rcu_data} structures that feed into the leaf level.
+Lines~19-23 iterate from the leaf to the root.
+Within this loop, line~20 picking up
+the number of \url{rcu_node} structures for the current level into
+\url{ccur}.
+Line~21 then rounds up the ratio of the number of nodes on the previous
+(lower) level (be they \url{rcu_node} or \url{rcu_data})
+to the number of \url{rcu_node} structures on the current
+level, placing the result in the specified \url{rcu_state} structure's
+\url{->levelspread} array.
+Line~22 then sets up for the next pass through the loop.
+
+After a call to either function, the \url{->levelspread} array contains
+the number of children for each level of the \url{rcu_node} hierarchy.
+
+\subsubsection{\tt rcu\_init\_one()}
+\label{app:rcuimpl:rcutreewt:rcu-init-one}
+
+\begin{figure}[htbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void __init rcu_init_one(struct rcu_state *rsp)
+  2 {
+  3   int cpustride = 1;
+  4   int i;
+  5   int j;
+  6   struct rcu_node *rnp;
+  7 
+  8   for (i = 1; i < NUM_RCU_LVLS; i++)
+  9     rsp->level[i] = rsp->level[i - 1] +
+ 10                     rsp->levelcnt[i - 1];
+ 11   rcu_init_levelspread(rsp);
+ 12   for (i = NUM_RCU_LVLS - 1; i >= 0; i--) {
+ 13     cpustride *= rsp->levelspread[i];
+ 14     rnp = rsp->level[i];
+ 15     for (j = 0; j < rsp->levelcnt[i]; j++, rnp++) {
+ 16       spin_lock_init(&rnp->lock);
+ 17       rnp->qsmask = 0;
+ 18       rnp->qsmaskinit = 0;
+ 19       rnp->grplo = j * cpustride;
+ 20       rnp->grphi = (j + 1) * cpustride - 1;
+ 21       if (rnp->grphi >= NR_CPUS)
+ 22         rnp->grphi = NR_CPUS - 1;
+ 23       if (i == 0) {
+ 24         rnp->grpnum = 0;
+ 25         rnp->grpmask = 0;
+ 26         rnp->parent = NULL;
+ 27       } else {
+ 28         rnp->grpnum = j % rsp->levelspread[i - 1];
+ 29         rnp->grpmask = 1UL << rnp->grpnum;
+ 30         rnp->parent = rsp->level[i - 1] +
+ 31                 j / rsp->levelspread[i - 1];
+ 32       }
+ 33       rnp->level = i;
+ 34     }
+ 35   }
+ 36 }
+\end{verbatim}
+}
+\caption{{\tt rcu\_init\_one()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcu-init-one}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init-one}
+shows the code for \url{rcu_init_one()}, which does boot-time initialization
+for the specified 
+\url{rcu_state} structure.
+
+Recall from
+Section~\ref{app:rcuimpl:rcutreewt:RCU Global State}
+that the \url{->levelcnt[]} array in the \url{rcu_state} structure
+is compile-time initialized to the number of nodes at each level of
+the hierarchy starting from the root,
+with an additional element in the array initialized
+to the maximum possible number of CPUs, \url{NR_CPUS}.
+In addition, the first element of the \url{->level[]} array is compile-time
+initialized to reference to the root \url{rcu_node} structure, which is
+in turn
+the first element of the \url{->node[]} array in the \url{rcu_state} structure.
+This array is further laid out in breadth-first order.
+Keeping all of this in mind, the loop at lines~8-10 initializes the rest
+of the \url{->level[]} array to reference the first \url{rcu_node} structure
+of each level of the \url{rcu_node} hierarchy.
+
+Line~11 then invokes \url{rcu_init_levelspread()}, which fills in the
+\url{->levelspread[]} array, as was described in
+Section~\ref{app:rcuimpl:rcutreewt:rcu-init-levelspread}.
+The auxiliary arrays are then fully initialized, and thus ready for
+the loop from lines~15-35, each pass through which initializes
+one level of the \url{rcu_node} hierarchy, starting from the leaves.
+
+Line~13 computes the number of CPUs per \url{rcu_node} structure for
+the current level of the hierarchy, and line~14 obtains a pointer
+to the first \url{rcu_node} structure on the current level of the
+hierarchy, in preparation for the loop from lines~15-34, each pass
+through which initializes one \url{rcu_node} structure.
+
+Lines~16-18 initialize the \url{rcu_node} structure's spinlock and
+its CPU masks.
+The \url{qsmaskinit} field will have bits set as CPUs come online
+later in boot, and the \url{qsmask} field will have bits set
+when the first grace period starts.
+Line~19 sets the \url{->grplo} field to the number of the this
+\url{rcu_node} structure's first CPU and line~20 sets the
+\url{->grphi} to the number of this \url{rcu_node} structure's
+last CPU.
+If the last \url{rcu_node} structure on a given level of the
+hierarchy is only partially full, lines~21 and 22 set its
+\url{->grphi} field to the number of the last possible CPU in the system.
+
+Lines~24-26 initialize the \url{->grpnum}, \url{->grpmask}, and
+\url{->parent} fields for the root \url{rcu_node} structure, which
+has no parent, hence the zeroes and NULL.
+Lines~28-31 initialize these same fields for the rest of the
+\url{rcu_node} structures in the hierarchy.
+Line~28 computes the \url{->grpnum} field as the index of this
+\url{rcu_node} structure within
+the set having the same parent, and 
+line~29 sets the corresponding bit in the \url{->grpmask} field.
+Finally, lines~30-31 places a pointer to the parent node into the
+\url{->parent} field.
+These three fields will used to propagate quiescent states up the
+hierarchy.
+
+Finally, line~33 records the hierarchy level in \url{->level},
+which is used for tracing when traversing the full hierarchy.
+
+@@@
+
+% initialization, online/offline
+% __rcu_offline_cpu, rcu_offline_cpu (empty if !CONFIG_HOTPLUG_CPU)
+% \url{__rcu_init()}.
+%	rcu_init_percpu_data, rcu_online_cpu,
+%DONE%	rcu_init_levelspread (CONFIG_RCU_FANOUT_EXACT and not)
+%DONE%	rcu_init_one, 
 
 \subsection{Forcing Quiescent States}
 \label{app:rcuimpl:rcutreewt:Forcing Quiescent States}
