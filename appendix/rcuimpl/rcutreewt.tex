@@ -1173,8 +1173,8 @@ but rather happen in stages that can extend for multiple grace periods.
 RCU must therefore gracefully handle CPUs that are in the process
 of coming or going.
 
-\subsection{Initialization and CPU Hotplug}
-\label{app:rcuimpl:rcutreewt:Initialization and CPU Hotplug}
+\subsection{Initialization}
+\label{app:rcuimpl:rcutreewt:Initialization}
 
 \subsubsection{\tt rcu\_init\_levelspread()}
 \label{app:rcuimpl:rcutreewt:rcu-init-levelspread}
@@ -1362,11 +1362,128 @@ hierarchy.
 Finally, line~33 records the hierarchy level in \url{->level},
 which is used for tracing when traversing the full hierarchy.
 
+\subsubsection{\tt \_\_rcu\_init()}
+\label{app:rcuimpl:rcutreewt:rcu-init}
+
+\begin{figure}[htbp]
+{ \scriptsize
+\begin{verbatim}
+  1 #define RCU_DATA_PTR_INIT(rsp, rcu_data) \
+  2 do { \
+  3   rnp = (rsp)->level[NUM_RCU_LVLS - 1]; \
+  4   j = 0; \
+  5   for_each_possible_cpu(i) { \
+  6     if (i > rnp[j].grphi) \
+  7       j++; \
+  8     per_cpu(rcu_data, i).mynode = &rnp[j]; \
+  9     (rsp)->rda[i] = &per_cpu(rcu_data, i); \
+ 10   } \
+ 11 } while (0)
+ 12 
+ 13 void __init __rcu_init(void)
+ 14 {
+ 15   int i;
+ 16   int j;
+ 17   struct rcu_node *rnp;
+ 18 
+ 19   rcu_init_one(&rcu_state);
+ 20   RCU_DATA_PTR_INIT(&rcu_state, rcu_data);
+ 21   rcu_init_one(&rcu_bh_state);
+ 22   RCU_DATA_PTR_INIT(&rcu_bh_state, rcu_bh_data);
+ 23 
+ 24   for_each_online_cpu(i)
+ 25     rcu_cpu_notify(&rcu_nb, CPU_UP_PREPARE,
+ 26                    (void *)(long)i);
+ 27   register_cpu_notifier(&rcu_nb);
+ 28 }
+\end{verbatim}
+}
+\caption{{\tt rcu\_init()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcu-init}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init}
+shows the \url{__rcu_init()} function and its \url{RCU_DATA_PTR_INIT()}
+helper macro.
+The \url{__rcu_init()} function is invoked during early boot,
+before the scheduler has initialized, and before more than one
+CPU is running.
+
+The \url{RCU_DATA_PTR_INIT()} macro takes as arguments a pointer to
+an \url{rcu_state} structure and the name of a set of \url{rcu_data}
+per-CPU variables.
+This macro scans the per-CPU \url{rcu_data}
+structures, assigning the \url{->mynode} pointer of each \url{rcu_data}
+structure to point to the corresponding leaf \url{rcu_node} structure.
+It also fills out the specified \url{rcu_state} structure's
+\url{->rda[]} array entries to each point to the corresponding
+\url{rcu_data} structure.
+Line~3 picks up a pointer to the first leaf \url{rcu_node} structure
+in local variable \url{rnp} (which must be declared by the invoker of
+this macro),
+and line~4 sets local variable \url{j} to the corresponding leaf-node
+number of zero.
+Each pass through the loop spanning lines~5-10 performs initialization
+for the corresponding potential CPU (as specified by \url{NR_CPUS}).
+Within this loop, line~6 checks to see if we have moved beyond the
+bounds of the current leaf \url{rcu_node} structure, and, if so,
+line~7 advances to the next structure.
+Then, still within the loop, line~8 sets the \url{->mynode} pointer
+of the current CPU's \url{rcu_data} structure to reference the current
+leaf \url{rcu_node} structure, and line~9 sets the current CPU's \url{->rda[]}
+element (within the \url{rcu_state} structure) to reference the
+current CPU's \url{rcu_data} structure.
+
+\QuickQuiz{C-preprocessor macros are \emph{so} 1990s!
+	Why not get with the times and convert \url{RCU_DATA_PTR_INIT()}
+	in Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init}
+	to be a function?}
+\QuickQuizAnswer{
+	Because, although it is possible to pass a reference to
+	a particular CPU's instance of a per-CPU variable to a function,
+	there does not appear to be a good way pass a reference to
+	the full set of instances of a given per-CPU variable to
+	a function.
+	One could of course build an array of pointers, then pass a
+	reference to the array in, but that is part of what
+	the \url{RCU_DATA_PTR_INIT()} macro is doing in the first place.
+} \QuickQuizEnd
+
+The \url{__rcu_init()} function first invokes \url{rcu_init_one()}
+on the \url{rcu_state} structure on line~19, then invokes
+\url{RCU_DATA_PTR_INIT()} on the \url{rcu_state} structure and
+the \url{rcu_data} set of per-CPU variables.
+It then repeats this for \url{rcu_bh_state} and \url{rcu_bh_data}
+on lines~21-22.
+The loop spanning lines~24-26 invokes \url{rcu_cpu_notify()} for
+each CPU that is currently online (which should be only the boot
+CPU), and line~27 registers a notifier so that \url{rcu_cpu_notify()}
+will be invoked each time a CPU comes online, in order to inform
+RCU of its presence.
+
+\QuickQuiz{What happens if a CPU comes online between the time
+	that the last online CPU is notified on lines~25-26 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init}
+	and the time that \url{register_cpu_notifier()} is invoked
+	on line~27?}
+\QuickQuizAnswer{
+	Only one CPU is online at this point, so the only way another
+	CPU can come online is if this CPU puts it online, which it
+	is not doing.
+} \QuickQuizEnd
+
+The \url{rcu_cpu_notify()} and related functions are discussed in
+Section~\ref{app:rcuimpl:rcutreewt:CPU Hotplug}
+below.
+
+\subsection{CPU Hotplug}
+\label{app:rcuimpl:rcutreewt:CPU Hotplug}
+
 @@@
 
 % initialization, online/offline
 % __rcu_offline_cpu, rcu_offline_cpu (empty if !CONFIG_HOTPLUG_CPU)
-% \url{__rcu_init()}.
+%DONE% \url{__rcu_init()}.
 %	rcu_init_percpu_data, rcu_online_cpu,
 %DONE%	rcu_init_levelspread (CONFIG_RCU_FANOUT_EXACT and not)
 %DONE%	rcu_init_one, 
