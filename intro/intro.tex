@@ -202,6 +202,15 @@ programming.
 	   technical computing arena is MATLAB*P,
 	   which is an attempt to automatically parallelize comon
 	   matrix operations.
+
+	   Finally, on Linux and UNIX systems, consider the following
+	   shell command:
+
+	   {\tt get\_input | grep "interesting" | sort}
+
+	   This shell pipeline runs the \url{get_input}, \url{grep},
+	   and \url{sort} processes in parallel.
+	   There, that wasn't so hard, was it?
 } \QuickQuizEnd
 
 It therefore makes sense to consider alternatives to parallel programming.
@@ -212,16 +221,89 @@ This topic is addressed in the next section.
 \section{Parallel Programming Goals}
 \label{sec:intro:Parallel Programming Goals}
 
-@@@ Rewrite based on HOTPAR submission when published. @@@
+The three major goals of parallel programming (over and above those
+of sequential programming) are as follows:
 
-What should your goals be when programming parallel systems?
-Clearly, completing a correctly running program is always job 1.
+\begin{enumerate}
+\item	Performance.
+\item	Productivity.
+\item	Generality.
+\end{enumerate}
 
-But if performance is not a concern, you should instead do yourself
-a favor and just write single-threaded code.
-It will be easier, and you will probably get done much more quickly.
+\QuickQuiz{What about correctness, maintainability, robustness, and so on???}
+\QuickQuizAnswer{
+	These are important goals, but they are just as important for
+	sequential programs as they are for parallel programs.
+	Therefore, important though they are, they do not belong on
+	a list specific to parallel programming.
+} \QuickQuizEnd
 
-However, Moore's Law has ceased to provide its traditional performance
+\QuickQuiz{And if correctness, maintainability, and robustness don't
+	make the list, why do productivity and generality???}
+\QuickQuizAnswer{
+	Given that parallel programming is perceived to be much harder
+	than is sequential programming, productivity is tantamount and
+	therefore must not be omitted.
+	Furthermore, high-productivity parallel-programming environments
+	such as SQL have been special purpose, hence generality must
+	also be added to the list.
+} \QuickQuizEnd
+
+\QuickQuiz{Given that parallel programs are much harder to prove
+	correct than are sequential programs, again, shouldn't
+	correctness \emph{really} be on the list?}
+\QuickQuizAnswer{
+	From an engineering standpoint, the difficulty in proving
+	correctness, either formally or informally, would be important
+	insofar as it impacts the primary goal of productivity.
+	So, in cases where correctness proofs are important, they
+	are subsumed under the ``productivity'' rubric.
+} \QuickQuizEnd
+
+\QuickQuiz{What about just having fun???}
+\QuickQuizAnswer{
+	Having fun is important as well, but, unless you are a hobbyist,
+	would not normally be a \emph{primary} goal.
+	On the other hand, if you are a hobbyist, go wild!
+} \QuickQuizEnd
+
+Each of these goals is elaborated upon in the following sections.
+
+\subsection{Performance}
+\label{sec:intro:Performance}
+
+Performance is the primary goal behind most parallel-programming effort.
+After all, if performance is not a concern, why not do yourself
+a favor, just write sequential code, and be happy?
+It will very likely be easier,
+and you will probably get done much more quickly.
+
+\QuickQuiz{Are there no cases where parallel programming is about something
+	other than performance?}
+\QuickQuizAnswer{
+	There are certainly cases where the problem to be solved is
+	inherently parallel, for example, Monte Carlo methods and
+	some numerical computations.
+	Even in these cases, however, there will be some amount of
+	extra work managing the parallelism.
+} \QuickQuizEnd
+
+Note that ``performance'' is interpreted quite broadly here,
+including scalability (performance per CPU) and efficiency
+(for example, performance per watt).
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{SMPdesign/clockfreq}}
+\end{center}
+\caption{Clock-Frequency Trend for Intel CPUs}
+\label{fig:intro:Clock-Frequency Trend for Intel CPUs}
+\end{figure}
+
+That said, the focus of performance has shifted from hardware to
+parallel software.
+This change in focus is due to the fact that Moore's Law has ceased to
+provide its traditional performance
 benefits, as can be seen in
 Figure~\ref{fig:intro:Clock-Frequency Trend for Intel CPUs}.
 This means that writing single-threaded code and simply waiting
@@ -230,14 +312,6 @@ Given the recent trends on the part of all major manufacturers towards
 multicore/multithreaded systems, parallelism is the way to go for
 those wanting the avail themselves of the full performance of their
 systems.
-
-\begin{figure}[htb]
-\begin{center}
-\resizebox{3in}{!}{\includegraphics{SMPdesign/clockfreq}}
-\end{center}
-\caption{Clock-Frequency Trend for Intel CPUs}
-\label{fig:intro:Clock-Frequency Trend for Intel CPUs}
-\end{figure}
 
 Even so, the first goal is performance rather than scalability,
 especially given that the easiest way to attain linear scalability
@@ -251,10 +325,188 @@ The first program seems like a better bet, though the answer might
 change if you happened to be one of the lucky few with access to a
 32-CPU system.
 
-Therefore, correctness first, performance second,
-and scalability only as needed to
-attain the required performance on whatever hardware your program
-is to run on.
+That said, just because you have multiple CPUs is not necessarily
+in and of itself a reason to use them all, especially given the
+recent decreases in price of multi-CPU systems.
+The key point to understand is that parallel programming is primarily
+a performance optimization, and, as such, it is one potential optimization
+of many.
+If your program is fast enough as currently written, there is no
+reason to optimize, either by parallelizing it or by applying any
+of a number of potential sequential optimizations.\footnote{
+	Of course, if you are a hobbyist whose primary interest is
+	writing parallel software, that is more than reason enough to
+	parallelize whatever software you are interested in.}
+
+\subsection{Productivity}
+\label{sec:intro:Productivity}
+
+Productivity has been becoming increasingly important through the decades.
+To see this, consider that early computers cost millions of dollars at
+a time when engineering salaries were a few thousand dollars a year.
+If dedicating a team of ten engineers to such a machine would improve
+its performance by 10\%, their salaries would be repaid many times over.
+
+One such machine was the CSIRAC, the oldest still-intact stored-program
+computer, put in operation in
+1949~\cite{CSIRACMuseumVictoria,CSIRACUniversityMelbourne}.
+Given that the machine had but 768 words of RAM, it is safe to say
+that the productivity issues that arise in large-scale software projects
+were not an issue for this machine.
+Because this machine was built before the transistor era, it was constructed
+of 2,000 vacuum tubes, ran with a clock frequency of 1KHz,
+consumed 30KW of power, and weighed more than three metric tons.
+
+It would be difficult to purchase a machine with this little compute
+power roughly sixty years later (2008), with the closest equivalents
+being 8-bit embedded microprocessors exemplified by the venerable
+Z80~\cite{z80Wikipedia}.
+This CPU had 8,500 transistors, and can still be purchased in 2008
+for less than \$2 US per unit in 1,000-unit quantities.
+In stark contrast to the CSIRAC, software-development costs are
+anything but insignificant for the Z80.
+
+In short, one of the inescapable consequences of the rapid decrease in
+the cost of hardware is that software productivity grows increasingly
+important.
+It is no longer sufficient merely to make efficient use of the hardware,
+it is now also necessary to make extremely efficient use of software
+developers.
+This has long been the case for sequential hardware, but only recently
+has parallel hardware become a low-cost commodity.
+Therefore, the need for high productivity in creating parallel software
+has only recently become hugely important.
+
+\QuickQuiz{Given how cheap parallel hardware has become, how can anyone
+	afford to pay people to program it?}
+\QuickQuizAnswer{
+	There are a number of answers to this question:
+	\begin{enumerate}
+	\item	Given a large computational cluster of parallel machines,
+		the aggregate cost of the cluster can easily justify
+		substantial developer effort, because the development
+		cost can be spread over the large number of machines.
+	\item	Popular software that is run by tens of millions of users
+		can easily justify substantial developer effort,
+		as the cost of this development can be spread over the tens
+		of millions of users.
+		Note that this includes things like kernels and system
+		libraries.
+	\item	If the low-cost parallel machine is controlling the operation
+		of a valuable piece of equipment, then the cost of this
+		piece of equipment might easily justify substantial
+		developer effort.
+	\item	If the software for the low-cost parallel produces an
+		extremely valuable result (e.g., mineral exploration),
+		then the valuable result might again justify substantial
+		developer cost.
+	\item	Safety-critical systems protect lives, which can clearly
+		justify very large developer effort.
+	\item	Hobbyists and researchers might seek knowledge, experience,
+		fun, or glory rather than mere money.
+	\end{enumerate}
+	So it is not the case that the decreasing cost of hardware renders
+	software worthless, but rather that it is no longer possible to
+	``hide'' the cost of software development within the cost of
+	the hardware, at least not unless there are extremely large
+	quantities of hardware.
+} \QuickQuizEnd
+
+Perhaps at one time, the sole purpose of parallel software was performance.
+Now, however, productivity is increasingly important.
+
+\subsection{Generality}
+\label{sec:intro:Generality}
+
+One way to justify the high cost of developing parallel software
+is to strive for maximal generality.
+All else being equal, the cost of a more-general software artifact
+can be spread over more users than can a less-general artifact.
+
+Unfortunately, generality often comes at the cost of performance,
+productivity, or both.
+To see this, consider the following popular parallel programming
+environments:
+
+\begin{description}
+\item[C/C++ ``Locking Plus Threads'']: This category, which includes
+	POSIX Threads (pthreads)~\cite{OpenGroup1997pthreads},
+	Windows Threads, and numerous
+	operating-system kernel environments, offers excellent performance
+	(at least within the confines of a single SMP system)
+	and also offers good generality.
+	Pity about the relatively low productivity.
+\item[Java]: This programming environment, which is inherently
+	multithreaded, is widely believed to be much more productive
+	than C or C++, courtesy of the automatic garbage collector
+	and the rich set of class libraries, and is reasonably
+	general purpose.
+	However, its performance, though greatly improved over the past ten
+	years, is generally considered to be less than that of C and C++.
+\item[MPI]: this message-passing interface~\cite{MPIForum2008} powers
+	the largest scientific and technical computing clusters in
+	the world, so offers unparalleled performance and scalability.
+	It is in theory general purpose, but has generally been used
+	for scientific and technical computing.
+	It productivity is believed by many to be even less than that
+	of C/C++ ``locking plus threads'' environments.
+\item[OpenMP]: this set of compiler directives can be used
+	to parallelize loops.  It is thus quite specific to this
+	task, and this specificity often limits its performance,
+	It is, however, much easier to use than MPI or parallel C/C++.
+\item[SQL]: structured query language~\cite{DIS9075SQL92} is extremely
+	specific, applying only to relational database queries.
+	However, its performance is quite good, doing quite well
+	in Transaction Processing Performance Council (TPC)
+	benchmarks~\cite{TPC}.
+	Productivity is excellent, in fact, this parallel programming
+	environment permits people who know almost nothing about
+	parallel programming to make good use of a large parallel
+	machine.
+\end{description}
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{intro/PPGrelation}}
+\end{center}
+\caption{Software Layers and Performance, Productivity, and Generality}
+\label{fig:intro:Software Layers and Performance, Productivity, and Generality}
+\end{figure}
+
+The nirvana of parallel programming environments, one that offers
+world-class performance, productivity, and generality, simply does
+not yet exist.
+Until such a nirvana appears, it will be necessary to make engineering
+tradeoffs among performance, productivity, and generality.
+One such tradeoff is shown in
+Figure~\ref{fig:intro:Software Layers and Performance, Productivity, and Generality},
+which shows how productivity becomes increasingly important at the upper layers
+of the system stack,
+while performance and generality become increasingly important at the
+lower layers of the system stack.
+The huge development costs incurred near the bottom of the stack
+must be spread over equally huge numbers of users on the one hand
+(hence the importance of generality), and
+performance lost near the bottom of the stack cannot easily be
+recovered further up the stack.
+Near the top of the stack, there might be very few users for a given
+specific application, in which case productivity concerns are paramount.
+This explains the tendency towards ``bloatware'' further up the stack:
+extra hardware is often cheaper than would be the extra developers.
+Of course, this would in no way excuse bloat in any parallel applications
+that have extremely large numbers of users!
+
+It is important to note that a tradeoff between productivity and
+generality has existed for centuries in many fields.
+For but one example, a nailgun is far more productive than is a
+hammer, but in contrast to the nailgun, a hammer can be used for
+many things besides driving nails.
+It should therefore be absolutely no surprise to see similar tradeoffs
+appear in the field of parallel computing.
+
+With the three parallel-programming goals of performance, productivity, 
+and generality in mind, it is now time to look into alternatives to
+parallel programming.
 
 \section{Alternatives to Parallel Programming}
 \label{sec:intro:Alternatives to Parallel Programming}
@@ -263,17 +515,11 @@ In order to properly consider alternatives to parallel programming,
 you must first have thought through what you expect the parallelism
 to do for you.
 As seen in Section~\ref{sec:intro:Parallel Programming Goals},
-typical goals include:
+the primary goals of parallel programming are performance, productivity,
+and generality.
 
-\begin{enumerate}
-\item	Improve performance.
-\item	Learn more about parallel programming.
-\item	Have fun solving a parallel-programming problem.
-\end{enumerate}
-
-@@@ Adjust based on HOTPAR submission @@@
-
-Although most developers might be most concerned with the first goal,
+Although historically most parallel developers might be most concerned
+with the first goal,
 one advantage of the other goals is that they relieve you of the need
 to justify using parallelism.
 The remainder of this section is concerned only performance improvement.
@@ -344,9 +590,9 @@ well as increasing performance.
 
 Performance analysis of sequential programs is well understood,
 and will not be discussed further here.
-Instead, we will look at parallel programming as yet another performance
-optimization, albeit one that has recently become very important due
-to the widespread availability of low-cost multicore systems.
+Instead, please note that parallel programming is but another performance
+optimization, albeit one that is becoming \emph{much} more attractive
+as parallel systems become cheaper and more readily available.
 
 \section{Ease of Use}
 \label{sec:intro:Ease of Use}
@@ -358,6 +604,7 @@ Because the easier a performance technique is to use, the more likely
 it will be used.
 This greater use can outweigh a small performance penalty compared
 to an optimal hard-to-use technique.
+In addition, easier-to-use techniques usually improve productivity.
 
 This book is not a collection of optimal algorithms with tiny areas of
 applicability; instead, it is a handbook of widely applicable and heavily
@@ -405,8 +652,8 @@ page~\pageref{chp:Answers to Quick Quizzes}.
 	Is that really the intent?}
 \QuickQuizAnswer{
 	Indeed it is!
- 	Many are modeled after Paul (just ask anyone who has had the
-	misfortune of being assigned to teach him).
+ 	Many are modeled after Paul---just ask anyone who has had the
+	misfortune of being assigned to teach him.
 	Others are quite similar to actual questions that have been asked
 	during conference presentations and lectures covering the
 	material in this book.
