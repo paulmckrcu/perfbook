@@ -1,6 +1,7 @@
 /*
- * rcu64.c: simple user-level implementation of RCU leveraging large
- *	counter that is safe from overflow.
+ * rcu64_atomicgp.c: simple user-level implementation of RCU leveraging large
+ *	counter that is safe from overflow, but with concurrent update
+ *	processing based on atomic instructions.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,23 +21,25 @@
  */
 
 #include "../api.h"
-#include "rcu64.h"
+#include "rcu64_atomicgp.h"
 
 void synchronize_rcu(void)
 {
 	int t;
+	long oldval;
 
 	/* Memory barrier ensures mutation seen before grace period. */
 
 	smp_mb();
 
-	/* Only one synchronize_rcu() at a time. */
+	/*
+	 * Atomically advance to a new grace-period number, enforce ordering.
+	 * Failure is OK -- someone will have advanced the grace-period
+	 * number for use.
+	 */
 
-	spin_lock(&rcu_gp_lock);
-
-	/* Advance to a new grace-period number, enforce ordering. */
-
-	rcu_gp_ctr--;
+	oldval = atomic_read(&rcu_gp_ctr);
+	(void)atomic_cmpxchg(&rcu_gp_ctr, oldval, oldval - 1);
 	smp_mb();
 
 	/*
@@ -45,14 +48,10 @@ void synchronize_rcu(void)
 	 */
 
 	for_each_thread(t) {
-		while (per_thread(rcu_reader_gp, t) < -rcu_gp_ctr) {
+		while (per_thread(rcu_reader_gp, t) <= -oldval) {
 			/*@@@ poll(NULL, 0, 10); */
 		}
 	}
-
-	/* Let other synchronize_rcu() instances move ahead. */
-
-	spin_unlock(&rcu_gp_lock);
 
 	/* Ensure that any subsequent free()s happen -after- above checks. */
 

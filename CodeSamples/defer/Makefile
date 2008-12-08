@@ -19,7 +19,7 @@ GCC_ARGS=-g -O3
 # http://www.ibm.com/developerworks/wikis/display/hpccentral/Tuning+options+to+consider+with+gcc#Tuningoptionstoconsiderwithgcc-mcpuandmtune
 # GCC_ARGS=-g -O3 -m64 -mcpu=power5 -mtune=power5
 
-all: gettimestamp gettimestampmp rcu rcu64 rcu_lock rcu_lock_percpu rcu_nest rcu_nest_qs rcu_qs rcu_rcg rcu_rcpg rcu_rcpl rcu_rcpls rcu_ts
+all: gettimestamp gettimestampmp rcu rcu64 rcu64_atomicgp rcu_lock rcu_lock_percpu rcu_nest rcu_nest_qs rcu_qs rcu_rcg rcu_rcpg rcu_rcpl rcu_rcpls rcu_ts
 
 gettimestamp: gettimestamp.c ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o gettimestamp -DTEST gettimestamp.c -lpthread
@@ -32,6 +32,9 @@ rcu: rcu.c rcu.h ../api.h rcutorture.h
 
 rcu64: rcu64.c rcu64.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu64 -DTEST rcu64.c -lpthread
+
+rcu64_atomicgp: rcu64_atomicgp.c rcu64_atomicgp.h ../api.h rcutorture.h
+	cc $(GCC_ARGS) -o rcu64_atomicgp -DTEST rcu64_atomicgp.c -lpthread
 
 rcu_lock: rcu_lock.c rcu_lock.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_lock -DTEST rcu_lock.c -lpthread

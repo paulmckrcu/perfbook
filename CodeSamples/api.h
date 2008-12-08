@@ -5,8 +5,8 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * the Free Software Foundation, but version 2 only due to inclusion
+ * of Linux-kernel code.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -201,6 +201,20 @@ static __inline__ int atomic_add_return(int i, atomic_t *v)
 static __inline__ int atomic_sub_return(int i, atomic_t *v)
 {
 	return atomic_add_return(-i,v);
+}
+
+static inline unsigned int
+cmpxchg(volatile int *ptr, int oldval, int newval)
+{
+	unsigned long retval;
+
+	asm("# cmpxchg\n"
+	    "lock; cmpxchgl %4,(%2)\n"
+	    "# end atomic_cmpxchg4"
+	    : "=a" (retval), "=m" (*ptr)
+	    : "r" (ptr), "0" (oldval), "r" (newval), "m" (*ptr)
+	    : "cc");
+	return (retval);
 }
 
 #define atomic_cmpxchg(v, old, new) ((int)cmpxchg(&((v)->counter), old, new))
