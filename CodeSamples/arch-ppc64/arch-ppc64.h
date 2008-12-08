@@ -203,6 +203,24 @@ static __inline__ int atomic_add_negative(int a, atomic_t *v)
 	return atomic_add_return(a, v) < 0;
 }
 
+static inline int
+cmpxchg(volatile int *ptr, int oldval, int newval)
+{
+	int retval;
+
+	asm("# atomic_cmpxchg4\n"
+	    "lwarx	%0,0,%2\n"
+	    "cmpw	cr0,%0,%3\n"
+	    "bne-	$+12\n"
+	    "stwcx.	%4,0,%2\n"
+	    "bne-	$-16\n"
+	    "# end atomic_cmpxchg4"
+	    : "=&r" (retval), "+m" (*ptr)
+	    : "r" (ptr), "r" (oldval), "r" (newval), "m" (*ptr)
+	    : "cr0");
+	return (retval);
+}
+
 #define atomic_cmpxchg(v, old, new) ((int)cmpxchg(&((v)->counter), old, new))
 #define atomic_xchg(v, new) (xchg(&((v)->counter), new))
 
