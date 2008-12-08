@@ -644,7 +644,7 @@ The following kernel parameters affect this variant of RCU:
 	tracing information in \url{debugfs}.
 \end{itemize}
 
-\begin{figure*}[htbp]
+\begin{figure*}[tbp]
 {
 \begin{verbatim}
   1 #define MAX_RCU_LVLS    3
@@ -743,7 +743,7 @@ and is defined in terms of \url{call_rcu_bh()}.
 \subsubsection{\tt call\_rcu()}
 \label{app:rcuimpl:rcutreewt:call-rcu}
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 static void
@@ -853,7 +853,7 @@ to convince holdout CPUs to pass through quiescent states.
 \subsubsection{\tt rcu\_check\_callbacks()}
 \label{app:rcuimpl:rcutreewt:rcu-check-callbacks}
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 static int __rcu_pending(struct rcu_state *rsp,
@@ -1012,7 +1012,7 @@ scheduler-clock interrupt).
 \subsubsection{\tt rcu\_process\_callbacks()}
 \label{app:rcuimpl:rcutreewt:rcu-process-callbacks}
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 static void
@@ -1118,7 +1118,7 @@ is seen prior to any subsequent RCU read-side critical sections.
 \subsubsection{{\tt rcu\_needs\_cpu()} and {\tt rcu\_cpu\_notify()}}
 \label{app:rcuimpl:rcutreewt:rcu-needs-cpu and rcu-cpu-notify}
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 int rcu_needs_cpu(int cpu)
@@ -1176,10 +1176,52 @@ of coming or going.
 \subsection{Initialization}
 \label{app:rcuimpl:rcutreewt:Initialization}
 
+\begin{figure*}[tb]
+\begin{center}
+\resizebox{6in}{!}{\includegraphics{appendix/rcuimpl/RCUTreeInit}}
+\end{center}
+\caption{Initialized RCU Data Layout}
+\label{fig:app:rcuimpl:rcutree:Initialized RCU Data Layout}
+\end{figure*}
+
+This section walks through the initialization code, which links the
+main data structures together as shown in
+Figure~\ref{fig:app:rcuimpl:rcutree:Initialized RCU Data Layout}.
+The yellow region represents fields in the \url{rcu_state} data
+structure, including the \url{->node} array, individual elements
+of which are shown in pink, matching the convention used in
+Section~\ref{app:rcuimpl:rcutree:Hierarchical RCU Overview}.
+The blue boxes each represent one \url{rcu_data} structure,
+and the group of blue boxes makes up a set of per-CPU \url{rcu_data}
+structures.
+
+The \url{->levelcnt[]} array is initialized at compile time, as is
+\url{->level[0]}, but the rest of the values and pointers are filled
+in by the functions described in the following sections.
+The figure shows a two-level hierarchy, but one-level and three-level
+hierarchies are possible as well.
+Each element of the \url{->levelspread[]} array gives the number of
+children per node at the corresponding level of the hierarchy.
+In the figure, therefore, the root node has two children and the
+nodes at the leaf level each have three children.
+Each element of the \url{levelcnt[]} array indicates how many nodes
+there are on the corresponding level of the hierarchy: 1 at the root
+level, 2 at the leaf level, and 6 at the \url{rcu_data} level---and any
+extra elements are unused and left as zero.
+Each element of the \url{->level[]} array references the first
+node of the corresponding level of the \url{rcu_node} hierarchy,
+and each element of the \url{->rda[]} array references the corresponding
+CPU's \url{rcu_data} structure.
+Finally, the \url{->mynode} field of each \url{rcu_data} structure
+references its parent \url{rcu_node} structure.
+
+Again, the following sections walk through the code that builds this
+structure.
+
 \subsubsection{\tt rcu\_init\_levelspread()}
 \label{app:rcuimpl:rcutreewt:rcu-init-levelspread}
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 #ifdef CONFIG_RCU_FANOUT_EXACT
@@ -1253,7 +1295,7 @@ the number of children for each level of the \url{rcu_node} hierarchy.
 \subsubsection{\tt rcu\_init\_one()}
 \label{app:rcuimpl:rcutreewt:rcu-init-one}
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 static void __init rcu_init_one(struct rcu_state *rsp)
@@ -1365,7 +1407,7 @@ which is used for tracing when traversing the full hierarchy.
 \subsubsection{\tt \_\_rcu\_init()}
 \label{app:rcuimpl:rcutreewt:rcu-init}
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 #define RCU_DATA_PTR_INIT(rsp, rcu_data) \
@@ -1398,7 +1440,7 @@ which is used for tracing when traversing the full hierarchy.
  28 }
 \end{verbatim}
 }
-\caption{{\tt rcu\_init()} Code}
+\caption{{\tt \_\_rcu\_init()} Code}
 \label{fig:app:rcuimpl:rcutreewt:Code for rcu-init}
 \end{figure}
 
@@ -1479,12 +1521,114 @@ below.
 \subsection{CPU Hotplug}
 \label{app:rcuimpl:rcutreewt:CPU Hotplug}
 
+The CPU-hotplug functions described in the following sections
+allow RCU to track which CPUs are and are not present, but also
+complete initialization of each CPU's \url{rcu_data} structure
+as that CPU comes online.
+
+\subsubsection{\tt rcu\_init\_percpu\_data()}
+\label{app:rcuimpl:rcutreewt:rcu-init-percpu-data}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 rcu_init_percpu_data(int cpu, struct rcu_state *rsp)
+  3 {
+  4   unsigned long flags;
+  5   int i;
+  6   long lastcomp;
+  7   unsigned long mask;
+  8   struct rcu_data *rdp = rsp->rda[cpu];
+  9   struct rcu_node *rnp = rcu_get_root(rsp);
+ 10 
+ 11   spin_lock_irqsave(&rnp->lock, flags);
+ 12   lastcomp = rsp->completed;
+ 13   rdp->completed = lastcomp;
+ 14   rdp->gpnum = lastcomp;
+ 15   rdp->passed_quiesc = 0;
+ 16   rdp->qs_pending = 1;
+ 17   rdp->beenonline = 1;
+ 18   rdp->passed_quiesc_completed = lastcomp - 1;
+ 19   rdp->grpmask = 1UL << (cpu - rdp->mynode->grplo);
+ 20   rdp->nxtlist = NULL;
+ 21   for (i = 0; i < RCU_NEXT_SIZE; i++)
+ 22     rdp->nxttail[i] = &rdp->nxtlist;
+ 23   rdp->qlen = 0;
+ 24   rdp->blimit = blimit;
+ 25 #ifdef CONFIG_NO_HZ
+ 26   rdp->dynticks = &per_cpu(rcu_dynticks, cpu);
+ 27 #endif /* #ifdef CONFIG_NO_HZ */
+ 28   rdp->cpu = cpu;
+ 29   spin_unlock(&rnp->lock);
+ 30   spin_lock(&rsp->onofflock);
+ 31   rnp = rdp->mynode;
+ 32   mask = rdp->grpmask;
+ 33   do {
+ 34     spin_lock(&rnp->lock);
+ 35     rnp->qsmaskinit |= mask;
+ 36     mask = rnp->grpmask;
+ 37     spin_unlock(&rnp->lock);
+ 38     rnp = rnp->parent;
+ 39   } while (rnp != NULL && !(rnp->qsmaskinit & mask));
+ 40   spin_unlock(&rsp->onofflock);
+ 41   cpu_quiet(cpu, rsp, rdp, lastcomp);
+ 42   local_irq_restore(flags);
+ 43 }
+\end{verbatim}
+}
+\caption{{\tt rcu\_init\_percpu\_data()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcu-init-percpu-data}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init-percpu-data}
+shows the code for \url{rcu_init_percpu_data()}, which initializes
+the specified CPU's \url{rcu_data} structure in response to booting
+up or to that CPU coming online.
+It also sets up the \url{rcu_node} hierarchy so that this CPU will
+participate in future grace periods.
+
+Line~8 gets a pointer to this CPU's \url{rcu_data} structure, based
+on the specified \url{rcu_state} structure, and places this pointer
+into the local variable \url{rdp}.
+Line~9 gets a pointer to the root \url{rcu_node} structure for the
+specified \url{rcu_state} structure, placing it in local variable
+\url{rnp}.
+
+Lines~11-29 initialize the fields of the \url{rcu_data} structure
+under the protection of the root \url{rcu_node} structure's lock
+in order to ensure consistent values.
+
+Lines~30-40 propagate the onlining CPU's bit up the \url{rcu_node}
+hierarchy, proceeding until either the root \url{rcu_node} is
+reached or until the corresponding bit is already set, whichever
+comes first.
+This bit-setting is done under the protection of \url{->onofflock}
+in order to exclude initialization of a new grace period, and, in addition,
+each \url{rcu_node} structure is initialized under the protection
+of its lock.
+Line~41 then invokes \url{cpu_quiet()} to signal RCU that this
+CPU has been in an extended quiescent state, and finally, line~42
+re-enables irqs.
+
+\QuickQuiz{Why call \url{cpu_quiet()} on line~41 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init-percpu-data},
+	given that we are excluding grace periods with various
+	locks, and given that any earlier grace periods would not have
+	been waiting on this previously-offlined CPU?}
+\QuickQuizAnswer{
+	A new grace period might have started just after the
+	\url{->onofflock} was released on line~40.
+	The \url{cpu_quiet()} will help expedite such a grace period.
+} \QuickQuizEnd
+
 @@@
 
 % initialization, online/offline
 % __rcu_offline_cpu, rcu_offline_cpu (empty if !CONFIG_HOTPLUG_CPU)
 %DONE% \url{__rcu_init()}.
-%	rcu_init_percpu_data, rcu_online_cpu,
+%	rcu_online_cpu,
+%DONE%	rcu_init_percpu_data
 %DONE%	rcu_init_levelspread (CONFIG_RCU_FANOUT_EXACT and not)
 %DONE%	rcu_init_one, 
 
@@ -1519,7 +1663,7 @@ This section describes the functions that take such action.
 
 % @@@ the code in the following figure needs to be redone: recently changed.
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 static void
