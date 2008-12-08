@@ -2188,6 +2188,81 @@ In the meantime, however, there are some challenges:
 	\url{->onofflock} was released on line~40.
 	The \url{cpu_quiet()} will help expedite such a grace period.
 
+\QuickQ{But what if the \url{rcu_node} hierarchy has only a single
+	structure, as it would on a small system?
+	What prevents concurrent grace-period initialization in that
+	case, given the code in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}?}
+
+	The later acquisition of the sole \url{rcu_node} structure's
+	\url{->lock} on line~16 excludes grace-period initialization,
+	which must acquire this same lock in order to initialize this
+	sole \url{rcu_node} structure for the new grace period.
+
+	The \url{->onofflock} is needed only for multi-node hierarchies,
+	and is used in that case as an alternative to acquiring and
+	holding \emph{all} of the \url{rcu_node} structures'
+	\url{->lock} fields, which would be incredibly painful on
+	large systems.
+
+\QuickQ{But does line~25 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}
+	ever really exit the loop?
+	Why or why not?}
+
+	The only way that line~25 could exit the loop is if \emph{all}
+	CPUs were to be put offline.
+	This cannot happen in the Linux kernel as of 2.6.28, though
+	other environments have been designed to offline all CPUs
+	during the normal shutdown procedure.
+
+\QuickQ{Suppose that line~26 got executed seriously out of order in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu},
+	so that \url{lastcomp} is set to some prior grace period, but
+	so that the current grace period is still waiting on the
+	now-offline CPU?
+	In this case, won't the call to \url{cpu_quiet()} fail to
+	report the quiescent state, thus causing the grace period
+	to wait forever for this now-offline CPU?}
+
+	First, the lock acquisitions on lines~16 and 12 would prevent
+	the execution of line~26 from being pushed that far out of
+	order.
+	Nevertheless, even if line~26 managed to be misordered that
+	dramatically, what would happen is that \url{force_quiescent_state()}
+	would eventually be invoked, and would notice that the current
+	grace period was waiting for a quiescent state from an offline
+	CPU.
+	Then \url{force_quiescent_state()} would report the extended
+	quiescent state on behalf of the offlined CPU.
+
+\QuickQ{Given that an offline CPU is in an extended quiescent state,
+	why does line~28 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}
+	need to care which grace period it is
+	dealing with?}
+
+	It really does not need to care in this case.
+	However, because it \emph{does} need to care in many other
+	cases, the \url{cpu_quiet()} function does take the
+	grace-period number as an argument, so some value must be
+	supplied.
+
+\QuickQ{But this list movement in 
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}
+	makes all of the going-offline CPU's callbacks go through
+	another grace period, even if they were ready to invoke.
+	Isn't that inefficient?
+	Furthermore, couldn't an unfortunate pattern of CPUs going
+	offline then coming back online prevent a given callback from
+	ever being invoked?}
+
+	It is inefficient, but it is simple.
+	Given that this is not a commonly executed code path, this
+	is the right tradeoff.
+	The starvation case would be a concern, except that the
+	online and offline process involves multiple grace periods.
+
 \QuickQ{Why is it important that blocking primitives
 	called from within a preemptible-RCU read-side critical section be
 	subject to priority inheritance?}

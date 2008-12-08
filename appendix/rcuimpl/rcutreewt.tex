@@ -1598,6 +1598,14 @@ specified \url{rcu_state} structure, placing it in local variable
 Lines~11-29 initialize the fields of the \url{rcu_data} structure
 under the protection of the root \url{rcu_node} structure's lock
 in order to ensure consistent values.
+Line~17 is important for tracing, due to the fact that many Linux
+distributions set \url{NR_CPUS} to a very large number, which could
+result in excessive output when tracing \url{rcu_data} structures.
+The \url{->beenonline} field is used to solve this problem, as
+it will be set to the value one on any \url{rcu_data} structure
+corresponding to a CPU that has ever been online, and set to zero
+for all other \url{rcu_data} structures.
+This allows the tracing code to easily ignore irrelevant CPUs.
 
 Lines~30-40 propagate the onlining CPU's bit up the \url{rcu_node}
 hierarchy, proceeding until either the root \url{rcu_node} is
@@ -1622,12 +1630,278 @@ re-enables irqs.
 	The \url{cpu_quiet()} will help expedite such a grace period.
 } \QuickQuizEnd
 
+It is important to note that \url{rcu_init_percpu_data()} is invoked
+not only at boot time, but also every time that a given CPU is brought
+online.
+
+\subsubsection{\tt rcu\_online\_cpu()}
+\label{app:rcuimpl:rcutreewt:rcu-online-cpu}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void __cpuinit rcu_online_cpu(int cpu)
+  2 {
+  3 #ifdef CONFIG_NO_HZ
+  4   struct rcu_dynticks *rdtp;
+  5 
+  6   rdtp = &per_cpu(rcu_dynticks, cpu);
+  7   rdtp->dynticks_nesting = 1;
+  8   rdtp->dynticks |= 1;
+  9   rdtp->dynticks_nmi = (rdtp->dynticks_nmi + 1) & ~0x1;
+ 10 #endif /* #ifdef CONFIG_NO_HZ */
+ 11   rcu_init_percpu_data(cpu, &rcu_state);
+ 12   rcu_init_percpu_data(cpu, &rcu_bh_state);
+ 13   open_softirq(RCU_SOFTIRQ, rcu_process_callbacks);
+ 14 }
+\end{verbatim}
+}
+\caption{{\tt rcu\_online\_cpu()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcu-online-cpu}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-online-cpu}
+shows the code for \url{rcu_online_cpu()}, which informs RCU that the
+specified CPU is coming online.
+
+When dynticks (\url{CONFIG_NO_HZ}) is enabled, line~6 obtains a
+reference to the specified CPU's \url{rcu_dynticks} structure, which
+is shared between the ``rcu'' and ``rcu\_bh'' implementations of RCU.
+Line~7 sets the \url{->dynticks_nesting} field to the value one,
+reflecting the fact that a newly onlined CPU is not in dynticks-idle
+mode (recall that the \url{->dynticks_nesting} field tracks the
+number of reasons that the corresponding CPU needs to be tracked for
+RCU read-side critical sections, in this case because it can run
+process-level code).
+Line~8 forces the \url{->dynticks} field to an odd value that is
+at least as large as the last value it had when previously online,
+again reflecting the fact that newly onlined CPUs are not in dynticks-idle
+mode, and line~9 forces the \url{->dynticks_nmi} field to an even value
+that is at least as large as the last value it had when previously
+online, reflecting the fact that this CPU is not currently executing
+in an NMI handler.
+
+Lines~11-13 are executed regardless of the value of the
+\url{CONFIG_NO_HZ} kernel parameter.
+Line~11 initializes the specified CPU's \url{rcu_data} structure
+for ``rcu'', and line~12 does so for ``rcu\_bh''.
+Finally, line~13 registers the \url{rcu_process_callbacks()} to be
+invoked by subsequent \url{raise_softirq()} invocations on this CPU.
+
+\subsubsection{\tt rcu\_offline\_cpu()}
+\label{app:rcuimpl:rcutreewt:rcu-offline-cpu}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 __rcu_offline_cpu(int cpu, struct rcu_state *rsp)
+  3 {
+  4   int i;
+  5   unsigned long flags;
+  6   long lastcomp;
+  7   unsigned long mask;
+  8   struct rcu_data *rdp = rsp->rda[cpu];
+  9   struct rcu_data *rdp_me;
+ 10   struct rcu_node *rnp;
+ 11 
+ 12   spin_lock_irqsave(&rsp->onofflock, flags);
+ 13   rnp = rdp->mynode;
+ 14   mask = rdp->grpmask;
+ 15   do {
+ 16     spin_lock(&rnp->lock);
+ 17     rnp->qsmaskinit &= ~mask;
+ 18     if (rnp->qsmaskinit != 0) {
+ 19       spin_unlock(&rnp->lock);
+ 20       break;
+ 21     }
+ 22     mask = rnp->grpmask;
+ 23     spin_unlock(&rnp->lock);
+ 24     rnp = rnp->parent;
+ 25   } while (rnp != NULL);
+ 26   lastcomp = rsp->completed;
+ 27   spin_unlock(&rsp->onofflock);
+ 28   cpu_quiet(cpu, rsp, rdp, lastcomp);
+ 29   rdp_me = rsp->rda[smp_processor_id()];
+ 30   if (rdp->nxtlist != NULL) {
+ 31     *rdp_me->nxttail[RCU_NEXT_TAIL] = rdp->nxtlist;
+ 32     rdp_me->nxttail[RCU_NEXT_TAIL] =
+ 33         rdp->nxttail[RCU_NEXT_TAIL];
+ 34     rdp->nxtlist = NULL;
+ 35     for (i = 0; i < RCU_NEXT_SIZE; i++)
+ 36       rdp->nxttail[i] = &rdp->nxtlist;
+ 37     rdp_me->qlen += rdp->qlen;
+ 38     rdp->qlen = 0;
+ 39   }
+ 40   local_irq_restore(flags);
+ 41 }
+ 42 
+ 43 static void rcu_offline_cpu(int cpu)
+ 44 {
+ 45   __rcu_offline_cpu(cpu, &rcu_state);
+ 46   __rcu_offline_cpu(cpu, &rcu_bh_state);
+ 47 }
+\end{verbatim}
+}
+\caption{{\tt rcu\_offline\_cpu()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}
+shows the code for \url{__rcu_offline_cpu()} and its wrapper
+function, \url{rcu_offline_cpu()}.
+The purpose of this wrapper function (shown in lines~43-47 of the figure)
+is simply to invoke \url{__rcu_offline_cpu()} twice, once for ``rcu'' and
+again for ``rcu\_bh''.
+The purpose of the \url{__rcu_offline_cpu()} function is to
+prevent future grace periods from waiting on the CPU being offlined,
+to note the extended quiescent state, and to find a new home for
+any RCU callbacks in process on this CPU.
+
+Turning to \url{__rcu_offline_cpu()}, shown on lines~1-41 of the figure,
+line~12 acquires the specified \url{rcu_state} structure's
+\url{->onofflock}, excluding grace-period initialization for
+multi-\url{rcu_node} hierarchies.
+
+\QuickQuiz{But what if the \url{rcu_node} hierarchy has only a single
+	structure, as it would on a small system?
+	What prevents concurrent grace-period initialization in that
+	case, given the code in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}?}
+\QuickQuizAnswer{
+	The later acquisition of the sole \url{rcu_node} structure's
+	\url{->lock} on line~16 excludes grace-period initialization,
+	which must acquire this same lock in order to initialize this
+	sole \url{rcu_node} structure for the new grace period.
+
+	The \url{->onofflock} is needed only for multi-node hierarchies,
+	and is used in that case as an alternative to acquiring and
+	holding \emph{all} of the \url{rcu_node} structures'
+	\url{->lock} fields, which would be incredibly painful on
+	large systems.
+} \QuickQuizEnd
+
+Line~13 picks up a pointer to the leaf \url{rcu_node} structure corresponding
+to this CPU, using the \url{->mynode} pointer in this CPU's \url{rcu_data}
+structure
+(see Figure~\ref{fig:app:rcuimpl:rcutree:Initialized RCU Data Layout}).
+Line~14 picks up a mask with this CPU's bit set for use on
+the leaf \url{rcu_node} structure's \url{qsmask} field.
+
+The loop spanning lines~15-25 then clears this CPU's bits up the
+\url{rcu_node} hierarchy, starting with this CPU's leaf \url{rcu_node}
+structure.
+Line~16 acquires the current \url{rcu_node} structure's \url{->lock}
+field, and line~17 clears the bit corresponding to this CPU
+(or group, higher up in the hierarchy) from the \url{->qsmaskinit}
+field, so that future grace periods will not wait on quiescent states
+from this CPU.
+If the resulting \url{->qsmaskinit} value is non-zero, as checked by
+line~18, then the
+current \url{rcu_node} structure has other online CPUs that it
+must track, so line~19 releases the current \url{rcu_node} structure's
+\url{->lock} and line~20 exits the loop.
+Otherwise, we need to continue walking up the \url{rcu_node} hierarchy.
+In this case, line~22 picks up the mask to apply to the next level up,
+line~23 releases the current \url{rcu_node} structure's \url{->lock},
+and line~24 advances up to the next level of the hierarchy.
+Line~25 exits the loop should we exit out the top of the hierarchy.
+
+\QuickQuiz{But does line~25 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}
+	ever really exit the loop?
+	Why or why not?}
+\QuickQuizAnswer{
+	The only way that line~25 could exit the loop is if \emph{all}
+	CPUs were to be put offline.
+	This cannot happen in the Linux kernel as of 2.6.28, though
+	other environments have been designed to offline all CPUs
+	during the normal shutdown procedure.
+} \QuickQuizEnd
+
+Line~26 picks up the the specified \url{rcu_state} structure's
+\url{->completed} field into the local variable \url{lastcomp},
+line~27 releases \url{->onofflock} (but leaves irqs disabled),
+and line~28 invokes \url{cpu_quiet()} in order to note that the
+CPU being offlined is now in an extended quiescent state, passing
+in \url{lastcomp} to avoid reporting this quiescent state against
+a different grace period than it occurred in.
+
+\QuickQuiz{Suppose that line~26 got executed seriously out of order in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu},
+	so that \url{lastcomp} is set to some prior grace period, but
+	so that the current grace period is still waiting on the
+	now-offline CPU?
+	In this case, won't the call to \url{cpu_quiet()} fail to
+	report the quiescent state, thus causing the grace period
+	to wait forever for this now-offline CPU?}
+\QuickQuizAnswer{
+	First, the lock acquisitions on lines~16 and 12 would prevent
+	the execution of line~26 from being pushed that far out of
+	order.
+	Nevertheless, even if line~26 managed to be misordered that
+	dramatically, what would happen is that \url{force_quiescent_state()}
+	would eventually be invoked, and would notice that the current
+	grace period was waiting for a quiescent state from an offline
+	CPU.
+	Then \url{force_quiescent_state()} would report the extended
+	quiescent state on behalf of the offlined CPU.
+} \QuickQuizEnd
+
+\QuickQuiz{Given that an offline CPU is in an extended quiescent state,
+	why does line~28 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}
+	need to care which grace period it is
+	dealing with?}
+\QuickQuizAnswer{
+	It really does not need to care in this case.
+	However, because it \emph{does} need to care in many other
+	cases, the \url{cpu_quiet()} function does take the
+	grace-period number as an argument, so some value must be
+	supplied.
+} \QuickQuizEnd
+
+Lines~29-39 move any RCU callbacks from the CPU going offline to the
+currently running CPU.
+This operation must avoid reordering the callbacks being moved, as
+otherwise \url{rcu_barrier()} will not work correctly.
+Line~29 puts a pointer to the currently running CPU's \url{rcu_data}
+structure into local variable \url{rdp_me}.
+Line~30 then checks to see if the CPU going offline has any RCU callbacks.
+If so, lines~31-38 move them.
+Line~31 splices the list of callbacks onto the end of the running CPU's
+list.
+Lines~32-33 sets the running CPU's callback tail pointer to that of
+the CPU going offline, and then lines 34-36 initialize the going-offline
+CPU's list to be empty.
+Line~37 adds the length of the going-offline CPU's callback list to
+that of the currently running CPU, and, finally, line 38 zeroes the
+going-offline CPU's list length.
+
+\QuickQuiz{But this list movement in 
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}
+	makes all of the going-offline CPU's callbacks go through
+	another grace period, even if they were ready to invoke.
+	Isn't that inefficient?
+	Furthermore, couldn't an unfortunate pattern of CPUs going
+	offline then coming back online prevent a given callback from
+	ever being invoked?}
+\QuickQuizAnswer{
+	It is inefficient, but it is simple.
+	Given that this is not a commonly executed code path, this
+	is the right tradeoff.
+	The starvation case would be a concern, except that the
+	online and offline process involves multiple grace periods.
+} \QuickQuizEnd
+
+Finally, line~40 re-enables irqs.
+
 @@@
 
 % initialization, online/offline
 % __rcu_offline_cpu, rcu_offline_cpu (empty if !CONFIG_HOTPLUG_CPU)
 %DONE% \url{__rcu_init()}.
-%	rcu_online_cpu,
+%DONE%	rcu_online_cpu,
 %DONE%	rcu_init_percpu_data
 %DONE%	rcu_init_levelspread (CONFIG_RCU_FANOUT_EXACT and not)
 %DONE%	rcu_init_one, 
@@ -1826,3 +2100,4 @@ if any of these CPUs have passed through dyntick-idle state (if
 any offline CPUs, and finally sends a reschedule IPI to any remaining
 CPUs not in the first two groups.
 
+@@@ read through email to gather up acknowledgments @@@
