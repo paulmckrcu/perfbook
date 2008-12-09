@@ -896,15 +896,13 @@ to convince holdout CPUs to pass through quiescent states.
  37   if (user ||
  38       (idle_cpu(cpu) && !in_softirq() &&
  39        hardirq_count() <= (1 << HARDIRQ_SHIFT))) {
- 40     smp_mb();
- 41     rcu_qsctr_inc(cpu);
- 42     rcu_bh_qsctr_inc(cpu);
- 43   } else if (!in_softirq()) {
- 44     smp_mb();
- 45     rcu_bh_qsctr_inc(cpu);
- 46   }
- 47   raise_softirq(RCU_SOFTIRQ);
- 48 }
+ 40     rcu_qsctr_inc(cpu);
+ 41     rcu_bh_qsctr_inc(cpu);
+ 42   } else if (!in_softirq()) {
+ 43     rcu_bh_qsctr_inc(cpu);
+ 44   }
+ 45   raise_softirq(RCU_SOFTIRQ);
+ 46 }
 \end{verbatim}
 }
 \caption{{\tt rcu\_check\_callbacks()} Code}
@@ -972,7 +970,7 @@ Lines~35-48 show \url{rcu_check_callbacks()}, which checks to see
 if the scheduling-clock interrupt interrupted an extended quiescent
 state, and then initiates RCU's softirq processing
 (\url{rcu_process_callbacks()}).
-Lines~37-42 perform this check for ``rcu'', while lines~43-45
+Lines~37-41 perform this check for ``rcu'', while lines~42-43
 perform the check for ``rcu\_bh''.
 
 Lines~37-39 check to see if the scheduling clock interrupt came
@@ -980,20 +978,16 @@ from user-mode execution (line~37) or directly from the idle
 loop (line~38's \url{idle_cpu()} invocation) with no intervening
 levels of interrupt (the remainder of line~38 and all of line~39).
 If this check succeeds, so that the scheduling clock interrupt
-did come from an extended quiescent state,
-line~40 executes a memory barrier to ensure that any prior
-RCU read-side critical sections are seen prior to any subsequent
-grace-period processing on this CPU.
-Because any quiescent state for ``rcu'' is also a quiescent state
-for ``rcu\_bh'', lines~41 and 42 report the quiescent state for
+did come from an extended quiescent state, then
+because any quiescent state for ``rcu'' is also a quiescent state
+for ``rcu\_bh'', lines~40 and 41 report the quiescent state for
 both flavors of RCU.
 
-Similarly for ``rcu\_bh'', line~43 checks to see if the scheduling-clock
+Similarly for ``rcu\_bh'', line~42 checks to see if the scheduling-clock
 interrupt came from a region of code with softirqs enabled, and, if so
-line~44 executes a memory barrier and line~45 reports the quiescent
-state for ``rcu\_bh'' only.
+line~43 reports the quiescent state for ``rcu\_bh'' only.
 
-\QuickQuiz{Shouldn't line~43 of
+\QuickQuiz{Shouldn't line~42 of
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-check-callbacks}
 	also check for \url{in_hardirq()}?}
 \QuickQuizAnswer{
@@ -1005,7 +999,7 @@ state for ``rcu\_bh'' only.
 	we need only check \url{in_softirq()}.
 } \QuickQuizEnd
 
-In either case, line~47 invokes an RCU softirq, which will result in
+In either case, line~45 invokes an RCU softirq, which will result in
 \url{rcu_process_callbacks()} being called on this CPU at some future
 time (like when interrupts are re-enabled after exiting the
 scheduler-clock interrupt).
