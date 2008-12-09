@@ -10,21 +10,22 @@
 %DONE%	rcu_needs_cpu, rcu_cpu_notify, __rcu_init
 
 % initialization, online/offline
-% __rcu_offline_cpu, rcu_offline_cpu (empty if !CONFIG_HOTPLUG_CPU)
-% \url{__rcu_init()}.
-%	rcu_init_percpu_data, rcu_online_cpu,
-%	rcu_init_levelspread (CONFIG_RCU_FANOUT_EXACT and not)
-%	rcu_init_one, 
+%DONE% __rcu_offline_cpu, rcu_offline_cpu (empty if !CONFIG_HOTPLUG_CPU)
+%DONE% \url{__rcu_init()}.
+%DONE%	rcu_online_cpu,
+%DONE%	rcu_init_percpu_data
+%DONE%	rcu_init_levelspread (CONFIG_RCU_FANOUT_EXACT and not)
+%DONE%	rcu_init_one, 
 
-% simple functions: rcu_batches_completed, rcu_batches_completed_bh,
-%	cpu_has_callbacks_ready_to_invoke, cpu_needs_another_gp,
-%	rcu_get_root,
+%DONE% simple functions: rcu_batches_completed, rcu_batches_completed_bh,
+%DONE%	cpu_has_callbacks_ready_to_invoke, cpu_needs_another_gp,
+%DONE%	rcu_get_root,
 
 % rcu_enter_nohz, rcu_exit_nohz, rcu_nmi_enter, rcu_nmi_exit,
 %	rcu_irq_enter, rcu_irq_exit -- covered in formal.  Reference.
 %	app:formal:Simplicity Avoids Formal Verification
 %	Ditto dyntick_save_progress_counter, rcu_implicit_dynticks_qs,
-% Cover dyntick_record_completed, dyntick_recall_completed
+%DONE% Cover dyntick_record_completed, dyntick_recall_completed
 % Note that dyntick_record_completed() is empty if !CONFIG_NO_HZ.
 % Note that dyntick_recall_completed() is subtly different if !CONFIG_NO_HZ.
 % Note that dyntick_recall_completed() and rcu_implicit_dynticks_qs are
@@ -1896,15 +1897,330 @@ going-offline CPU's list length.
 
 Finally, line~40 re-enables irqs.
 
+\subsection{Miscellaneous Functions}
+\label{app:rcuimpl:rcutreewt:Miscellaneous Functions}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 long rcu_batches_completed(void)
+  2 {
+  3   return rcu_state.completed;
+  4 }
+  5 
+  6 long rcu_batches_completed_bh(void)
+  7 {
+  8   return rcu_bh_state.completed;
+  9 }
+ 10 
+ 11 static int
+ 12 cpu_has_callbacks_ready_to_invoke(struct rcu_data *rdp)
+ 13 {
+ 14   return &rdp->nxtlist != rdp->nxttail[RCU_DONE_TAIL];
+ 15 }
+ 16 
+ 17 static int
+ 18 cpu_needs_another_gp(struct rcu_state *rsp,
+ 19                      struct rcu_data *rdp)
+ 20 {
+ 21   return *rdp->nxttail[RCU_DONE_TAIL] &&
+ 22          ACCESS_ONCE(rsp->completed) ==
+ 23          ACCESS_ONCE(rsp->gpnum);
+ 24 }
+ 25 
+ 26 static struct rcu_node
+ 27 *rcu_get_root(struct rcu_state *rsp)
+ 28 {
+ 29   return &rsp->node[0];
+ 30 }
+\end{verbatim}
+}
+\caption{Miscellaneous Functions}
+\label{fig:app:rcuimpl:rcutreewt:Miscellaneous Functions}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Miscellaneous Functions}
+shows a number of miscellaneous functions.
+Lines~1-9 shown \url{rcu_batches_completed()} and
+\url{rcu_batches_completed_bh()}, which are used by the rcutorture
+test suite.
+Lines~11-15 show \url{cpu_has_callbacks_ready_to_invoke()}, which
+indicates whether the specified \url{rcu_data} structure has RCU
+callbacks that have passed through their grace period, which
+is indicated by the ``done'' tail pointer no longer pointing
+to the head of the list.
+Lines~17-24 show \url{cpu_needs_another_gp()}, which indicates
+whether the CPU corresponding to the specified \url{rcu_data}
+structure requires an additional grace period during a time when
+no grace period is in progress.
+Note that the specified \url{rcu_data} structure is required
+to be associated with the specified \url{rcu_state} structure.
+Finally, lines~26-30 show \url{rcu_get_root()}, which returns
+the root \url{rcu_node} structure associated with the specified
+\url{rcu_state} structure.
+
+\subsection{Dyntick-Idle Functions}
+\label{app:rcuimpl:rcutreewt:Dyntick-Idle Functions}
+
+The functions in this section are defined only in \url{CONFIG_NO_HZ}
+builds of the Linux kernel,
+though in some cases, extended-no-op versions are present otherwise.
+These functions control whether or not RCU pays attention to a given CPU.
+CPUs in dynticks-idle mode are ignored, but only if they are not
+currently in an interrupt or NMI handler.
+The functions in this section communicate this CPU state to RCU.
+
+This set of functions is greatly simplified from that used in
+preemptable RCU (idea thanks to a patch posted by
+Manfred Spraul~\cite{ManfredSpraul2008StateMachineRCU},
+see
+Section~\ref{app:formal:Promela Parable: dynticks and Preemptable RCU}
+for a description of the earlier more-complex model.
+
+\subsubsection{Entering and Exiting Dyntick-Idle Mode}
+\label{app:rcuimpl:rcutreewt:Entering and Exiting Dyntick-Idle Mode}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void rcu_enter_nohz(void)
+  2 {
+  3   unsigned long flags;
+  4   struct rcu_dynticks *rdtp;
+  5 
+  6   smp_mb();
+  7   local_irq_save(flags);
+  8   rdtp = &__get_cpu_var(rcu_dynticks);
+  9   rdtp->dynticks++;
+ 10   rdtp->dynticks_nesting--;
+ 11   local_irq_restore(flags);
+ 12 }
+ 13 
+ 14 void rcu_exit_nohz(void)
+ 15 {
+ 16   unsigned long flags;
+ 17   struct rcu_dynticks *rdtp;
+ 18 
+ 19   local_irq_save(flags);
+ 20   rdtp = &__get_cpu_var(rcu_dynticks);
+ 21   rdtp->dynticks++;
+ 22   rdtp->dynticks_nesting++;
+ 23   local_irq_restore(flags);
+ 24   smp_mb();
+ 25 }
+\end{verbatim}
+}
+\caption{Entering and Exiting Dyntick-Idle Mode}
+\label{fig:app:rcuimpl:rcutreewt:Entering and Exiting Dyntick-Idle Mode}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Entering and Exiting Dyntick-Idle Mode}
+shows the \url{rcu_enter_nohz()} and \url{rcu_exit_nohz()} functions
+that allow the scheduler to transition to and from dynticks-idle
+mode.
+Therefore, after \url{rcu_enter_nohz()} has been call, RCU will ignore
+it, at least until the next \url{rcu_exit_nohz()}, the next interrupt,
+or the next NMI.
+
+Line~6 of \url{rcu_enter_nohz()} executes a memory barrier to ensure
+that any preceding RCU read-side critical sections are seen to have
+occured before the following code that tells RCU to ignore this CPU.
+Lines~7 and 11 disable and restore interrupts in order to avoid
+interference with the state change.
+Line~8 picks up a pointer to the running CPU's \url{rcu_dynticks}
+structure, line~9 increments the \url{->dynticks} field (which now
+must be even to indicate that this CPU may be ignored), and finally line~10
+decrements the \url{->dynticks_nesting} field (which now must be
+zero to indicate that there is no reason to pay attention to this CPU).
+
+Lines~19 and 23 of \url{rcu_exit_nohz()} disable and re-enable interrupts,
+again to avoid interference.
+Line~20 obtains a pointer to this CPU's \url{rcu_dynticks} structure,
+line~21 increments the \url{->dynticks} field (which now must be odd
+in order to indicate that RCU must once again pay attention to this
+CPU), and line~22 increments the \url{->dynticks_nesting} field
+(which now must have the value 1 to indicate that there is one
+reason to pay attention to this CPU).
+
+\subsubsection{NMIs from Dyntick-Idle Mode}
+\label{app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void rcu_nmi_enter(void)
+  2 {
+  3   struct rcu_dynticks *rdtp;
+  4 
+  5   rdtp = &__get_cpu_var(rcu_dynticks);
+  6   if (rdtp->dynticks & 0x1)
+  7     return;
+  8   rdtp->dynticks_nmi++;
+  9   smp_mb();
+ 10 }
+ 11 
+ 12 void rcu_nmi_exit(void)
+ 13 {
+ 14   struct rcu_dynticks *rdtp;
+ 15 
+ 16   rdtp = &__get_cpu_var(rcu_dynticks);
+ 17   if (rdtp->dynticks & 0x1)
+ 18     return;
+ 19   smp_mb();
+ 20   rdtp->dynticks_nmi++;
+\end{verbatim}
+}
+\caption{NMIs from Dyntick-Idle Mode}
+\label{fig:app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode}
+shows \url{rcu_nmi_enter()} and \url{rcu_nmi_exit()}, which handle
+NMI entry and exit, respectively.
+It is important to keep in mind that entering an NMI handler
+exits dyntick-idle mode and vice versa, in other words, RCU must
+pay attention to CPUs that claim to be in dyntick-idle mode while
+they are executing NMI handlers, due to the fact that NMI handlers
+can contain RCU read-side critical sections.
+This reversal of roles can be quite confusing: you have been warned.
+
+Line~5 of \url{rcu_nmi_enter()} obtains a pointer to this CPU's
+\url{rcu_dynticks} structure, and line~6 checks to see if this
+CPU is already under scrutiny by RCU, with line~7 silently returning
+if so.
+Otherwise, line~8 increments the \url{->dynticks_nmi} field, which
+must now have an odd-numbered value.
+Finally, line~9 executes a memory barrier to ensure that the prior
+increment of \url{->dynticks_nmi} is see by all CPUs to happen
+before any subsequent RCU read-side critical section.
+
+Line~16 of \url{rcu_nmi_exit()} again fetches a pointer to this CPU's
+\url{rcu_dynticks} structure, and line~17 checks to see if RCU would
+be paying attention to this CPU even if it were not in an NMI,
+with line~18 silently returning if so.
+Otherwise, line~19 executes a memory barrier to ensure that any
+RCU read-side critical sections within the handler are seen by all
+CPUs to happen before the increment of the \url{->dynticks_nmi} field
+on line~20.
+The new value of this field must now be even.
+
+\QuickQuiz{But how does the code in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode}
+	handle nested NMIs?}
+\QuickQuizAnswer{
+	It does not have to handle nested NMIs, because NMIs do not nest.
+} \QuickQuizEnd
+
+\subsubsection{Interrupts from Dyntick-Idle Mode}
+\label{app:rcuimpl:rcutreewt:Interrupts from Dyntick-Idle Mode}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void rcu_irq_enter(void)
+  2 {
+  3   struct rcu_dynticks *rdtp;
+  4 
+  5   rdtp = &__get_cpu_var(rcu_dynticks);
+  6   if (rdtp->dynticks_nesting++)
+  7     return;
+  8   rdtp->dynticks++;
+  9   smp_mb();
+ 10 }
+ 11 
+ 12 void rcu_irq_exit(void)
+ 13 {
+ 14   struct rcu_dynticks *rdtp;
+ 15 
+ 16   rdtp = &__get_cpu_var(rcu_dynticks);
+ 17   if (--rdtp->dynticks_nesting)
+ 18     return;
+ 19   smp_mb();
+ 20   rdtp->dynticks++;
+ 21   if (__get_cpu_var(rcu_data).nxtlist ||
+ 22       __get_cpu_var(rcu_bh_data).nxtlist)
+ 23     set_need_resched();
+ 24 }
+\end{verbatim}
+}
+\caption{Interrupts from Dyntick-Idle Mode}
+\label{fig:app:rcuimpl:rcutreewt:Interrupts from Dyntick-Idle Mode}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Interrupts from Dyntick-Idle Mode}
+shows \url{rcu_irq_enter()} and \url{rcu_irq_exit()}, which handle
+interrupt entry and exit, respectively.
+As with NMIs, it is important to note that entering an interrupt
+handler exits dyntick-idle mode and vice versa, due to the fact
+that RCU read-side critical sections can appear in interrupt handlers.
+
+Line~5 of \url{rcu_irq_enter()} once again acquires a reference to
+the current CPU's \url{rcu_dynticks} structure.
+Line~6 increments the \url{->dynticks_nesting} field, and if the
+original value was already non-zero (in other words, RCU was
+already paying attention to this CPU), line~7 silently returns.
+Otherwise, line~8 increments the  \url{->dynticks} field, which
+then must have an odd-numbered value.
+Finally, line~9 executes a memory barrier so that this increment
+is seen by all CPUs as happening before any RCU read-side critical
+sections that might be in the interrupt handler.
+
+Line~16 of \url{rcu_irq_exit()} does the by-now traditional acquisition
+of a reference to the currently running CPU's \url{rcu_dynticks} structure.
+Line~17 decrements the \url{->dynticks_nesting} field, and, if the
+result is non-zero (in other words, RCU must still pay attention
+to this CPU despite exiting this interrupt handler), then line~18
+silently returns.
+Otherwise, line~19 executes a memory barrier so that any RCU read-side
+critical sections that might have been in the interrupt handler are
+seen by all CPUs as having happened before the increment on line~20
+of the \url{->dynticks} field (which must now have an even-numbered
+value).
+Lines~21 and 22 check to see if the interrupt handler posted any
+``rcu'' or ``rcu\_bh'' callbacks, and, if so, line~23 forces this
+CPU to reschedule, which has the side-effect of forcing it out of
+dynticks-idle mode, as is required to allow RCU to handle the
+grace period required by these callbacks.
+
 @@@
 
-% initialization, online/offline
-% __rcu_offline_cpu, rcu_offline_cpu (empty if !CONFIG_HOTPLUG_CPU)
-%DONE% \url{__rcu_init()}.
-%DONE%	rcu_online_cpu,
-%DONE%	rcu_init_percpu_data
-%DONE%	rcu_init_levelspread (CONFIG_RCU_FANOUT_EXACT and not)
-%DONE%	rcu_init_one, 
+%DONE% rcu_enter_nohz, rcu_exit_nohz, rcu_nmi_enter, rcu_nmi_exit,
+%DONE%	rcu_irq_enter, rcu_irq_exit -- covered in formal.  Reference.
+%DONE%	app:formal:Simplicity Avoids Formal Verification
+%	Ditto dyntick_save_progress_counter, rcu_implicit_dynticks_qs,
+%DONE% Cover dyntick_record_completed, dyntick_recall_completed
+% Note that dyntick_record_completed() is empty if !CONFIG_NO_HZ.
+% Note that dyntick_recall_completed() is subtly different if !CONFIG_NO_HZ.
+% Note that dyntick_recall_completed() and rcu_implicit_dynticks_qs are
+% 	trivial if !CONFIG_NO_HZ.
+
+%  1 static void
+%  2 dyntick_record_completed(struct rcu_state *rsp,
+%  3                          long comp)
+%  4 {
+%  5   rsp->dynticks_completed = comp;
+%  6 }
+%  7 
+%  8 static long
+%  9 dyntick_recall_completed(struct rcu_state *rsp)
+% 10 {
+% 11   return rsp->dynticks_completed;
+% 12 }
+
+The final pair of functions are defined as shown only if dynticks
+is enabled (in other words, the \url{CONFIG_NO_HZ} kernel parameter
+is selected).
+Lines~32-37 show \url{dyntick_record_completed()}, which stores the
+value specified by its \url{comp} argument into the specified
+\url{rcu_state} structure's \url{->dynticks_completed} field.
+Lines~39-43 show \url{dyntick_recall_completed()}, which returns
+the value stored by the most recent call to
+\url{dyntick_record_completed()} for this combination of CPU and
+\url{rcu_state} structure.
+Both of these functions are extended no-ops on non-\url{CONFIG_SMP}
+kernels.
+
+@@@
 
 \subsection{Forcing Quiescent States}
 \label{app:rcuimpl:rcutreewt:Forcing Quiescent States}
@@ -1933,7 +2249,8 @@ In each of these cases, RCU needs to take action on behalf of the
 non-responding CPU.
 This section describes the functions that take such action.
 
-% rcu_process_dyntick
+% @@@ rcu_implicit_offline_qs (CONFIG_SMP only)
+% @@@ rcu_process_dyntick
 
 % @@@ the code in the following figure needs to be redone: recently changed.
 
