@@ -21,26 +21,29 @@
 %DONE%	cpu_has_callbacks_ready_to_invoke, cpu_needs_another_gp,
 %DONE%	rcu_get_root,
 
-% rcu_enter_nohz, rcu_exit_nohz, rcu_nmi_enter, rcu_nmi_exit,
-%	rcu_irq_enter, rcu_irq_exit -- covered in formal.  Reference.
-%	app:formal:Simplicity Avoids Formal Verification
-%	Ditto dyntick_save_progress_counter, rcu_implicit_dynticks_qs,
+% GP detection.
+% note_new_gpnum, check_for_new_grace_period, rcu_start_gp, rcu_process_gp_end,
+%	cpu_quiet_msk(), cpu_quiet(), rcu_check_quiescent_state(),
+%	rcu_do_batch
+
+%DONE% rcu_enter_nohz, rcu_exit_nohz, rcu_nmi_enter, rcu_nmi_exit,
+%DONE%	rcu_irq_enter, rcu_irq_exit -- covered in formal.  Reference.
+%DONE%	app:formal:Simplicity Avoids Formal Verification
+%DONE%	Ditto dyntick_save_progress_counter, rcu_implicit_dynticks_qs,
+
+%DONE% force_quiescent_state and friends. (partly done)
 %DONE% Cover dyntick_record_completed, dyntick_recall_completed
 % Note that dyntick_record_completed() is empty if !CONFIG_NO_HZ.
 % Note that dyntick_recall_completed() is subtly different if !CONFIG_NO_HZ.
 % Note that dyntick_recall_completed() and rcu_implicit_dynticks_qs are
 % 	trivial if !CONFIG_NO_HZ.
-% rcu_implicit_offline_qs (CONFIG_SMP only)
+%DONE% rcu_implicit_offline_qs (CONFIG_SMP only)
+%DONE% rcu_process_dyntick
 
 % Stall stuff.  record_gp_stall_check_time, print_other_cpu_stall,
 %	print_cpu_stall(), check_cpu_stall().
 % Note that record_gp_stall_check_time and check_cpu_stall are empty if
 %	!CONFIG_RCU_CPU_STALL_DETECTOR
-
-% GP detection.
-% note_new_gpnum, check_for_new_grace_period, rcu_start_gp, rcu_process_gp_end,
-%	cpu_quiet_msk(), cpu_quiet(), rcu_check_quiescent_state(),
-%	rcu_do_batch
 
 \section{Hierarchical RCU Code Walkthrough}
 \label{app:rcuimpl:rcutreewt:Hierarchical RCU Code Walkthrough}
@@ -1953,6 +1956,14 @@ Finally, lines~26-30 show \url{rcu_get_root()}, which returns
 the root \url{rcu_node} structure associated with the specified
 \url{rcu_state} structure.
 
+\subsection{Grace-Period-Detection Functions}
+\label{app:rcuimpl:rcutreewt:Grace-Period-Detection Functions}
+
+% GP detection.
+% note_new_gpnum, check_for_new_grace_period, rcu_start_gp, rcu_process_gp_end,
+%	cpu_quiet_msk(), cpu_quiet(), rcu_check_quiescent_state(),
+%	rcu_do_batch
+
 \subsection{Dyntick-Idle Functions}
 \label{app:rcuimpl:rcutreewt:Dyntick-Idle Functions}
 
@@ -2176,45 +2187,160 @@ CPU to reschedule, which has the side-effect of forcing it out of
 dynticks-idle mode, as is required to allow RCU to handle the
 grace period required by these callbacks.
 
-@@@
+\subsubsection{Checking for Dyntick-Idle Mode}
+\label{app:rcuimpl:rcutreewt:Checking for Dyntick-Idle Mode}
 
-%DONE% rcu_enter_nohz, rcu_exit_nohz, rcu_nmi_enter, rcu_nmi_exit,
-%DONE%	rcu_irq_enter, rcu_irq_exit -- covered in formal.  Reference.
-%DONE%	app:formal:Simplicity Avoids Formal Verification
-%	Ditto dyntick_save_progress_counter, rcu_implicit_dynticks_qs,
-%DONE% Cover dyntick_record_completed, dyntick_recall_completed
-% Note that dyntick_record_completed() is empty if !CONFIG_NO_HZ.
-% Note that dyntick_recall_completed() is subtly different if !CONFIG_NO_HZ.
-% Note that dyntick_recall_completed() and rcu_implicit_dynticks_qs are
-% 	trivial if !CONFIG_NO_HZ.
+The \url{dyntick_save_progress_counter()} and
+\url{rcu_implicit_dynticks_qs()} functions are used to check
+whether a CPU is in dynticks-idle mode.
+The \url{dyntick_save_progress_counter()} function is invoked first,
+and returns non-zero if the CPU is currently in dynticks-idle mode.
+If the CPU was not in dynticks-idle mode, for example, because it is
+currently handling an interrupt or NMI, then the
+\url{rcu_implicit_dynticks_qs()} function is called some jiffies later.
+This function looks at the current state in conjunction with state
+stored away by the earlier call to \url{dyntick_save_progress_counter()},
+again returning non-zero if the CPU either is in dynticks-idle mode or
+was in dynticks-idle mode during the intervening time.
+The \url{rcu_implicit_dynticks_qs()} function may be invoked repeatedly,
+if need be, until is returns true.
 
-%  1 static void
-%  2 dyntick_record_completed(struct rcu_state *rsp,
-%  3                          long comp)
-%  4 {
-%  5   rsp->dynticks_completed = comp;
-%  6 }
-%  7 
-%  8 static long
-%  9 dyntick_recall_completed(struct rcu_state *rsp)
-% 10 {
-% 11   return rsp->dynticks_completed;
-% 12 }
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static int
+  2 dyntick_save_progress_counter(struct rcu_data *rdp)
+  3 {
+  4   int ret;
+  5   int snap;
+  6   int snap_nmi;
+  7 
+  8   snap = rdp->dynticks->dynticks;
+  9   snap_nmi = rdp->dynticks->dynticks_nmi;
+ 10   smp_mb();
+ 11   rdp->dynticks_snap = snap;
+ 12   rdp->dynticks_nmi_snap = snap_nmi;
+ 13   ret = ((snap & 0x1) == 0) && ((snap_nmi & 0x1) == 0);
+ 14   if (ret)
+ 15     rdp->dynticks_fqs++;
+ 16   return ret;
+ 17 }
+\end{verbatim}
+}
+\caption{Code for {\tt dyntick\_save\_progress\_counter()}}
+\label{fig:app:rcuimpl:rcutreewt:Code for dyntick-save-progress-counter}
+\end{figure}
 
-The final pair of functions are defined as shown only if dynticks
-is enabled (in other words, the \url{CONFIG_NO_HZ} kernel parameter
-is selected).
-Lines~32-37 show \url{dyntick_record_completed()}, which stores the
-value specified by its \url{comp} argument into the specified
-\url{rcu_state} structure's \url{->dynticks_completed} field.
-Lines~39-43 show \url{dyntick_recall_completed()}, which returns
-the value stored by the most recent call to
-\url{dyntick_record_completed()} for this combination of CPU and
-\url{rcu_state} structure.
-Both of these functions are extended no-ops on non-\url{CONFIG_SMP}
-kernels.
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for dyntick-save-progress-counter}
+shows the code for \url{dyntick_save_progress_counter()}, which
+is passed a given CPU-\url{rcu_state} pair's \url{rcu_data} structure.
+Lines~8 and 9 take snapshots of the CPU's \url{rcu_dynticks} structure's
+\url{->dynticks} and \url{->dynticks_nmi} fields,
+and then line~10 executes a memory barrier to ensure that the snapshot
+is seen by all CPUs to have happened before any later processing
+depending on these values.
+This memory barrier pairs up with those in \url{rcu_enter_nohz()},
+\url{rcu_exit_nohz()}, \url{rcu_nmi_enter()}, \url{rcu_nmi_exit()},
+\url{rcu_irq_enter()}, and \url{rcu_irq_exit()}.
+Lines~11 and 12 store these two snapshots away so that they can be
+accessed by a later call to \url{rcu_implicit_dynticks_qs()}.
+Line~13 checks to see if both snapshots have even-numbered values,
+indicating that the CPU in question was in neither non-idle process
+state, an interrupt handler, nor an NMI handler.
+If so, lines~14 and 15 increment the statistical counter
+\url{->dynticks_fqs}, which is used only for tracing.
+Either way, line~16 returns the indication of whether the CPU was
+in dynticks-idle mode.
 
-@@@
+\QuickQuiz{Why isn't there a memory barrier between lines~8 and 9 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for dyntick-save-progress-counter}?
+	Couldn't this cause the code to fetch even-numbered values
+	from both the \url{->dynticks} and \url{->dynticks_nmi} fields,
+	even though these two fields never were zero at the same time?}
+\QuickQuizAnswer{
+	First, review the code in
+	Figures~\ref{fig:app:rcuimpl:rcutreewt:Entering and Exiting Dyntick-Idle Mode},
+	\ref{fig:app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode}, and
+	\ref{fig:app:rcuimpl:rcutreewt:Interrupts from Dyntick-Idle Mode},
+	and note that \url{dynticks} and \url{dynticks_nmi} will never
+	have odd values simultaneously (see especially lines~6 and 17 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode},
+	and recall that interrupts cannot happen from NMIs).
+
+	Of course, given the placement of the memory barriers in these
+	functions, it might \emph{appear} to another CPU that both
+	counters were odd at the same time, but logically this cannot
+	happen, and would indicate that the CPU had in fact passed
+	through dynticks-idle mode.
+
+	Now, let's suppose that at the time line~8 fetches \url{->dynticks},
+	the value of \url{->dynticks_nmi} was at odd number, and that at the
+	time line~9 fetches \url{->dynticks_nmi}, the value of
+	\url{->dynticks} was an odd number.
+	Given that both counters cannot be odd simultaneously, there must
+	have been a time between these two fetches when both counters
+	were even, and thus a time when the CPU was in dynticks-idle
+	mode, which is a quiescent state, as required.
+
+	So, why can't the \url{&&} on line~13 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for dyntick-save-progress-counter}
+	be replaced with an \url{==}?
+	Well, it could be, but this would likely be more confusing
+	than helpful.
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static int
+  2 rcu_implicit_dynticks_qs(struct rcu_data *rdp)
+  3 {
+  4   long curr;
+  5   long curr_nmi;
+  6   long snap;
+  7   long snap_nmi;
+  8 
+  9   curr = rdp->dynticks->dynticks;
+ 10   snap = rdp->dynticks_snap;
+ 11   curr_nmi = rdp->dynticks->dynticks_nmi;
+ 12   snap_nmi = rdp->dynticks_nmi_snap;
+ 13   smp_mb();
+ 14   if ((curr != snap || (curr & 0x1) == 0) &&
+ 15       (curr_nmi != snap_nmi || (curr_nmi & 0x1) == 0)) {
+ 16     rdp->dynticks_fqs++;
+ 17     return 1;
+ 18   }
+ 19   return rcu_implicit_offline_qs(rdp);
+ 20 }
+\end{verbatim}
+}
+\caption{Code for {\tt rcu\_implicit\_dynticks\_qs()}}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcu-implicit-dynticks-qs}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-implicit-dynticks-qs}
+shows the code for \url{rcu_implicit_dynticks_qs()}.
+Lines~9-12 pick up both new values for the CPU's \url{rcu_dynticks}
+structure's \url{->dynticks} and \url{->dynticks_nmi} fields, as well
+as the snapshots taken by the last call to
+\url{dyntick_save_progress_counter()}.
+Line~13 then executes a memory barrier to ensure that the values are
+seen by other CPUs to be gathered prior to subsequent RCU processing.
+As with \url{dyntick_save_progress_counter()}, this memory barrier
+pairs with those in \url{rcu_enter_nohz()},
+\url{rcu_exit_nohz()}, \url{rcu_nmi_enter()}, \url{rcu_nmi_exit()},
+\url{rcu_irq_enter()}, and \url{rcu_irq_exit()}.
+Lines~14-15 then check to make sure that this CPU is either currently
+in dynticks-idle mode (\url{(curr & 0x1) == 0} and
+\url{(curr_nmi & 0x1) == 0}) or has passed through dynticks-idle mode
+since the last call to \url{dyntick_save_progress_counter()}
+(\url{curr != snap} and \url{curr_nmi != snap_nmi}).
+If so, line~16 increments the \url{->dynticks_fqs} statistical
+counter (again, used only for tracing) and line~17 returns non-zero
+to indicate that the specified CPU has passed through a quiescent state.
+Otherwise, line~19 invokes \url{rcu_implicit_offline_qs()}
+(described in Section~\ref{app:rcuimpl:rcutreewt:Forcing Quiescent States})
+to check whether the specified CPU is currently offline.
 
 \subsection{Forcing Quiescent States}
 \label{app:rcuimpl:rcutreewt:Forcing Quiescent States}
@@ -2241,12 +2367,210 @@ passing through quiescent states:
 
 In each of these cases, RCU needs to take action on behalf of the
 non-responding CPU.
-This section describes the functions that take such action.
+The following sections describe the functions that take such action.
 
-% @@@ rcu_implicit_offline_qs (CONFIG_SMP only)
-% @@@ rcu_process_dyntick
+\subsubsection{Recording and Recalling Dynticks-Idle Grace Period}
+\label{app:rcuimpl:rcutreewt:Recording and Recalling Dynticks-Idle Grace Period}
 
-% @@@ the code in the following figure needs to be redone: recently changed.
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 dyntick_record_completed(struct rcu_state *rsp,
+  3                          long comp)
+  4 {
+  5   rsp->dynticks_completed = comp;
+  6 }
+  7 
+  8 static long
+  9 dyntick_recall_completed(struct rcu_state *rsp)
+ 10 {
+ 11   return rsp->dynticks_completed;
+ 12 }
+\end{verbatim}
+}
+\caption{Recording and Recalling Dynticks-Idle Grace Period}
+\label{fig:app:rcuimpl:rcutreewt:Recording and Recalling Dynticks-Idle Grace Period}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Recording and Recalling Dynticks-Idle Grace Period}
+shows the code for \url{dyntick_record_completed()} and
+\url{dyntick_recall_completed()}.
+These functions are defined as shown only if dynticks
+is enabled (in other words, the \url{CONFIG_NO_HZ} kernel parameter
+is selected), otherwise they are essentially no-ops.
+The purpose of these functions is to ensure that a given observation
+of a CPU in dynticks-idle mode is associated with the correct
+grace period in face of races between reporting this CPU in
+dynticks-idle mode and this CPU coming out of dynticks-idle mode
+and reporting a quiescent state on its own.
+
+Lines~1-6 show \url{dyntick_record_completed()}, which stores the
+value specified by its \url{comp} argument into the specified
+\url{rcu_state} structure's \url{->dynticks_completed} field.
+Lines~8-12 show \url{dyntick_recall_completed()}, which returns
+the value stored by the most recent call to
+\url{dyntick_record_completed()} for this combination of CPU and
+\url{rcu_state} structure.
+
+\subsubsection{Handling Offline and Holdout CPUs}
+\label{app:rcuimpl:rcutreewt:Handling Offline and Holdout CPUs}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static int rcu_implicit_offline_qs(struct rcu_data *rdp)
+  2 {
+  3   if (cpu_is_offline(rdp->cpu)) {
+  4     rdp->offline_fqs++;
+  5     return 1;
+  6   }
+  7   if (rdp->cpu != smp_processor_id())
+  8     smp_send_reschedule(rdp->cpu);
+  9   else
+ 10     set_need_resched();
+ 11   rdp->resched_ipi++;
+ 12   return 0;
+ 13 }
+\end{verbatim}
+}
+\caption{Handling Offline and Holdout CPUs}
+\label{fig:app:rcuimpl:rcutreewt:Handling Offline and Holdout CPUs}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Handling Offline and Holdout CPUs}
+shows the code for \url{rcu_implicit_offline_qs()}, which checks for
+offline CPUs and forcing online holdout CPUs to enter a quiescent state.
+
+Line~3 checks to see if the specified CPU is offline, and, if so,
+line~4 increments statistical counter \url{->offline_fqs} (which is
+used only for tracing), and line~5 returns non-zero to indicate
+that the CPU is in an extended quiescent state.
+
+Otherwise, the CPU is online, not in dynticks-idle mode (or this
+function would not have been called in the first place), and has
+not yet passed through a quiescent state for this grace period.
+Line~7 checks to see if the holdout CPU is the current running
+CPU, and, if not, line~8 sends the holdout CPU a reschedule IPI.
+Otherwise, line~10 sets the \url{TIF_NEED_RESCHED} flag for the
+current task, forcing the current CPU into the scheduler.
+In either case, the CPU should then quickly enter a quiescent
+state.
+Line~11 increments statistical counter \url{resched_ipi}, which is
+again used only for tracing.
+Finally, line~12 returns zero to indicate that the holdout CPU is
+still refusing to pass through a quiescent state.
+
+\subsubsection{Scanning for Holdout CPUs}
+\label{app:rcuimpl:rcutreewt:Scanning for Holdout CPUs}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static int
+  2 rcu_process_dyntick(struct rcu_state *rsp,
+  3                     long lastcomp,
+  4                     int (*f)(struct rcu_data *))
+  5 {
+  6   unsigned long bit;
+  7   int cpu;
+  8   unsigned long flags;
+  9   unsigned long mask;
+ 10   struct rcu_node *rnp_cur;
+ 11   struct rcu_node *rnp_end;
+ 12 
+ 13   rnp_cur = rsp->level[NUM_RCU_LVLS - 1];
+ 14   rnp_end = &rsp->node[NUM_RCU_NODES];
+ 15   for (; rnp_cur < rnp_end; rnp_cur++) {
+ 16     mask = 0;
+ 17     spin_lock_irqsave(&rnp_cur->lock, flags);
+ 18     if (rsp->completed != lastcomp) {
+ 19       spin_unlock_irqrestore(&rnp_cur->lock, flags);
+ 20       return 1;
+ 21     }
+ 22     if (rnp_cur->qsmask == 0) {
+ 23       spin_unlock_irqrestore(&rnp_cur->lock, flags);
+ 24       continue;
+ 25     }
+ 26     cpu = rnp_cur->grplo;
+ 27     bit = 1;
+ 28     for (; cpu <= rnp_cur->grphi; cpu++, bit <<= 1) {
+ 29       if ((rnp_cur->qsmask & bit) != 0 &&
+ 30           f(rsp->rda[cpu]))
+ 31         mask |= bit;
+ 32     }
+ 33     if (mask != 0 && rsp->completed == lastcomp) {
+ 34       cpu_quiet_msk(mask, rsp, rnp_cur, flags);
+ 35       continue;
+ 36     }
+ 37     spin_unlock_irqrestore(&rnp_cur->lock, flags);
+ 38   }
+ 39   return 0;
+ 40 }
+\end{verbatim}
+}
+\caption{Scanning for Holdout CPUs}
+\label{fig:app:rcuimpl:rcutreewt:Scanning for Holdout CPUs}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Scanning for Holdout CPUs}
+shows the code for \url{rcu_process_dyntick()}, which scans the
+leaf \url{rcu_node} structures in search of holdout CPUs.
+It invokes the function passed in through argument \url{f} on each
+such CPU's \url{rcu_data} structure, and returns non-zero if
+the grace period specified by the \url{lastcomp} argument has ended.
+
+Lines~13 and 14 acquire references to the first and the last leaf
+\url{rcu_node} structures, respectively.
+Each pass through the loop spanning lines~15-38 processes one of
+the leaf \url{rcu_node} structures.
+
+Line~16 sets the local variable \url{mask} to zero.
+This variable will be used to accumulate the CPUs within the current
+leaf \url{rcu_node} structure that are in extended quiescent states, and
+can thus be reported as such.
+Line~17 acquires the current leaf \url{rcu_node} structure's lock,
+and line~18 checks to see if the current grace period has completed,
+and, if so, line~19 releases the lock and line~20 returns non-zero.
+Otherwise, line~22 checks for holdout CPUs associated with this
+\url{rcu_node} structure, and, if there are none, line~23 releases
+the lock and line~24 restarts the loop from the beginning on the
+next lead \url{rcu_node} structure.
+
+Execution reaches line~26 if there is at least one holdout CPU associated
+with this \url{rcu_node} structure.
+Lines~26 and 27 set local variables \url{cpu} and \url{bit} to reference
+the lowest-numbered CPU associated with this \url{rcu_node} structure.
+Each pass through the loop spanning lines~28-32 checks one of the
+CPUs associated with the current \url{rcu_node} structure.
+Line~29 checks to see if the this CPU is still holding out or if
+it has already passed through a quiescent state.
+If it is still a holdout, line~30 invokes the specified function
+(either \url{dyntick_save_progress_counter()} or
+\url{rcu_implicit_dynticks_qs()}, as specified by the caller), and
+if that function returns non-zero (indicating that the current CPU
+is in an extended quiescent state), then line~31 sets the current
+CPU's bit in \url{mask}.
+
+Line 33 then checks to see if any CPUs were identified as being
+in extended quiescent states and if the current grace period is
+still in force, and, if so, line~34 invokes \url{cpu_quiet_msk()}
+to report that the grace period need no longer wait for those
+CPUs and then line~35 restarts the loop with the next \url{rcu_node}
+structure.
+(Note that \url{cpu_quiet_msk()} releases the current \url{rcu_node}
+structure's lock, and might well end the current grace period.)
+Otherwise, if all holdout CPUs really are still holding out, line~37
+releases the current \url{rcu_node} structure's lock.
+
+Once all of the leaf \url{rcu_node} structures have been processed,
+the loop exits, and line~39 returns zero to indicate that the current
+grace period is still in full force.
+(Recall that line~20 returns non-zero should the current grace period
+come to an end.)
+
+\subsubsection{Code for {\tt force\_quiescent\_state()}}
+\label{app:rcuimpl:rcutreewt:Code for force-quiescent-state}
 
 \begin{figure}[tbp]
 { \scriptsize

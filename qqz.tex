@@ -2269,6 +2269,42 @@ In the meantime, however, there are some challenges:
 
 	It does not have to handle nested NMIs, because NMIs do not nest.
 
+\QuickQ{Why isn't there a memory barrier between lines~8 and 9 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for dyntick-save-progress-counter}?
+	Couldn't this cause the code to fetch even-numbered values
+	from both the \url{->dynticks} and \url{->dynticks_nmi} fields,
+	even though these two fields never were zero at the same time?}
+
+	First, review the code in
+	Figures~\ref{fig:app:rcuimpl:rcutreewt:Entering and Exiting Dyntick-Idle Mode},
+	\ref{fig:app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode}, and
+	\ref{fig:app:rcuimpl:rcutreewt:Interrupts from Dyntick-Idle Mode},
+	and note that \url{dynticks} and \url{dynticks_nmi} will never
+	have odd values simultaneously (see especially lines~6 and 17 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode},
+	and recall that interrupts cannot happen from NMIs).
+
+	Of course, given the placement of the memory barriers in these
+	functions, it might \emph{appear} to another CPU that both
+	counters were odd at the same time, but logically this cannot
+	happen, and would indicate that the CPU had in fact passed
+	through dynticks-idle mode.
+
+	Now, let's suppose that at the time line~8 fetches \url{->dynticks},
+	the value of \url{->dynticks_nmi} was at odd number, and that at the
+	time line~9 fetches \url{->dynticks_nmi}, the value of
+	\url{->dynticks} was an odd number.
+	Given that both counters cannot be odd simultaneously, there must
+	have been a time between these two fetches when both counters
+	were even, and thus a time when the CPU was in dynticks-idle
+	mode, which is a quiescent state, as required.
+
+	So, why can't the \url{&&} on line~13 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for dyntick-save-progress-counter}
+	be replaced with an \url{==}?
+	Well, it could be, but this would likely be more confusing
+	than helpful.
+
 \QuickQ{Why is it important that blocking primitives
 	called from within a preemptible-RCU read-side critical section be
 	subject to priority inheritance?}
