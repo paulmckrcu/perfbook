@@ -2104,7 +2104,7 @@ In the meantime, however, there are some challenges:
 	Using the \url{->rda[]} array of whichever
 	\url{rcu_state} structure we were passed works correctly
 	regardless of which API \url{__call_rcu()} was invoked from
-	(suggested by Lai Jiangshan).
+	(suggested by Lai Jiangshan~\cite{LaiJiangshan2008NewClassicAlgorithm}).
 
 \QuickQ{Given that \url{rcu_pending()} is always called twice
 	on lines~29-32 of
@@ -2262,6 +2262,67 @@ In the meantime, however, there are some challenges:
 	is the right tradeoff.
 	The starvation case would be a concern, except that the
 	online and offline process involves multiple grace periods.
+
+\QuickQ{Why not just expand \url{note_new_gpnum()} inline into
+	\url{check_for_new_grace_period()} in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Noting New Grace Periods}?}
+
+	Because \url{note_new_gpnum()} must be called for each new
+	grace period, including both those started by this CPU and
+	those started by other CPUs.
+	In contrast, \url{check_for_new_grace_period()} is called only
+	for the case where some other CPU started the grace period.
+
+\QuickQ{But there has been no initialization yet at line~15 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}!
+	What happens if a CPU notices the new grace period and
+	immediately attempts to report a quiescent state?
+	Won't it get confused?}
+
+	There are two cases of interest.
+
+	In the first case, there is only a single \url{rcu_node}
+	structure in the hierarchy.
+	Since the CPU executing in \url{rcu_start_gp()} is currently
+	holding that \url{rcu_node} structure's lock, the CPU
+	attempting to report the quiescent state will not be able
+	to acquire this lock until initialization is complete,
+	at which point the quiescent state will be reported
+	normally.
+
+	In the second case, there are multiple \url{rcu_node} structures,
+	and the leaf \url{rcu_node} structure corresponding to the
+	CPU that is attempting to report the quiescent state already
+	has that CPU's \url{->qsmask} bit cleared.
+	Therefore, the CPU attempting to report the quiescent state
+	will give up, and some later quiescent state for that CPU
+	will be applied to the new grace period.
+
+\QuickQ{Hey!!!
+	Shouldn't we hold the non-leaf \url{rcu_node} structures'
+	locks when munging their state in line~37 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}???}
+
+	There is no need to hold their locks.
+	The reasoning is as follows:
+	\begin{enumerate}
+	\item	The new grace period cannot end, because the running CPU
+		(which is initializing it) won't pass through a
+		quiescent state.
+		Therefore, there is no race with another invocation
+		of \url{rcu_start_gp()}.
+	\item	The running CPU holds \url{->onofflock}, so there
+		is no race with CPU-hotplug operations.
+	\item	The leaf \url{rcu_node} structures are not yet initialized,
+		so they have all of their \url{->qsinit} bits cleared.
+		This means that any other CPU attempting to report
+		a quiescent state will stop at the leaf level,
+		and thus cannot race with the current CPU for non-leaf
+		\url{rcu_node} structures.
+	\item	The RCU tracing functions access, but do not modify,
+		the \url{rcu_node} structures' fields.
+		Races with these functions is therefore harmless.
+	\end{enumerate}
 
 \QuickQ{But how does the code in
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode}

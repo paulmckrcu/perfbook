@@ -66,6 +66,7 @@ EPSSOURCES = \
 	advsync/SplitCache.eps \
 	advsync/WriteBarrierOrdering.eps \
 	appendix/questions/after.eps \
+	appendix/rcuimpl/AdvanceRCUCallbacks.eps \
 	appendix/rcuimpl/BigTreeClassicRCUBHdyntick.eps \
 	appendix/rcuimpl/BigTreeClassicRCUBH.eps \
 	appendix/rcuimpl/BigTreeClassicRCU.eps \
@@ -81,6 +82,8 @@ EPSSOURCES = \
 	appendix/rcuimpl/RCUpreemptValidation.eps \
 	appendix/rcuimpl/RCUrt-MBnowaste.eps \
 	appendix/rcuimpl/RCUrt-MBwaste.eps \
+	appendix/rcuimpl/RCUTreeInit.eps \
+	appendix/rcuimpl/RCUTreeLeafScan.eps \
 	appendix/rcuimpl/srcuds.eps \
 	appendix/rcuimpl/TreeClassicRCU.eps \
 	appendix/rcuimpl/TreeClassicRCUGP.eps \

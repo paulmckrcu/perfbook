@@ -834,7 +834,7 @@ record state if a new grace period has started.
 	Using the \url{->rda[]} array of whichever
 	\url{rcu_state} structure we were passed works correctly
 	regardless of which API \url{__call_rcu()} was invoked from
-	(suggested by Lai Jiangshan).
+	(suggested by Lai Jiangshan~\cite{LaiJiangshan2008NewClassicAlgorithm}).
 } \QuickQuizEnd
 
 Lines~16 and 17 enqueue the new callback.
@@ -1959,8 +1959,374 @@ the root \url{rcu_node} structure associated with the specified
 \subsection{Grace-Period-Detection Functions}
 \label{app:rcuimpl:rcutreewt:Grace-Period-Detection Functions}
 
+This section covers functions that are directly involved in detecting
+beginnings and ends of grace periods.
+This of course includes actually starting and ending grace periods,
+but also includes noting when other CPUs have started or ended
+grace periods.
+
+\subsubsection{Noting New Grace Periods}
+\label{app:rcuimpl:rcutreewt:Noting New Grace Periods}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void note_new_gpnum(struct rcu_state *rsp,
+  2                            struct rcu_data *rdp)
+  3 {
+  4   rdp->qs_pending = 1;
+  5   rdp->passed_quiesc = 0;
+  6   rdp->gpnum = rsp->gpnum;
+  7   rdp->n_rcu_pending_force_qs = rdp->n_rcu_pending +
+  8               RCU_JIFFIES_TILL_FORCE_QS;
+  9 }
+ 10 
+ 11 static int
+ 12 check_for_new_grace_period(struct rcu_state *rsp,
+ 13                            struct rcu_data *rdp)
+ 14 {
+ 15   unsigned long flags;
+ 16   int ret = 0;
+ 17 
+ 18   local_irq_save(flags);
+ 19   if (rdp->gpnum != rsp->gpnum) {
+ 20     note_new_gpnum(rsp, rdp);
+ 21     ret = 1;
+ 22   }
+ 23   local_irq_restore(flags);
+ 24   return ret;
+ 25 }
+\end{verbatim}
+}
+\caption{Noting New Grace Periods}
+\label{fig:app:rcuimpl:rcutreewt:Noting New Grace Periods}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Noting New Grace Periods}
+shows the code for \url{note_new_gpnum()}, which updates state to reflect
+a new grace period, as well as \url{check_for_new_grace_period()}, which
+is used by CPUs to detect when other CPUs have started a new grace period.
+
+Line~4 of \url{note_new_gpnum()} sets the \url{->qs_pending} flag is
+the current CPU's \url{rcu_data} structure to indicate that RCU needs
+a quiescent state from this CPU, line~5 clears the \url{->passed_quiesc}
+flag to indicate that this CPU has not yet passed through such a
+quiescent state,
+line~6 copies the grace-period number from the global \url{rcu_state}
+structure to this CPU's \url{rcu_data} structure so that this CPU will
+remember that it has already noted the beginning of this new grace
+period.
+Finally, lines~7-8 record the time in jiffies at which this CPU
+will attempt to force holdout CPUs to pass through quiescent states
+(by invoking \url{force_quiescent_state()} on or after that future time),
+assuming that the grace period does not end beforehand.
+
+Lines~18 and 23 of \url{check_for_new_grace_period()} disable and
+re-enable interrupts, respectively.
+Line~19 checks to see if there is a new grace period that the current
+CPU has not yet noted, and, if so, line~20 invokes \url{note_new_gpnum()}
+in order to note the new grace period, and line~21 sets the return value
+accordingly.
+Either way, line~24 returns status: non-zero if a new grace period has
+started, and zero otherwise.
+
+\QuickQuiz{Why not just expand \url{note_new_gpnum()} inline into
+	\url{check_for_new_grace_period()} in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Noting New Grace Periods}?}
+\QuickQuizAnswer{
+	Because \url{note_new_gpnum()} must be called for each new
+	grace period, including both those started by this CPU and
+	those started by other CPUs.
+	In contrast, \url{check_for_new_grace_period()} is called only
+	for the case where some other CPU started the grace period.
+} \QuickQuizEnd
+
+\subsubsection{Noting End of Old Grace Periods}
+\label{app:rcuimpl:rcutreewt:Noting End of Old Grace Periods}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 rcu_process_gp_end(struct rcu_state *rsp,
+  3                    struct rcu_data *rdp)
+  4 {
+  5   long completed_snap;
+  6   unsigned long flags;
+  7 
+  8   local_irq_save(flags);
+  9   completed_snap = ACCESS_ONCE(rsp->completed);
+ 10   if (rdp->completed != completed_snap) {
+ 11     rdp->nxttail[RCU_DONE_TAIL] =
+ 12         rdp->nxttail[RCU_WAIT_TAIL];
+ 13     rdp->nxttail[RCU_WAIT_TAIL] =
+ 14         rdp->nxttail[RCU_NEXT_READY_TAIL];
+ 15     rdp->nxttail[RCU_NEXT_READY_TAIL] =
+ 16         rdp->nxttail[RCU_NEXT_TAIL];
+ 17     rdp->completed = completed_snap;
+ 18   }
+ 19   local_irq_restore(flags);
+ 20 }
+\end{verbatim}
+}
+\caption{Noting End of Old Grace Periods}
+\label{fig:app:rcuimpl:rcutreewt:Noting End of Old Grace Periods}
+\end{figure}
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{appendix/rcuimpl/AdvanceRCUCallbacks}}
+\end{center}
+\caption{RCU Callback List}
+\label{fig:app:rcuimpl:rcutree:RCU Callback List}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Noting End of Old Grace Periods}
+shows \url{rcu_process_gp_end()}, which is invoked when a CPU suspects
+that a grace period might have ended (possibly because the CPU in question
+in fact ended the grace period).
+If a grace period really has ended, then this function advances the
+current CPU's RCU callbacks, which are managed as a singly linked
+list with multiple tail pointers, as shown in
+Figure~\ref{fig:app:rcuimpl:rcutree:RCU Callback List}.
+This multiple tail pointer layout, spearheaded by
+Lai Jiangshan, simplifies list
+handling~\cite{LaiJiangshan2008NewClassicAlgorithm}.
+In this figure, the blue box represents one CPU's \url{rcu_data}
+structure, with the six white boxes at the bottom of the diagram
+representing a list of six RCU callbacks (\url{rcu_head} structures).
+In this list, the first three callbacks have passed through their
+grace period and are thus waiting to be invoked, the fourth
+callback (the first on the second line) is waiting for the current
+grace period to complete, and the last two are waiting for the
+next grace period.
+The last two tail pointers reference the last element, so that the
+final sublist, which would comprise callbacks that had not yet been
+associated with a specific grace period, is empty.
+
+Lines~8 and 19 of
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Noting End of Old Grace Periods}
+suppress and re-enable interrupts, respectively.
+Line~9 picks up a snapshot of the \url{rcu_state} structure's
+\url{->completed} field, storing it in the local variable
+\url{completed_snap}.
+Line~10 checks to see if the current CPU is not yet aware of the
+end of a grace period, and if it is not aware,
+lines~11-16 advance this CPU's RCU callbacks by manipulating the
+tail pointers.
+Line~17 then records the most recently completed grace period number
+in this CPU's \url{rcu_data} structure in the \url{->completed}
+field.
+
+\subsubsection{Starting a Grace Period}
+\label{app:rcuimpl:rcutreewt:Starting a Grace Period}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 rcu_start_gp(struct rcu_state *rsp, unsigned long flags)
+  3   __releases(rcu_get_root(rsp)->lock)
+  4 {
+  5   struct rcu_data *rdp = rsp->rda[smp_processor_id()];
+  6   struct rcu_node *rnp = rcu_get_root(rsp);
+  7   struct rcu_node *rnp_cur;
+  8   struct rcu_node *rnp_end;
+  9 
+ 10   if (!cpu_needs_another_gp(rsp, rdp)) {
+ 11     spin_unlock_irqrestore(&rnp->lock, flags);
+ 12     return;
+ 13   }
+ 14   rsp->gpnum++;
+ 15   rsp->signaled = RCU_GP_INIT;
+ 16   rsp->jiffies_force_qs = jiffies +
+ 17       RCU_JIFFIES_TILL_FORCE_QS;
+ 18   rdp->n_rcu_pending_force_qs = rdp->n_rcu_pending +
+ 19       RCU_JIFFIES_TILL_FORCE_QS;
+ 20   record_gp_stall_check_time(rsp);
+ 21   dyntick_record_completed(rsp, rsp->completed - 1);
+ 22   note_new_gpnum(rsp, rdp);
+ 23   rdp->nxttail[RCU_NEXT_READY_TAIL] =
+ 24       rdp->nxttail[RCU_NEXT_TAIL];
+ 25   rdp->nxttail[RCU_WAIT_TAIL] =
+ 26       rdp->nxttail[RCU_NEXT_TAIL];
+ 27   if (NUM_RCU_NODES == 1) {
+ 28     rnp->qsmask = rnp->qsmaskinit;
+ 29     spin_unlock_irqrestore(&rnp->lock, flags);
+ 30     return;
+ 31   }
+ 32   spin_unlock(&rnp->lock);
+ 33   spin_lock(&rsp->onofflock);
+ 34   rnp_end = rsp->level[NUM_RCU_LVLS - 1];
+ 35   rnp_cur = &rsp->node[0];
+ 36   for (; rnp_cur < rnp_end; rnp_cur++)
+ 37     rnp_cur->qsmask = rnp_cur->qsmaskinit;
+ 38   rnp_end = &rsp->node[NUM_RCU_NODES];
+ 39   rnp_cur = rsp->level[NUM_RCU_LVLS - 1];
+ 40   for (; rnp_cur < rnp_end; rnp_cur++) {
+ 41     spin_lock(&rnp_cur->lock);
+ 42     rnp_cur->qsmask = rnp_cur->qsmaskinit;
+ 43     spin_unlock(&rnp_cur->lock);
+ 44   }
+ 45   rsp->signaled = RCU_SIGNAL_INIT;
+ 46   spin_unlock_irqrestore(&rsp->onofflock, flags);
+ 47 }
+\end{verbatim}
+}
+\caption{Starting a Grace Period}
+\label{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}
+shows \url{rcu_start_gp()}, which starts a new grace period,
+also releasing the root \url{rcu_node} structure's lock, which
+must be acquired by the caller.
+
+Local variable \url{rdp} references the running CPU's \url{rcu_data}
+structure, \url{rnp} references the root \url{rcu_node} structure,
+and \url{rnp_cur} and \url{rnp_end} are used as cursors in traversing
+the \url{rcu_node} hierarchy.
+
+Line~10 invokes \url{cpu_needs_another_gp()} to see if this CPU really
+needs another grace period to be started, and if not, line~11
+releases the root \url{rcu_node} structure's lock and line~12 returns.
+This code path can be executed due to multiple CPUs concurrently
+attempting to start a grace period.
+In this case, the winner will start the grace period, and the losers
+will exit out via this code path.
+
+Otherwise, line~14 increments the specified \url{rcu_state} structure's
+\url{->gpnum} field, officially marking the start of a new grace
+period.
+
+\QuickQuiz{But there has been no initialization yet at line~15 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}!
+	What happens if a CPU notices the new grace period and
+	immediately attempts to report a quiescent state?
+	Won't it get confused?}
+\QuickQuizAnswer{
+	There are two cases of interest.
+
+	In the first case, there is only a single \url{rcu_node}
+	structure in the hierarchy.
+	Since the CPU executing in \url{rcu_start_gp()} is currently
+	holding that \url{rcu_node} structure's lock, the CPU
+	attempting to report the quiescent state will not be able
+	to acquire this lock until initialization is complete,
+	at which point the quiescent state will be reported
+	normally.
+
+	In the second case, there are multiple \url{rcu_node} structures,
+	and the leaf \url{rcu_node} structure corresponding to the
+	CPU that is attempting to report the quiescent state already
+	has that CPU's \url{->qsmask} bit cleared.
+	Therefore, the CPU attempting to report the quiescent state
+	will give up, and some later quiescent state for that CPU
+	will be applied to the new grace period.
+} \QuickQuizEnd
+
+Line~15 sets the \url{->signaled} field to \url{RCU_GP_INIT} in order
+to prevent any other CPU from attempting to force an end to the new
+grace period before its initialization completes.
+Lines~16-18 schedule the next attempt to force an end to the new
+grace period, first in terms of jiffies and second in terms of the
+number of calls to \url{rcu_pending}.
+Of course, if the grace period ends naturally before that time,
+there will be no need to attempt to force it.
+Line~20 invokes \url{record_gp_stall_check_time()} to schedule a
+longer-term progress check---if the grace period extends beyond this
+time, it should be considered to be an error.
+Line~22 invokes \url{note_new_gpnum()} in order to initialize this
+CPU's \url{rcu_data} structure to account for the new grace period.
+
+Lines~23-26 advance all of this CPU's callbacks so that they will
+be eligible to be invoked at the end of this new grace period.
+This represents an acceleration of callbacks, as other CPUs would only
+be able to move the \url{RCU_NEXT_READY_TAIL} batch to be serviced
+by the current grace period; the \url{RCU_NEXT_TAIL} would instead
+need to be advanced to the \url{RCU_NEXT_READY_TAIL} batch.
+The reason that this CPU can accelerate the \url{RCU_NEXT_TAIL} batch
+is that it knows exactly when this new grace period started.
+In contrast, other CPUs would be unable to correctly resolve the
+race between the start of a new grace period and the arrival of
+a new RCU callback.
+
+Line~27 checks to see if there is but one \url{rcu_node} structure in
+the hierarchy, and if so, line~28 sets the \url{->qsmask}
+bits corresponding to all online CPUs, in other words, corresponding
+to those CPUs that must pass through a quiescent state for the new
+grace period to end.
+Line~29 releases the root \url{rcu_node} structure's lock and line~30
+returns.
+In this case, gcc's dead-code elimination is expected to dispense with
+lines~32-46.
+
+Otherwise, the \url{rcu_node} hierarchy has multiple structures, requiring
+a more involved initialization scheme.
+Line~32 releases the root \url{rcu_node} structure's lock, but keeps
+interrupts disabled, and then line~33 acquires the specified
+\url{rcu_state} structure's \url{->onofflock}, preventing any
+concurrent CPU-hotplug operations from manipulating RCU-specific state.
+
+Line~34 sets the \url{rnp_end} local variable to reference the first
+leaf \url{rcu_node} structure, which also happens to be the
+\url{rcu_node} structure immediately following the last non-leaf
+\url{rcu_node} structure in the \url{->node} array.
+Line~35 sets the \url{rnp_cur} local variable to reference the root
+\url{rcu_node} structure, which also happens to be first such structure
+in the \url{->node} array.
+Lines~36 and 37 then traverse all of the non-leaf \url{rcu_node} structures,
+setting the bits corresponding to lower-level \url{rcu_node} structures
+that have CPUs that must pass through quiescent states in order for
+the new grace period to end.
+
+\QuickQuiz{Hey!!!
+	Shouldn't we hold the non-leaf \url{rcu_node} structures'
+	locks when munging their state in line~37 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}???}
+\QuickQuizAnswer{
+	There is no need to hold their locks.
+	The reasoning is as follows:
+	\begin{enumerate}
+	\item	The new grace period cannot end, because the running CPU
+		(which is initializing it) won't pass through a
+		quiescent state.
+		Therefore, there is no race with another invocation
+		of \url{rcu_start_gp()}.
+	\item	The running CPU holds \url{->onofflock}, so there
+		is no race with CPU-hotplug operations.
+	\item	The leaf \url{rcu_node} structures are not yet initialized,
+		so they have all of their \url{->qsinit} bits cleared.
+		This means that any other CPU attempting to report
+		a quiescent state will stop at the leaf level,
+		and thus cannot race with the current CPU for non-leaf
+		\url{rcu_node} structures.
+	\item	The RCU tracing functions access, but do not modify,
+		the \url{rcu_node} structures' fields.
+		Races with these functions is therefore harmless.
+	\end{enumerate}
+} \QuickQuizEnd
+
+Line~38 sets local variable \url{rnp_end} to one past the last leaf
+\url{rcu_node} structure, and line~39 sets local variable \url{rnp_cur}
+to the first leaf \url{rcu_node} structure, so that the loop spanning
+lines~40-44 traverses all leaves of the \url{rcu_node} hierarchy.
+During each pass through this loop, line~41 acquires the current
+leaf \url{rcu_node} structure's lock, line~42 sets the bits corresponding
+to online CPUs (each of which must pass through a quiescent state
+before the new grace period can end), and line~43 releases the lock.
+
+Line~45 then sets the specified \url{rcu_state} structure's \url{->signaled}
+field to permit forcing of quiescent states, and
+line~46 releases the \url{->onofflock} to permit CPU-hotplug
+operations to manipulate RCU state.
+
+@@@@
+
 % GP detection.
-% note_new_gpnum, check_for_new_grace_period, rcu_start_gp, rcu_process_gp_end,
+%DONE%	note_new_gpnum, check_for_new_grace_period,
+%DONE%	rcu_process_gp_end,
+%DONE%	rcu_start_gp
 %	cpu_quiet_msk(), cpu_quiet(), rcu_check_quiescent_state(),
 %	rcu_do_batch
 
@@ -2513,9 +2879,19 @@ still refusing to pass through a quiescent state.
 \label{fig:app:rcuimpl:rcutreewt:Scanning for Holdout CPUs}
 \end{figure}
 
+\begin{figure*}[tb]
+\begin{center}
+\resizebox{6in}{!}{\includegraphics{appendix/rcuimpl/RCUTreeLeafScan}}
+\end{center}
+\caption{Scanning Leaf {\tt rcu\_node} Structures}
+\label{fig:app:rcuimpl:rcutree:Scanning Leaf rcu-node Structures}
+\end{figure*}
+
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Scanning for Holdout CPUs}
 shows the code for \url{rcu_process_dyntick()}, which scans the
-leaf \url{rcu_node} structures in search of holdout CPUs.
+leaf \url{rcu_node} structures in search of holdout CPUs,
+as illustrated by the blue arrow in
+Figure~\ref{fig:app:rcuimpl:rcutree:Scanning Leaf rcu-node Structures}.
 It invokes the function passed in through argument \url{f} on each
 such CPU's \url{rcu_data} structure, and returns non-zero if
 the grace period specified by the \url{lastcomp} argument has ended.
