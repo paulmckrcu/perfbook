@@ -22,9 +22,13 @@
 %DONE%	rcu_get_root,
 
 % GP detection.
-% note_new_gpnum, check_for_new_grace_period, rcu_start_gp, rcu_process_gp_end,
-%	cpu_quiet_msk(), cpu_quiet(), rcu_check_quiescent_state(),
-%	rcu_do_batch
+%DONE%	note_new_gpnum, check_for_new_grace_period,
+%DONE%	rcu_process_gp_end,
+%DONE%	rcu_start_gp
+%DONE%	rcu_check_quiescent_state()
+%DONE%	cpu_quiet()
+%DONE%	cpu_quiet_msk()
+%DONE%	rcu_do_batch
 
 %DONE% rcu_enter_nohz, rcu_exit_nohz, rcu_nmi_enter, rcu_nmi_exit,
 %DONE%	rcu_irq_enter, rcu_irq_exit -- covered in formal.  Reference.
@@ -150,6 +154,8 @@ Each \url{rcu_node} in this hierarchy has fields as follows:
 	to the this \url{rcu_node} structure's position in the parent
 	\url{rcu_node} structure's \url{qsmask} and \url{qsmaskinit}
 	fields.
+	Use of this field simplifies quiescent-state processing,
+	as suggested by Manfred Spraul @@@ citation @@@.
 
 \QuickQuiz{How about the \url{qsmask} and \url{qsmaskinit}
 	fields for the leaf \url{rcu_node} structures?
@@ -1210,8 +1216,18 @@ Each element of the \url{->level[]} array references the first
 node of the corresponding level of the \url{rcu_node} hierarchy,
 and each element of the \url{->rda[]} array references the corresponding
 CPU's \url{rcu_data} structure.
+The \url{->parent} field of each \url{rcu_node} structure references
+its parent, except for the root \url{rcu_node} structure, which
+has a \url{NULL} \url{->parent} pointer.
 Finally, the \url{->mynode} field of each \url{rcu_data} structure
 references its parent \url{rcu_node} structure.
+
+\QuickQuiz{How does the code traverse a given path through
+	the \url{rcu_node} hierarchy from root to leaves?}
+\QuickQuizAnswer{
+	It turns out that the code never needs to do such a traversal,
+	so there is nothing special in place to handle this.
+} \QuickQuizEnd
 
 Again, the following sections walk through the code that builds this
 structure.
@@ -2182,6 +2198,9 @@ shows \url{rcu_start_gp()}, which starts a new grace period,
 also releasing the root \url{rcu_node} structure's lock, which
 must be acquired by the caller.
 
+Line~4 is annotation for the \url{sparse} utility, indicating
+that \url{rcu_start_gp()} releases the root \url{rcu_node}
+structure's lock.
 Local variable \url{rdp} references the running CPU's \url{rcu_data}
 structure, \url{rnp} references the root \url{rcu_node} structure,
 and \url{rnp_cur} and \url{rnp_end} are used as cursors in traversing
@@ -2296,7 +2315,7 @@ the new grace period to end.
 	\item	The running CPU holds \url{->onofflock}, so there
 		is no race with CPU-hotplug operations.
 	\item	The leaf \url{rcu_node} structures are not yet initialized,
-		so they have all of their \url{->qsinit} bits cleared.
+		so they have all of their \url{->qsmask} bits cleared.
 		This means that any other CPU attempting to report
 		a quiescent state will stop at the leaf level,
 		and thus cannot race with the current CPU for non-leaf
@@ -2316,19 +2335,498 @@ leaf \url{rcu_node} structure's lock, line~42 sets the bits corresponding
 to online CPUs (each of which must pass through a quiescent state
 before the new grace period can end), and line~43 releases the lock.
 
+\QuickQuiz{Why can't we merge the loop spanning lines~36-37 with
+	the loop spanning lines~40-44 in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}?}
+\QuickQuizAnswer{
+	If we were to do so, we would either be needlessly acquiring locks
+	for the non-leaf \url{rcu_node} structures or would need
+	ugly checks for a given node being a leaf node on each pass
+	through the loop.
+	(Recall that we must acquire the locks for the leaf
+	\url{rcu_node} structures due to races with CPUs attempting
+	to report quiescent states.)
+
+	Nevertheless, it is quite possible that experience on very large
+	systems will show that such merging is in fact the right thing
+	to do.
+} \QuickQuizEnd
+
 Line~45 then sets the specified \url{rcu_state} structure's \url{->signaled}
 field to permit forcing of quiescent states, and
 line~46 releases the \url{->onofflock} to permit CPU-hotplug
 operations to manipulate RCU state.
 
-@@@@
+\subsubsection{Reporting Quiescent States}
+\label{app:rcuimpl:rcutreewt:Reporting Quiescent States}
 
-% GP detection.
-%DONE%	note_new_gpnum, check_for_new_grace_period,
-%DONE%	rcu_process_gp_end,
-%DONE%	rcu_start_gp
-%	cpu_quiet_msk(), cpu_quiet(), rcu_check_quiescent_state(),
-%	rcu_do_batch
+This hierarchical RCU implementation implements a layered approach
+to reporting quiescent states, using the following functions:
+\begin{enumerate}
+\item	\url{rcu_qsctr_inc()} and \url{rcu_bh_qsctr_inc()}
+	are invoked when a given CPU passes through a
+	quiescent state for ``rcu'' and ``rcu\_bh'', respectively.
+	Note that the dynticks-idle and CPU-offline quiescent states
+	are handled specially, due to the fact that such a CPU
+	is not executing, and thus is unable to report itself as
+	being in a quiescent state.
+\item	\url{rcu_check_quiescent_state()} checks to see if the current
+	CPU has passed through a quiescent state, invoking \url{cpu_quiet()}
+	if so.
+\item	\url{cpu_quiet()} reports the specified CPU as having passed
+	through a quiescent state by invoking \url{cpu_quiet_msk()}.
+	The specified CPU must either be the current CPU or an offline CPU.
+\item	\url{cpu_quiet_msk()} reports the specified vector of CPUs as
+	having passed through a quiescent state.  The CPUs in the
+	vector need not be the current CPU, nor must they be offline.
+\end{enumerate}
+
+Each of these functions is described below.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void rcu_qsctr_inc(int cpu)
+  2 {
+  3   struct rcu_data *rdp = &per_cpu(rcu_data, cpu);
+  4   rdp->passed_quiesc = 1;
+  5   rdp->passed_quiesc_completed = rdp->completed;
+  6 }
+  7 
+  8 void rcu_bh_qsctr_inc(int cpu)
+  9 {
+ 10   struct rcu_data *rdp = &per_cpu(rcu_bh_data, cpu);
+ 11   rdp->passed_quiesc = 1;
+ 12   rdp->passed_quiesc_completed = rdp->completed;
+ 13 }
+\end{verbatim}
+}
+\caption{Code for Recording Quiescent States}
+\label{fig:app:rcuimpl:rcutreewt:Code for Recording Quiescent States}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for Recording Quiescent States}
+shows the code for \url{rcu_qsctr_inc()} and \url{rcu_bh_qsctr_inc()},
+which note the current CPU's passage through a quiescent state.
+
+Line~3 of \url{rcu_qsctr_inc()} obtains a pointer to the specified
+CPU's \url{rcu_data} structure (which corresponds to ``rcu'' as opposed
+to ``rcu\_bh'').
+Line~4 sets the \url{->passed_quiesc} field, recording the
+quiescent state.
+Line~5 sets the \url{->passed_quiesc_completed} field to the number
+of the last completed grace period that this CPU knows of (which is
+stored in the \url{->completed} field of the \url{rcu_data}
+structure).
+
+The \url{rcu_bh_qsctr_inc()} function operates in the same manner,
+the only difference being that line~10 obtains the \url{rcu_data}
+pointer from the \url{rcu_bh_data} per-CPU variable rather than
+the \url{rcu_data} per-CPU variable.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 rcu_check_quiescent_state(struct rcu_state *rsp,
+  3                           struct rcu_data *rdp)
+  4 {
+  5   if (check_for_new_grace_period(rsp, rdp))
+  6     return;
+  7   if (!rdp->qs_pending)
+  8     return;
+  9   if (!rdp->passed_quiesc)
+ 10     return;
+ 11   cpu_quiet(rdp->cpu, rsp, rdp,
+ 12             rdp->passed_quiesc_completed);
+ 13 }
+\end{verbatim}
+}
+\caption{Code for {\tt rcu\_check\_quiescent\_state()}}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcu-check-quiescent-state}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-check-quiescent-state}
+shows the code for \url{rcu_check_quiescent_state()}, which is invoked
+from \url{rcu_process_callbacks()}
+(described in Section~\ref{app:rcuimpl:rcutreewt:rcu-process-callbacks})
+in order to determine when other CPUs have started a new grace period
+and to inform RCU of recent quiescent states for this CPU.
+
+Line~5 invokes \url{check_for_new_grace_period()} to check for
+a new grace period having been started by some other CPU, and also
+updating this CPU's local state to account for that new grace period.
+If a new grace period has just started, line~6 returns.
+Line~7 checks to see if RCU is still expecting a quiescent state from
+the current CPU, and line~8 returns if not.
+Line~9 checks to see if this CPU has passed through a quiescent state
+since the start of the current grace period (in other words, if
+\url{rcu_qsctr_inc()} or \url{rcu_bh_qsctr_inc()} have been invoked
+for ``rcu'' and ``rcu\_bh'', respectively), and line 10 returns if not.
+
+Therefore, execution reaches line~11 only if a previously noted grace
+period is still in effect, if this CPU needs to pass through a
+quiescent state in order to allow this grace period to end, and
+if this CPU has passed through such a quiescent state.
+In this case, lines~11-12 invoke \url{cpu_quiet()} in order to report
+this quiescent state to RCU.
+
+\QuickQuiz{What prevents lines~11-12 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-check-quiescent-state}
+	from reporting a quiescent state from a prior
+	grace period against the current grace period?}
+\QuickQuizAnswer{
+	If this could occur, it would be a serious bug, since the
+	CPU in question might be in an RCU read-side critical section
+	that started before the beginning of the current grace period.
+
+	There are several cases to consider for the CPU in question:
+	\begin{enumerate}
+	\item	It remained online and active throughout.
+	\item	It was in dynticks-idle mode for at least part of the current
+		grace period.
+	\item	It was offline for at least part of the current grace period.
+	\end{enumerate}
+
+	In the first case, the prior grace period could not have
+	ended without this CPU explicitly reporting a quiescent
+	state, which would leave \url{->qs_pending} zero.
+	This in turn would mean that lines~7-8 would return, so
+	that control would not reach \url{cpu_quiet()} unless
+	\url{check_for_new_grace_period()} had noted the new grace
+	period.
+	However, if the current grace period had been noted, it would
+	also have set \url{->passed_quiesc} to zero, in which case
+	lines~9-10 would have returned, again meaning that \url{cpu_quiet()}
+	would not be invoked.
+	Finally, the only way that \url{->passed_quiesc} could be invoked
+	would be if \url{rcu_check_callbacks()} was invoked by
+	a scheduling-clock interrupt that occurred somewhere between
+	lines~5 and 9 of \url{rcu_check_quiescent_state()} in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-check-quiescent-state}.
+	However, this would be a case of a quiescent state occurring
+	in the \emph{current} grace period, which would be totally
+	legitimate to report against the current grace period.
+	So this case is correctly covered.
+
+	In the second case, where the CPU in question spent part of
+	the new quiescent state in dynticks-idle mode, note that
+	dynticks-idle mode is an extended quiescent state, hence
+	it is again permissible to report this quiescent state against
+	the current grace period.
+
+	In the third case, where the CPU in question spent part of the
+	new quiescent state offline, note that offline CPUs are in
+	an extended quiescent state, which is again permissible to
+	report against the current grace period.
+
+	So quiescent states from prior grace periods are never reported
+	against the current grace period.
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 cpu_quiet(int cpu, struct rcu_state *rsp,
+  3           struct rcu_data *rdp, long lastcomp)
+  4 {
+  5   unsigned long flags;
+  6   unsigned long mask;
+  7   struct rcu_node *rnp;
+  8 
+  9   rnp = rdp->mynode;
+ 10   spin_lock_irqsave(&rnp->lock, flags);
+ 11   if (lastcomp != ACCESS_ONCE(rsp->completed)) {
+ 12     rdp->passed_quiesc = 0;
+ 13     spin_unlock_irqrestore(&rnp->lock, flags);
+ 14     return;
+ 15   }
+ 16   mask = rdp->grpmask;
+ 17   if ((rnp->qsmask & mask) == 0) {
+ 18     spin_unlock_irqrestore(&rnp->lock, flags);
+ 19   } else {
+ 20     rdp->qs_pending = 0;
+ 21     rdp = rsp->rda[smp_processor_id()];
+ 22     rdp->nxttail[RCU_NEXT_READY_TAIL] =
+ 23         rdp->nxttail[RCU_NEXT_TAIL];
+ 24     cpu_quiet_msk(mask, rsp, rnp, flags);
+ 25   }
+ 26 }
+\end{verbatim}
+}
+\caption{Code for {\tt cpu\_quiet()}}
+\label{fig:app:rcuimpl:rcutreewt:Code for cpu-quiet}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for cpu-quiet}
+shows \url{cpu_quiet}, which is used to report a quiescent state
+for the specified CPU.
+As noted earlier, this must either be the currently running CPU
+or a CPU that is guaranteed to remain offline throughout.
+
+Line~9 picks up a pointer to the leaf \url{rcu_node} structure
+responsible for this CPU.
+Line~10 acquires this leaf \url{rcu_node} structure's lock and
+disables interrupts.
+Line~11 checks to make sure that the specified grace period is
+still in effect, and, if not, line~11 clears the indication that
+this CPU passed through a quiescent state (since it belongs to
+a defunct grace period), line~13 releases the lock and re-enables
+interrupts, and line~14 returns to the caller.
+
+Otherwise, line~16 forms a mask with the specified CPU's bit set.
+Line~17 checks to see if this bit is still set in the leaf
+\url{rcu_node} structure, and, if not, line~18 releases the lock
+and re-enables interrupts.
+
+On the other hand, if the CPU's bit is still set, line~20 clears
+\url{->qs_pending}, reflecting that this CPU has passed through
+its quiescent state for this grace period.
+Line~21 then overwrites local variable \url{rdp} with a pointer to
+the running CPU's \url{rcu_data} structure, and lines~22-23
+updates the running CPU's RCU callbacks so that all those not yet
+associated with a specific grace period
+be serviced by the next grace period.
+Finally, line~24 clears bits up the \url{rcu_node} hierarchy,
+ending the current grace period if appropriate and perhaps even
+starting a new one.
+Note that \url{cpu_quiet()} releases the lock and re-enables interrupts.
+
+\QuickQuiz{How do lines~22-23 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for cpu-quiet}
+	know that it is safe to promote the running CPU's RCU
+	callbacks?}
+\QuickQuizAnswer{
+	Because the specified CPU has not yet passed through a quiescent
+	state, and because we hold the corresponding leaf node's lock,
+	we know that the current grace period cannot possibly have
+	ended yet.
+	Therefore, there is no danger that any of the callbacks currently
+	queued were registered after the next grace period started, given
+	that they have already been queued and the next grace period
+	has not yet started.
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 cpu_quiet_msk(unsigned long mask, struct rcu_state *rsp,
+  3               struct rcu_node *rnp, unsigned long flags)
+  4   __releases(rnp->lock)
+  5 {
+  6   for (;;) {
+  7     if (!(rnp->qsmask & mask)) {
+  8       spin_unlock_irqrestore(&rnp->lock, flags);
+  9       return;
+ 10     }
+ 11     rnp->qsmask &= ~mask;
+ 12     if (rnp->qsmask != 0) {
+ 13       spin_unlock_irqrestore(&rnp->lock, flags);
+ 14       return;
+ 15     }
+ 16     mask = rnp->grpmask;
+ 17     if (rnp->parent == NULL) {
+ 18       break;
+ 19     }
+ 20     spin_unlock_irqrestore(&rnp->lock, flags);
+ 21     rnp = rnp->parent;
+ 22     spin_lock_irqsave(&rnp->lock, flags);
+ 23   }
+ 24   rsp->completed = rsp->gpnum;
+ 25   rcu_process_gp_end(rsp, rsp->rda[smp_processor_id()]);
+ 26   rcu_start_gp(rsp, flags);
+ 27 }
+\end{verbatim}
+}
+\caption{Code for {\tt cpu\_quiet\_msk()}}
+\label{fig:app:rcuimpl:rcutreewt:Code for cpu-quiet-msk}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for cpu-quiet-msk}
+shows \url{cpu_quiet_msk()}, which updates the \url{rcu_node}
+hierarchy to reflect the passage of the CPUs indicated by
+argument \url{mask} through their respective quiescent states.
+Note that argument \url{rnp} is the leaf \url{rcu_node} structure
+corresponding to the specified CPUs.
+
+\QuickQuiz{Given that argument \url{mask} on line 2 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for cpu-quiet-msk}
+	is an unsigned long, how can it possibly deal with systems
+	with more than 64 CPUs?}
+\QuickQuizAnswer{
+	Because \url{mask} is specific to the specified leaf \url{rcu_node}
+	structure, it need only be large enough to represent the
+	CPUs corresponding to that particular \url{rcu_node} structure.
+	Since at most 64 CPUs may be associated with a given
+	\url{rcu_node} structure (32 CPUs on 32-bit systems),
+	the unsigned long \url{mask} argument suffices.
+} \QuickQuizEnd
+
+Line~4 is annotation for the \url{sparse} utility, indicating
+that \url{cpu_quiet_msk()} releases the leaf \url{rcu_node}
+structure's lock.
+
+\begin{figure*}[tb]
+\begin{center}
+\resizebox{6in}{!}{\includegraphics{appendix/rcuimpl/RCUTreeQSScan}}
+\end{center}
+\caption{Scanning {\tt rcu\_node} Structures When Applying Quiescent States}
+\label{fig:app:rcuimpl:rcutree:Scanning rcu-node Structures When Applying Quiescent States}
+\end{figure*}
+
+Each pass through the loop spanning lines~6-23 does the required
+processing for one level of the \url{rcu_node} hierarchy, traversing
+the data structures as shown by the blue arrow in
+Figure~\ref{fig:app:rcuimpl:rcutree:Scanning rcu-node Structures When Applying Quiescent States}.
+
+Line~7 checks to see if all of the bits in \url{mask} have already
+been cleared in the current \url{rcu_node} structure's \url{->qsmask}
+field, and, if so, line~8 releases the lock and re-enables interrupts,
+and line~9 returns to the caller.
+If not, line~11 clears the bits specified by \url{mask} from the current
+\url{rcu_node} structure's \url{qsmask} field.
+Line~12 then checks to see if there are more bits remaining
+in \url{->qsmask}, and, if so, line~13 releases the lock and re-enables
+interrupts, and line~14 returns to the caller.
+
+Otherwise, it is necessary to advance up to the next level of the
+\url{rcu_node} hierarchy.
+In preparation for this next level, line~16 places a mask with the
+single bit set corresponding to the current \url{rcu_node} structure within
+its parent.
+Line~17 checks to see if there in fact is a parent for the current
+\url{rcu_node} structure, and, if not, line~18 breaks from the
+loop.
+On the other hand, if there is a parent \url{rcu_node} structure,
+line~20 releases the current \url{rcu_node} structure's lock,
+line~21 advances the \url{rnp} local variable to the parent,
+and line~22 acquires the parent's lock.
+Execution then continues at the beginning of the loop on line~7.
+
+If line~18 breaks from the loop, we know that the current grace period
+has ended, as the only way that all bits can be cleared in the
+root \url{rcu_node} structure is if all CPUs have passed through
+quiescent states.
+In this case, line~24 updates the \url{rcu_state} structure's
+\url{->completed} field to match the number of the newly ended grace
+period, indicating that the grace period has in fact ended.
+Line~24 then invokes \url{rcu_process_gp_end()} to advance the
+running CPU's RCU callbacks,
+and, finally, line~26 invokes \url{rcu_start_gp()} in order to
+start a new grace period should any remaining callbacks on the currently
+running CPU require one.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void rcu_do_batch(struct rcu_data *rdp)
+  2 {
+  3   unsigned long flags;
+  4   struct rcu_head *next, *list, **tail;
+  5   int count;
+  6 
+  7   if (!cpu_has_callbacks_ready_to_invoke(rdp))
+  8     return;
+  9   local_irq_save(flags);
+ 10   list = rdp->nxtlist;
+ 11   rdp->nxtlist = *rdp->nxttail[RCU_DONE_TAIL];
+ 12   *rdp->nxttail[RCU_DONE_TAIL] = NULL;
+ 13   tail = rdp->nxttail[RCU_DONE_TAIL];
+ 14   for (count = RCU_NEXT_SIZE - 1; count >= 0; count--)
+ 15     if (rdp->nxttail[count] ==
+ 16         rdp->nxttail[RCU_DONE_TAIL])
+ 17       rdp->nxttail[count] = &rdp->nxtlist;
+ 18   local_irq_restore(flags);
+ 19   count = 0;
+ 20   while (list) {
+ 21     next = list->next;
+ 22     prefetch(next);
+ 23     list->func(list);
+ 24     list = next;
+ 25     if (++count >= rdp->blimit)
+ 26       break;
+ 27   }
+ 28   local_irq_save(flags);
+ 29   rdp->qlen -= count;
+ 30   if (list != NULL) {
+ 31     *tail = rdp->nxtlist;
+ 32     rdp->nxtlist = list;
+ 33     for (count = 0; count < RCU_NEXT_SIZE; count++)
+ 34       if (&rdp->nxtlist == rdp->nxttail[count])
+ 35         rdp->nxttail[count] = tail;
+ 36       else
+ 37         break;
+ 38   }
+ 39   if (rdp->blimit == LONG_MAX && rdp->qlen <= qlowmark)
+ 40     rdp->blimit = blimit;
+ 41   local_irq_restore(flags);
+ 42   if (cpu_has_callbacks_ready_to_invoke(rdp))
+ 43     raise_softirq(RCU_SOFTIRQ);
+ 44 }
+\end{verbatim}
+}
+\caption{Code for {\tt rcu\_do\_batch()}}
+\label{fig:app:rcuimpl:rcutreewt:Code for rcu-do-batch}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-do-batch}
+shows \url{rcu_do_batch()}, which invokes RCU callbacks
+whose grace periods have ended.
+Only callbacks on the running CPU will be invoked---other CPUs must
+invoke their own callbacks.
+
+\QuickQuiz{How do RCU callbacks on dynticks-idle or offline CPUs
+	get invoked?}
+\QuickQuizAnswer{
+	They don't.
+	CPUs with RCU callbacks are not permitted to enter dynticks-idle
+	mode, so dynticks-idle CPUs never have RCU callbacks.
+	When CPUs go offline, their RCU callbacks are migrated to
+	an online CPU, so offline CPUs never have RCU callbacks, either.
+	Thus, there is no need to invoke callbacks on dynticks-idle
+	or offline CPUs.
+} \QuickQuizEnd
+
+Line~7 invokes \url{cpu_has_callbacks_ready_to_invoke()} to see if
+this CPU has any RCU callbacks whose grace period has completed,
+and, if not, line~8 returns.
+Lines~9 and 18 disable and re-enable interrupts, respectively.
+Lines~11-13 remove the ready-to-invoke callbacks from \url{->nxtlist},
+and lines~14-17 make any needed adjustments to the tail pointers.
+
+\QuickQuiz{Why would lines~14-17 in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-do-batch}
+	need to adjust the tail pointers?}
+\QuickQuizAnswer{
+	If any of the tail pointers reference the last callback
+	in the sublist that was ready to invoke, they must be
+	changed to instead reference the \url{->nxtlist} pointer.
+	This situation occurs when the sublists
+	immediately following the ready-to-invoke sublist are empty.
+} \QuickQuizEnd
+
+Line~19 initializes local variable \url{count} to zero in preparation
+for counting the number of callbacks that will actually be invoked.
+Each pass through the loop spanning lines~20-27 invokes and counts
+a callback, with lines~25-26 exiting the loop if too many callbacks
+are to be invoked at a time (thus preserving responsiveness).
+The remainder of the function then requeues any callbacks that could
+not be invoked due to this limit.
+
+Lines~28 and 41 disable and re-enable interrupts, respectively.
+Line~29 updates the \url{->qlen} field, which maintains a count
+of the total number of RCU callbacks for this CPU.
+Line~30 checks to see if there were any ready-to-invoke callbacks
+that could not be invoked at the moment due to the limit on the
+number that may be invoked at a given time.
+If such callbacks remain, lines~30-38 requeue them, again adjusting
+the tail pointers as needed.
+Lines~39-40 restore the batch limit if it was increased due to
+excessive callback backlog, and lines~42-43 cause additional RCU
+processing to be scheduled if there are any ready-to-invoke
+callbacks remaining.
 
 \subsection{Dyntick-Idle Functions}
 \label{app:rcuimpl:rcutreewt:Dyntick-Idle Functions}
@@ -3110,5 +3608,10 @@ if any of these CPUs have passed through dyntick-idle state (if
 \url{CONFIG_NO_HZ} is enabled), checks to see if we are waiting on
 any offline CPUs, and finally sends a reschedule IPI to any remaining
 CPUs not in the first two groups.
+
+% Stall stuff.  record_gp_stall_check_time, print_other_cpu_stall,
+%	print_cpu_stall(), check_cpu_stall().
+% Note that record_gp_stall_check_time and check_cpu_stall are empty if
+%	!CONFIG_RCU_CPU_STALL_DETECTOR
 
 @@@ read through email to gather up acknowledgments @@@

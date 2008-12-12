@@ -2154,6 +2154,12 @@ In the meantime, however, there are some challenges:
 	is already in progress, will immediately release the
 	lock and return.
 
+\QuickQ{How does the code traverse a given path through
+	the \url{rcu_node} hierarchy from root to leaves?}
+
+	It turns out that the code never needs to do such a traversal,
+	so there is nothing special in place to handle this.
+
 \QuickQ{C-preprocessor macros are \emph{so} 1990s!
 	Why not get with the times and convert \url{RCU_DATA_PTR_INIT()}
 	in Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init}
@@ -2314,7 +2320,7 @@ In the meantime, however, there are some challenges:
 	\item	The running CPU holds \url{->onofflock}, so there
 		is no race with CPU-hotplug operations.
 	\item	The leaf \url{rcu_node} structures are not yet initialized,
-		so they have all of their \url{->qsinit} bits cleared.
+		so they have all of their \url{->qsmask} bits cleared.
 		This means that any other CPU attempting to report
 		a quiescent state will stop at the leaf level,
 		and thus cannot race with the current CPU for non-leaf
@@ -2323,6 +2329,121 @@ In the meantime, however, there are some challenges:
 		the \url{rcu_node} structures' fields.
 		Races with these functions is therefore harmless.
 	\end{enumerate}
+
+\QuickQ{Why can't we merge the loop spanning lines~36-37 with
+	the loop spanning lines~40-44 in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}?}
+
+	If we were to do so, we would either be needlessly acquiring locks
+	for the non-leaf \url{rcu_node} structures or would need
+	ugly checks for a given node being a leaf node on each pass
+	through the loop.
+	(Recall that we must acquire the locks for the leaf
+	\url{rcu_node} structures due to races with CPUs attempting
+	to report quiescent states.)
+
+	Nevertheless, it is quite possible that experience on very large
+	systems will show that such merging is in fact the right thing
+	to do.
+
+\QuickQ{What prevents lines~11-12 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-check-quiescent-state}
+	from reporting a quiescent state from a prior
+	grace period against the current grace period?}
+
+	If this could occur, it would be a serious bug, since the
+	CPU in question might be in an RCU read-side critical section
+	that started before the beginning of the current grace period.
+
+	There are several cases to consider for the CPU in question:
+	\begin{enumerate}
+	\item	It remained online and active throughout.
+	\item	It was in dynticks-idle mode for at least part of the current
+		grace period.
+	\item	It was offline for at least part of the current grace period.
+	\end{enumerate}
+
+	In the first case, the prior grace period could not have
+	ended without this CPU explicitly reporting a quiescent
+	state, which would leave \url{->qs_pending} zero.
+	This in turn would mean that lines~7-8 would return, so
+	that control would not reach \url{cpu_quiet()} unless
+	\url{check_for_new_grace_period()} had noted the new grace
+	period.
+	However, if the current grace period had been noted, it would
+	also have set \url{->passed_quiesc} to zero, in which case
+	lines~9-10 would have returned, again meaning that \url{cpu_quiet()}
+	would not be invoked.
+	Finally, the only way that \url{->passed_quiesc} could be invoked
+	would be if \url{rcu_check_callbacks()} was invoked by
+	a scheduling-clock interrupt that occurred somewhere between
+	lines~5 and 9 of \url{rcu_check_quiescent_state()} in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-check-quiescent-state}.
+	However, this would be a case of a quiescent state occurring
+	in the \emph{current} grace period, which would be totally
+	legitimate to report against the current grace period.
+	So this case is correctly covered.
+
+	In the second case, where the CPU in question spent part of
+	the new quiescent state in dynticks-idle mode, note that
+	dynticks-idle mode is an extended quiescent state, hence
+	it is again permissible to report this quiescent state against
+	the current grace period.
+
+	In the third case, where the CPU in question spent part of the
+	new quiescent state offline, note that offline CPUs are in
+	an extended quiescent state, which is again permissible to
+	report against the current grace period.
+
+	So quiescent states from prior grace periods are never reported
+	against the current grace period.
+
+\QuickQ{How do lines~22-23 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for cpu-quiet}
+	know that it is safe to promote the running CPU's RCU
+	callbacks?}
+
+	Because the specified CPU has not yet passed through a quiescent
+	state, and because we hold the corresponding leaf node's lock,
+	we know that the current grace period cannot possibly have
+	ended yet.
+	Therefore, there is no danger that any of the callbacks currently
+	queued were registered after the next grace period started, given
+	that they have already been queued and the next grace period
+	has not yet started.
+
+\QuickQ{Given that argument \url{mask} on line 2 of
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for cpu-quiet-msk}
+	is an unsigned long, how can it possibly deal with systems
+	with more than 64 CPUs?}
+
+	Because \url{mask} is specific to the specified leaf \url{rcu_node}
+	structure, it need only be large enough to represent the
+	CPUs corresponding to that particular \url{rcu_node} structure.
+	Since at most 64 CPUs may be associated with a given
+	\url{rcu_node} structure (32 CPUs on 32-bit systems),
+	the unsigned long \url{mask} argument suffices.
+
+\QuickQ{How do RCU callbacks on dynticks-idle or offline CPUs
+	get invoked?}
+
+	They don't.
+	CPUs with RCU callbacks are not permitted to enter dynticks-idle
+	mode, so dynticks-idle CPUs never have RCU callbacks.
+	When CPUs go offline, their RCU callbacks are migrated to
+	an online CPU, so offline CPUs never have RCU callbacks, either.
+	Thus, there is no need to invoke callbacks on dynticks-idle
+	or offline CPUs.
+
+\QuickQ{Why would lines~14-17 in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-do-batch}
+	need to adjust the tail pointers?}
+
+	If any of the tail pointers reference the last callback
+	in the sublist that was ready to invoke, they must be
+	changed to instead reference the \url{->nxtlist} pointer.
+	This situation occurs when the sublists
+	immediately following the ready-to-invoke sublist are empty.
 
 \QuickQ{But how does the code in
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode}
