@@ -3609,8 +3609,223 @@ if any of these CPUs have passed through dyntick-idle state (if
 any offline CPUs, and finally sends a reschedule IPI to any remaining
 CPUs not in the first two groups.
 
-% Stall stuff.  record_gp_stall_check_time, print_other_cpu_stall,
-%	print_cpu_stall(), check_cpu_stall().
+\subsection{CPU-Stall Detection}
+\label{app:rcuimpl:rcutreewt:CPU-Stall Detection}
+
+RCU checks for stalled CPUs when the \url{CONFIG_RCU_CPU_STALL_DETECTOR}
+kernel parameter is selected.
+``Stalled CPUs'' are those spinning in the kernel with preemption disabled,
+which degrades response time.
+These checks are implemented via the \url{record_gp_stall_check_time()},
+\url{check_cpu_stall()}, \url{print_cpu_stall()}, and
+\url{print_other_cpu_stall()} functions, each of which is described
+below.
+All of these functions are no-ops when the \url{CONFIG_RCU_CPU_STALL_DETECTOR}
+kernel parameter is not selected.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 record_gp_stall_check_time(struct rcu_state *rsp)
+  3 {
+  4   rsp->gp_start = jiffies;
+  5   rsp->jiffies_stall =
+  6       jiffies + RCU_SECONDS_TILL_STALL_CHECK;
+  7 }
+\end{verbatim}
+}
+\caption{{\tt record\_gp\_stall\_check\_time()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for record-gp-stall-check-time}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for record-gp-stall-check-time}
+shows the code for \url{record_gp_stall_check_time()}.
+Line~4 records the current time (of the start of the grace period)
+in jiffies, and lines~5-6 record the time at which CPU stalls should
+be checked for, should the grace period run on that long.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void
+  2 check_cpu_stall(struct rcu_state *rsp,
+  3                 struct rcu_data *rdp)
+  4 {
+  5   long delta;
+  6   struct rcu_node *rnp;
+  7 
+  8   delta = jiffies - rsp->jiffies_stall;
+  9   rnp = rdp->mynode;
+ 10   if ((rnp->qsmask & rdp->grpmask) && delta >= 0) {
+ 11     print_cpu_stall(rsp);
+ 12   } else if (rsp->gpnum != rsp->completed &&
+ 13        delta >= RCU_STALL_RAT_DELAY) {
+ 14     print_other_cpu_stall(rsp);
+ 15   }
+ 16 }
+\end{verbatim}
+}
+\caption{{\tt check\_cpu\_stall()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for check-cpu-stall}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for check-cpu-stall}
+shows the code for \url{check_cpu_stall}, which checks to see
+if the grace period has stretched on too long, invoking either
+\url{print_cpu_stall()} or \url{print_other_cpu_stall()} in order
+to print a CPU-stall warning message if so.
+
+Line~8 computes the number of jiffies since the time at which stall
+warnings should be printed, which will be negative if it is not
+yet time to print warnings.
+Line~9 obtains a pointer to the leaf \url{rcu_node}
+structure corresponding to the current CPU,
+and line~10 checks to see if the current CPU has not yet passed through
+a quiescent state and if the grace period has extended too long
+(in other words, if the current CPU is stalled),
+with line~11 invoking \url{print_cpu_stall()} if so.
+
+Otherwise, lines~12-13 check to see if the grace period is still in effect
+and if it has extended a couple of jiffies past the CPU-stall warning
+duration, with line~14 invoking \url{print_other_cpu_stall()} if so.
+
+\QuickQuiz{Why wait the extra couple jiffies on lines~12-13 in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for check-cpu-stall}?}
+\QuickQuizAnswer{
+	This added delay gives the offending CPU a better chance of
+	reporting on itself, thus getting a decent stack trace of
+	the stalled code.
+	Of course, if the offending CPU is spinning with interrupts
+	disabled, it will never report on itself, so other CPUs
+	do so after a short delay.
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void print_cpu_stall(struct rcu_state *rsp)
+  2 {
+  3   unsigned long flags;
+  4   struct rcu_node *rnp = rcu_get_root(rsp);
+  5 
+  6   printk(KERN_ERR
+  7          "INFO: RCU detected CPU %d stall "
+  8          "(t=%lu jiffies)\n",
+  9     smp_processor_id(),
+ 10     jiffies - rsp->gp_start);
+ 11   dump_stack();
+ 12   spin_lock_irqsave(&rnp->lock, flags);
+ 13   if ((long)(jiffies - rsp->jiffies_stall) >= 0)
+ 14     rsp->jiffies_stall =
+ 15       jiffies + RCU_SECONDS_TILL_STALL_RECHECK;
+ 16   spin_unlock_irqrestore(&rnp->lock, flags);
+ 17   set_need_resched();
+ 18 }
+\end{verbatim}
+}
+\caption{{\tt print\_cpu\_stall()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for print-cpu-stall}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for print-cpu-stall}
+shows the code for \url{print_cpu_stall()}.
+
+Line~6-11 prints a console message and dumps the current CPU's stack,
+while lines~12-17 compute the time to the next CPU stall warning, should
+the grace period stretch on that much additional time.
+
+\QuickQuiz{What prevents the grace period from ending before the
+	stall warning is printed in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for print-cpu-stall}?}
+\QuickQuizAnswer{
+	The caller checked that this CPU still had not reported a
+	quiescent state, and because preemption is disabled, there is
+	no way that a quiescent state could have been reported in
+	the meantime.
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void print_other_cpu_stall(struct rcu_state *rsp)
+  2 {
+  3   int cpu;
+  4   long delta;
+  5   unsigned long flags;
+  6   struct rcu_node *rnp = rcu_get_root(rsp);
+  7   struct rcu_node *rnp_cur;
+  8   struct rcu_node *rnp_end;
+  9 
+ 10   rnp_cur = rsp->level[NUM_RCU_LVLS - 1];
+ 11   rnp_end = &rsp->node[NUM_RCU_NODES];
+ 12   spin_lock_irqsave(&rnp->lock, flags);
+ 13   delta = jiffies - rsp->jiffies_stall;
+ 14   if (delta < RCU_STALL_RAT_DELAY ||
+ 15       rsp->gpnum == rsp->completed) {
+ 16     spin_unlock_irqrestore(&rnp->lock, flags);
+ 17     return;
+ 18   }
+ 19   rsp->jiffies_stall = jiffies +
+ 20       RCU_SECONDS_TILL_STALL_RECHECK;
+ 21   spin_unlock_irqrestore(&rnp->lock, flags);
+ 22   printk(KERN_ERR "INFO: RCU detected CPU stalls:");
+ 23   for (; rnp_cur < rnp_end; rnp_cur++) {
+ 24     if (rnp_cur->qsmask == 0)
+ 25       continue;
+ 26     cpu = 0;
+ 27     for (; cpu <= rnp_cur->grphi - rnp_cur->grplo; cpu++)
+ 28       if (rnp_cur->qsmask & (1UL << cpu))
+ 29         printk(" %d", rnp_cur->grplo + cpu);
+ 30   }
+ 31   printk(" (detected by %d, t=%ld jiffies)\n",
+ 32          smp_processor_id(),
+ 33          (long)(jiffies - rsp->gp_start));
+ 34   force_quiescent_state(rsp, 0);
+ 35 }
+\end{verbatim}
+}
+\caption{{\tt print\_other\_cpu\_stall()} Code}
+\label{fig:app:rcuimpl:rcutreewt:Code for print-other-cpu-stall}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for print-other-cpu-stall}
+shows the code for \url{print_other_cpu_stall()}, which prints out
+stall warnings for CPUs other than the currently running CPU.
+
+Lines~10 and 11 pick up references to the first leaf \url{rcu_node}
+structure and one past the last leaf \url{rcu_node} structure,
+respectively.
+Line~12 acquires the root \url{rcu_node} structure's lock, and also
+disables interrupts.
+Line~13 calculates the how long ago the CPU-stall warning time occurred
+(which will be negative if it has not yet occurred), and lines~14 and 15
+check to see if the CPU-stall warning time has passed and if the
+grace period has not yet ended,
+with line~16 releasing the lock (and re-enabling interrupts) and
+line~17 returning if so.
+
+\QuickQuiz{Why does \url{print_other_cpu_stall()} in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for print-other-cpu-stall}
+	need to check for the grace period ending when
+	\url{print_cpu_stall()} did not?}
+\QuickQuizAnswer{
+	The other CPUs might pass through a quiescent state at any time,
+	so the grace period might well have ended in the meantime.
+} \QuickQuizEnd
+
+Otherwise, lines~19 and 20 compute the next time that CPU stall warnings
+should be printed (if the grace period extends that long) and
+line~21 releases the lock and re-enables interrupts.
+Lines~23-33 print a list of the stalled CPUs, and, finally,
+line~34 invokes \url{force_quiescent_state()} in order to nudge the
+offending CPUs into passing through a quiescent state.
+
+% Stall stuff.
+%DONE%	record_gp_stall_check_time
+%DONE%	check_cpu_stall().
+%DONE%	print_cpu_stall()
+%	print_other_cpu_stall,
 % Note that record_gp_stall_check_time and check_cpu_stall are empty if
 %	!CONFIG_RCU_CPU_STALL_DETECTOR
 
