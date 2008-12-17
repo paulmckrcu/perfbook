@@ -18,7 +18,6 @@
  * Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
  */
 
-#define __USE_GNU
 #include <sched.h>
 
 /*
@@ -72,8 +71,8 @@ void *rcu_read_perf_test(void *arg)
 	cpu_set_t mask;
 	long long n_reads_local = 0;
 
-	__CPU_ZERO(&mask);
-	__CPU_SET(me, &mask);
+	CPU_ZERO(&mask);
+	CPU_SET(me, &mask);
 	sched_setaffinity(0, sizeof(mask), &mask);
 	atomic_inc(&nthreadsrunning);
 	while (goflag == GOFLAG_INIT)

@@ -307,6 +307,7 @@ static unsigned long long get_timestamp(void)
 #include <errno.h>
 #include <limits.h>
 #include <sys/types.h>
+#define __USE_GNU
 #include <pthread.h>
 #include <sys/param.h>
 /* #include "atomic.h" */
