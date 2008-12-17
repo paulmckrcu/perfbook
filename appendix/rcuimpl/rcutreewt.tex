@@ -1,67 +1,72 @@
 % appendix/rcuimpl/rcutreewt.tex
 
-% todo...
-
-%DONE% Data structures and module parameters
-
-%DONE% External interfaces.
-%DONE% rcu_check_callbacks, __rcu_process_callbacks, rcu_process_callbacks
-%DONE%	__call_rcu, call_rcu, call_rcu_bh, __rcu_pending, rcu_pending,
-%DONE%	rcu_needs_cpu, rcu_cpu_notify, __rcu_init
-
-% initialization, online/offline
-%DONE% __rcu_offline_cpu, rcu_offline_cpu (empty if !CONFIG_HOTPLUG_CPU)
-%DONE% \url{__rcu_init()}.
-%DONE%	rcu_online_cpu,
-%DONE%	rcu_init_percpu_data
-%DONE%	rcu_init_levelspread (CONFIG_RCU_FANOUT_EXACT and not)
-%DONE%	rcu_init_one, 
-
-%DONE% simple functions: rcu_batches_completed, rcu_batches_completed_bh,
-%DONE%	cpu_has_callbacks_ready_to_invoke, cpu_needs_another_gp,
-%DONE%	rcu_get_root,
-
-% GP detection.
-%DONE%	note_new_gpnum, check_for_new_grace_period,
-%DONE%	rcu_process_gp_end,
-%DONE%	rcu_start_gp
-%DONE%	rcu_check_quiescent_state()
-%DONE%	cpu_quiet()
-%DONE%	cpu_quiet_msk()
-%DONE%	rcu_do_batch
-
-%DONE% rcu_enter_nohz, rcu_exit_nohz, rcu_nmi_enter, rcu_nmi_exit,
-%DONE%	rcu_irq_enter, rcu_irq_exit -- covered in formal.  Reference.
-%DONE%	app:formal:Simplicity Avoids Formal Verification
-%DONE%	Ditto dyntick_save_progress_counter, rcu_implicit_dynticks_qs,
-
-%DONE% force_quiescent_state and friends. (partly done)
-%DONE% Cover dyntick_record_completed, dyntick_recall_completed
-% Note that dyntick_record_completed() is empty if !CONFIG_NO_HZ.
-% Note that dyntick_recall_completed() is subtly different if !CONFIG_NO_HZ.
-% Note that dyntick_recall_completed() and rcu_implicit_dynticks_qs are
-% 	trivial if !CONFIG_NO_HZ.
-%DONE% rcu_implicit_offline_qs (CONFIG_SMP only)
-%DONE% rcu_process_dyntick
-
-% Stall stuff.  record_gp_stall_check_time, print_other_cpu_stall,
-%	print_cpu_stall(), check_cpu_stall().
-% Note that record_gp_stall_check_time and check_cpu_stall are empty if
-%	!CONFIG_RCU_CPU_STALL_DETECTOR
-
 \section{Hierarchical RCU Code Walkthrough}
 \label{app:rcuimpl:rcutreewt:Hierarchical RCU Code Walkthrough}
 
 This section walks through selected sections of the Linux-kernel
 hierarchical RCU code.
 As such, this section is intended for hard-core hackers who wish
-to understand hierarchical RCU at a very low level.
+to understand hierarchical RCU at a very low level, and such hackers
+should first read
+Section~\ref{app:rcuimpl:rcutree:Hierarchical RCU Overview}.
 Hard-core masochists might also be interested in reading this section.
+Of course \emph{really} hard-core masochists will read this section
+before reading
+Section~\ref{app:rcuimpl:rcutree:Hierarchical RCU Overview}.
+
+Section~\ref{app:rcuimpl:rcutreewt:Data Structures and Kernel Parameters}
+describes data structures and kernel parameters,
+Section~\ref{app:rcuimpl:rcutreewt:External Interfaces}
+covers external function interfaces,
+Section~\ref{app:rcuimpl:rcutreewt:Initialization}
+presents the initialization process,
+Section~\ref{app:rcuimpl:rcutreewt:CPU Hotplug}
+explains the CPU-hotplug interface,
+Section~\ref{app:rcuimpl:rcutreewt:Miscellaneous Functions}
+covers miscellaneous utility functions,
+Section~\ref{app:rcuimpl:rcutreewt:Grace-Period-Detection Functions}
+describes the mechanics of grace-period detection,
+Section~\ref{app:rcuimpl:rcutreewt:Dyntick-Idle Functions}
+presents the dynticks-idle interface,
+Section~\ref{app:rcuimpl:rcutreewt:Forcing Quiescent States}
+covers the functions that handle holdout CPUs (including offline and
+dynticks-idle CPUs), and
+Section~\ref{app:rcuimpl:rcutreewt:CPU-Stall Detection}
+presents functions that report on stalled CPUs, namely those spinning
+in kernel mode for many seconds.
+Finally,
+Section~\ref{app:rcuimpl:rcutreewt:Possible Flaws and Changes}
+reports on possible design flaws and fixes.
 
 \subsection{Data Structures and Kernel Parameters}
 \label{app:rcuimpl:rcutreewt:Data Structures and Kernel Parameters}
 
-@@@ roadmap @@@
+A full understanding of the Hierarchical RCU data structures is
+critically important to understanding the algorithms.
+To this end,
+Section~\ref{app:rcuimpl:rcutreewt:Tracking Dyntick State}
+describes the data structures used to track each CPU's dyntick-idle state,
+Section~\ref{app:rcuimpl:rcutreewt:Nodes in the Hierarchy}
+describes the fields in the per-node data structure making up the
+\url{rcu_node} hierarchy,
+Section~\ref{app:rcuimpl:rcutreewt:Per-CPU Data}
+describes per-CPU \url{rcu_data} structure,
+Section~\ref{app:rcuimpl:rcutreewt:RCU Global State}
+describes the field in the global \url{rcu_state} structure,
+and
+Section~\ref{app:rcuimpl:rcutreewt:Kernel Parameters}
+describes the kernel parameters that control Hierarchical RCU's
+operation.
+
+Figure~\ref{fig:app:rcuimpl:rcutree:Hierarchical RCU State With Dynticks}
+on
+Page~\pageref{fig:app:rcuimpl:rcutree:Hierarchical RCU State With Dynticks}
+and
+Figure~\ref{fig:app:rcuimpl:rcutree:Initialized RCU Data Layout}
+on
+Page~\pageref{fig:app:rcuimpl:rcutree:Initialized RCU Data Layout}
+can be very helpful in keeping one's place through the following detailed
+data-structure descriptions.
 
 \subsubsection{Tracking Dyntick State}
 \label{app:rcuimpl:rcutreewt:Tracking Dyntick State}
@@ -155,7 +160,7 @@ Each \url{rcu_node} in this hierarchy has fields as follows:
 	\url{rcu_node} structure's \url{qsmask} and \url{qsmaskinit}
 	fields.
 	Use of this field simplifies quiescent-state processing,
-	as suggested by Manfred Spraul @@@ citation @@@.
+	as suggested by Manfred Spraul.
 
 \QuickQuiz{How about the \url{qsmask} and \url{qsmaskinit}
 	fields for the leaf \url{rcu_node} structures?
@@ -733,6 +738,10 @@ RCU's external interfaces include not just the standard RCU API,
 but also the internal interfaces to the rest of the kernel that
 are required for the RCU implementation itself.
 The interfaces are
+\url{rcu_read_lock()}),
+\url{rcu_read_unlock()}),
+\url{rcu_read_lock_bh()}),
+\url{rcu_read_unlock_bh()}),
 \url{call_rcu()} (which is a wrapper around
 \url{__call_rcu()}),
 \url{call_rcu_bh()} (ditto),
@@ -749,6 +758,92 @@ common to all RCU implementations, and are defined in terms of
 \url{call_rcu()}.
 Similarly, \url{rcu_barrier_bh()} is common to all RCU implementations
 and is defined in terms of \url{call_rcu_bh()}.
+
+These external APIs are each described in the following sections.
+
+\subsubsection{Read-Side Critical Sections}
+\label{app:rcuimpl:rcutreewt:Read-Side Critical Sections}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void __rcu_read_lock(void)
+  2 {
+  3   preempt_disable();
+  4   __acquire(RCU);
+  5   rcu_read_acquire();
+  6 }
+  7 
+  8 void __rcu_read_unlock(void)
+  9 {
+ 10   rcu_read_release();
+ 11   __release(RCU);
+ 12   preempt_enable();
+ 13 }
+ 14 
+ 15 void __rcu_read_lock_bh(void)
+ 16 {
+ 17   local_bh_disable();
+ 18   __acquire(RCU_BH);
+ 19   rcu_read_acquire();
+ 20 }
+ 21 
+ 22 void __rcu_read_unlock_bh(void)
+ 23 {
+ 24   rcu_read_release();
+ 25   __release(RCU_BH);
+ 26   local_bh_enable();
+ 27 }
+\end{verbatim}
+}
+\caption{RCU Read-Side Critical Sections}
+\label{fig:app:rcuimpl:rcutreewt:RCU Read-Side Critical Sections}
+\end{figure}
+
+Figure~\ref{fig:app:rcuimpl:rcutreewt:RCU Read-Side Critical Sections}
+shows the functions that demark RCU read-side critical sections.
+Lines~1-6 show \url{__rcu_read_lock()}, which begins an ``rcu''
+read-side critical section.
+line~3 disables preemption,
+line~4 is a sparse marker noting the beginning of an RCU read-side critical
+section,
+and 
+line~5 updates lockdep state.
+Lines~8-13 show \url{__rcu_read_unlock()}, which is the inverse of
+\url{__rcu_read_lock()}.
+Lines~15-20 show \url{__rcu_read_lock_bh()} and lines~22-27 show
+\url{__rcu_read_unlock_bh()}, which are analogous to the previous
+two functions, but disable and enable bottom-half processing rather
+than preemption.
+
+\QuickQuiz{I thought that RCU read-side processing was supposed to
+	be \emph{fast}!!!
+	The functions shown in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:RCU Read-Side Critical Sections}
+	have so much junk in them that they just \emph{have} to be slow!!!
+	What gives here?}
+\QuickQuizAnswer{
+	Appearances can be deceiving.
+	The \url{preempt_disable()}, \url{preempt_enable()},
+	\url{local_bh_disable()}, and \url{local_bh_enable()} each
+	do a single non-atomic manipulation of local data.
+	Even that assumes \url{CONFIG_PREEMPT}, otherwise,
+	the \url{preempt_disable()} and \url{preempt_enable()}
+	functions emit no code, not even compiler directives.
+	The \url{__acquire()} and \url{__release()} functions
+	emit no code (not even compiler directives), but are instead
+	used by the \url{sparse} semantic-parsing bug-finding program.
+	Finally, \url{rcu_read_acquire()} and \url{rcu_read_release()}
+	emit no code (not even compiler directives) unless the
+	``lockdep'' lock-order debugging facility is enabled, in
+	which case they can indeed be somewhat expensive.
+
+	In short, unless you are a kernel hacker who has enabled
+	debugging options, these functions are extremely cheap,
+	and in some cases, absolutely free of overhead.
+	And, in the words of a Portland-area furniture retailer,
+	``free is a \emph{very} good price''.
+} \QuickQuizEnd
 
 \subsubsection{\tt call\_rcu()}
 \label{app:rcuimpl:rcutreewt:call-rcu}
@@ -1913,6 +2008,15 @@ Finally, line~40 re-enables irqs.
 \subsection{Miscellaneous Functions}
 \label{app:rcuimpl:rcutreewt:Miscellaneous Functions}
 
+This section describes the miscellaneous utility functions:
+\begin{enumerate}
+\item	\url{rcu_batches_completed}
+\item	\url{rcu_batches_completed_bh}
+\item	\url{cpu_has_callbacks_ready_to_invoke}
+\item	\url{cpu_needs_another_gp}
+\item	\url{rcu_get_root}
+\end{enumerate}
+
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
@@ -1983,6 +2087,21 @@ grace periods.
 
 \subsubsection{Noting New Grace Periods}
 \label{app:rcuimpl:rcutreewt:Noting New Grace Periods}
+
+The main purpose of Hierarchical RCU is to detect grace periods,
+and the functions more directly involved in this task are described
+in this section.
+Section~\ref{app:rcuimpl:rcutreewt:Noting New Grace Periods}
+covers functions that allow CPUs to note that a new grace period has
+begun,
+Section~\ref{app:rcuimpl:rcutreewt:Noting End of Old Grace Periods}
+covers functions that allow CPUs to note that an existing grace period
+has ended,
+Section~\ref{app:rcuimpl:rcutreewt:Starting a Grace Period}
+covers \url{rcu_start_gp()}, which starts a new grace period, and
+Section~\ref{app:rcuimpl:rcutreewt:Reporting Quiescent States}
+covers functions involved in reporting CPUs' quiescent states to
+the RCU core.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -2840,11 +2959,23 @@ currently in an interrupt or NMI handler.
 The functions in this section communicate this CPU state to RCU.
 
 This set of functions is greatly simplified from that used in
-preemptable RCU (idea thanks to a patch posted by
-Manfred Spraul~\cite{ManfredSpraul2008StateMachineRCU},
-see
+preemptable RCU, see
 Section~\ref{app:formal:Promela Parable: dynticks and Preemptable RCU}
 for a description of the earlier more-complex model.
+Manfred Spraul put forth the idea for this simplifed interface in
+one of his state-based RCU
+patches~\cite{ManfredSpraul2008StateMachineRCU,ManfredSpraul2008dyntickIRQNMI}.
+
+Section~\ref{app:rcuimpl:rcutreewt:Entering and Exiting Dyntick-Idle Mode}
+describes the functions that enter and exit dynticks-idle mode from
+process context,
+Section~\ref{app:rcuimpl:rcutreewt:NMIs from Dyntick-Idle Mode}
+describes the handling of NMIs from dynticks-idle mode,
+Section~\ref{app:rcuimpl:rcutreewt:Interrupts from Dyntick-Idle Mode}
+covers handling of interrupts from dynticks-idle mode, and
+Section~\ref{app:rcuimpl:rcutreewt:Checking for Dyntick-Idle Mode}
+presents functions that check whether some other CPU is currently in
+dynticks-idle mode.
 
 \subsubsection{Entering and Exiting Dyntick-Idle Mode}
 \label{app:rcuimpl:rcutreewt:Entering and Exiting Dyntick-Idle Mode}
@@ -3232,6 +3363,18 @@ passing through quiescent states:
 In each of these cases, RCU needs to take action on behalf of the
 non-responding CPU.
 The following sections describe the functions that take such action.
+Section~\ref{app:rcuimpl:rcutreewt:Recording and Recalling Dynticks-Idle Grace Period}
+describes the functions that record and recall the dynticks-idle
+grace-period number (in order to avoid incorrectly applying a dynticks-idle
+quiescent state to the wrong grace period),
+Section~\ref{app:rcuimpl:rcutreewt:Handling Offline and Holdout CPUs}
+describes functions that detect offline and holdout CPUs,
+Section~\ref{app:rcuimpl:rcutreewt:Scanning for Holdout CPUs}
+covers \url{rcu_process_dyntick()}, which scans for holdout CPUs, and
+Section~\ref{app:rcuimpl:rcutreewt:Code for force-quiescent-state}
+describes \url{force_quiescent_state()}, which drives the process of
+detecting extended quiescent states and forcing quiescent states on
+holdout CPUs.
 
 \subsubsection{Recording and Recalling Dynticks-Idle Grace Period}
 \label{app:rcuimpl:rcutreewt:Recording and Recalling Dynticks-Idle Grace Period}
@@ -3821,12 +3964,24 @@ Lines~23-33 print a list of the stalled CPUs, and, finally,
 line~34 invokes \url{force_quiescent_state()} in order to nudge the
 offending CPUs into passing through a quiescent state.
 
-% Stall stuff.
-%DONE%	record_gp_stall_check_time
-%DONE%	check_cpu_stall().
-%DONE%	print_cpu_stall()
-%	print_other_cpu_stall,
-% Note that record_gp_stall_check_time and check_cpu_stall are empty if
-%	!CONFIG_RCU_CPU_STALL_DETECTOR
+\subsection{Possible Flaws and Changes}
+\label{app:rcuimpl:rcutreewt:Possible Flaws and Changes}
 
-@@@ read through email to gather up acknowledgments @@@
+The biggest possible issue with Hierarchical RCU put forward as of this
+writing is the fact that \url{force_quiescent_state()} involves a
+potential walk through all CPUs' \url{rcu_data} structures.
+On a machine with thousands of CPUs, this could potentially represent
+an excessive impact on scheduling latency, given that this scan is
+conducted with interrupts disabled.
+
+Should this become a problem in real life, one fix is to maintain
+separate \url{force_quiescent_state()} sequencing on a
+per-leaf-\url{rcu_node} basis as well as the current per-\url{rcu_state}
+\url{->signaled} state variable.
+This would allow incremental forcing of quiescent states on a
+per-leaf-\url{rcu_node} basis, greatly reducing the worst-case degradation
+of scheduling latency.
+
+In the meantime, those caring deeply about scheduling latency can
+limit the number of CPUs in the system or use the preemptable RCU
+implementation.

@@ -2092,6 +2092,34 @@ In the meantime, however, there are some challenges:
 	in the \url{->node} array may change, but they are
 	guarded separately.
 
+\QuickQ{I thought that RCU read-side processing was supposed to
+	be \emph{fast}!!!
+	The functions shown in
+	Figure~\ref{fig:app:rcuimpl:rcutreewt:RCU Read-Side Critical Sections}
+	have so much junk in them that they just \emph{have} to be slow!!!
+	What gives here?}
+
+	Appearances can be deceiving.
+	The \url{preempt_disable()}, \url{preempt_enable()},
+	\url{local_bh_disable()}, and \url{local_bh_enable()} each
+	do a single non-atomic manipulation of local data.
+	Even that assumes \url{CONFIG_PREEMPT}, otherwise,
+	the \url{preempt_disable()} and \url{preempt_enable()}
+	functions emit no code, not even compiler directives.
+	The \url{__acquire()} and \url{__release()} functions
+	emit no code (not even compiler directives), but are instead
+	used by the \url{sparse} semantic-parsing bug-finding program.
+	Finally, \url{rcu_read_acquire()} and \url{rcu_read_release()}
+	emit no code (not even compiler directives) unless the
+	``lockdep'' lock-order debugging facility is enabled, in
+	which case they can indeed be somewhat expensive.
+
+	In short, unless you are a kernel hacker who has enabled
+	debugging options, these functions are extremely cheap,
+	and in some cases, absolutely free of overhead.
+	And, in the words of a Portland-area furniture retailer,
+	``free is a \emph{very} good price''.
+
 \QuickQ{Why not simply use \url{__get_cpu_var()} to pick up a
 	reference to the
 	current CPU's \url{rcu_data} structure on line~13 in
