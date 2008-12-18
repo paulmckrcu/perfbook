@@ -1,5 +1,48 @@
 /*
- * rcutorture.c: simple user-level performance/stress test of RCU.
+ * rcutorture.h: simple user-level performance/stress test of RCU.
+ *
+ * Usage:
+ * 	./rcu <nreaders> rperf [ <cpustride> ]
+ * 		Run a read-side performance test with the specified
+ * 		number of readers spaced by <cpustride>.
+ * 		Thus "./rcu 16 rperf 2" would run 16 readers on even-numbered
+ * 		CPUs from 0 to 30.
+ * 	./rcu <nupdaters> uperf [ <cpustride> ]
+ * 		Run an update-side performance test with the specified
+ * 		number of updaters and specified CPU spacing.
+ * 	./rcu <nreaders> perf [ <cpustride> ]
+ * 		Run a combined read/update performance test with the specified
+ * 		number of readers and one updater and specified CPU spacing.
+ * 		The readers run on the low-numbered CPUs and the updater
+ * 		of the highest-numbered CPU.
+ *
+ * The above tests produce output as follows:
+ *
+ * n_reads: 46008000  n_updates: 146026  nreaders: 2  nupdaters: 1 duration: 1
+ * ns/read: 43.4707  ns/update: 6848.1
+ *
+ * The first line lists the total number of RCU reads and updates executed
+ * during the test, the number of reader threads, the number of updater
+ * threads, and the duration of the test in seconds.  The second line
+ * lists the average duration of each type of operation in nanoseconds,
+ * or "nan" if the corresponding type of operation was not performed.
+ *
+ * 	./rcu <nreaders> stress
+ * 		Run a stress test with the specified number of readers and
+ * 		one updater.  None of the threads are affinitied to any
+ * 		particular CPU.
+ *
+ * This test produces output as follows:
+ *
+ * n_reads: 114633217  n_updates: 3903415  n_mberror: 0
+ * rcu_stress_count: 114618391 14826 0 0 0 0 0 0 0 0 0
+ *
+ * The first line lists the number of RCU read and update operations
+ * executed, followed by the number of memory-ordering violations
+ * (which will be zero in a correct RCU implementation).  The second
+ * line lists the number of readers observing progressively more stale
+ * data.  A correct RCU implementation will have all but the first two
+ * numbers non-zero.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

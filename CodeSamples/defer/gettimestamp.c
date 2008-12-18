@@ -1,6 +1,26 @@
 /*
  * gettimestamp.c: Test timestamp functionality
  *
+ * Usage: ./gettimestamp
+ *
+ * Output:
+ *
+ * 3c270dbdd2ec
+ * 3c270dbdd3c9 221
+ * 3c270dbdd4a6 221
+ * 3c270dbdd576 208
+ * 3c270dbdd653 221
+ * 3c270dbdd730 221
+ * 3c270dbdd80d 221
+ * 3c270dbdd8ea 221
+ * 3c270dbdd9c7 221
+ * 3c270dbddaa4 221
+ *
+ * The first number on each line is the hexadecimal number returned
+ * by the fine-grained timer (rdtsc on x86, TBR on Power).  The second
+ * number is the decimal difference between the line in question and
+ * its predecessor.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
