@@ -73,9 +73,10 @@ although concurrent RCU updates could in principle be satisfied by
 a common grace period, this implementation serializes grace periods,
 preventing grace-period sharing.
 
-\QuickQuiz{Why wouldn't any deadlock in the RCU implementation in
+\QuickQuiz{}
+	Why wouldn't any deadlock in the RCU implementation in
 	Figure~\ref{fig:defer:Lock-Based RCU Implementation}
-	also be a deadlock in any other RCU implementation?}
+	also be a deadlock in any other RCU implementation?
 \QuickQuizAnswer{
 
 \begin{figure}[tbp]
@@ -124,10 +125,11 @@ preventing grace-period sharing.
 	\url{rcu_read_lock()}, hence avoiding deadlocks.
 } \QuickQuizEnd
 
-\QuickQuiz{Why not simply use reader-writer locks in the RCU implementation
+\QuickQuiz{}
+	Why not simply use reader-writer locks in the RCU implementation
 	in
 	Figure~\ref{fig:defer:Lock-Based RCU Implementation}
-	in order to allow RCU readers to proceed in parallel?}
+	in order to allow RCU readers to proceed in parallel?
 \QuickQuizAnswer{
 	One could in fact use reader-writer locks in this manner.
 	However, textbook reader-writer locks suffer from memory
@@ -202,18 +204,22 @@ However, the update-side overhead ranges from about 600 nanoseconds
 on a single Power5 CPU
 up to more than 100 \emph{microseconds} on 64 CPUs.
 
-\QuickQuiz{Wouldn't it be cleaner to acquire all the locks, and then
+\QuickQuiz{}
+	Wouldn't it be cleaner to acquire all the locks, and then
 	release them all in the loop from lines~15-18 of
-	Figure~\ref{fig:defer:Per-Thread Lock-Based RCU Implementation}?}
+	Figure~\ref{fig:defer:Per-Thread Lock-Based RCU Implementation}?
+	After all, with this change, there would be a point in time
+	when there were no readers, simplifying things greatly.
 \QuickQuizAnswer{
 	Making this change would re-introduce the deadlock, so
 	no, it would not be cleaner.
 } \QuickQuizEnd
 
-\QuickQuiz{Is the implementation shown in
+\QuickQuiz{}
+	Is the implementation shown in
 	Figure~\ref{fig:defer:Per-Thread Lock-Based RCU Implementation}
 	free from deadlocks?
-	Why or why not?}
+	Why or why not?
 \QuickQuizAnswer{
 	One deadlock is where a lock is
 	held across \url{synchronize_rcu()}, and that same lock is
@@ -308,9 +314,10 @@ it also allows them to be nested.
 In addition, the \url{rcu_read_lock()} primitive cannot possibly
 participate in deadlock cycles, as it never spins nor blocks.
 
-\QuickQuiz{But what if you hold a lock across a call to
+\QuickQuiz{}
+	But what if you hold a lock across a call to
 	\url{synchronize_rcu()}, and then acquire that same lock within
-	an RCU read-side critical section?}
+	an RCU read-side critical section?
 \QuickQuizAnswer{
 	Indeed, this would deadlock any legal RCU implementation.
 	But is \url{rcu_read_lock()} \emph{really} participating in
@@ -334,8 +341,9 @@ On the other hand, in the absence of readers, grace periods elapse
 in about 40~\emph{nanoseconds}, many orders of magnitude faster
 than production-quality implementations in the Linux kernel.
 
-\QuickQuiz{How can the grace period possibly elapse in 40 nanoseconds when
-	\url{synchronize_rcu()} contains a 10-millisecond delay?}
+\QuickQuiz{}
+	How can the grace period possibly elapse in 40 nanoseconds when
+	\url{synchronize_rcu()} contains a 10-millisecond delay?
 \QuickQuizAnswer{
 	The update-side test was run in absence of readers, so the
 	\url{poll()} system call was never invoked.
@@ -367,11 +375,12 @@ satisfied by a common grace period, this implementation
 serializes grace periods, preventing grace-period
 sharing.
 
-\QuickQuiz{Why not simply make \url{rcu_read_lock()} wait when a concurrent
+\QuickQuiz{}
+	Why not simply make \url{rcu_read_lock()} wait when a concurrent
 	\url{synchronize_rcu()} has been waiting too long in
 	the RCU implementation in
 	Figure~\ref{fig:defer:RCU Implementation Using Single Global Reference Counter}?
-	Wouldn't that prevent \url{synchronize_rcu()} from starving?}
+	Wouldn't that prevent \url{synchronize_rcu()} from starving?
 \QuickQuizAnswer{
 	Although this would in fact eliminate the starvation, it would
 	also mean that \url{rcu_read_lock()} would spin or block waiting
@@ -524,9 +533,10 @@ Lines~13-18 repeat this process, and line~20 ensures that any
 subsequent reclamation operations are not reordered to precede the
 checking of \url{rcu_refcnt}.
 
-\QuickQuiz{Why the memory barrier on line~5 of \url{synchronize_rcu()} in
+\QuickQuiz{}
+	Why the memory barrier on line~5 of \url{synchronize_rcu()} in
 	Figure~\ref{fig:defer:RCU Update Using Global Reference-Count Pair}
-	given that there is a spin-lock acquisition immediately after?}
+	given that there is a spin-lock acquisition immediately after?
 \QuickQuizAnswer{
 	The spin-lock acquisition only guarantees that the spin-lock's
 	critical section will not ``bleed out'' to precede the
@@ -548,9 +558,10 @@ checking of \url{rcu_refcnt}.
 	The first correct and complete response will be credited.
 } \QuickQuizEnd
 
-\QuickQuiz{Why is the counter flipped twice in
+\QuickQuiz{}
+	Why is the counter flipped twice in
 	Figure~\ref{fig:defer:RCU Update Using Global Reference-Count Pair}?
-	Shouldn't a single flip-and-wait cycle be sufficient?}
+	Shouldn't a single flip-and-wait cycle be sufficient?
 \QuickQuizAnswer{
 	Both flips are absolutely required.
 	To see this, consider the following sequence of events:
@@ -638,10 +649,11 @@ satisfied by a common grace period, this implementation
 serializes grace periods, preventing grace-period
 sharing.
 
-\QuickQuiz{Given that atomic increment and decrement are so expensive,
+\QuickQuiz{}
+	Given that atomic increment and decrement are so expensive,
 	why not just use non-atomic increment on line~10 and a
 	non-atomic decrement on line~25 of
-	Figure~\ref{fig:defer:RCU Read-Side Using Global Reference-Count Pair}?}
+	Figure~\ref{fig:defer:RCU Read-Side Using Global Reference-Count Pair}?
 \QuickQuizAnswer{
 	Using non-atomic operations would cause increments and decrements
 	to be lost, in turn causing the implementation to fail.
@@ -709,15 +721,17 @@ the only difference being that \url{rcu_refcnt} is now a per-thread
 variable, so the \url{rcu_read_lock()} and
 \url{rcu_read_unlock()} primitives no longer perform atomic operations.
 
-\QuickQuiz{Come off it!
+\QuickQuiz{}
+	Come off it!
 	We can see the \url{atomic_read()} primitive in
 	\url{rcu_read_lock()}!!!
 	So why are you trying to pretend that \url{rcu_read_lock()}
-	contains no atomic operations???}
+	contains no atomic operations???
 \QuickQuizAnswer{
 	The \url{atomic_read()} primitives does not actually execute
 	atomic machine instructions, but rather does a normal load
 	from an \url{atomic_t}.
+	Its sole purpose is to keep the compiler's type-checking happy.
 } \QuickQuizEnd
 
 \begin{figure}[tbp]
@@ -782,10 +796,11 @@ expandable hash tables.
 Such implementations might dynamically track threads, for example, by
 adding them on their first call to \url{rcu_read_lock()}.
 
-\QuickQuiz{Great, if we have $N$ threads, we can have $2N$ ten-millisecond
+\QuickQuiz{}
+	Great, if we have $N$ threads, we can have $2N$ ten-millisecond
 	waits (one set per \url{flip_counter_and_wait()} invocation,
 	and even that assumes that we wait only once for each thread.
-	Don't we need the grace period to complete \emph{much} more quickly?}
+	Don't we need the grace period to complete \emph{much} more quickly?
 \QuickQuizAnswer{
 	Keep in mind that we only wait for a given thread if that thread
 	is still in a pre-existing RCU read-side critical section,
@@ -1010,13 +1025,14 @@ Section~\ref{defer:Scalable Counter-Based RCU}.
 So, despite its shortcomings, one could imagine this
 RCU implementation being used in production in real-life applications.
 
-\QuickQuiz{All of these toy RCU implementations have either atomic operations
+\QuickQuiz{}
+	All of these toy RCU implementations have either atomic operations
 	in \url{rcu_read_lock()} and \url{rcu_read_unlock()},
 	or \url{synchronize_rcu()}
 	overhead that increases linearly with the number of threads.
 	Under what circumstances could an RCU implementation enjoy
 	light-weight implementations for all three of these primitives,
-	all having deterministic ($O(1)$) overheads and latencies?}
+	all having deterministic ($O(1)$) overheads and latencies?
 \QuickQuizAnswer{
 	Special-purpose uniprocessor implementations of RCU can attain
 	this ideal.
@@ -1097,10 +1113,11 @@ Line~10 then copies the \url{rcu_gp_ctr} global variable to the
 variable with an even-numbered value so that a concurrent instance
 of \url{synchronize_rcu()} will know to ignore it.
 
-\QuickQuiz{If any even value is sufficient to tell \url{synchronize_rcu()}
+\QuickQuiz{}
+	If any even value is sufficient to tell \url{synchronize_rcu()}
 	to ignore a given task, why doesn't line~10 of
 	Figure~\ref{fig:defer:Free-Running Counter Using RCU}
-	simply assign zero to \url{rcu_reader_gp}?}
+	simply assign zero to \url{rcu_reader_gp}?
 \QuickQuizAnswer{
 	Assigning zero (or any other even-numbered constant)
 	would in fact work, but assigning the value of
@@ -1136,11 +1153,12 @@ a spin-loop if grace-period latency is of the essence.
 Finally, the memory barrier at line~29 ensures that any subsequent
 destruction will not be reordered into the preceding loop.
 
-\QuickQuiz{Why are the memory barriers on lines~17 and 29 of
+\QuickQuiz{}
+	Why are the memory barriers on lines~17 and 29 of
 	Figure~\ref{fig:defer:Free-Running Counter Using RCU}
 	needed?
 	Aren't the memory barriers inherent in the locking
-	primitives on lines~18 and 28 sufficient?}
+	primitives on lines~18 and 28 sufficient?
 \QuickQuizAnswer{
 	These memory barriers are required because the locking
 	primitives are only guaranteed to confine the critical
@@ -1159,10 +1177,11 @@ Updates incur more overhead, ranging from about 500~nanoseconds on
 a single Power5 CPU to more than 100~\emph{microseconds} on 64
 such CPUs.
 
-\QuickQuiz{Couldn't the update-side optimization described in
+\QuickQuiz{}
+	Couldn't the update-side optimization described in
 	Section~\ref{defer:Scalable Counter-Based RCU With Shared Grace Periods}
 	be applied to the implementation shown in
-	Figure~\ref{fig:defer:Free-Running Counter Using RCU}?}
+	Figure~\ref{fig:defer:Free-Running Counter Using RCU}?
 \QuickQuizAnswer{
 	Indeed it could, with a few modifications.
 	This work is left as an exercise for the reader.
@@ -1312,9 +1331,10 @@ Updates again incur more overhead, ranging from about 600~nanoseconds on
 a single Power5 CPU to more than 100~\emph{microseconds} on 64
 such CPUs.
 
-\QuickQuiz{Why not simply maintain a separate per-thread nesting-level
+\QuickQuiz{}
+	Why not simply maintain a separate per-thread nesting-level
 	variable, as was done in previous section, rather than having
-	all this complicated bit manipulation?}
+	all this complicated bit manipulation?
 \QuickQuizAnswer{
 	The apparent simplicity of the separate per-thread variable
 	is a red herring.
@@ -1335,10 +1355,11 @@ The following section shows one way to greatly increase the time
 required for overflow to occur, which greatly reducing read-side
 overhead.
 
-\QuickQuiz{Given the algorithm shown in
+\QuickQuiz{}
+	Given the algorithm shown in
 	Figure~\ref{fig:defer:Nestable RCU Using a Free-Running Counter},
 	how could you double the time required to overflow the global
-	\url{rcu_gp_ctr}?}
+	\url{rcu_gp_ctr}?
 \QuickQuizAnswer{
 	One way would be to replace the magnitude comparison on
 	lines~33 and 34 with an inequality check of the per-thread
@@ -1346,11 +1367,12 @@ overhead.
 	\url{rcu_gp_ctr+RCU_GP_CTR_BOTTOM_BIT}.
 } \QuickQuizEnd
 
-\QuickQuiz{Again, given the algorithm shown in
+\QuickQuiz{}
+	Again, given the algorithm shown in
 	Figure~\ref{fig:defer:Nestable RCU Using a Free-Running Counter},
 	is counter overflow fatal?
 	Why or why not?
-	If it is fatal, what can be done to fix it?}
+	If it is fatal, what can be done to fix it?
 \QuickQuizAnswer{
 	It can indeed be fatal.
 	To see this, consider the following sequence of events:
@@ -1531,9 +1553,10 @@ Otherwise, line~22 computes the magnitude of the change, and lines~23 and 24
 check to see if the value has advanced more than one quarter of the way
 around the full cycle, retrying execution at line~15 if so.
 
-\QuickQuiz{Doesn't the additional memory barrier shown on line~19 of
+\QuickQuiz{}
+	Doesn't the additional memory barrier shown on line~19 of
 	Figure~\ref{fig:defer:RCU Read Side Using Quiescent States},
-	greatly increase the overhead of \url{rcu_quiescent_state}?}
+	greatly increase the overhead of \url{rcu_quiescent_state}?
 \QuickQuizAnswer{
 	Indeed it does!
 	An application using this implementation of RCU should therefore
@@ -1564,9 +1587,10 @@ per-thread \url{rcu_reader_qs_gp} variable to the current value of
 Any concurrent instances of \url{synchronize_rcu()} will thus know to
 ignore this thread.
 
-\QuickQuiz{Why are the two memory barriers on lines~30 and 31 of
+\QuickQuiz{}
+	Why are the two memory barriers on lines~30 and 31 of
 	Figure~\ref{fig:defer:RCU Read Side Using Quiescent States}
-	needed?}
+	needed?
 \QuickQuizAnswer{
 	The memory barrier on line~30 prevents any RCU read-side
 	critical sections that might precede the
@@ -1620,11 +1644,12 @@ The \url{synchronize_rcu()} overhead ranges from about 600~nanoseconds
 on a single-CPU Power5 system up to more than 100~microseconds on
 a 64-CPU system.
 
-\QuickQuiz{To be sure, the clock frequencies of ca-2008 Power
+\QuickQuiz{}
+	To be sure, the clock frequencies of ca-2008 Power
 	systems were quite high, but even a 5GHz clock
 	frequency is insufficent to allow
 	loops to be executed in 50~picoseconds!
-	What is going on here?}
+	What is going on here?
 \QuickQuizAnswer{
 	Since the measurement loop contains a pair of empty functions,
 	the compiler optimizes it away.
@@ -1641,11 +1666,12 @@ The need to invoke these functions periodically can make this
 implementation difficult to use in some situations, such as for
 certain types of library functions.
 
-\QuickQuiz{Why would the fact that the code is in a library make
+\QuickQuiz{}
+	Why would the fact that the code is in a library make
 	any difference for how easy it is to use the RCU
 	implementation shown in
 	Figures~\ref{fig:defer:RCU Read Side Using Quiescent States} and
-	\ref{fig:defer:RCU Update Side Using Quiescent States}?}
+	\ref{fig:defer:RCU Update Side Using Quiescent States}?
 \QuickQuizAnswer{
 	A library function has absolutely no control over the caller,
 	and thus cannot force the caller to invoke \url{rcu_quiescent_state()}
@@ -1657,13 +1683,16 @@ certain types of library functions.
 	\url{rcu_thread_offline()} upon exit.
 } \QuickQuizEnd
 
-\QuickQuiz{But what if you hold a lock across a call to
+\QuickQuiz{}
+	But what if you hold a lock across a call to
 	\url{synchronize_rcu()}, and then acquire that same lock within
 	an RCU read-side critical section?
 	This should be a deadlock, but how can a primitive that
 	generates absolutely no code possibly participate in a
-	deadlock cycle?}
+	deadlock cycle?
 \QuickQuizAnswer{
+	Please note that the RCU read-side critical section is in
+	effect extended beyond the enclosing
 	\url{rcu_read_lock()} and \url{rcu_read_unlock()}, out to
 	the previous and next call to \url{rcu_quiescent_state()}.
 	This \url{rcu_quiescent_state} can be thought of as a

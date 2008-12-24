@@ -26,5 +26,5 @@ texexpand perfbook.tex |
 	       -e '/^\\QuickQuiz{/,/^} \\QuickQuizEnd/p' |
 	sed -e 's/^\\QuickQuizChapter{/\\QuickQAC{/' \
 	    -e 's/^\\QuickQuiz{/\\QuickQ{/' \
-	    -e 's/^\\QuickQuizAnswer{//' \
+	    -e 's/^\\QuickQuizAnswer{/\\QuickA{}/' \
 	    -e 's/^} \\QuickQuizEnd//'

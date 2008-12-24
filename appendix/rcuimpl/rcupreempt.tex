@@ -36,9 +36,10 @@ Linux kernel
 removes these limitations, and this appendix describes its design,
 serving as an update to the LWN article~\cite{PaulEMcKenney2007PreemptibleRCU}.
 
-\QuickQuiz{Why is it important that blocking primitives
+\QuickQuiz{}
+	Why is it important that blocking primitives
 	called from within a preemptible-RCU read-side critical section be
-	subject to priority inheritance?}
+	subject to priority inheritance?
 \QuickQuizAnswer{
 	Because blocked readers stall RCU grace periods,
 	which can result in OOM.
@@ -59,9 +60,10 @@ serving as an update to the LWN article~\cite{PaulEMcKenney2007PreemptibleRCU}.
 	used in the Linux kernel, so this is what is used for RCU.
 } \QuickQuizEnd
 
-\QuickQuiz{Could the prohibition against using primitives
+\QuickQuiz{}
+	Could the prohibition against using primitives
 	that would block in a non-\url{CONFIG_PREEMPT} kernel be lifted,
-	and if so, under what conditions?}
+	and if so, under what conditions?
 \QuickQuizAnswer{
 	If testing and benchmarking demonstrated that the
 	preemptible RCU worked well enough that classic RCU could be dispensed
@@ -838,28 +840,29 @@ Otherwise, lines~8 through 37 advance callbacks through the lists
 In either case, lines~38 through 43 acknowledge the counter flip
 if needed.
 
-\QuickQuiz{How is it possible for lines~38-43 of
+\QuickQuiz{}
+	How is it possible for lines~38-43 of
 	\url{__rcu_advance_callbacks()} to be executed when
 	lines~7-37 have not?
 	Won't they both be executed just after a counter flip, and
-	never at any other time?}
+	never at any other time?
 \QuickQuizAnswer{
-Consider the following sequence of events:
-\begin{enumerate}
-\item	CPU 0 executes lines~5-12 of
-	\url{rcu_try_flip_idle()}.
-\item	CPU 1 executes \url{__rcu_advance_callbacks()}.
-	Because \url{rcu_ctrlblk.completed} has been
-	incremented, lines~7-37 execute.
-	However, none of the \url{rcu_flip_flag} variables
-	have been set, so lines~38-43 do \emph{not} execute.
-\item	CPU 0 executes lines~13-15 of
-	\url{rcu_try_flip_idle()}.
-\item	Later, CPU 1 again executes \url{__rcu_advance_callbacks()}.
-	The counter has not been incremented since the earlier
-	execution, but the \url{rcu_flip_flag} variables have
-	all been set, so only lines~38-43 are executed.
-\end{enumerate}
+	Consider the following sequence of events:
+	\begin{enumerate}
+	\item	CPU 0 executes lines~5-12 of
+		\url{rcu_try_flip_idle()}.
+	\item	CPU 1 executes \url{__rcu_advance_callbacks()}.
+		Because \url{rcu_ctrlblk.completed} has been
+		incremented, lines~7-37 execute.
+		However, none of the \url{rcu_flip_flag} variables
+		have been set, so lines~38-43 do \emph{not} execute.
+	\item	CPU 0 executes lines~13-15 of
+		\url{rcu_try_flip_idle()}.
+	\item	Later, CPU 1 again executes \url{__rcu_advance_callbacks()}.
+		The counter has not been incremented since the earlier
+		execution, but the \url{rcu_flip_flag} variables have
+		all been set, so only lines~38-43 are executed.
+	\end{enumerate}
 } \QuickQuizEnd
 
 
@@ -1094,53 +1097,56 @@ The \url{ACCESS_ONCE()} macros and irq disabling
 are required for similar reasons that they are in
 \url{rcu_read_lock()}.
 
-\QuickQuiz{What problems could arise if the lines containing
+\QuickQuiz{}
+	What problems could arise if the lines containing
 	\url{ACCESS_ONCE()} in \url{rcu_read_unlock()}
-	were reordered by the compiler?}
+	were reordered by the compiler?
 \QuickQuizAnswer{
-\begin{enumerate}
-\item	If the \url{ACCESS_ONCE()} were omitted from the
-	fetch of \url{rcu_flipctr_idx} (line~14), then the compiler
-	would be within its rights to eliminate \url{idx}.
-	It would also be free to compile the \url{rcu_flipctr}
-	decrement as a fetch-increment-store sequence, separately fetching
-	\url{rcu_flipctr_idx} for both the fetch and the store.
-	If an NMI were to occur between the fetch and the store, and
-	if the NMI handler contained an \url{rcu_read_lock()},
-	then the value of \url{rcu_flipctr_idx} would change
-	in the meantime, resulting in corruption of the
-	\url{rcu_flipctr} values, destroying the ability
-	to correctly identify grace periods.
-\item	Another failure that could result from omitting the
-	\url{ACCESS_ONCE()} from line~14 is due to
-	the compiler reordering this statement to follow the
-	decrement of \url{rcu_read_lock_nesting}
-	(line~16).
-	In this case, if an NMI were to occur between these two
-	statements, then any \url{rcu_read_lock()} in the
-	NMI handler could corrupt \url{rcu_flipctr_idx},
-	causing the wrong \url{rcu_flipctr} to be
-	decremented.
-	As with the analogous situation in \url{rcu_read_lock()},
-	this could result in premature grace-period termination,
-	an indefinite grace period, or even both.
-\item	If \url{ACCESS_ONCE()} macros were omitted such that
-	the update of \url{rcu_read_lock_nesting} could be
-	interchanged by the compiler with the decrement of
-	\url{rcu_flipctr}, and if an NMI occurred in between,
-	any \url{rcu_read_lock()} in the NMI handler would
-	incorrectly conclude that it was protected by an enclosing
-	\url{rcu_read_lock()}, and fail to increment the
-	\url{rcu_flipctr} variables.
-\end{enumerate}
+	\begin{enumerate}
+	\item	If the \url{ACCESS_ONCE()} were omitted from the
+		fetch of \url{rcu_flipctr_idx} (line~14), then the compiler
+		would be within its rights to eliminate \url{idx}.
+		It would also be free to compile the \url{rcu_flipctr}
+		decrement as a fetch-increment-store sequence, separately
+		fetching \url{rcu_flipctr_idx} for both the fetch and
+		the store.
+		If an NMI were to occur between the fetch and the store, and
+		if the NMI handler contained an \url{rcu_read_lock()},
+		then the value of \url{rcu_flipctr_idx} would change
+		in the meantime, resulting in corruption of the
+		\url{rcu_flipctr} values, destroying the ability
+		to correctly identify grace periods.
+	\item	Another failure that could result from omitting the
+		\url{ACCESS_ONCE()} from line~14 is due to
+		the compiler reordering this statement to follow the
+		decrement of \url{rcu_read_lock_nesting}
+		(line~16).
+		In this case, if an NMI were to occur between these two
+		statements, then any \url{rcu_read_lock()} in the
+		NMI handler could corrupt \url{rcu_flipctr_idx},
+		causing the wrong \url{rcu_flipctr} to be
+		decremented.
+		As with the analogous situation in \url{rcu_read_lock()},
+		this could result in premature grace-period termination,
+		an indefinite grace period, or even both.
+	\item	If \url{ACCESS_ONCE()} macros were omitted such that
+		the update of \url{rcu_read_lock_nesting} could be
+		interchanged by the compiler with the decrement of
+		\url{rcu_flipctr}, and if an NMI occurred in between,
+		any \url{rcu_read_lock()} in the NMI handler would
+		incorrectly conclude that it was protected by an enclosing
+		\url{rcu_read_lock()}, and fail to increment the
+		\url{rcu_flipctr} variables.
+	\end{enumerate}
 
-It is not clear that the \url{ACCESS_ONCE()} on the
-fetch of \url{rcu_read_lock_nesting} (line~7) is required.
+	It is not clear that the \url{ACCESS_ONCE()} on the
+	fetch of \url{rcu_read_lock_nesting} (line~7) is required.
 } \QuickQuizEnd
 
-\QuickQuiz{What problems could arise if the lines containing
+\QuickQuiz{}
+	What problems could arise if the lines containing
 	\url{ACCESS_ONCE()} in \url{rcu_read_unlock()}
-	were reordered by the CPU?}
+	were reordered by the CPU?
 \QuickQuizAnswer{
 	Absolutely none!!!  The code in \url{rcu_read_unlock()}
 	interacts with the scheduling-clock interrupt handler
@@ -1152,41 +1158,42 @@ fetch of \url{rcu_read_lock_nesting} (line~7) is required.
 	irrelevant.
 } \QuickQuizEnd
 
-\QuickQuiz{What problems could arise in
-	\url{rcu_read_unlock()} if irqs were not disabled?}
+\QuickQuiz{}
+	What problems could arise in
+	\url{rcu_read_unlock()} if irqs were not disabled?
 \QuickQuizAnswer{
-\begin{enumerate}
-\item	Disabling irqs has the side effect of disabling preemption.
-	Suppose that this code were to be preempted in the midst
-	of line~17 between selecting the current CPU's copy
-	of the \url{rcu_flipctr} array and the decrement of
-	the element indicated by \url{rcu_flipctr_idx}.
-	Execution might well resume on some other CPU.
-	If this resumption happened concurrently with an
-	\url{rcu_read_lock()} or \url{rcu_read_unlock()}
-	running on the original CPU,
-	an increment or decrement might be lost, resulting in either
-	premature termination of a grace period, indefinite extension
-	of a grace period, or even both.
-\item	Failing to disable preemption can also defeat RCU priority
-	boosting, which relies on \url{rcu_read_lock_nesting}
-	to determine which tasks to boost.
-	If preemption occurred between the update of
-	\url{rcu_read_lock_nesting} (line~16) and of
-	\url{rcu_flipctr} (line~17), then a grace
-	period might be stalled until this task resumed.
-	But because the RCU priority booster has no way of knowing
-	that this particular task is stalling grace periods, needed
-	boosting will never occur.
-	Therefore, if there are CPU-bound realtime tasks running,
-	the preempted task might never resume, stalling grace periods
-	indefinitely, and eventually resulting in OOM.
-\end{enumerate}
+	\begin{enumerate}
+	\item	Disabling irqs has the side effect of disabling preemption.
+		Suppose that this code were to be preempted in the midst
+		of line~17 between selecting the current CPU's copy
+		of the \url{rcu_flipctr} array and the decrement of
+		the element indicated by \url{rcu_flipctr_idx}.
+		Execution might well resume on some other CPU.
+		If this resumption happened concurrently with an
+		\url{rcu_read_lock()} or \url{rcu_read_unlock()}
+		running on the original CPU,
+		an increment or decrement might be lost, resulting in either
+		premature termination of a grace period, indefinite extension
+		of a grace period, or even both.
+	\item	Failing to disable preemption can also defeat RCU priority
+		boosting, which relies on \url{rcu_read_lock_nesting}
+		to determine which tasks to boost.
+		If preemption occurred between the update of
+		\url{rcu_read_lock_nesting} (line~16) and of
+		\url{rcu_flipctr} (line~17), then a grace
+		period might be stalled until this task resumed.
+		But because the RCU priority booster has no way of knowing
+		that this particular task is stalling grace periods, needed
+		boosting will never occur.
+		Therefore, if there are CPU-bound realtime tasks running,
+		the preempted task might never resume, stalling grace periods
+		indefinitely, and eventually resulting in OOM.
+	\end{enumerate}
 
-Of course, both of these situations could be handled by disabling
-preemption rather than disabling irqs.
-(The CPUs I have access to do not show much difference between these
-two alternatives, but others might.)
+	Of course, both of these situations could be handled by disabling
+	preemption rather than disabling irqs.
+	(The CPUs I have access to do not show much difference between these
+	two alternatives, but others might.)
 } \QuickQuizEnd
 
 \paragraph{Memory-Barrier Considerations}
@@ -1331,68 +1338,70 @@ a full grace period, and hence it is safe to do:
 \end{minipage}
 \vspace{5pt}
 
-\QuickQuiz{Suppose that the irq disabling in
+\QuickQuiz{}
+	Suppose that the irq disabling in
 	\url{rcu_read_lock()} was replaced by preemption disabling.
-	What effect would that have on \url{GP_STAGES}?}
+	What effect would that have on \url{GP_STAGES}?
 \QuickQuizAnswer{
-No finite value of \url{GP_STAGES} suffices.
-The following scenario, courtesy of Oleg Nesterov, demonstrates this:
+	No finite value of \url{GP_STAGES} suffices.
+	The following scenario, courtesy of Oleg Nesterov, demonstrates this:
 
-Suppose that low-priority Task~A has executed
-\url{rcu_read_lock()} on CPU 0,
-and thus has incremented \url{per_cpu(rcu_flipctr, 0)[0]},
-which thus has a value of one.
-Suppose further that Task~A is now preempted indefinitely.
+	Suppose that low-priority Task~A has executed
+	\url{rcu_read_lock()} on CPU 0,
+	and thus has incremented \url{per_cpu(rcu_flipctr, 0)[0]},
+	which thus has a value of one.
+	Suppose further that Task~A is now preempted indefinitely.
 
-Given this situation, consider the following sequence of events:
-\begin{enumerate}
-\item	Task~B starts executing \url{rcu_read_lock()}, also on
-	CPU 0, picking up the low-order bit of
-	\url{rcu_ctrlblk.completed}, which is still equal to zero.
-\item	Task~B is interrupted by a sufficient number of scheduling-clock
-	interrupts to allow the current grace-period stage to complete,
-	and also be sufficient long-running interrupts to allow the
-	RCU grace-period state machine to advance the
-	\url{rcu_ctrlblk.complete} counter so that its bottom bit
-	is now equal to one and all CPUs have acknowledged this increment
-	operation.
-\item	CPU 1 starts summing the index==0 counters, starting with
-	\url{per_cpu(rcu_flipctr, 0)[0]}, which is equal to one
-	due to Task~A's increment.
-	CPU 1's local variable \url{sum} is therefore equal to one.
-\item	Task~B returns from interrupt, resuming its execution of
-	\url{rcu_read_lock()}, incrementing
-	\url{per_cpu(rcu_flipctr, 0)[0]}, which now has a value
-	of two.
-\item	Task~B is migrated to CPU 2.
-\item	Task~B completes its RCU read-side critical section, and executes
-	\url{rcu_read_unlock()}, which decrements
-	\url{per_cpu(rcu_flipctr, 2)[0]}, which is now -1.
-\item	CPU 1 now adds \url{per_cpu(rcu_flipctr, 1)[0]} and 
-	\url{per_cpu(rcu_flipctr, 2)[0]} to its
-	local variable \url{sum}, obtaining the value zero.
-\item	CPU 1 then incorrectly concludes that all prior RCU read-side
-	critical sections have completed, and advances to the next
-	RCU grace-period stage.
-	This means that some other task might well free up data structures
-	that Task~A is still using!
-\end{enumerate}
+	Given this situation, consider the following sequence of events:
+	\begin{enumerate}
+	\item	Task~B starts executing \url{rcu_read_lock()}, also on
+		CPU 0, picking up the low-order bit of
+		\url{rcu_ctrlblk.completed}, which is still equal to zero.
+	\item	Task~B is interrupted by a sufficient number of scheduling-clock
+		interrupts to allow the current grace-period stage to complete,
+		and also be sufficient long-running interrupts to allow the
+		RCU grace-period state machine to advance the
+		\url{rcu_ctrlblk.complete} counter so that its bottom bit
+		is now equal to one and all CPUs have acknowledged this
+		increment operation.
+	\item	CPU 1 starts summing the index==0 counters, starting with
+		\url{per_cpu(rcu_flipctr, 0)[0]}, which is equal to one
+		due to Task~A's increment.
+		CPU 1's local variable \url{sum} is therefore equal to one.
+	\item	Task~B returns from interrupt, resuming its execution of
+		\url{rcu_read_lock()}, incrementing
+		\url{per_cpu(rcu_flipctr, 0)[0]}, which now has a value
+		of two.
+	\item	Task~B is migrated to CPU 2.
+	\item	Task~B completes its RCU read-side critical section, and
+		executes \url{rcu_read_unlock()}, which decrements
+		\url{per_cpu(rcu_flipctr, 2)[0]}, which is now -1.
+	\item	CPU 1 now adds \url{per_cpu(rcu_flipctr, 1)[0]} and 
+		\url{per_cpu(rcu_flipctr, 2)[0]} to its
+		local variable \url{sum}, obtaining the value zero.
+	\item	CPU 1 then incorrectly concludes that all prior RCU read-side
+		critical sections have completed, and advances to the next
+		RCU grace-period stage.
+		This means that some other task might well free up data
+		structures that Task~A is still using!
+	\end{enumerate}
 
-This sequence of events could repeat indefinitely, so that no finite
-value of \url{GP_STAGES} could prevent disrupting Task~A.
-This sequence of events demonstrates the importance of the promise
-made by CPUs that acknowledge an increment of
-\url{rcu_ctrlblk.completed}, as the problem illustrated by the
-above sequence of events is caused by Task~B's repeated failure
-to honor this promise.
+	This sequence of events could repeat indefinitely, so that no finite
+	value of \url{GP_STAGES} could prevent disrupting Task~A.
+	This sequence of events demonstrates the importance of the promise
+	made by CPUs that acknowledge an increment of
+	\url{rcu_ctrlblk.completed}, as the problem illustrated by the
+	above sequence of events is caused by Task~B's repeated failure
+	to honor this promise.
 
-Therefore, more-pervasive changes to the grace-period state will be
-required in order for \url{rcu_read_lock()} to be able to safely
-dispense with irq disabling.
+	Therefore, more-pervasive changes to the grace-period state will be
+	required in order for \url{rcu_read_lock()} to be able to safely
+	dispense with irq disabling.
 } \QuickQuizEnd
 
-\QuickQuiz{Why can't the \url{rcu_dereference()}
-	precede the memory barrier?}
+\QuickQuiz{}
+	Why can't the \url{rcu_dereference()}
+	precede the memory barrier?
 \QuickQuizAnswer{
 	Because the memory barrier is being executed in
 	an interrupt handler, and interrupts are exact in the sense that
@@ -1425,9 +1434,10 @@ as future work.
 One tool for doing this validation is described in
 Appendix~\ref{app:formal:Formal Verification}.
 
-\QuickQuiz{What is a more precise way to say "CPU~0
+\QuickQuiz{}
+	What is a more precise way to say "CPU~0
 	might see CPU~1's increment as early as CPU~1's last previous
-	memory barrier"?}
+	memory barrier"?
 \QuickQuizAnswer{
 	First, it is important to note that the problem with
 	the less-precise statement is that it gives the impression that there
