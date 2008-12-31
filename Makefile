@@ -39,7 +39,7 @@ LATEXSOURCES = \
 	defer/toyrcu.tex \
 	SMPdesign/SMPdesign.tex \
 	stats/stats.tex \
-	sync/sync.tex \
+	locking/locking.tex \
 	time/time.tex
 
 EPSSOURCES = \

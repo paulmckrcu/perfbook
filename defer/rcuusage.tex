@@ -375,9 +375,12 @@ Section~@@@.
 
 \paragraph{Low-Priority RCU Readers Can Block High-Priority Reclaimers}
 
-In Realtime RCU~\cite{DinakarGuniguntala2008IBMSysJ},
-SRCU~\cite{PaulEMcKenney2006c}, or
-QRCU~\cite{PaulEMcKenney2007QRCUspin},
+In Realtime RCU~\cite{DinakarGuniguntala2008IBMSysJ} (see
+Section~\ref{app:rcuimpl:Preemptable RCU}),
+SRCU~\cite{PaulEMcKenney2006c} (see
+Section~\ref{app:rcuimpl:Sleepable RCU Implementation}, or
+QRCU~\cite{PaulEMcKenney2007QRCUspin} (see
+Section~\ref{app:formal:Promela Example: QRCU},
 each of which is described in
 the final installment of this series,
 a preempted reader will prevent
@@ -392,8 +395,10 @@ but not before a clear real-world need is demonstrated.
 
 \paragraph{RCU Grace Periods Extend for Many Milliseconds}
 
-With the exception of QRCU, RCU grace periods extend for multiple
-milliseconds.
+With the exception of QRCU and several of the ``toy'' RCU implementations
+described in
+Section~\ref{defer:``Toy'' RCU Implementations},
+RCU grace periods extend for multiple milliseconds.
 Although there are a number of techniques to render such long delays
 harmless, including use of the asynchronous interfaces where available
 (\url{call_rcu()} and \url{call_rcu_bh()}), this situation
@@ -674,9 +679,141 @@ within an RCU read-side critical section, that data element is
 guaranteed to remain in existence for the duration of that RCU
 read-side critical section.
 
+@@@ move portions of the following to the locking chapter.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 int delete(int key)
+  2 {
+  3   int b;
+  4   struct element *p;
+  5 
+  6   b = hashfunction(key);
+  7   p = hashtable[b];
+  8   if (p == NULL)
+  9     return 0;
+ 10   spin_lock(&p->lock);
+ 11   hashtable[b] = NULL;
+ 12   spin_unlock(&p->lock);
+ 13   kfree(p);
+ 14   return 1;
+ 15 }
+\end{verbatim}
+}
+\caption{Per-Element Locking Without Existence Guarantees}
+\label{fig:defer:Per-Element Locking Without Existence Guarantees}
+\end{figure}
+
+Existence guarantees are extremely helpful in cases where a data
+element is to be protected by a lock or reference count that is
+located within the data element in question.
+Code failing to provide such guarantees is subject to subtle races,
+as shown in
+Figure~ref{fig:defer:Per-Element Locking Without Existence Guarantees}.
+
+\QuickQuiz{}
+	What race condition can occur in
+	Figure~ref{fig:defer:Per-Element Locking Without Existence Guarantees}?
+\QuickQuizAnswer{
+	Consider the following sequence of events:
+	\begin{enumerate}
+	\item	Thread~0 invokes \url{delete(0)}, and reaches line~10 of
+		the figure, acquiring the lock.
+	\item	Thread~1 concurrently invokes \url{delete(0)}, and reaches
+		line~10, but spins on the lock because Thread~1 holds it.
+	\item	Thread~0 executes lines~11-14, removing the element from
+		the hashtable, releasing the lock, and then freeing the
+		element.
+	\item	Thread~0 continues execution, and allocates memory, getting
+		the exact block of memory that it just freed.
+	\item	Thread~0 then initializes this block of memory as some
+		other type of structure.
+	\item	Thread~1's \url{spin_lock()} operation fails due to the
+		fact that what it believes to be \url{p->lock} is no longer
+		a spinlock.
+	\end{enumerate}
+	Because there is no existence guarantee, the identity of the
+	data element can change while a thread is attempting to acquire
+	that element's lock on line~10!
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 int delete(int key)
+  2 {
+  3   int b;
+  4   struct element *p;
+  5   spinlock_t *sp;
+  6 
+  7   b = hashfunction(key);
+  8   sp = &locktable[b];
+  9   spin_lock(sp);
+ 10   p = hashtable[b];
+ 11   if (p == NULL) {
+ 12     spin_unlock(sp);
+ 13     return 0;
+ 14   }
+ 15   hashtable[b] = NULL;
+ 16   spin_unlock(sp);
+ 17   kfree(p);
+ 18   return 1;
+ 19 }
+\end{verbatim}
+}
+\caption{Per-Element Locking With Lock-Based Existence Guarantees}
+\label{fig:defer:Per-Element Locking With Lock-Based Existence Guarantees}
+\end{figure}
+
+One way to fix this example is to use a hashed set of global locks, so
+that each hash bucket has its own lock, as shown in
+Figure~\ref{fig:defer:Per-Element Locking With Lock-Based Existence Guarantees}.
+This approach allows acquiring the proper lock (on line~9) before
+gaining a pointer to the data element (on line~10).
+Although this approach works quite well for elements contained in a
+single partitionable data structure such as the hash table shown in the
+figure, it can be problematic if a given data element can be a member
+of multiple hash tables or given more-complex data structures such
+as trees or graphs.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 int delete(int key)
+  2 {
+  3   struct element *p;
+  4   int b;
+  5 
+  6   b = hashfunction(key);
+  7   rcu_read_lock();
+  8   p = rcu_dereference(hashtable[b]);
+  9   if (p == NULL) {
+ 10     rcu_read_unlock();
+ 11     return 0;
+ 12   }
+ 13   spin_lock(&p->lock);
+ 14   rcu_read_unlock();
+ 15   if (hashtable[b] != NULL) {
+ 16     hashtable[b] = NULL;
+ 17     spin_unlock(&p->lock);
+ 18     synchronize_rcu();
+ 19     kfree(p);
+ 20     return 1;
+ 21   }
+ 22   spin_unlock(&p->lock);
+ 23   return 0;
+ 24 }
+\end{verbatim}
+}
+\caption{Existence Guarantees Enable Per-Element Locking}
+\label{fig:defer:Existence Guarantees Enable Per-Element Locking}
+\end{figure}
+
 Alert readers will recognize this as only a slight variation on
 the original "RCU is a way of waiting for things to finish" theme,
-which is addressed in the following section.
+which is addressed in
+Section~\ref{sec:deferRCU is a Way of Waiting for Things to Finish}.
 
 \subsubsection{RCU is a Way of Providing Type-Safe Memory}
 \label{sec:deferRCU is a Way of Providing Type-Safe Memory}

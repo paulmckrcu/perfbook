@@ -362,7 +362,7 @@ for example, maintaining per-hash-bucket critical sections in a
 hash table, as shown in
 Figure~\ref{fig:SMPdesign:Data-Locking Hash Table Search}.
 The increased scalability again results in increased complexity
-in the form of an additional data structure, the \url{struct bucket}.
+in the form of an additional data structure, the \url{struct} \url{bucket}.
 
 \begin{figure}[htbp] 
 { \scriptsize
@@ -472,6 +472,83 @@ represented by an instance of a given data structure.
 The task list in version 2.6.17 of the Linux kernel is an example of the
 latter, each task structure having its own \url{proc_lock}.
 
+A key challenge with data locking on dynamically allocated structures
+is ensuring that the structure remains in existence while the lock is
+being acquired.
+The code in
+Figure~\ref{fig:SMPdesign:Data-Locking Hash Table Search}
+finesses this challenge by placing the locks in the statically allocated
+hash buckets, which are never freed.
+However, this trick would not work if the hash table were resizeable,
+so that the locks were now dynamically allocated.
+In this case, there would need to be some means to prevent the hash
+bucket from being freed during the time that its lock was being acquired.
+
+\QuickQuiz{}
+	What are some ways of preventing a structure from being freed while
+	its lock is being acquired?
+\QuickQuizAnswer{
+	Here are a few possible solutions to this \emph{existence guarantee}
+	problem:
+
+	\begin{enumerate}
+	\item	Provide a statically allocated lock that is held while
+		the per-structure lock is being acquired, which is an
+		example of hierarchical locking (see
+		Section~\ref{sec:SMPdesign:Hierarchical Locking}).
+		Of course, using a single global lock for this purpose
+		can result in unacceptably high levels of lock contention,
+		dramatically reducing performance and scalability.
+	\item	Provide an array of statically allocated locks, hashing
+		the structure's address to select the lock to be acquired,
+		as described in Chapter~\ref{chp:Locking}.
+		Given a hash function of sufficiently high quality, this
+		avoids the scalability limitations of the single global
+		lock, but in read-mostly situations, the lock-acquisition
+		overhead can result in unacceptably degraded performance.
+	\item	Use a garbage collector, in software environments providing
+		them, so that a structure cannot be deallocated while being
+		referenced.
+		This works very well, removing the existence-guarantee
+		burden (and much else besides) from the developer's
+		shoulders, but imposes the overhead of garbage collection
+		on the program.
+		Although garbage-collection technology has advanced
+		considerably in the past few decades, its overhead
+		may be unacceptably high for some applications.
+		In addition, some applications require that the developer
+		exercise more control over the layout and placement of
+		data structures than is permitted by most garbage collected
+		environments.
+	\item	Use \emph{hazard pointers}~\cite{MagedMichael04a}, which
+		can be thought of as an inside-out reference count.
+		Hazard-pointer-based algorithms maintain a per-thread list of
+		pointers, so that the appearance of a given pointer on
+		any of these lists acts as a reference to the corresponding
+		structure.
+		Hazard pointers are an interesting research direction, but
+		have not yet seen much use in production (written in 2008).
+	\item	Use transactional memory
+		(TM)~\cite{Herlihy93a,DBLomet1977SIGSOFT,Shavit95},
+		so that each reference and
+		modification to the data structure in question is
+		performed atomically.
+		Although TM has engendered much excitement in recent years,
+		and seems likely to be of some use in production software,
+		there are reasons for developers to exercise some
+		caution~\cite{McKenney2007PLOSTM}.
+	\item	Use RCU, which can be thought of as an extremely lightweight
+		approximation to a garbage collector.
+		Updaters are not permitted to free RCU-protected
+		data structures that RCU readers might still be referencing.
+		RCU is discussed at length in
+		Chapter~\ref{chp:defer:Deferred Processing}.
+	\end{enumerate}
+
+	For more on providing existence guarantees, see
+	Chapters~\ref{chp:Locking} and \ref{chp:defer:Deferred Processing}.
+} \QuickQuizEnd
+
 \subsection{Data Ownership}
 \label{sec:SMPdesign:Data Ownership}
 
@@ -532,11 +609,7 @@ previously shown in Figure~\ref{fig:SMPdesign:Data Locking}.
 
 Another important instance of data ownership occurs when the data
 is read-only.
-If nobody will change the data, everyone can own it.
-In SMP design, only constant data ``wants to be free''.
-Data that is subject to change requires some sort of access control.\footnote{
-	That said, please understand that the authors are in no way
-	advocating for copyright, trademark, or patent rights for CPUs!}
+If nobody will change the data, everyone can own it via replication.
 
 \subsection{Locking Granularity and Performance}
 \label{sec:SMPdesign:Locking Granularity and Performance}
@@ -640,10 +713,9 @@ shows how the hash search might be implemented using reader-writer locking.
 Reader/writer locking is a simple instance of asymmetric locking.
 Snaman~\cite{Snaman87} describes a more ornate six-mode
 asymmetric locking design used in several clustered systems.
-Asymmetric locking primitives can be used to implement a very
-simple form of the {\bf Observer Pattern}~\cite{GOF95}--when a
-writer releases the lock, all readers are notified of the change
-in state.
+Locking in general and reader-writer locking in particular is described
+extensively in
+Chapter~\ref{chp:Locking}.
 
 \subsection{Read-Copy Update Introduction}
 \label{sec:SMPdesign:Read-Copy Update Introduction}
