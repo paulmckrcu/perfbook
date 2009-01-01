@@ -255,8 +255,8 @@
 	engineer who did not understand the properties of
 	the concrete and steel making up that bridge?
 	If not, why would you expect a parallel programmer to be
-	able to develop competent parallel software without some
-	understanding of the underlying hardware?
+	able to develop competent parallel software without at least
+	\emph{some} understanding of the underlying hardware?
 
 \QuickQ{}
 	What types of machines would allow atomic operations on
@@ -274,7 +274,102 @@
 	memory~\cite{McKenney2007PLOSTM,DonaldEPorter2007TRANSACT,
 	ChistopherJRossbach2007a}.
 
-\QuickQAC{cha:SMP Synchronization Design}
+\QuickQ{}
+	This is a \emph{simplified} sequence of events?
+	How could it \emph{possibly} be any more complex???
+\QuickA{}
+	This sequence ignored a number of possible complications,
+	including:
+
+	\begin{enumerate}
+	\item	Other CPUs might be concurrently attempting to perform
+		CAS operations involving this same cacheline.
+	\item	The cacheline might have been replicated read-only in
+		several CPUs' caches, in which case, it would need to
+		be flushed from their caches.
+	\item	CPU~7 might have been operating on the cache line when
+		the request for it arrived, in which case CPU~7 would
+		need to hold of the request until its own operation
+		completed.
+	\item	CPU~7 might have ejected the cacheline from its cache
+		(for example, in order to make room for other data),
+		so that by the time that the request arrived, the
+		cacheline was on its way to memory.
+	\item	A correctable error might have occurred in the cacheline,
+		which would then need to be corrected at some point before
+		the data was used.
+	\end{enumerate}
+
+	Production-quality cache-coherence mechanisms are extremely
+	complicated due to these sorts of considerations.
+
+
+\QuickQ{}
+	Why is it necessary to flush the cacheline from CPU~7's cache?
+\QuickA{}
+	If the cacheline was not flushed from CPU~7's cache, then
+	CPUs~0 and 7 might have different values for the same set
+	of variables in the cacheline.
+	This sort of incoherence would greatly complicate parallel
+	software, and so hardware architects have been convinced to
+	avoid it.
+
+\QuickQ{}
+	These numbers are insanely large!
+	How can I possibly get my head around them?
+\QuickA{}
+	Get a roll of toilet paper.
+	In the USA, each roll will normally have somewhere around 350-500
+	sheets.
+	Tear off one sheet to represent a single clock cycle, setting it aside.
+	Now unroll the rest of the roll.
+
+	The resulting pile of toilet paper will likely represent a single
+	CAS cache miss.
+
+	For the more-expensive inter-system communications latencies,
+	use several rolls (or multiple cases) of toilet paper to represent
+	the communications latency.
+
+	Important safety tip: make sure to account for the needs of
+	those you live with when appropriating toilet paper!
+
+\QuickQ{}
+	Given that distributed-systems communication is so horribly
+	expensive, why does anyone bother with them?
+\QuickA{}
+	There are a number of reasons:
+
+	\begin{enumerate}
+	\item	Shared memory multiprocessor have strict size limits,
+		If you need more than a few thousand CPUs, you have no
+		choice but to use a distributed system.
+	\item	Extremely large shared-memory systems tend to be
+		quite expensive and to have even longer cache-miss
+		latencies than does the small four-CPU system
+		shown in
+		Table~\ref{tab:cpu:Performance of Synchronization Mechanisms on 4-CPU 1.8GHz AMD Opteron 844 System}.
+	\item	The distributed-systems communications latencies do
+		not necessarily consume the CPU, which can often allow
+		computation to proceed in parallel with message transfer.
+	\item	Many important problems are ``embarrassingly parallel'',
+		so that extremely large quantities of processing may
+		be enabled by a very small number of messages.
+		SETI@HOME~\cite{SETIatHOME2008}
+		is but one example of such an application.
+		These sorts of applications can make good use of networks
+		of computers despite extremely long communications
+		latencies.
+	\end{enumerate}
+
+	It is likely that continued work on parallel applications will
+	increase the number of embarrassingly parallel applications that
+	can run well on machines and/or clusters having long communications
+	latencies.
+	That said, greatly reduced hardware latencies would be an
+	extremely welcome development.
+
+\QuickQAC{cha:Partitioning and Synchronization Design}
 \QuickQ{}
 	What are some ways of preventing a structure from being freed while
 	its lock is being acquired?
@@ -326,13 +421,15 @@
 		performed atomically.
 		Although TM has engendered much excitement in recent years,
 		and seems likely to be of some use in production software,
-		there are reasons for developers to exercise some
-		caution~\cite{McKenney2007PLOSTM}.
+		developers should exercise some
+		caution~\cite{McKenney2007PLOSTM}, particularly in
+		performance-critical code.
 	\item	Use RCU, which can be thought of as an extremely lightweight
 		approximation to a garbage collector.
 		Updaters are not permitted to free RCU-protected
 		data structures that RCU readers might still be referencing.
-		RCU is discussed at length in
+		RCU is most heavily used for read-mostly data structures,
+		and is discussed at length in
 		Chapter~\ref{chp:defer:Deferred Processing}.
 	\end{enumerate}
 

@@ -23,6 +23,7 @@ LATEXSOURCES = \
 	appendix/whymb/whymemorybarriers.tex \
 	cpu/cpu.tex \
 	cpu/overview.tex \
+	cpu/overheads.tex \
 	datastruct/datastruct.tex \
 	debugging/debugging.tex \
 	easy/easy.tex \
@@ -96,6 +97,7 @@ EPSSOURCES = \
 	appendix/whymb/cacheSC.eps \
 	appendix/whymb/cacheSCwrite.eps \
 	appendix/whymb/hostileordering.eps \
+	cpu/SystemArch.eps \
 	cartoons/CPU_toon_outoforder_colored.eps \
 	cartoons/LD,ACQ.eps \
 	cartoons/ManyFighting.eps \
