@@ -24,6 +24,8 @@ LATEXSOURCES = \
 	cpu/cpu.tex \
 	cpu/overview.tex \
 	cpu/overheads.tex \
+	cpu/hwfreelunch.tex \
+	cpu/swdesign.tex \
 	datastruct/datastruct.tex \
 	debugging/debugging.tex \
 	easy/easy.tex \

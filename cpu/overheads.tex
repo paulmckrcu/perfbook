@@ -163,6 +163,33 @@ In the time required to do \emph{one} CAS operation, the CPU could have
 executed more than \emph{five hundred} normal instructions.
 This should demonstrate the limitations of fine-grained locking.
 
+\QuickQuiz{}
+	Surely the hardware designers could be persuaded to improve
+	this situation!
+	Why have they been content with such abysmal performance
+	for these single-instruction operations?
+\QuickQuizAnswer{
+	The hardware designers \emph{have} been working on this
+	problem, and have consulted with no less a luminary than
+	the physicist Stephen Hawking.
+	Hawking's observation was that the hardware designers have
+	two basic problems~\cite{BryanGardiner2007}:
+
+	\begin{enumerate}
+	\item	the finite speed of light, and
+	\item	the atomic nature of matter.
+	\end{enumerate}
+
+	The first problem limits raw speed, and the second limits
+	miniaturization, which in turn limits frequency.
+	And even this sidesteps the power-consumption issue that
+	is currently holding production frequencies to well below
+	10 GHz.
+	Section~\ref{sec:cpu:Hardware Free Lunch?}
+	nevertheless looks at what hardware designers might be
+	able to do to ease the plight of parallel programmers.
+} \QuickQuizEnd
+
 I/O operations are even more expensive.
 A high performance (and expensive!) communications fabric, such as
 InfiniBand or any number of proprietary interconnects, has a latency
@@ -195,75 +222,3 @@ cycles.
 	Important safety tip: make sure to account for the needs of
 	those you live with when appropriating toilet paper!
 } \QuickQuizEnd
-
-\section{Software Design Implications}
-\label{sec:cpu:Software Design Implications}
-
-The values of the ratios in
-Table~\ref{tab:cpu:Performance of Synchronization Mechanisms on 4-CPU 1.8GHz AMD Opteron 844 System}
-are critically important, as they limit the
-efficiency of a given parallel application.
-To see this, suppose that the parallel application uses CAS
-operations to communicate among threads.
-These CAS operations will typically involve a cache miss, that is, assuming
-that the threads are communicating primarily with each other rather than
-with themselves.
-Suppose further that the unit of work corresponding to each CAS communication
-operation takes 300ns, which is sufficient time to compute several
-floating-point transcendental functions.
-Then about half of the execution time will be consumed by the CAS
-communication operations!
-This in turn means that a two-CPU system running such a parallel program
-would run no faster than one a sequential implementation running on a
-single CPU.
-
-The situation is even worse in the distributed-system case, where the
-latency of a single communications operation might take as long as
-thousands or even millions of floating-point operations.
-This illustrates how important it is for communications operations to
-be extremely infrequent and to enable very large quantities of processing.
-
-\QuickQuiz{}
-	Given that distributed-systems communication is so horribly
-	expensive, why does anyone bother with them?
-\QuickQuizAnswer{
-	There are a number of reasons:
-
-	\begin{enumerate}
-	\item	Shared memory multiprocessor have strict size limits,
-		If you need more than a few thousand CPUs, you have no
-		choice but to use a distributed system.
-	\item	Extremely large shared-memory systems tend to be
-		quite expensive and to have even longer cache-miss
-		latencies than does the small four-CPU system
-		shown in
-		Table~\ref{tab:cpu:Performance of Synchronization Mechanisms on 4-CPU 1.8GHz AMD Opteron 844 System}.
-	\item	The distributed-systems communications latencies do
-		not necessarily consume the CPU, which can often allow
-		computation to proceed in parallel with message transfer.
-	\item	Many important problems are ``embarrassingly parallel'',
-		so that extremely large quantities of processing may
-		be enabled by a very small number of messages.
-		SETI@HOME~\cite{SETIatHOME2008}
-		is but one example of such an application.
-		These sorts of applications can make good use of networks
-		of computers despite extremely long communications
-		latencies.
-	\end{enumerate}
-
-	It is likely that continued work on parallel applications will
-	increase the number of embarrassingly parallel applications that
-	can run well on machines and/or clusters having long communications
-	latencies.
-	That said, greatly reduced hardware latencies would be an
-	extremely welcome development.
-} \QuickQuizEnd
-
-The lesson should be quite clear:
-parallel algorithms must be explicitly designed
-to run nearly independent threads.
-The less frequently the threads communicate, whether by atomic operations,
-locks, or explicit messages, the better the application's performance
-and scalability will be.
-Chapter~\ref{cha:Partitioning and Synchronization Design}
-will discuss design disciplines that promote performance and scalability.
