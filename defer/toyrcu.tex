@@ -1470,34 +1470,24 @@ overhead.
   8 
   9 rcu_quiescent_state(void)
  10 {
- 11   long tmp1;
- 12   long tmp2;
- 13   long delta;
- 14 
- 15 retry:
- 16   smp_mb();
- 17   tmp1 = ACCESS_ONCE(rcu_gp_ctr);
- 18   __get_thread_var(rcu_reader_qs_gp) = tmp1 + 1;
+ 11   smp_mb();
+ 12   __get_thread_var(rcu_reader_qs_gp) =
+ 13     ACCESS_ONCE(rcu_gp_ctr) + 1;
+ 14   smp_mb();
+ 15 }
+ 16 
+ 17 static void rcu_thread_offline(void)
+ 18 {
  19   smp_mb();
- 20   tmp2 = ACCESS_ONCE(rcu_gp_ctr);
- 21   if (unlikely(tmp1 != tmp2)) {
- 22     delta = tmp2 - tmp1;
- 23     if (unlikely(delta < 0 || delta > (~0UL >> 2)))
- 24       goto retry;
- 25   }
- 26 }
- 27 
- 28 static void rcu_thread_offline(void)
- 29 {
- 30   smp_mb();
- 31   __get_thread_var(rcu_reader_qs_gp) = rcu_gp_ctr;
- 32   smp_mb();
- 33 }
- 34 
- 35 static void rcu_thread_online(void)
- 36 {
- 37   rcu_quiescent_state();
- 38 }
+ 20   __get_thread_var(rcu_reader_qs_gp) =
+ 21     ACCESS_ONCE(rcu_gp_ctr);
+ 22   smp_mb();
+ 23 }
+ 24 
+ 25 static void rcu_thread_online(void)
+ 26 {
+ 27   rcu_quiescent_state();
+ 28 }
 \end{verbatim}
 }
 \caption{RCU Read Side Using Quiescent States}
@@ -1515,46 +1505,34 @@ server builds of the Linux kernel.
 This is due to the fact that quiescent-state-based RCU implementations
 \emph{approximate} the extents of RCU read-side critical sections
 using the aforementioned quiescent states, which contains calls to
-\url{rcu_quiescent_state()}, shown from lines~9-26 in the figure.
+\url{rcu_quiescent_state()}, shown from lines~9-15 in the figure.
 Threads entering extended quiescent states (for example, when blocking)
 may instead use the \url{thread_offline()} and \url{thread_online()}
 APIs to mark the beginning and the end, respectively, of such an
 extended quiescent state.
 As such, \url{thread_online()} is analogous to \url{rcu_read_lock()}
 and \url{thread_offline()} is analogous to \url{rcu_read_unlock()}.
-These two functions are shown on lines~28-38 in the figure.
+These two functions are shown on lines~17-28 in the figure.
 In either case, it is illegal for a quiescent state to appear within
 an RCU read-side critical section.
 
-In \url{rcu_quiescent_state()}, line~16 executes a memory barrier
+In \url{rcu_quiescent_state()}, line~11 executes a memory barrier
 to prevent any code prior to the quiescent state from being reordered
 into the quiescent state.
-Line~17 picks up a copy of the global \url{rcu_gp_ctr}, using
+Lines~12-13 pick up a copy of the global \url{rcu_gp_ctr}, using
 \url{ACCESS_ONCE()} to ensure that the compiler does not employ any
 optimizations that would result in \url{rcu_gp_ctr} being fetched
-more than once.
-Line~18 then adds one to the value fetched and stores it into
+more than once,
+and then adds one to the value fetched and stores it into
 the per-thread \url{rcu_reader_qs_gp} variable, so that any concurrent
 instance of \url{synchronize_rcu()} will see an odd-numbered value,
 thus becoming aware that a new RCU read-side critical section has started.
 Instances of \url{synchronize_rcu()} that are waiting on older
 RCU read-side critical sections will thus know to ignore this new one.
-
-Unfortunately, it is possible that this task was preempted for an
-indefinite period of time, in which case the value stored in
-the per-thread \url{rcu_reader_qs_gp} may no longer be appropriate.
-Line~20 therefore refetches the global \url{rcu_gp_ctr}, with
-an intervening memory barrier one line~19 to ensure that the two
-\url{rcu_gp_ctr} fetches are carried out in program order.
-Line~21 then checks to see if the global \url{rcu_gp_ctr} value has
-changed, and, if not, the \url{rcu_quiescent_state} function returns
-to its caller.
-Otherwise, line~22 computes the magnitude of the change, and lines~23 and 24
-check to see if the value has advanced more than one quarter of the way
-around the full cycle, retrying execution at line~15 if so.
+Finally, line~14 executes a memory barrier.
 
 \QuickQuiz{}
-	Doesn't the additional memory barrier shown on line~19 of
+	Doesn't the additional memory barrier shown on line~14 of
 	Figure~\ref{fig:defer:RCU Read Side Using Quiescent States},
 	greatly increase the overhead of \url{rcu_quiescent_state}?
 \QuickQuizAnswer{
@@ -1564,11 +1542,10 @@ around the full cycle, retrying execution at line~15 if so.
 	\url{rcu_read_lock()} and \url{rcu_read_unlock()} most of the
 	time.
 
-	Alternatively, the application might ensure that all counters
-	are at least 64 bits wide in order to prevent overflow from
-	happening during the machine's lifetime.
-	However, given 64-bit counters, a simpler algorithm is possible
-	(see for example \url{rcu64.h} and \url{rcu64.c}).
+	However, this memory barrier is absolutely required so that
+	other threads will see the store on lines~12-13 before any
+	subsequent RCU read-side critical sections executed by the
+	caller.
 } \QuickQuizEnd
 
 Some applications might use RCU only occasionally, but use it very heavily
@@ -1588,15 +1565,15 @@ Any concurrent instances of \url{synchronize_rcu()} will thus know to
 ignore this thread.
 
 \QuickQuiz{}
-	Why are the two memory barriers on lines~30 and 31 of
+	Why are the two memory barriers on lines~19 and 22 of
 	Figure~\ref{fig:defer:RCU Read Side Using Quiescent States}
 	needed?
 \QuickQuizAnswer{
-	The memory barrier on line~30 prevents any RCU read-side
+	The memory barrier on line~19 prevents any RCU read-side
 	critical sections that might precede the
 	call to \url{rcu_thread_offline()} won't be reordered by either
-	the compiler or the CPU to follow the assignment on line~31.
-	The memory barrier on line~31 is, strictly speaking, unnecessary,
+	the compiler or the CPU to follow the assignment on lines~20-21.
+	The memory barrier on line~22 is, strictly speaking, unnecessary,
 	as it is illegal to have any RCU read-side critical sections
 	following the call to \url{rcu_thread_offline()}.
 } \QuickQuizEnd
