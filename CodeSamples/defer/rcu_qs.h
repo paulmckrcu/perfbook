@@ -39,11 +39,15 @@ static inline int rcu_gp_ongoing(int thread)
 	return per_thread(rcu_reader_qs_gp, thread) & 1;
 }
 
+/*
+ * Note: threads must invoke rcu_thread_online() before their
+ * first RCU read-side critical section.
+ */
 static void rcu_init(void)
 {
 	int i;
 
-	init_per_thread(rcu_reader_qs_gp, 0);
+	init_per_thread(rcu_reader_qs_gp, rcu_gp_ctr);
 }
 
 static void rcu_read_lock(void)
@@ -56,26 +60,15 @@ static void rcu_read_unlock(void)
 
 rcu_quiescent_state(void)
 {
-	long tmp1;
-	long tmp2;
-	long delta;
-
-retry:
 	smp_mb();
-	tmp1 = ACCESS_ONCE(rcu_gp_ctr);
-	__get_thread_var(rcu_reader_qs_gp) = tmp1 + 1;
+	__get_thread_var(rcu_reader_qs_gp) = ACCESS_ONCE(rcu_gp_ctr) + 1;
 	smp_mb();
-	if (unlikely(tmp1 != (tmp2 = ACCESS_ONCE(rcu_gp_ctr)))) {
-		delta = tmp2 - tmp1;
-		if (unlikely(delta < 0 || delta > (~0UL >> 2)))
-			goto retry;
-	}
 }
 
 static void rcu_thread_offline(void)
 {
 	smp_mb();
-	__get_thread_var(rcu_reader_qs_gp) = rcu_gp_ctr;
+	__get_thread_var(rcu_reader_qs_gp) = ACCESS_ONCE(rcu_gp_ctr);
 	smp_mb();
 }
 

@@ -120,6 +120,7 @@ void *rcu_read_perf_test(void *arg)
 	atomic_inc(&nthreadsrunning);
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 1);
+	mark_rcu_quiescent_state();
 	while (goflag == GOFLAG_RUN) {
 		for (i = 0; i < RCU_READ_RUN; i++) {
 			rcu_read_lock();
@@ -258,6 +259,7 @@ void *rcu_read_stress_test(void *arg)
 
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 1);
+	mark_rcu_quiescent_state();
 	while (goflag == GOFLAG_RUN) {
 		rcu_read_lock();
 		p = rcu_dereference(rcu_stress_current);

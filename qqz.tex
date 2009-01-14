@@ -403,6 +403,32 @@
 
 \QuickQAC{cha:Partitioning and Synchronization Design}
 \QuickQ{}
+	Is there a better solution to the Dining
+	Philosophers Problem?
+\QuickA{}
+
+\begin{figure}[tb]
+\begin{center}
+\includegraphics{SMPdesign/DiningPhilosopher4PEM}
+\end{center}
+\caption{Dining Philosophers Problem, Fully Partitioned}
+\label{fig:SMPdesign:Dining Philosophers Problem, Fully Partitioned}
+\end{figure}
+
+	One such improved solution is shown in
+	Figure~\ref{fig:SMPdesign:Dining Philosophers Problem, Fully Partitioned},
+	where the philosophers are simply provided with an additional
+	four forks.
+	All four philosophers may now eat simultaneously, and there
+	is never any need for philosophers to wait on one another.
+	In addition, the improved disease control provided by this 
+	approach should not be underestimated.
+
+	This solution can seem like cheating to some, but such
+	``cheating'' is key to finding good solutions to many
+	concurrency problems.
+
+\QuickQ{}
 	What are some ways of preventing a structure from being freed while
 	its lock is being acquired?
 \QuickA{}
@@ -1559,7 +1585,7 @@ srcu_read_unlock(&srcucb, idx);
 	deterministic execution time in any case!
 
 \QuickQ{}
-	Doesn't the additional memory barrier shown on line~19 of
+	Doesn't the additional memory barrier shown on line~14 of
 	Figure~\ref{fig:defer:RCU Read Side Using Quiescent States},
 	greatly increase the overhead of \url{rcu_quiescent_state}?
 \QuickA{}
@@ -1569,22 +1595,21 @@ srcu_read_unlock(&srcucb, idx);
 	\url{rcu_read_lock()} and \url{rcu_read_unlock()} most of the
 	time.
 
-	Alternatively, the application might ensure that all counters
-	are at least 64 bits wide in order to prevent overflow from
-	happening during the machine's lifetime.
-	However, given 64-bit counters, a simpler algorithm is possible
-	(see for example \url{rcu64.h} and \url{rcu64.c}).
+	However, this memory barrier is absolutely required so that
+	other threads will see the store on lines~12-13 before any
+	subsequent RCU read-side critical sections executed by the
+	caller.
 
 \QuickQ{}
-	Why are the two memory barriers on lines~30 and 31 of
+	Why are the two memory barriers on lines~19 and 22 of
 	Figure~\ref{fig:defer:RCU Read Side Using Quiescent States}
 	needed?
 \QuickA{}
-	The memory barrier on line~30 prevents any RCU read-side
+	The memory barrier on line~19 prevents any RCU read-side
 	critical sections that might precede the
 	call to \url{rcu_thread_offline()} won't be reordered by either
-	the compiler or the CPU to follow the assignment on line~31.
-	The memory barrier on line~31 is, strictly speaking, unnecessary,
+	the compiler or the CPU to follow the assignment on lines~20-21.
+	The memory barrier on line~22 is, strictly speaking, unnecessary,
 	as it is illegal to have any RCU read-side critical sections
 	following the call to \url{rcu_thread_offline()}.
 
