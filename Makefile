@@ -77,6 +77,7 @@ EPSSOURCES = \
 	appendix/rcuimpl/GenericRCUStateMachine.eps \
 	appendix/rcuimpl/GracePeriodBad.eps \
 	appendix/rcuimpl/GracePeriodGood.eps \
+	appendix/rcuimpl/RCUbweBlock.eps \
 	appendix/rcuimpl/RCUpreemptCounterFlip.eps \
 	appendix/rcuimpl/RCUpreemptListsCompare.eps \
 	appendix/rcuimpl/RCUpreemptLists.eps \
@@ -87,6 +88,7 @@ EPSSOURCES = \
 	appendix/rcuimpl/RCUrt-MBwaste.eps \
 	appendix/rcuimpl/RCUTreeInit.eps \
 	appendix/rcuimpl/RCUTreeLeafScan.eps \
+	appendix/rcuimpl/RCUTreeQSScan.eps \
 	appendix/rcuimpl/srcuds.eps \
 	appendix/rcuimpl/TreeClassicRCU.eps \
 	appendix/rcuimpl/TreeClassicRCUGP.eps \
@@ -115,6 +117,19 @@ EPSSOURCES = \
 	cartoons/trackmeet.eps \
 	cartoons/whippersnapper300.eps \
 	cartoons/whippersnapper600.eps \
+	defer/GracePeriodGood.eps \
+	defer/Linux_hlist.eps \
+	defer/Linux_list_abbr.eps \
+	defer/Linux_list.eps \
+	defer/RCUDeletion.eps \
+	defer/RCUenvAPI.eps \
+	defer/RCUReplacement.eps \
+	defer/refRCUperfPREEMPT.eps \
+	defer/refRCUperfwtPREEMPT.eps \
+	defer/rwlockRCUperf.eps \
+	defer/rwlockRCUperfPREEMPT.eps \
+	defer/rwlockRCUperfwtPREEMPT.eps \
+	defer/rwlockRCUupdate.eps \
 	easy/Mandel_zoom_00_mandelbrot_set.eps
 
 all: 2up
