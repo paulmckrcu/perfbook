@@ -3,12 +3,9 @@
 #ifndef _LINUX_LIST_H
 #define _LINUX_LIST_H
 
-#define prefetch(x) (x)
-
 #define LIST_POISON1  ((void *) 0x00100100)
 #define LIST_POISON2  ((void *) 0x00200200)
 
-typedef unsigned long size_t;
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #define container_of(ptr, type, member) ({			\
 	const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
