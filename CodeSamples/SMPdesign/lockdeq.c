@@ -180,6 +180,8 @@ void deq_enqueue_r(struct list_head *e, struct deq *d)
 
 #ifdef TEST
 
+#define N_TEST_ELEMS 10
+
 struct deq_elem {
 	struct list_head l;
 	int data;
@@ -214,6 +216,11 @@ struct list_head *deq_dequeue_error(struct deq *d)
 	abort();
 }
 
+/*
+ * Enqueue elements as specified by the deq_test structure.  This may
+ * either be called directly (with the specified goflag already set
+ * to GOFLAG_START) or via create_thread().
+ */
 void *concurrent_enqueue(void *arg)
 {
 	struct deq_test *t = (struct deq_test *)arg;
@@ -226,13 +233,19 @@ void *concurrent_enqueue(void *arg)
 		barrier();
 
 	for (i = 0; i < t->nelem; i++) {
-		p->data = v;
-		t->enqueue(&p->l, t->d);
+		p[i].data = v;
+		t->enqueue(&p[i].l, t->d);
 		v += t->datainc;
 	}
 	return (NULL);
 }
 
+/*
+ * Dequeue as specified by the deq_test structure. This may be called
+ * directly (in which case the number of elements to be dequeued must
+ * be exactly that required and the specified goflag already set to
+ * GOFLAG_START), or via create_thread.
+ */
 void *concurrent_dequeue(void *arg)
 {
 	struct deq_test *t = (struct deq_test *)arg;
@@ -257,97 +270,232 @@ void *concurrent_dequeue(void *arg)
 	return (void *)i;
 }
 
+/*
+ * Variable declarations required for the pair-wise enqueue tests.
+ */
+#define PAIRWISE_VAR_DEFS() \
+	atomic_t count; \
+	struct deq d; \
+	struct deq_test dtenq1; \
+	struct deq_test dtenq2; \
+	struct deq_test dtdeq1; \
+	struct deq_elem dtelem1[N_TEST_ELEMS]; \
+	struct deq_elem dtelem2[N_TEST_ELEMS]; \
+	struct deq_elem *dtelemdeq[2 * N_TEST_ELEMS]; \
+	int goflag
+
+
+/*
+ * Initialize a deq_test structure for enqueuing.
+ * The caller must provide a struct deq named "d", an atomic_t named
+ * "count", and an int named "goflag".
+ */
+#define INIT_ENQUEUE(dt, f, ea, start, inc) \
+do { \
+	dt.enqueue = &f; \
+	dt.dequeue = &deq_dequeue_error; \
+	dt.d = &d; \
+	dt.p = ea; \
+	dt.nelem = sizeof(ea) / sizeof(ea[0]); \
+	dt.datastart = start; \
+	dt.datainc = inc; \
+	dt.count = &count; \
+	dt.goflag = &goflag; \
+} while (0)
+
+/*
+ * Initialize a deq_test structure for enqueuing.
+ * The caller must provide a struct deq named "d", an atomic_t named
+ * "count", and an int named "goflag".
+ */
+#define INIT_DEQUEUE(dt, f, epa) \
+do { \
+	dt.enqueue = &deq_enqueue_error; \
+	dt.dequeue = &f; \
+	dt.d = &d; \
+	dt.q = epa; \
+	dt.nelem = sizeof(epa) / sizeof(epa[0]); \
+	dt.count = &count; \
+	dt.goflag = &goflag; \
+} while (0)
+
+/*
+ * Run a pair of enqueue threads on the specified deq_test structures.
+ * The caller must supply an atomic_t "count" and an int "goflag".
+ */
+#define RUN_ENQUEUE_PAIR(dte1, dte2) \
+do { \
+	goflag = GOFLAG_INIT; \
+	atomic_set(&count, 0); \
+	create_thread(concurrent_enqueue, (void *)&dte1); \
+	create_thread(concurrent_enqueue, (void *)&dte2); \
+	while (atomic_read(&count) < 2) \
+		barrier(); \
+	goflag = GOFLAG_START; \
+	wait_all_threads(); \
+} while (0)
+
+/*
+ * Check a sequence of elements removed from a dequeue.  These must have
+ * been inserted by a pair of threads, one of which enqueued positive
+ * elements and the other negative, such that the first element dequeued
+ * is either +1 or -1.
+ */
+#define CHECK_SEQUENCE_PAIR(dtelemdeq) \
+do { \
+	int i; \
+	int ipos = 0; \
+	int ineg = 0; \
+	\
+	atomic_set(&count, 0); \
+	goflag = GOFLAG_START; \
+	if ((i = (long)concurrent_dequeue(&dtdeq1)) != dtdeq1.nelem) { \
+		printf("Expected to dequeue %d, got %d\n", \
+		       dtdeq1.nelem, i); \
+		abort(); \
+	} \
+	\
+	for (i = 0; i < sizeof(dtelemdeq) / sizeof(dtelemdeq[0]); i++) { \
+		int icheck = dtelemdeq[i]->data; \
+		\
+		printf("%d ", icheck); \
+		if (icheck < 0) { \
+			if (icheck != --ineg) { \
+				printf("Neg seq err: expected %d, got %d\n", \
+				       ineg, icheck); \
+				abort(); \
+			} \
+		} else if (icheck != ++ipos) { \
+			printf("Pos seq err: expected %d, got %d\n", \
+			       ipos, icheck); \
+			abort(); \
+		} \
+	} \
+	printf("OK\n"); \
+} while (0)
+
 void conc_enq_l(void)
+{
+	PAIRWISE_VAR_DEFS();
+
+	printf("Concurrently enqueue L, dequeue R\n");
+
+	init_deq(&d);
+
+	INIT_ENQUEUE(dtenq1, deq_enqueue_l, dtelem1, 1, 1);
+	INIT_ENQUEUE(dtenq2, deq_enqueue_l, dtelem2, -1, -1);
+	RUN_ENQUEUE_PAIR(dtenq1, dtenq2);
+
+	INIT_DEQUEUE(dtdeq1, deq_dequeue_r, dtelemdeq);
+	CHECK_SEQUENCE_PAIR(dtelemdeq);
+}
+
+void conc_enq_r(void)
+{
+	PAIRWISE_VAR_DEFS();
+
+	printf("Concurrently enqueue R, dequeue L\n");
+
+	init_deq(&d);
+
+	INIT_ENQUEUE(dtenq1, deq_enqueue_r, dtelem1, 1, 1);
+	INIT_ENQUEUE(dtenq2, deq_enqueue_r, dtelem2, -1, -1);
+	RUN_ENQUEUE_PAIR(dtenq1, dtenq2);
+
+	INIT_DEQUEUE(dtdeq1, deq_dequeue_l, dtelemdeq);
+	CHECK_SEQUENCE_PAIR(dtelemdeq);
+}
+
+void conc_push_l(void)
+{
+	PAIRWISE_VAR_DEFS();
+
+	printf("Concurrently push L\n");
+
+	init_deq(&d);
+
+	INIT_ENQUEUE(dtenq1, deq_enqueue_r, dtelem1, N_TEST_ELEMS, -1);
+	INIT_ENQUEUE(dtenq2, deq_enqueue_r, dtelem2, -N_TEST_ELEMS, 1);
+	RUN_ENQUEUE_PAIR(dtenq1, dtenq2);
+
+	INIT_DEQUEUE(dtdeq1, deq_dequeue_r, dtelemdeq);
+	CHECK_SEQUENCE_PAIR(dtelemdeq);
+}
+
+void conc_push_r(void)
+{
+	PAIRWISE_VAR_DEFS();
+
+	printf("Concurrently push R\n");
+
+	init_deq(&d);
+
+	INIT_ENQUEUE(dtenq1, deq_enqueue_l, dtelem1, N_TEST_ELEMS, -1);
+	INIT_ENQUEUE(dtenq2, deq_enqueue_l, dtelem2, -N_TEST_ELEMS, 1);
+	RUN_ENQUEUE_PAIR(dtenq1, dtenq2);
+
+	INIT_DEQUEUE(dtdeq1, deq_dequeue_l, dtelemdeq);
+	CHECK_SEQUENCE_PAIR(dtelemdeq);
+}
+
+void melee(void)
 {
 	atomic_t count;
 	struct deq d;
 	struct deq_test dtenq1;
 	struct deq_test dtenq2;
 	struct deq_test dtdeq1;
-	struct deq_elem dtelem1[10];
-	struct deq_elem dtelem2[10];
-	struct deq_elem *dtelemdeq[20];
+	struct deq_test dtdeq2;
+	struct deq_elem dtelem1[N_TEST_ELEMS];
+	struct deq_elem dtelem2[N_TEST_ELEMS];
+	struct deq_elem *dtelemdeq1[2 * N_TEST_ELEMS] = { NULL };
+	struct deq_elem *dtelemdeq2[2 * N_TEST_ELEMS] = { NULL };
 	int goflag;
 	int i;
-	int ineg;
-	int ipos;
+	char check[2 * N_TEST_ELEMS + 1] = { 0 };
+
+	printf("Concurrent melee between a pair of enqueues and of dequeues\n");
 
 	init_deq(&d);
+
+	INIT_ENQUEUE(dtenq1, deq_enqueue_l, dtelem1, 1, 1);
+	INIT_ENQUEUE(dtenq2, deq_enqueue_r, dtelem2, -1, -1);
+	INIT_DEQUEUE(dtdeq1, deq_dequeue_l, dtelemdeq1);
+	INIT_DEQUEUE(dtdeq2, deq_dequeue_l, dtelemdeq2);
+
 	goflag = GOFLAG_INIT;
 	atomic_set(&count, 0);
-
-	dtenq1.enqueue = &deq_enqueue_l;
-	dtenq1.dequeue = &deq_dequeue_error;
-	dtenq1.d = &d;
-	dtenq1.p = dtelem1;
-	dtenq1.nelem = sizeof(dtelem1) / sizeof(dtelem1[0]);
-	dtenq1.datastart = 1;
-	dtenq1.datainc = 1;
-	dtenq1.count = &count;
-	dtenq1.goflag = &goflag;
-
-	dtenq2.enqueue = deq_enqueue_l;
-	dtenq2.dequeue = deq_dequeue_error;
-	dtenq2.d = &d;
-	dtenq2.p = dtelem2;
-	dtenq2.nelem = sizeof(dtelem2) / sizeof(dtelem2[0]);
-	dtenq2.datastart = -1;
-	dtenq2.datainc = -1;
-	dtenq2.count = &count;
-	dtenq2.goflag = &goflag;
-
-	goflag = GOFLAG_START;
-	concurrent_enqueue(&dtenq1);
-#if 0
-	@@@ create_thread(concurrent_enqueue, (void *)&dtenq1);
+	create_thread(concurrent_enqueue, (void *)&dtenq1);
 	create_thread(concurrent_enqueue, (void *)&dtenq2);
-
-	while (atomic_read(&count) < 2)
+	create_thread(concurrent_dequeue, (void *)&dtdeq1);
+	create_thread(concurrent_dequeue, (void *)&dtdeq2);
+	while (atomic_read(&count) < 4)
 		barrier();
-
 	goflag = GOFLAG_START;
-
+	sleep(3);
+	goflag = GOFLAG_STOP;
 	wait_all_threads();
-#endif /* #if 0 */
 
-	goflag = GOFLAG_INIT;
-	atomic_set(&count, 0);
-
-	dtdeq1.dequeue = deq_dequeue_r;
-	dtdeq1.enqueue = deq_enqueue_error;
-	dtdeq1.d = &d;
-	dtdeq1.q = dtelemdeq;
-	dtdeq1.nelem = sizeof(dtelemdeq) / sizeof(dtelemdeq[0]);
-	dtdeq1.count = &count;
-	dtdeq1.goflag = &goflag;
-
-	goflag = GOFLAG_START;
-	if ((i = (long)concurrent_dequeue(&dtdeq1)) != dtdeq1.nelem) {
-		printf("Expected to dequeue %d, got %d\n", dtdeq1.nelem, i);
-		abort();
-	}
-#if 0
-	@@@ create_thread(concurrent_dequeue, (void *)&dtdeq1);
-
-	goflag = GOFLAG_START;
-
-	wait_all_threads();
-#endif /* #if 0 */
-
-	ineg = 0;
-	ipos = 0;
-	for (i = 0; i < sizeof(dtelemdeq) / sizeof(dtelemdeq[0]); i++) {
-		if (dtelemdeq[i]->data < 0)
-			if (dtelemdeq[i]->data != --ineg) {
-				printf("Seq err: expected %d, got %d\n",
-				       ineg, dtelemdeq[i]->data);
+	for (i = 0; i < 2 * N_TEST_ELEMS; i++) {
+		if (dtelemdeq1[i] != NULL) {
+			printf("%d ", dtelemdeq1[i]->data);
+			if (check[dtelemdeq1[i]->data + N_TEST_ELEMS] != 0)
 				abort();
-			}
-		else if (dtelemdeq[i]->data != ++ipos) {
-			printf("Seq err: expected %d, got %d\n",
-			       ipos, dtelemdeq[i]->data);
-			abort();
+			check[dtelemdeq1[i]->data + N_TEST_ELEMS] = 1;
 		}
+		if (dtelemdeq2[i] != NULL) {
+			printf("%d ", dtelemdeq2[i]->data);
+			if (check[dtelemdeq2[i]->data + N_TEST_ELEMS] != 0)
+				abort();
+			check[dtelemdeq2[i]->data + N_TEST_ELEMS] = 1;
+		}
+	}
+	printf("\n");
+	for (i = -N_TEST_ELEMS + 1; i < N_TEST_ELEMS; i++) {
+		if (i == 0)
+			continue;
+		if (!check[i + N_TEST_ELEMS])
+			abort();
 	}
 }
 
@@ -412,7 +560,10 @@ int main(int argc, char *argv[])
 	d4 = getdata(deq_dequeue_r(&dequeue));
 	printf("Enqueue R, dequeue R: %d %d %d %d\n", d1, d2, d3, d4);
 
-	printf("Concurrently enqueue L, dequeue R\n");
 	conc_enq_l();
+	conc_enq_r();
+	conc_push_l();
+	conc_push_r();
+	melee();
 }
 #endif /* #ifdef TEST */
