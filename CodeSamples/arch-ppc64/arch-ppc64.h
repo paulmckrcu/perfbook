@@ -54,9 +54,9 @@ static __inline__ void atomic_add(int a, atomic_t *v)
 	int t;
 
 	__asm__ __volatile__(
-	"1:	ldarx	%0,0,%3		# atomic_add\n\
+	"1:	lwarx	%0,0,%3		# atomic_add\n\
 		add	%0,%2,%0 \n\
-		stdcx.	%0,0,%3 \n\
+		stwcx.	%0,0,%3 \n\
 		bne-	1b"
 		: "=&r" (t), "+m" (v->counter)
 		: "r" (a), "r" (&v->counter)
@@ -75,9 +75,9 @@ static __inline__ void atomic_sub(int a, atomic_t *v)
 	int t;
 
 	__asm__ __volatile__(
-	"1:	ldarx	%0,0,%3		# atomic_sub \n\
+	"1:	lwarx	%0,0,%3		# atomic_sub \n\
 		subf	%0,%2,%0 \n\
-		stdcx.	%0,0,%3 \n\
+		stwcx.	%0,0,%3 \n\
 		bne-	1b"
 		: "=&r" (t), "+m" (v->counter)
 		: "r" (a), "r" (&v->counter)
@@ -90,9 +90,9 @@ static __inline__ atomic_sub_return(int a, atomic_t *v)
 
 	__asm__ __volatile__(
 		"lwsync\n\
-	1:	ldarx	%0,0,%2		# atomic_sub_return\n\
+	1:	lwarx	%0,0,%2		# atomic_sub_return\n\
 		subf	%0,%1,%0\n\
-		stdcx.	%0,0,%2 \n\
+		stwcx.	%0,0,%2 \n\
 		bne-	1b \n\
 		isync"
 		: "=&r" (t)
@@ -239,11 +239,11 @@ static __inline__ int atomic_add_unless(atomic_t *v, int a, int u)
 
 	__asm__ __volatile__(
 		"lwsync \n\
-	1:	ldarx	%0,0,%1		# atomic_add_unless\n\
+	1:	lwarx	%0,0,%1		# atomic_add_unless\n\
 		cmpd	0,%0,%3 \n\
 		beq-	2f \n\
 		add	%0,%2,%0 \n\
-		stdcx.	%0,0,%1 \n\
+		stwcx.	%0,0,%1 \n\
 		bne-	1b \n\
 		isync \n\
 		subf	%0,%2,%0 \n\

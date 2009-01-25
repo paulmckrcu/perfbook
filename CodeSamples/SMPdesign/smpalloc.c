@@ -123,7 +123,7 @@ void *memblock_test(void *arg)
 	long cnt = 0;
 	long cntfail = 0;
 	int i;
-	int runlength = (int)arg;
+	int runlength = (int)(long)arg;
 	struct memblock *p[MAX_RUN];
 
 	if (runlength > MAX_RUN)
@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
 
 	goflag = 1;
 	for (i = 0; i < nkids; i++)
-		create_thread(memblock_test, (void *)runlength);
+		create_thread(memblock_test, (void *)(long)runlength);
 
 	sleep(1);
 	goflag = 0;

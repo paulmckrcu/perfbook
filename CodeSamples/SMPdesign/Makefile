@@ -14,15 +14,22 @@
 #
 # Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
 
-all: smpalloc lockdeq
+PROGS = smpalloc lockdeq
 
-GCC_ARGS=-g -O3
+all: $(PROGS)
+
+include ../Makefile.arch
+
+# GCC_ARGS=-g -O3
 
 # http://www.ibm.com/developerworks/wikis/display/hpccentral/Tuning+options+to+consider+with+gcc#Tuningoptionstoconsiderwithgcc-mcpuandmtune
 # GCC_ARGS=-g -O3 -m64 -mcpu=power5 -mtune=power5
 
 smpalloc: smpalloc.c ../api.h
-	cc -g -o smpalloc -DTEST smpalloc.c -lpthread
+	cc $(GCC_ARGS) -g -o smpalloc -DTEST smpalloc.c -lpthread
 
 lockdeq: lockdeq.c ../api.h
-	cc -g -o lockdeq -DTEST lockdeq.c -lpthread
+	cc $(GCC_ARGS) -g -o lockdeq -DTEST lockdeq.c -lpthread
+
+clean:
+	rm $(PROGS)

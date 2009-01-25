@@ -267,7 +267,7 @@ void *concurrent_dequeue(void *arg)
 		p1 = list_entry(p0, struct deq_elem, l);
 		t->q[i++] = p1;
 	}
-	return (void *)i;
+	return (void *)(long)i;
 }
 
 /*
@@ -452,6 +452,7 @@ void melee(void)
 	struct deq_elem *dtelemdeq2[2 * N_TEST_ELEMS] = { NULL };
 	int goflag;
 	int i;
+	int ok = 1;
 	char check[2 * N_TEST_ELEMS + 1] = { 0 };
 
 	printf("Concurrent melee between a pair of enqueues and of dequeues\n");
@@ -490,13 +491,17 @@ void melee(void)
 			check[dtelemdeq2[i]->data + N_TEST_ELEMS] = 1;
 		}
 	}
-	printf("\n");
-	for (i = -N_TEST_ELEMS + 1; i < N_TEST_ELEMS; i++) {
+	for (i = -N_TEST_ELEMS; i < N_TEST_ELEMS + 1; i++) {
 		if (i == 0)
 			continue;
-		if (!check[i + N_TEST_ELEMS])
-			abort();
+		if (!check[i + N_TEST_ELEMS]) {
+			printf("Missing element %d\n", i);
+			ok = 0;
+		}
 	}
+	if (!ok)
+		abort();
+	printf("OK\n");
 }
 
 int getdata(struct list_head *p)

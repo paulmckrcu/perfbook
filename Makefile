@@ -47,11 +47,18 @@ LATEXSOURCES = \
 
 EPSSOURCES = \
 	SMPdesign/AllocatorPool.eps \
+	SMPdesign/DiningPhilosopher4.eps \
+	SMPdesign/DiningPhilosopher4part.eps \
+	SMPdesign/DiningPhilosopher4PEM.eps \
+	SMPdesign/DiningPhilosopher4TB.eps \
 	SMPdesign/LockGranularity.eps \
 	SMPdesign/MemoryBarrierPairing.eps \
 	SMPdesign/ParallelFastpath.eps \
 	SMPdesign/allocatorcache.eps \
 	SMPdesign/clockfreq.eps \
+	SMPdesign/lockdeqhash.eps \
+	SMPdesign/lockdeqhash1R.eps \
+	SMPdesign/lockdeqpair.eps \
 	SMPdesign/smpalloc.eps \
 	SMPdesign/smpalloc.old.eps \
 	advsync/AbstractMemoryAccessModel.eps \
