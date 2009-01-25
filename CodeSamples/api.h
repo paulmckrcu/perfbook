@@ -204,7 +204,7 @@ static __inline__ int atomic_sub_return(int i, atomic_t *v)
 }
 
 static inline unsigned int
-cmpxchg(volatile int *ptr, int oldval, int newval)
+cmpxchg(volatile long *ptr, long oldval, long newval)
 {
 	unsigned long retval;
 

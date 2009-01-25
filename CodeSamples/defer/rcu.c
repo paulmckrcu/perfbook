@@ -47,6 +47,7 @@ void synchronize_rcu(void)
 		while ((per_thread(rcu_reader_gp, t) & 0x1) &&
 		       ((per_thread(rcu_reader_gp, t) - rcu_gp_ctr) < 0)) {
 			/*@@@ poll(NULL, 0, 10); */
+			barrier();
 		}
 	}
 

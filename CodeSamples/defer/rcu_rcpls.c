@@ -34,6 +34,7 @@ static void flip_counter_and_wait(int ctr)
 	for_each_thread(t) {
 		while (per_thread(rcu_refcnt, t)[i] != 0) {
 			/* @@@ poll(NULL, 0, 10); */
+			barrier();
 		}
 	}
 	smp_mb();

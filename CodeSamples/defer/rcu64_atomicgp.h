@@ -32,7 +32,7 @@ DEFINE_PER_THREAD(long, rcu_reader_gp);
  * so unfortunate as to be invoked before the first synchronize_rcu().
  */
 
-atomic_t rcu_gp_ctr = ATOMIC_INIT(LONG_MAX);
+long rcu_gp_ctr = LONG_MAX;
 
 static void rcu_init(void)
 {
@@ -51,7 +51,7 @@ static void rcu_read_lock(void)
 	 * periodic per-thread processing.)
 	 */
 
-	__get_thread_var(rcu_reader_gp) = -atomic_read(&rcu_gp_ctr);
+	__get_thread_var(rcu_reader_gp) = -rcu_gp_ctr;
 	smp_mb();
 }
 
@@ -65,7 +65,7 @@ static void rcu_read_unlock(void)
 	 */
 
 	smp_mb();
-	__get_thread_var(rcu_reader_gp) = atomic_read(&rcu_gp_ctr);
+	__get_thread_var(rcu_reader_gp) = rcu_gp_ctr;
 }
 
 extern void synchronize_rcu(void);

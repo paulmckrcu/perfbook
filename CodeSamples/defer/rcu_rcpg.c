@@ -36,6 +36,7 @@ void synchronize_rcu(void)
 	smp_mb();
 	while (atomic_read(&rcu_refcnt[i]) != 0) {
 		/* @@@ poll(NULL, 0, 10); */
+		barrier();
 	}
 	smp_mb();
 

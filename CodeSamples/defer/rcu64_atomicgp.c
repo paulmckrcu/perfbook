@@ -38,8 +38,8 @@ void synchronize_rcu(void)
 	 * number for use.
 	 */
 
-	oldval = atomic_read(&rcu_gp_ctr);
-	(void)atomic_cmpxchg(&rcu_gp_ctr, oldval, oldval - 1);
+	oldval = rcu_gp_ctr;
+	(void)cmpxchg(&rcu_gp_ctr, oldval, oldval - 1);
 	smp_mb();
 
 	/*
@@ -50,6 +50,7 @@ void synchronize_rcu(void)
 	for_each_thread(t) {
 		while (per_thread(rcu_reader_gp, t) <= -oldval) {
 			/*@@@ poll(NULL, 0, 10); */
+			barrier();
 		}
 	}
 
