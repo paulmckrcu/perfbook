@@ -14,12 +14,11 @@
 #
 # Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
 
-GCC_ARGS=-g -O3
+include ../Makefile.arch
 
-# http://www.ibm.com/developerworks/wikis/display/hpccentral/Tuning+options+to+consider+with+gcc#Tuningoptionstoconsiderwithgcc-mcpuandmtune
-# GCC_ARGS=-g -O3 -m64 -mcpu=power5 -mtune=power5
+PROGS = gettimestamp gettimestampmp rcu rcu64 rcu64_atomicgp rcu_lock rcu_lock_percpu rcu_nest rcu_nest_qs rcu_qs rcu_rcg rcu_rcpg rcu_rcpl rcu_rcpls rcu_ts
 
-all: gettimestamp gettimestampmp rcu rcu64 rcu64_atomicgp rcu_lock rcu_lock_percpu rcu_nest rcu_nest_qs rcu_qs rcu_rcg rcu_rcpg rcu_rcpl rcu_rcpls rcu_ts
+all: $(PROGS)
 
 gettimestamp: gettimestamp.c ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o gettimestamp -DTEST gettimestamp.c -lpthread
@@ -65,3 +64,6 @@ rcu_rcpls: rcu_rcpls.c rcu_rcpls.h ../api.h rcutorture.h
 
 rcu_ts: rcu_ts.c rcu_ts.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_ts -DTEST rcu_ts.c -lpthread
+
+clean:
+	rm -f $(PROGS)
