@@ -164,3 +164,284 @@ concurrent operations on both ends of the double-ended queue is
 difficult~\cite{DanGrossman2007TMGCAnalogy}.
 This section shows how a partitioning design strategy can result
 in a reasonably simple implementation.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{SMPdesign/lockdeq}}
+\end{center}
+\caption{Double-Ended Queue With Left- and Right-Hand Locks}
+\label{fig:SMPdesign:Double-Ended Queue With Left- and Right-Hand Locks}
+\end{figure}
+
+One seemingly straightforward approach would be to have a left-hand lock
+for left-hand-end enqueue and dequeue operations along with a right-hand
+lock for right-hand-end operations, as shown in
+Figure~\ref{fig:SMPdesign:Double-Ended Queue With Left- and Right-Hand Locks}.
+However, the problem with this approach is that the two locks'
+domains must overlap when there are fewer than four elements on the
+list.
+This overlap is due to the fact that removing any given element affects
+not only that element, but also its left- and right-hand neighbors.
+These domains are indicated by color in the figure, with blue indicating
+the domain of the left-hand lock, red indicating the domain of the right-hand
+lock, and purple indicating overlapping domains.
+Although it is possible to create an algorithm that works this way,
+the fact that it has no fewer than five special cases should raise
+a big red flag, especially given that concurrent activity at the other
+end of the list can shift the queue from one special case to another
+at any time.
+It is far better to consider other designs.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{SMPdesign/lockdeqpair}}
+\end{center}
+\caption{Compound Double-Ended Queue}
+\label{fig:SMPdesign:Compound Double-Ended Queue}
+\end{figure}
+
+One way of forcing non-overlapping lock domains is shown in
+Figure~\ref{fig:SMPdesign:Compound Double-Ended Queue}.
+Two separate double-ended queues are run in tandem, each protected by
+its own lock.
+This means that elements much occasionally be shuttled from one of
+the double-ended queues to the other, in which case both locks must
+be held.
+A simple lock hierarchy may be used to avoid deadlock, for example,
+always acquiring the left-hand lock before acquiring the right-hand lock.
+This will be much simpler than applying two locks to the same
+double-ended queue, as we can unconditionally left-enqueue elements
+to the left-hand queue and right-enqueue elements to the right-hand
+queue.
+The main complication arises when dequeuing from an empty queue, in
+which case it is necessary to:
+
+\begin{enumerate}
+\item	If holding the right-hand lock, release it and acquire the
+	left-hand lock.
+\item	Acquire the right-hand lock.
+\item	Rebalance the elements across the two queues.
+\item	Remove the required element.
+\item	Release both locks.
+\end{enumerate}
+
+The rebalancing operation might well shuttle a given element back
+and forth between the two queues, wasting time and possibly requiring
+workload-dependent heuristics to obtain optimal performance.
+Although this might well be the best approach in some cases, we
+can do better.
+
+One of the simplest and most effective ways to partition a data structure
+is to hash it.
+It is possible to trivially hash a double-ended queue by assigning
+each element a sequence number based on its position in the list,
+so that the first element left-enqueued into an empty queue is numbered
+zero and the first element right-enqueued into an empty queue is numbered
+one.
+A series of elements left-enqueued into an otherwise-idle queue would
+be assigned decreasing numbers (-1, -2, -3, ...), while a series of
+elements right-enqueued into an otherwise-idle queue would be assigned
+increasing numbers (2, 3, 4, ...).
+A key point is that it is not necessary to actually represent a given
+element's number, as this number will be implied by its position in
+the queue.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{SMPdesign/lockdeqhash}}
+\end{center}
+\caption{Hashed Double-Ended Queue}
+\label{fig:SMPdesign:Hashed Double-Ended Queue}
+\end{figure}
+
+Given this approach, we assign one lock to guard the left-hand index,
+one to guard the right-hand index, and one lock for each hash chain.
+Figure~\ref{fig:SMPdesign:Hashed Double-Ended Queue} shows the resulting
+data structure given four hash chains.
+Note that the lock domains do not overlap, and that deadlock is avoided
+by acquiring the index locks before the chain locks, and by never
+acquiring more than one lock of each type (index or chain) at a time.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{SMPdesign/lockdeqhash1R}}
+\end{center}
+\caption{Hashed Double-Ended Queue After Insertions}
+\label{fig:SMPdesign:Hashed Double-Ended Queue After Insertions}
+\end{figure}
+
+Each hash chain is itself a double-ended queue, and in this example,
+each holds every fourth element.
+The uppermost portion of
+Figure~\ref{fig:SMPdesign:Hashed Double-Ended Queue After Insertions}
+shows the state after a single element (``R1'') has been
+right-enqueued, with the right-hand index having been incremented to
+reference hash chain~2.
+The middle portion of this same figure shows the state after
+three more elements have been right-enqueued.
+As you can see, the indexes are back to their initial states, however,
+each hash chain is now non-empty.
+The lower portion of this figure shows the state after three additional
+elements have been left-enqueued and an additional element has been
+right-enqueued.
+
+From the last state shown in
+Figure~\ref{fig:SMPdesign:Hashed Double-Ended Queue After Insertions},
+a left-dequeue operation would return element ``L-2'' and left
+the left-hand index referencing hash chain~2, which would then
+contain only a single element (``R2'').
+In this state, a left-enqueue running concurrently with a right-enqueue
+would result in lock contention, but the probability of such contention
+can be arbitrarily reduced by using a larger hash table.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{1.5in}{!}{\includegraphics{SMPdesign/lockdeqhashlots}}
+\end{center}
+\caption{Hashed Double-Ended Queue With 12 Elements}
+\label{fig:SMPdesign:Hashed Double-Ended Queue With 12 Elements}
+\end{figure}
+
+Figure~\ref{fig:SMPdesign:Hashed Double-Ended Queue With 12 Elements}
+shows how 12 elements would be organized in a four-hash-bucket
+parallel double-ended queue.
+Each underlying single-lock double-ended queue holds a one-quarter
+slice of the full parallel double-ended queue.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 struct pdeq {
+  2   spinlock_t llock;
+  3   int lidx;
+  4   spinlock_t rlock;
+  5   int ridx;
+  6   struct deq bkt[DEQ_N_BKTS];
+  7 };
+\end{verbatim}
+}
+\caption{Lock-Based Parallel Double-Ended Queue Data Structure}
+\label{fig:SMPdesign:Lock-Based Parallel Double-Ended Queue Data Structure}
+\end{figure}
+
+Figure~\ref{fig:SMPdesign:Lock-Based Parallel Double-Ended Queue Data Structure}
+shows the corresponding C-language data structure, assuming an
+existing \url{struct}~\url{deq} that provides a trivially locked
+double-ended-queue implementation.
+This data structure contains the left-land lock on line~2,
+the left-hand index on line~3, the right-hand lock on line~4,
+the right-hand index on line~5, and, finally, the hashed array
+of simple lock-based double-ended queues on line~6.
+A high-performance implementation would of course use padding or special
+alignment directives to avoid false sharing.
+
+\begin{figure}[bp]
+{ \scriptsize
+\begin{verbatim}
+  1 struct element *pdeq_dequeue_l(struct pdeq *d)
+  2 {
+  3   struct element *e;
+  4   int i;
+  5 
+  6   spin_lock(&d->llock);
+  7   i = moveright(d->lidx);
+  8   e = deq_dequeue_l(&d->bkt[i]);
+  9   if (e != NULL)
+ 10     d->lidx = i;
+ 11   spin_unlock(&d->llock);
+ 12   return e;
+ 13 }
+ 14 
+ 15 void pdeq_enqueue_l(struct element *e, struct pdeq *d)
+ 16 {
+ 17   int i;
+ 18 
+ 19   spin_lock(&d->llock);
+ 20   i = d->lidx;
+ 21   deq_enqueue_l(e, &d->bkt[i]);
+ 22   d->lidx = moveleft(d->lidx);
+ 23   spin_unlock(&d->llock);
+ 24 }
+ 25 
+ 26 struct element *pdeq_dequeue_r(struct pdeq *d)
+ 27 {
+ 28   struct element *e;
+ 29   int i;
+ 30 
+ 31   spin_lock(&d->rlock);
+ 32   i = moveleft(d->ridx);
+ 33   e = deq_dequeue_r(&d->bkt[i]);
+ 34   if (e != NULL)
+ 35     d->ridx = i;
+ 36   spin_unlock(&d->rlock);
+ 37   return e;
+ 38 }
+ 39 
+ 40 void pdeq_enqueue_r(struct element *e, struct pdeq *d)
+ 41 {
+ 42   int i;
+ 43 
+ 44   spin_lock(&d->rlock);
+ 45   i = d->ridx;
+ 46   deq_enqueue_r(e, &d->bkt[i]);
+ 47   d->ridx = moveright(d->lidx);
+ 48   spin_unlock(&d->rlock);
+ 49 }
+\end{verbatim}
+}
+\caption{Lock-Based Parallel Double-Ended Queue Implementation}
+\label{fig:SMPdesign:Lock-Based Parallel Double-Ended Queue Implementation}
+\end{figure}
+
+Figure~\ref{fig:SMPdesign:Lock-Based Parallel Double-Ended Queue Implementation}
+shows the implementation of the enqueue and dequeue functions.\footnote{
+	One could easily create a polymorphic implementation in any
+	number of languages, but doing so is left as an exercise for
+	the reader.}
+Discussion will focus on the left-hand operations, as the right-hand
+operations are trivially derived from them.
+
+Lines~1-13 show \url{pdeq_dequeue_l()}, which left-dequeues and returns
+an element if possible, returning \url{NULL} otherwise.
+Line~6 acquires the left-hand spinlock, and line~7 computes the
+index to be dequeued from.
+Line~8 dequeues the element, and, if line~9 finds the result to be
+non-\url{NULL}, line~10 records the new left-hand index.
+Either way, line~11 releases the lock, and, finally, line~12 returns
+the element if there was one, or \url{NULL} otherwise.
+
+Lines~15-24 shows \url{pdeq_enqueue_l()}, which left-enqueues the specified
+element.
+Line~19 acquires the left-hand lock, and line~20 picks up the left-hand
+index.
+Line~21 left-enqueues the specified element onto the double-ended queue
+indexed by the left-hand index.
+Line~22 updates the left-hand index, and finally line~23 releases the lock.
+
+As noted earlier, the right-hand operations are completely analogous
+to their left-handed counterparts.
+
+In contrast to the dining philosophers solution,
+this implementation is an example of ``vertical parallelism'' or
+``pipelining'', given that data moves from one thread to another.
+
+\QuickQuiz{}
+	What would be an even better way of handling concurrency?
+\QuickQuizAnswer{
+	Transform the problem to be solved so that multiple double-ended
+	queues can be used in parallel, allowing the simpler single-lock
+	double-ended queue to be used.
+	This ``horizontal scaling''
+	approach allows much better performance and scalability,
+	and is especially attractive if there are multiple threads
+	working either end of the queue, because in this case there
+	are no ordering guarantees anyway.
+} \QuickQuizEnd
+
+\subsection{Partitioning Example Discussion}
+\label{sec:SMPdesign:Partitioning Example Discussion}
+
+These two examples show just how powerful partitioning can be in
+devising parallel algorithms.
+The remainder of this chapter presents additional partitioning and
+replication design tools.
