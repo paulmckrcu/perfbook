@@ -14,7 +14,7 @@
 #
 # Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
 
-PROGS = smpalloc lockdeq
+PROGS = smpalloc lockdeq lockpdeq
 
 all: $(PROGS)
 
@@ -30,6 +30,9 @@ smpalloc: smpalloc.c ../api.h
 
 lockdeq: lockdeq.c ../api.h
 	cc $(GCC_ARGS) -g -o lockdeq -DTEST lockdeq.c -lpthread
+
+lockpdeq: lockpdeq.c ../api.h
+	cc $(GCC_ARGS) -g -o lockpdeq -DTEST lockpdeq.c -lpthread
 
 clean:
 	rm $(PROGS)

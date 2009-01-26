@@ -41,6 +41,7 @@ LATEXSOURCES = \
 	defer/rcuusage.tex \
 	defer/toyrcu.tex \
 	SMPdesign/SMPdesign.tex \
+	SMPdesign/partexercises.tex \
 	stats/stats.tex \
 	locking/locking.tex \
 	time/time.tex

@@ -1,5 +1,7 @@
 /*
- * lockdeq.c: simple lock-based parallel deq implementation.
+ * lockpdeq.c: simple lock-based parallel deq implementation.
+ * 	This is similar to lockdeq.c, but expresses the parallel
+ * 	implementation in terms of a simple single-lock-based deq.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,8 +22,67 @@
 
 #include "../api.h"
 
+/* First do the underlying single-locked deq implementation. */
+
+struct deq {
+	spinlock_t lock;
+	struct list_head chain;
+} ____cacheline_internodealigned_in_smp;
+
+void init_deq(struct deq *p)
+{
+	spin_lock_init(&p->lock);
+	INIT_LIST_HEAD(&p->chain);
+}
+
+struct list_head *deq_dequeue_l(struct deq *p)
+{
+	struct list_head *e;
+
+	spin_lock(&p->lock);
+	if (list_empty(&p->chain))
+		e = NULL;
+	else {
+		e = p->chain.prev;
+		list_del_init(e);
+	}
+	spin_unlock(&p->lock);
+	return e;
+}
+
+void deq_enqueue_l(struct list_head *e, struct deq *p)
+{
+	spin_lock(&p->lock);
+	list_add_tail(e, &p->chain);
+	spin_unlock(&p->lock);
+}
+
+struct list_head *deq_dequeue_r(struct deq *p)
+{
+	struct list_head *e;
+
+	spin_lock(&p->lock);
+	if (list_empty(&p->chain))
+		e = NULL;
+	else {
+		e = p->chain.next;
+		list_del_init(e);
+	}
+	spin_unlock(&p->lock);
+	return e;
+}
+
+void deq_enqueue_r(struct list_head *e, struct deq *p)
+{
+	spin_lock(&p->lock);
+	list_add(e, &p->chain);
+	spin_unlock(&p->lock);
+}
+
 /*
- * Deq structure, empty list:
+ * And now the concurrent implementation.
+ *
+ * Pdeq structure, empty list:
  *
  *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
  *     |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |
@@ -31,7 +92,7 @@
  *                            lidx   ridx
  *
  *
- * List after three deq_enqueue_l() invocations of "a", "b", and "c":
+ * List after three pdeq_enqueue_l() invocations of "a", "b", and "c":
  *
  *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
  *     |   |   |   |   | c | b | a |   |   |   |   |   |   |   |   |
@@ -40,7 +101,7 @@
  *                   |               |
  *                lidx               ridx
  *
- * List after one deq_dequeue_r() invocations (removing "a"):
+ * List after one pdeq_dequeue_r() invocations (removing "a"):
  *
  *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
  *     |   |   |   |   | c | b |   |   |   |   |   |   |   |   |   |
@@ -63,34 +124,30 @@
  * This must be a power of two.  If you want something else, also adjust
  * the moveleft() and moveright() functions.
  */
-#define DEQ_N_BKTS 4
 
-struct deq_bkt {
-	spinlock_t lock;
-	struct list_head chain;
-} ____cacheline_internodealigned_in_smp;
+#define PDEQ_N_BKTS 4
 
-struct deq {
+struct pdeq {
 	spinlock_t llock;
 	int lidx;
 	/* char pad1[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */
 	spinlock_t rlock ____cacheline_internodealigned_in_smp;
 	int ridx;
 	/* char pad2[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */
-	struct deq_bkt bkt[DEQ_N_BKTS];
+	struct deq bkt[PDEQ_N_BKTS];
 };
 
 static int moveleft(int idx)
 {
-	return (idx - 1) & (DEQ_N_BKTS - 1);
+	return (idx - 1) & (PDEQ_N_BKTS - 1);
 }
 
 static int moveright(int idx)
 {
-	return (idx + 1) & (DEQ_N_BKTS - 1);
+	return (idx + 1) & (PDEQ_N_BKTS - 1);
 }
 
-void init_deq(struct deq *d)
+void init_pdeq(struct pdeq *d)
 {
 	int i;
 
@@ -98,83 +155,57 @@ void init_deq(struct deq *d)
 	spin_lock_init(&d->llock);
 	d->ridx = 1;
 	spin_lock_init(&d->rlock);
-	for (i = 0; i < DEQ_N_BKTS; i++) {
-		spin_lock_init(&d->bkt[i].lock);
-		INIT_LIST_HEAD(&d->bkt[i].chain);
-	}
+	for (i = 0; i < PDEQ_N_BKTS; i++)
+		init_deq(&d->bkt[i]);
 }
 
-struct list_head *deq_dequeue_l(struct deq *d)
+struct list_head *pdeq_dequeue_l(struct pdeq *d)
 {
 	struct list_head *e;
 	int i;
-	struct deq_bkt *p;
 
 	spin_lock(&d->llock);
 	i = moveright(d->lidx);
-	p = &d->bkt[i];
-	spin_lock(&p->lock);
-	if (list_empty(&p->chain))
-		e = NULL;
-	else {
-		e = p->chain.prev;
-		list_del_init(e);
+	e = deq_dequeue_l(&d->bkt[i]);
+	if (e != NULL)
 		d->lidx = i;
-	}
-	spin_unlock(&p->lock);
 	spin_unlock(&d->llock);
 	return e;
 }
 
-struct list_head *deq_dequeue_r(struct deq *d)
+struct list_head *pdeq_dequeue_r(struct pdeq *d)
 {
 	struct list_head *e;
 	int i;
-	struct deq_bkt *p;
 
 	spin_lock(&d->rlock);
 	i = moveleft(d->ridx);
-	p = &d->bkt[i];
-	spin_lock(&p->lock);
-	if (list_empty(&p->chain))
-		e = NULL;
-	else {
-		e = p->chain.next;
-		list_del_init(e);
+	e = deq_dequeue_r(&d->bkt[i]);
+	if (e != NULL)
 		d->ridx = i;
-	}
-	spin_unlock(&p->lock);
 	spin_unlock(&d->rlock);
 	return e;
 }
 
-void deq_enqueue_l(struct list_head *e, struct deq *d)
+void pdeq_enqueue_l(struct list_head *e, struct pdeq *d)
 {
 	int i;
-	struct deq_bkt *p;
 
 	spin_lock(&d->llock);
 	i = d->lidx;
-	p = &d->bkt[i];
-	spin_lock(&p->lock);
-	list_add_tail(e, &p->chain);
+	deq_enqueue_l(e, &d->bkt[i]);
 	d->lidx = moveleft(d->lidx);
-	spin_unlock(&p->lock);
 	spin_unlock(&d->llock);
 }
 
-void deq_enqueue_r(struct list_head *e, struct deq *d)
+void pdeq_enqueue_r(struct list_head *e, struct pdeq *d)
 {
 	int i;
-	struct deq_bkt *p;
 
 	spin_lock(&d->rlock);
 	i = d->ridx;
-	p = &d->bkt[i];
-	spin_lock(&p->lock);
-	list_add(e, &p->chain);
+	deq_enqueue_r(e, &d->bkt[i]);
 	d->ridx = moveright(d->ridx);
-	spin_unlock(&p->lock);
 	spin_unlock(&d->rlock);
 }
 
@@ -192,9 +223,9 @@ struct deq_elem {
 #define GOFLAG_STOP	2
 
 struct deq_test {
-	void (*enqueue)(struct list_head *e, struct deq *d);
-	struct list_head *(*dequeue)(struct deq *d);
-	struct deq *d;
+	void (*enqueue)(struct list_head *e, struct pdeq *d);
+	struct list_head *(*dequeue)(struct pdeq *d);
+	struct pdeq *d;
 	struct deq_elem *p;
 	struct deq_elem **q;
 	int nelem;
@@ -204,15 +235,15 @@ struct deq_test {
 	int *goflag;
 };
 
-void deq_enqueue_error(struct list_head *e, struct deq *d)
+void pdeq_enqueue_error(struct list_head *e, struct pdeq *d)
 {
-	printf("deq_enqueue_error()\n");
+	printf("pdeq_enqueue_error()\n");
 	abort();
 }
 
-struct list_head *deq_dequeue_error(struct deq *d)
+struct list_head *pdeq_dequeue_error(struct pdeq *d)
 {
-	printf("deq_dequeue_error()\n");
+	printf("pdeq_dequeue_error()\n");
 	abort();
 }
 
@@ -275,7 +306,7 @@ void *concurrent_dequeue(void *arg)
  */
 #define PAIRWISE_VAR_DEFS() \
 	atomic_t count; \
-	struct deq d; \
+	struct pdeq d; \
 	struct deq_test dtenq1; \
 	struct deq_test dtenq2; \
 	struct deq_test dtdeq1; \
@@ -287,13 +318,13 @@ void *concurrent_dequeue(void *arg)
 
 /*
  * Initialize a deq_test structure for enqueuing.
- * The caller must provide a struct deq named "d", an atomic_t named
+ * The caller must provide a struct pdeq named "d", an atomic_t named
  * "count", and an int named "goflag".
  */
 #define INIT_ENQUEUE(dt, f, ea, start, inc) \
 do { \
 	dt.enqueue = &f; \
-	dt.dequeue = &deq_dequeue_error; \
+	dt.dequeue = &pdeq_dequeue_error; \
 	dt.d = &d; \
 	dt.p = ea; \
 	dt.nelem = sizeof(ea) / sizeof(ea[0]); \
@@ -305,12 +336,12 @@ do { \
 
 /*
  * Initialize a deq_test structure for enqueuing.
- * The caller must provide a struct deq named "d", an atomic_t named
+ * The caller must provide a struct pdeq named "d", an atomic_t named
  * "count", and an int named "goflag".
  */
 #define INIT_DEQUEUE(dt, f, epa) \
 do { \
-	dt.enqueue = &deq_enqueue_error; \
+	dt.enqueue = &pdeq_enqueue_error; \
 	dt.dequeue = &f; \
 	dt.d = &d; \
 	dt.q = epa; \
@@ -380,13 +411,13 @@ void conc_enq_l(void)
 
 	printf("Concurrently enqueue L, dequeue R\n");
 
-	init_deq(&d);
+	init_pdeq(&d);
 
-	INIT_ENQUEUE(dtenq1, deq_enqueue_l, dtelem1, 1, 1);
-	INIT_ENQUEUE(dtenq2, deq_enqueue_l, dtelem2, -1, -1);
+	INIT_ENQUEUE(dtenq1, pdeq_enqueue_l, dtelem1, 1, 1);
+	INIT_ENQUEUE(dtenq2, pdeq_enqueue_l, dtelem2, -1, -1);
 	RUN_ENQUEUE_PAIR(dtenq1, dtenq2);
 
-	INIT_DEQUEUE(dtdeq1, deq_dequeue_r, dtelemdeq);
+	INIT_DEQUEUE(dtdeq1, pdeq_dequeue_r, dtelemdeq);
 	CHECK_SEQUENCE_PAIR(dtelemdeq);
 }
 
@@ -396,13 +427,13 @@ void conc_enq_r(void)
 
 	printf("Concurrently enqueue R, dequeue L\n");
 
-	init_deq(&d);
+	init_pdeq(&d);
 
-	INIT_ENQUEUE(dtenq1, deq_enqueue_r, dtelem1, 1, 1);
-	INIT_ENQUEUE(dtenq2, deq_enqueue_r, dtelem2, -1, -1);
+	INIT_ENQUEUE(dtenq1, pdeq_enqueue_r, dtelem1, 1, 1);
+	INIT_ENQUEUE(dtenq2, pdeq_enqueue_r, dtelem2, -1, -1);
 	RUN_ENQUEUE_PAIR(dtenq1, dtenq2);
 
-	INIT_DEQUEUE(dtdeq1, deq_dequeue_l, dtelemdeq);
+	INIT_DEQUEUE(dtdeq1, pdeq_dequeue_l, dtelemdeq);
 	CHECK_SEQUENCE_PAIR(dtelemdeq);
 }
 
@@ -412,13 +443,13 @@ void conc_push_l(void)
 
 	printf("Concurrently push L\n");
 
-	init_deq(&d);
+	init_pdeq(&d);
 
-	INIT_ENQUEUE(dtenq1, deq_enqueue_r, dtelem1, N_TEST_ELEMS, -1);
-	INIT_ENQUEUE(dtenq2, deq_enqueue_r, dtelem2, -N_TEST_ELEMS, 1);
+	INIT_ENQUEUE(dtenq1, pdeq_enqueue_r, dtelem1, N_TEST_ELEMS, -1);
+	INIT_ENQUEUE(dtenq2, pdeq_enqueue_r, dtelem2, -N_TEST_ELEMS, 1);
 	RUN_ENQUEUE_PAIR(dtenq1, dtenq2);
 
-	INIT_DEQUEUE(dtdeq1, deq_dequeue_r, dtelemdeq);
+	INIT_DEQUEUE(dtdeq1, pdeq_dequeue_r, dtelemdeq);
 	CHECK_SEQUENCE_PAIR(dtelemdeq);
 }
 
@@ -428,20 +459,20 @@ void conc_push_r(void)
 
 	printf("Concurrently push R\n");
 
-	init_deq(&d);
+	init_pdeq(&d);
 
-	INIT_ENQUEUE(dtenq1, deq_enqueue_l, dtelem1, N_TEST_ELEMS, -1);
-	INIT_ENQUEUE(dtenq2, deq_enqueue_l, dtelem2, -N_TEST_ELEMS, 1);
+	INIT_ENQUEUE(dtenq1, pdeq_enqueue_l, dtelem1, N_TEST_ELEMS, -1);
+	INIT_ENQUEUE(dtenq2, pdeq_enqueue_l, dtelem2, -N_TEST_ELEMS, 1);
 	RUN_ENQUEUE_PAIR(dtenq1, dtenq2);
 
-	INIT_DEQUEUE(dtdeq1, deq_dequeue_l, dtelemdeq);
+	INIT_DEQUEUE(dtdeq1, pdeq_dequeue_l, dtelemdeq);
 	CHECK_SEQUENCE_PAIR(dtelemdeq);
 }
 
 void melee(void)
 {
 	atomic_t count;
-	struct deq d;
+	struct pdeq d;
 	struct deq_test dtenq1;
 	struct deq_test dtenq2;
 	struct deq_test dtdeq1;
@@ -457,12 +488,12 @@ void melee(void)
 
 	printf("Concurrent melee between a pair of enqueues and of dequeues\n");
 
-	init_deq(&d);
+	init_pdeq(&d);
 
-	INIT_ENQUEUE(dtenq1, deq_enqueue_l, dtelem1, 1, 1);
-	INIT_ENQUEUE(dtenq2, deq_enqueue_r, dtelem2, -1, -1);
-	INIT_DEQUEUE(dtdeq1, deq_dequeue_l, dtelemdeq1);
-	INIT_DEQUEUE(dtdeq2, deq_dequeue_l, dtelemdeq2);
+	INIT_ENQUEUE(dtenq1, pdeq_enqueue_l, dtelem1, 1, 1);
+	INIT_ENQUEUE(dtenq2, pdeq_enqueue_r, dtelem2, -1, -1);
+	INIT_DEQUEUE(dtdeq1, pdeq_dequeue_l, dtelemdeq1);
+	INIT_DEQUEUE(dtdeq2, pdeq_dequeue_l, dtelemdeq2);
 
 	goflag = GOFLAG_INIT;
 	atomic_set(&count, 0);
@@ -516,53 +547,53 @@ int main(int argc, char *argv[])
 	int d1, d2, d3, d4;
 	struct deq_elem e1, e2, e3;
 	struct list_head *p;
-	struct deq dequeue;
+	struct pdeq dequeue;
 
-	init_deq(&dequeue);
+	init_pdeq(&dequeue);
 	printf("Empty dequeue: L: %p, R: %p\n",
-	       deq_dequeue_l(&dequeue), deq_dequeue_r(&dequeue));
+	       pdeq_dequeue_l(&dequeue), pdeq_dequeue_r(&dequeue));
 
 	e1.data = 1;
 	e2.data = 2;
 	e3.data = 3;
-	deq_enqueue_l(&e1.l, &dequeue);
-	deq_enqueue_l(&e2.l, &dequeue);
-	deq_enqueue_l(&e3.l, &dequeue);
-	d1 = getdata(deq_dequeue_l(&dequeue));
-	d2 = getdata(deq_dequeue_l(&dequeue));
-	d3 = getdata(deq_dequeue_l(&dequeue));
-	d4 = getdata(deq_dequeue_l(&dequeue));
+	pdeq_enqueue_l(&e1.l, &dequeue);
+	pdeq_enqueue_l(&e2.l, &dequeue);
+	pdeq_enqueue_l(&e3.l, &dequeue);
+	d1 = getdata(pdeq_dequeue_l(&dequeue));
+	d2 = getdata(pdeq_dequeue_l(&dequeue));
+	d3 = getdata(pdeq_dequeue_l(&dequeue));
+	d4 = getdata(pdeq_dequeue_l(&dequeue));
 	printf("Enqueue L, dequeue L: %d %d %d %d\n", d1, d2, d3, d4);
 
-	deq_enqueue_l(&e3.l, &dequeue);
-	deq_enqueue_l(&e2.l, &dequeue);
-	deq_enqueue_l(&e1.l, &dequeue);
-	d1 = getdata(deq_dequeue_r(&dequeue));
-	d2 = getdata(deq_dequeue_r(&dequeue));
-	d3 = getdata(deq_dequeue_r(&dequeue));
-	d4 = getdata(deq_dequeue_r(&dequeue));
+	pdeq_enqueue_l(&e3.l, &dequeue);
+	pdeq_enqueue_l(&e2.l, &dequeue);
+	pdeq_enqueue_l(&e1.l, &dequeue);
+	d1 = getdata(pdeq_dequeue_r(&dequeue));
+	d2 = getdata(pdeq_dequeue_r(&dequeue));
+	d3 = getdata(pdeq_dequeue_r(&dequeue));
+	d4 = getdata(pdeq_dequeue_r(&dequeue));
 	printf("Enqueue L, dequeue R: %d %d %d %d\n", d1, d2, d3, d4);
 
 
-	deq_enqueue_r(&e3.l, &dequeue);
-	deq_enqueue_r(&e2.l, &dequeue);
-	deq_enqueue_r(&e1.l, &dequeue);
-	d1 = getdata(deq_dequeue_l(&dequeue));
-	d2 = getdata(deq_dequeue_l(&dequeue));
-	d3 = getdata(deq_dequeue_l(&dequeue));
-	d4 = getdata(deq_dequeue_l(&dequeue));
+	pdeq_enqueue_r(&e3.l, &dequeue);
+	pdeq_enqueue_r(&e2.l, &dequeue);
+	pdeq_enqueue_r(&e1.l, &dequeue);
+	d1 = getdata(pdeq_dequeue_l(&dequeue));
+	d2 = getdata(pdeq_dequeue_l(&dequeue));
+	d3 = getdata(pdeq_dequeue_l(&dequeue));
+	d4 = getdata(pdeq_dequeue_l(&dequeue));
 	printf("Enqueue R, dequeue L: %d %d %d %d\n", d1, d2, d3, d4);
 
 	e1.data = 1;
 	e2.data = 2;
 	e3.data = 3;
-	deq_enqueue_r(&e1.l, &dequeue);
-	deq_enqueue_r(&e2.l, &dequeue);
-	deq_enqueue_r(&e3.l, &dequeue);
-	d1 = getdata(deq_dequeue_r(&dequeue));
-	d2 = getdata(deq_dequeue_r(&dequeue));
-	d3 = getdata(deq_dequeue_r(&dequeue));
-	d4 = getdata(deq_dequeue_r(&dequeue));
+	pdeq_enqueue_r(&e1.l, &dequeue);
+	pdeq_enqueue_r(&e2.l, &dequeue);
+	pdeq_enqueue_r(&e3.l, &dequeue);
+	d1 = getdata(pdeq_dequeue_r(&dequeue));
+	d2 = getdata(pdeq_dequeue_r(&dequeue));
+	d3 = getdata(pdeq_dequeue_r(&dequeue));
+	d4 = getdata(pdeq_dequeue_r(&dequeue));
 	printf("Enqueue R, dequeue R: %d %d %d %d\n", d1, d2, d3, d4);
 
 	conc_enq_l();
