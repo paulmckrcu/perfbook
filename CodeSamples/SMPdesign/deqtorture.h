@@ -1,7 +1,5 @@
 /*
- * lockpdeq.c: simple lock-based parallel deq implementation.
- * 	This is similar to lockdeq.c, but expresses the parallel
- * 	implementation in terms of a simple single-lock-based deq.
+ * deqtorture.h: torture tests for double-ended queue.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,197 +17,6 @@
  *
  * Copyright (c) 2009 Paul E. McKenney, IBM Corporation.
  */
-
-#include "../api.h"
-
-/* First do the underlying single-locked deq implementation. */
-
-struct deq {
-	spinlock_t lock;
-	struct list_head chain;
-} ____cacheline_internodealigned_in_smp;
-
-void init_deq(struct deq *p)
-{
-	spin_lock_init(&p->lock);
-	INIT_LIST_HEAD(&p->chain);
-}
-
-struct list_head *deq_dequeue_l(struct deq *p)
-{
-	struct list_head *e;
-
-	spin_lock(&p->lock);
-	if (list_empty(&p->chain))
-		e = NULL;
-	else {
-		e = p->chain.prev;
-		list_del_init(e);
-	}
-	spin_unlock(&p->lock);
-	return e;
-}
-
-void deq_enqueue_l(struct list_head *e, struct deq *p)
-{
-	spin_lock(&p->lock);
-	list_add_tail(e, &p->chain);
-	spin_unlock(&p->lock);
-}
-
-struct list_head *deq_dequeue_r(struct deq *p)
-{
-	struct list_head *e;
-
-	spin_lock(&p->lock);
-	if (list_empty(&p->chain))
-		e = NULL;
-	else {
-		e = p->chain.next;
-		list_del_init(e);
-	}
-	spin_unlock(&p->lock);
-	return e;
-}
-
-void deq_enqueue_r(struct list_head *e, struct deq *p)
-{
-	spin_lock(&p->lock);
-	list_add(e, &p->chain);
-	spin_unlock(&p->lock);
-}
-
-/*
- * And now the concurrent implementation.
- *
- * Pdeq structure, empty list:
- *
- *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
- *     |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |
- *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
- *                               ^   ^
- *                               |   |
- *                            lidx   ridx
- *
- *
- * List after three pdeq_enqueue_l() invocations of "a", "b", and "c":
- *
- *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
- *     |   |   |   |   | c | b | a |   |   |   |   |   |   |   |   |
- *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
- *                   ^               ^
- *                   |               |
- *                lidx               ridx
- *
- * List after one pdeq_dequeue_r() invocations (removing "a"):
- *
- *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
- *     |   |   |   |   | c | b |   |   |   |   |   |   |   |   |   |
- *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
- *                   ^           ^
- *                   |           |
- *                lidx           ridx
- *
- * This is pretty standard.  The trick is that only the low-order bits
- * of lidx and ridx are used to index into a power-of-two sized hash
- * table.  Each bucket of the hash table is a circular doubly linked
- * list (AKA Linux-kernel list_head structure).  Left-hand operations
- * manipulate the tail of the selected list, while right-hand operations
- * manipulate the head of the selected list.  Each bucket has its own
- * lock, minimizing lock contention.  Each of the two indexes also has
- * its own lock.
- */
-
-/*
- * This must be a power of two.  If you want something else, also adjust
- * the moveleft() and moveright() functions.
- */
-
-#define PDEQ_N_BKTS 4
-
-struct pdeq {
-	spinlock_t llock;
-	int lidx;
-	/* char pad1[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */
-	spinlock_t rlock ____cacheline_internodealigned_in_smp;
-	int ridx;
-	/* char pad2[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */
-	struct deq bkt[PDEQ_N_BKTS];
-};
-
-static int moveleft(int idx)
-{
-	return (idx - 1) & (PDEQ_N_BKTS - 1);
-}
-
-static int moveright(int idx)
-{
-	return (idx + 1) & (PDEQ_N_BKTS - 1);
-}
-
-void init_pdeq(struct pdeq *d)
-{
-	int i;
-
-	d->lidx = 0;
-	spin_lock_init(&d->llock);
-	d->ridx = 1;
-	spin_lock_init(&d->rlock);
-	for (i = 0; i < PDEQ_N_BKTS; i++)
-		init_deq(&d->bkt[i]);
-}
-
-struct list_head *pdeq_dequeue_l(struct pdeq *d)
-{
-	struct list_head *e;
-	int i;
-
-	spin_lock(&d->llock);
-	i = moveright(d->lidx);
-	e = deq_dequeue_l(&d->bkt[i]);
-	if (e != NULL)
-		d->lidx = i;
-	spin_unlock(&d->llock);
-	return e;
-}
-
-struct list_head *pdeq_dequeue_r(struct pdeq *d)
-{
-	struct list_head *e;
-	int i;
-
-	spin_lock(&d->rlock);
-	i = moveleft(d->ridx);
-	e = deq_dequeue_r(&d->bkt[i]);
-	if (e != NULL)
-		d->ridx = i;
-	spin_unlock(&d->rlock);
-	return e;
-}
-
-void pdeq_enqueue_l(struct list_head *e, struct pdeq *d)
-{
-	int i;
-
-	spin_lock(&d->llock);
-	i = d->lidx;
-	deq_enqueue_l(e, &d->bkt[i]);
-	d->lidx = moveleft(d->lidx);
-	spin_unlock(&d->llock);
-}
-
-void pdeq_enqueue_r(struct list_head *e, struct pdeq *d)
-{
-	int i;
-
-	spin_lock(&d->rlock);
-	i = d->ridx;
-	deq_enqueue_r(e, &d->bkt[i]);
-	d->ridx = moveright(d->ridx);
-	spin_unlock(&d->rlock);
-}
-
-#ifdef TEST
 
 #define N_TEST_ELEMS 10
 
@@ -233,6 +40,7 @@ struct deq_test {
 	int datainc;
 	atomic_t *count;
 	int *goflag;
+	long long endtime;
 };
 
 void pdeq_enqueue_error(struct list_head *e, struct pdeq *d)
@@ -252,7 +60,7 @@ struct list_head *pdeq_dequeue_error(struct pdeq *d)
  * either be called directly (with the specified goflag already set
  * to GOFLAG_START) or via create_thread().
  */
-void *concurrent_enqueue(void *arg)
+void *concurrent_penqueue(void *arg)
 {
 	struct deq_test *t = (struct deq_test *)arg;
 	int i;
@@ -277,7 +85,7 @@ void *concurrent_enqueue(void *arg)
  * be exactly that required and the specified goflag already set to
  * GOFLAG_START), or via create_thread.
  */
-void *concurrent_dequeue(void *arg)
+void *concurrent_pdequeue(void *arg)
 {
 	struct deq_test *t = (struct deq_test *)arg;
 	int i;
@@ -298,6 +106,7 @@ void *concurrent_dequeue(void *arg)
 		p1 = list_entry(p0, struct deq_elem, l);
 		t->q[i++] = p1;
 	}
+	t->endtime = get_timestamp();
 	return (void *)(long)i;
 }
 
@@ -358,8 +167,8 @@ do { \
 do { \
 	goflag = GOFLAG_INIT; \
 	atomic_set(&count, 0); \
-	create_thread(concurrent_enqueue, (void *)&dte1); \
-	create_thread(concurrent_enqueue, (void *)&dte2); \
+	create_thread(concurrent_penqueue, (void *)&dte1); \
+	create_thread(concurrent_penqueue, (void *)&dte2); \
 	while (atomic_read(&count) < 2) \
 		barrier(); \
 	goflag = GOFLAG_START; \
@@ -380,7 +189,7 @@ do { \
 	\
 	atomic_set(&count, 0); \
 	goflag = GOFLAG_START; \
-	if ((i = (long)concurrent_dequeue(&dtdeq1)) != dtdeq1.nelem) { \
+	if ((i = (long)concurrent_pdequeue(&dtdeq1)) != dtdeq1.nelem) { \
 		printf("Expected to dequeue %d, got %d\n", \
 		       dtdeq1.nelem, i); \
 		abort(); \
@@ -497,10 +306,10 @@ void melee(void)
 
 	goflag = GOFLAG_INIT;
 	atomic_set(&count, 0);
-	create_thread(concurrent_enqueue, (void *)&dtenq1);
-	create_thread(concurrent_enqueue, (void *)&dtenq2);
-	create_thread(concurrent_dequeue, (void *)&dtdeq1);
-	create_thread(concurrent_dequeue, (void *)&dtdeq2);
+	create_thread(concurrent_penqueue, (void *)&dtenq1);
+	create_thread(concurrent_penqueue, (void *)&dtenq2);
+	create_thread(concurrent_pdequeue, (void *)&dtdeq1);
+	create_thread(concurrent_pdequeue, (void *)&dtdeq2);
 	while (atomic_read(&count) < 4)
 		barrier();
 	goflag = GOFLAG_START;
@@ -533,6 +342,126 @@ void melee(void)
 	if (!ok)
 		abort();
 	printf("OK\n");
+}
+
+#define N_PERF_MSGS (1000*1000)
+#define N_PERF_HEADSTART (N_PERF_MSGS / 100)
+
+struct deq_elem msgxmitarray[N_PERF_MSGS];
+struct deq_elem *msgrecvarray[N_PERF_MSGS];
+
+void simple_deq_perf(void)
+{
+	struct list_head d;
+	int i;
+	struct list_head *p;
+	long long starttime;
+	long long stoptime;
+
+	printf("Push %d elements sequentially through a list_head\n",
+	       N_PERF_MSGS);
+	INIT_LIST_HEAD(&d);
+	starttime = get_timestamp();
+	for (i = 0; i < N_PERF_MSGS; i++)
+		list_add(&msgxmitarray[i].l, &d);
+	while (!list_empty(&d)) {
+		p = d.prev;
+		list_del(p);
+	}
+	stoptime = get_timestamp();
+	printf("starttime=%lld, endtime=%lld, delta=%lld\n",
+	       starttime, stoptime, stoptime - starttime);
+}
+
+#ifdef DEQ_AND_PDEQ
+struct deq_test_1 {
+	struct deq *d;
+	int nelem;
+	atomic_t *count;
+	int *goflag;
+	long long endtime;
+};
+
+void *deq_perf_dequeue(void *arg)
+{
+	struct deq_test_1 *t = (struct deq_test_1 *)arg;
+	int i = 0;
+	struct list_head *p;
+
+	atomic_inc(t->count);
+	while (*t->goflag == GOFLAG_INIT)
+		barrier();
+	while (*t->goflag == GOFLAG_START) {
+		if (i == t->nelem)
+			break;
+		p = deq_dequeue_r(t->d);
+		if (p == NULL)
+			continue;
+		i++;
+	}
+	t->endtime = get_timestamp();
+	return (void *)(long)i;
+}
+
+void deq_perf(void)
+{
+	struct deq d;
+	struct deq_test_1 dt;
+	atomic_t count;
+	int goflag;
+	int i;
+	long long starttime;
+
+	printf("Push %d elements through a deq\n", N_PERF_MSGS);
+	init_deq(&d);
+	atomic_set(&count, 0);
+	dt.d = &d;
+	dt.nelem = N_PERF_MSGS;
+	dt.count = &count;
+	dt.goflag = &goflag;
+
+	goflag = GOFLAG_INIT;
+	create_thread(deq_perf_dequeue, (void *)&dt);
+	while (atomic_read(&count) < 1)
+		barrier();
+	starttime = get_timestamp();
+	for (i = 0; i < N_PERF_HEADSTART; i++)
+		deq_enqueue_l(&msgxmitarray[i].l, &d);
+	goflag = GOFLAG_START;
+	for (; i < N_PERF_MSGS; i++)
+		deq_enqueue_l(&msgxmitarray[i].l, &d);
+	wait_all_threads();
+	printf("starttime=%lld, endtime=%lld, delta=%lld\n",
+	       starttime, dt.endtime, dt.endtime - starttime);
+}
+#endif /* #ifdef DEQ_AND_PDEQ */
+
+void pdeq_perf(void)
+{
+	atomic_t count;
+	struct pdeq d;
+	struct deq_test dt;
+	int goflag;
+	int i;
+	long long starttime;
+
+	atomic_set(&count, 0);
+	printf("Push %d elements through a pdeq\n", N_PERF_MSGS);
+	init_pdeq(&d);
+	INIT_DEQUEUE(dt, pdeq_dequeue_r, msgrecvarray);
+	goflag = GOFLAG_INIT;
+	create_thread(concurrent_pdequeue, (void *)&dt);
+	while (atomic_read(&count) < 1)
+		barrier();
+	starttime = get_timestamp();
+	for (i = 0; i < N_PERF_HEADSTART; i++)
+		pdeq_enqueue_l(&msgxmitarray[i].l, &d);
+	goflag = GOFLAG_START;
+	for (; i < N_PERF_MSGS; i++)
+		pdeq_enqueue_l(&msgxmitarray[i].l, &d);
+	wait_all_threads();
+	printf("starttime=%lld, endtime=%lld, delta=%lld\n",
+	       starttime, dt.endtime, dt.endtime - starttime);
 }
 
 int getdata(struct list_head *p)
@@ -601,5 +530,10 @@ int main(int argc, char *argv[])
 	conc_push_l();
 	conc_push_r();
 	melee();
+
+	simple_deq_perf();
+#ifdef DEQ_AND_PDEQ
+	deq_perf();
+#endif /* #ifdef DEQ_AND_PDEQ */
+	pdeq_perf();
 }
-#endif /* #ifdef TEST */

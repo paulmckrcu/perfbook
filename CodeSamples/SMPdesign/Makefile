@@ -14,7 +14,7 @@
 #
 # Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
 
-PROGS = smpalloc lockdeq lockpdeq
+PROGS = smpalloc lockdeq lockhdeq locktdeq
 
 all: $(PROGS)
 
@@ -28,11 +28,14 @@ include ../Makefile.arch
 smpalloc: smpalloc.c ../api.h
 	cc $(GCC_ARGS) -g -o smpalloc -DTEST smpalloc.c -lpthread
 
-lockdeq: lockdeq.c ../api.h
+lockdeq: lockdeq.c deqtorture.h ../api.h
 	cc $(GCC_ARGS) -g -o lockdeq -DTEST lockdeq.c -lpthread
 
-lockpdeq: lockpdeq.c ../api.h
-	cc $(GCC_ARGS) -g -o lockpdeq -DTEST lockpdeq.c -lpthread
+lockhdeq: lockhdeq.c deqtorture.h ../api.h
+	cc $(GCC_ARGS) -g -o lockhdeq -DTEST lockhdeq.c -lpthread
+
+locktdeq: locktdeq.c deqtorture.h ../api.h
+	cc $(GCC_ARGS) -g -o locktdeq -DTEST locktdeq.c -lpthread
 
 clean:
 	rm $(PROGS)
