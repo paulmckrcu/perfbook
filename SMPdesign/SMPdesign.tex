@@ -19,138 +19,7 @@ in slow and complex solutions.
 
 \input{SMPdesign/partexercises}
 
-@@@
-The following section describes the ``forces'' that act on any SMP
-design, namely, the desirable properties that the designer is trying
-to achieve, such as good scalability, the pitfalls to be avoided,
-such as contention, overhead, and complexity, and the constraints
-imposed by the workload, such as read-intensity.
-@@@
-
-\section{Design Forces}
-\label{sec:SMPdesign:Design Forces}
-
-There are a number of forces that act on any programming project,
-with perhaps the most (in)famous including schedule pressure, elegance,
-performance, and work-life balance.
-Very often, perfectly handling one of the forces acting on the
-project will sacrifice the others, so that the most aggressive
-possible schedule will likely involve sacrifices in the areas of
-elegance, performance, and work-life balance.
-
-A given design pattern may be thought of as a particular way
-of balancing the forces acting on the design,
-with particularly good idioms, or ``design patterns'', describing
-particularly good balances among those forces~\cite{Alexander79,GOF95}.
-
-The forces acting on the performance of parallel programs are
-speedup,
-contention, overhead, read-to-write ratio, and complexity:
-\begin{description}
-\item[Speedup:]  Getting a program to run faster is the
-	only reason to go to all of the time and trouble
-	required to parallelize it.
-	Speedup is defined to be the ratio of the time required
-	to run a sequential version of the program to the time
-	required to run a parallel version.
-\item[Contention:]  If more CPUs are applied to a parallel
-	program than can be kept busy by that program,
-	the excess CPUs are prevented from doing
-	useful work by contention.
-\item[Work-to-Synchronization Ratio:]  A uniprocessor,
-	single-threaded, non-preemptible, and non-interruptible\footnote{
-		Either by masking interrupts or by being oblivious to them.}
-	version of a given parallel
-	program would not need the synchronization primitives.
-	Therefore, any time consumed by these primitives
-	(including communication cache misses as well as
-	locking primitives, atomic instructions, and memory
-	barriers)
-	is overhead that does not contribute directly to the useful
-	work that the program is intended to accomplish.
-	Note that the important measure is the
-	relationship between the synchronization overhead
-	and the overhead of the code in the critical section, with larger
-	critical sections able to tolerate greater synchronization overhead.
-\item[Read-to-Write Ratio:]  A data structure that is
-	rarely updated may often be protected with asymmetric
-	synchronization primitives that reduce readers' synchronization
-	overhead at the expense of that of writers, thereby
-	reducing overall synchronization overhead.
-	Corresponding optimizations are possible for frequently
-	updated data structures, as discussed in
-	Section~\ref{sec:advsync:Simple NBS} on
-	Page~\pageref{sec:advsync:Simple NBS}.
-\item[Complexity:]  A parallel program is more complex than
-	an equivalent sequential program because the parallel
-	program has a much larger state space than does the
-	sequential program.  A parallel programmer must
-	consider synchronization primitives, locking design,
-	critical-section identification,
-	and deadlock in the context of this larger state space.
-
-	This greater complexity often translates
-	to higher development and maintenance costs.
-	Therefore, budgetary constraints can
-	limit the number and types of modifications made to
-	an existing program, since a given degree of speedup is
-	worth only so much time and trouble.
-\end{description}
-These forces will act together to enforce a maximum speedup.
-The first three forces are deeply interrelated, so
-the remainder of this section analyzes these
-interrelationships.\footnote{
-	A real-world parallel system will have many additional
-	forces acting on it, such as data-structure layout,
-	memory size, memory-hierarchy latencies, and bandwidth limitations.}
-
-Note that these forces may also appear as part of the context.
-For example, speedup may act as a force (``the faster, the better'')
-or as a requirement of the workload, or ``context'' (``the system must
-support at least 10,000 web hits per second'').
-
-An understanding of the relationships between these forces can
-be very helpful when resolving the forces acting on an existing
-parallel program.
-\begin{enumerate}
-\item	The less time a program spends in critical sections,
-	the greater the potential speedup.
-\item	The fraction of time that the program spends in
-	a given critical section must be much less than
-	the reciprocal of the number of CPUs for the
-	actual speedup to approach the number of CPUs.
-	For example, a program running on 10 CPUs must spend
-	much less than one tenth of its time in the critical section
-	if it is to scale well.
-\item	Contention effects will consume the excess CPU and/or
-	wallclock time should the actual speedup be less than
-	the number of available CPUs.  The
-	larger the gap between the number of CPUs
-	and the actual speedup, the less efficiently the
-	CPUs will be used.
-	Similarly, the greater the desired efficiency, the smaller
-	the achievable speedup.
-\item	If the available synchronization primitives have
-	high overhead compared to the critical sections
-	that they guard, the best way to improve speedup
-	is to reduce the number of times that the primitives
-	are invoked (perhaps by fusing critical sections,
-	using data ownership, using RCU,
-	or by moving toward a more coarse-grained parallelism
-	such as code locking).
-\item	If the critical sections have high overhead compared
-	to the primitives guarding them, the best way
-	to improve speedup is to increase parallelism
-	by moving to reader/writer locking, data locking, RCU,
-	or data ownership.
-\item	If the critical sections have high overhead compared
-	to the primitives guarding them and the data structure
-	being guarded is read much more often than modified,
-	the best way to increase parallelism is to move
-	to reader/writer locking or RCU.
-\item	Many changes that improve SMP performance, for example,
-	reducing lock contention, also improve realtime latencies.
-\end{enumerate}
+\input{SMPdesign/criteria}
 
 \section{Lock Granularity}
 \label{sec:SMPdesign:Lock Granularity}
@@ -159,7 +28,7 @@ Figure~\ref{fig:SMPdesign:Design Patterns and Lock Granularity}
 gives a pictoral view of different levels of locking granularity,
 each of which is described in one of the following sections.
 
-\begin{figure}[htb]
+\begin{figure}[tb]
 \begin{center}
 \includegraphics{SMPdesign/LockGranularity}
 \end{center}

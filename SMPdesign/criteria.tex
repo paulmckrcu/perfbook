@@ -1,0 +1,142 @@
+% SMPdesign/criteria.tex
+
+\section{Design Criteria}
+\label{sec:SMPdesign:Design Criteria}
+
+Section~\ref{sec:intro:Parallel Programming Goals}
+called out the three parallel-programming goals of
+performance, productivity, and generality.
+However, more detailed design criteria are required to
+actually produce a real-world design, a task taken up in this section.
+This being the real world, these criteria often conflict to a
+greater or lesser degree, requiring that the designer carefully
+balance the resulting tradeoffs.
+
+As such, these criteria may be thought of as the ``forces''
+acting on the design, with particularly good tradeoffs between
+these forces being called ``design patterns''~\cite{Alexander79,GOF95}.
+
+The design criteria for attaining the three parallel-programming goals
+are speedup,
+contention, overhead, read-to-write ratio, and complexity:
+\begin{description}
+\item[Speedup:]  As noted in
+	Section~\ref{sec:intro:Parallel Programming Goals},
+	increased performance is the major reason
+	to go to all of the time and trouble
+	required to parallelize it.
+	Speedup is defined to be the ratio of the time required
+	to run a sequential version of the program to the time
+	required to run a parallel version.
+\item[Contention:]  If more CPUs are applied to a parallel
+	program than can be kept busy by that program,
+	the excess CPUs are prevented from doing
+	useful work by contention.
+	This may be lock contention, memory contention, or a host
+	of other performance killers.
+\item[Work-to-Synchronization Ratio:]  A uniprocessor,
+	single-threaded, non-preemptible, and non-interruptible\footnote{
+		Either by masking interrupts or by being oblivious to them.}
+	version of a given parallel
+	program would not need any synchronization primitives.
+	Therefore, any time consumed by these primitives
+	(including communication cache misses as well as
+	message latency, locking primitives, atomic instructions,
+	and memory barriers)
+	is overhead that does not contribute directly to the useful
+	work that the program is intended to accomplish.
+	Note that the important measure is the
+	relationship between the synchronization overhead
+	and the overhead of the code in the critical section, with larger
+	critical sections able to tolerate greater synchronization overhead.
+\item[Read-to-Write Ratio:]  A data structure that is
+	rarely updated may often be replicated rather than partitioned,
+	and furthermore may be protected with asymmetric
+	synchronization primitives that reduce readers' synchronization
+	overhead at the expense of that of writers, thereby
+	reducing overall synchronization overhead.
+	Corresponding optimizations are possible for frequently
+	updated data structures, as discussed in
+	Section~\ref{sec:advsync:Simple NBS} on
+	Page~\pageref{sec:advsync:Simple NBS}.  @@@ Counting and others... @@@
+\item[Complexity:]  A parallel program is more complex than
+	an equivalent sequential program because the parallel
+	program has a much larger state space than does the
+	sequential program, although these larger state spaces
+	can in some cases be easily understood given sufficient
+	regularity and structure.
+	A parallel programmer must
+	consider synchronization primitives, messaging, locking design,
+	critical-section identification,
+	and deadlock in the context of this larger state space.
+
+	This greater complexity often translates
+	to higher development and maintenance costs.
+	Therefore, budgetary constraints can
+	limit the number and types of modifications made to
+	an existing program, since a given degree of speedup is
+	worth only so much time and trouble.
+	Furthermore, there may be potential sequential optimizations
+	that are cheaper and more effective than parallelization.
+	As noted in
+	Section~\ref{sec:intro:Performance},
+	parallelization is but one performance optimization of
+	many, and is furthermore an optimization that applies
+	most readily to CPU-based bottlenecks.
+\end{description}
+These criteria will act together to enforce a maximum speedup.
+The first three criteria are deeply interrelated, so
+the remainder of this section analyzes these
+interrelationships.\footnote{
+	A real-world parallel system will be subject to many additional
+	design criteria, such as data-structure layout,
+	memory size, memory-hierarchy latencies, and bandwidth limitations.}
+
+Note that these criteria may also appear as part of the requirements
+specification.
+For example, speedup may act as a desideratum (``the faster, the better'')
+or as an absolute requirement of the workload, or ``context'' (``the system
+must support at least 1,000,000 web hits per second'').
+
+An understanding of the relationships between these design citeria can
+be very helpful when identifying appropriate design tradeoffs for a
+parallel program.
+\begin{enumerate}
+\item	The less time a program spends in critical sections,
+	the greater the potential speedup.
+\item	The fraction of time that the program spends in
+	a given exclusive critical section must be much less than
+	the reciprocal of the number of CPUs for the
+	actual speedup to approach the number of CPUs.
+	For example, a program running on 10 CPUs must spend
+	much less than one tenth of its time in the most-restrictive
+	critical section if it is to scale at all well.
+\item	Contention effects will consume the excess CPU and/or
+	wallclock time should the actual speedup be less than
+	the number of available CPUs.  The
+	larger the gap between the number of CPUs
+	and the actual speedup, the less efficiently the
+	CPUs will be used.
+	Similarly, the greater the desired efficiency, the smaller
+	the achievable speedup.
+\item	If the available synchronization primitives have
+	high overhead compared to the critical sections
+	that they guard, the best way to improve speedup
+	is to reduce the number of times that the primitives
+	are invoked (perhaps by batching critical sections,
+	using data ownership, using RCU,
+	or by moving toward a more coarse-grained design
+	such as code locking).
+\item	If the critical sections have high overhead compared
+	to the primitives guarding them, the best way
+	to improve speedup is to increase parallelism
+	by moving to reader/writer locking, data locking, RCU,
+	or data ownership.
+\item	If the critical sections have high overhead compared
+	to the primitives guarding them and the data structure
+	being guarded is read much more often than modified,
+	the best way to increase parallelism is to move
+	to reader/writer locking or RCU.
+\item	Many changes that improve SMP performance, for example,
+	reducing lock contention, also improve realtime latencies.
+\end{enumerate}
