@@ -451,6 +451,70 @@
 	``Vertical parallelism'' is also called ``pipelining''.
 
 \QuickQ{}
+	In this compound double-ended queue implementation, what should
+	be done if the queue has become non-empty while releasing
+	and reacquiring the lock?
+\QuickA{}
+	In this case, simply dequeue an item from the now-nonempty
+	queue, release both locks, and return.
+
+\QuickQ{}
+	Is the hashed double-ended queue a good solution?
+	Why or why not?
+\QuickA{}
+	The best way to answer this is to run \url{lockhdeq.c} on
+	a number of different multiprocessor systems, and you are
+	encouraged to do so in the strongest possible terms.
+	One reason for concern is that each operation on this
+	implementation must acquire not one but two locks.
+
+	The first well-designed performance study will be cited.
+	Do not forget to compare to a sequential implementation!
+
+\QuickQ{}
+	Move \emph{all} the elements to the queue that became empty?
+	In what possible universe is this braindead solution in any
+	way optimal???
+\QuickA{}
+	It is optimal in the case where data flow switches direction only
+	rarely.
+	It would of course be an extremely poor choice if the double-ended
+	queue was being emptied from both ends concurrently.
+	This of course raises the question as to what possible universe
+	emptying from both ends concurrently would be a reasonable
+	thing to do...
+
+\QuickQ{}
+	Why can't the compound parallel double-ended queue
+	implementation be symmetric?
+\QuickA{}
+	The need to avoid deadlock by imposing a lock hierarchy 
+	forces the asymmetry, just as it does in the fork-numbering
+	solution to the Dining Philosophers Problem.
+
+\QuickQ{}
+	Why is it necessary to retry the right-dequeue operation
+	on line~29 of
+	Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}?
+\QuickA{}
+	This retry is necessary because some other thread might have
+	enqueued an element between the time that this thread dropped
+	the lock and the time that it reacquired the lock.
+
+\QuickQ{}
+	Surely the left-hand lock must \emph{sometimes} be available!!!
+	So why is it necessary that line~26 of
+	Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}
+	unconditionally release the right-hand lock?
+\QuickA{}
+	It would be possible to use \url{spin_trylock()} to attempt
+	to acquire the left-hand lock when it was available.
+	However, the failure case would still need to drop the
+	right-hand lock and then re-acquire the two locks in order.
+	Making this transformation (and determining whether or not
+	it is worthwhile) is left as an exercise for the reader.
+
+\QuickQ{}
 	What would be an even better way of handling concurrency?
 \QuickA{}
 	Transform the problem to be solved so that multiple double-ended

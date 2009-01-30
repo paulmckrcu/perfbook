@@ -155,7 +155,7 @@ components.
 } \QuickQuizEnd
 
 \subsection{Double-Ended Queue}
-\label{sec:Double-Ended Queue}
+\label{sec:SMPdesign:Double-Ended Queue}
 
 A double-ended queue is a data structure containing a list of elements
 that may be inserted or removed from either end~\cite{Knuth73}.
@@ -163,7 +163,11 @@ It has been claimed that a lock-based implementation permitting
 concurrent operations on both ends of the double-ended queue is
 difficult~\cite{DanGrossman2007TMGCAnalogy}.
 This section shows how a partitioning design strategy can result
-in a reasonably simple implementation.
+in a reasonably simple implementation, looking at three
+general approaches in the following sections.
+
+\subsubsection{Right- and Left-Hand Locks}
+\label{sec:SMPdesign:Right- and Left-Hand Locks}
 
 \begin{figure}[tb]
 \begin{center}
@@ -192,6 +196,9 @@ end of the list can shift the queue from one special case to another
 at any time.
 It is far better to consider other designs.
 
+\subsubsection{Compound Double-Ended Queue}
+\label{sec:SMPdesign:Compound Double-Ended Queue}
+
 \begin{figure}[tb]
 \begin{center}
 \resizebox{3in}{!}{\includegraphics{SMPdesign/lockdeqpair}}
@@ -218,21 +225,33 @@ which case it is necessary to:
 
 \begin{enumerate}
 \item	If holding the right-hand lock, release it and acquire the
-	left-hand lock.
+	left-hand lock, rechecking that the queue is still empty.
 \item	Acquire the right-hand lock.
 \item	Rebalance the elements across the two queues.
 \item	Remove the required element.
 \item	Release both locks.
 \end{enumerate}
 
+\QuickQuiz{}
+	In this compound double-ended queue implementation, what should
+	be done if the queue has become non-empty while releasing
+	and reacquiring the lock?
+\QuickQuizAnswer{
+	In this case, simply dequeue an item from the now-nonempty
+	queue, release both locks, and return.
+} \QuickQuizEnd
+
 The rebalancing operation might well shuttle a given element back
 and forth between the two queues, wasting time and possibly requiring
 workload-dependent heuristics to obtain optimal performance.
-Although this might well be the best approach in some cases, we
-can do better.
+Although this might well be the best approach in some cases, it is
+interesting to try for an algorithm with greater determinism.
 
-One of the simplest and most effective ways to partition a data structure
-is to hash it.
+\subsubsection{Hashed Double-Ended Queue}
+\label{sec:SMPdesign:Hashed Double-Ended Queue}
+
+One of the simplest and most effective ways to deterministically
+partition a data structure is to hash it.
 It is possible to trivially hash a double-ended queue by assigning
 each element a sequence number based on its position in the list,
 so that the first element left-enqueued into an empty queue is numbered
@@ -421,25 +440,220 @@ Line~22 updates the left-hand index, and finally line~23 releases the lock.
 As noted earlier, the right-hand operations are completely analogous
 to their left-handed counterparts.
 
-In contrast to the dining philosophers solution,
-this implementation is an example of ``vertical parallelism'' or
-``pipelining'', given that data moves from one thread to another.
+\QuickQuiz{}
+	Is the hashed double-ended queue a good solution?
+	Why or why not?
+\QuickQuizAnswer{
+	The best way to answer this is to run \url{lockhdeq.c} on
+	a number of different multiprocessor systems, and you are
+	encouraged to do so in the strongest possible terms.
+	One reason for concern is that each operation on this
+	implementation must acquire not one but two locks.
+
+	The first well-designed performance study will be cited.
+	Do not forget to compare to a sequential implementation!
+} \QuickQuizEnd
+
+\subsubsection{Compound Double-Ended Queue Revisited}
+\label{sec:SMPdesign:Compound Double-Ended Queue Revisited}
+
+This section revisits the compound double-ended queue, using a trivial
+rebalancing scheme that moves all the elements from the non-empty
+queue to the now-empty queue.
 
 \QuickQuiz{}
-	What would be an even better way of handling concurrency?
+	Move \emph{all} the elements to the queue that became empty?
+	In what possible universe is this braindead solution in any
+	way optimal???
 \QuickQuizAnswer{
-	Transform the problem to be solved so that multiple double-ended
-	queues can be used in parallel, allowing the simpler single-lock
-	double-ended queue to be used.
-	This ``horizontal scaling''
-	approach allows much better performance and scalability,
-	and is especially attractive if there are multiple threads
-	working either end of the queue, because in this case there
-	are no ordering guarantees anyway.
+	It is optimal in the case where data flow switches direction only
+	rarely.
+	It would of course be an extremely poor choice if the double-ended
+	queue was being emptied from both ends concurrently.
+	This of course raises the question as to what possible universe
+	emptying from both ends concurrently would be a reasonable
+	thing to do...
 } \QuickQuizEnd
+
+In contrast to the hashed implentation presented in
+the previous section, the compound implementation will build on
+a sequential implementation of a double-ended queue that uses
+neither locks nor atomic operations.
+
+\begin{figure}[bp]
+{ \scriptsize
+\begin{verbatim}
+  1 struct list_head *pdeq_dequeue_l(struct pdeq *d)
+  2 {
+  3   struct list_head *e;
+  4   int i;
+  5 
+  6   spin_lock(&d->llock);
+  7   e = deq_dequeue_l(&d->ldeq);
+  8   if (e == NULL) {
+  9     spin_lock(&d->rlock);
+ 10     e = deq_dequeue_l(&d->rdeq);
+ 11     list_splice_init(&d->rdeq.chain, &d->ldeq.chain);
+ 12     spin_unlock(&d->rlock);
+ 13   }
+ 14   spin_unlock(&d->llock);
+ 15   return e;
+ 16 }
+ 17 
+ 18 struct list_head *pdeq_dequeue_r(struct pdeq *d)
+ 19 {
+ 20   struct list_head *e;
+ 21   int i;
+ 22 
+ 23   spin_lock(&d->rlock);
+ 24   e = deq_dequeue_r(&d->rdeq);
+ 25   if (e == NULL) {
+ 26     spin_unlock(&d->rlock);
+ 27     spin_lock(&d->llock);
+ 28     spin_lock(&d->rlock);
+ 29     e = deq_dequeue_r(&d->rdeq);
+ 30     if (e == NULL) {
+ 31       e = deq_dequeue_r(&d->ldeq);
+ 32       list_splice_init(&d->ldeq.chain, &d->rdeq.chain);
+ 33     }
+ 34     spin_unlock(&d->llock);
+ 35   }
+ 36   spin_unlock(&d->rlock);
+ 37   return e;
+ 38 }
+ 39 
+ 40 void pdeq_enqueue_l(struct list_head *e, struct pdeq *d)
+ 41 {
+ 42   int i;
+ 43 
+ 44   spin_lock(&d->llock);
+ 45   deq_enqueue_l(e, &d->ldeq);
+ 46   spin_unlock(&d->llock);
+ 47 }
+ 48 
+ 49 void pdeq_enqueue_r(struct list_head *e, struct pdeq *d)
+ 50 {
+ 51   int i;
+ 52 
+ 53   spin_lock(&d->rlock);
+ 54   deq_enqueue_r(e, &d->rdeq);
+ 55   spin_unlock(&d->rlock);
+ 56 }
+\end{verbatim}
+}
+\caption{Compound Parallel Double-Ended Queue Implementation}
+\label{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}
+\end{figure}
+
+Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}
+shows the implementation.
+Unlike the hashed implementation, this compound implementation is
+asymmetric, so that we must consider the \url{pdeq_dequeue_l()}
+and \url{pdeq_dequeue_r()} implementations separately.
+
+\QuickQuiz{}
+	Why can't the compound parallel double-ended queue
+	implementation be symmetric?
+\QuickQuizAnswer{
+	The need to avoid deadlock by imposing a lock hierarchy 
+	forces the asymmetry, just as it does in the fork-numbering
+	solution to the Dining Philosophers Problem.
+} \QuickQuizEnd
+
+The \url{pdeq_dequeue_l()} implementation is shown on lines~1-16
+of the figure.
+Line 6 acquires the left-hand lock, which line~14 releases.
+Line~7 attempts to left-dequeue an element from the left-hand underlying
+double-ended queue, and, if successful, skips lines~8-13 to simply
+return this element.
+Otherwise, line~9 acquires the right-hand lock, line~10
+left-dequeues an element from the right-hand queue,
+and line~11 moves any remaining elements on the right-hand
+queue to the left-hand queue, and line~12 releases the right-hand
+lock.
+The element, if any, that was dequeued one line~10 will be returned.
+
+The \url{pdeq_dequeue_r()} implementation is shown on lines~18-38
+of the figure.
+As before, line~23 acquires the right-hand lock (and line~36
+releases it), and line~24 attempts to right-dequeue an element
+from the right-hand queue, and, if successful, skips lines~24-35
+to simply return this element.
+However, if line~25 determines that there was no element to dequeue,
+line~26 releases the right-hand lock and lines~27-28 acquire both
+locks in the proper order.
+Line~29 then attempts to right-dequeue an element from the right-hand
+list again, and if line~30 determines that this second attempt has
+failed, line~31 right-dequeues an element from the left-hand queue
+(if there is one available) and line~32 moves any remaining elements
+from the left-hand queue to the right-hand queue.
+Either way, line~34 releases the left-hand lock.
+
+\QuickQuiz{}
+	Why is it necessary to retry the right-dequeue operation
+	on line~29 of
+	Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}?
+\QuickQuizAnswer{
+	This retry is necessary because some other thread might have
+	enqueued an element between the time that this thread dropped
+	the lock and the time that it reacquired the lock.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Surely the left-hand lock must \emph{sometimes} be available!!!
+	So why is it necessary that line~26 of
+	Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}
+	unconditionally release the right-hand lock?
+\QuickQuizAnswer{
+	It would be possible to use \url{spin_trylock()} to attempt
+	to acquire the left-hand lock when it was available.
+	However, the failure case would still need to drop the
+	right-hand lock and then re-acquire the two locks in order.
+	Making this transformation (and determining whether or not
+	it is worthwhile) is left as an exercise for the reader.
+} \QuickQuizEnd
+
+The \url{pdeq_enqueue_l()} implementation is shown on lines~40-47 of
+Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}.
+Line~44 acquires the left-hand spinlock, line~45 left-enqueues the
+element onto the left-hand queue, and finally line~46 releases
+the lock.
+The \url{pdeq_enqueue_r()} implementation (shown on lines~49-56)
+is quite similar.
+
+This compound implementation is somewhat more complex than the
+hashed variant presented in
+Section~\ref{sec:SMPdesign:Hashed Double-Ended Queue},
+but is still reasonably simple.
+Of course, a more intelligent rebalancing scheme could be arbitrarily
+complex, but the simple scheme shown here will work well in a number
+of reasonable situations.
 
 \subsection{Partitioning Example Discussion}
 \label{sec:SMPdesign:Partitioning Example Discussion}
+
+In contrast to the dining philosophers solution, the double-ended
+queue implementations are examples of ``vertical parallelism'' or
+``pipelining'', given that data moves from one thread to another.
+
+\QuickQuiz{}
+	Is there a significantly better way of handling concurrency
+	for double-ended queues?
+\QuickQuizAnswer{
+	Transform the problem to be solved so that multiple double-ended
+	queues can be used in parallel, allowing the simpler single-lock
+	double-ended queue to be used, and perhaps also replace each
+	double-ended queue with a pair of conventional single-ended queues.
+	Without such ``horizontal scaling'', the speedup is limited
+	to 2.0.
+	In contrast, horizontal-scaling designs can enable very large
+	speedups, and are especially attractive if there are multiple threads
+	working either end of the queue, because in this case the dequeue
+	simply cannot provide strong ordering guarantees.
+	And if there are no guarantees, we may as well obtain the
+	performance benefits that come with refusing to provide the
+	guarantees, right?
+} \QuickQuizEnd
 
 These two examples show just how powerful partitioning can be in
 devising parallel algorithms.
