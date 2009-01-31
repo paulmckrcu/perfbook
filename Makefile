@@ -140,7 +140,10 @@ EPSSOURCES = \
 	defer/rwlockRCUperfPREEMPT.eps \
 	defer/rwlockRCUperfwtPREEMPT.eps \
 	defer/rwlockRCUupdate.eps \
-	easy/Mandel_zoom_00_mandelbrot_set.eps
+	easy/Mandel_zoom_00_mandelbrot_set.eps \
+	intro/FourTaskCategories.eps \
+	intro/Generality.eps \
+	intro/PPGrelation.eps
 
 all: 2up
 
