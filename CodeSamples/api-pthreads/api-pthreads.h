@@ -40,15 +40,12 @@
 #define barrier() __asm__ __volatile__("": : :"memory")
 
 /*
- * Machine parameters.
+ * Default machine parameters.
  */
 
 #ifndef CACHE_LINE_SIZE
 #define CACHE_LINE_SIZE 128
 #endif /* #ifndef CACHE_LINE_SIZE */
-
-#define ____cacheline_internodealigned_in_smp \
-	__attribute__((__aligned__(1 << 6)))
 
 /*
  * Exclusive locking primitives.
@@ -220,6 +217,19 @@ static void wait_all_threads(void)
 		    tid != __THREAD_ID_MAP_WAITING)
 			(void)wait_thread(tid);
 	}
+}
+
+/*
+ * timekeeping -- very crude -- should use MONOTONIC...
+ */
+
+long long get_microseconds(void)
+{
+	struct timeval tv;
+
+	if (gettimeofday(&tv, NULL) != 0)
+		abort();
+	return ((long long)tv.tv_sec) * 1000000LL + (long long)tv.tv_usec;
 }
 
 /*

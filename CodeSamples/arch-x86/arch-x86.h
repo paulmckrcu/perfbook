@@ -25,7 +25,12 @@
  * Machine parameters.
  */
 
+#define CONFIG_SMP
+
 #define CACHE_LINE_SIZE 64
+#define ____cacheline_internodealigned_in_smp \
+	__attribute__((__aligned__(1 << 6)))
+
 #define LOCK_PREFIX "lock ; "
 
 /*

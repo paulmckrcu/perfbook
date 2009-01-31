@@ -106,7 +106,7 @@ void *concurrent_pdequeue(void *arg)
 		p1 = list_entry(p0, struct deq_elem, l);
 		t->q[i++] = p1;
 	}
-	t->endtime = get_timestamp();
+	t->endtime = get_microseconds();
 	return (void *)(long)i;
 }
 
@@ -361,15 +361,15 @@ void simple_deq_perf(void)
 	printf("Push %d elements sequentially through a list_head\n",
 	       N_PERF_MSGS);
 	INIT_LIST_HEAD(&d);
-	starttime = get_timestamp();
+	starttime = get_microseconds();
 	for (i = 0; i < N_PERF_MSGS; i++)
 		list_add(&msgxmitarray[i].l, &d);
 	while (!list_empty(&d)) {
 		p = d.prev;
 		list_del(p);
 	}
-	stoptime = get_timestamp();
-	printf("starttime=%lld, endtime=%lld, delta=%lld\n",
+	stoptime = get_microseconds();
+	printf("starttime=%lld, endtime=%lld, delta=%lld us\n",
 	       starttime, stoptime, stoptime - starttime);
 }
 
@@ -399,7 +399,7 @@ void *deq_perf_dequeue(void *arg)
 			continue;
 		i++;
 	}
-	t->endtime = get_timestamp();
+	t->endtime = get_microseconds();
 	return (void *)(long)i;
 }
 
@@ -424,14 +424,14 @@ void deq_perf(void)
 	create_thread(deq_perf_dequeue, (void *)&dt);
 	while (atomic_read(&count) < 1)
 		barrier();
-	starttime = get_timestamp();
+	starttime = get_microseconds();
 	for (i = 0; i < N_PERF_HEADSTART; i++)
 		deq_enqueue_l(&msgxmitarray[i].l, &d);
 	goflag = GOFLAG_START;
 	for (; i < N_PERF_MSGS; i++)
 		deq_enqueue_l(&msgxmitarray[i].l, &d);
 	wait_all_threads();
-	printf("starttime=%lld, endtime=%lld, delta=%lld\n",
+	printf("starttime=%lld, endtime=%lld, delta=%lld us\n",
 	       starttime, dt.endtime, dt.endtime - starttime);
 }
 #endif /* #ifdef DEQ_AND_PDEQ */
@@ -453,14 +453,14 @@ void pdeq_perf(void)
 	create_thread(concurrent_pdequeue, (void *)&dt);
 	while (atomic_read(&count) < 1)
 		barrier();
-	starttime = get_timestamp();
+	starttime = get_microseconds();
 	for (i = 0; i < N_PERF_HEADSTART; i++)
 		pdeq_enqueue_l(&msgxmitarray[i].l, &d);
 	goflag = GOFLAG_START;
 	for (; i < N_PERF_MSGS; i++)
 		pdeq_enqueue_l(&msgxmitarray[i].l, &d);
 	wait_all_threads();
-	printf("starttime=%lld, endtime=%lld, delta=%lld\n",
+	printf("starttime=%lld, endtime=%lld, delta=%lld us\n",
 	       starttime, dt.endtime, dt.endtime - starttime);
 }
 

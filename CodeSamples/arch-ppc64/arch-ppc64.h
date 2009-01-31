@@ -25,9 +25,12 @@
  * Machine parameters.
  */
 
-#define CACHE_LINE_SIZE 128
 #define CONFIG_SMP
 #define CONFIG_PPC64
+
+#define CACHE_LINE_SIZE 128
+#define ____cacheline_internodealigned_in_smp \
+	__attribute__((__aligned__(1 << 7)))
 
 /*
  * Atomic data structure, initialization, and access.
