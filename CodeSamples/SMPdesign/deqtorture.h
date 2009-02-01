@@ -537,6 +537,7 @@ int main(int argc, char *argv[])
 	conc_push_r();
 	melee();
 
+	run_on(0);
 	simple_deq_perf();
 #ifdef DEQ_AND_PDEQ
 	deq_perf();
