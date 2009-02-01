@@ -61,8 +61,6 @@
  * Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
  */
 
-#include <sched.h>
-
 /*
  * Test variables.
  */
@@ -114,9 +112,7 @@ void *rcu_read_perf_test(void *arg)
 	cpu_set_t mask;
 	long long n_reads_local = 0;
 
-	CPU_ZERO(&mask);
-	CPU_SET(me, &mask);
-	sched_setaffinity(0, sizeof(mask), &mask);
+	run_on(me);
 	atomic_inc(&nthreadsrunning);
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 1);

@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #define __USE_GNU
 #include <pthread.h>
+#include <sched.h>
 #include <sys/param.h>
 /* #include "atomic.h" */
 
@@ -217,6 +218,15 @@ static void wait_all_threads(void)
 		    tid != __THREAD_ID_MAP_WAITING)
 			(void)wait_thread(tid);
 	}
+}
+
+static void run_on(int cpu)
+{
+	cpu_set_t mask;
+
+	CPU_ZERO(&mask);
+	CPU_SET(cpu, &mask);
+	sched_setaffinity(0, sizeof(mask), &mask);
 }
 
 /*
