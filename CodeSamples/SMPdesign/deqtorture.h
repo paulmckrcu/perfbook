@@ -64,10 +64,12 @@ void *concurrent_penqueue(void *arg)
 {
 	struct deq_test *t = (struct deq_test *)arg;
 	int i;
+	int me;
 	struct deq_elem *p = t->p;
 	int v = t->datastart;
 
-	atomic_inc(t->count);
+	me = atomic_add_return(1, t->count) + 1;
+	run_on(me);
 	while (*t->goflag == GOFLAG_INIT)
 		barrier();
 
@@ -89,10 +91,12 @@ void *concurrent_pdequeue(void *arg)
 {
 	struct deq_test *t = (struct deq_test *)arg;
 	int i;
+	int me;
 	struct list_head *p0;
 	struct deq_elem *p1;
 
-	atomic_inc(t->count);
+	me = atomic_add_return(1, t->count) + 1;
+	run_on(me);
 	while (*t->goflag == GOFLAG_INIT)
 		barrier();
 
@@ -386,9 +390,11 @@ void *deq_perf_dequeue(void *arg)
 {
 	struct deq_test_1 *t = (struct deq_test_1 *)arg;
 	int i = 0;
+	int me;
 	struct list_head *p;
 
-	atomic_inc(t->count);
+	me = atomic_add_return(1, t->count) + 1;
+	run_on(me);
 	while (*t->goflag == GOFLAG_INIT)
 		barrier();
 	while (*t->goflag == GOFLAG_START) {
