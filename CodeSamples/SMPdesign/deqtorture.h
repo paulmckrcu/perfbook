@@ -481,6 +481,7 @@ int main(int argc, char *argv[])
 {
 	int d1, d2, d3, d4;
 	struct deq_elem e1, e2, e3;
+	int i;
 	struct list_head *p;
 	struct pdeq dequeue;
 
@@ -542,5 +543,7 @@ int main(int argc, char *argv[])
 #ifdef DEQ_AND_PDEQ
 	deq_perf();
 #endif /* #ifdef DEQ_AND_PDEQ */
-	pdeq_perf();
+	for (i = 0; i < 10; i++) {
+		pdeq_perf();
+	}
 }
