@@ -51,14 +51,18 @@ static void rcu_read_lock(void)
 	 */
 
 	rrgp = &__get_thread_var(rcu_reader_gp);
+retry:
 	tmp = *rrgp;
 	if ((tmp & RCU_GP_CTR_NEST_MASK) == 0)
 		tmp = rcu_gp_ctr;
 	tmp++;
-	/* BUG!!!  Counter overflow while preempted here can break RCU. */
 	*rrgp = tmp;
 	smp_mb();
-
+	if (((tmp & RCU_GP_CTR_NEST_MASK) == 1) &&
+	    ((rcu_gp_ctr - tmp) > (RCU_GP_CTR_NEST_MASK << 8)) != 0) {
+		(*rrgp)--;
+		goto retry;
+	}
 }
 
 static void rcu_read_unlock(void)
