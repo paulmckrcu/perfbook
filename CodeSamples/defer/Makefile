@@ -16,7 +16,22 @@
 
 include ../Makefile.arch
 
-PROGS = gettimestamp gettimestampmp rcu rcu64 rcu64_atomicgp rcu_lock rcu_lock_percpu rcu_nest rcu_nest_qs rcu_qs rcu_rcg rcu_rcpg rcu_rcpl rcu_rcpls rcu_ts
+PROGS =	gettimestamp \
+	gettimestampmp \
+	rcu \
+	rcu64 \
+	rcu64_atomicgp \
+	rcu_lock \
+	rcu_lock_percpu \
+	rcu_nest \
+	rcu_nest32 \
+	rcu_nest_qs \
+	rcu_qs \
+	rcu_rcg \
+	rcu_rcpg \
+	rcu_rcpl \
+	rcu_rcpls \
+	rcu_ts
 
 all: $(PROGS)
 
@@ -43,6 +58,9 @@ rcu_lock_percpu: rcu_lock_percpu.c rcu_lock_percpu.h ../api.h rcutorture.h
 
 rcu_nest: rcu_nest.c rcu_nest.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_nest -DTEST rcu_nest.c -lpthread
+
+rcu_nest32: rcu_nest32.c rcu_nest32.h ../api.h rcutorture.h
+	cc $(GCC_ARGS) -o rcu_nest32 -DTEST rcu_nest32.c -lpthread
 
 rcu_nest_qs: rcu_nest_qs.c rcu_nest_qs.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_nest_qs -DTEST rcu_nest_qs.c -lpthread
