@@ -61,6 +61,7 @@ void synchronize_rcu(void)
 	 */
 
 	flip_counter_and_wait();
+	barrier();
 	flip_counter_and_wait();
 
 	/* Let other synchronize_rcu() instances move ahead. */
