@@ -28,7 +28,7 @@ static void flip_counter_and_wait(void)
 
 	/* Advance to a new grace-period number, enforce ordering. */
 
-	rcu_gp_ctr += RCU_GP_CTR_BOTTOM_BIT;
+	rcu_gp_ctr ^= RCU_GP_CTR_BOTTOM_BIT;
 	smp_mb();
 
 	/*
