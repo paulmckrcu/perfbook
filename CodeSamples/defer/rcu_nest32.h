@@ -56,7 +56,7 @@ static void rcu_read_lock(void)
 	rrgp = &__get_thread_var(rcu_reader_gp);
 	tmp = *rrgp;
 	if ((tmp & RCU_GP_CTR_NEST_MASK) == 0)
-		*rrgp = rcu_gp_ctr + 1;
+		*rrgp = ACCESS_ONCE(rcu_gp_ctr) + 1;
 	else
 		*rrgp = tmp + 1;
 	smp_mb();
