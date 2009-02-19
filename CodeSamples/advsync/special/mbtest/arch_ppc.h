@@ -34,6 +34,7 @@
 /*
  * Pick up the value pointed to by src, force a branch and isync,
  * then store the value through the pointer dst.
+ * @@@ This appears to be broken, both definitions.
  */
 #if 0
 static inline cisync(long *src, long *dst)
