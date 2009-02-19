@@ -1,5 +1,6 @@
 /*
- * mb_ses_ws_whl.c: Yet another ornate load-store chain.
+ * mb_lbs_ws.c: in one thread, run a load, a barrier, and a store,
+ *	while in another spinning on a load, then doing a store.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,45 +21,37 @@
 
 #define THREAD_0 \
 	do { \
-		state.a = 1; \
-		eieio(); \
-		state.b = 1; \
+		state.b = state.a; \
+		hwsync(); \
+		state.x = 1; \
+		if (state.b != 0) \
+			state.badcount++; \
 	} while (0)
 
 #define THREAD_1 \
 	do { \
-		if (state.b == 1) { \
+		while (state.x == 0) \
 			barrier(); \
-			state.c = 1; \
-			break; \
-		} \
-	} while (1)
+		state.a = 1; \
+	} while (0)
 
-#define THREAD_2 \
-	do { \
-		if (state.c == 1) { \
-			hwsync(); \
-			if (state.a == 0) \
-				state.badcount++; \
-			break; \
-		} \
-	} while (1)
+/* #define THREAD_2 */
 
 /* #define THREAD_3 */
+
 /* #define THREAD_4 */
 
 #include "mbtest.h"
 
 struct cache_preload cache_preload[] = {
+	{ 1, &state.a },
 	{ 0, &state.b },
-	{ 1, &state.c },
-	{ 2, &state.a },
-	{-2, NULL },
+	{ 0, &state.x },
+	{-1, NULL },
 };
 
 struct thread_assignment thread_assignment[] = {
-	{ 0, thread_0 },
-	{ 1, thread_1 },
-	{ 2, thread_2 },
+	{ 0 /* 0 */, thread_0 },
+	{ 1 /* 2 */, thread_1 },
 	{-1, NULL },
 };
