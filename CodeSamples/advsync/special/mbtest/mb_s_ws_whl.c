@@ -26,14 +26,14 @@
 #define THREAD_1 \
 	do { \
 		while (state.a == 0) \
-			continue; \
+			barrier(); \
 		state.b = 1; \
 	} while (0)
 
 #define THREAD_2 \
 	do { \
 		while (state.b == 0) \
-			continue; \
+			barrier(); \
 		hwsync(); \
 		if (state.a == 0) \
 			state.badcount++; \

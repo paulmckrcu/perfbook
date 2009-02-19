@@ -36,24 +36,26 @@
 		while (state.d1 != 1) \
 			barrier(); \
 		hwsync(); \
-		if (state.a == 1 &&  \
-		    state.b == 0) { \
-			if (state.a1 == 0 && \
-			    state.b1 == 1) {  \
-				state.badcount++; \
-				break; \
-			} else if (state.a2 == 0 && \
-				   state.b2 == 1) {  \
-					state.badcount++; \
-					break; \
-			} \
-		} else if (state.a1 == 1 &&  \
-			   state.b1 == 0) { \
-				if (state.a2 == 0 && \
-				    state.b2 == 1) {  \
-					state.badcount++; \
-					break; \
-			} \
+		if (state.a1 == 1 && \
+		    state.a == 0 && \
+		    state.b == 1 && \
+		    state.b1 == 0) { \
+			state.badcount++; \
+			break; \
+		} \
+		if (state.a2 == 1 && \
+		    state.a == 0 && \
+		    state.b == 1 && \
+		    state.b2 == 0) { \
+			state.badcount++; \
+			break; \
+		} \
+		if (state.a2 == 1 && \
+		    state.a1 == 0 && \
+		    state.b1 == 1 && \
+		    state.b2 == 0) { \
+			state.badcount++; \
+			break; \
 		} \
 	} while (0)
 
@@ -94,5 +96,6 @@ struct thread_assignment thread_assignment[] = {
 	{ /* 1 */ 2, thread_1 },
 	{ /* 2 */ 4, thread_2 },
 	{ /* 3 */ 6, thread_3 },
+	{ /* 4 */ 8, thread_4 },
 	{-1, NULL },
 };
