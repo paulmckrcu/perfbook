@@ -147,7 +147,8 @@ struct ctxt_state {
 	long	oldn;
 	long	anomalies;
 	long	badcount;
-	char	miscfill[CACHE_LINE_SIZE - 6 * sizeof(long)];
+	long	oldbadcount;
+	char	miscfill[CACHE_LINE_SIZE - 7 * sizeof(long)];
 	struct cacheline fillstorebuffer[NOISE_SIZE_MAX];
 } state = { 0 };
 
@@ -301,6 +302,21 @@ void preload(int mythread)
 	}
 }
 
+void printfullstate(void)
+{
+	long t = gettb();
+	time_t tt;
+
+	tt = time(NULL);
+	printf("A = %ld %ld %ld\n", state.a, state.a1, state.a2);
+	printf("B = %ld %ld %ld\n", state.b, state.b1, state.b2);
+	printf("C = %ld %ld %ld\n", state.c, state.c1, state.c2);
+	printf("D = %ld %ld %ld\n", state.d, state.d1, state.d2);
+	printf("X = %ld %ld %ld\n", state.x, state.x1, state.x2);
+	printf("Y = %ld %ld %ld\n", state.y, state.y1, state.y2);
+	printf("Z = %ld %ld %ld\n", state.z, state.z1, state.z2);
+}
+
 struct thread_assignment {
 	int cpu;
 	void *(*thread)(void *);
@@ -320,6 +336,7 @@ void *thread_0(void *me_in)
 
 	startyourengines(mycpu);
 	while (state.n < ncycles) {
+		state.oldbadcount = state.badcount;
 		state.oldn = state.n; /* set up for upcoming cycle. */
 		state.a = state.b = state.c = state.d = state.x =
 			state.y = state.z = 0;
@@ -343,6 +360,9 @@ void *thread_0(void *me_in)
 		while (state.f)
 			barrier();  /* should spin in cache. */
 		hwsync();
+		if (state.oldbadcount == 0 && state.badcount != 0) {
+			printfullstate();
+		}
 	}
 	return NULL;
 }
