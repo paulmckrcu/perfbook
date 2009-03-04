@@ -45,7 +45,8 @@ LATEXSOURCES = \
 	SMPdesign/criteria.tex \
 	stats/stats.tex \
 	locking/locking.tex \
-	time/time.tex
+	time/time.tex \
+	toolsoftrade/toolsoftrade.tex
 
 EPSSOURCES = \
 	SMPdesign/AllocatorPool.eps \
