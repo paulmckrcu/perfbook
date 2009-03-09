@@ -7,17 +7,23 @@ The toy RCU implementations in this section are designed not for
 high performance, practicality, or any kind of production use,
 but rather for clarity.
 Nevertheless, you will need a thorough understanding of
-Chapters~\ref{chp:Introduction} and
+Chapters~\ref{chp:Introduction},
+\ref{chp:Hardware and its Habits},
+\ref{chp:Tools of the Trade},
+\ref{cha:Partitioning and Synchronization Design},
+and
 \ref{chp:defer:Deferred Processing}
 for even these toy RCU implementations to be easily understandable.
 
 Section~\ref{defer:Lock-Based RCU} presents a rudimentary
 RCU implementation based on simple locking, while
 Section~\ref{defer:Simple Counter-Based RCU} through
-\ref{defer:Scalable Counter-Based RCU With Shared Grace Periods}
+\ref{defer:RCU Based on Quiescent States}
 present a series of
 simple RCU implementations based on locking, reference counters,
 and free-running counters.
+Finally, Section~\ref{defer:Summary of Toy RCU Implementations}
+provides a summary and a list of desirable RCU properties.
 
 \subsubsection{Lock-Based RCU}
 \label{defer:Lock-Based RCU}
@@ -1716,3 +1722,66 @@ Those wishing an even deeper understanding are invited to read
 Appendix~\ref{app:rcuimpl:Read-Copy Update Implementations},
 which presents some RCU implementations that have seen extensive
 use in production.
+
+The preceding sections listed some desirable properties of the
+various RCU primitives.
+The following list is provided for easy reference for those wishing to
+create a new RCU implementation.
+
+\begin{enumerate}
+\item	There must be read-side primitives (such as \url{rcu_read_lock()}
+	and \url{rcu_read_unlock()}) and grace-period primitives
+	(such as \url{synchronize_rcu()} and \url{call_rcu()}), such
+	that any RCU read-side critical section in existence at the
+	start of a grace period has completed by the end of the
+	grace period.
+\item	RCU read-side primitives should have minimal overhead.
+	In particular, expensive operations such as cache misses,
+	atomic instructions, memory barriers, and branches should
+	be avoided.
+\item	RCU read-side primitives should have $O(1)$ computational
+	complexity to enable real-time use.
+	(This implies that readers run concurrently with updaters.)
+\item	RCU read-side primitives should be usable in all contexts
+	(in the Linux kernel, they are permitted everywhere except in
+	the idle loop).
+	An important special case is that RCU read-side primitives be
+	usable within an RCU read-side critical section, in other words,
+	that it be possible to nest RCU read-side critical sections.
+\item	RCU read-side primitives should be unconditional, with no
+	failure returns.
+	This property is extremely important, as failure checking
+	increases complexity and complicates testing and validation.
+\item	Any operation other than a quiescent state (and thus a grace
+	period) should be permitted in an RCU read-side critical section.
+	In particular, non-idempotent operations such as I/O should be
+	permitted.
+\item	It should be possible to update an RCU-protected data structure
+	while executing within an RCU read-side critical section.
+\item	Both RCU read-side and update-side primitives should be independent
+	of memory allocator design and implementation, in other words,
+	the same RCU implementation should be able to protect a given
+	data structure regardless of how the data elements are allocated
+	and freed.
+\item	RCU grace periods should not be blocked by threads that
+	halt outside of RCU read-side critical sections.
+	(But note that most quiescent-state-based implementations
+	violate this desideratum.)
+\end{enumerate}
+
+\QuickQuiz{}
+	Given that grace periods are prohibited within RCU read-side
+	critical sections, how can an RCU data structure possibly be 
+	updated while in an RCU read-side critical section?
+\QuickQuizAnswer{
+	This situation is one reason for the existence of asynchronous
+	grace-period primitives such as \url{call_rcu()}.
+	This primitive may be invoked within an RCU read-side critical
+	section, and the specified RCU callback will in turn be invoked
+	at a later time, after a grace period has elapsed.
+
+	The ability to perform an RCU update while within an RCU read-side
+	critical section can be extremely convenient, and is analogous
+	to a (mythical) unconditional read-to-write upgrade for
+	reader-writer locking.
+} \QuickQuizEnd
