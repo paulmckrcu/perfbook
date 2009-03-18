@@ -18,7 +18,7 @@
  * Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
  */
 
-#define rcu_assign_pointer(p, v) ({ smp_mb(); (p) = (v); })
+#define rcu_assign_pointer(p, v) ({ smp_mb(); ACCESS_ONCE(p) = (v); })
 
 /* Assume DEC Alpha is dead.  Long live DEC Alpha. */
 

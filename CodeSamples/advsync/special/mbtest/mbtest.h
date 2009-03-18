@@ -129,6 +129,14 @@ struct ctxt_state {
 	long	d1;
 	long	d2;
 	char	dfill[CACHE_LINE_SIZE - 3 * sizeof(long)];
+	long	e;
+	long	e1;
+	long	e2;
+	char	efill[CACHE_LINE_SIZE - 3 * sizeof(long)];
+	long	v;
+	long	v1;
+	long	v2;
+	char	vfill[CACHE_LINE_SIZE - 3 * sizeof(long)];
 	long	x;
 	long	x1;
 	long	x2;
@@ -312,6 +320,8 @@ void printfullstate(void)
 	printf("B = %ld %ld %ld\n", state.b, state.b1, state.b2);
 	printf("C = %ld %ld %ld\n", state.c, state.c1, state.c2);
 	printf("D = %ld %ld %ld\n", state.d, state.d1, state.d2);
+	printf("E = %ld %ld %ld\n", state.e, state.e1, state.e2);
+	printf("V = %ld %ld %ld\n", state.v, state.v1, state.v2);
 	printf("X = %ld %ld %ld\n", state.x, state.x1, state.x2);
 	printf("Y = %ld %ld %ld\n", state.y, state.y1, state.y2);
 	printf("Z = %ld %ld %ld\n", state.z, state.z1, state.z2);
@@ -523,6 +533,46 @@ void *thread_4(void *me_in)
 }
 
 #endif /* #ifdef THREAD_4 */
+
+/*
+ */
+#ifdef THREAD_5
+
+void *thread_5(void *me_in)
+{
+	struct cacheline fillstorebuffer[NOISE_SIZE_MAX];
+	int i;
+	int mycpu = (int)me_in;
+	long oldtb;
+	int sum = 0;
+
+	oldtb = state.starttime;
+	hwsync();
+	startyourengines(mycpu);
+	while (state.n < ncycles) {
+		while (oldtb == state.starttime) {
+			if (state.n >= ncycles)
+				return NULL;
+			barrier();
+		}
+		oldtb = state.starttime;
+		preload(4);
+		hwsync();
+		atomic_dec(&state.s);
+		hwsync();
+		spin_tb(state.starttime + (state.n & jitter));
+		hwsync();
+		for (i = 0; i < noise_size; i++)
+			fillstorebuffer[i].value++;
+		THREAD_5;
+		lwsync();
+		atomic_dec(&state.f);
+		hwsync();
+	}
+	return NULL;
+}
+
+#endif /* #ifdef THREAD_5 */
 
 int validate_thread_assignment_help(void *(*t)(void *), int tn)
 {

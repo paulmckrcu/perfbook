@@ -31,6 +31,11 @@
 #define lwsync() __asm__ __volatile__ ("lock; addl $0,0(%%esp)" : : : "memory")
 #define eieio() __asm__ __volatile__ ("" : : : "memory")
 
+static inline cisync(long src)
+{
+	return src;
+}
+
 /*
  * Atomic decrement, stolen from Linux kernel.
  */

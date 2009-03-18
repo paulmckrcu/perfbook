@@ -1,5 +1,5 @@
 /*
- * Architecture definitions for PPC.
+ * Architecture definitions for x86.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,58 +26,22 @@
  */
 
 #define barrier() __asm__ __volatile__ ("" : : : "memory")
-#define hwsync() __asm__ __volatile__ ("sync" : : : "memory")
-#define isync() __asm__ __volatile__ ("isync" : : : "memory")
-#define lwsync() __asm__ __volatile__ ("lwsync" : : : "memory")
-#define eieio() __asm__ __volatile__ ("eieio" : : : "memory")
+#define hwsync() __asm__ __volatile__ ("lock; addl $0,0(%%esp)" : : : "memory")
+#define isync() __asm__ __volatile__ ("lock; addl $0,0(%%esp)" : : : "memory")
+#define lwsync() __asm__ __volatile__ ("lock; addl $0,0(%%esp)" : : : "memory")
+#define eieio() __asm__ __volatile__ ("" : : : "memory")
 
-/*
- * Pick up the value pointed to by src, force a branch and isync,
- * then store the value through the pointer dst.
- */
-#if 0
-static inline cisync(long *src, long *dst)
-{
-	long temp;
-
-	__asm__ __volatile__(
-	"lwz	%1,0(%2);"
-	"cmpw	0,%1,%1;"
-	"bne-	1f;"
-"1:	isync;"
-	"stw	%1,0(%3);"
-	: "=m" (*dst), "=&r" (temp)
-	: "r" (src), "r" (dst)
-	: "cc");
-}
-#else
 static inline cisync(long src)
 {
-	__asm__ __volatile__(
-	"cmpw	0,%0,%0;"
-	"bne-	1f;"
-"1:	isync;"
-	:
-	: "r" (src)
-	: "cc");
+	return src;
 }
-#endif
 
 /*
  * Atomic decrement, stolen from Linux kernel.
  */
 static __inline__ void atomic_dec(long *v)
 {
-	int t;
-
-	__asm__ __volatile__(
-"1:	lwarx	%0,0,%2\n\
-	subic	%0,%0,1\n\
-	stwcx.	%0,0,%2 \n\
-	bne-	1b"
-	: "=&r" (t), "+m" (*v)
-	: "r" (v)
-	: "cc");
+	__asm__ __volatile__("lock; decl %0" : "+m" (*v));
 }
 
 /*
@@ -85,16 +49,7 @@ static __inline__ void atomic_dec(long *v)
  */
 static __inline__ void atomic_inc(long *v)
 {
-	int t;
-
-	__asm__ __volatile__(
-"1:	lwarx	%0,0,%2\n\
-	addic	%0,%0,1\n\
-	stwcx.	%0,0,%2 \n\
-	bne-	1b"
-	: "=&r" (t), "+m" (*v)
-	: "r" (v)
-	: "cc");
+	__asm__ __volatile__("lock; incl %0" : "+m" (*v));
 }
 
 /*
@@ -104,6 +59,6 @@ static __inline__ long gettb(void)
 {
 	long t;
 
-	__asm__ __volatile__("mftb %0" : "=&r" (t) : : "memory");
+	__asm__ __volatile__("rdtsc" : "=a" (t) : : "edx");
 	return t;
 }
