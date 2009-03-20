@@ -24,7 +24,7 @@
 DEFINE_SPINLOCK(rcu_gp_lock);
 #define RCU_GP_CTR_BOTTOM_BIT 0x80000000
 #define RCU_GP_CTR_NEST_MASK (RCU_GP_CTR_BOTTOM_BIT - 1)
-long rcu_gp_ctr = 0;	/* increment by RCU_GP_CTR_BOTTOM_BIT each gp. */
+long rcu_gp_ctr = 1;	/* increment by RCU_GP_CTR_BOTTOM_BIT each gp. */
 DEFINE_PER_THREAD(long, rcu_reader_gp);
 
 static inline int rcu_old_gp_ongoing(int t)
@@ -56,7 +56,7 @@ static void rcu_read_lock(void)
 	rrgp = &__get_thread_var(rcu_reader_gp);
 	tmp = *rrgp;
 	if ((tmp & RCU_GP_CTR_NEST_MASK) == 0)
-		*rrgp = ACCESS_ONCE(rcu_gp_ctr) + 1;
+		*rrgp = ACCESS_ONCE(rcu_gp_ctr);
 	else
 		*rrgp = tmp + 1;
 	smp_mb();
