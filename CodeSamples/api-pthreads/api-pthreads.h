@@ -122,6 +122,11 @@ spinlock_t __thread_id_map_mutex;
 		if ((__thread_id_map[t] != __THREAD_ID_MAP_EMPTY) && \
 		    (__thread_id_map[t] != __THREAD_ID_MAP_WAITING))
 
+#define for_each_tid(t, tid) \
+	for (t = 0; t < NR_THREADS; t++) \
+		if ((((tid) = __thread_id_map[t]) != __THREAD_ID_MAP_EMPTY) && \
+		    ((tid) != __THREAD_ID_MAP_WAITING))
+
 pthread_key_t thread_id_key;
 
 static int __smp_thread_id(void)

@@ -21,19 +21,8 @@
 #define THREAD_0 \
 	do { \
 		state.x = 1; \
-	} while (0)
-
-#define THREAD_1 \
-	do { \
-		state.a2 = state.z; \
 		hwsync(); \
-		state.a1 = state.y; \
-		hwsync(); \
-		state.a = state.x; \
-		hwsync(); \
-		state.d = 1; \
-		hwsync(); \
-		while (state.d1 != 1) \
+		while (state.f > 0) \
 			barrier(); \
 		hwsync(); \
 		if (state.a1 == 1 && /* T1.y */ \
@@ -59,6 +48,15 @@
 		} \
 	} while (0)
 
+#define THREAD_1 \
+	do { \
+		state.a2 = state.z; \
+		hwsync(); \
+		state.a1 = state.y; \
+		hwsync(); \
+		state.a = state.x; \
+	} while (0)
+
 #define THREAD_2 \
 	do { \
 		state.y = 1; \
@@ -71,9 +69,6 @@
 		state.b1 = state.y; \
 		hwsync(); \
 		state.b2 = state.z; \
-		hwsync(); \
-		state.d1 = 1; \
-		hwsync(); \
 	} while (0)
 
 #define THREAD_4 \
