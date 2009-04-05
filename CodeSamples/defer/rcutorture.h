@@ -101,6 +101,11 @@ int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
 #define put_thread_online_delay()	synchronize_rcu()
 #endif /* #else #ifndef put_thread_offline */
 
+#ifndef NEED_REGISTER_THREAD
+#define rcu_register_thread()		do ; while (0)
+#define rcu_unregister_thread()		do ; while (0)
+#endif /* #ifndef NEED_REGISTER_THREAD */
+
 /*
  * Performance test.
  */
@@ -112,6 +117,7 @@ void *rcu_read_perf_test(void *arg)
 	long long n_reads_local = 0;
 
 	run_on(me);
+	rcu_register_thread();
 	atomic_inc(&nthreadsrunning);
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 1);
@@ -128,6 +134,7 @@ void *rcu_read_perf_test(void *arg)
 	}
 	__get_thread_var(n_reads_pt) += n_reads_local;
 	put_thread_offline();
+	rcu_unregister_thread();
 
 	return (NULL);
 }
@@ -136,6 +143,7 @@ void *rcu_update_perf_test(void *arg)
 {
 	long long n_updates_local = 0;
 
+	rcu_register_thread();
 	atomic_inc(&nthreadsrunning);
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 1);
@@ -144,6 +152,7 @@ void *rcu_update_perf_test(void *arg)
 		n_updates_local++;
 	}
 	__get_thread_var(n_updates_pt) += n_updates_local;
+	rcu_unregister_thread();
 	return NULL;
 }
 
@@ -255,6 +264,7 @@ void *rcu_read_stress_test(void *arg)
 
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 1);
+	rcu_register_thread();
 	mark_rcu_quiescent_state();
 	while (goflag == GOFLAG_RUN) {
 		rcu_read_lock();
@@ -279,6 +289,7 @@ void *rcu_read_stress_test(void *arg)
 		}
 	}
 	put_thread_offline();
+	rcu_unregister_thread();
 
 	return (NULL);
 }
@@ -290,6 +301,7 @@ void *rcu_update_stress_test(void *arg)
 
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 1);
+	rcu_register_thread();
 	while (goflag == GOFLAG_RUN) {
 		i = rcu_stress_idx + 1;
 		if (i >= RCU_STRESS_PIPE_LEN)
@@ -307,6 +319,7 @@ void *rcu_update_stress_test(void *arg)
 		synchronize_rcu();
 		n_updates++;
 	}
+	rcu_unregister_thread();
 	return NULL;
 }
 
@@ -314,10 +327,12 @@ void *rcu_fake_update_stress_test(void *arg)
 {
 	while (goflag == GOFLAG_INIT)
 		poll(NULL, 0, 1);
+	rcu_register_thread();
 	while (goflag == GOFLAG_RUN) {
 		synchronize_rcu();
 		poll(NULL, 0, 1);
 	}
+	rcu_unregister_thread();
 	return NULL;
 }
 
