@@ -1392,6 +1392,25 @@ With only six CPUs, we have five different combinations of load-store
 reorderings, and three of the four possible atomic-instruction
 reorderings.
 
+The seventh column, dependent reads reordered, requires some explanation,
+which is undertaken in the following section covering Alpha CPUs.
+The short version is that Alpha requires memory barriers for readers
+as well as updaters of linked data structures.
+Yes, this does mean that Alpha can in effect fetch
+the data pointed to {\em before} it fetches the pointer itself, strange
+but true.
+Please see:
+\url{http://www.openvms.compaq.com/wizard/wiz_2637.html}
+if you think that I am just making this up.
+The benefit of this extremely weak memory model is that Alpha can use
+simpler cache hardware, which in turn permitted higher clock frequency
+in Alpha's heyday.
+
+The last column indicates whether a given CPU has a incoherent
+instruction cache and pipeline.
+Such CPUs require special instructions be executed for self-modifying
+code.
+
 Parenthesized CPU names indicate modes that are architecturally allowed,
 but rarely used in practice.
 
@@ -1430,7 +1449,7 @@ but rarely used in practice.
 	\hline
 	Alpha		& Y & Y & Y & Y   & Y & Y & Y & Y \\
 	\hline
-	AMD64		& Y & ~ & ~ & Y   & ~ & ~ & ~ & ~ \\
+	AMD64		& ~ & ~ & ~ & Y   & ~ & ~ & ~ & ~ \\
 	\hline
 	IA64		& Y & Y & Y & Y   & Y & Y & ~ & Y \\
 	\hline
@@ -1447,7 +1466,7 @@ but rarely used in practice.
 	\hline
 	SPARC TSO	& ~ & ~ & ~ & Y   & ~ & ~ & ~ & Y \\
 	\hline
-	x86		& Y & ~ & ~ & Y   & ~ & ~ & ~ & Y \\
+	x86		& ~ & ~ & ~ & Y   & ~ & ~ & ~ & Y \\
 	\hline
 	(x86 OOStore)	& Y & Y & Y & Y   & ~ & ~ & ~ & Y \\
 	\hline
@@ -1459,7 +1478,8 @@ but rarely used in practice.
 \label{tab:app:whymb:Summary of Memory Ordering}
 \end{table}
 
-This "just say no" approach can be eminently reasonable where it applies,
+The common "just say no" approach to memory barriers
+can be eminently reasonable where it applies,
 but there are environments, such as the Linux kernel, where direct
 use of memory barriers is required.
 Therefore,
@@ -1476,6 +1496,14 @@ set of memory-barrier primitives, which are as follows:
 \item	{\tt smp\_read\_barrier\_depends()} that forces subsequent operations
 	that depend on prior operations to be ordered.
 	This primitive is a no-op on all platforms except Alpha.
+\item	{\tt mmiowb()} that forces ordering on MMIO writes that are guarded
+	by global spinlocks.
+	This primitive is a no-op on all platforms on which the memory
+	barriers in spinlocks already enforce MMIO ordering.
+	The platforms with a non-no-op {\tt mmiowb()} definition include
+	some (but not all) IA64, FRV, MIPS, and SH systems.
+	This primitive is relatively new, so relatively few drivers take
+	advantage of it.
 \end{itemize}
 The {\tt smp\_mb()}, {\tt smp\_rmb()}, and {\tt smp\_wmb()}
 primitives also force
@@ -1717,18 +1745,14 @@ For more detail on Alpha, see the reference manual~\cite{ALPHA95}.
 
 \subsection{AMD64}
 
-Although AMD64 is compatible with x86, it offers a stronger
-slightly memory-consistency model, in that it will not reorder a store
-ahead of a load~\cite{AMDOpteron02}.
-After all, loads are slow, and cannot be buffered, so why reorder
-a store ahead of a load?
-Although it is possible in theory to create a parallel program that will
-work on some x86 CPUs but fail on AMD64 due to this difference in
-memory-consistency model, in practice this difference has little
-effect on porting code from x86 to AMD64.
-
+AMD64 is compatible with x86, and has recently updated its memory
+model~\cite{AMDOpteron_2_2007}
+to enforce the tighter ordering that actual implementations have
+provided for some time.
 The AMD64 implementation of the Linux {\tt smp\_mb()} primitive is {\tt mfence},
 {\tt smp\_rmb()} is {\tt lfence}, and {\tt smp\_wmb()} is {\tt sfence}.
+In theory, these might be relaxed, but any such relaxation must take
+SSE and 3DNOW instructions into account.
 
 \subsection{IA64}
 
@@ -1766,6 +1790,14 @@ The IA64 {\tt mf} instruction is used for the {\tt smp\_rmb()},
 {\tt smp\_mb()}, and {\tt smp\_wmb()} primitives in the Linux kernel.
 Oh, and despite rumors to the contrary, the ``mf'' mneumonic really
 does stand for ``memory fence''.
+
+Finally, IA64 offers a global total order for ``release'' operations,
+including the ``mf'' instruction.
+This provides the notion of transitivity, where if a given code fragment
+sees a given access as having happened, any later code fragment will
+also see that earlier access has having happened.
+Assuming, that is, that all the code fragments involved correctly use
+memory barriers.
 
 \subsection{PA-RISC}
 
@@ -1822,6 +1854,14 @@ which stands for ``enforce in-order execution of I/O''.
 The {\tt smp\_mb()} instruction is also defined to be the {\tt sync}
 instruction, but both {\tt smp\_rmb()} and {\tt rmb()} are defined to
 be the lighter-weight {\tt lwsync} instruction.
+
+Power features ``cumulativity'', which can be used to obtain
+transitivity.
+When used properly, any code seeing the results of an earlier
+code fragment will also see the accesses that this earlier code
+fragment itself saw.
+Much more detail is available from
+McKenney and Silvera~\cite{PaulEMcKenneyN2745r2009}.
 
 Many members of the POWER architecture have incoherent instruction
 caches, so that a store to memory will not necessarily be reflected
@@ -1919,10 +1959,29 @@ However, a compiler directive is required to
 prevent the compiler from performing optimizations that would result
 in reordering across the {\tt smp\_wmb()} primitive.
 
-On the other hand, x86 CPUs give no ordering guarantees for loads, so
+On the other hand, x86 CPUs have traditionally given
+no ordering guarantees for loads, so
 the {\tt smp\_mb()} and {\tt smp\_rmb()} primitives expand to {\tt lock;addl}.
 This atomic instruction acts as a barrier to both loads and stores.
-Note that some SSE instructions are weakly ordered ({\tt clflush}
+
+More recently, Intel has published a memory model for
+x86~\cite{Intelx86MemoryOrdering2007}.
+It turns out that Intel's actual CPUs enforced tighter ordering than
+was claimed in the previous specifications, so this model is in effect
+simply mandating the earlier de-facto behavior.
+Even more recently, Intel published an updated memory model for
+x86~\cite{Intel64IA32v3A2009}, which mandates a total global order
+for stores, although individual CPUs are still permitted to see their
+own stores as having happened earlier than this total global order
+would indicate.
+This exception to the total ordering is needed to allow important
+hardware optimizations involving store buffers.
+Software may use atomic operations to override these hardware optimizations,
+which is one reason that atomic operations tend to be more expensive
+than their non-atomic counterparts.
+This total store order is \emph{not} guaranteed on older processors.
+
+However, note that some SSE instructions are weakly ordered ({\tt clflush}
 and non-temporal move instructions~\cite{IntelXeonV2b-96a}).
 CPUs that have SSE can use {\tt mfence} for {\tt smp\_mb()},
 {\tt lfence} for {\tt smp\_rmb()}, and {\tt sfence} for {\tt smp\_wmb()}.
@@ -1950,6 +2009,9 @@ It also has comparatively strong memory-ordering semantics, as shown in
 Table~\ref{tab:app:whymb:Summary of Memory Ordering}, which should allow the
 {\tt smp\_wmb()} primitive to be a {\tt nop} (and by the time you read this,
 this change may well have happened).
+The table actually understates the situation, as the zSeries memory model
+is otherwise sequentially consistent, meaning that all CPUs
+will agree on the order of unrelated stores from different CPUs.
 
 As with most CPUs, the zSeries architecture does not guarantee a
 cache-coherent instruction stream, hence,
