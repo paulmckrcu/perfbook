@@ -645,11 +645,11 @@ owned by CPU~1 and that containing ``b'' initially owned by CPU~0:
 \vspace{5pt}
 
 One would not expect the assertion to fail.
-If one were foolish enough to use the very simple architecture we
-have been discussing, one would be surprised.
-A system with caches set up as shown in
-Figure~\ref{fig:app:whymb:Caches With Store Buffers}
-could potentially see the following sequence of events:
+However, if one were foolish enough to use the very simple architecture
+shown in
+Figure~\ref{fig:app:whymb:Caches With Store Buffers},
+one would be surprised.
+Such a system could potentially see the following sequence of events:
 \begin{enumerate}
 \item	CPU 0 starts executing the \url{a = 1}.
 \item	CPU 0 looks ``a'' up in the cache, and finds that it is missing.
@@ -673,9 +673,12 @@ could potentially see the following sequence of events:
 \item	CPU 0 executes \url{assert(b == 2)}, which fails.
 \end{enumerate}
 
+The problem is that we have two copies of ``a'', one in the cache and
+the other in the store buffer.
+
 This example breaks a very important guarantee, namely that each CPU
 will always see its own operations as if they happened in program order.
-It is therefore violently counter-intuitive to software types, so much so
+This guarantee is violently counter-intuitive to software types, so much so
 that the hardware guys took pity and implemented ``store forwarding'',
 where each CPU refers to (or ``snoops'') its store buffer as well
 as its cache when performing loads, as shown in
@@ -1258,8 +1261,8 @@ Therefore, CPU~2 might well see CPU~1's assignment to ``c'' before
 it sees CPU~0's assignment to ``a'', causing the assertion to fire,
 despite the memory barriers.
 
-Portable code therefore cannot rely on this example coding technique,
-although it will work on a number of real computer systems.
+In theory, portable code could not on this example coding technique,
+however, in practice it actually does work on all mainstream computer systems.
 
 \QuickQuiz{}
 	Could this code be fixed by inserting a memory barrier
@@ -1268,7 +1271,12 @@ although it will work on a number of real computer systems.
 \QuickQuizAnswer{
 	No.  Such a memory barrier would only force ordering local to CPU~1.
 	It would have no effect on the relative ordering of CPU~0's and
-	CPU~1's accesses, so the assertion could still fire.
+	CPU~1's accesses, so the assertion could still fail.
+	However, all mainstream computer systems provide one mechanism
+	or another to provide ``transitivity'', which provides
+	intuitive causal ordering: if B saw the effects of A's accesses,
+	and C saw the effects of B's accesses, then C must also see
+	the effects of A's accesses.
 } \QuickQuizEnd
 
 \subsection{Example 2}
@@ -1310,9 +1318,9 @@ Therefore, CPU~2 might well see CPU~1's assignment to ``b'' before
 it sees CPU~0's assignment to ``a'', causing the assertion to fire,
 despite the memory barriers.
 
-Portable code therefore cannot rely on this example coding technique,
-although, as with the previous example, it will work on a number of
-real computer systems.
+In theory, portable code could not on this example coding technique, however,
+as before, in practice it actually does work on all
+mainstream computer systems.
 
 \subsection{Example 3}
 \label{sec:app:whymb:Example 3}
