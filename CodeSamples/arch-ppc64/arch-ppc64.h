@@ -343,7 +343,7 @@ __cmpxchg_local(volatile void *ptr, unsigned long old, unsigned long new,
 
 #ifdef CONFIG_PPC64
 /*
- * We handle most unaligned accesses in hardware. On the other hand 
+ * We handle most unaligned accesses in hardware. On the other hand
  * unaligned DMA can be very expensive on some ppc64 IO chips (it does
  * powers of 2 writes until it reaches sufficient alignment).
  *
@@ -373,7 +373,7 @@ __cmpxchg_local(volatile void *ptr, unsigned long old, unsigned long new,
  * atomic_add - add integer to atomic variable
  * @i: integer value to add
  * @v: pointer of type atomic_t
- * 
+ *
  * Atomically adds @a to @v.
  */
 static __inline__ void atomic_add(int a, atomic_t *v)
@@ -394,7 +394,7 @@ static __inline__ void atomic_add(int a, atomic_t *v)
  * atomic_sub - subtract the atomic variable
  * @i: integer value to subtract
  * @v: pointer of type atomic_t
- * 
+ *
  * Atomically subtracts @a from @v.
  */
 static __inline__ void atomic_sub(int a, atomic_t *v)
@@ -433,7 +433,7 @@ static __inline__ atomic_sub_return(int a, atomic_t *v)
  * atomic_sub_and_test - subtract value from variable and test result
  * @i: integer value to subtract
  * @v: pointer of type atomic_t
- * 
+ *
  * Atomically subtracts @i from @v and returns
  * true if the result is zero, or false for all
  * other cases.
@@ -446,9 +446,9 @@ static __inline__ int atomic_sub_and_test(int a, atomic_t *v)
 /**
  * atomic_inc - increment atomic variable
  * @v: pointer of type atomic_t
- * 
+ *
  * Atomically increments @v by 1.
- */ 
+ */
 static __inline__ void atomic_inc(atomic_t *v)
 {
 	atomic_add(1, v);
@@ -457,9 +457,9 @@ static __inline__ void atomic_inc(atomic_t *v)
 /**
  * atomic_dec - decrement atomic variable
  * @v: pointer of type atomic_t
- * 
+ *
  * Atomically decrements @v by 1.
- */ 
+ */
 static __inline__ void atomic_dec(atomic_t *v)
 {
 	atomic_sub(1, v);
@@ -468,24 +468,24 @@ static __inline__ void atomic_dec(atomic_t *v)
 /**
  * atomic_dec_and_test - decrement and test
  * @v: pointer of type atomic_t
- * 
+ *
  * Atomically decrements @v by 1 and
  * returns true if the result is 0, or false for all other
  * cases.
- */ 
+ */
 static __inline__ int atomic_dec_and_test(atomic_t *v)
 {
 	return atomic_sub_and_test(1, v);
 }
 
 /**
- * atomic_inc_and_test - increment and test 
+ * atomic_inc_and_test - increment and test
  * @v: pointer of type atomic_t
- * 
+ *
  * Atomically increments @v by 1
  * and returns true if the result is zero, or false for all
  * other cases.
- */ 
+ */
 static __inline__ int atomic_inc_and_test(atomic_t *v)
 {
 	return atomic_inc_return(v);
@@ -520,11 +520,11 @@ static __inline__ int atomic_add_return(int a, atomic_t *v)
  * atomic_add_negative - add and test if negative
  * @v: pointer of type atomic_t
  * @i: integer value to add
- * 
+ *
  * Atomically adds @i to @v and returns true
  * if the result is negative, or false when
  * result is greater than or equal to zero.
- */ 
+ */
 static __inline__ int atomic_add_negative(int a, atomic_t *v)
 {
 	return atomic_add_return(a, v) < 0;
