@@ -133,7 +133,7 @@ atomic counting with no memory barriers (``A'') is described in
 Section~\ref{sec:defer:Atomic Counting}
 atomic counting with acquisition memory barrier (``AM'') is described in
 Section~\ref{sec:defer:Atomic Counting With Release Memory Barrier},
-and 
+and
 atomic counting with check and release memory barrier (``CAM'') is described in
 Section~\ref{sec:defer:Atomic Counting With Check and Release Memory Barrier}.
 
@@ -161,23 +161,23 @@ open-coded instead.
   1 struct sref {
   2   int refcount;
   3 };
-  4 
+  4
   5 void sref_init(struct sref *sref)
   6 {
   7   sref->refcount = 1;
   8 }
-  9 
+  9
  10 void sref_get(struct sref *sref)
  11 {
  12   sref->refcount++;
  13 }
- 14 
+ 14
  15 int sref_put(struct sref *sref,
  16              void (*release)(struct sref *sref))
  17 {
  18   WARN_ON(release == NULL);
  19   WARN_ON(release == (void (*)(struct sref *))kfree);
- 20 
+ 20
  21   if (--sref->refcount == 0) {
  22     release(sref);
  23     return 1;
@@ -251,24 +251,24 @@ RCU read-side critical sections.
   1 struct kref {
   2   atomic_t refcount;
   3 };
-  4 
+  4
   5 void kref_init(struct kref *kref)
   6 {
   7   atomic_set(&kref->refcount,1);
   8 }
-  9 
+  9
  10 void kref_get(struct kref *kref)
  11 {
  12   WARN_ON(!atomic_read(&kref->refcount));
  13   atomic_inc(&kref->refcount);
  14 }
- 15 
+ 15
  16 int kref_put(struct kref *kref,
  17              void (*release)(struct kref *kref))
  18 {
  19   WARN_ON(release == NULL);
  20   WARN_ON(release == (void (*)(struct kref *))kfree);
- 21 
+ 21
  22   if ((atomic_read(&kref->refcount) == 1) ||
  23       (atomic_dec_and_test(&kref->refcount))) {
  24     release(kref);
@@ -355,7 +355,7 @@ shown in Figure~\ref{fig:defer:Linux Kernel dst-clone API}.
   5     atomic_inc(&dst->__refcnt);
   6   return dst;
   7 }
-  8 
+  8
   9 static inline
  10 void dst_release(struct dst_entry * dst)
  11 {
@@ -434,7 +434,7 @@ Figure~\ref{fig:defer:Linux Kernel fget/fput API}.
   2 {
   3   struct file *file;
   4   struct files_struct *files = current->files;
-  5 
+  5
   6   rcu_read_lock();
   7   file = fcheck_files(files, fd);
   8   if (file) {
@@ -446,28 +446,28 @@ Figure~\ref{fig:defer:Linux Kernel fget/fput API}.
  14   rcu_read_unlock();
  15   return file;
  16 }
- 17 
+ 17
  18 struct file *
  19 fcheck_files(struct files_struct *files, unsigned int fd)
  20 {
  21   struct file * file = NULL;
  22   struct fdtable *fdt = rcu_dereference((files)->fdt);
- 23 
+ 23
  24   if (fd < fdt->max_fds)
  25     file = rcu_dereference(fdt->fd[fd]);
  26   return file;
  27 }
- 28 
+ 28
  29 void fput(struct file *file)
  30 {
  31   if (atomic_dec_and_test(&file->f_count))
  32     call_rcu(&file->f_u.fu_rcuhead, file_free_rcu);
  33 }
- 34 
+ 34
  35 static void file_free_rcu(struct rcu_head *head)
  36 {
  37   struct file *f;
- 38   
+ 38
  39   f = container_of(head, struct file, f_u.fu_rcuhead);
  40   kmem_cache_free(filp_cachep, f);
  41 }
