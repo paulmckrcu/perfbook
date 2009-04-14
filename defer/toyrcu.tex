@@ -757,6 +757,11 @@ variable, so the \url{rcu_read_lock()} and
 	atomic machine instructions, but rather does a normal load
 	from an \url{atomic_t}.
 	Its sole purpose is to keep the compiler's type-checking happy.
+	If the Linux kernel ran on 8-bit CPUs, it would also need to
+	prevent ``store tearing'', which could happen due to the need
+	to store a 16-bit pointer with two eight-bit accesses on some
+	8-bit systems.
+	But thankfully, it seems that no one runs Linux on 8-bit systems.
 } \QuickQuizEnd
 
 \begin{figure}[tbp]
@@ -1216,9 +1221,35 @@ This implementation suffers from some serious shortcomings in
 addition to the high update-side overhead noted earlier.
 First, it is no longer permissible to nest RCU read-side critical
 sections, a topic that is taken up in the next section.
-Second and finally, this implementation requires that the enclosing software
+Second, if a reader is preempted at line~3 of
+Figure~\ref{fig:defer:Free-Running Counter Using RCU} after fetching from
+\url{rcu_gp_ctr} but before storing to \url{rcu_reader_gp},
+and if the \url{rcu_gp_ctr} counter then runs through more than half
+but less than all of its possible values, then \url{synchronize_rcu()}
+will ignore the subsequent RCU read-side critical section.
+Third and finally, this implementation requires that the enclosing software
 environment be able to enumerate threads and maintain per-thread
 variables.
+
+\QuickQuiz{}
+	Is the possibility o readers being preempted in
+	line~3 of Figure~\ref{fig:defer:Free-Running Counter Using RCU}
+	a real problem, in other words, is there a real sequence
+	of events that could lead to failure?
+	If not, why not?
+	If so, what is the sequence of events, and how can the
+	failure be addressed?
+\QuickQuizAnswer{
+	It is a real problem, there is a sequence of events leading to
+	failure, and there are a number of possible ways of
+	addressing it.
+	For more details, see the Quick Quizzes near the end of
+	Section~\ref{defer:Nestable RCU Based on Free-Running Counter}.
+	The reason for locating the discussion there is to (1) give you
+	more time to think about it, and (2) because the nesting support
+	added in that section greatly reduces the time required to
+	overflow the counter.
+} \QuickQuizEnd
 
 \subsubsection{Nestable RCU Based on Free-Running Counter}
 \label{defer:Nestable RCU Based on Free-Running Counter}
@@ -1377,7 +1408,7 @@ nesting of RCU read-side critical sections is now permitted.
 In addition, on 32-bit systems, this approach shortens the time
 required to overflow the global \url{rcu_gp_ctr} variable.
 The following section shows one way to greatly increase the time
-required for overflow to occur, which greatly reducing read-side
+required for overflow to occur, while greatly reducing read-side
 overhead.
 
 \QuickQuiz{}
@@ -1477,6 +1508,8 @@ overhead.
 	On the other hand, if your application is being preempted long
 	enough for the counter to overflow, you have no hope of
 	deterministic execution time in any case!
+
+	% @@@ A fourth approach is rcu_nest32.[hc].
 } \QuickQuizEnd
 
 \subsubsection{RCU Based on Quiescent States}

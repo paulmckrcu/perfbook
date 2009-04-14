@@ -1606,6 +1606,11 @@ srcu_read_unlock(&srcucb, idx);
 	atomic machine instructions, but rather does a normal load
 	from an \url{atomic_t}.
 	Its sole purpose is to keep the compiler's type-checking happy.
+	If the Linux kernel ran on 8-bit CPUs, it would also need to
+	prevent ``store tearing'', which could happen due to the need
+	to store a 16-bit pointer with two eight-bit accesses on some
+	8-bit systems.
+	But thankfully, it seems that no one runs Linux on 8-bit systems.
 
 \QuickQ{}
 	Great, if we have $N$ threads, we can have $2N$ ten-millisecond
@@ -1679,6 +1684,25 @@ srcu_read_unlock(&srcucb, idx);
 \QuickA{}
 	Indeed it could, with a few modifications.
 	This work is left as an exercise for the reader.
+
+\QuickQ{}
+	Is the possibility o readers being preempted in
+	line~3 of Figure~\ref{fig:defer:Free-Running Counter Using RCU}
+	a real problem, in other words, is there a real sequence
+	of events that could lead to failure?
+	If not, why not?
+	If so, what is the sequence of events, and how can the
+	failure be addressed?
+\QuickA{}
+	It is a real problem, there is a sequence of events leading to
+	failure, and there are a number of possible ways of
+	addressing it.
+	For more details, see the Quick Quizzes near the end of
+	Section~\ref{defer:Nestable RCU Based on Free-Running Counter}.
+	The reason for locating the discussion there is to (1) give you
+	more time to think about it, and (2) because the nesting support
+	added in that section greatly reduces the time required to
+	overflow the counter.
 
 \QuickQ{}
 	Why not simply maintain a separate per-thread nesting-level
@@ -1790,6 +1814,8 @@ srcu_read_unlock(&srcucb, idx);
 	On the other hand, if your application is being preempted long
 	enough for the counter to overflow, you have no hope of
 	deterministic execution time in any case!
+
+	% @@@ A fourth approach is rcu_nest32.[hc].
 
 \QuickQ{}
 	Doesn't the additional memory barrier shown on line~14 of
@@ -2297,7 +2323,12 @@ STORE r0,counter
 \QuickA{}
 	No.  Such a memory barrier would only force ordering local to CPU~1.
 	It would have no effect on the relative ordering of CPU~0's and
-	CPU~1's accesses, so the assertion could still fire.
+	CPU~1's accesses, so the assertion could still fail.
+	However, all mainstream computer systems provide one mechanism
+	or another to provide ``transitivity'', which provides
+	intuitive causal ordering: if B saw the effects of A's accesses,
+	and C saw the effects of B's accesses, then C must also see
+	the effects of A's accesses.
 
 \QuickQ{}
 	Suppose that lines~3-5 for CPUs~1 and 2 are in an interrupt
