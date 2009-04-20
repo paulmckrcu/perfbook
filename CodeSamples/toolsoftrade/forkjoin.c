@@ -22,23 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-
-void waitall(void)
-{
-	int pid;
-	int status;
-
-	for (;;) {
-		pid = wait(&status);
-		if (pid == -1) {
-			if (errno == ECHILD)
-				break;
-			perror("wait");
-			exit(-1);
-		}
-		poll(NULL, 0, 1);
-	}
-}
+#include "../api.h"
 
 int main(int argc, char *argv[])
 {

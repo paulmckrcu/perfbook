@@ -21,10 +21,10 @@ PROGS =	forkjoin \
 
 all: $(PROGS)
 
-forkjoin: forkjoin.c
+forkjoin: forkjoin.c ../api.h
 	cc $(GCC_ARGS) -o forkjoin forkjoin.c
 
-forkjoinvar: forkjoinvar.c
+forkjoinvar: forkjoinvar.c ../api.h
 	cc $(GCC_ARGS) -o forkjoinvar forkjoinvar.c
 
 clean:
