@@ -554,6 +554,26 @@ static void wait_all_threads(void)
 	}
 }
 
+/*
+ * Wait on all child processes.
+ */
+void waitall(void)
+{
+	int pid;
+	int status;
+
+	for (;;) {
+		pid = wait(&status);
+		if (pid == -1) {
+			if (errno == ECHILD)
+				break;
+			perror("wait");
+			exit(-1);
+		}
+		poll(NULL, 0, 1);
+	}
+}
+
 static void run_on(int cpu)
 {
 	cpu_set_t mask;
