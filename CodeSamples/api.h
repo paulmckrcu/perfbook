@@ -265,6 +265,38 @@ cmpxchg(volatile long *ptr, long oldval, long newval)
 }
 
 #define atomic_cmpxchg(v, old, new) ((int)cmpxchg(&((v)->counter), old, new))
+
+struct __xchg_dummy {
+	unsigned long a[100];
+};
+#define __xg(x) ((struct __xchg_dummy *)(x))
+static inline unsigned long __xchg(unsigned long x, volatile void *ptr,
+				   int size)
+{
+	switch (size) {
+	case 1:
+		asm volatile("xchgb %b0,%1"
+			     : "=q" (x)
+			     : "m" (*__xg(ptr)), "0" (x)
+			     : "memory");
+		break;
+	case 2:
+		asm volatile("xchgw %w0,%1"
+			     : "=r" (x)
+			     : "m" (*__xg(ptr)), "0" (x)
+			     : "memory");
+		break;
+	case 4:
+		asm volatile("xchgl %0,%1"
+			     : "=r" (x)
+			     : "m" (*__xg(ptr)), "0" (x)
+			     : "memory");
+		break;
+	}
+	return x;
+}
+#define xchg(ptr, v)							\
+	((__typeof__(*(ptr)))__xchg((unsigned long)(v), (ptr), sizeof(*(ptr))))
 #define atomic_xchg(v, new) (xchg(&((v)->counter), new))
 
 /**
