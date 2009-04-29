@@ -65,6 +65,10 @@ EPSSOURCES = \
 	SMPdesign/lockdeqpair.eps \
 	SMPdesign/smpalloc.eps \
 	SMPdesign/smpalloc.old.eps \
+	SMPdesign/DiningPhilosopher5.eps \
+	SMPdesign/DiningPhilosopher5TB.eps \
+	SMPdesign/DiningPhilosopher4part-b.eps \
+	SMPdesign/DiningPhilosopher5PEM.eps \
 	advsync/AbstractMemoryAccessModel.eps \
 	advsync/DataDependencyNeeded.eps \
 	advsync/DataDependencySupplied.eps \
@@ -171,6 +175,22 @@ perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex origpub.tex
 qqz.tex: $(LATEXSOURCES) $(EPSSOURCES)
 	sh utilities/extractqqz.sh > qqz.tex
 
+SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
+	latex -output-directory=$(shell dirname $<) $<
+	dvips -E $(patsubst %.tex,%.dvi,$<) -o $@
+
+SMPdesign/DiningPhilosopher5TB.eps: SMPdesign/DiningPhilosopher5TB.tex
+	latex -output-directory=$(shell dirname $<) $<
+	dvips -E $(patsubst %.tex,%.dvi,$<) -o $@
+
+SMPdesign/DiningPhilosopher4part-b.eps: SMPdesign/DiningPhilosopher4part-b.tex
+	latex -output-directory=$(shell dirname $<) $<
+	dvips -E $(patsubst %.tex,%.dvi,$<) -o $@
+
+SMPdesign/DiningPhilosopher5PEM.eps: SMPdesign/DiningPhilosopher5PEM.tex
+	latex -output-directory=$(shell dirname $<) $<
+	dvips -E $(patsubst %.tex,%.dvi,$<) -o $@
+
 origpub.tex: $(LATEXSOURCES)
 	sh utilities/extractorigpub.sh > origpub.tex
 
@@ -179,3 +199,7 @@ clean:
 		-o -name '*.dvi' -o -name '*.log' -o -name '*.pdf' \
 		-o -name '*.qqz' -o -name '*.toc' | xargs rm
 	rm -f qqz.tex
+	rm -f SMPdesign/DiningPhilosopher5.eps \
+	      SMPdesign/DiningPhilosopher5TB.eps \
+	      SMPdesign/DiningPhilosopher4part-b.eps \
+	      SMPdesign/DiningPhilosopher5PEM.eps
