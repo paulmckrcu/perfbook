@@ -21,6 +21,7 @@ LATEXSOURCES = \
 	appendix/rcuimpl/rcutreewt.tex \
 	appendix/rcuimpl/rcupreempt.tex \
 	appendix/whymb/whymemorybarriers.tex \
+	count/count.tex \
 	cpu/cpu.tex \
 	cpu/overview.tex \
 	cpu/overheads.tex \
@@ -43,7 +44,6 @@ LATEXSOURCES = \
 	SMPdesign/SMPdesign.tex \
 	SMPdesign/partexercises.tex \
 	SMPdesign/criteria.tex \
-	stats/stats.tex \
 	locking/locking.tex \
 	time/time.tex \
 	toolsoftrade/toolsoftrade.tex
