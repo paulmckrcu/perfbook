@@ -9,6 +9,9 @@ Counting may seem like the easiest and most natural arithmetic operation
 possible.
 However, doing so in an efficient and scalable manner on a large
 shared-memory multiprocessor can be quite challenging.
+Counting therefore provides an excellent introduction to many
+of the most important issues that arise in parallel programming.
+
 This chapter covers a number of special cases for which there are simple,
 fast, and scalable counting algorithms.
 But first, let us find out how much you already know about concurrent
@@ -19,7 +22,8 @@ counting.
 \QuickQuizAnswer{
 	Because the straightforward counting algorithms, for example,
 	atomic operations on a shared counter, are slow and scale
-	very badly, as will be seen in Section @@@.
+	badly, as will be seen in
+	Section~\ref{sec:count:Why Isn't Concurrent Counting Trivial?}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -45,9 +49,28 @@ counting.
 	whatever ``true value'' might mean in this context.
 	However, the value read out should maintain roughly the same
 	absolute error over time.
-	For example, while a 1\% error might be OK when the count
-	is on the order of a million or so, it is absolutely unacceptable
-	once the count reaches a trillion.
+	For example, a 1\% error might be just fine when the count
+	is on the order of a million or so, but might be absolutely
+	unacceptable once the count reaches a trillion.
+	See Section @@@.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Suppose that you once again need to collect statistics on the
+	number of networking packets (or total number of bytes) transmitted
+	and/or received.
+	Packets might be transmitted or received by any CPU on
+	the system.
+	Suppose again that this large machine is capable of
+	handling a million packets per second, but that the count
+	need only be output when the machine is finished processing
+	packets.
+	How would you implement this statistical counter?
+\QuickQuizAnswer{
+	Hint: the act of updating the counter must be blazingly
+	fast, but because the counter is read out once at the
+	very end, it is not necessary to even provide a way to
+	read the counter out while counting.
 	See Section @@@.
 } \QuickQuizEnd
 
@@ -116,6 +139,143 @@ The remainder of this chapter will develop answers to these questions.
 \section{Why Isn't Concurrent Counting Trivial?}
 \label{sec:count:Why Isn't Concurrent Counting Trivial?}
 
+\begin{figure}[bp]
+{ \scriptsize
+\begin{verbatim}
+  1 long counter = 0;
+  2 
+  3 void inc_count(void)
+  4 {
+  5   ACCESS_ONCE(counter)++;
+  6 }
+  7 
+  8 long read_count(void)
+  9 {
+ 10   return ACCESS_ONCE(counter);
+ 11 }
+\end{verbatim}
+}
+\caption{Just Count!}
+\label{fig:count:Just Count!}
+\end{figure}
+
+Let's start with something simple, for example, the straightforward
+use of arithmetic shown in
+Figure~\ref{fig:count:Just Count!}.
+Here, we have a counter on line~1, we increment it on line~5, and we
+read out its vale on line~10.
+What could be simpler?
+
+\QuickQuiz{}
+	If simple is the goal, what are those \url{ACCESS_ONCE()}
+	primitives doing on lines~5 and 10 of
+	Figure~\ref{fig:count:Just Count!}???
+\QuickQuizAnswer{
+	They are there because optimizing compilers are just too smart.
+	Without the \url{ACCESS_ONCE()}, the compiler will take one
+	look at the loop that invokes \url{inc_count()} 1,000 times,
+	and say ``Oh! I can replace that loop with a single addition
+	of 1,000 to the \url{counter} variable!''
+
+	The \url{ACCESS_ONCE()} primitive uses a \url{volatile} cast
+	to prevent any such optimizations.
+} \QuickQuizEnd
+
+This approach has the additional advantage of being blazingly fast if
+you are doing lots of reading and almost no incrementing, and on small
+systems, the increment speed is also pretty good.
+
+There is just one large fly in the ointment: this approach can lose
+counts.
+On my dual-core laptop, a short run invoked \url{inc_count()}
+100,014,000 times, but the final value of the counter was only
+52,909,118.
+Although it is true that approximate values have their place in computing,
+this result is off by almost a factor of two!!!
+
+\QuickQuiz{}
+	But doesn't the \url{++} operator produce an x86 add-to-memory
+	instruction?
+	And won't the CPU cache cause this to be atomic?
+\QuickQuizAnswer{
+	Although the \url{++} operator \emph{could} be atomic, there
+	is no requirement that it be so.
+	Furthermore, the \url{ACCESS_ONCE()} primitive forces most
+	version of \url{gcc} to load the value to a register, increment
+	the register, then store the value to memory, which is
+	decidedly non-atomic.
+} \QuickQuizEnd
+
+\begin{figure}[bp]
+{ \scriptsize
+\begin{verbatim}
+  1 atomic_t counter = ATOMIC_INIT(0);
+  2 
+  3 void inc_count(void)
+  4 {
+  5   atomic_inc(&counter);
+  6 }
+  7 
+  8 long read_count(void)
+  9 {
+ 10   return atomic_read(&counter);
+ 11 }
+\end{verbatim}
+}
+\caption{Just Count Atomically!}
+\label{fig:count:Just Count Atomically!}
+\end{figure}
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{CodeSamples/count/atomic}}
+\end{center}
+\caption{Atomic Increment Scalability}
+\label{fig:count:Atomic Increment Scalability}
+\end{figure}
+
+The straightforward way to count accurately is to use atomic operations,
+as shown in
+Figure~\ref{fig:count:Just Count Atomically!}.
+Line~1 defines an atomic variable, line~5 atomically increments it, and
+line~10 reads it out.
+Because this is atomic, it keeps perfect count.
+However, it is slower: on a Intel Core Duo laptop, it is about
+six times slower than non-atomic increment
+when a single thread is incrementing, and more than \emph{ten times}
+slower if two threads are incrementing.
+This should not be a surprise, given the discussion in
+Chapter~\ref{chp:Hardware and its Habits},
+nor should it be a surprise that the performance of atomic increment
+gets slower as the number of CPUs and threads increase, as shown in
+Figure~\ref{fig:count:Atomic Increment Scalability}.
+The additional CPUs and threads must simply wait in line for
+access to the counter.
+
+\QuickQuiz{}
+	But this is still pretty fast.
+	And incrementing a single variable in a tight loop sounds
+	pretty unrealistic to me, after all, most of the program's
+	execution should be devoted to actually doing work, not accounting
+	for the work it has done!
+	Why should I care about making this go faster?
+\QuickQuizAnswer{
+	In many cases, atomic increment will in fact be fast enough
+	for you.
+	In those cases, you should by all means use atomic increment.
+	That said, there are many real-world situations where
+	more elaborate counting algorithms are required.
+	The canonical example of such a situation is counting packets
+	and bytes in highly optimized networking stacks, where it is
+	all too easy to find much of the execution time going into
+	these sorts of accounting tasks.
+
+	In addition, counting provides an excellent view of the
+	issues encountered in shared-memory parallel programs.
+} \QuickQuizEnd
+
+The following sections discuss high-performance counting.
+
 \section{Statistical Counters}
 \label{sec:count:Statistical Counters}
 
@@ -151,10 +311,15 @@ Split counters.
 	consistent with the results obtained.
 
 	If you missed this one, do not feel bad.
-	Michael Scott stumped Paul McKenney with this one during Paul's
+	Michael Scott used this question to stump Paul McKenney during Paul's
 	Ph.D. defense.
 } \QuickQuizEnd
 
+
+\section{Statistical Read-Once Counters}
+\label{sec:count:Statistical Read-Once Counters}
+
+reduce phase of map-reduce.
 
 \section{Mostly-Irrelevant Reference Counters}
 \label{sec:count:Mostly-Irrelevant Reference Counters}

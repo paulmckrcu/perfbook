@@ -564,6 +564,198 @@ grep $pattern1 | sed -e 's/a/b/' | sort
 	applications using these primitives, as well as the
 	Linux-kernel implementations.
 
+\QuickQAC{chp:Counting}
+\QuickQ{}
+	Why on earth should efficient and scalable counting be hard???
+\QuickA{}
+	Because the straightforward counting algorithms, for example,
+	atomic operations on a shared counter, are slow and scale
+	badly, as will be seen in
+	Section~\ref{sec:count:Why Isn't Concurrent Counting Trivial?}.
+
+\QuickQ{}
+	Suppose that you need to collect statistics on the number
+	of networking packets (or total number of bytes) transmitted
+	and/or received.
+	Packets might be transmitted or received by any CPU on
+	the system.
+	Suppose further that this large machine is capable of
+	handling a million packets per second, and that there
+	is a systems-monitoring package that reads out the count
+	every five seconds.
+	How would you implement this statistical counter?
+\QuickA{}
+	Hint: the act of updating the counter must be blazingly
+	fast, but because the counter is read out only about once
+	in five million updates, the act of reading out the counter can be
+	quite slow.
+	In addition, the value read out normally need not be all that
+	accurate---after all, since the counter is updated a thousand
+	times per millisecond, we should be able to work with a value
+	that is within a few thousand counts of the ``true value'',
+	whatever ``true value'' might mean in this context.
+	However, the value read out should maintain roughly the same
+	absolute error over time.
+	For example, a 1\% error might be just fine when the count
+	is on the order of a million or so, but might be absolutely
+	unacceptable once the count reaches a trillion.
+	See Section @@@.
+
+\QuickQ{}
+	Suppose that you once again need to collect statistics on the
+	number of networking packets (or total number of bytes) transmitted
+	and/or received.
+	Packets might be transmitted or received by any CPU on
+	the system.
+	Suppose again that this large machine is capable of
+	handling a million packets per second, but that the count
+	need only be output when the machine is finished processing
+	packets.
+	How would you implement this statistical counter?
+\QuickA{}
+	Hint: the act of updating the counter must be blazingly
+	fast, but because the counter is read out once at the
+	very end, it is not necessary to even provide a way to
+	read the counter out while counting.
+	See Section @@@.
+
+\QuickQ{}
+	Suppose that you need to maintain a reference count on a
+	heavily used removable mass-storage device, so that you
+	can tell the user when it is safe to removed the device.
+	This device follows the usual removal procedure where
+	the user indicates a desire to remove the device, and
+	the system tells the user when it is safe to do so.
+\QuickA{}
+	Hint: the act of updating the counter must be blazingly
+	fast, but because the counter is read out only when the
+	user wishes to remove the device, the counter read-out
+	operation can be extremely slow.
+	Furthermore, there is no need to be able to read out
+	the counter at all unless the user has already indicated
+	a desire to remove the device.
+	In addition, the value read out need not be accurate
+	\emph{except} that it absolutely must distinguish perfectly
+	between non-zero and zero values.
+	See Section @@@.
+
+\QuickQ{}
+	Suppose that you need to maintain a count of the number of
+	structures allocated in order to fail any allocations
+	once the number of structures in use exceeds a limit
+	(say, 10,000).
+	Suppose further that these structures are short-lived,
+	and that the limit is rarely exceeded.
+\QuickA{}
+	Hint: the act of updating the counter must be blazingly
+	fast, but the counter is read out each time that the
+	counter is increased.
+	However, the value read out need not be accurate
+	\emph{except} that it absolutely must distinguish perfectly
+	between values below the limit and values greater than or
+	equal to the limit.
+	See Section @@@.
+
+\QuickQ{}
+	Suppose that you need to maintain a count of the number of
+	structures allocated in order to fail any allocations
+	once the number of structures in use exceeds a limit
+	(say, 10,000).
+	Suppose further that these structures are short-lived,
+	and that the limit is rarely exceeded, and suppose further
+	still that it is necessary to know when this counter reaches
+	zero, for example, in order to free up some common infrastructure.
+\QuickA{}
+	Hint: the act of updating the counter must be blazingly
+	fast, but the counter is read out each time that the
+	counter is increased.
+	However, the value read out need not be accurate
+	\emph{except} that it absolutely must distinguish perfectly
+	between values between the limit and zero on the one hand,
+	and values that either are less than or equal to zero or
+	are greater than or equal to the limit.
+	See Section @@@.
+
+\QuickQ{}
+	If simple is the goal, what are those \url{ACCESS_ONCE()}
+	primitives doing on lines~5 and 10 of
+	Figure~\ref{fig:count:Just Count!}???
+\QuickA{}
+	They are there because optimizing compilers are just too smart.
+	Without the \url{ACCESS_ONCE()}, the compiler will take one
+	look at the loop that invokes \url{inc_count()} 1,000 times,
+	and say ``Oh! I can replace that loop with a single addition
+	of 1,000 to the \url{counter} variable!''
+
+	The \url{ACCESS_ONCE()} primitive uses a \url{volatile} cast
+	to prevent any such optimizations.
+
+\QuickQ{}
+	But doesn't the \url{++} operator produce an x86 add-to-memory
+	instruction?
+	And won't the CPU cache cause this to be atomic?
+\QuickA{}
+	Although the \url{++} operator \emph{could} be atomic, there
+	is no requirement that it be so.
+	Furthermore, the \url{ACCESS_ONCE()} primitive forces most
+	version of \url{gcc} to load the value to a register, increment
+	the register, then store the value to memory, which is
+	decidedly non-atomic.
+
+\QuickQ{}
+	But this is still pretty fast.
+	And incrementing a single variable in a tight loop sounds
+	pretty unrealistic to me, after all, most of the program's
+	execution should be devoted to actually doing work, not accounting
+	for the work it has done!
+	Why should I care about making this go faster?
+\QuickA{}
+	In many cases, atomic increment will in fact be fast enough
+	for you.
+	In those cases, you should by all means use atomic increment.
+	That said, there are many real-world situations where
+	more elaborate counting algorithms are required.
+	The canonical example of such a situation is counting packets
+	and bytes in highly optimized networking stacks, where it is
+	all too easy to find much of the execution time going into
+	these sorts of accounting tasks.
+
+	In addition, counting provides an excellent view of the
+	issues encountered in shared-memory parallel programs.
+
+\QuickQ{}
+	What fundamental difference is there between counting packets
+	and counting the total number of bytes in the packets, given
+	that the packets vary in size?
+\QuickA{}
+	When counting packets, the counter is only incremented by the
+	value one.
+	On the other hand, when counting bytes, the counter might
+	be incremented by largish numbers.
+
+	Why does this matter?
+	Because in the increment-by-one case, the value returned will
+	be exact in the sense that the counter must necessarily have
+	taken on that value at some point in time, even if it is impossible
+	to say exactly when that point occurred.
+	In contrast, when counting bytes, two different threads might
+	return values that are inconsistent with any global ordering
+	of operations.
+
+	To see this, suppose that thread~0 adds the value three to its
+	counter, thread~1 adds the value five to its counter, and
+	threads~2 and 3 sum the counters.
+	If the system is ``weakly ordered'' or if the compiler
+	uses aggressive optimizations, thread~2 might find the
+	sum to be three and thread~3 might find the sum to be five.
+	The only possible global orders of the sequence of values
+	of the counter are 0,3,8 and 0,5,8, and neither order is
+	consistent with the results obtained.
+
+	If you missed this one, do not feel bad.
+	Michael Scott used this question to stump Paul McKenney during Paul's
+	Ph.D. defense.
+
 \QuickQAC{cha:Partitioning and Synchronization Design}
 \QuickQ{}
 	Is there a better solution to the Dining
@@ -796,132 +988,6 @@ grep $pattern1 | sed -e 's/a/b/' | sort
 	``m'' is the maximum number of elements allocated at a given time,
 	``s'' is the per-CPU pool size,
 	and ``n'' is the number of CPUs.
-
-\QuickQAC{chp:Counting}
-\QuickQ{}
-	Why on earth should efficient and scalable counting be hard???
-\QuickA{}
-	Because the straightforward counting algorithms, for example,
-	atomic operations on a shared counter, are slow and scale
-	very badly, as will be seen in Section @@@.
-
-\QuickQ{}
-	Suppose that you need to collect statistics on the number
-	of networking packets (or total number of bytes) transmitted
-	and/or received.
-	Packets might be transmitted or received by any CPU on
-	the system.
-	Suppose further that this large machine is capable of
-	handling a million packets per second, and that there
-	is a systems-monitoring package that reads out the count
-	every five seconds.
-	How would you implement this statistical counter?
-\QuickA{}
-	Hint: the act of updating the counter must be blazingly
-	fast, but because the counter is read out only about once
-	in five million updates, the act of reading out the counter can be
-	quite slow.
-	In addition, the value read out normally need not be all that
-	accurate---after all, since the counter is updated a thousand
-	times per millisecond, we should be able to work with a value
-	that is within a few thousand counts of the ``true value'',
-	whatever ``true value'' might mean in this context.
-	However, the value read out should maintain roughly the same
-	absolute error over time.
-	For example, while a 1\% error might be OK when the count
-	is on the order of a million or so, it is absolutely unacceptable
-	once the count reaches a trillion.
-	See Section @@@.
-
-\QuickQ{}
-	Suppose that you need to maintain a reference count on a
-	heavily used removable mass-storage device, so that you
-	can tell the user when it is safe to removed the device.
-	This device follows the usual removal procedure where
-	the user indicates a desire to remove the device, and
-	the system tells the user when it is safe to do so.
-\QuickA{}
-	Hint: the act of updating the counter must be blazingly
-	fast, but because the counter is read out only when the
-	user wishes to remove the device, the counter read-out
-	operation can be extremely slow.
-	Furthermore, there is no need to be able to read out
-	the counter at all unless the user has already indicated
-	a desire to remove the device.
-	In addition, the value read out need not be accurate
-	\emph{except} that it absolutely must distinguish perfectly
-	between non-zero and zero values.
-	See Section @@@.
-
-\QuickQ{}
-	Suppose that you need to maintain a count of the number of
-	structures allocated in order to fail any allocations
-	once the number of structures in use exceeds a limit
-	(say, 10,000).
-	Suppose further that these structures are short-lived,
-	and that the limit is rarely exceeded.
-\QuickA{}
-	Hint: the act of updating the counter must be blazingly
-	fast, but the counter is read out each time that the
-	counter is increased.
-	However, the value read out need not be accurate
-	\emph{except} that it absolutely must distinguish perfectly
-	between values below the limit and values greater than or
-	equal to the limit.
-	See Section @@@.
-
-\QuickQ{}
-	Suppose that you need to maintain a count of the number of
-	structures allocated in order to fail any allocations
-	once the number of structures in use exceeds a limit
-	(say, 10,000).
-	Suppose further that these structures are short-lived,
-	and that the limit is rarely exceeded, and suppose further
-	still that it is necessary to know when this counter reaches
-	zero, for example, in order to free up some common infrastructure.
-\QuickA{}
-	Hint: the act of updating the counter must be blazingly
-	fast, but the counter is read out each time that the
-	counter is increased.
-	However, the value read out need not be accurate
-	\emph{except} that it absolutely must distinguish perfectly
-	between values between the limit and zero on the one hand,
-	and values that either are less than or equal to zero or
-	are greater than or equal to the limit.
-	See Section @@@.
-
-\QuickQ{}
-	What fundamental difference is there between counting packets
-	and counting the total number of bytes in the packets, given
-	that the packets vary in size?
-\QuickA{}
-	When counting packets, the counter is only incremented by the
-	value one.
-	On the other hand, when counting bytes, the counter might
-	be incremented by largish numbers.
-
-	Why does this matter?
-	Because in the increment-by-one case, the value returned will
-	be exact in the sense that the counter must necessarily have
-	taken on that value at some point in time, even if it is impossible
-	to say exactly when that point occurred.
-	In contrast, when counting bytes, two different threads might
-	return values that are inconsistent with any global ordering
-	of operations.
-
-	To see this, suppose that thread~0 adds the value three to its
-	counter, thread~1 adds the value five to its counter, and
-	threads~2 and 3 sum the counters.
-	If the system is ``weakly ordered'' or if the compiler
-	uses aggressive optimizations, thread~2 might find the
-	sum to be three and thread~3 might find the sum to be five.
-	The only possible global orders of the sequence of values
-	of the counter are 0,3,8 and 0,5,8, and neither order is
-	consistent with the results obtained.
-
-	If you missed this one, do not feel bad.
-	Michael Scott stumped Paul McKenney with this one during Paul's
-	Ph.D. defense.
 
 \QuickQAC{chp:defer:Deferred Processing}
 \QuickQ{}
