@@ -5,12 +5,14 @@
 
 \QuickQuizChapter{chp:Counting}
 
-Counting may seem like the easiest and most natural arithmetic operation
-possible.
-However, doing so in an efficient and scalable manner on a large
+Counting is perhaps the simplest and most natural for a computer to do.
+However, counting efficiently and scalably on a large
 shared-memory multiprocessor can be quite challenging.
-Counting therefore provides an excellent introduction to many
-of the most important issues that arise in parallel programming.
+Furthermore, the simplicity of the underlying concept of counting
+allows us to consider concurrency issues without the distractions
+of elaborate data structures or complex synchronization primitives.
+Counting therefore provides an excellent introduction to
+parallel programming.
 
 This chapter covers a number of special cases for which there are simple,
 fast, and scalable counting algorithms.
@@ -19,6 +21,9 @@ counting.
 
 \QuickQuiz{}
 	Why on earth should efficient and scalable counting be hard???
+	After all, computers have special hardware for the sole purpose
+	of doing counting,
+	addition, subtraction, and lots more besides, don't they???
 \QuickQuizAnswer{
 	Because the straightforward counting algorithms, for example,
 	atomic operations on a shared counter, are slow and scale
@@ -52,7 +57,7 @@ counting.
 	For example, a 1\% error might be just fine when the count
 	is on the order of a million or so, but might be absolutely
 	unacceptable once the count reaches a trillion.
-	See Section @@@.
+	See Section~\ref{sec:count:Statistical Counters}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -71,7 +76,7 @@ counting.
 	fast, but because the counter is read out once at the
 	very end, it is not necessary to even provide a way to
 	read the counter out while counting.
-	See Section @@@.
+	See Section~\ref{sec:count:Read-At-End Counters}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -92,7 +97,11 @@ counting.
 	In addition, the value read out need not be accurate
 	\emph{except} that it absolutely must distinguish perfectly
 	between non-zero and zero values.
-	See Section @@@.
+	However, once it has read out a zero value, it must act
+	to keep the value at zero until it has taken some action
+	to prevent subsequent threads from gaining access to the
+	device being removed.
+	See Section~\ref{sec:count:Atomic-Read Reference Counters}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -110,7 +119,7 @@ counting.
 	\emph{except} that it absolutely must distinguish perfectly
 	between values below the limit and values greater than or
 	equal to the limit.
-	See Section @@@.
+	See Section~\ref{sec:count:Limit Counters}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -119,9 +128,12 @@ counting.
 	once the number of structures in use exceeds a limit
 	(say, 10,000).
 	Suppose further that these structures are short-lived,
-	and that the limit is rarely exceeded, and suppose further
+	and that the limit is rarely exceeded, that there is almost
+	always at least one structure in use, and suppose further
 	still that it is necessary to know when this counter reaches
-	zero, for example, in order to free up some common infrastructure.
+	zero, for example, in order to free up some memory
+	that is not required unless there is at least one structure
+	in use.
 \QuickQuizAnswer{
 	Hint: the act of updating the counter must be blazingly
 	fast, but the counter is read out each time that the
@@ -130,8 +142,8 @@ counting.
 	\emph{except} that it absolutely must distinguish perfectly
 	between values between the limit and zero on the one hand,
 	and values that either are less than or equal to zero or
-	are greater than or equal to the limit.
-	See Section @@@.
+	are greater than or equal to the limit on the other hand.
+	See Section~\ref{sec:count:Double-Limit Counters}.
 } \QuickQuizEnd
 
 The remainder of this chapter will develop answers to these questions.
@@ -252,8 +264,10 @@ Figure~\ref{fig:count:Atomic Increment Scalability}.
 The additional CPUs and threads must simply wait in line for
 access to the counter.
 
+@@@ diagrams and explanation @@@
+
 \QuickQuiz{}
-	But this is still pretty fast.
+	But atomic increment is still pretty fast.
 	And incrementing a single variable in a tight loop sounds
 	pretty unrealistic to me, after all, most of the program's
 	execution should be devoted to actually doing work, not accounting
@@ -268,7 +282,8 @@ access to the counter.
 	The canonical example of such a situation is counting packets
 	and bytes in highly optimized networking stacks, where it is
 	all too easy to find much of the execution time going into
-	these sorts of accounting tasks.
+	these sorts of accounting tasks, especially on large
+	multiprocessors.
 
 	In addition, counting provides an excellent view of the
 	issues encountered in shared-memory parallel programs.
@@ -316,16 +331,79 @@ Split counters.
 } \QuickQuizEnd
 
 
-\section{Statistical Read-Once Counters}
-\label{sec:count:Statistical Read-Once Counters}
+\section{Read-At-End Counters}
+\label{sec:count:Read-At-End Counters}
 
 reduce phase of map-reduce.
 
-\section{Mostly-Irrelevant Reference Counters}
-\label{sec:count:Mostly-Irrelevant Reference Counters}
+\section{Atomic-Read Reference Counters}
+\label{sec:count:Atomic-Read Reference Counters}
 
 \section{Limit Counters}
 \label{sec:count:Limit Counters}
 
-\section{Double-Ended Limit Counters}
-\label{sec:count:Double-Ended Limit Counters}
+\section{Double-Limit Counters}
+\label{sec:count:Double-Limit Counters}
+
+\section{Discussion}
+\label{sec:count:Discussion}
+
+This chapter has presented the reliability, performance, and
+scalability problems with traditional counting primitives.
+The C-language \url{++} operator is not guaranteed to function reliably in
+multithreaded code, and atomic operations to a single variable neither
+perform nor scale well.
+This chapter has also presented a number of counting algorithms that
+perform and scale extremely well in certain special cases.
+
+The fact that these algorithms only work well in their respective special
+cases might be considered a major problem with parallel programming in
+general.
+After all, the C-language \url{++} operator works just fine in single-threaded
+code, and not just for special cases, but in general, right?
+
+This line of reasoning does contain a grain of truth, but is in essence
+misguided.
+The problem is not parallelism as such, but rather scalability.
+To understand this, first consider the C-language \url{++} operator.
+The fact is that it does \emph{not} work in general, only for a restricted
+range of numbers.
+If you need to deal with 1,000-digit decimal numbers, the C-language \url{++}
+operator will not work for you.
+
+\QuickQuiz{}
+	The \url{++} operator works just fine for 1,000-digit numbers!!!
+	Haven't you heard of operator overloading???
+\QuickQuizAnswer{
+	In the C++ language, you might well be able to use \url{++}
+	on a 1,000-digit number, assuming that you had access to a
+	class implementing such numbers.
+	But as of 2009, the C language does not permit operator overloading.
+} \QuickQuizEnd
+
+This problem is not specific to arithmetic.
+Suppose you need to store and query data.
+Should you use an ASCII file, XML, a relational database, a linked list,
+a dense array, a B-tree, a radix tree, or any of the plethora of other data
+structures and environments that permit data to be stored and queried?
+It depends on what you need to do, how fast you need it done, and how
+large your data set is.
+
+Similarly, if you need to count, your solution will depend on how large
+of numbers you need to work with, how many CPUs need to be manipulating
+a given number concurrently, how the number is to be used, and what
+level of performance and scalability you will need.
+
+Nor is this problem specific to software.
+The design for a bridge meant to allow people to walk across a small brook
+might be a simple as a plank thrown across the brook.
+But this solution of using a plank does not scale.
+You would probably not use a plank to span the kilometers-wide mouth of
+the Columbia River, nor would such a design be advisable for bridges
+carrying concrete trucks.
+
+In short, just as bridge design has changed as their spans and loads have
+increased, so will software design change as the number of CPUs increases.
+An important tool permitting large numbers of CPUs to be brought to bear
+is \emph{partitioning}, which will be considered in greater depth in the
+next chapter.

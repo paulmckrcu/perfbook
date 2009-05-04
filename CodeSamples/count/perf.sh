@@ -20,18 +20,26 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
+nsamples=5
+
 for count in count_atomic count_nonatomic
 do
-	for ncpu in 1 2 3 4 6 8
+	for ncpu in 1 2 3 4 5 6 7 8
 	do
-		echo $count $ncpu rperf 2
-		./$count $ncpu rperf 2
-		sleep 1
+		for ((i = 1; i < $nsamples; i++))
+		do
+			echo $count $ncpu rperf 2
+			./$count $ncpu rperf 2
+			sleep 1
+		done
 	done
-	for ncpu in 1 2 3 4 6 8
+	for ncpu in 1 2 3 4 5 6 7 8
 	do
-		echo $count $ncpu uperf 2
-		./$count $ncpu uperf 2
-		sleep 1
+		for ((i = 1; i < $nsamples; i++))
+		do
+			echo $count $ncpu uperf 2
+			./$count $ncpu uperf 2
+			sleep 1
+		done
 	done
 done

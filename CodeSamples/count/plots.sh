@@ -18,5 +18,5 @@ set nokey
 # set label 3 "brlock" at 0.4,0.6 left
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "atomic.dat", "atomic.dat" w l
+plot "data/count_atomic:u.2009.05.03a.dat" w e, "data/count_atomic:u.2009.05.03a.dat" w l, 8.81772
 ---EOF---
