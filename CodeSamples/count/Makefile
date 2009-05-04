@@ -17,15 +17,23 @@
 include ../Makefile.arch
 
 PROGS =	count_atomic \
-	count_nonatomic
+	count_end \
+	count_nonatomic \
+	count_stat
 
 all: $(PROGS)
 
 count_atomic: count_atomic.c ../api.h counttorture.h
 	cc $(GCC_ARGS) -o count_atomic count_atomic.c -lpthread
 
+count_end: count_end.c ../api.h counttorture.h
+	cc $(GCC_ARGS) -o count_end count_end.c -lpthread
+
 count_nonatomic: count_nonatomic.c ../api.h counttorture.h
 	cc $(GCC_ARGS) -o count_nonatomic count_nonatomic.c -lpthread
+
+count_stat: count_stat.c ../api.h counttorture.h
+	cc $(GCC_ARGS) -o count_stat count_stat.c -lpthread
 
 clean:
 	rm -f $(PROGS)

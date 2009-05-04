@@ -1,6 +1,5 @@
 /*
- * count_nonatomic.c: simple non-atomic counter.  It might not actually
- * 	be non-atomic on some systems.
+ * count_stat.c: Per-thread statistical counters.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,16 +20,21 @@
 
 #include "../api.h"
 
-long counter = 0;
+DEFINE_PER_THREAD(long, counter);
 
 void inc_count(void)
 {
-	counter++;
+	__get_thread_var(counter)++;
 }
 
 long read_count(void)
 {
-	return counter;
+	int t;
+	long sum = 0;
+
+	for_each_thread(t)
+		sum += per_thread(counter, t);
+	return sum;
 }
 
 void count_init(void)

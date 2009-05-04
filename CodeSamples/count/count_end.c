@@ -1,6 +1,5 @@
 /*
- * count_nonatomic.c: simple non-atomic counter.  It might not actually
- * 	be non-atomic on some systems.
+ * count_stat.c: Per-thread statistical counters.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +20,10 @@
 
 #include "../api.h"
 
-long counter = 0;
+long __thread counter = 0;
+long *counterp[NR_THREADS] = { NULL };
+long finalcount = 0;
+DEFINE_SPINLOCK(final_mutex);
 
 void inc_count(void)
 {
@@ -30,11 +32,33 @@ void inc_count(void)
 
 long read_count(void)
 {
-	return counter;
+	int t;
+	long sum = finalcount;
+
+	spin_lock(&final_mutex);
+	for_each_thread(t)
+		if (counterp[t] != NULL)
+			sum += *counterp[t];
+	spin_unlock(&final_mutex);
+	return sum;
 }
 
 void count_init(void)
 {
 }
 
+void count_register_thread(void)
+{
+	counterp[smp_thread_id()] = &counter;
+}
+
+void count_unregister_thread(void)
+{
+	spin_lock(&final_mutex);
+	finalcount += counter;
+	counterp[smp_thread_id()] = NULL;
+	spin_unlock(&final_mutex);
+}
+
+#define NEED_REGISTER_THREAD
 #include "counttorture.h"

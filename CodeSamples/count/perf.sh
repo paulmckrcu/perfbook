@@ -22,7 +22,7 @@
 
 nsamples=5
 
-for count in count_atomic count_nonatomic
+for count in count_atomic count_end count_nonatomic count_stat
 do
 	for ncpu in 1 2 3 4 5 6 7 8
 	do
