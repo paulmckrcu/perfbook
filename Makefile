@@ -165,24 +165,19 @@ perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
 	ps2pdf perfbook-2up.ps perfbook-2up.pdf
 	rm perfbook.ps perfbook-2up.ps
 
-perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex origpub.tex contrib.tex
+perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) extraction
 	latex perfbook || :
 	test -d bib/. && bibtex perfbook || :
 	latex perfbook || :
 	latex perfbook || :
 	latex perfbook || :
 
-perfbook_flat.tex: $(LATEXSOURCES)
+extraction:
+	echo > qqz.tex
 	texexpand perfbook.tex > perfbook_flat.tex
-
-contrib.tex: $(LATEXSOURCES) perfbook_flat.tex
-	sh utilities/extractcontrib.sh < perfbook_flat.tex > contrib.tex
-
-origpub.tex: $(LATEXSOURCES) perfbook_flat.tex
-	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
-
-qqz.tex: $(LATEXSOURCES) perfbook_flat.tex
 	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
+	cat perfbook_flat.tex qqz.tex | sh utilities/extractcontrib.sh > contrib.tex
+	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
 
 SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
 	latex -output-directory=$(shell dirname $<) $<
