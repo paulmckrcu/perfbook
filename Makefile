@@ -172,8 +172,14 @@ perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex origpub.tex
 	latex perfbook || :
 	latex perfbook || :
 
-qqz.tex: $(LATEXSOURCES)
-	sh utilities/extractqqz.sh > qqz.tex
+perfbook_flat.tex: $(LATEXSOURCES)
+	texexpand perfbook.tex > perfbook_flat.tex
+
+origpub.tex: $(LATEXSOURCES) perfbook_flat.tex
+	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
+
+qqz.tex: $(LATEXSOURCES) perfbook_flat.tex
+	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
 
 SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
 	latex -output-directory=$(shell dirname $<) $<
@@ -191,14 +197,11 @@ SMPdesign/DiningPhilosopher5PEM.eps: SMPdesign/DiningPhilosopher5PEM.tex
 	latex -output-directory=$(shell dirname $<) $<
 	dvips -E $(patsubst %.tex,%.dvi,$<) -o $@
 
-origpub.tex: $(LATEXSOURCES)
-	sh utilities/extractorigpub.sh > origpub.tex
-
 clean:
-	find . -name '*.aux' -o -name '*.bbl' -o -name '*.blg' \
+	find . -name '*.aux' -o -name '*.blg' \
 		-o -name '*.dvi' -o -name '*.log' -o -name '*.pdf' \
 		-o -name '*.qqz' -o -name '*.toc' | xargs rm
-	rm -f qqz.tex
+	rm -f perfbook_flat.tex
 	rm -f SMPdesign/DiningPhilosopher5.eps \
 	      SMPdesign/DiningPhilosopher5TB.eps \
 	      SMPdesign/DiningPhilosopher4part-b.eps \

@@ -21,11 +21,9 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
-src=${1-perfbook}
-texexpand $src.tex |
-	sed -n -e '/^\\QuickQuizChapter{/p' \
-	       -e '/^\\QuickQuiz{/,/^} \\QuickQuizEnd/p' |
-	sed -e 's/^\\QuickQuizChapter{/\\QuickQAC{/' \
-	    -e 's/^\\QuickQuiz{/\\QuickQ{/' \
-	    -e 's/^\\QuickQuizAnswer{/\\QuickA{}/' \
-	    -e 's/^} \\QuickQuizEnd//'
+sed -n -e '/^\\QuickQuizChapter{/p' \
+       -e '/^\\QuickQuiz{/,/^} \\QuickQuizEnd/p' |
+sed -e 's/^\\QuickQuizChapter{/\\QuickQAC{/' \
+    -e 's/^\\QuickQuiz{/\\QuickQ{/' \
+    -e 's/^\\QuickQuizAnswer{/\\QuickA{}/' \
+    -e 's/^} \\QuickQuizEnd//'

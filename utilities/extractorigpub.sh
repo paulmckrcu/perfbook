@@ -22,8 +22,7 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
-texexpand perfbook.tex |
-	sed -n -e '/^\\OriginallyPublished{/p' \
-	       -e '/^\\RangeOriginallyPublished{/p' |
-	sed -e 's/^\\OriginallyPublished{/\\OrigPubItem{/' \
-	    -e 's/^\\RangeOriginallyPublished{/\\RangeOrigPub{/'
+sed -n -e '/^\\OriginallyPublished{/p' \
+       -e '/^\\RangeOriginallyPublished{/p' |
+sed -e 's/^\\OriginallyPublished{/\\OrigPubItem{/' \
+    -e 's/^\\RangeOriginallyPublished{/\\RangeOrigPub{/'
