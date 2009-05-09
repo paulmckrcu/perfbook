@@ -165,7 +165,7 @@ perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
 	ps2pdf perfbook-2up.ps perfbook-2up.pdf
 	rm perfbook.ps perfbook-2up.ps
 
-perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex origpub.tex
+perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex origpub.tex contrib.tex
 	latex perfbook || :
 	test -d bib/. && bibtex perfbook || :
 	latex perfbook || :
@@ -174,6 +174,9 @@ perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex origpub.tex
 
 perfbook_flat.tex: $(LATEXSOURCES)
 	texexpand perfbook.tex > perfbook_flat.tex
+
+contrib.tex: $(LATEXSOURCES) perfbook_flat.tex
+	sh utilities/extractcontrib.sh < perfbook_flat.tex > contrib.tex
 
 origpub.tex: $(LATEXSOURCES) perfbook_flat.tex
 	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
