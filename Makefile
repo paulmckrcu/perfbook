@@ -172,7 +172,7 @@ perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) qqz.tex origpub.tex
 	latex perfbook || :
 	latex perfbook || :
 
-qqz.tex: $(LATEXSOURCES) $(EPSSOURCES)
+qqz.tex: $(LATEXSOURCES)
 	sh utilities/extractqqz.sh > qqz.tex
 
 SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
