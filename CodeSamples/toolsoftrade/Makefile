@@ -17,7 +17,8 @@
 include ../Makefile.arch
 
 PROGS =	forkjoin \
-	forkjoinvar
+	forkjoinvar \
+	pcreate
 
 all: $(PROGS)
 
@@ -26,6 +27,9 @@ forkjoin: forkjoin.c ../api.h
 
 forkjoinvar: forkjoinvar.c ../api.h
 	cc $(GCC_ARGS) -o forkjoinvar forkjoinvar.c
+
+pcreate: pcreate.c ../api.h
+	cc $(GCC_ARGS) -o pcreate pcreate.c -lpthread
 
 clean:
 	rm -f $(PROGS) *.o

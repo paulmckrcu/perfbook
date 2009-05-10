@@ -177,7 +177,8 @@ If \url{fork()} succeeds, it returns twice, once for the parent
 and again for the child.
 The value returned from \url{fork()} allows the caller to tell
 the difference, as shown in
-Figure~\ref{fig:toolsoftrade:Using the fork() Primitive}.
+Figure~\ref{fig:toolsoftrade:Using the fork() Primitive}
+(\url{(forkjoin.c}).
 Line~1 executes the \url{fork()} primitive, and saves its return value
 in local variable \url{pid}.
 Line~2 checks to see if \url{pid} is zero, in which case, this is the
@@ -221,7 +222,8 @@ counterpart, as each invocation of \url{wait()} waits for but one child
 process.
 It is therefore customary to wrap \url{wait()} into a function similar
 to the \url{waitall()} function shown in
-Figure~\ref{fig:toolsoftrade:Using the wait() Primitive},
+Figure~\ref{fig:toolsoftrade:Using the wait() Primitive}
+(\url{api-pthread.h}),
 this \url{waitall()} function having semantics similar to the
 shell-script \url{wait} command.
 Each pass through the loop spanning lines~6-15 waits on one child process.
@@ -276,11 +278,22 @@ Otherwise, lines~11 and 12 print an error and exit.
 It is critically important to note that the parent and child do \url{not}
 share memory.
 This is illustrated by the program shown in
-Figure~\ref{fig:toolsoftrade:Processes Created Via fork() Do Not Share Memory},
+Figure~\ref{fig:toolsoftrade:Processes Created Via fork() Do Not Share Memory}
+(\url{forkjoinvar.c}),
 in which the child sets a global variable \url{x} to 1 on line~6,
 prints a message on line~7, and exits on line~8.
 The parent continues at line~14, where it waits on the child,
 and on line~15 finds that its copy of the variable \url{x} is still zero.
+The output is thus as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+Child process set x=1
+Parent process sees x=0
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
 
 \QuickQuiz{}
 	Isn't there a lot more to \url{fork()} and \url{wait()}
@@ -294,7 +307,7 @@ and on line~15 finds that its copy of the variable \url{x} is still zero.
 	Linux-kernel implementations.
 } \QuickQuizEnd
 
-The finest-grained parallelism of course requires shared memory, and
+The finest-grained parallelism requires shared memory, and
 this is covered in
 Section~\ref{sec:toolsoftrade:POSIX Thread Creation and Destruction}.
 That said, shared-memory parallelism can be significantly more complex
@@ -303,11 +316,121 @@ than fork-join parallelism.
 \subsection{POSIX Thread Creation and Destruction}
 \label{sec:toolsoftrade:POSIX Thread Creation and Destruction}
 
-\url{pthread_create()}
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 int x = 0;
+  2 
+  3 void *mythread(void *arg)
+  4 {
+  5   x = 1;
+  6   printf("Child process set x=1\n");
+  7   return NULL;
+  8 }
+  9 
+ 10 int main(int argc, char *argv[])
+ 11 {
+ 12   pthread_t tid;
+ 13   void *vp;
+ 14 
+ 15   if (pthread_create(&tid, NULL, mythread, NULL) != 0) {
+ 16     perror("pthread_create");
+ 17     exit(-1);
+ 18   }
+ 19   if (pthread_join(tid, &vp) != 0) {
+ 20     perror("pthread_join");
+ 21     exit(-1);
+ 22   }
+ 23   printf("Parent process sees x=%d\n", x);
+ 24   return 0;
+ 25 }
+\end{verbatim}
+}
+\caption{Threads Created Via {\tt pthread\_create()} Share Memory}
+\label{fig:toolsoftrade:Threads Created Via pthread-create() Share Memory}
+\end{figure}
 
-\url{pthread_exit()}
+To create a thread within an existing process, invoke the
+\url{pthread_create()} primitive, for example, as shown on line~15 of
+Figure~\ref{fig:toolsoftrade:Threads Created Via pthread-create() Share Memory}
+(\url{pcreate.c}).
+The first argument is a pointer to a \url{pthread_t} in which to store the
+ID of the thread to be created, the second \url{NULL} argument is a pointer
+to an optional \url{pthread_attr_t}, the third argument is the function
+(in this case, \url{mythread()}
+that is to be invoked by the new thread, and the last \url{NULL} argument
+is the argument that will be passed to \url{mythread}.
 
-\url{pthread_join()}
+In this example, \url{mythread()} simply returns, but it could instead
+call \url{pthread_exit()}.
+
+\QuickQuiz{}
+	If the \url{mythread()} function in
+	Figure~\ref{fig:toolsoftrade:Threads Created Via pthread-create() Share Memory}
+	can simply return, why bother with \url{pthread_exit()}?
+\QuickQuizAnswer{
+	In this simple example, there is no reason whatsoever.
+	However, imagine a more complex example, where \url{mythread()}
+	invokes other functions, possibly separately compiled.
+	In such a case, \url{pthread_exit()} allows these other functions
+	to end the thread's execution without having to pass some sort
+	of error return all the way back up to \url{mythread()}.
+} \QuickQuizEnd
+
+The \url{pthread_join()} primitive, shown on line~19,  is analogous to
+the fork-join \url{wait()} primitive.
+It blocks until the thread specified by the \url{tid} variable completes
+execution, either by invoking \url{pthread_exit()} or by returning from
+the thread's top-level function.
+The thread's exit value will be stored through the pointer passed as the
+second argument to \url{pthread_join()}.
+The thread's exit value is either the value passed to \url{pthread_exit()}
+or the value returned by the thread's top-level function, depending on
+how the thread in question exits.
+
+The program shown in
+Figure~\ref{fig:toolsoftrade:Threads Created Via pthread-create() Share Memory}
+produces output as follows, demonstrating that memory is in fact
+shared between the two threads:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+Child process set x=1
+Parent process sees x=1
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+Note that this program carefully makes sure that only one of the threads
+stores a value to variable \url{x} at a time.
+Any situation in which one thread might be storing a value to a given
+variable while some other thread either loads from or stores to that
+same variable is termed a ``data race''.
+Because the C language makes no guarantee that the results of a data race
+will be in any way reasonable, we need some way of safely accessing
+and modifying data concurrently, such as the locking primitives discussed
+in the following section.
+
+\QuickQuiz{}
+	If the C language makes no guarantees in presence of a data
+	race, then why does the Linux kernel have so many data races?
+	Are you trying to tell me that the Linux kernel is completely
+	broken???
+\QuickQuizAnswer{
+	Ah, but the Linux kernel is written in a carefully selected
+	superset of the C language that includes special gcc
+	extensions, such as asms, that permit safe execution even
+	in presence of data races.
+	In addition, the Linux kernel does not run on a number of
+	platforms where data races would be especially problematic.
+	For an example, consider embedded systems with 32-bit pointers
+	and 16-bit busses.
+	On such a system, a data race involving a store to and a load
+	from a given pointer might well result in the load returning the
+	low-order 16 bits of the old value of the pointer concatenated
+	with the high-order 16 bits of the new value of the pointer.
+} \QuickQuizEnd
 
 \subsection{POSIX Locking}
 \label{sec:toolsoftrade:POSIX Locking}
