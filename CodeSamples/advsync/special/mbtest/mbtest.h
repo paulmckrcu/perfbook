@@ -631,6 +631,65 @@ void printstate(char *prog)
 		printf("!!! badcount = %d (%s)\n", state.badcount, prog);
 }
 
+#define DUMP_STATE_OFFSET(f) \
+	do { \
+		printf("state." #f " = %d/%#x\n", \
+		(long)&state.f - (long)&state, \
+		(long)&state.f - (long)&state); \
+	} while (0)
+
+void dump_state_offsets(void)
+{
+	DUMP_STATE_OFFSET(n);
+	DUMP_STATE_OFFSET(n1);
+	DUMP_STATE_OFFSET(n2);
+
+	DUMP_STATE_OFFSET(a);
+	DUMP_STATE_OFFSET(a1);
+	DUMP_STATE_OFFSET(a2);
+
+	DUMP_STATE_OFFSET(b);
+	DUMP_STATE_OFFSET(b1);
+	DUMP_STATE_OFFSET(b2);
+
+	DUMP_STATE_OFFSET(c);
+	DUMP_STATE_OFFSET(c1);
+	DUMP_STATE_OFFSET(c2);
+
+	DUMP_STATE_OFFSET(d);
+	DUMP_STATE_OFFSET(d1);
+	DUMP_STATE_OFFSET(d2);
+
+	DUMP_STATE_OFFSET(e);
+	DUMP_STATE_OFFSET(e1);
+	DUMP_STATE_OFFSET(e2);
+
+	DUMP_STATE_OFFSET(v);
+	DUMP_STATE_OFFSET(v1);
+	DUMP_STATE_OFFSET(v2);
+
+	DUMP_STATE_OFFSET(x);
+	DUMP_STATE_OFFSET(x1);
+	DUMP_STATE_OFFSET(x2);
+
+	DUMP_STATE_OFFSET(y);
+	DUMP_STATE_OFFSET(y1);
+	DUMP_STATE_OFFSET(y2);
+
+	DUMP_STATE_OFFSET(z);
+	DUMP_STATE_OFFSET(z1);
+	DUMP_STATE_OFFSET(z2);
+
+	DUMP_STATE_OFFSET(starttime);
+	DUMP_STATE_OFFSET(s);
+	DUMP_STATE_OFFSET(f);
+	DUMP_STATE_OFFSET(oldn);
+	DUMP_STATE_OFFSET(anomalies);
+	DUMP_STATE_OFFSET(badcount);
+	DUMP_STATE_OFFSET(oldbadcount);
+	DUMP_STATE_OFFSET(fillstorebuffer);
+}
+
 void usage(char *prog)
 {
 	fprintf(stderr,
@@ -685,6 +744,8 @@ void parse_args(int argc, char *argv[])
 			test_cycle_tb_mask = strtoul(argv[i], NULL, 0);
 		} else if (strcmp("--v", argv[i]) == 0) {
 			dump_config(argv[0]);
+		} else if (strcmp("--vstateoffsets", argv[i]) == 0) {
+			dump_state_offsets();
 		} else {
 			usage(argv[0]);
 		}
