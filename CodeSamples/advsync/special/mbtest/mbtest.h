@@ -56,10 +56,11 @@ long test_cycle_tb_mask	= 0xff;		/* These TB bits 0: start rep */
  * Dump the configuration, abort if ill-formed.
  * Though if ill-formed, probably couldn't compile anyway...
  */
-void dump_config(void)
+void dump_config(char *prog)
 {
 	int error = 0;
 
+	printf("%s configuration:\n", prog);
 	printf("CPU offset: %d\n", cpuoffset);
 	printf("Number of test cycles: %d\n", ncycles);
 	printf("Timing jitter mask: %#x TB ticks\n", jitter);
@@ -353,6 +354,9 @@ void *thread_0(void *me_in)
 		state.a1 = state.b1 = state.c1 = state.d1 = 0;
 		state.f = num_threads_created - 1;
 		state.s = num_threads_created - 1;
+#ifdef INIT_VARS_EACH_CYCLE
+		INIT_VARS_EACH_CYCLE;
+#endif
 		preload(0);
 		hwsync();
 		state.starttime = next_test_cycle_start();
@@ -556,7 +560,7 @@ void *thread_5(void *me_in)
 			barrier();
 		}
 		oldtb = state.starttime;
-		preload(4);
+		preload(5);
 		hwsync();
 		atomic_dec(&state.s);
 		hwsync();
@@ -612,7 +616,7 @@ void validate_thread_assignment(void)
 	}
 }
 
-void printstate(void)
+void printstate(char *prog)
 {
 	long t = gettb();
 	time_t tt;
@@ -622,9 +626,9 @@ void printstate(void)
 	       state.a, state.a1, state.b, state.c, state.d,
 	       ctime(&tt));
 	if (state.anomalies != 0)
-		printf("??? anomalies = %d\n", state.anomalies);
+		printf("??? anomalies = %d (%s)\n", state.anomalies, prog);
 	if (state.badcount != 0)
-		printf("!!! badcount = %d\n", state.badcount);
+		printf("!!! badcount = %d (%s)\n", state.badcount, prog);
 }
 
 void usage(char *prog)
@@ -680,7 +684,7 @@ void parse_args(int argc, char *argv[])
 				usage(argv[0]);
 			test_cycle_tb_mask = strtoul(argv[i], NULL, 0);
 		} else if (strcmp("--v", argv[i]) == 0) {
-			dump_config();
+			dump_config(argv[0]);
 		} else {
 			usage(argv[0]);
 		}
@@ -725,7 +729,7 @@ int main(int argc, char *argv[])
 
 	/* Tell the tale. */
 
-	printstate();
+	printstate(argv[0]);
 
 	return (0);
 }
