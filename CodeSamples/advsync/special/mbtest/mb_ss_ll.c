@@ -22,17 +22,19 @@
 	do { \
 		state.a = 1; \
 		state.b = 1; \
+		while (state.f > 0) \
+			barrier(); \
+		if (state.y == 1 && state.x == 0) { \
+			state.badcount++; \
+			break; \
+		} \
 	} while (0)
 
 #define THREAD_1 \
 	do { \
 		state.y = state.b; \
 		state.x = state.a; \
-		if (state.y == 1 && state.x == 0) { \
-			state.badcount++; \
-			break; \
-		} \
-	} while (state.f > 1)
+	} while (0)
 
 /* #define THREAD_2 */
 /* #define THREAD_3 */

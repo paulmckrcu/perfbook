@@ -24,6 +24,11 @@
 		state.a = 1; \
 		lwsync(); \
 		state.x = state.b; \
+		while (state.f > 0); \
+		if (state.y == 0 && state.x == 0) { \
+			state.badcount++; \
+			break; \
+		} \
 	} while (0)
 
 #define THREAD_1 \
@@ -31,11 +36,6 @@
 		state.b = 1; \
 		lwsync(); \
 		state.y = state.a; \
-		while (state.f > 1); \
-		if (state.y == 0 && state.x == 0) { \
-			state.badcount++; \
-			break; \
-		} \
 	} while (0)
 
 /* #define THREAD_2 */
