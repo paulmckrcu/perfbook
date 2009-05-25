@@ -33,17 +33,30 @@ This can be accomplished as follows:
   1 compute_it 1 > compute_it.1.out &
   2 compute_it 2 > compute_it.2.out &
   3 wait
-  4 cat < compute_it.1.out
-  5 cat < compute_it.2.out
+  4 cat compute_it.1.out
+  5 cat compute_it.2.out
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{toolsoftrade/shellparallel}}
+\end{center}
+\caption{Execution Diagram for Parallel Shell Execution}
+\label{fig:intro:Execution Diagram for Parallel Shell Execution}
+\end{figure}
 
 Lines~1 and 2 launch two instances of this program, redirecting their
 output to two separate files, with the \url{&} character directing the
 shell to run the two instances of the program in the background.
 Line~3 waits for both instances to complete, and lines~4 and 5
 display their output.
+The resulting execution is as shown in
+Figure~\ref{fig:intro:Execution Diagram for Parallel Shell Execution}:
+the two instances of \url{compute_it} execute in parallel,
+\url{wait} completes after both of them do, and then the two instances
+of \url{cat} execute sequentially.
 % @@@ Maui scheduler, load balancing, BOINC, and so on.
 % @@@ Diagram showing parallel execution.
 
@@ -570,11 +583,14 @@ required by \url{pthread_create()}.
 \QuickQuiz{}
 	Writing four lines of code for each acquisition and release
 	of a \url{pthread_mutex_t} sure seems painful!
+	Isn't there a better way?
 \QuickQuizAnswer{
 	Indeed!
 	And for that reason, the \url{pthread_mutex_lock()} and
 	\url{pthread_mutex_unlock()} primitives are normally wrappered
 	in functions that do this error checking.
+	Later on, we will wrapper them with the Linux kernel
+	\url{spin_lock()} and \url{spin_unlock()} APIs.
 } \QuickQuizEnd
 
 Lines~31-49 of
@@ -759,14 +775,400 @@ values of \url{x} stored by \url{lock_writer()}.
 	ran next, so it had to re-initialize \url{x}.
 } \QuickQuizEnd
 
+Although there is quite a bit more to POSIX exclusive locking, these
+primitives provide a good start and are in fact sufficient in a great
+many situations.
+The next section takes a brief look at POSIX reader-writer locking.
+
 \subsection{POSIX Reader-Writer Locking}
 \label{sec:toolsoftrade:POSIX Reader-Writer Locking}
+
+The POSIX API provides a reader-writer lock, which is represented by
+a \url{pthread_rwlock_t}.
+As with \url{pthread_mutex_t}, \url{pthread_rwlock_t} may be statically
+initialized via \url{PTHREAD_RWLOCK_INITIALIZER} or dynamically
+initialized via the \url{pthread_rwlock_init()} primitive.
+The \url{pthread_rwlock_rdlock()} primitive read-acquires the
+specified \url{pthread_rwlock_t}, the \url{pthread_rwlock_wrlock()}
+primitive write-acquires it, and the \url{pthread_rwlock_unlock()}
+primitive releases it.
+Only a single thread may write-hold a given \url{pthread_rwlock_t}
+at any given time, but multiple threads may read-hold a given
+\url{pthread_rwlock_t}, at least while there is no thread
+currently write-holding it.
+
+As you might expect, reader-writer locks are designed for read-mostly
+situations.
+In these situations, a reader-writer lock can provide greater scalability
+than can an exclusive lock because the exclusive lock is by definition
+limited to a single thread holding the lock at any given time, while
+the reader-writer lock permits
+an arbitrarily large number of readers to concurrently hold the lock.
+However, in practice, we need to know how much additional scalability is
+provided by reader-writer locks.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 pthread_rwlock_t rwl = PTHREAD_RWLOCK_INITIALIZER;
+  2 int holdtime = 0;
+  3 int thinktime = 0;
+  4 long long *readcounts;
+  5 int nreadersrunning = 0;
+  6 
+  7 #define GOFLAG_INIT 0
+  8 #define GOFLAG_RUN  1
+  9 #define GOFLAG_STOP 2
+ 10 char goflag = GOFLAG_INIT;
+ 11 
+ 12 void *reader(void *arg)
+ 13 {
+ 14   int i;
+ 15   long long loopcnt = 0;
+ 16   long me = (long)arg;
+ 17 
+ 18   __sync_fetch_and_add(&nreadersrunning, 1);
+ 19   while (ACCESS_ONCE(goflag) == GOFLAG_INIT) {
+ 20     continue;
+ 21   }
+ 22   while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
+ 23     if (pthread_rwlock_rdlock(&rwl) != 0) {
+ 24       perror("pthread_rwlock_rdlock");
+ 25       exit(-1);
+ 26     }
+ 27     for (i = 1; i < holdtime; i++) {
+ 28       barrier();
+ 29     }
+ 30     if (pthread_rwlock_unlock(&rwl) != 0) {
+ 31       perror("pthread_rwlock_unlock");
+ 32       exit(-1);
+ 33     }
+ 34     for (i = 1; i < thinktime; i++) {
+ 35       barrier();
+ 36     }
+ 37     loopcnt++;
+ 38   }
+ 39   readcounts[me] = loopcnt;
+ 40   return NULL;
+ 41 }
+\end{verbatim}
+}
+\caption{Measuring Reader-Writer Lock Scalability}
+\label{fig:toolsoftrade:Measuring Reader-Writer Lock Scalability}
+\end{figure}
+
+Figure~\ref{fig:toolsoftrade:Measuring Reader-Writer Lock Scalability}
+(\url{rwlockscale.c})
+shows one way of measuring reader-writer lock scalability.
+Line~1 shows the definition and initialization of the reader-writer
+lock, line~2 shows the \url{holdtime} argument controlling the
+time each thread holds the reader-writer lock,
+line~3 shows the \url{thinktime} argument controlling the time between
+the release of the reader-writer lock and the next acquisition,
+line~4 defines the \url{readcounts} array into which each reader thread
+places the number of times it acquired the lock, and
+line~5 defines the \url{nreadersrunning} variable, which
+determines when all reader threads have started running.
+
+Lines~7-10 define \url{goflag}, which synchronizes the start and the
+end of the test.
+This variable is initially set to \url{GOFLAG_INIT}, then set to
+\url{GOFLAG_RUN} after all the reader threads have started, and finally
+set to \url{GOFLAG_STOP} to terminate the test run.
+
+Lines~12-41 define \url{reader()}, which is the reader thread.
+Line~18 atomically increments the \url{nreadersrunning} variable
+to indicate that this thread is now running, and
+lines~19-21 wait for the test to start.
+The \url{ACCESS_ONCE()} primitive forces the compiler to fetch \url{goflag}
+on each pass through the loop---the compiler would otherwise be within its
+rights to assume that the value of \url{goflag} would never change.
+
+The loop spanning lines~22-38 carries out the performance test.
+Lines~23-26 acquire the lock, lines~27-29 hold the lock for the specified
+duration (and the \url{barrier()} directive prevents the compiler from
+optimizing the loop out of existence), lines~30-33 release the lock,
+and lines~34-36 wait for the specified duration before re-acquiring the
+lock.
+Line~37 counts this lock acquisition.
+
+Line~38 moves the lock-acquisition count to this thread's element of the
+\url{readcounts[]} array, and line~40 returns, terminating this thread.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{CodeSamples/toolsoftrade/rwlockscale}}
+\end{center}
+\caption{Reader-Writer Lock Scalability}
+\label{fig:intro:Reader-Writer Lock Scalability}
+\end{figure}
+
+Figure~\ref{fig:intro:Reader-Writer Lock Scalability}
+shows the results of running this test on a 64-core Power-5 system
+with two hardware threads per core for a total of 128 software-visible
+CPUs.
+The \url{thinktime} parameter was zero for all these tests, and the
+\url{holdtime} parameter set to values ranging from one thousand (``1K''
+on the graph) to 100 million (``100M'' on the graph).
+The actual value plotted is:
+\begin{equation}
+	\frac{L_N}{N L_1}
+\end{equation}
+where $N$ is the number of threads,
+$L_N$ is the number of lock acquisitions by $N$ threads, and
+$L_1$ is the number of lock acquisitions by a single thread.
+Given ideal hardware and software scalability, this value will always
+be 1.0.
+
+As can be seen in the figure, reader-writer locking scalability is
+decidedly non-ideal, especially for smaller sizes of critical
+sections.
+To see why read-acquisition can be so slow, consider
+that all the acquiring threads must update the \url{pthread_rwlock_t}
+data structure.
+Therefoe, if all 128 executing threads attempt to
+read-acquire the reader-writer lock concurrently, they must update
+this underlying \url{pthread_rwlock_t} one at a time.
+One lucky thread might do so almost immediately, but the least-lucky
+thread must wait for all the other 127 threads to do their updates.
+This situation will only get worse as you add CPUs.
+
+\QuickQuiz{}
+	Isn't comparing against single-CPU throughput a bit harsh?
+\QuickQuizAnswer{
+	Not at all.
+	In fact, this comparison was, if anything, overly lenient.
+	A more balanced comparison would be against single-CPU
+	throughput with the locking primitives commented out.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	But 1,000 instructions is not a particularly small size for
+	a critical section.
+	What do I do if I need a much smaller critical section, for
+	example, one containing only a few tens of instructions?
+\QuickQuizAnswer{
+	If the data being read \emph{never} changes, then you do not
+	need to hold any locks while accessing it.
+	If the data changes sufficiently infrequently, you might be
+	able to checkpoint execution, terminate all threads, change
+	the data, then restart at the checkpoint.
+
+	Another approach is to keep a single exclusive lock per
+	thread, so that a thread read-acquires the larger aggregate
+	reader-writer lock by acquiring its own lock, and write-acquires
+	by acquiring all the per-thread locks~\cite{WilsonCHsieh92a}.
+	This can work quite well for readers, but causes writers
+	to incur increasingly large overheads as the number of threads
+	increases.
+
+	Some other ways of handling very small critical sections are
+	described in Section~\ref{sec:defer:Read-Copy Update (RCU)}.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	In
+	Figure~\ref{fig:intro:Reader-Writer Lock Scalability},
+	all of the traces other than the 100M trace deviate gently
+	from the ideal line.
+	In contrast, the 100M trace breaks sharply from the ideal
+	line at 64 CPUs.
+	In addition, the spacing between the 100M trace and the 10M
+	trace is much smaller than that between the 10M trace and the
+	1M trace.
+	Why does the 100M trace behave so much differently than the
+	other traces?
+\QuickQuizAnswer{
+	Your first clue is that 64 CPUs is exactly half of the 128
+	CPUs on the machine.
+	The difference is an artifact of hardware threading.
+	This system has 64 cores with two hardware threads per core.
+	As long as fewer than 64 threads are running, each can run
+	in its own core.
+	But as soon as there are more than 64 threads, some of the threads
+	must share cores.
+	Because the pair of threads in any given core share some hardware
+	resources, the throughput of two threads sharing a core is not
+	quite as high as that of two threads each in their own core.
+	So the performance of the 100M trace is limited not by the
+	reader-writer lock, but rather by the sharing of hardware resources
+	between hardware threads in a single core.
+
+	This can also be seen in the 10M trace, which deviates gently from
+	the ideal line up to 64 threads, then breaks sharply down, parallel
+	to the 100M trace.
+	Up to 64 threads, the 10M trace is limited primarily by reader-writer
+	lock scalability, and beyond that, also by sharing of hardware
+	resources between hardware threads in a single core.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Power 5 is several years old, and new hardware should
+	be faster.
+	So why should anyone worry about reader-writer locks being slow?
+\QuickQuizAnswer{
+	In general, newer hardware is improving.
+	However, it will need to improve more than two orders of magnitude
+	to permit reader-writer lock to achieve idea performance on
+	128 CPUs.
+	Worse yet, the greater the number of CPUs, the larger the
+	required performance improvement.
+	The performance problems of reader-writer locking are therefore
+	very likely to be with us for quite some time to come.
+} \QuickQuizEnd
+
+Despite these limitations, reader-writer locking is quite useful in many
+cases, for example when the readers must do high-latency file or network I/O.
+There are alternatives, some of which will be presented in
+Chapters~\ref{chp:Counting} and \ref{chp:defer:Deferred Processing}.
 
 \section{Atomic Operations}
 \label{sec:toolsoftrade:Atomic Operations}
 
+Given that
+Figure~\ref{fig:intro:Reader-Writer Lock Scalability}
+shows that the overhead of reader-writer locking is most severe for the
+smallest critical sections, it would be nice to have some other way
+to protect the tiniest of critical sections.
+One such way are atomic operations.
+We have seen one atomic operations already, in the form of the
+\url{__sync_fetch_and_add()} primitive on line~18 of
+Figure~\ref{fig:toolsoftrade:Measuring Reader-Writer Lock Scalability}.
+This primitive atomically adds the value of its second argument to
+the value referenced by its first argument, returning the old value
+(which was ignored in this case).
+If a pair of threads concurrently execute \url{__sync_fetch_and_add()} on
+the same variable, the resulting value of the variable will include
+the result of both additions.
+
+The \url{gcc} compiler offers a number of additional atomic operations,
+including \url{__sync_fetch_and_sub()},
+\url{__sync_fetch_and_or()},
+\url{__sync_fetch_and_and()},
+\url{__sync_fetch_and_xor()}, and
+\url{__sync_fetch_and_nand()}, all of which return the old value.
+If you instead need the new value, you can instead use the
+\url{__sync_add_and_fetch()},
+\url{__sync_sub_and_fetch()},
+\url{__sync_or_and_fetch()},
+\url{__sync_and_and_fetch()},
+\url{__sync_xor_and_fetch()}, and
+\url{__sync_nand_and_fetch()} primitives.
+
+\QuickQuiz{}
+	Is it really necessary to have both sets of primitives?
+\QuickQuizAnswer{
+	Strictly speaking, no.
+	One could implement any member of the second set using the
+	corresponding member of the first set.
+	For example, one could implement \url{__sync_nand_and_fetch()}
+	in terms of \url{__sync_fetch_and_nand()} as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+tmp = v;
+ret = __sync_fetch_and_nand(p, tmp);
+ret = ~ret & tmp;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	It is similarly possible to implement \url{__sync_fetch_and_add()},
+	\url{__sync_fetch_and_sub()}, and \url{__sync_fetch_and_xor()}
+	in terms of their post-value counterparts.
+} \QuickQuizEnd
+
+The classic compare-and-swap operation is provided by a pair of
+primitives, \url{__sync_bool_compare_and_swap()} and
+\url{__sync_val_compare_and_swap()}.
+Both of these primitive atomically update a location to a new value,
+but only if its prior value was equal to the specified old value.
+The first variant returns 1 if the operation succeeded and 0 if it
+failed, for example, if the prior value was not equal to the specified
+old value.
+The second variant returns the prior value of the location, which, if
+equal to the specified old value, indicates that the operation succeeded.
+Either of the compare-and-swap operation is ``universal'' in the sense
+that any atomic operation on a single location can be implemented in
+terms of compare-and-swap, though the earlier operations are often
+more efficient where they apply.
+The compare-and-swap operation is also capable of serving as the basis
+for a wider set of atomic operations, though the more elaborate of
+these often suffer from complexity, scalability, and performance
+problems~\cite{MauriceHerlihy90a}.
+
+The \url{__sync_synchronize()} primitive issuse a ``memory barrier'',
+which constrains both the compiler's and the CPU's ability to reorder
+operations.
+% @@@ reference appropriate chapter/appendix.
+In some cases, it is sufficient to constrain the compiler's ability
+to reorder operations, while allowing the CPU free rein, in which
+case the \url{barrier()} primitive may be used, as it in fact was
+on line~28 of
+Figure~\ref{fig:toolsoftrade:Measuring Reader-Writer Lock Scalability}.
+In some cases, it is only necessary to ensure that the compiler
+avoids optimizing away a given memory access, in which case the
+\url{ACCESS_ONCE()} primitive may be used, as it was on line~17 of
+Figure~\ref{fig:toolsoftrade:Demonstration of Exclusive Locks}.
+These last two primitives are not provided directly by \url{gcc},
+but may be implemented straightforwardly as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+{
+\scriptsize
+\begin{verbatim}
+#define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+#define barrier() __asm__ __volatile__("": : :"memory")
+\end{verbatim}
+}
+\end{minipage}
+\vspace{5pt}
+
+\QuickQuiz{}
+	Given that these atomic operations will often be able to
+	generate single atomic instructions that are directly
+	supported by the underlying instruction set, shouldn't
+	they be the fastest possible way to get things done?
+\QuickQuizAnswer{
+	Unfortunately, no.
+	See Chapter~\ref{chp:Counting} for some stark counterexamples.
+} \QuickQuizEnd
+
 \section{Linux-Kernel Equivalents to POSIX Operations}
 \label{sec:toolsoftrade:Linux-Kernel Equivalents to POSIX Operations}
 
+Unfortunately, threading operations, locking primitives, and atomic
+operations were in reasonably wide use long before the various standards
+committees got around to them.
+As a result, there is considerable variation in how these operations
+are supported.
+It is still quite common to find these operations implemented in
+assembly language, either for historical reasons or to obtain better
+performance in specialized circumstances.
+For example, the \url{gcc} \url{__sync_} family of primitives all
+provide memory-ordering semantics, motivating many developers to
+create their own implementations for situations where the memory
+ordering semantics are not required.
+Therefore, this section provides a mapping between the POSIX and
+\url{gcc} primitives to those used in the Linux kernel.
+
 \section{The Right Tool for the Job: How to Choose?}
 \label{sec:toolsoftrade:The Right Tool for the Job: How to Choose?}
+
+In general, use the simplest tool that will get the job done.
+If you can, simply program sequentially.
+If that is insufficient, try using a shell script to mediate parallelism.
+If the resulting shell-script \url{fork()}/\url{exec()} overhead is too
+large, try using the C-language \url{fork()} and \url{wait()} primitives.
+If the overhead of these primitives is still too large, then you
+might need to use the POSIX threading primitives, choosing the appropriate
+locking and/or atomic-operation primitives.
+If the overhead even of the POSIX threading primitives is too great,
+then the primitives introduced in
+Chapter~\ref{chp:defer:Deferred Processing} may be required.
+
+However, it is necessary to make the right design choices as well as
+the correct choice of individual primitives,
+as is discussed at length in subsequent chapters.

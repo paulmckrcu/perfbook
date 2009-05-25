@@ -626,11 +626,14 @@ grep $pattern1 | sed -e 's/a/b/' | sort
 \QuickQ{}
 	Writing four lines of code for each acquisition and release
 	of a \url{pthread_mutex_t} sure seems painful!
+	Isn't there a better way?
 \QuickA{}
 	Indeed!
 	And for that reason, the \url{pthread_mutex_lock()} and
 	\url{pthread_mutex_unlock()} primitives are normally wrappered
 	in functions that do this error checking.
+	Later on, we will wrapper them with the Linux kernel
+	\url{spin_lock()} and \url{spin_unlock()} APIs.
 
 \QuickQ{}
 	Is ``x = 0'' the only possible output from the code fragment
@@ -697,6 +700,118 @@ grep $pattern1 | sed -e 's/a/b/' | sort
 	The code in
 	Figure~\ref{fig:toolsoftrade:Demonstration of Different Exclusive Locks}
 	ran next, so it had to re-initialize \url{x}.
+
+\QuickQ{}
+	Isn't comparing against single-CPU throughput a bit harsh?
+\QuickA{}
+	Not at all.
+	In fact, this comparison was, if anything, overly lenient.
+	A more balanced comparison would be against single-CPU
+	throughput with the locking primitives commented out.
+
+\QuickQ{}
+	But 1,000 instructions is not a particularly small size for
+	a critical section.
+	What do I do if I need a much smaller critical section, for
+	example, one containing only a few tens of instructions?
+\QuickA{}
+	If the data being read \emph{never} changes, then you do not
+	need to hold any locks while accessing it.
+	If the data changes sufficiently infrequently, you might be
+	able to checkpoint execution, terminate all threads, change
+	the data, then restart at the checkpoint.
+
+	Another approach is to keep a single exclusive lock per
+	thread, so that a thread read-acquires the larger aggregate
+	reader-writer lock by acquiring its own lock, and write-acquires
+	by acquiring all the per-thread locks~\cite{WilsonCHsieh92a}.
+	This can work quite well for readers, but causes writers
+	to incur increasingly large overheads as the number of threads
+	increases.
+
+	Some other ways of handling very small critical sections are
+	described in Section~\ref{sec:defer:Read-Copy Update (RCU)}.
+
+\QuickQ{}
+	In
+	Figure~\ref{fig:intro:Reader-Writer Lock Scalability},
+	all of the traces other than the 100M trace deviate gently
+	from the ideal line.
+	In contrast, the 100M trace breaks sharply from the ideal
+	line at 64 CPUs.
+	In addition, the spacing between the 100M trace and the 10M
+	trace is much smaller than that between the 10M trace and the
+	1M trace.
+	Why does the 100M trace behave so much differently than the
+	other traces?
+\QuickA{}
+	Your first clue is that 64 CPUs is exactly half of the 128
+	CPUs on the machine.
+	The difference is an artifact of hardware threading.
+	This system has 64 cores with two hardware threads per core.
+	As long as fewer than 64 threads are running, each can run
+	in its own core.
+	But as soon as there are more than 64 threads, some of the threads
+	must share cores.
+	Because the pair of threads in any given core share some hardware
+	resources, the throughput of two threads sharing a core is not
+	quite as high as that of two threads each in their own core.
+	So the performance of the 100M trace is limited not by the
+	reader-writer lock, but rather by the sharing of hardware resources
+	between hardware threads in a single core.
+
+	This can also be seen in the 10M trace, which deviates gently from
+	the ideal line up to 64 threads, then breaks sharply down, parallel
+	to the 100M trace.
+	Up to 64 threads, the 10M trace is limited primarily by reader-writer
+	lock scalability, and beyond that, also by sharing of hardware
+	resources between hardware threads in a single core.
+
+\QuickQ{}
+	Power 5 is several years old, and new hardware should
+	be faster.
+	So why should anyone worry about reader-writer locks being slow?
+\QuickA{}
+	In general, newer hardware is improving.
+	However, it will need to improve more than two orders of magnitude
+	to permit reader-writer lock to achieve idea performance on
+	128 CPUs.
+	Worse yet, the greater the number of CPUs, the larger the
+	required performance improvement.
+	The performance problems of reader-writer locking are therefore
+	very likely to be with us for quite some time to come.
+
+\QuickQ{}
+	Is it really necessary to have both sets of primitives?
+\QuickA{}
+	Strictly speaking, no.
+	One could implement any member of the second set using the
+	corresponding member of the first set.
+	For example, one could implement \url{__sync_nand_and_fetch()}
+	in terms of \url{__sync_fetch_and_nand()} as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+tmp = v;
+ret = __sync_fetch_and_nand(p, tmp);
+ret = ~ret & tmp;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	It is similarly possible to implement \url{__sync_fetch_and_add()},
+	\url{__sync_fetch_and_sub()}, and \url{__sync_fetch_and_xor()}
+	in terms of their post-value counterparts.
+
+\QuickQ{}
+	Given that these atomic operations will often be able to
+	generate single atomic instructions that are directly
+	supported by the underlying instruction set, shouldn't
+	they be the fastest possible way to get things done?
+\QuickA{}
+	Unfortunately, no.
+	See Chapter~\ref{chp:Counting} for some stark counterexamples.
 
 \QuickQAC{chp:Counting}{Counting}
 \QuickQ{}
