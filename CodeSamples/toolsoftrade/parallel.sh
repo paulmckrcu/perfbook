@@ -32,8 +32,8 @@ compute_it 2 > compute_it.2.out &
 wait
 echo Computing in parallel finished at `date`
 echo Computation \"output\":
-cat < compute_it.1.out
-cat < compute_it.2.out
+cat compute_it.1.out
+cat compute_it.2.out
 rm compute_it.1.out compute_it.2.out
 
 echo
@@ -42,8 +42,8 @@ compute_it 1 > compute_it.1.out
 compute_it 2 > compute_it.2.out
 echo Computing sequentially finished at `date`
 echo Computation \"output\":
-cat < compute_it.1.out
-cat < compute_it.2.out
+cat compute_it.1.out
+cat compute_it.2.out
 rm compute_it.1.out compute_it.2.out
 
 echo
@@ -51,5 +51,5 @@ echo Computing in pipeline starting at `date`
 compute_it 1 | compute_it 2 > compute_it.out
 echo Computing in pipeline finished at `date`
 echo Computation \"output\":
-cat < compute_it.out
+cat compute_it.out
 rm compute_it.out

@@ -1,3 +1,7 @@
+#!/bin/bash
+#
+# Test script for rwlockscale
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -12,32 +16,18 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (c) 2009 Paul E. McKenney, IBM Corporation.
+# Copyright (C) IBM Corporation, 2009
+#
+# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
-include ../Makefile.arch
-
-PROGS =	forkjoin \
-	forkjoinvar \
-	lock \
-	pcreate \
-	rwlockscale
-
-all: $(PROGS)
-
-forkjoin: forkjoin.c ../api.h
-	cc $(GCC_ARGS) -o forkjoin forkjoin.c
-
-forkjoinvar: forkjoinvar.c ../api.h
-	cc $(GCC_ARGS) -o forkjoinvar forkjoinvar.c
-
-lock: lock.c ../api.h
-	cc $(GCC_ARGS) -o lock lock.c -lpthread
-
-pcreate: pcreate.c ../api.h
-	cc $(GCC_ARGS) -o pcreate pcreate.c -lpthread
-
-rwlockscale: rwlockscale.c ../api.h
-	cc $(GCC_ARGS) -o rwlockscale rwlockscale.c -lpthread
-
-clean:
-	rm -f $(PROGS) *.o
+for ((ncpus = 1; ncpus <= 128; ncpus += 2))
+do
+	for hold in 1000 10000 100000 1000000 10000000 100000000
+	do
+		for ((i = 0; i < 3; i++))
+		do
+			./rwlockscale $ncpus $hold 0
+			./rwlockscale $ncpus 0 $hold
+		done
+	done
+done

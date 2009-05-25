@@ -557,12 +557,16 @@ grep $pattern1 | sed -e 's/a/b/' | sort
 	Isn't there a lot more to \url{fork()} and \url{wait()}
 	than discussed here?
 \QuickA{}
-	Indeed there is!
-	There are any number of textbooks that cover these primitives
-	in great detail,
+	Indeed there is, and
+	it is quite possible that this section will be expanded in
+	future versions to include messaging features (such as UNIX
+	pipes, TCP/IP, and shared file I/O) and memory mapping
+	(such as \url{mmap()} and \url{shmget()}).
+	In the meantime, there are any number of textbooks that cover
+	these primitives in great detail,
 	and the truly motivated can read manpages, existing parallel
 	applications using these primitives, as well as the
-	Linux-kernel implementations.
+	source code of the Linux-kernel implementations themselves.
 
 \QuickQ{}
 	If the \url{mythread()} function in
@@ -594,6 +598,105 @@ grep $pattern1 | sed -e 's/a/b/' | sort
 	from a given pointer might well result in the load returning the
 	low-order 16 bits of the old value of the pointer concatenated
 	with the high-order 16 bits of the new value of the pointer.
+
+\QuickQ{}
+	What if I want several threads to hold the same lock at the
+	same time?
+\QuickA{}
+	The first thing you should do is to ask yourself why you would
+	want to do such a thing.
+	If the answer is ``because I have a lot of data that is read
+	by many threads, and only occasionally updated'', then
+	POSIX reader-writer locks might be what you are looking for.
+	These are introduced in
+	Section~\ref{sec:toolsoftrade:POSIX Reader-Writer Locking}.
+
+\QuickQ{}
+	Why not simply make the argument to \url{lock_reader()}
+	on line~5 of
+	Figure~\ref{fig:toolsoftrade:Demonstration of Exclusive Locks}
+	be a pointer to a \url{pthread_mutex_t}???
+\QuickA{}
+	Because we will need to pass \url{lock_reader()} to
+	\url{pthread_create()}.
+	Although we could cast the function when passing it to
+	\url{pthread_create()}, function casts are quite a bit
+	uglier and harder to get right than are simple pointer casts.
+
+\QuickQ{}
+	Writing four lines of code for each acquisition and release
+	of a \url{pthread_mutex_t} sure seems painful!
+\QuickA{}
+	Indeed!
+	And for that reason, the \url{pthread_mutex_lock()} and
+	\url{pthread_mutex_unlock()} primitives are normally wrappered
+	in functions that do this error checking.
+
+\QuickQ{}
+	Is ``x = 0'' the only possible output from the code fragment
+	shown in
+	Figure~\ref{fig:toolsoftrade:Demonstration of Same Exclusive Lock}?
+	If so, why?
+	If not, what other output could appear, and why?
+\QuickA{}
+	No.
+	The reason that ``x = 0'' was output was that \url{lock_reader()}
+	acquired the lock first.
+	Had \url{lock_writer()} instead acquired the lock first, then
+	the output would have been ``x = 3''.
+	However, because the code fragment started \url{lock_reader()} first
+	and because this run was performed on a multiprocessor,
+	one would normally expect \url{lock_reader()} to acquire the
+	lock first.
+	However, there are no guarantees, especially on a busy system.
+
+\QuickQ{}
+	Using different locks could cause quite a bit of confusion,
+	what with threads seeing each others' intermediate states.
+	So should well-written parallel programs restrict themselves
+	to using a single lock in order to avoid this kind of confusion?
+\QuickA{}
+	Although it is sometimes possible to write a program using a
+	single global lock that both performs and scales well, such
+	programs are exceptions to the rule.
+	You will normally need to use multiple locks to attain good
+	performance and scalability.
+
+	One possible exception to this rule is ``transactional memory'',
+	which is currently a research topic.
+	Transactional-memory semantics can be thought of as those
+	of a single global lock with optimizations permitted and
+	with the addition of rollback~\cite{HansJBoehm2009HOTPAR}.
+
+\QuickQ{}
+	In the code shown in
+	Figure~\ref{fig:toolsoftrade:Demonstration of Different Exclusive Locks},
+	is \url{lock_reader()} guaranteed to see all the values produced
+	by \url{lock_writer()}?
+	Why or why not?
+\QuickA{}
+	No.
+	On a busy system, \url{lock_reader()} might be preempted
+	for the entire duration of \url{lock_writer()}'s execution,
+	in which case it would not see \emph{any} of \url{lock_writer()}'s
+	intermediate states for \url{x}.
+
+\QuickQ{}
+	Wait a minute here!!!
+	Figure~\ref{fig:toolsoftrade:Demonstration of Same Exclusive Lock}
+	didn't initialize shared variable \url{x},
+	so why does it need to be initialized in
+	Figure~\ref{fig:toolsoftrade:Demonstration of Different Exclusive Locks}?
+\QuickA{}
+	See line~3 of
+	Figure~\ref{fig:toolsoftrade:Demonstration of Exclusive Locks}.
+	Because the code in
+	Figure~\ref{fig:toolsoftrade:Demonstration of Same Exclusive Lock}
+	ran first, it could rely on the compile-time initialization of
+	\url{x}.
+	The code in
+	Figure~\ref{fig:toolsoftrade:Demonstration of Different Exclusive Locks}
+	ran next, so it had to re-initialize \url{x}.
 
 \QuickQAC{chp:Counting}{Counting}
 \QuickQ{}

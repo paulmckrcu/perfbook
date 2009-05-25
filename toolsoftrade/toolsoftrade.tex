@@ -300,12 +300,16 @@ Parent process sees x=0
 	Isn't there a lot more to \url{fork()} and \url{wait()}
 	than discussed here?
 \QuickQuizAnswer{
-	Indeed there is!
-	There are any number of textbooks that cover these primitives
-	in great detail,
+	Indeed there is, and
+	it is quite possible that this section will be expanded in
+	future versions to include messaging features (such as UNIX
+	pipes, TCP/IP, and shared file I/O) and memory mapping
+	(such as \url{mmap()} and \url{shmget()}).
+	In the meantime, there are any number of textbooks that cover
+	these primitives in great detail,
 	and the truly motivated can read manpages, existing parallel
 	applications using these primitives, as well as the
-	Linux-kernel implementations.
+	source code of the Linux-kernel implementations themselves.
 } \QuickQuizEnd
 
 The finest-grained parallelism requires shared memory, and
@@ -436,12 +440,333 @@ in the following section.
 \subsection{POSIX Locking}
 \label{sec:toolsoftrade:POSIX Locking}
 
-\url{pthread_mutex_lock()}
+The POSIX standard allows the programmer to avoid data races via
+``POSIX locking''.
+POSIX locking features a number of primitives, the most fundamental
+of which are \url{pthread_mutex_lock()} and \url{pthread_mutex_unlock()}.
+These primitives operate on locks, which are of type \url{pthread_mutex_t}.
+These locks may be declared statically and initialized with
+\url{PTHREAD_MUTEX_INITIALIZER}, or they may be allocated dynamically
+and initialized using the \url{pthread_mutex_init()} primitive.
+The demonstration code in this section will take the former course.
 
-\url{pthread_mutex_unlock()}
+The \url{pthread_mutex_lock()} primitive ``acquires'' the specified lock,
+and the \url{pthread_mutex_lock()} ``releases'' the specified lock.
+Because these are ``exclusive'' locking primitives,
+only one thread at a time may ``hold'' a given lock at a given time.
+For example, if a pair of threads attempt to acquire the same lock
+concurrently, one of the pair will be ``granted'' the lock first, and
+the other will wait until the first thread releases the lock.
+
+\QuickQuiz{}
+	What if I want several threads to hold the same lock at the
+	same time?
+\QuickQuizAnswer{
+	The first thing you should do is to ask yourself why you would
+	want to do such a thing.
+	If the answer is ``because I have a lot of data that is read
+	by many threads, and only occasionally updated'', then
+	POSIX reader-writer locks might be what you are looking for.
+	These are introduced in
+	Section~\ref{sec:toolsoftrade:POSIX Reader-Writer Locking}.
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 pthread_mutex_t lock_a = PTHREAD_MUTEX_INITIALIZER;
+  2 pthread_mutex_t lock_b = PTHREAD_MUTEX_INITIALIZER;
+  3 int x = 0;
+  4 
+  5 void *lock_reader(void *arg)
+  6 {
+  7   int i;
+  8   int newx = -1;
+  9   int oldx = -1;
+ 10   pthread_mutex_t *pmlp = (pthread_mutex_t *)arg;
+ 11 
+ 12   if (pthread_mutex_lock(pmlp) != 0) {
+ 13     perror("lock_reader:pthread_mutex_lock");
+ 14     exit(-1);
+ 15   }
+ 16   for (i = 0; i < 100; i++) {
+ 17     newx = ACCESS_ONCE(x);
+ 18     if (newx != oldx) {
+ 19       printf("lock_reader(): x = %d\n", newx);
+ 20     }
+ 21     oldx = newx;
+ 22     poll(NULL, 0, 1);
+ 23   }
+ 24   if (pthread_mutex_unlock(pmlp) != 0) {
+ 25     perror("lock_reader:pthread_mutex_unlock");
+ 26     exit(-1);
+ 27   }
+ 28   return NULL;
+ 29 }
+ 30 
+ 31 void *lock_writer(void *arg)
+ 32 {
+ 33   int i;
+ 34   pthread_mutex_t *pmlp = (pthread_mutex_t *)arg;
+ 35 
+ 36   if (pthread_mutex_lock(pmlp) != 0) {
+ 37     perror("lock_reader:pthread_mutex_lock");
+ 38     exit(-1);
+ 39   }
+ 40   for (i = 0; i < 3; i++) {
+ 41     ACCESS_ONCE(x)++;
+ 42     poll(NULL, 0, 5);
+ 43   }
+ 44   if (pthread_mutex_unlock(pmlp) != 0) {
+ 45     perror("lock_reader:pthread_mutex_unlock");
+ 46     exit(-1);
+ 47   }
+ 48   return NULL;
+ 49 }
+\end{verbatim}
+}
+\caption{Demonstration of Exclusive Locks}
+\label{fig:toolsoftrade:Demonstration of Exclusive Locks}
+\end{figure}
+
+This exclusive-locking property is demonstrated using the code shown in
+Figure~\ref{fig:toolsoftrade:Demonstration of Exclusive Locks}
+(\url{lock.c}).
+Line~1 defines and initializes a POSIX lock named \url{lock_a}, while
+line~2 similarly defines and initializes a lock named \url{lock_b}.
+Line~3 defines and initializes a shared variable ~\url{x}.
+
+Lines~5-28 defines a function \url{lock_reader()} which repeatedly
+reads the shared variable \url{x} while holding
+the lock specified by \url{arg}.
+Line~10 casts \url{arg} to a pointer to a \url{pthread_mutex_t}, as
+required by the \url{pthread_mutex_lock()} and \url{pthread_mutex_unlock()}
+primitives.
+
+\QuickQuiz{}
+	Why not simply make the argument to \url{lock_reader()}
+	on line~5 of
+	Figure~\ref{fig:toolsoftrade:Demonstration of Exclusive Locks}
+	be a pointer to a \url{pthread_mutex_t}???
+\QuickQuizAnswer{
+	Because we will need to pass \url{lock_reader()} to
+	\url{pthread_create()}.
+	Although we could cast the function when passing it to
+	\url{pthread_create()}, function casts are quite a bit
+	uglier and harder to get right than are simple pointer casts.
+} \QuickQuizEnd
+
+Lines~12-15 acquire the specified \url{pthread_mutex_t}, checking
+for errors and exiting the program if any occur.
+Lines~16-23 repeatedly check the value of \url{x}, printing the new value
+each time that it changes.
+Line~22 sleeps for one millisecond, which allows this demonstration
+to run nicely on a uniprocessor machine.
+Line~24-27 release the \url{pthread_mutex_t}, again checking for
+errors and exiting the program is any occur.
+Finally, line~28 returns \url{NULL}, again to match the function type
+required by \url{pthread_create()}.
+
+\QuickQuiz{}
+	Writing four lines of code for each acquisition and release
+	of a \url{pthread_mutex_t} sure seems painful!
+\QuickQuizAnswer{
+	Indeed!
+	And for that reason, the \url{pthread_mutex_lock()} and
+	\url{pthread_mutex_unlock()} primitives are normally wrappered
+	in functions that do this error checking.
+} \QuickQuizEnd
+
+Lines~31-49 of
+Figure~\ref{fig:toolsoftrade:Demonstration of Exclusive Locks}
+shows \url{lock_writer()}, which
+periodically update the shared variable \url{x} while holding the
+specified \url{pthread_mutex_t}.
+As with \url{lock_reader()}, line~34 casts \url{arg} to a pointer
+to \url{pthread_mutex_t}, lines~36-39 acquires the specified lock,
+and lines~44-47 releases it.
+While holding the lock, lines~40-48 increment the shared variable \url{x},
+sleeping for five milliseconds between each increment.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1   printf("Creating two threads using same lock:\n");
+  2   if (pthread_create(&tid1, NULL,
+  3                      lock_reader, &lock_a) != 0) {
+  4     perror("pthread_create");
+  5     exit(-1);
+  6   }
+  7   if (pthread_create(&tid2, NULL,
+  8                      lock_writer, &lock_a) != 0) {
+  9     perror("pthread_create");
+ 10     exit(-1);
+ 11   }
+ 12   if (pthread_join(tid1, &vp) != 0) {
+ 13     perror("pthread_join");
+ 14     exit(-1);
+ 15   }
+ 16   if (pthread_join(tid2, &vp) != 0) {
+ 17     perror("pthread_join");
+ 18     exit(-1);
+ 19   }
+\end{verbatim}
+}
+\caption{Demonstration of Same Exclusive Lock}
+\label{fig:toolsoftrade:Demonstration of Same Exclusive Lock}
+\end{figure}
+
+Figure~\ref{fig:toolsoftrade:Demonstration of Same Exclusive Lock}
+shows a code fragment that runs \url{lock_reader()} and
+\url{lock_writer()} as thread using the same lock, namely, \url{lock_a}.
+Lines~2-6 create a thread running \url{lock_reader()}, and then
+Lines~7-11 create a thread running \url{lock_writer()}.
+Lines~12-19 wait for both threads to complete.
+The output of this code fragment is as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+Creating two threads using same lock:
+lock_reader(): x = 0
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+Because both threads are using the same lock, the \url{lock_reader()}
+thread cannot see any of the intermediate values of \url{x} produced
+by \url{lock_writer()} while holding the lock.
+
+\QuickQuiz{}
+	Is ``x = 0'' the only possible output from the code fragment
+	shown in
+	Figure~\ref{fig:toolsoftrade:Demonstration of Same Exclusive Lock}?
+	If so, why?
+	If not, what other output could appear, and why?
+\QuickQuizAnswer{
+	No.
+	The reason that ``x = 0'' was output was that \url{lock_reader()}
+	acquired the lock first.
+	Had \url{lock_writer()} instead acquired the lock first, then
+	the output would have been ``x = 3''.
+	However, because the code fragment started \url{lock_reader()} first
+	and because this run was performed on a multiprocessor,
+	one would normally expect \url{lock_reader()} to acquire the
+	lock first.
+	However, there are no guarantees, especially on a busy system.
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1   printf("Creating two threads w/different locks:\n");
+  2   x = 0;
+  3   if (pthread_create(&tid1, NULL,
+  4                      lock_reader, &lock_a) != 0) {
+  5     perror("pthread_create");
+  6     exit(-1);
+  7   }
+  8   if (pthread_create(&tid2, NULL,
+  9                      lock_writer, &lock_b) != 0) {
+ 10     perror("pthread_create");
+ 11     exit(-1);
+ 12   }
+ 13   if (pthread_join(tid1, &vp) != 0) {
+ 14     perror("pthread_join");
+ 15     exit(-1);
+ 16   }
+ 17   if (pthread_join(tid2, &vp) != 0) {
+ 18     perror("pthread_join");
+ 19     exit(-1);
+ 20   }
+\end{verbatim}
+}
+\caption{Demonstration of Different Exclusive Locks}
+\label{fig:toolsoftrade:Demonstration of Different Exclusive Locks}
+\end{figure}
+
+Figure~\ref{fig:toolsoftrade:Demonstration of Different Exclusive Locks}
+shows a similar code fragment, but this time using different locks:
+\url{lock_a} for \url{lock_reader()} and \url{lock_b} for
+\url{lock_writer()}.
+The output of this code fragment is as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+Creating two threads w/different locks:
+lock_reader(): x = 0
+lock_reader(): x = 1
+lock_reader(): x = 2
+lock_reader(): x = 3
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+Because the two threads are using different locks, they do not exclude
+each other, and can run concurrently.
+The \url{lock_reader()} function can therefore see the intermediate
+values of \url{x} stored by \url{lock_writer()}.
+
+\QuickQuiz{}
+	Using different locks could cause quite a bit of confusion,
+	what with threads seeing each others' intermediate states.
+	So should well-written parallel programs restrict themselves
+	to using a single lock in order to avoid this kind of confusion?
+\QuickQuizAnswer{
+	Although it is sometimes possible to write a program using a
+	single global lock that both performs and scales well, such
+	programs are exceptions to the rule.
+	You will normally need to use multiple locks to attain good
+	performance and scalability.
+
+	One possible exception to this rule is ``transactional memory'',
+	which is currently a research topic.
+	Transactional-memory semantics can be thought of as those
+	of a single global lock with optimizations permitted and
+	with the addition of rollback~\cite{HansJBoehm2009HOTPAR}.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	In the code shown in
+	Figure~\ref{fig:toolsoftrade:Demonstration of Different Exclusive Locks},
+	is \url{lock_reader()} guaranteed to see all the values produced
+	by \url{lock_writer()}?
+	Why or why not?
+\QuickQuizAnswer{
+	No.
+	On a busy system, \url{lock_reader()} might be preempted
+	for the entire duration of \url{lock_writer()}'s execution,
+	in which case it would not see \emph{any} of \url{lock_writer()}'s
+	intermediate states for \url{x}.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Wait a minute here!!!
+	Figure~\ref{fig:toolsoftrade:Demonstration of Same Exclusive Lock}
+	didn't initialize shared variable \url{x},
+	so why does it need to be initialized in
+	Figure~\ref{fig:toolsoftrade:Demonstration of Different Exclusive Locks}?
+\QuickQuizAnswer{
+	See line~3 of
+	Figure~\ref{fig:toolsoftrade:Demonstration of Exclusive Locks}.
+	Because the code in
+	Figure~\ref{fig:toolsoftrade:Demonstration of Same Exclusive Lock}
+	ran first, it could rely on the compile-time initialization of
+	\url{x}.
+	The code in
+	Figure~\ref{fig:toolsoftrade:Demonstration of Different Exclusive Locks}
+	ran next, so it had to re-initialize \url{x}.
+} \QuickQuizEnd
+
+\subsection{POSIX Reader-Writer Locking}
+\label{sec:toolsoftrade:POSIX Reader-Writer Locking}
 
 \section{Atomic Operations}
 \label{sec:toolsoftrade:Atomic Operations}
 
 \section{Linux-Kernel Equivalents to POSIX Operations}
 \label{sec:toolsoftrade:Linux-Kernel Equivalents to POSIX Operations}
+
+\section{The Right Tool for the Job: How to Choose?}
+\label{sec:toolsoftrade:The Right Tool for the Job: How to Choose?}
