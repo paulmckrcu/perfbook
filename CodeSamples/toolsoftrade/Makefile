@@ -17,8 +17,10 @@
 include ../Makefile.arch
 
 PROGS =	forkjoin \
+	forkjoinperf \
 	forkjoinvar \
 	lock \
+	mytrue \
 	pcreate \
 	rwlockscale
 
@@ -27,11 +29,17 @@ all: $(PROGS)
 forkjoin: forkjoin.c ../api.h
 	cc $(GCC_ARGS) -o forkjoin forkjoin.c
 
+forkjoinperf: forkjoinperf.c
+	cc $(GCC_ARGS) -o forkjoinperf forkjoinperf.c
+
 forkjoinvar: forkjoinvar.c ../api.h
 	cc $(GCC_ARGS) -o forkjoinvar forkjoinvar.c
 
 lock: lock.c ../api.h
 	cc $(GCC_ARGS) -o lock lock.c -lpthread
+
+mytrue: mytrue.c
+	cc $(GCC_ARGS) -o mytrue mytrue.c
 
 pcreate: pcreate.c ../api.h
 	cc $(GCC_ARGS) -o pcreate pcreate.c -lpthread
