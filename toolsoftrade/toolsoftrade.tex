@@ -1139,6 +1139,100 @@ but may be implemented straightforwardly as follows:
 \section{Linux-Kernel Equivalents to POSIX Operations}
 \label{sec:toolsoftrade:Linux-Kernel Equivalents to POSIX Operations}
 
+\begin{table*}
+\begin{center}
+\begin{tabular}{l|l|l}
+	Category & POSIX & Linux Kernel \\
+	\hline
+	\hline
+	Thread Management
+		& \url{pthread_t}
+			& \url{struct} \url{task_struct} \\
+	\cline{2-3}
+		& \url{pthread_create()}
+			& \url{kthread_create} \\
+	\cline{2-3}
+		& \url{pthread_exit()}
+			& \url{kthread_should_stop()} (rough) \\
+	\cline{2-3}
+		& \url{pthread_join()}
+			& \url{kthread_stop()} (rough) \\
+	\cline{2-3}
+		& \url{poll(NULL, 0, 5)}
+			& \url{schedule_timeout_interruptible()} \\
+	\hline
+	\hline
+	POSIX Locking
+		& \url{pthread_mutex_t}
+			& \url{spinlock_t} (rough) \\
+		&	& \url{struct} \url{mutex} \\
+	\cline{2-3}
+		& \url{PTHREAD_MUTEX_INITIALIZER}
+			& \url{DEFINE_SPINLOCK()} \\
+		&	& \url{DEFINE_MUTEX()} \\
+	\cline{2-3}
+		& \url{pthread_mutex_lock()}
+			& \url{spin_lock()} (and friends) \\
+		&	& \url{mutex_lock()} (and friends) \\
+	\cline{2-3}
+		& \url{pthread_mutex_unlock()}
+			& \url{spin_unlock()} (and friends) \\
+		&	& \url{mutex_unlock()} \\
+	\hline
+	\hline
+	POSIX Reader-Writer
+		& \url{pthread_rwlock_t}
+			& \url{rwlock_t} (rough) \\
+	Locking	&	& \url{struct} \url{rw_semaphore} \\
+	\cline{2-3}
+		& \url{PTHREAD_RWLOCK_INITIALIZER}
+			& \url{DEFINE_RWLOCK()} \\
+		&	& \url{DECLARE_RWSEM()} \\
+	\cline{2-3}
+		& \url{pthread_rwlock_rdlock()}
+			& \url{read_lock()} (and friends) \\
+		&	& \url{down_read()} (and friends) \\
+	\cline{2-3}
+		& \url{pthread_rwlock_unlock()}
+			& \url{read_unlock()} (and friends) \\
+		&	& \url{up_read()} \\
+	\cline{2-3}
+		& \url{thread_rwlock_wrlock()}
+			& \url{write_lock()} (and friends) \\
+		&	& \url{down_write()} (and friends) \\
+	\cline{2-3}
+		& \url{pthread_rwlock_unlock()}
+			& \url{write_unlock()} (and friends) \\
+		&	& \url{up_write()} \\
+	\hline
+	\hline
+	Atomic Operations
+		& C Scalar Types
+			& \url{atomic_t} \\
+		&	& \url{atomic64_t} \\
+	\cline{2-3}
+		& \url{__sync_fetch_and_add()}
+			& \url{atomic_add_return()} \\
+		&	& \url{atomic64_add_return()} \\
+	\cline{2-3}
+		& \url{__sync_fetch_and_sub()}
+			& \url{atomic_sub_return()} \\
+		&	& \url{atomic64_sub_return()} \\
+	\cline{2-3}
+		& \url{__sync_val_compare_and_swap()}
+			& \url{cmpxchg()} \\
+	\cline{2-3}
+		& \url{__sync_lock_test_and_set()}
+			& \url{xchg()} (rough) \\
+	\cline{2-3}
+		& \url{__sync_synchronize()}
+			& \url{smp_mb()} \\
+\end{tabular}
+\end{center}
+\caption{Mapping from POSIX to Linux-Kernel Primitives}
+\label{tab:advsync:Mapping from POSIX to Linux-Kernel Primitives}
+\end{table*}
+
 Unfortunately, threading operations, locking primitives, and atomic
 operations were in reasonably wide use long before the various standards
 committees got around to them.
@@ -1151,13 +1245,32 @@ For example, the \url{gcc} \url{__sync_} family of primitives all
 provide memory-ordering semantics, motivating many developers to
 create their own implementations for situations where the memory
 ordering semantics are not required.
-Therefore, this section provides a mapping between the POSIX and
+
+Therefore,
+Table~\ref{tab:advsync:Mapping from POSIX to Linux-Kernel Primitives} on
+page~\pageref{tab:advsync:Mapping from POSIX to Linux-Kernel Primitives}
+provides a rough mapping between the POSIX and
 \url{gcc} primitives to those used in the Linux kernel.
+Exact mappings are not always available, for example, the Linux kernel
+has a wide variety of locking primitives, while \url{gcc} has a number
+of atomic operations that are not directly available in the Linux kernel,
+although they can be emulated reasonably straightforwardly using
+\url{cmpxchg()}.
+
+\QuickQuiz{}
+	What happened to the Linux-kernel equivalents to \url{fork()}
+	and \url{join()}?
+\QuickQuizAnswer{
+	They don't really exist.
+	All tasks executing within the Linux kernel share memory,
+	at least unless you want to do a huge amount of memory-mapping
+	work by hand.
+} \QuickQuizEnd
 
 \section{The Right Tool for the Job: How to Choose?}
 \label{sec:toolsoftrade:The Right Tool for the Job: How to Choose?}
 
-In general, use the simplest tool that will get the job done.
+As a rough rule of thumb, use the simplest tool that will get the job done.
 If you can, simply program sequentially.
 If that is insufficient, try using a shell script to mediate parallelism.
 If the resulting shell-script \url{fork()}/\url{exec()} overhead is too
