@@ -391,17 +391,12 @@ resulting in expensive cache misses.
 Both of these first two shortcomings largely defeat a major purpose of
 RCU, namely to provide low-overhead read-side synchronization primitives.
 
-Third, a large number of RCU readers with long read-side
+Finally, a large number of RCU readers with long read-side
 critical sections could prevent \url{synchronize_rcu()}
 from ever completing, as the global counter might
 never reach zero.
 This could result in starvation of RCU updates, which
 is of course unacceptable in production settings.
-
-Finally, although concurrent RCU updates could in principle be
-satisfied by a common grace period, this implementation
-serializes grace periods, preventing grace-period
-sharing.
 
 \QuickQuiz{}
 	Why not simply make \url{rcu_read_lock()} wait when a concurrent
@@ -431,6 +426,20 @@ scheme that is more favorable to writers.
 
 \subsubsection{Starvation-Free Counter-Based RCU}
 \label{defer:Starvation-Free Counter-Based RCU}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 DEFINE_SPINLOCK(rcu_gp_lock);
+  2 atomic_t rcu_refcnt[2];
+  3 atomic_t rcu_idx;
+  4 DEFINE_PER_THREAD(int, rcu_nesting);
+  5 DEFINE_PER_THREAD(int, rcu_read_idx);
+\end{verbatim}
+}
+\caption{RCU Global Reference-Count Pair Data}
+\label{fig:defer:RCU Global Reference-Count Pair Data}
+\end{figure}
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -477,7 +486,9 @@ along with a global index that
 selects one counter out of the pair (\url{rcu_idx}),
 a per-thread nesting counter \url{rcu_nesting},
 a per-thread snapshot of the global index (\url{rcu_read_idx}),
-and a global lock (\url{rcu_gp_lock}).
+and a global lock (\url{rcu_gp_lock}),
+which are themselves shown in
+Figure~\ref{fig:defer:RCU Global Reference-Count Pair Data}.
 
 The \url{rcu_read_lock()} primitive atomically increments the member of the
 \url{rcu_refcnt[]} pair indexed by \url{rcu_idx}, and keeps a
@@ -705,6 +716,20 @@ scheme that provides greatly improved read-side performance and scalability.
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
+  1 DEFINE_SPINLOCK(rcu_gp_lock);
+  2 DEFINE_PER_THREAD(int [2], rcu_refcnt);
+  3 atomic_t rcu_idx;
+  4 DEFINE_PER_THREAD(int, rcu_nesting);
+  5 DEFINE_PER_THREAD(int, rcu_read_idx);
+\end{verbatim}
+}
+\caption{RCU Per-Thread Reference-Count Pair Data}
+\label{fig:defer:RCU Per-Thread Reference-Count Pair Data}
+\end{figure}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
   1 static void rcu_read_lock(void)
   2 {
   3   int i;
@@ -746,7 +771,9 @@ pairs of reference counters.
 This implementation is quite similar to that shown in
 Figure~\ref{fig:defer:RCU Read-Side Using Global Reference-Count Pair},
 the only difference being that \url{rcu_refcnt} is now a per-thread
-variable, so the \url{rcu_read_lock()} and
+variable (as shown in
+Figure~\ref{fig:defer:RCU Per-Thread Reference-Count Pair Data}),
+so the \url{rcu_read_lock()} and
 \url{rcu_read_unlock()} primitives no longer perform atomic operations.
 
 \QuickQuiz{}
@@ -887,6 +914,20 @@ concurrent RCU updates.
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
+  1 DEFINE_SPINLOCK(rcu_gp_lock);
+  2 DEFINE_PER_THREAD(int [2], rcu_refcnt);
+  3 long rcu_idx;
+  4 DEFINE_PER_THREAD(int, rcu_nesting);
+  5 DEFINE_PER_THREAD(int, rcu_read_idx);
+\end{verbatim}
+}
+\caption{RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update Data}
+\label{fig:defer:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update Data}
+\end{figure}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
   1 static void rcu_read_lock(void)
   2 {
   3   int i;
@@ -934,6 +975,10 @@ Figure~\ref{fig:defer:RCU Read-Side Using Per-Thread Reference-Count Pair and Sh
 must mask off the low-order bit.
 We also switched from using \url{atomic_read()} and \url{atomic_set()}
 to using \url{ACCESS_ONCE()}.
+The data is also quite similar, as shown in
+Figure~\ref{fig:defer:RCU Read-Side Using Per-Thread Reference-Count Pair and Shared Update Data},
+with \url{rcu_idx} now being a \url{lock} instead of an
+\url{atomic_t}.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1090,6 +1135,19 @@ thread-local accesses to one, as is done in the next section.
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
+  1 DEFINE_SPINLOCK(rcu_gp_lock);
+  2 long rcu_gp_ctr = 0;
+  3 DEFINE_PER_THREAD(long, rcu_reader_gp);
+  4 DEFINE_PER_THREAD(long, rcu_reader_gp_snap);
+\end{verbatim}
+}
+\caption{Data for Free-Running Counter Using RCU}
+\label{fig:defer:Data for Free-Running Counter Using RCU}
+\end{figure}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
   1 static void rcu_read_lock(void)
   2 {
   3   __get_thread_var(rcu_reader_gp) = rcu_gp_ctr + 1;
@@ -1129,7 +1187,8 @@ thread-local accesses to one, as is done in the next section.
 Figure~\ref{fig:defer:Free-Running Counter Using RCU}
 (\url{rcu.h} and \url{rcu.c})
 show an RCU implementation based on a single global free-running counter
-that takes on only even-numbered values.
+that takes on only even-numbered values, with data shown in
+Figure~\ref{fig:defer:Data for Free-Running Counter Using RCU}.
 The resulting \url{rcu_read_lock()} implementation is extremely
 straightforward.
 Line~3 simply adds one to the global free-running \url{rcu_gp_ctr}
@@ -1260,6 +1319,21 @@ variables.
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
+  1 DEFINE_SPINLOCK(rcu_gp_lock);
+  2 #define RCU_GP_CTR_SHIFT 7
+  3 #define RCU_GP_CTR_BOTTOM_BIT (1 << RCU_GP_CTR_SHIFT)
+  4 #define RCU_GP_CTR_NEST_MASK (RCU_GP_CTR_BOTTOM_BIT - 1)
+  5 long rcu_gp_ctr = 0;
+  6 DEFINE_PER_THREAD(long, rcu_reader_gp);
+\end{verbatim}
+}
+\caption{Data for Nestable RCU Using a Free-Running Counter}
+\label{fig:defer:Data for Nestable RCU Using a Free-Running Counter}
+\end{figure}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
   1 static void rcu_read_lock(void)
   2 {
   3   long tmp;
@@ -1311,7 +1385,8 @@ Figure~\ref{fig:defer:Nestable RCU Using a Free-Running Counter}
 show an RCU implementation based on a single global free-running counter,
 but that permits nesting of RCU read-side critical sections.
 This nestability is accomplished by reserving the low-order bits of the
-global \url{rcu_gp_ctr} to count nesting.
+global \url{rcu_gp_ctr} to count nesting, using the definitions shown in
+Figure~\ref{fig:defer:Data for Nestable RCU Using a Free-Running Counter}.
 This is a generalization of the scheme in
 Section~\ref{defer:RCU Based on Free-Running Counter},
 which can be thought of as having a single low-order bit reserved
@@ -1521,6 +1596,18 @@ overhead.
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
+  1 DEFINE_SPINLOCK(rcu_gp_lock);
+  2 long rcu_gp_ctr = 0;
+  3 DEFINE_PER_THREAD(long, rcu_reader_qs_gp);
+\end{verbatim}
+}
+\caption{Data for Quiescent-State-Based RCU}
+\label{fig:defer:Data for Quiescent-State-Based RCU}
+\end{figure}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
   1 static void rcu_read_lock(void)
   2 {
   3 }
@@ -1551,14 +1638,15 @@ overhead.
  28 }
 \end{verbatim}
 }
-\caption{RCU Read Side Using Quiescent States}
-\label{fig:defer:RCU Read Side Using Quiescent States}
+\caption{Quiescent-State-Based RCU Read Side}
+\label{fig:defer:Quiescent-State-Based RCU Read Side}
 \end{figure}
 
-Figure~\ref{fig:defer:RCU Read Side Using Quiescent States}
+Figure~\ref{fig:defer:Quiescent-State-Based RCU Read Side}
 (\url{rcu_qs.h})
 shows the read-side primitives used to construct a user-level
-implementation of RCU based on quiescent states.
+implementation of RCU based on quiescent states, with the data shown in
+Figure~\ref{fig:defer:Data for Quiescent-State-Based RCU}.
 As can be seen from lines~1-7 in the figure, the \url{rcu_read_lock()}
 and \url{rcu_read_unlock()} primitives do nothing, and can in fact
 be expected to be inlined and optimized away, as they are in
@@ -1594,7 +1682,7 @@ Finally, line~14 executes a memory barrier.
 
 \QuickQuiz{}
 	Doesn't the additional memory barrier shown on line~14 of
-	Figure~\ref{fig:defer:RCU Read Side Using Quiescent States},
+	Figure~\ref{fig:defer:Quiescent-State-Based RCU Read Side},
 	greatly increase the overhead of \url{rcu_quiescent_state}?
 \QuickQuizAnswer{
 	Indeed it does!
@@ -1627,7 +1715,7 @@ ignore this thread.
 
 \QuickQuiz{}
 	Why are the two memory barriers on lines~19 and 22 of
-	Figure~\ref{fig:defer:RCU Read Side Using Quiescent States}
+	Figure~\ref{fig:defer:Quiescent-State-Based RCU Read Side}
 	needed?
 \QuickQuizAnswer{
 	The memory barrier on line~19 prevents any RCU read-side
@@ -1708,7 +1796,7 @@ certain types of library functions.
 	Why would the fact that the code is in a library make
 	any difference for how easy it is to use the RCU
 	implementation shown in
-	Figures~\ref{fig:defer:RCU Read Side Using Quiescent States} and
+	Figures~\ref{fig:defer:Quiescent-State-Based RCU Read Side} and
 	\ref{fig:defer:RCU Update Side Using Quiescent States}?
 \QuickQuizAnswer{
 	A library function has absolutely no control over the caller,
