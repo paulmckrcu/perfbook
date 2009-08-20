@@ -856,6 +856,9 @@ ret = ~ret & tmp;
 	\url{__sync_fetch_and_sub()}, and \url{__sync_fetch_and_xor()}
 	in terms of their post-value counterparts.
 
+	However, the alternative forms can be quite convenient, both
+	for the programmer and for the compiler/library implementor.
+
 \QuickQ{}
 	Given that these atomic operations will often be able to
 	generate single atomic instructions that are directly
@@ -1025,6 +1028,32 @@ ret = ~ret & tmp;
 
 	In addition, counting provides an excellent view of the
 	issues encountered in shared-memory parallel programs.
+
+\QuickQ{}
+	But why can't CPU designers simply ship the operation to the
+	data, avoiding the need to circulate the cache line containing
+	the global variable being incremented?
+\QuickA{}
+	It might well be possible to do this in some cases.
+	However, there are a few complications:
+	\begin{enumerate}
+	\item	If the value of the variable is required, then the
+		thread will be forced to wait for the the operation
+		to be shipped to the data, and then for the result
+		to be shipped back.
+	\item	If the atomic increment must be ordered with respect
+		to prior and/or subsequent operations, then the thread
+		will be forced to wait for the operation to be shipped
+		to the data, and for an indication that the operation
+		completed to be shipped back.
+	\item	Shipping operations among CPUs will likely require
+		more signals, which will consume more die area and
+		more electrical power.
+	\end{enumerate}
+	But what if neither of the first two conditions holds?
+	Then you should think carefully about the algorithms discussed
+	in Section~\ref{sec:count:Statistical Counters}, which achieve
+	near-ideal performance on commodity hardware.
 
 \QuickQ{}
 	What fundamental difference is there between counting packets

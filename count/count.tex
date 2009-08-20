@@ -206,8 +206,8 @@ this result is off by almost a factor of two!!!
 \begin{center}
 \resizebox{3in}{!}{\includegraphics{CodeSamples/count/atomic}}
 \end{center}
-\caption{Atomic Increment Scalability}
-\label{fig:count:Atomic Increment Scalability}
+\caption{Atomic Increment Scalability on Nehalem}
+\label{fig:count:Atomic Increment Scalability on Nehalem}
 \end{figure}
 
 The straightforward way to count accurately is to use atomic operations,
@@ -225,7 +225,7 @@ This poor performance should not be a surprise, given the discussion in
 Chapter~\ref{chp:Hardware and its Habits},
 nor should it be a surprise that the performance of atomic increment
 gets slower as the number of CPUs and threads increase, as shown in
-Figure~\ref{fig:count:Atomic Increment Scalability}.
+Figure~\ref{fig:count:Atomic Increment Scalability on Nehalem}.
 In this figure, the horizontal dashed line resting on the x~axis
 is the ideal performance that would be achieved
 by a perfectly scalable algorithm: with such an algorithm, a given
@@ -248,8 +248,6 @@ decidedly non-ideal, and gets worse as you add CPUs.
 	This level of ideality may seem severe, but if it is good
 	enough for Linus Torvalds, it is good enough for you.
 } \QuickQuizEnd
-
-@@@ diagrams and explanation @@@
 
 \QuickQuiz{}
 	But atomic increment is still pretty fast.
@@ -274,7 +272,52 @@ decidedly non-ideal, and gets worse as you add CPUs.
 	issues encountered in shared-memory parallel programs.
 } \QuickQuizEnd
 
-The following sections discuss high-performance counting.
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{count/GlobalInc}}
+\end{center}
+\caption{Data Flow For Global Atomic Increment}
+\label{fig:count:Data Flow For Global Atomic Increment}
+\end{figure}
+
+For another perspective on global atomic increment, consider
+Figure~\ref{fig:count:Data Flow For Global Atomic Increment}.
+In order for each CPU to get a chance to increment a given
+global variable, the cache line containing that variable must
+circulate among all the CPUs, as shows by the red arrows.
+Such circulation will take significant time, resulting in
+the poor performance seen in
+Figure~\ref{fig:count:Atomic Increment Scalability on Nehalem}.
+
+The following sections discuss high-performance counting, which
+avoids the delays inherent in such circulation.
+
+\QuickQuiz{}
+	But why can't CPU designers simply ship the operation to the
+	data, avoiding the need to circulate the cache line containing
+	the global variable being incremented?
+\QuickQuizAnswer{
+	It might well be possible to do this in some cases.
+	However, there are a few complications:
+	\begin{enumerate}
+	\item	If the value of the variable is required, then the
+		thread will be forced to wait for the the operation
+		to be shipped to the data, and then for the result
+		to be shipped back.
+	\item	If the atomic increment must be ordered with respect
+		to prior and/or subsequent operations, then the thread
+		will be forced to wait for the operation to be shipped
+		to the data, and for an indication that the operation
+		completed to be shipped back.
+	\item	Shipping operations among CPUs will likely require
+		more signals, which will consume more die area and
+		more electrical power.
+	\end{enumerate}
+	But what if neither of the first two conditions holds?
+	Then you should think carefully about the algorithms discussed
+	in Section~\ref{sec:count:Statistical Counters}, which achieve
+	near-ideal performance on commodity hardware.
+} \QuickQuizEnd
 
 \section{Statistical Counters}
 \label{sec:count:Statistical Counters}
