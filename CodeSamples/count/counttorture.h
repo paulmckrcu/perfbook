@@ -48,6 +48,7 @@ DEFINE_PER_THREAD(long long, n_updates_pt);
 long long n_reads = 0LL;
 long long n_updates = 0LL;
 atomic_t nthreadsrunning;
+int nthreadsexpected;
 char argsbuf[64];
 
 #define GOFLAG_INIT 0
@@ -61,7 +62,7 @@ int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
 
 #ifndef NEED_REGISTER_THREAD
 #define count_register_thread()		do ; while (0)
-#define count_unregister_thread()	do ; while (0)
+#define count_unregister_thread(n)	do ; while (0)
 #endif /* #ifndef NEED_REGISTER_THREAD */
 
 /*
@@ -88,7 +89,7 @@ void *count_read_perf_test(void *arg)
 		n_reads_local += COUNT_READ_RUN;
 	}
 	__get_thread_var(n_reads_pt) += n_reads_local;
-	count_unregister_thread();
+	count_unregister_thread(nthreadsexpected);
 
 	return (NULL);
 }
@@ -110,15 +111,16 @@ void *count_update_perf_test(void *arg)
 		n_updates_local += COUNT_UPDATE_RUN;
 	}
 	__get_thread_var(n_updates_pt) += n_updates_local;
-	count_unregister_thread();
+	count_unregister_thread(nthreadsexpected);
 	return NULL;
 }
 
-void perftestinit(void)
+void perftestinit(int nthreads)
 {
 	init_per_thread(n_reads_pt, 0LL);
 	init_per_thread(n_updates_pt, 0LL);
 	atomic_set(&nthreadsrunning, 0);
+	nthreadsexpected = nthreads;
 }
 
 void perftestrun(int nthreads, int nreaders, int nupdaters)
@@ -158,7 +160,7 @@ void perftest(int nreaders, int cpustride)
 	int i;
 	long arg;
 
-	perftestinit();
+	perftestinit(nreaders + 1);
 	for (i = 0; i < nreaders; i++) {
 		arg = (long)(i * cpustride);
 		create_thread(count_read_perf_test, (void *)arg);
@@ -173,7 +175,7 @@ void rperftest(int nreaders, int cpustride)
 	int i;
 	long arg;
 
-	perftestinit();
+	perftestinit(nreaders);
 	init_per_thread(n_reads_pt, 0LL);
 	for (i = 0; i < nreaders; i++) {
 		arg = (long)(i * cpustride);
@@ -187,7 +189,7 @@ void uperftest(int nupdaters, int cpustride)
 	int i;
 	long arg;
 
-	perftestinit();
+	perftestinit(nupdaters);
 	init_per_thread(n_reads_pt, 0LL);
 	for (i = 0; i < nupdaters; i++) {
 		arg = (long)(i * cpustride);

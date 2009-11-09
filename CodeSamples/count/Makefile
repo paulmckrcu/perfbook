@@ -20,7 +20,8 @@ PROGS =	count_atomic \
 	count_end \
 	count_nonatomic \
 	count_stat \
-	count_stat_atomic
+	count_stat_atomic \
+	count_tstat
 
 all: $(PROGS)
 
@@ -38,6 +39,9 @@ count_stat: count_stat.c ../api.h counttorture.h
 
 count_stat_atomic: count_stat_atomic.c ../api.h counttorture.h
 	cc $(GCC_ARGS) -o count_stat_atomic count_stat_atomic.c -lpthread
+
+count_tstat: count_tstat.c ../api.h counttorture.h
+	cc $(GCC_ARGS) -o count_tstat count_tstat.c -lpthread
 
 clean:
 	rm -f $(PROGS)

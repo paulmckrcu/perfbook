@@ -1,6 +1,7 @@
 /*
- * count_end.c: Per-thread statistical counters that provide sum at end.
- *	Uses __thread for each thread's counter.
+ * count_tstat.c: Per-thread statistical counters.  Uses __thread for
+ *	the per-thread counter itself, and an array to allow access
+ *	from other threads for the summation operation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +24,7 @@
 
 long __thread counter = 0;
 long *counterp[NR_THREADS] = { NULL };
-long finalcount = 0;
+int finalthreadcount = 0;
 DEFINE_SPINLOCK(final_mutex);
 
 void inc_count(void)
@@ -34,13 +35,11 @@ void inc_count(void)
 long read_count(void)
 {
 	int t;
-	long sum = finalcount;
+	long sum = 0;
 
-	spin_lock(&final_mutex);
 	for_each_thread(t)
 		if (counterp[t] != NULL)
 			sum += *counterp[t];
-	spin_unlock(&final_mutex);
 	return sum;
 }
 
@@ -56,9 +55,10 @@ void count_register_thread(void)
 void count_unregister_thread(int nthreadsexpected)
 {
 	spin_lock(&final_mutex);
-	finalcount += counter;
-	counterp[smp_thread_id()] = NULL;
+	finalthreadcount++;
 	spin_unlock(&final_mutex);
+	while (finalthreadcount < nthreadsexpected)
+		poll(NULL, 0, 1);
 }
 
 #define NEED_REGISTER_THREAD
