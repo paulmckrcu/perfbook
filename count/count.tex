@@ -317,12 +317,109 @@ avoids the delays inherent in such circulation.
 	Then you should think carefully about the algorithms discussed
 	in Section~\ref{sec:count:Statistical Counters}, which achieve
 	near-ideal performance on commodity hardware.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{count/GlobalTreeInc}}
+\end{center}
+\caption{Data Flow For Global Combining-Tree Atomic Increment}
+\label{fig:count:Data Flow For Global Combining-Tree Atomic Increment}
+\end{figure}
+
+	If either or both of the first two conditions hold, there is
+	\emph{some} hope for improvement.
+	One could imagine the hardware implementing a combining tree,
+	so that the increment requests from multiple CPUs are combined
+	by the hardware into a single addition when the combined request
+	reaches the hardware.
+	The hardware could also apply an order to the requests, thus
+	returning to each CPU the return value corresponding to its
+	particular atomic increment.
+	This results in instruction latency that varies as $O(log N)$,
+	where $N$ is the number of CPUs, as shown in
+	Figure~\ref{fig:count:Data Flow For Global Combining-Tree Atomic Increment}.
+
+	Although this is a great improvement over the $O(N)$ performance
+	of current hardware shown in
+	Figure~\ref{fig:count:Data Flow For Global Atomic Increment},
+	we will see that in some important special cases, software
+	can do much better.
 } \QuickQuizEnd
 
 \section{Statistical Counters}
 \label{sec:count:Statistical Counters}
 
-Split counters.
+One common special case of counting is statistical counters, where
+the count is updated extremely frequently and the value is read out
+rarely, if ever.
+This situation is typically handled by providing a counter per
+thread (or CPU, when running in the kernel), so that each thread
+updates its counter.
+To read out the aggregate value of the counters, simply sum up
+all the threads' counters.
+
+\begin{figure}[bp]
+{ \scriptsize
+\begin{verbatim}
+  1 DEFINE_PER_THREAD(long, counter);
+  2 
+  3 void inc_count(void)
+  4 {
+  5   __get_thread_var(counter)++;
+  6 }
+  7 
+  8 long read_count(void)
+  9 {
+ 10   int t;
+ 11   long sum = 0;
+ 12 
+ 13   for_each_thread(t)
+ 14     sum += per_thread(counter, t);
+ 15   return sum;
+ 16 }
+\end{verbatim}
+}
+\caption{Array-Based Per-Thread Statistical Counters}
+\label{fig:count:Array-Based Per-Thread Statistical Counters}
+\end{figure}
+
+One way to do this is to allocate an array with one element per
+thread (presumably cache aligned and padded to avoid false sharing).
+Such an array can be wrapped into per-thread primitives, as shown in
+Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}.
+Line~1 defines an array containing a set of per-thread counters of
+type \url{long} named, creatively enough, \url{counter}.
+
+Lines~3-6 show a function that increments the counters, using the
+\url{__get_thread_var()} primitive to locate the currently running
+thread's element of the \url{counter} array.
+Because this element is modified only by the corresponding thread,
+non-atomic increment suffices.
+
+Lines~8-16 show a function that reads out the aggregate value of the counter,
+using the \url{for_each_thread()} primitive to iterate over the list of
+currently running threads, and using the \url{per_thread()} primitive
+to fetch the specified thread's counter.
+Because the hardware can fetch and store a properly aligned \url{long}
+atomically, and because gcc is kind enough to make use of this capability,
+normal loads suffice, and no special atomic instructions are required.
+
+\QuickQuiz{}
+	What other choice does gcc have, anyway???
+\QuickQuizAnswer{
+	According to the C standard, the effects of fetching a variable
+	that might be concurrently modified by some other thread are
+	undefined.
+	It turns out that the C standard really has no other choice,
+	given that C must support (for example) eight-bit architectures
+	which are incapable of atomically loading a \url{long}.
+	An upcoming version of the C standard aims to fill this gap,
+	but until then, we depend on the kindness of the gcc developers.
+} \QuickQuizEnd
+
+Unfortunately, the overhead of the array-indexing this approach
+entails can be as much as four times that of the simple non-atomic
+increment.
 
 \QuickQuiz{}
 	What fundamental difference is there between counting packets
@@ -353,7 +450,7 @@ Split counters.
 	of the counter are 0,3,8 and 0,5,8, and neither order is
 	consistent with the results obtained.
 
-	If you missed this one, do not feel bad.
+	If you missed this one, you are not alone.
 	Michael Scott used this question to stump Paul McKenney during Paul's
 	Ph.D. defense.
 } \QuickQuizEnd
@@ -373,8 +470,9 @@ Split counters.
 	This would permit a tradeoff between average increment overhead
 	and accuracy of the value read out.
 
-	The reader is encouraged to think up and try out other approaches,
-	for example, approaches using a combining tree.
+	The reader is encouraged to think up and try out other approaches.
+	One approach is a generalization of the global approximation,
+	in the form of a combining tree.
 } \QuickQuizEnd
 
 \section{Limit Counters}

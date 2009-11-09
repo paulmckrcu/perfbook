@@ -116,6 +116,9 @@ EPSSOURCES = \
 	appendix/whymb/cacheSC.eps \
 	appendix/whymb/cacheSCwrite.eps \
 	appendix/whymb/hostileordering.eps \
+	count/GlobalInc.eps \
+	count/GlobalTreeInc.eps \
+	count/PerThreadInc.eps \
 	cpu/SystemArch.eps \
 	cartoons/CPU_toon_outoforder_colored.eps \
 	cartoons/LD,ACQ.eps \

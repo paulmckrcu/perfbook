@@ -292,6 +292,8 @@
 		some other parallel project, such as a database.
 	\end{enumerate}
 
+	One can argue that many of these obstacles are non-technical
+	in nature, but that does not make them any less real.
 	In short, parallization can be a large and complex effort.
 	As with any large and complex effort, it makes sense to
 	do your homework beforehand.
@@ -1118,6 +1120,45 @@ ret = ~ret & tmp;
 	in Section~\ref{sec:count:Statistical Counters}, which achieve
 	near-ideal performance on commodity hardware.
 
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{count/GlobalTreeInc}}
+\end{center}
+\caption{Data Flow For Global Combining-Tree Atomic Increment}
+\label{fig:count:Data Flow For Global Combining-Tree Atomic Increment}
+\end{figure}
+
+	If either or both of the first two conditions hold, there is
+	\emph{some} hope for improvement.
+	One could imagine the hardware implementing a combining tree,
+	so that the increment requests from multiple CPUs are combined
+	by the hardware into a single addition when the combined request
+	reaches the hardware.
+	The hardware could also apply an order to the requests, thus
+	returning to each CPU the return value corresponding to its
+	particular atomic increment.
+	This results in instruction latency that varies as $O(log N)$,
+	where $N$ is the number of CPUs, as shown in
+	Figure~\ref{fig:count:Data Flow For Global Combining-Tree Atomic Increment}.
+
+	Although this is a great improvement over the $O(N)$ performance
+	of current hardware shown in
+	Figure~\ref{fig:count:Data Flow For Global Atomic Increment},
+	we will see that in some important special cases, software
+	can do much better.
+
+\QuickQ{}
+	What other choice does gcc have, anyway???
+\QuickA{}
+	According to the C standard, the effects of fetching a variable
+	that might be concurrently modified by some other thread are
+	undefined.
+	It turns out that the C standard really has no other choice,
+	given that C must support (for example) eight-bit architectures
+	which are incapable of atomically loading a \url{long}.
+	An upcoming version of the C standard aims to fill this gap,
+	but until then, we depend on the kindness of the gcc developers.
+
 \QuickQ{}
 	What fundamental difference is there between counting packets
 	and counting the total number of bytes in the packets, given
@@ -1147,7 +1188,7 @@ ret = ~ret & tmp;
 	of the counter are 0,3,8 and 0,5,8, and neither order is
 	consistent with the results obtained.
 
-	If you missed this one, do not feel bad.
+	If you missed this one, you are not alone.
 	Michael Scott used this question to stump Paul McKenney during Paul's
 	Ph.D. defense.
 
@@ -1166,8 +1207,9 @@ ret = ~ret & tmp;
 	This would permit a tradeoff between average increment overhead
 	and accuracy of the value read out.
 
-	The reader is encouraged to think up and try out other approaches,
-	for example, approaches using a combining tree.
+	The reader is encouraged to think up and try out other approaches.
+	One approach is a generalization of the global approximation,
+	in the form of a combining tree.
 
 \QuickQ{}
 	The \url{++} operator works just fine for 1,000-digit numbers!!!
