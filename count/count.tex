@@ -386,7 +386,8 @@ all the threads' counters.
 One way to do this is to allocate an array with one element per
 thread (presumably cache aligned and padded to avoid false sharing).
 Such an array can be wrapped into per-thread primitives, as shown in
-Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}.
+Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}
+(\url{count_stat.c}).
 Line~1 defines an array containing a set of per-thread counters of
 type \url{long} named, creatively enough, \url{counter}.
 
@@ -417,9 +418,270 @@ normal loads suffice, and no special atomic instructions are required.
 	but until then, we depend on the kindness of the gcc developers.
 } \QuickQuizEnd
 
-Unfortunately, the overhead of the array-indexing this approach
-entails can be as much as four times that of the simple non-atomic
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{count/PerThreadInc}}
+\end{center}
+\caption{Data Flow For Per-Thread Increment}
+\label{fig:count:Data Flow For Per-Thread Increment}
+\end{figure}
+
+This approach scales linearly with increasing number of updater threads
+invoking \url{inc_count()}.
+As is shows by the green arrows in
+Figure~\ref{fig:count:Data Flow For Per-Thread Increment},
+the reason for this is that each CPU can make rapid progress incrementing
+its thread's variable, with no expensive communication required crossing
+the full diameter of the computer system.
+However, this excellent scalability comes at the cost of increased
+overhead compared to that of the simple non-atomic increment.
+This overhead is due to the array indexing hidden in the
+\url{__get_thread_var()} primitive.
+
+\begin{figure}[bp]
+{ \scriptsize
+\begin{verbatim}
+  1 long __thread counter = 0;
+  2 long *counterp[NR_THREADS] = { NULL };
+  3 long finalcount = 0;
+  4 DEFINE_SPINLOCK(final_mutex);
+  5 
+  6 void inc_count(void)
+  7 {
+  8   counter++;
+  9 }
+ 10 
+ 11 long read_count(void)
+ 12 {
+ 13   int t;
+ 14   long sum;
+ 15 
+ 16   spin_lock(&final_mutex);
+ 17   sum = finalcount;
+ 18   for_each_thread(t)
+ 19     if (counterp[t] != NULL)
+ 20       sum += *counterp[t];
+ 21   spin_unlock(&final_mutex);
+ 22   return sum;
+ 23 }
+ 24 
+ 25 void count_register_thread(void)
+ 26 {
+ 27   int idx = smp_thread_id();
+ 28 
+ 29   spin_lock(&final_mutex);
+ 30   counterp[idx] = &counter;
+ 31   spin_unlock(&final_mutex);
+ 32 }
+ 33 
+ 34 void count_unregister_thread(int nthreadsexpected)
+ 35 {
+ 36   int idx = smp_thread_id();
+ 37 
+ 38   spin_lock(&final_mutex);
+ 39   finalcount += counter;
+ 40   counterp[idx] = NULL;
+ 41   spin_unlock(&final_mutex);
+ 42 }
+\end{verbatim}
+}
+\caption{Per-Thread Statistical Counters}
+\label{fig:count:Per-Thread Statistical Counters}
+\end{figure}
+
+Fortunately, gcc provides an \url{__thread} storage class that provides
+per-thread storage.
+This can be used as shown in
+Figure~\ref{fig:count:Per-Thread Statistical Counters} (\url{count_end.c})
+to implement
+a statistical counter that not only scales, but that also incurs little
+or no performance penalty to incrementers compared to simple non-atomic
 increment.
+
+Lines~1-4 define needed variables: \url{counter} is the per-thread counter
+variable, the \url{counterp[]} array allows threads to access each others'
+counters, finalcount accumulates the total as individual threads exit,
+and \url{final_mutex} coordinates between threads accumulating the total
+value of the counter and exiting threads.
+
+\QuickQuiz{}
+	Why do we need an explicit array to find the other threads'
+	counters?
+	Why doesn't gcc provide a \url{per_thread()} interface, similar
+	to the Linux kernel's \url{per_cpu()} primitive, to allow
+	threads to more easily access each others' per-thread variables?
+\QuickQuizAnswer{
+	Why indeed?
+
+	To be fair, gcc faces some challenges that the Linux kernel
+	gets to ignore.
+	When a user-level thread exits, its per-thread variables all
+	disappear, which complicates the problem of per-thread-variable
+	access, particularly before the advent of user-level RCU.
+	In contrast, in the Linux kernel, when a CPU goes offline,
+	that CPU's per-CPU variables remain mapped and accessible.
+
+	Similarly, when a new user-level thread is created, its
+	per-thread variables suddenly come into existence.
+	In contrast, in the Linux kernel, all per-CPU variables are
+	mapped and initialized at boot time, regardless of whether
+	the corresponding CPU exists yet, or indeed, whether the
+	corresponding CPU will ever exist.
+
+	A key limitation that the Linux kernel imposes is a compile-time
+	maximum limit on the number of CPUs, namely,
+	\url{CONFIG_NR_CPUS}.
+	In contrast, in user space, there is no hard-coded upper limit
+	on the number of threads.
+
+	Of course, both environments must deal with dyanmically loaded
+	code (dynamic libraries in user space, kernel modules in the
+	Linux kernel), which increases the complexity of per-thread
+	variables in both environments.
+
+	These complications make it significantly harder for user-space
+	environments to provide access to other threads' per-thread
+	variables.
+	Nevertheless, such access is highly useful, and it is hoped
+	that it will someday appear.
+} \QuickQuizEnd
+
+The \url{inc_count()} function used by updaters is quite simple, as can
+be seen on lines~6-9.
+
+The \url{read_count()} function used by readers is a bit more complex.
+Line~16 acquires a lock to exclude exiting threads, and line~21 releases
+it.
+Line~17 initializes the sum to the count accumulated by those threads that
+have already exited, and lines~18-20 sum the counts being accumulated
+by threads currently running.
+Finally, line~22 returns the sum.
+
+\QuickQuiz{}
+	Why on earth do we need something as heavyweight as a \emph{lock}
+	guarding the summation in the function \url{read_count()} in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}?
+\QuickQuizAnswer{
+	Remember, when a thread exits, its per-thread variables disappear.
+	Therefore, if we attempt to access a given thread's per-thread
+	variables after that thread exits, we will get a segmentation
+	fault.
+	The lock coordinates summation and thread exit, preventing this
+	scenario.
+
+	Of course, we could instead read-acquire a reader-writer lock,
+	but Chapter~\ref{chp:defer:Deferred Processing} will introduce even
+	lighter-weight mechanisms for implementing the required coordination.
+} \QuickQuizEnd
+
+Lines~25-32 show the \url{count_register_thread()} function, which
+must be called by each thread before its first use of this counter.
+This function simply sets up this thread's element of the \url{counterp[]}
+array to point to its per-thread \url{counter} variable.
+
+\QuickQuiz{}
+	Why on earth do we need to acquire the lock in
+	\url{count_register_thread()} in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}???
+	It is a single properly aligned machine-word store to a location
+	that no other thread is modifying, so it should be atomic anyway,
+	right?
+\QuickQuizAnswer{
+	This lock could in fact be omitted, but better safe than
+	sorry, especially given that this function is executed only at
+	thread startup, and is therefore not on any critical path.
+	Now, if we were testing on machines with thousands of CPUs,
+	we might need to omit the lock, but on machines with ``only''
+	a hundred or so CPUs, no need to get fancy.
+} \QuickQuizEnd
+
+Lines~34-42 show the \url{count_unregister_thread()} function, which
+must be called prior to exit by each thread that previously called
+\url{count_register_thread()}.
+Line~38 acquires the lock, and line~41 releases it, thus excluding any
+calls to \url{read_count()} as well as other calls to
+\url{count_unregister_thread()}.
+Line~39 adds this thread's \url{counter} to the global \url{finalcount},
+and then \url{NULL}s out its \url{counterp[]} array entry.
+A subsequent call to \url{read_count()} will see the exiting thread's
+count in the global \url{finalcount}, and will skip the exiting thread
+when sequencing through the \url{counterp[]} array, thus obtaining
+the correct total.
+
+This approach gives updaters almost exactly the same performance as
+a non-atomic add, and also scales linearly.
+On the other hand, concurrent reads contend for a single global lock,
+and therefore perform poorly and scale abysmally.
+However, this is not a problem for statistical counters, where incrementing
+happens often and readout happens almost never.
+
+\QuickQuiz{}
+	Fine, but the Linux kernel doesn't have to acquire a lock
+	when reading out the aggregate value of per-CPU counters.
+	So why should user-space code need to do this???
+\QuickQuizAnswer{
+	Remember, the Linux kernel's per-CPU variables are always
+	accessible, even if the corresponding CPU is offline --- even
+	if the corresponding CPU never existed and never will exist.
+
+\begin{figure}[bp]
+{ \scriptsize
+\begin{verbatim}
+  1 long __thread counter = 0;
+  2 long *counterp[NR_THREADS] = { NULL };
+  3 int finalthreadcount = 0;
+  4 DEFINE_SPINLOCK(final_mutex);
+  5 
+  6 void inc_count(void)
+  7 {
+  8   counter++;
+  9 }
+ 10 
+ 11 long read_count(void)
+ 12 {
+ 13   int t;
+ 14   long sum = 0;
+ 15 
+ 16   for_each_thread(t)
+ 17     if (counterp[t] != NULL)
+ 18       sum += *counterp[t];
+ 19   return sum;
+ 20 }
+ 21 
+ 22 void count_init(void)
+ 23 {
+ 24 }
+ 25 
+ 26 void count_register_thread(void)
+ 27 {
+ 28   counterp[smp_thread_id()] = &counter;
+ 29 }
+ 30 
+ 31 void count_unregister_thread(int nthreadsexpected)
+ 32 {
+ 33   spin_lock(&final_mutex);
+ 34   finalthreadcount++;
+ 35   spin_unlock(&final_mutex);
+ 36   while (finalthreadcount < nthreadsexpected)
+ 37     poll(NULL, 0, 1);
+ 38 }
+\end{verbatim}
+}
+\caption{Per-Thread Statistical Counters With Lockless Summation}
+\label{fig:count:Per-Thread Statistical Counters With Lockless Summation}
+\end{figure}
+
+	One workaround is to ensure that each thread sticks around
+	until all threads are finished, as shown in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters With Lockless Summation}.
+	Analysis of this code is left as an exercise to the reader,
+	however, please note that it does not fit well into the
+	\url{counttorture.h} counter-evaluation scheme.
+	(Why not?)
+	Chapter~\ref{chp:defer:Deferred Processing} will introduce 
+	synchronization mechanisms that handle this situation in a much
+	more graceful manner.
+} \QuickQuizEnd
 
 \QuickQuiz{}
 	What fundamental difference is there between counting packets
@@ -543,6 +805,18 @@ carrying concrete trucks.
 In short, just as bridge design has changed as bridges' spans and loads have
 increased, so must software design change as the number of CPUs increases.
 
-The examples in this chapter has shown that an important tool permitting
+The examples in this chapter have shown that an important tool permitting
 large numbers of CPUs to be brought to bear is \emph{partitioning}.
 This topic will be considered in far greater depth in the next chapter.
+
+\QuickQuiz{}
+	But if we are going to have to partition everything, why bother
+	with shared-memory multithreading?
+	Why not just partition the problem completely and run as
+	multiple processes, each in its own address space?
+\QuickQuizAnswer{
+	In the C++ language, you might well be able to use \url{++}
+	on a 1,000-digit number, assuming that you had access to a
+	class implementing such numbers.
+	But as of 2009, the C language does not permit operator overloading.
+} \QuickQuizEnd
