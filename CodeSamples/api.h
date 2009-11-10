@@ -544,12 +544,12 @@ static thread_id_t create_thread(void *(*func)(void *), void *arg)
 		exit(-1);
 	}
 	__thread_id_map[i] = __THREAD_ID_MAP_WAITING;
-	spin_unlock(&__thread_id_map_mutex);
 	if (pthread_create(&tid, NULL, func, arg) != 0) {
 		perror("create_thread:pthread_create");
 		exit(-1);
 	}
 	__thread_id_map[i] = tid;
+	spin_unlock(&__thread_id_map_mutex);
 	return tid;
 }
 
