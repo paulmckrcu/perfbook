@@ -32,7 +32,7 @@ void inc_count(void)
 	counter++;
 }
 
-long read_count(void)
+long read_count(void)  /* problem: counttorture reads after all threads gone */
 {
 	int t;
 	long sum = 0;

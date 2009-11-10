@@ -34,9 +34,10 @@ void inc_count(void)
 long read_count(void)
 {
 	int t;
-	long sum = finalcount;
+	long sum;
 
 	spin_lock(&final_mutex);
+	sum = finalcount;
 	for_each_thread(t)
 		if (counterp[t] != NULL)
 			sum += *counterp[t];
@@ -50,14 +51,20 @@ void count_init(void)
 
 void count_register_thread(void)
 {
-	counterp[smp_thread_id()] = &counter;
+	int idx = smp_thread_id();
+
+	spin_lock(&final_mutex);
+	counterp[idx] = &counter;
+	spin_unlock(&final_mutex);
 }
 
 void count_unregister_thread(int nthreadsexpected)
 {
+	int idx = smp_thread_id();
+
 	spin_lock(&final_mutex);
 	finalcount += counter;
-	counterp[smp_thread_id()] = NULL;
+	counterp[idx] = NULL;
 	spin_unlock(&final_mutex);
 }
 
