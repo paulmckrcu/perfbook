@@ -81,7 +81,7 @@ END	{
 			key = i ":" ncpus;
 			if (n[key] != "") {
 				avg = sum[key] / n[key];
-				print(ncpus, avg, min[key], max[key]) > "" i tag ".dat"
+				print(ncpus, avg, min[key], max[key]) > "" i "." tag ".dat"
 			}
 		}
 	}
