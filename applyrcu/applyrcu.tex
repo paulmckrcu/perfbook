@@ -35,14 +35,15 @@ Page~\pageref{fig:count:Per-Thread Statistical Counters}.
 	of a just-exited thread will result in segmentation faults.
 } \QuickQuizEnd
 
+\subsection{Design}
+
 The hope is to use RCU rather than \url{final_mutex} to protect the
 thread traveral in \url{read_count()} in order to obtain excellent
 performance and scalabilty from \url{read_count()}, rather than just
 from \url{inc_count()}.
-However, we do not want to give
-up significant accuracy in the computed sum.
+However, we do not want to give up any accuracy in the computed sum.
 In particular, when a given thread exits, we absolutely cannot
-lose that thread's count, nor can we double-count it.
+lose the exiting thread's count, nor can we double-count it.
 Such an error could result in inaccuracies equal to the full
 precision of the result, in other words, such an error would
 make the result completely useless.
@@ -98,6 +99,13 @@ execution.
 
 Therefore, if we are to dispense with \url{final_mutex}, we will need
 to come up with some other method for ensuring consistency.
+One approach is to place the total count for all previously exited
+threads and the array of pointers to the per-thread counters into a single
+structure.
+Such a structure, once made available to \url{read_count()}, is
+held constant, ensuring that \url{read_count()} sees consistent data.
+
+\subsection{Implementation}
 
 \begin{figure}[bp]
 { \scriptsize
@@ -178,55 +186,51 @@ to come up with some other method for ensuring consistency.
 \label{fig:count:RCU and Per-Thread Statistical Counters}
 \end{figure}
 
-One approach is to place the total count for all previously exited
-threads and the pointers to the per-thread counters into a single
-structure.
-Such a structure, once made available to \url{read_count()}, is
-held constant, ensuring that \url{read_count()} sees a total count
-for the previously exited threads
-that is consistent with the combination of still-running threads.
 Lines~1-4 of
 Figure~\ref{fig:count:RCU and Per-Thread Statistical Counters}
 show the \url{countarray} structure, which contains a
 \url{->total} field for the count from previously exited threads,
 and a \url{counterp[]} array of pointers to the per-thread
 \url{counter} for each currently running thread.
+This structure allows a given execution of \url{read_count()}
+to see a total that is consistent with the indicated set of running
+threads.
 
 Lines~6-8 contain the definition of the per-thread \url{counter}
-variable, the global pointer \url{countarrayp} that references
-the current \url{countarray} structure instance, and
+variable, the global pointer \url{countarrayp} referencing
+the current \url{countarray} structure, and
 the \url{final_mutex} spinlock.
 
-Lines~10-13 show \url{inc_count()}, which is unchanged from that in
+Lines~10-13 show \url{inc_count()}, which is unchanged from
 Figure~\ref{fig:count:Per-Thread Statistical Counters}.
 
 Lines~15-29 show \url{read_count()}, which has changed significantly.
 Lines~21 and 27 substitute \url{rcu_read_lock()} and
-\url{rcu_read_unlock()} for acquisition and release, respectively, of
-\url{final_mutex}.
-Line~22 uses \url{rcu_dereference()} to snapshot a pointer to the
+\url{rcu_read_unlock()} for acquisition and release of \url{final_mutex}.
+Line~22 uses \url{rcu_dereference()} to snapshot the
 current \url{countarray} structure into local variable \url{cap}.
 Proper use of RCU will guarantee that this \url{countarray} structure
 will remain with us through at least the end of the current RCU
 read-side critical section at line~27.
-Line 23 initializes \url{sum} to the sum of the counts of threads
-that have previously exited.
-Lines~24-26 sum the per-thread counters corresponding to currently
+Line 23 initializes \url{sum} to \url{cap->total}, which is the
+sum of the counts of threads that have previously exited.
+Lines~24-26 add up the per-thread counters corresponding to currently
 running threads, and, finally, line 28 returns the sum.
 
-We now need an initial value for \url{countarrayp}, which is
-provided by \url{count_init()} on lines~31-38.
-This function runs before the first thread is created, allocates
-and zeroes the initial structure, and assigns it to \url{countarrayp}.
+The initial value for \url{countarrayp} is
+provided by \url{count_init()} on lines~31-39.
+This function runs before the first thread is created, and its job
+is to allocate
+and zero the initial structure, and then assign it to \url{countarrayp}.
 
-Lines~40-47 show the \url{count_register_thread()} function, which
+Lines~41-48 show the \url{count_register_thread()} function, which
 is invoked by each newly created thread.
-Line~42 picks up the current thread's index, line~44 acquires
-\url{final_mutex}, line~45 installs a pointer to this thread's
-\url{counter}, and line~46 releases \url{final_mutex}.
+Line~43 picks up the current thread's index, line~45 acquires
+\url{final_mutex}, line~46 installs a pointer to this thread's
+\url{counter}, and line~47 releases \url{final_mutex}.
 
 \QuickQuiz{}
-	Wait a minute!!!
+	Hey!!!
 	Line~45 of
 	Figure~\ref{fig:count:RCU and Per-Thread Statistical Counters}
 	modifies a value in a pre-existing \url{countarray} structure!
@@ -249,23 +253,25 @@ Line~42 picks up the current thread's index, line~44 acquires
 	but without actually having to do the allocation.
 } \QuickQuizEnd
 
-Lines~49-69 shows \url{count_unregister_thread()}, which is invoked
+Lines~50-70 shows \url{count_unregister_thread()}, which is invoked
 by each thread just before it exits.
-Lines~55-59 allocate a new \url{countarray} structure,
-line~60 acquires \url{final_mutex} and line~66 releases it.
-Line~61 copies the contents of the current \url{countarray} into
-the newly allocated version, line~62 adds the exiting thread's \url{counter}
-to new structure's total, and line~63 \url{NULL}s the exiting thread's
+Lines~56-60 allocate a new \url{countarray} structure,
+line~61 acquires \url{final_mutex} and line~67 releases it.
+Line~62 copies the contents of the current \url{countarray} into
+the newly allocated version, line~63 adds the exiting thread's \url{counter}
+to new structure's total, and line~64 \url{NULL}s the exiting thread's
 \url{counterp[]} array element.
-Line~64 then retains a pointer to the current (soon to be old)
-\url{countarray} structure, and line~65 uses \url{rcu_assign_pointer()}
+Line~65 then retains a pointer to the current (soon to be old)
+\url{countarray} structure, and line~66 uses \url{rcu_assign_pointer()}
 to install the new version of the \url{countarray} structure.
-Line~67 waits for a grace period to elapse, so that any threads that
+Line~68 waits for a grace period to elapse, so that any threads that
 might be concurrently executing in \url{read_count}, and thus might
 have references to the old \url{countarray} structure, will be allowed
 to exit their RCU read-side critical sections, thus dropping any such
 references.
-Line~68 can then safely free the old \url{countarray} structure.
+Line~69 can then safely free the old \url{countarray} structure.
+
+\subsection{Discussion}
 
 \QuickQuiz{}
 	Wow!!!
@@ -297,7 +303,15 @@ Line~68 can then safely free the old \url{countarray} structure.
 	Figure~\ref{fig:count:RCU and Per-Thread Statistical Counters}!
 } \QuickQuizEnd
 
-Use of RCU thus enables threads to come and go, while nevertheless providing
+Use of RCU enables exiting threads to wait until other threads are
+guaranteed to be done using the exiting threads' \url{__thread} variables.
+This allows the \url{read_count()} function to dispense with locking,
+thereby providing
 excellent performance and scalability for both the \url{inc_count()}
-and the \url{read_count()} function, at the cost of a modest increase
+and \url{read_count()} functions.
+However, this performance and scalability come at the cost of some increase
 in code complexity.
+It is hoped that compiler and library writers employ user-level
+RCU~\cite{MathieuDesnoyers2009URCU} to provide safe cross-thread
+access to \url{__thread} variables, greatly reducing the
+complexity seen by users of \url{__thread} variables.
