@@ -6,7 +6,6 @@ LATEXSOURCES = \
 	qqz.sty origpub.sty \
 	advsync/advsync.tex \
 	advsync/memorybarriers.tex \
-	analysis/analysis.tex \
 	appendix/appendix.tex \
 	appendix/ack/ack.tex \
 	appendix/formal/formal.tex \
