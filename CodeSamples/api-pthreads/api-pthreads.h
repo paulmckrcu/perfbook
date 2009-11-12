@@ -22,6 +22,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <strings.h>
 #include <errno.h>
 #include <limits.h>
 #include <sys/types.h>
@@ -128,6 +129,16 @@ spinlock_t __thread_id_map_mutex;
 		    ((tid) != __THREAD_ID_MAP_WAITING))
 
 pthread_key_t thread_id_key;
+
+int num_online_threads(void)
+{
+	int t;
+	int nonline = 0;
+
+	for_each_running_thread(t)
+		nonline++;
+	return nonline;
+}
 
 static int __smp_thread_id(void)
 {

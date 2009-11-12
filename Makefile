@@ -21,6 +21,7 @@ LATEXSOURCES = \
 	appendix/rcuimpl/rcutreewt.tex \
 	appendix/rcuimpl/rcupreempt.tex \
 	appendix/whymb/whymemorybarriers.tex \
+	applyrcu/applyrcu.tex \
 	count/count.tex \
 	cpu/cpu.tex \
 	cpu/overview.tex \
@@ -37,6 +38,7 @@ LATEXSOURCES = \
 	defer/defer.tex \
 	defer/refcnt.tex \
 	defer/rcu.tex \
+	defer/rcuexercises.tex \
 	defer/rcufundamental.tex \
 	defer/rcuapi.tex \
 	defer/rcuusage.tex \

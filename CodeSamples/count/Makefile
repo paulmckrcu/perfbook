@@ -18,10 +18,13 @@ include ../Makefile.arch
 
 PROGS =	count_atomic \
 	count_end \
+	count_end_rcu \
 	count_nonatomic \
 	count_stat \
 	count_stat_atomic \
 	count_tstat
+
+RCU_SRCS = ../defer/rcu_nest32.h ../defer/rcu_nest32.c
 
 all: $(PROGS)
 
@@ -30,6 +33,9 @@ count_atomic: count_atomic.c ../api.h counttorture.h
 
 count_end: count_end.c ../api.h counttorture.h
 	cc $(GCC_ARGS) -o count_end count_end.c -lpthread
+
+count_end_rcu: count_end_rcu.c ../api.h counttorture.h $(RCU_SRCS)
+	cc $(GCC_ARGS) -o count_end_rcu count_end_rcu.c -lpthread
 
 count_nonatomic: count_nonatomic.c ../api.h counttorture.h
 	cc $(GCC_ARGS) -o count_nonatomic count_nonatomic.c -lpthread

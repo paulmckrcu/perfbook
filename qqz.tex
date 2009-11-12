@@ -1020,7 +1020,7 @@ ret = ~ret & tmp;
 	between values between the limit and zero on the one hand,
 	and values that either are less than or equal to zero or
 	are greater than or equal to the limit on the other hand.
-	See Section~\ref{sec:count:Double-Limit Counters}.
+	See Section~\ref{sec:count:Applying Specialized Parallel Counters}.
 
 \QuickQ{}
 	Suppose that you need to maintain a reference count on a
@@ -1044,7 +1044,7 @@ ret = ~ret & tmp;
 	to keep the value at zero until it has taken some action
 	to prevent subsequent threads from gaining access to the
 	device being removed.
-	See Section~\ref{sec:count:Atomic-Read Reference Counters}.
+	See Section~\ref{sec:count:Applying Specialized Parallel Counters}.
 
 \QuickQ{}
 	But doesn't the \url{++} operator produce an x86 add-to-memory
@@ -1073,7 +1073,8 @@ ret = ~ret & tmp;
 	few bugs still lurking.
 
 	Furthermore, while proofs of correctness certainly do have their
-	place, they never will replace testing.
+	place, they never will replace testing, including the
+	\url{counttorture.h} test setup used here.
 	After all, proofs can have bugs just as easily has can programs!
 
 \QuickQ{}
@@ -2840,6 +2841,155 @@ srcu_read_unlock(&srcucb, idx);
 	critical section can be extremely convenient, and is analogous
 	to a (mythical) unconditional read-to-write upgrade for
 	reader-writer locking.
+
+\QuickQ{}
+	The statistical-counter implementation shown in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}
+	(\url{count_end.c})
+	used a global lock to guard the summation in \url{read_count()},
+	which resulted in poor performance and negative scalability.
+	How could you use RCU to provide \url{read_count()} with
+	excellent performance and good scalability.
+	(Keep in mind that \url{read_count()}'s scalability will
+	necessarily be limited by its need to scan all threads'
+	counters.)
+\QuickA{}
+	Hint: place the global variable \url{finalcount} and the
+	array \url{counterp[]} into a single RCU-protected struct.
+	At initialization time, this structure would be allocated
+	and set to all zero and \url{NULL}.
+
+	The \url{inc_count()} function would be unchanged.
+
+	The \url{read_count()} function would use \url{rcu_read_lock()}
+	instead of acquiring \url{final_mutex}, and would need to
+	use \url{rcu_dereference()} to acquire a reference to the
+	current structure.
+
+	The \url{count_register_thread()} function would set the
+	array element corresponding to the newly created thread
+	to reference that thread's per-thread \url{counter} variable.
+
+	The \url{count_unregister_thread()} function would need to
+	allocate a new structure, acquire \url{final_mutex},
+	copy the old structure to the new one, add the outgoing
+	thread's \url{counter} variable to the total, \url{NULL}
+	the pointer to this same \url{counter} variable,
+	use \url{rcu_assign_pointer()} to install the new structure
+	in place of the old one, release \url{final_mutex},
+	wait for a grace period, and finally free the old structure.
+
+	Does this really work?
+	Why or why not?
+
+\QuickQAC{chp:applyrcu:Applying RCU}{Applying RCU}
+\QuickQ{}
+	Why on earth did we need that global lock in the first place???
+\QuickA{}
+	A given thread's \url{__thread} variables vanish when that
+	thread exits.
+	It is therefore necessary to synchronize any operation that
+	accesses other threads' \url{__thread} variables with
+	thread exit.
+	Without such synchronization, accesses to \url{__thread} variable
+	of a just-exited thread will result in segmentation faults.
+
+\QuickQ{}
+	Just what is the accuracy of \url{read_count()}, anyway?
+\QuickA{}
+	Refer to
+	Figure~\ref{fig:count:Per-Thread Statistical Counters} on
+	Page~\pageref{fig:count:Per-Thread Statistical Counters}.
+	Clearly, if there are no concurrent invocations of \url{inc_count()},
+	\url{read_count()} will return an exact result.
+	However, if there \emph{are} concurrent invocations of
+	\url{inc_count()}, then the sum is in fact changing as
+	\url{read_count()} performs its summation.
+	That said, because thread creation and exit are excluded by
+	\url{final_mutex}, the pointers in \url{counterp} remain constant.
+
+	Let's imagine a mythical machine that is able to take an
+	instantaneous snapshot of its memory.
+	Suppose that this machine takes such a snapshot at the
+	beginning of \url{read_count()}'s execution, and another
+	snapshot at the end of \url{read_count()}'s execution.
+	Then \url{read_count()} will access each thread's counter
+	at some time between these two snapshots, and will therefore
+	obtain a result that is bounded by those of the two snapshots,
+	inclusive.
+	The overall sum will therefore be bounded by the pair of sums that
+	would have been obtained from each of the two snapshots (again,
+	inclusive).
+
+	The expected error is therefore half of the difference between
+	the pair of sums that would have been obtained from each of the
+	two snapshots, that is to say, half of the execution time of
+	\url{read_count()} multiplied by the number of expected calls to
+	\url{inc_count()} per unit time.
+
+	Or, for those who prefer equations:
+	\begin{equation}
+	\epsilon = \frac{T_r R_i}{2}
+	\end{equation}
+	where $\epsilon$ is the expected error in \url{read_count()}'s
+	return value,
+	$T_r$ is the time that \url{read_count()} takes to execute,
+	and $R_i$ is the rate of \url{inc_count()} calls per unit time.
+	(And of course, $T_r$ and $R_i$ should use the same units of
+	time: microseconds and calls per microsecond, seconds and calls
+	per second, or whatever, as long as they are the same units.)
+
+\QuickQ{}
+	Wait a minute!!!
+	Line~45 of
+	Figure~\ref{fig:count:RCU and Per-Thread Statistical Counters}
+	modifies a value in a pre-existing \url{countarray} structure!
+	Didn't you say that this structure, once made available to
+	\url{read_count()}, remained constant???
+\QuickA{}
+	Indeed I did say that.
+	And it would be possible to make \url{count_register_thread()}
+	allocate a new structure, much as \url{count_unregister_thread()}
+	currently does.
+
+	But this is unnecessary.
+	Recall the derivation of the error bounds of \url{read_count()}
+	that was based on the snapshots of memory.
+	Because new threads start with initial \url{counter} values of
+	zero, the derivation holds even if we add a new thread partway
+	through \url{read_count()}'s execution.
+	So, interestingly enough, when adding a new thread, this
+	implementation gets the effect of allocating a new structure,
+	but without actually having to do the allocation.
+
+\QuickQ{}
+	Wow!!!
+	Figure~\ref{fig:count:RCU and Per-Thread Statistical Counters}
+	contains 69 lines of code, compared to only 42 in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}.
+	Is this extra complexity really worth it?
+\QuickA{}
+	This of course needs to be decided on a case-by-case basis.
+	If you need an implementation of \url{read_count()} that
+	scales linearly, then the lock-based implementation shown in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}
+	simply will not work for you.
+	On the other hand, if calls to \url{count_read()} are sufficiently
+	rare, then the lock-based version is simpler and might thus be
+	better, although much of the size difference is due
+	to the structure definition, memory allocation, and \url{NULL}
+	return checking.
+
+	Of course, a better question is "why doesn't the language
+	implement cross-thread access to \url{__thread} variables?"
+	After all, such an implementation would make both the locking
+	and the use of RCU unnecessary.
+	This would in turn enable an implementation that
+	was even simpler than the one shown in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}, but
+	with all the scalability and performance benefits of the
+	implementation shown in
+	Figure~\ref{fig:count:RCU and Per-Thread Statistical Counters}!
 
 \QuickQAC{sec:advsync:Advanced Synchronization}{Advanced Synchronization}
 \QuickQ{}

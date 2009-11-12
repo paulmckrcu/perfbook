@@ -1,0 +1,54 @@
+% defer/rcuexercises.tex
+
+\subsection{RCU Exercises}
+\label{sec:defer:RCU Exercises}
+
+This section is organized as a series of Quick Quizzes that invite you
+to apply RCU to a number of examples earlier in this book.
+The answer to each Quick Quiz gives some hints, and also contains a
+pointer to a later section where the solution is explained at length.
+The \url{rcu_read_lock()}, \url{rcu_read_unlock()}, \url{rcu_dereference()},
+\url{rcu_assign_pointer()}, and \url{synchronize_rcu()} primitives should
+suffice for most of these exercises.
+
+\QuickQuiz{}
+	The statistical-counter implementation shown in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}
+	(\url{count_end.c})
+	used a global lock to guard the summation in \url{read_count()},
+	which resulted in poor performance and negative scalability.
+	How could you use RCU to provide \url{read_count()} with
+	excellent performance and good scalability.
+	(Keep in mind that \url{read_count()}'s scalability will
+	necessarily be limited by its need to scan all threads'
+	counters.)
+\QuickQuizAnswer{
+	Hint: place the global variable \url{finalcount} and the
+	array \url{counterp[]} into a single RCU-protected struct.
+	At initialization time, this structure would be allocated
+	and set to all zero and \url{NULL}.
+
+	The \url{inc_count()} function would be unchanged.
+
+	The \url{read_count()} function would use \url{rcu_read_lock()}
+	instead of acquiring \url{final_mutex}, and would need to
+	use \url{rcu_dereference()} to acquire a reference to the
+	current structure.
+
+	The \url{count_register_thread()} function would set the
+	array element corresponding to the newly created thread
+	to reference that thread's per-thread \url{counter} variable.
+
+	The \url{count_unregister_thread()} function would need to
+	allocate a new structure, acquire \url{final_mutex},
+	copy the old structure to the new one, add the outgoing
+	thread's \url{counter} variable to the total, \url{NULL}
+	the pointer to this same \url{counter} variable,
+	use \url{rcu_assign_pointer()} to install the new structure
+	in place of the old one, release \url{final_mutex},
+	wait for a grace period, and finally free the old structure.
+
+	Does this really work?
+	Why or why not?
+} \QuickQuizEnd
+

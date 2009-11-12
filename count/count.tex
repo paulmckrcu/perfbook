@@ -97,7 +97,7 @@ counting.
 	between values between the limit and zero on the one hand,
 	and values that either are less than or equal to zero or
 	are greater than or equal to the limit on the other hand.
-	See Section~\ref{sec:count:Double-Limit Counters}.
+	See Section~\ref{sec:count:Applying Specialized Parallel Counters}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -122,7 +122,7 @@ counting.
 	to keep the value at zero until it has taken some action
 	to prevent subsequent threads from gaining access to the
 	device being removed.
-	See Section~\ref{sec:count:Atomic-Read Reference Counters}.
+	See Section~\ref{sec:count:Applying Specialized Parallel Counters}.
 } \QuickQuizEnd
 
 The remainder of this chapter will develop answers to these questions.
@@ -197,7 +197,8 @@ it is almost always necessary to do better than this.
 	few bugs still lurking.
 
 	Furthermore, while proofs of correctness certainly do have their
-	place, they never will replace testing.
+	place, they never will replace testing, including the
+	\url{counttorture.h} test setup used here.
 	After all, proofs can have bugs just as easily has can programs!
 } \QuickQuizEnd
 
@@ -380,6 +381,9 @@ updates its counter.
 To read out the aggregate value of the counters, simply sum up
 all the threads' counters.
 
+\section{Array-Based Statistical Counters}
+\label{sec:count:Array-Based Statistical Counters}
+
 \begin{figure}[bp]
 { \scriptsize
 \begin{verbatim}
@@ -458,7 +462,11 @@ the full diameter of the computer system.
 However, this excellent scalability comes at the cost of increased
 overhead compared to that of the simple non-atomic increment.
 This overhead is due to the array indexing hidden in the
-\url{__get_thread_var()} primitive.
+\url{__get_thread_var()} primitive, which can be quite expensive
+on some CPUs with deep pipelines.
+
+\section{Per-Thread-Variable-Based Statistical Counters}
+\label{sec:count:Per-Thread-Variable-Based Statistical Counters}
 
 \begin{figure}[bp]
 { \scriptsize
@@ -636,6 +644,9 @@ On the other hand, concurrent reads contend for a single global lock,
 and therefore perform poorly and scale abysmally.
 However, this is not a problem for statistical counters, where incrementing
 happens often and readout happens almost never.
+In addition, this approach is considerably more complex than the
+array-based scheme, due to the fact that a given thread's per-thread
+variables vanish when that thread exits.
 
 \QuickQuiz{}
 	Fine, but the Linux kernel doesn't have to acquire a lock
@@ -766,11 +777,49 @@ near the beginning of this chapter.
 \section{Limit Counters}
 \label{sec:count:Limit Counters}
 
-\section{Double-Limit Counters}
-\label{sec:count:Double-Limit Counters}
+Another special case of counting involves limit-checking.
+For example, as noted in the Quick Quiz at the beginning of this
+chapter, suppose that you need to maintain a count of the number of
+structures allocated in order to fail any allocations once the number
+of structures in use exceeds a limit, in this case, 10,000.
+Suppose further that these structures are short-lived, and that this
+limit is rarely exceeded.
 
-\section{Atomic-Read Reference Counters}
-\label{sec:count:Atomic-Read Reference Counters}
+One approach would be to divide the 10,000 by the number of threads,
+and give each thread a fixed pool of structures.
+For example, given 100 threads, each thread would manage its own pool
+of 100 structures.
+This approach is simple, and in some cases works well, but it does not
+handle the common case where a given structure is allocated by one
+thread and freed by another~\cite{McKenney93}.
+On the one hand, if a given thread takes credit for any structures it
+frees, then the thread doing most of the allocating runs out
+of structures, while the threads doing most of the freeing have lots
+of credits that they cannot use.
+On the other hand, if freed structures are credited to the CPU that
+allocated them, it will be necessary for CPUs to manipulate each
+others' counters, which will require lots of expensive atomic instructions.
+
+Another approach is similar to the statistical counting scheme
+discussed in
+Section~\ref{sec:count:Per-Thread-Variable-Based Statistical Counters}
+in that it maintains a global counter as well as per-thread counters,
+with the aggregate value being the sum of all of these counters.
+
+@@@ note that these implementations cover double-endedness as well.
+
+\section{Applying Specialized Parallel Counters}
+\label{sec:count:Applying Specialized Parallel Counters}
+
+Bias value for tracking small numbers when only care sometimes.
+
+Reader-writer lock (or brlock) for atomic decision.
+
+Combination of bias and rwlock -- but rwlock only when bias removed.
+How to mediate switch from not using rwlock to using it?  See Defer...
+
+@@@ have an "Applying RCU" chapter showing how to solve various problems
+using RCU.
 
 \section{Discussion}
 \label{sec:count:Discussion}
