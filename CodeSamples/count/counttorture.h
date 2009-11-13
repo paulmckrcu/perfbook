@@ -16,10 +16,10 @@
  * 		The readers run on the low-numbered CPUs and the updater
  * 		of the highest-numbered CPU.
  *
- * The above tests produce output as follows @@@:
+ * The above tests produce output as follows:
  *
- * n_reads: 46008000  n_updates: 146026  nreaders: 2  nupdaters: 1 duration: 1
- * ns/read: 43.4707  ns/update: 6848.1
+ * n_reads: 824000  n_updates: 75264000  nreaders: 1  nupdaters: 1 duration: 240
+ * ns/read: 291.262  ns/update: 3.18878
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,6 +65,8 @@ int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
 #define count_unregister_thread(n)	do ; while (0)
 #endif /* #ifndef NEED_REGISTER_THREAD */
 
+unsigned long garbage = 0; /* disable compiler optimizations. */
+
 /*
  * Performance test.
  */
@@ -72,7 +74,7 @@ int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
 void *count_read_perf_test(void *arg)
 {
 	int i;
-	long j;
+	unsigned long j;
 	int me = (long)arg;
 	long long n_reads_local = 0LL;
 
@@ -90,6 +92,7 @@ void *count_read_perf_test(void *arg)
 	}
 	__get_thread_var(n_reads_pt) += n_reads_local;
 	count_unregister_thread(nthreadsexpected);
+	garbage += j;
 
 	return (NULL);
 }
@@ -143,7 +146,7 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 		n_updates += per_thread(n_updates_pt, t);
 	}
 	if (n_updates != read_count())
-		printf("!!! Count mismatch: %lld counted vs. %ld final value\n",
+		printf("!!! Count mismatch: %lld counted vs. %lu final value\n",
 		       n_updates, read_count());
 	printf("n_reads: %lld  n_updates: %lld  nreaders: %d  nupdaters: %d duration: %d\n",
 	       n_reads, n_updates, nreaders, nupdaters, duration);

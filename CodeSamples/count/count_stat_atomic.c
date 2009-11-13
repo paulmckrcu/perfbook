@@ -27,10 +27,10 @@ void inc_count(void)
 	atomic_inc(&__get_thread_var(counter));
 }
 
-long read_count(void)
+unsigned long read_count(void)
 {
 	int t;
-	long sum = 0;
+	unsigned long sum = 0;
 
 	for_each_thread(t)
 		sum += atomic_read(&per_thread(counter, t));

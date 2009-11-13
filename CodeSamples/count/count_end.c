@@ -21,9 +21,9 @@
 
 #include "../api.h"
 
-long __thread counter = 0;
-long *counterp[NR_THREADS] = { NULL };
-long finalcount = 0;
+unsigned long __thread counter = 0;
+unsigned long *counterp[NR_THREADS] = { NULL };
+unsigned long finalcount = 0;
 DEFINE_SPINLOCK(final_mutex);
 
 void inc_count(void)
@@ -31,10 +31,10 @@ void inc_count(void)
 	counter++;
 }
 
-long read_count(void)
+unsigned long read_count(void)
 {
 	int t;
-	long sum;
+	unsigned long sum;
 
 	spin_lock(&final_mutex);
 	sum = finalcount;

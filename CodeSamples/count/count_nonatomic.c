@@ -21,14 +21,14 @@
 
 #include "../api.h"
 
-long counter = 0;
+unsigned long counter = 0;
 
 void inc_count(void)
 {
 	counter++;
 }
 
-long read_count(void)
+unsigned long read_count(void)
 {
 	return counter;
 }

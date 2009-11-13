@@ -27,7 +27,7 @@ struct countarray {
 	unsigned long *counterp[NR_THREADS];
 };
 
-long __thread counter = 0;
+unsigned long __thread counter = 0;
 struct countarray *countarrayp = NULL;
 DEFINE_SPINLOCK(final_mutex);
 
@@ -36,7 +36,7 @@ void inc_count(void)
 	counter++;
 }
 
-long read_count(void)
+unsigned long read_count(void)
 {
 	struct countarray *cap;
 	unsigned long sum;

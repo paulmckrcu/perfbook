@@ -22,8 +22,8 @@
 
 #include "../api.h"
 
-long __thread counter = 0;
-long *counterp[NR_THREADS] = { NULL };
+unsigned long __thread counter = 0;
+unsigned long *counterp[NR_THREADS] = { NULL };
 int finalthreadcount = 0;
 DEFINE_SPINLOCK(final_mutex);
 
@@ -32,10 +32,10 @@ void inc_count(void)
 	counter++;
 }
 
-long read_count(void)  /* problem: counttorture reads after all threads gone */
+unsigned long read_count(void)  /* known failure with counttorture! */
 {
 	int t;
-	long sum = 0;
+	unsigned long sum = 0;
 
 	for_each_thread(t)
 		if (counterp[t] != NULL)
