@@ -106,26 +106,30 @@ void *count_updown_limit(void *arg)
 	atomic_inc(&n_threads_run_down);
 	while (ACCESS_ONCE(goflag) != GOFLAG_STOP)
 		continue;
+	count_unregister_thread(nthreadsexpected);
 	return NULL;
 }
 
 void *count_updown_hog(void *arg)
 {
 	int me = (long)arg;
+	unsigned long delta;
 
 	run_on(me);
 	count_register_thread();
 	atomic_inc(&nthreadsrunning);
 	while (ACCESS_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);
-	if (!add_count(num_online_threads() * 20)) {
-		fprintf(stderr, "count_updown_hog(): add_count(1) failed!\n");
+	delta = num_online_threads() * 20;
+	if (!add_count(delta)) {
+		fprintf(stderr, "count_updown_hog(): add_count() failed!\n");
 		exit(-1);
 	}
+	__get_thread_var(n_updates_pt) += delta;
 	atomic_inc(&n_threads_hog);
 	while (ACCESS_ONCE(goflag) != GOFLAG_STOP)
 		continue;
-	__get_thread_var(n_updates_pt)++;
+	count_unregister_thread(nthreadsexpected);
 	return NULL;
 }
 

@@ -38,12 +38,16 @@ static void globalize_count(void)
 
 static void balance_count(void)
 {
-	countermax = globalcountmax - globalcount - globalreserve;
+	unsigned long deltahi;
+
+	deltahi = globalcountmax - globalcount - globalreserve;
+	if (globalcount < deltahi)
+		countermax = globalcount;
+	else
+		countermax = deltahi;
 	countermax /= num_online_threads();
 	globalreserve += countermax;
 	counter = countermax / 2;
-	if (counter > globalcount)
-		counter = globalcount;
 	globalcount -= counter;
 }
 
