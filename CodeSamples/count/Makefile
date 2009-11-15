@@ -20,6 +20,7 @@ PROGS =	count_atomic \
 	count_end \
 	count_end_rcu \
 	count_lim \
+	count_lim_app \
 	count_limd \
 	count_nonatomic \
 	count_stat \
@@ -41,6 +42,9 @@ count_end_rcu: count_end_rcu.c ../api.h counttorture.h $(RCU_SRCS)
 
 count_lim: count_lim.c ../api.h limtorture.h
 	cc $(GCC_ARGS) -o count_lim count_lim.c -lpthread
+
+count_lim_app: count_lim_app.c ../api.h limtorture.h
+	cc $(GCC_ARGS) -o count_lim_app count_lim_app.c -lpthread
 
 count_limd: count_limd.c ../api.h limtorture.h
 	cc $(GCC_ARGS) -o count_limd count_limd.c -lpthread
