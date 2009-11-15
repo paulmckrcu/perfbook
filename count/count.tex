@@ -202,7 +202,7 @@ it is almost always necessary to do better than this.
 	After all, proofs can have bugs just as easily has can programs!
 } \QuickQuizEnd
 
-\begin{figure}[bp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 atomic_t counter = ATOMIC_INIT(0);
@@ -390,14 +390,17 @@ relying on the commutative and associative properties of addition.
 	complicate things?
 \QuickQuizAnswer{
 	No, because modulo addition is still commutative and associative.
+	At least as long as you use unsigned integer.
+	Recall that in the C standard, overflow of signed integers results
+	in undefined behavior (never mind the fact that machines that
+	do anything other than wrap on overflow are quite rare these days.
 
 	That said, one potential source of additional complexity arises
 	when attempting to gather (say) a 64-bit sum from 32-bit
 	per-thread counters.
-	For the moment, dealing with this added complexit is left as
+	For the moment, dealing with this added complexity is left as
 	an exercise for the reader.
 } \QuickQuizEnd
-
 
 \subsection{Array-Based Implementation}
 \label{sec:count:Array-Based Implementation}
@@ -406,7 +409,17 @@ One way to provide per-thread variables is to allocate an array with
 one element per
 thread (presumably cache aligned and padded to avoid false sharing).
 
-\begin{figure}[bp]
+\QuickQuiz{}
+	An array???
+	But doesn't that limit the number of threads???
+\QuickQuizAnswer{
+	It can, and in this toy implementation, it does.
+	But it is not that hard to come up with an alternative
+	implementation that permits an arbitrary number of threads.
+	However, this is left as an exercise for the reader.
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 DEFINE_PER_THREAD(long, counter);
@@ -488,7 +501,7 @@ on some CPUs with deep pipelines.
 \subsection{Per-Thread-Variable-Based Implementation}
 \label{sec:count:Per-Thread-Variable-Based Implementation}
 
-\begin{figure}[bp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 long __thread counter = 0;
@@ -677,7 +690,7 @@ variables vanish when that thread exits.
 	accessible, even if the corresponding CPU is offline --- even
 	if the corresponding CPU never existed and never will exist.
 
-\begin{figure}[bp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
   1 long __thread counter = 0;
@@ -812,7 +825,7 @@ limit is rarely exceeded.
 
 \subsection{Design}
 
-One potential design for limit counters would be to divide the 10,000
+One possible design for limit counters is to divide the limit of 10,000
 by the number of threads, and give each thread a fixed pool of structures.
 For example, given 100 threads, each thread would manage its own pool
 of 100 structures.
@@ -826,20 +839,404 @@ of credits that they cannot use.
 On the other hand, if freed structures are credited to the CPU that
 allocated them, it will be necessary for CPUs to manipulate each
 others' counters, which will require lots of expensive atomic instructions.
+Furthermore, because structures come in different sizes, rather than supporting
+\url{inc_count()} and \url{dec_count()} interfaces, we implement
+\url{add_count()} and \url{sub_count()} to allow variable-sized structures
+to be properly accounted for.
 
-In short, we want to partition the counters in the common case,
-while still allowing counts to flow between CPUs as needed.
-One such design is similar to the statistical counting scheme
-discussed in
+In short, for many important workloads, we cannot fully partition the counter.
+However, we \emph{can} partially partition the counter,
+so that in the common case, each thread need only manipulate its own
+private state,
+while still allowing counts to flow between threads as needed.
+The statistical counting scheme discussed in
 Section~\ref{sec:count:Per-Thread-Variable-Based Implementation}
+provides an interesting starting point,
 in that it maintains a global counter as well as per-thread counters,
-with the aggregate value being the sum of all of these counters.
+with the aggregate value being the sum of all of these counters,
+global along with per-thread.
+The key change is to pull each thread's counter into
+the global sum while that thread is still running, rather than waiting
+for thread exit.
+Clearly, we want threads to pull in their own counts, as cross-thread
+accesses are expensive and scale poorly.
 
-@@@ note that these implementations cover double-endedness as well.
+This leaves open the question of exactly when a given thread's counter
+should be pulled into the global counter.
+In the initial implementation, we will start by maintaining a limit on
+the value of the per-thread counter.
+When this limit would be exceeded, the thread pulls its counter into the
+global counter.
+Of course, we cannot simply add to the counter when a structure is
+allocated: we must also subtract from the counter when a structure is
+freed.
+We must therefore make use of the global counter when a subtraction would
+otherwise reduce the value of the per-thread counter below zero.
+However, if the limit is reasonably large, almost all of the addition
+and subtraction operations should be handled by the per-thread counter,
+which should give us good performance and scalability.
 
-@@@ example of parallel fastpath: partition the commonly occurring operations,
-leave the rare operations globally synchronized.  Perhaps a note about
-Amdahl's Law and the "maxtarget" (or whatever) parameter.
+This design is an example of ``parallel fastpath'', which is an important
+design pattern in which the common case executes with no expensive
+instructions and no interactions between threads, but where occasional
+use is also made of a more conservatively designed global algorithm.
+
+\subsection{Simple Limit Counter Implementation}
+\label{sec:count:Simple Limit Counter Implementation}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 unsigned long __thread counter = 0;
+  2 unsigned long __thread countermax = 0;
+  3 unsigned long globalcountmax = 10000;
+  4 unsigned long globalcount = 0;
+  5 unsigned long globalreserve = 0;
+  6 unsigned long *counterp[NR_THREADS] = { NULL };
+  7 DEFINE_SPINLOCK(gblcnt_mutex);
+\end{verbatim}
+}
+\caption{Simple Limit Counter Variables}
+\label{fig:count:Simple Limit Counter Variables}
+\end{figure}
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{count/count_lim}}
+\end{center}
+\caption{Simple Limit Counter Variable Relationships}
+\label{fig:count:Simple Limit Counter Variable Relationships}
+\end{figure}
+
+Figure~\ref{fig:count:Simple Limit Counter Variables}
+shows both the per-thread and global variables used by this
+implementation.
+The per-thread \url{counter} and \url{countermax} variables are the
+corresponding thread's local counter and the upper bound on that
+counter, respectively.
+The \url{globalmaxcountmax} variable on line~3 contains the upper
+bound for the aggregate counter, and the \url{globalcount} variable
+on line~4 is the global counter.
+The sum of \url{globalcount} and each thread's \url{counter} gives
+the aggregate value of the overall counter.
+The \url{globalreserve} variable on line~5 is the sum of all of the
+per-thread \url{countermax} variables.
+The relationship among these variables is shown by
+Figure~\ref{fig:count:Simple Limit Counter Variable Relationships}:
+\begin{enumerate}
+\item	The sum of \url{globalcount} and \url{globalreserve} must
+	be less than or equal to \url{globalcountmax}.
+\item	The sum of all threads' \url{countermax} values must be
+	less than or equal to \url{globalreserve}.
+\item	Each thread's \url{counter} must be less than or equal to
+	that thread's \url{countermax}.
+\end{enumerate}
+
+Each element of the \url{counterp[]} array references the corresponding
+thread's \url{counter} variable, and, finally, the \url{gblcnt_mutex}
+spinlock guards all of the global variables, in other words, no thread
+is permitted to access or modify any of the global variables unless it
+has acquired \url{gblcnt_mutex}.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 int add_count(unsigned long delta)
+  2 {
+  3   if (countermax - counter >= delta) {
+  4     counter += delta;
+  5     return 1;
+  6   }
+  7   spin_lock(&gblcnt_mutex);
+  8   globalize_count();
+  9   if (globalcountmax -
+ 10       globalcount - globalreserve < delta) {
+ 11     spin_unlock(&gblcnt_mutex);
+ 12     return 0;
+ 13   }
+ 14   globalcount += delta;
+ 15   balance_count();
+ 16   spin_unlock(&gblcnt_mutex);
+ 17   return 1;
+ 18 }
+ 19 
+ 20 int sub_count(unsigned long delta)
+ 21 {
+ 22   if (counter >= delta) {
+ 23     counter -= delta;
+ 24     return 1;
+ 25   }
+ 26   spin_lock(&gblcnt_mutex);
+ 27   globalize_count();
+ 28   if (globalcount < delta) {
+ 29     spin_unlock(&gblcnt_mutex);
+ 30     return 0;
+ 31   }
+ 32   globalcount -= delta;
+ 33   balance_count();
+ 34   spin_unlock(&gblcnt_mutex);
+ 35   return 1;
+ 36 }
+ 37 
+ 38 unsigned long read_count(void)
+ 39 {
+ 40   int t;
+ 41   unsigned long sum;
+ 42 
+ 43   spin_lock(&gblcnt_mutex);
+ 44   sum = globalcount;
+ 45   for_each_thread(t)
+ 46     if (counterp[t] != NULL)
+ 47       sum += *counterp[t];
+ 48   spin_unlock(&gblcnt_mutex);
+ 49   return sum;
+ 50 }
+\end{verbatim}
+}
+\caption{Simple Limit Counter Add, Subtract, and Read}
+\label{fig:count:Simple Limit Counter Add, Subtract, and Read}
+\end{figure}
+
+Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}
+shows the \url{add_count()}, \url{sub_count()}, and \url{read_count()}
+functions (\url{count_lim.c}).
+
+Lines~1-18 show \url{add_count()}, which adds the specified value \url{delta}
+to the counter.
+Line~3 checks to see if there is room for \url{delta} on this thread's
+\url{counter}, and, if so, line~4 adds it and line~6 returns success.
+This is the \url{add_counter()} fastpath, and it does no atomic operations,
+references only per-thread variables, and should not incur any cache misses.
+
+\QuickQuiz{}
+	What is with the strange form of the condition on line~3 of
+	Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}?
+	Why not the following more intuitive form of the fastpath?
+
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\small
+	\begin{verbatim}
+  3 if (counter + delta <= countermax){
+  4   counter += delta;
+  5   return 1;
+  6 }
+	\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+\QuickQuizAnswer{
+	Two words.
+	``Integer overflow.''
+
+	Try the above formulation with \url{counter} equal to 10 and
+	\url{delta} equal to \url{ULONG_MAX}.
+	Then try it again with the code shown in
+	Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}.
+
+	A good understanding of integer overflow will be required for
+	the rest of this example, so if you have never dealt with
+	integer overflow before, please try several examples to get
+	the hang of it.
+	Integer overflow can sometimes be more difficult to get right
+	than parallel algorithms!
+} \QuickQuizEnd
+
+If the test on line~3 fails, we must access global variables, and thus
+must acquire \url{gblcnt_mutex} on line~7, which we release on line~11
+in the failure case or on line~16 in the success case.
+Line~8 invokes \url{globalize_count()}, shown in
+Figure~\ref{fig:count:Simple Limit Counter Utility Functions},
+which clears the thread-local variables, adjusting the global variables
+as needed, thus simplifying global processing.
+(But don't take \url{my} word for it, try coding it yourself!)
+Lines~9 and 10 check to see if addition of \url{delta} can be accommodated,
+with the meaning of the expression preceding the less-than sign shown in
+Figure~\ref{fig:count:Simple Limit Counter Variable Relationships}
+as the difference in height of the two red bars.
+If the addition of \url{delta} cannot be accommodated, then
+line~11 (as noted earlier) releases \url{gblcnt_mutex} and line~12
+returns indicating failure.
+
+Otherwise, line~14 subtracts \url{delta} from \url{globalcount},
+line~15 invokes \url{balance_count()} (shown in
+Figure~\ref{fig:count:Simple Limit Counter Utility Functions})
+in order to update both the global and the per-thread variables
+(hopefully setting this thread's \url{countermax} to re-enable the
+fastpath),
+if appropriate, to re-enable fastpath processing, line~16 release
+\url{gblcnt_mutex} (again, as noted earlier), and, finally,
+line~17 returns indicating success.
+
+\QuickQuiz{}
+	Why do \url{globalize_count()} to zero the per-thread variables,
+	only to later call \url{balance_count()} to refill them in
+	Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}?
+	Why not just leave the per-thread variables non-zero?
+\QuickQuizAnswer{
+	That is in fact what an earlier version of this code did.
+	But addition and subtraction are extremely cheap, and handling
+	all of the special cases that arise is quite complex.
+	Again, feel free to try it yourself, but beware of integer
+	overflow!
+} \QuickQuizEnd
+
+Lines~20-36 show \url{sub_count()}, which subtracts the specified
+\url{delta} from the counter.
+Line~22 checks to see if the per-thread counter can accommodate
+this subtraction, and, if so, line~23 does the subtraction and
+line~24 returns success.
+These lines form \url{sub_count()}'s fastpath, and, as with
+\url{add_count()}, this fastpath executes no costly operations.
+
+If the fastpath cannot accommodate subtraction of \url{delta},
+execution proceeds to the slowpath on lines~26-35.
+Because the slowpath must access global state, line~26
+acquires \url{glbcnt_mutex}, which is release either by line~29
+(in case of failure) or by line~34 (in case of success).
+Line~27 invokes \url{globalize_count()}, shown in
+Figure~\ref{fig:count:Simple Limit Counter Utility Functions},
+which again clears the thread-local variables, adjusting the global variables
+as needed.
+Line~28 checks to see if the counter can accommodate subtracting
+\url{delta}, and, if not, line~29 releases \url{gblcnt_mutex}
+(as noted earlier) and line~30 returns failure.
+
+\QuickQuiz{}
+	Given that \url{globalreserve} counted against us in \url{add_count()},
+	why doesn't it count for us in \url{sub_count()} in
+	Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}?
+\QuickQuizAnswer{
+	The \url{globalreserve} variable tracks the sum of all threads'
+	\url{countermax} variables.
+	The sum of these threads' \url{counter} variables might be anywhere
+	from zero to \url{globalreserve}.
+	We must therefore take a conservative approach, assuming that
+	all threads' \url{counter} variables are full in \url{add_count()}
+	and that they are all empty in \url{sub_count()}.
+
+	But remember this question, as we will come back to it later.
+} \QuickQuizEnd
+
+If, on the other hand, line~28 finds that the counter \emph{can}
+accommodate subtracting \url{delta}, then line~32 does the subtraction,
+line~33 invokes \url{balance_count()} (shown in
+Figure~\ref{fig:count:Simple Limit Counter Utility Functions})
+in order to update both global and per-thread variables
+(hopefully re-enabling the fastpath),
+line~34 releases \url{gblcnt_mutex}, and line~35 returns success.
+
+\QuickQuiz{}
+	Why have both \url{add_count()} and \url{sub_count()} in
+	Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}?
+	Why not simply pass a negative number to \url{add_count()}?
+\QuickQuizAnswer{
+	Given that \url{add_count()} takes an \url{unsigned} \url{long}
+	as its argument, it is going to be a bit tough to pass it a
+	negative number.
+	And unless you have some anti-matter memory, there is little
+	point in allowing negative numbers when counting the number
+	of structures in use!
+} \QuickQuizEnd
+
+Lines~38-50 show \url{read_count()}, which returns the aggregate value
+of the counter.
+It acquires \url{gblcnt_mutex} on line~43 and releases it on line 48,
+excluding global operations from \url{add_count()} and \url{sub_count()},
+and, as we will see, also excluding thread creation and exit.
+Line~44 initializes local variable \url{sum} to the value of
+\url{globalcount}, and then the loop spanning lines~45-47 sums the
+per-thread \url{counter} variables.
+Line~49 then returns the sum.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void globalize_count(void)
+  2 {
+  3   globalcount += counter;
+  4   counter = 0;
+  5   globalreserve -= countermax;
+  6   countermax = 0;
+  7 }
+  8 
+  9 static void balance_count(void)
+ 10 {
+ 11   countermax = globalcountmax -
+ 12                globalcount - globalreserve;
+ 13   countermax /= num_online_threads();
+ 14   globalreserve += countermax;
+ 15   counter = countermax / 2;
+ 16   if (counter > globalcount)
+ 17     counter = globalcount;
+ 18   globalcount -= counter;
+ 19 }
+ 20 
+ 21 void count_register_thread(void)
+ 22 {
+ 23   int idx = smp_thread_id();
+ 24 
+ 25   spin_lock(&gblcnt_mutex);
+ 26   counterp[idx] = &counter;
+ 27   spin_unlock(&gblcnt_mutex);
+ 28 }
+ 29 
+ 30 void count_unregister_thread(int nthreadsexpected)
+ 31 {
+ 32   int idx = smp_thread_id();
+ 33 
+ 34   spin_lock(&gblcnt_mutex);
+ 35   globalize_count();
+ 36   counterp[idx] = NULL;
+ 37   spin_unlock(&gblcnt_mutex);
+ 38 }
+\end{verbatim}
+}
+\caption{Simple Limit Counter Utility Functions}
+\label{fig:count:Simple Limit Counter Utility Functions}
+\end{figure}
+
+Figure~\ref{fig:count:Simple Limit Counter Utility Functions}
+shows a number of utility functions that support the \url{add_count()}
+\url{sub_count()}, and \url{read_count()} primitives shown in
+Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}.
+
+Lines~1-7 show \url{globalize_count()}, which zeros the current thread's
+per-thread counters, adjusting the global variables appropriately.
+It is important to note that this function does not change the aggregate
+value of the counter, but instead changes how the counter's current value
+is represented.
+Line~3 adds the thread's \url{counter} variable to \url{globalcount},
+and line~4 zeroes \url{counter}.
+Similarly, line~5 subtracts the per-thread \url{countermax} from
+\url{globalreserve}, and line~6 zeroes \url{countermax}.
+It is helpful to refer to
+Figure~\ref{fig:count:Simple Limit Counter Variable Relationships}
+when reading this function.
+
+Lines~9-19 show \url{balance_count()}, which can is, roughly speaking
+the inverse of \url{globalize_count()}.
+This function sets the current thread's \url{counter} and \url{countermax}
+variables (with corresponding adjustments to \url{globalcount}
+and \url{globalreserve}) in an attempt to promote use of
+\url{add_count()}'s and \url{sub_count()}'s fastpaths.
+As with \url{globalize_count()}, \url{balance_count()} does not change
+the aggregate value of the counter.
+Lines~11-13 compute this thread's share of that portion of
+\url{globalcountmax} that is not already covered by either
+\url{globalcount} or \url{globalreserve}, and assign the
+computed quantity to this thread's \url{countermax}.
+Line~14 makes the corresponding adjustment to \url{globalreserve}.
+Line~15 sets this thread's \url{counter} to the middle of the range
+from zero to \url{countermax}.
+Line~16 checks to see whether \url{globalcount} can in fact accommodate
+this value of \url{counter}, and, if not, line~17 decreases \url{counter}
+accordingly.
+In either case, line~18 makes the corresponding adjustment to
+\url{globalcount}.
+
+% @@@ example of parallel fastpath: partition the commonly occurring operations,
+% leave the rare operations globally synchronized.  Perhaps a note about
+% Amdahl's Law and the "maxtarget" (or whatever) parameter.
 
 \section{Applying Specialized Parallel Counters}
 \label{sec:count:Applying Specialized Parallel Counters}
@@ -850,9 +1247,6 @@ Reader-writer lock (or brlock) for atomic decision.
 
 Combination of bias and rwlock -- but rwlock only when bias removed.
 How to mediate switch from not using rwlock to using it?  See Defer...
-
-@@@ have an "Applying RCU" chapter showing how to solve various problems
-using RCU.
 
 \section{Parallel Counting Discussion}
 \label{sec:count:Parallel Counting Discussion}
