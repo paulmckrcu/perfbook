@@ -1211,7 +1211,7 @@ Similarly, line~5 subtracts the per-thread \url{countermax} from
 \url{globalreserve}, and line~6 zeroes \url{countermax}.
 It is helpful to refer to
 Figure~\ref{fig:count:Simple Limit Counter Variable Relationships}
-when reading this function.
+when reading both this function and \url{balance_count()}, which is next.
 
 Lines~9-19 show \url{balance_count()}, which can is, roughly speaking
 the inverse of \url{globalize_count()}.
@@ -1231,8 +1231,107 @@ from zero to \url{countermax}.
 Line~16 checks to see whether \url{globalcount} can in fact accommodate
 this value of \url{counter}, and, if not, line~17 decreases \url{counter}
 accordingly.
-In either case, line~18 makes the corresponding adjustment to
+Finally, in either case, line~18 makes the corresponding adjustment to
 \url{globalcount}.
+
+Lines~21-28 show \url{count_register_thread()}, which sets up state for
+newly created threads.
+This function simply installs
+a pointer to the newly created thread's \url{counter} variable into
+the corresponding entry of the \url{counterp[]} array under the protection
+of \url{gblcnt_mutex}.
+
+Finally, lines~30-38 show \url{count_unregister_thread()}, which tears down
+state for a soon-to-be-exiting thread.
+Line~34 acquires \url{gblcnt_mutex} and line~37 releases it.
+Line~35 invokes \url{globalize_count()} to clear out this thread's
+counter state, and line~36 clears this thread's entry in the
+\url{counterp[]} array.
+
+\subsection{Simple Limit Counter Validation}
+
+This type of counter is quite fast when aggregate values are near zero,
+with some overhead due to the comparison and branch in both
+\url{add_count()}'s and \url{sub_count()}'s fastpaths.
+However, the use of a per-thread \url{countermax} reserve means that
+a single thread can get a failure from \url{add_count()} even when
+the aggregate value of the counter is nowhere near \url{globalcountmax}.
+Similarly, a single thread may also get a failure from \url{sub_count()}
+even when the aggregate value of the counter is nowhere near zero.
+
+In many cases, this is unacceptable.
+Even if the \url{globalcountmax} is intended to be an approximate limit,
+there is usually a limit to exactly how much approximation can be tolerated.
+One way to control the degree of approximation is to impose an upper limit
+on the value of the per-thread \url{countermax} instances.
+This task is undertaken in the next section.
+
+\subsection{Approximate Limit Counter Implementation}
+\label{sec:count:Approximate Limit Counter Implementation}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 unsigned long __thread counter = 0;
+  2 unsigned long __thread countermax = 0;
+  3 unsigned long globalcountmax = 10000;
+  4 unsigned long globalcount = 0;
+  5 unsigned long globalreserve = 0;
+  6 unsigned long *counterp[NR_THREADS] = { NULL };
+  7 DEFINE_SPINLOCK(gblcnt_mutex);
+  8 #define MAX_COUNTERMAX 100
+\end{verbatim}
+}
+\caption{Approximate Limit Counter Variables}
+\label{fig:count:Approximate Limit Counter Variables}
+\end{figure}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void balance_count(void)
+  2 {
+  3   countermax = globalcountmax - globalcount - globalreserve;
+  4   countermax /= num_online_threads();
+  5   if (countermax > MAX_COUNTERMAX)
+  6     countermax = MAX_COUNTERMAX;
+  7   globalreserve += countermax;
+  8   counter = countermax / 2;
+  9   if (counter > globalcount)
+ 10     counter = globalcount;
+ 11   globalcount -= counter;
+ 12 }
+\end{verbatim}
+}
+\caption{Approximate Limit Counter Balancing}
+\label{fig:count:Approximate Limit Counter Balancing}
+\end{figure}
+
+Because this implementation (\url{count_lim_app.c}) is quite similar to
+that in the previous section
+(Figures~\ref{fig:count:Simple Limit Counter Variables},
+\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}, and
+\ref{fig:count:Simple Limit Counter Utility Functions}),
+only the changes are shown here.
+Figure~\ref{fig:count:Approximate Limit Counter Variables}
+is identical to
+Figure~\ref{fig:count:Simple Limit Counter Variables},
+with the addition of \url{MAX_COUNTERMAX}, which sets the maximum
+permissible value of the per-thread \url{countermax} variable.
+
+Similarly,
+Figure~\ref{fig:count:Approximate Limit Counter Balancing}
+is identical to the \url{balance_count()} function in
+Figure~\ref{fig:count:Simple Limit Counter Utility Functions}),
+with the addition of lines~5 and 6, which enforce the
+\url{MAX_COUNTERMAX} limit on the per-thread \url{countermax} variable.
+
+This greatly reduces the limit inaccuracy seen in the previous version,
+but presents another problem: any given value of \url{MAX_COUNTERMAX}
+will cause a workload-dependent fraction of accesses to fall off the
+fastpath.
+As the number of threads increase, this will become both a performance
+and a scalability problem.
 
 % @@@ example of parallel fastpath: partition the commonly occurring operations,
 % leave the rare operations globally synchronized.  Perhaps a note about
