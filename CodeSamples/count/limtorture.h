@@ -95,14 +95,16 @@ void *count_updown_limit(void *arg)
 		n_updates_local++;
 	}
 	__get_thread_var(n_updates_pt) += n_updates_local;
+	smp_mb();
 	atomic_inc(&n_threads_run_up);
-	while (ACCESS_ONCE(goflag) == GOFLAG_RUN_UP)
+	while (ACCESS_ONCE(goflag) != GOFLAG_RUN_DOWN)
 		poll(NULL, 0, 1);
 	n_updates_local = 0LL;
 	while (sub_count(1)) {
 		n_updates_local--;
 	}
 	__get_thread_var(n_updates_pt) += n_updates_local;
+	smp_mb();
 	atomic_inc(&n_threads_run_down);
 	while (ACCESS_ONCE(goflag) != GOFLAG_STOP)
 		continue;
@@ -126,6 +128,7 @@ void *count_updown_hog(void *arg)
 		exit(-1);
 	}
 	__get_thread_var(n_updates_pt) += delta;
+	smp_mb();
 	atomic_inc(&n_threads_hog);
 	while (ACCESS_ONCE(goflag) != GOFLAG_STOP)
 		continue;
