@@ -250,26 +250,48 @@ static __inline__ int atomic_sub_return(int i, atomic_t *v)
 	return atomic_add_return(-i,v);
 }
 
-static inline unsigned int
-cmpxchg(volatile long *ptr, long oldval, long newval)
-{
-	unsigned long retval;
-
-	asm("# cmpxchg\n"
-	    "lock; cmpxchgl %4,(%2)\n"
-	    "# end atomic_cmpxchg4"
-	    : "=a" (retval), "=m" (*ptr)
-	    : "r" (ptr), "0" (oldval), "r" (newval), "m" (*ptr)
-	    : "cc");
-	return (retval);
-}
-
-#define atomic_cmpxchg(v, old, new) ((int)cmpxchg(&((v)->counter), old, new))
-
 struct __xchg_dummy {
 	unsigned long a[100];
 };
 #define __xg(x) ((struct __xchg_dummy *)(x))
+
+static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
+				      unsigned long new, int size)
+{
+	unsigned long prev;
+	switch (size) {
+	case 1:
+		asm volatile(LOCK_PREFIX "cmpxchgb %b1,%2"
+			     : "=a"(prev)
+			     : "q"(new), "m"(*__xg(ptr)), "0"(old)
+			     : "memory");
+		return prev;
+	case 2:
+		asm volatile(LOCK_PREFIX "cmpxchgw %w1,%2"
+			     : "=a"(prev)
+			     : "r"(new), "m"(*__xg(ptr)), "0"(old)
+			     : "memory");
+		return prev;
+	case 4:
+		asm volatile(LOCK_PREFIX "cmpxchgl %1,%2"
+			     : "=a"(prev)
+			     : "r"(new), "m"(*__xg(ptr)), "0"(old)
+			     : "memory");
+		return prev;
+	}
+	return old;
+}
+
+#define cmpxchg(ptr, o, n)						\
+		((__typeof__(*(ptr)))__cmpxchg((ptr),			\
+			(unsigned long)(o), (unsigned long)(n),		\
+			sizeof(*(ptr))))				\
+
+static inline int atomic_cmpxchg(atomic_t *v, int old, int new)
+{
+	return cmpxchg(&v->counter, old, new);
+}
+
 static inline unsigned long __xchg(unsigned long x, volatile void *ptr,
 				   int size)
 {
