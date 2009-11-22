@@ -1248,7 +1248,7 @@ Line~35 invokes \url{globalize_count()} to clear out this thread's
 counter state, and line~36 clears this thread's entry in the
 \url{counterp[]} array.
 
-\subsection{Simple Limit Counter Validation}
+\subsection{Simple Limit Counter Discussion}
 
 This type of counter is quite fast when aggregate values are near zero,
 with some overhead due to the comparison and branch in both
@@ -1326,12 +1326,34 @@ Figure~\ref{fig:count:Simple Limit Counter Utility Functions}),
 with the addition of lines~5 and 6, which enforce the
 \url{MAX_COUNTERMAX} limit on the per-thread \url{countermax} variable.
 
-This greatly reduces the limit inaccuracy seen in the previous version,
-but presents another problem: any given value of \url{MAX_COUNTERMAX}
+\subsection{Approximate Limit Counter Discussion}
+
+These changes greatly reduce the limit inaccuracy seen in the previous version,
+but present another problem: any given value of \url{MAX_COUNTERMAX}
 will cause a workload-dependent fraction of accesses to fall off the
 fastpath.
-As the number of threads increase, this will become both a performance
-and a scalability problem.
+As the number of threads increase, non-fastpath execution will become both
+a performance and a scalability problem.
+
+Another way of more gracefully handling operations near the limits is
+to cause threads that have reserved counts to give them up.
+One way to do this is to use atomic instructions.
+Of course, atomic instructions will slow down the fastpath, but on the
+other hand, use of atomic instructions reasonable simple.
+
+\subsection{Atomic Limit Counter Implementation}
+\label{sec:count:Atomic Limit Counter Implementation}
+
+Unfortunately, when causing a given thread to give up its count, we
+need to atomically manipulate both that thread's \url{counter}
+and \url{countermax} variables.
+The usual way to do this is to combine them into a single variable,
+for example, given a 32-bit variable, using the high-order 16 bits to
+represent \url{counter} and the low-order 16 bits to represent
+\url{countermax}.
+
+% @@@ how does this code violate the C standard?
+% @@@ assumes 8 bits per byte, assumes bitwise assignment from unsigned to int.
 
 % @@@ example of parallel fastpath: partition the commonly occurring operations,
 % leave the rare operations globally synchronized.  Perhaps a note about
