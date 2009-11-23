@@ -22,7 +22,7 @@
 #include "../api.h"
 
 atomic_t __thread counterandmax = ATOMIC_INIT(0);
-unsigned long globalcountmax = 10000;
+unsigned long globalcountmax = 1 << 25;
 unsigned long globalcount = 0;
 unsigned long globalreserve = 0;
 atomic_t *counterp[NR_THREADS] = { NULL };
@@ -32,7 +32,7 @@ DEFINE_SPINLOCK(gblcnt_mutex);
 
 static void split_counterandmax_int(int cami, int *c, int *cm)
 {
-	*c = cami >> CM_BITS;
+	*c = (cami >> CM_BITS) & MAX_COUNTERMAX;
 	*cm = cami & MAX_COUNTERMAX;
 }
 
@@ -62,7 +62,7 @@ static void globalize_count(void)
 	globalcount += c;
 	globalreserve -= cm;
 	old = merge_counterandmax(0, 0);
-	atomic_set(&counterandmax, old);  /* Need atomic op... */
+	atomic_set(&counterandmax, old);
 }
 
 static void flush_local_count(void)

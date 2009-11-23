@@ -107,7 +107,7 @@ void *count_updown_limit(void *arg)
 	smp_mb();
 	atomic_inc(&n_threads_run_down);
 	while (ACCESS_ONCE(goflag) != GOFLAG_STOP)
-		continue;
+		poll(NULL, 0, 1);
 	count_unregister_thread(nthreadsexpected);
 	return NULL;
 }
@@ -131,7 +131,7 @@ void *count_updown_hog(void *arg)
 	smp_mb();
 	atomic_inc(&n_threads_hog);
 	while (ACCESS_ONCE(goflag) != GOFLAG_STOP)
-		continue;
+		poll(NULL, 0, 1);
 	count_unregister_thread(nthreadsexpected);
 	return NULL;
 }
