@@ -1254,15 +1254,15 @@ This type of counter is quite fast when aggregate values are near zero,
 with some overhead due to the comparison and branch in both
 \url{add_count()}'s and \url{sub_count()}'s fastpaths.
 However, the use of a per-thread \url{countermax} reserve means that
-a single thread can get a failure from \url{add_count()} even when
+\url{add_count()} can fail even when
 the aggregate value of the counter is nowhere near \url{globalcountmax}.
-Similarly, a single thread may also get a failure from \url{sub_count()}
+Similarly, \url{sub_count()} can fail
 even when the aggregate value of the counter is nowhere near zero.
 
 In many cases, this is unacceptable.
 Even if the \url{globalcountmax} is intended to be an approximate limit,
 there is usually a limit to exactly how much approximation can be tolerated.
-One way to control the degree of approximation is to impose an upper limit
+One way to limit the degree of approximation is to impose an upper limit
 on the value of the per-thread \url{countermax} instances.
 This task is undertaken in the next section.
 
@@ -1339,25 +1339,501 @@ Another way of more gracefully handling operations near the limits is
 to cause threads that have reserved counts to give them up.
 One way to do this is to use atomic instructions.
 Of course, atomic instructions will slow down the fastpath, but on the
-other hand, use of atomic instructions reasonable simple.
+other hand, it would be silly not to at least give them a try.
 
 \subsection{Atomic Limit Counter Implementation}
 \label{sec:count:Atomic Limit Counter Implementation}
 
-Unfortunately, when causing a given thread to give up its count, we
-need to atomically manipulate both that thread's \url{counter}
+Unfortunately, when causing a given thread to give up its count, it is
+necessary to atomically manipulate both that thread's \url{counter}
 and \url{countermax} variables.
-The usual way to do this is to combine them into a single variable,
+The usual way to do this is to combine these two variables into a
+single variable,
 for example, given a 32-bit variable, using the high-order 16 bits to
 represent \url{counter} and the low-order 16 bits to represent
 \url{countermax}.
 
-% @@@ how does this code violate the C standard?
-% @@@ assumes 8 bits per byte, assumes bitwise assignment from unsigned to int.
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 atomic_t __thread counterandmax = ATOMIC_INIT(0);
+  2 unsigned long globalcountmax = 10000;
+  3 unsigned long globalcount = 0;
+  4 unsigned long globalreserve = 0;
+  5 atomic_t *counterp[NR_THREADS] = { NULL };
+  6 DEFINE_SPINLOCK(gblcnt_mutex);
+  7 #define CM_BITS (sizeof(atomic_t) * 4)
+  8 #define MAX_COUNTERMAX ((1 << CM_BITS) - 1)
+  9 
+ 10 static void
+ 11 split_counterandmax_int(int cami, int *c, int *cm)
+ 12 {
+ 13   *c = (cami >> CM_BITS) & MAX_COUNTERMAX;
+ 14   *cm = cami & MAX_COUNTERMAX;
+ 15 }
+ 16 
+ 17 static void
+ 18 split_counterandmax(atomic_t *cam, int *old,
+ 19                     int *c, int *cm)
+ 20 {
+ 21   unsigned int cami = atomic_read(cam);
+ 22 
+ 23   *old = cami;
+ 24   split_counterandmax_int(cami, c, cm);
+ 25 }
+ 26 
+ 27 static int merge_counterandmax(int c, int cm)
+ 28 {
+ 29   unsigned int cami;
+ 30 
+ 31   cami = (c << CM_BITS) | cm;
+ 32   return ((int)cami);
+ 33 }
+\end{verbatim}
+}
+\caption{Atomic Limit Counter Variables and Access Functions}
+\label{fig:count:Atomic Limit Counter Variables and Access Functions}
+\end{figure}
 
-% @@@ example of parallel fastpath: partition the commonly occurring operations,
-% leave the rare operations globally synchronized.  Perhaps a note about
-% Amdahl's Law and the "maxtarget" (or whatever) parameter.
+The variables and access functions for a simple atomic limit counter
+are shown in
+Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}.
+The \url{counter} and \url{countermax} variables in earlier algorithms
+are combined into the single variable \url{counterandmax} shown on
+line~1, with \url{counter} in the upper half and \url{countermax} in
+the lower half.
+This variable is of type \url{atomic_t}, which has an underlying
+representation of \url{int}.
+
+Lines~2-6 show the definitions for \url{globalcountmax}, \url{globalcount},
+\url{globalreserve}, \url{counterp}, and \url{gblcnt_mutex}, all of which
+take on roles similar to their counterparts in
+Figure~\ref{fig:count:Approximate Limit Counter Variables}.
+Line~7 defines \url{CM_BITS}, which gives the number of bits in each half
+of \url{counterandmax}, and line~8 defines \url{MAX_COUNTERMAX}, which
+gives the maximum value that may be held in either half of
+\url{counterandmax}.
+
+\QuickQuiz{}
+	In what way does line~7 of
+	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}
+	violate the C standard?
+\QuickQuizAnswer{
+	It assumes eight bits per byte.
+	This assumption does hold for all current commodity microprocessors
+	that can be easily assembled into shared-memory multiprocessors,
+	but certainly does not hold for all computer systems that have
+	ever run C code.
+	(What could you do instead in order to comply with the C
+	standard?  What drawbacks would it have?)
+} \QuickQuizEnd
+
+Lines~10-15 show the \url{split_counterandmax_int()} function, which,
+when given the underlying \url{int} from the \url{atomic_t}
+\url{counterandmax} variable.
+Line~13 isolates the most-significant half of this \url{int},
+placing the result as specified by argument \url{c},
+and line~14 isolates the least-significant half of this \url{int},
+placing the result as specified by argument \url{cm}.
+
+Lines~17-25 show the \url{split_counterandmax()} function, which
+picks up the underlying \url{int} from the specified variable
+on line~21, stores it as specified by the \url{old} argument on
+line~23, and then invokes \url{split_counterandmax_int()} to split
+it on line~24.
+
+\QuickQuiz{}
+	Given that there is only one \url{counterandmax} variable,
+	why bother passing in a pointer to it on line~18 of
+	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}?
+\QuickQuizAnswer{
+	There is only one \url{counterandmax} variable \emph{per thread}.
+	Later, we will see code that needs to pass other threads'
+	\url{counterandmax} variables to \url{split_counterandmax()}.
+} \QuickQuizEnd
+
+Lines~27-33 show the \url{merge_counterandmax()} function, which
+can be thought of as the inverse of \url{split_counterandmax()}.
+Line~31 merges the \url{counter} and \url{countermax}
+values passed in \url{c} and \url{cm}, respectively, and returns
+the result.
+
+\QuickQuiz{}
+	Why does \url{merge_counterandmax()} in
+	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}
+	return an \url{int} rather than storing directly into an
+	\url{atomic_t}?
+\QuickQuizAnswer{
+	Later, we will see that we need the \url{int} return to pass
+	to the \url{atomic_cmpxchg()} primitive.
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 int add_count(unsigned long delta)
+  2 {
+  3   int c;
+  4   int cm;
+  5   int old;
+  6   int new;
+  7 
+  8   do {
+  9     split_counterandmax(&counterandmax, &old, &c, &cm);
+ 10     if (delta > MAX_COUNTERMAX || c + delta > cm)
+ 11       goto slowpath;
+ 12     new = merge_counterandmax(c + delta, cm);
+ 13   } while (atomic_cmpxchg(&counterandmax,
+ 14                           old, new) != old);
+ 15   return 1;
+ 16 slowpath:
+ 17   spin_lock(&gblcnt_mutex);
+ 18   globalize_count();
+ 19   if (globalcountmax - globalcount -
+ 20       globalreserve < delta) {
+ 21     flush_local_count();
+ 22     if (globalcountmax - globalcount -
+ 23         globalreserve < delta) {
+ 24       spin_unlock(&gblcnt_mutex);
+ 25       return 0;
+ 26     }
+ 27   }
+ 28   globalcount += delta;
+ 29   balance_count();
+ 30   spin_unlock(&gblcnt_mutex);
+ 31   return 1;
+ 32 }
+ 33 
+ 34 int sub_count(unsigned long delta)
+ 35 {
+ 36   int c;
+ 37   int cm;
+ 38   int old;
+ 39   int new;
+ 40 
+ 41   do {
+ 42     split_counterandmax(&counterandmax, &old, &c, &cm);
+ 43     if (delta > c)
+ 44       goto slowpath;
+ 45     new = merge_counterandmax(c - delta, cm);
+ 46   } while (atomic_cmpxchg(&counterandmax,
+ 47                           old, new) != old);
+ 48   return 1;
+ 49 slowpath:
+ 50   spin_lock(&gblcnt_mutex);
+ 51   globalize_count();
+ 52   if (globalcount < delta) {
+ 53     flush_local_count();
+ 54     if (globalcount < delta) {
+ 55       spin_unlock(&gblcnt_mutex);
+ 56       return 0;
+ 57     }
+ 58   }
+ 59   globalcount -= delta;
+ 60   balance_count();
+ 61   spin_unlock(&gblcnt_mutex);
+ 62   return 1;
+ 63 }
+ 64 
+ 65 unsigned long read_count(void)
+ 66 {
+ 67   int c;
+ 68   int cm;
+ 69   int old;
+ 70   int t;
+ 71   unsigned long sum;
+ 72 
+ 73   spin_lock(&gblcnt_mutex);
+ 74   sum = globalcount;
+ 75   for_each_thread(t)
+ 76     if (counterp[t] != NULL) {
+ 77       split_counterandmax(counterp[t], &old, &c, &cm);
+ 78       sum += c;
+ 79     }
+ 80   spin_unlock(&gblcnt_mutex);
+ 81   return sum;
+ 82 }
+\end{verbatim}
+}
+\caption{Atomic Limit Counter Add, Subtract, and Read}
+\label{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+\end{figure}
+
+Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+shows the \url{add_count()}, \url{sub_count()}, and
+\url{read_count()} functions.
+
+Lines~1-32 show \url{add_count()}, whose fastpath spans lines~8-15,
+with the remainder of the function being the slowpath.
+Lines~8-14 of the fastpath form a compare-and-swap (CAS) loop, with
+the \url{atomic_cmpxchg()} primitives on lines~13-14 performing the
+actual CAS.
+Line~9 splits the current thread's \url{counterandmax} variable into its
+\url{counter} (in \url{c}) and \url{countermax} (in \url{cm}) components,
+while placing the underlying \url{int} into \url{old}.
+Line~10 checks whether the amount \url{delta} can be accommodated
+locally (taking care to avoid integer overflow), and if not,
+line~11 transfers to the slowpath.
+Otherwise, line~11 combines an updated \url{counter} value with the
+original \url{countermax} value into \url{new}.
+The \url{atomic_cmpxchg()} primitive on lines~13-14 then atomically
+compares this thread's \url{counterandmax} variable to \url{old},
+updating its value to \url{new} if the comparison succeeds.
+If the comparison succeeds, line~15 returns success, otherwise,
+execution continues in the loop at line~9.
+
+\QuickQuiz{}
+	Yecch!!!
+	Why the ugly \url{goto} on line~11 of
+	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}?
+	Haven't you heard of the \url{break} statement???
+\QuickQuizAnswer{
+	Replacing the \url{goto} with a \url{break} would require keeping
+	a flag to determine whether or not line~15 should return, which
+	is not the sort of thing you want on a fastpath.
+	If you really hate the \url{goto} that much, your best bet would
+	be to pull the fastpath into a separate function that returned
+	success or failure, with ``failure'' indicating a need for the
+	slowpath.
+	This is left as an exercise for goto-hating readers.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Why would the \url{atomic_cmpxchg()} primitive at lines~13-14 of
+	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+	ever fail?
+	After all, we picked up its old value on line~9 and have not
+	changed it!
+\QuickQuizAnswer{
+	Later, we will see how the \url{flush_local_count()} function in
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	might update this thread's \url{counterandmax} variable concurrently
+	with the execution of the fastpath on lines~8-14 of
+	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}.
+} \QuickQuizEnd
+
+Lines~16-32 of
+Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+show \url{add_count()}'s slowpath, which is protected by \url{gblcnt_mutex},
+which is acquired on line~17 and released on lines~24 and 30.
+Line~18 invokes \url{globalize_count()}, which moves this thread's
+state to the global counters.
+Lines~19-20 check whether the \url{delta} value can be accommodated by
+the current global state, and, if not, line~21 invokes
+\url{flush_local_count()} to flush all threads' local state to the
+global counters, and then lines~22-23 recheck whether \url{delta} can
+be accommodated.
+If, after all that, the addition of \url{delta} still cannot be accommodated,
+then line~24 releases \url{gblcnt_mutex} (as noted earlier), and
+then line~25 returns failure.
+
+Otherwise, line~28 adds \url{delta} to the global counter, line~29
+spreads counts to the local state if appropriate, line~30 releases
+\url{gblcnt_mutex} (again, as noted earlier), and finally, line 31
+returns success.
+
+Lines~34-63 of
+Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+show \url{sub_count()}, which is structured similarly to
+\url{add_count()}, having a fastpath on lines~41-48 and a slowpath on
+lines~49-62.
+A line-by-line analysis of this function is left as an exercise to
+the reader.
+
+Lines~65-82 show \url{read_count()}.
+Line~72 acquires \url{gblcnt_mutex} and line~80 releases it.
+Line~74 initializes local variable \url{sum} to the value of
+\url{globalcount}, and the loop spanning lines~75-79 adds the
+per-thread counters to this sum, isolating each per-thread counter
+using \url{split_counterandmax} on line 77.
+Finally, line~81 returns the sum.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void globalize_count(void)
+  2 {
+  3   int c;
+  4   int cm;
+  5   int old;
+  6 
+  7   split_counterandmax(&counterandmax, &old, &c, &cm);
+  8   globalcount += c;
+  9   globalreserve -= cm;
+ 10   old = merge_counterandmax(0, 0);
+ 11   atomic_set(&counterandmax, old);
+ 12 }
+ 13 
+ 14 static void flush_local_count(void)
+ 15 {
+ 16   int c;
+ 17   int cm;
+ 18   int old;
+ 19   int t;
+ 20   int zero;
+ 21 
+ 22   if (globalreserve == 0)
+ 23     return;
+ 24   zero = merge_counterandmax(0, 0);
+ 25   for_each_thread(t)
+ 26     if (counterp[t] != NULL) {
+ 27       old = atomic_xchg(counterp[t], zero);
+ 28       split_counterandmax_int(old, &c, &cm);
+ 29       globalcount += c;
+ 30       globalreserve -= cm;
+ 31     }
+ 32 }
+ 33 
+ 34 static void balance_count(void)
+ 35 {
+ 36   int c;
+ 37   int cm;
+ 38   int old;
+ 39   unsigned long limit;
+ 40 
+ 41   limit = globalcountmax - globalcount - globalreserve;
+ 42   limit /= num_online_threads();
+ 43   if (limit > MAX_COUNTERMAX)
+ 44     cm = MAX_COUNTERMAX;
+ 45   else
+ 46     cm = limit;
+ 47   globalreserve += cm;
+ 48   c = cm / 2;
+ 49   if (c > globalcount)
+ 50     c = globalcount;
+ 51   globalcount -= c;
+ 52   old = merge_counterandmax(c, cm);
+ 53   atomic_set(&counterandmax, old);
+ 54 }
+ 55 
+ 56 void count_register_thread(void)
+ 57 {
+ 58   int idx = smp_thread_id();
+ 59 
+ 60   spin_lock(&gblcnt_mutex);
+ 61   counterp[idx] = &counterandmax;
+ 62   spin_unlock(&gblcnt_mutex);
+ 63 }
+ 64 
+ 65 void count_unregister_thread(int nthreadsexpected)
+ 66 {
+ 67   int idx = smp_thread_id();
+ 68 
+ 69   spin_lock(&gblcnt_mutex);
+ 70   globalize_count();
+ 71   counterp[idx] = NULL;
+ 72   spin_unlock(&gblcnt_mutex);
+ 73 }
+\end{verbatim}
+}
+\caption{Atomic Limit Counter Utility Functions}
+\label{fig:count:Atomic Limit Counter Utility Functions}
+\end{figure}
+
+Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+shows the utility functions
+\url{globalize_count()},
+\url{flush_local_count()},
+\url{balance_count()},
+\url{count_register_thread()}, and
+\url{count_unregister_thread()}.
+The code for \url{globalize_count()} is shown on lines~1-12, and
+it is similar to that of previous algorithms, with the addition of
+line~7, which is now required to split out \url{counter} and
+\url{countermax} from \url{counterandmax}.
+
+The code for \url{flush_local_count()}, which moves all threads' local
+counter state to the global counter, is shown on lines~14-32.
+Line~22 checks to see if the value of \url{globalreserve} permits
+any per-thread counts, and, if not, line~23 returns.
+Otherwise, line~24 initializes local variable \url{zero} to a combined
+zeroed \url{counter} and \url{countermax}.
+The loop spanning lines~25-31 sequences through each thread.
+Line~26 checks to see if the current thread has counter state,
+and, if so, lines~27-30 move that state to the global counters.
+Line~27 atomically fetches the current thread's state
+while replacing it with zero.
+Line~28 splits this state into its \url{counter} (in local variable \url{c})
+and \url{countermax} (in local variable \url{cm}) components.
+Line~29 adds this thread's \url{counter} to \url{globalmax}, while
+line~30 subtracts this thread's \url{countermax} from \url{globalreserve}.
+
+\QuickQuiz{}
+	What stops a thread from simply refilling its
+	\url{counterandmax} variable immediately after
+	\url{flush_local_count()} on line 14 of
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	empties it?
+\QuickQuizAnswer{
+	This other thread cannot refill its \url{counterandmax}
+	until the caller of \url{flush_local_count()} releases the
+	\url{gblcnt_mutex}.
+	By that time, the caller of \url{flush_local_count()} will have
+	finished making use of the counts, so there will be no problem
+	with this other thread refilling --- assuming that the value
+	of \url{globalcount} is large enough to permit a refill.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	What prevents concurrent execution of the fastpath of either
+	\url{atomic_add()} or \url{atomic_sub()} from interfering with
+	the \url{counterandmax} variable while
+	\url{flush_local_count()} is accessing it on line 27 of
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	empties it?
+\QuickQuizAnswer{
+	Nothing.
+	Consider the following three cases:
+	\begin{enumerate}
+	\item	If \url{flush_local_count()}'s \url{atomic_xchg()} executes
+		before the \url{split_counterandmax()} of either fastpath,
+		then the fastpath will see a zero \url{counter} and
+		\url{countermax}, and will thus transfer to the slowpath
+		(unless of course \url{delta} is zero).
+	\item	If \url{flush_local_count()}'s \url{atomic_xchg()} executes
+		after the \url{split_counterandmax()} of either fastpath,
+		but before that fastpath's \url{atomic_cmpxchg()},
+		then the \url{atomic_cmpxchg()} will fail, causing the
+		fastpath to restart, which reduces to case~1 above.
+	\item	If \url{flush_local_count()}'s \url{atomic_xchg()} executes
+		after the \url{atomic_cmpxchg()} of either fastpath,
+		then the fastpath will (most likely) complete successfully
+		before \url{flush_local_count()} zeroes the thread's
+		\url{counterandmax} variable.
+	\end{enumerate}
+	Either way, the race is resolved correctly.
+} \QuickQuizEnd
+
+Lines~34-54 show the code for \url{balance_count()}, which refills
+the calling thread's local \url{counterandmax} variable.
+This function is quite similar to that of the preceding algorithms,
+with changes required to handle the merged \url{counterandmax} variable.
+Detailed analysis of the code is left as an exercise for the reader,
+as it is with the \url{count_register_thread()} function starting on
+line~56 and the \url{count_unregister_thread()} function starting on
+line~65.
+
+\QuickQuiz{}
+	Given that the \url{atomic_set()} primitive does a simple
+	store to the specified \url{atomic_t}, how can line~53 of
+	\url{balance_count()} in
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	work correctly in face of concurrent \url{flush_local_count()}
+	updates to this variable?
+\QuickQuizAnswer{
+	The caller of both \url{balance_coiunt()} and
+	\url{flush_local_count()} hold \url{gblcnt_mutex}, so
+	only one may be executing at a given time.
+} \QuickQuizEnd
+
+\subsection{Atomic Limit Counter Discussion}
+
+This is the first implementation that actually allows the counter to
+be run all the way to either of its limits, but it does so at the
+expense of adding atomic operations to the fastpaths, which slow down
+the fastpaths significantly.
+Although some workloads might tolerate this slowdown, it is worthwhile
+looking for algorithms with better read-side performance.
 
 \section{Applying Specialized Parallel Counters}
 \label{sec:count:Applying Specialized Parallel Counters}

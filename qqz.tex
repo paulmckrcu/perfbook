@@ -1473,6 +1473,121 @@ ret = ~ret & tmp;
 	of structures in use!
 
 \QuickQ{}
+	In what way does line~7 of
+	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}
+	violate the C standard?
+\QuickA{}
+	It assumes eight bits per byte.
+	This assumption does hold for all current commodity microprocessors
+	that can be easily assembled into shared-memory multiprocessors,
+	but certainly does not hold for all computer systems that have
+	ever run C code.
+	(What could you do instead in order to comply with the C
+	standard?  What drawbacks would it have?)
+
+\QuickQ{}
+	Given that there is only one \url{counterandmax} variable,
+	why bother passing in a pointer to it on line~18 of
+	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}?
+\QuickA{}
+	There is only one \url{counterandmax} variable \emph{per thread}.
+	Later, we will see code that needs to pass other threads'
+	\url{counterandmax} variables to \url{split_counterandmax()}.
+
+\QuickQ{}
+	Why does \url{merge_counterandmax()} in
+	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}
+	return an \url{int} rather than storing directly into an
+	\url{atomic_t}?
+\QuickA{}
+	Later, we will see that we need the \url{int} return to pass
+	to the \url{atomic_cmpxchg()} primitive.
+
+\QuickQ{}
+	Yecch!!!
+	Why the ugly \url{goto} on line~11 of
+	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}?
+	Haven't you heard of the \url{break} statement???
+\QuickA{}
+	Replacing the \url{goto} with a \url{break} would require keeping
+	a flag to determine whether or not line~15 should return, which
+	is not the sort of thing you want on a fastpath.
+	If you really hate the \url{goto} that much, your best bet would
+	be to pull the fastpath into a separate function that returned
+	success or failure, with ``failure'' indicating a need for the
+	slowpath.
+	This is left as an exercise for goto-hating readers.
+
+\QuickQ{}
+	Why would the \url{atomic_cmpxchg()} primitive at lines~13-14 of
+	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+	ever fail?
+	After all, we picked up its old value on line~9 and have not
+	changed it!
+\QuickA{}
+	Later, we will see how the \url{flush_local_count()} function in
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	might update this thread's \url{counterandmax} variable concurrently
+	with the execution of the fastpath on lines~8-14 of
+	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}.
+
+\QuickQ{}
+	What stops a thread from simply refilling its
+	\url{counterandmax} variable immediately after
+	\url{flush_local_count()} on line 14 of
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	empties it?
+\QuickA{}
+	This other thread cannot refill its \url{counterandmax}
+	until the caller of \url{flush_local_count()} releases the
+	\url{gblcnt_mutex}.
+	By that time, the caller of \url{flush_local_count()} will have
+	finished making use of the counts, so there will be no problem
+	with this other thread refilling --- assuming that the value
+	of \url{globalcount} is large enough to permit a refill.
+
+\QuickQ{}
+	What prevents concurrent execution of the fastpath of either
+	\url{atomic_add()} or \url{atomic_sub()} from interfering with
+	the \url{counterandmax} variable while
+	\url{flush_local_count()} is accessing it on line 27 of
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	empties it?
+\QuickA{}
+	Nothing.
+	Consider the following three cases:
+	\begin{enumerate}
+	\item	If \url{flush_local_count()}'s \url{atomic_xchg()} executes
+		before the \url{split_counterandmax()} of either fastpath,
+		then the fastpath will see a zero \url{counter} and
+		\url{countermax}, and will thus transfer to the slowpath
+		(unless of course \url{delta} is zero).
+	\item	If \url{flush_local_count()}'s \url{atomic_xchg()} executes
+		after the \url{split_counterandmax()} of either fastpath,
+		but before that fastpath's \url{atomic_cmpxchg()},
+		then the \url{atomic_cmpxchg()} will fail, causing the
+		fastpath to restart, which reduces to case~1 above.
+	\item	If \url{flush_local_count()}'s \url{atomic_xchg()} executes
+		after the \url{atomic_cmpxchg()} of either fastpath,
+		then the fastpath will (most likely) complete successfully
+		before \url{flush_local_count()} zeroes the thread's
+		\url{counterandmax} variable.
+	\end{enumerate}
+	Either way, the race is resolved correctly.
+
+\QuickQ{}
+	Given that the \url{atomic_set()} primitive does a simple
+	store to the specified \url{atomic_t}, how can line~53 of
+	\url{balance_count()} in
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	work correctly in face of concurrent \url{flush_local_count()}
+	updates to this variable?
+\QuickA{}
+	The caller of both \url{balance_coiunt()} and
+	\url{flush_local_count()} hold \url{gblcnt_mutex}, so
+	only one may be executing at a given time.
+
+\QuickQ{}
 	The \url{++} operator works just fine for 1,000-digit numbers!!!
 	Haven't you heard of operator overloading???
 \QuickA{}
