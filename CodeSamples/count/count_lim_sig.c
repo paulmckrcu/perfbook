@@ -74,7 +74,7 @@ static void flush_local_count(void)
 			*theftp[t] = THEFT_REQ;
 			pthread_kill(tid, SIGUSR1);
 		}
-	for_each_thread(t) {
+	for_each_tid(t, tid) {
 		if (theftp[t] == NULL)
 			continue;
 		while (*theftp[t] != THEFT_READY) {
