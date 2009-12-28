@@ -344,6 +344,8 @@ void usage(int argc, char *argv[])
 		"Usage: %s [nreaders [ rperf [ cpustride ] ] ]\n", argv[0]);
 	fprintf(stderr,
 		"Usage: %s [nreaders [ uperf [ cpustride ] ] ]\n", argv[0]);
+	fprintf(stderr,
+		"Usage: %s [nreaders [ hog [ cpustride ] ] ]\n", argv[0]);
 	exit(-1);
 }
 
