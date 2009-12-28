@@ -22,6 +22,7 @@ PROGS =	count_atomic \
 	count_lim \
 	count_lim_app \
 	count_lim_atomic \
+	count_lim_sig \
 	count_limd \
 	count_nonatomic \
 	count_stat \
@@ -49,6 +50,9 @@ count_lim_app: count_lim_app.c ../api.h limtorture.h
 
 count_lim_atomic: count_lim_atomic.c ../api.h limtorture.h
 	cc $(GCC_ARGS) -o count_lim_atomic count_lim_atomic.c -lpthread
+
+count_lim_sig: count_lim_sig.c ../api.h limtorture.h
+	cc $(GCC_ARGS) -o count_lim_sig count_lim_sig.c -lpthread
 
 count_limd: count_limd.c ../api.h limtorture.h
 	cc $(GCC_ARGS) -o count_limd count_limd.c -lpthread
