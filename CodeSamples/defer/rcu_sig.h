@@ -1,0 +1,56 @@
+/*
+ * rcu_sig.h: signal-based implementation of RCU, using approach similar
+ *	to that of TREE_PREEMPT_RCU in the Linux kernel.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
+ */
+
+#include "rcu_pointer.h"
+#include <signal.h>
+
+DEFINE_SPINLOCK(rcu_gp_lock);
+
+#define URCU_QS_IDLE	0	/* No grace period in progress. */
+#define	URCU_QS_REQ	1	/* Requesting quiescent state from thread. */
+#define URCU_QS_ACK	2	/* Request acknowledged, need unlock. */
+#define	URCU_QS_DONE	3	/* Quiescent state done. */
+
+struct urcu_state {
+	int		urcu_nesting;
+	sig_atomic_t	urcu_qs;
+};
+struct urcu_state __thread urcu_state;
+DEFINE_PER_THREAD(struct urcu_state *, urcu_statep);
+
+static void rcu_read_lock(void)
+{
+	urcu_state.urcu_nesting++;
+	barrier();
+}
+
+static void rcu_read_unlock(void)
+{
+	barrier();
+	if (--ACCESS_ONCE(urcu_state.urcu_nesting) == 0 &&
+	    urcu_state.urcu_qs >= URCU_QS_ACK) {
+		smp_mb();
+		urcu_state.urcu_qs = URCU_QS_DONE;
+	}
+}
+
+extern void synchronize_rcu(void);
+extern void rcu_init(void);

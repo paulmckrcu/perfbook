@@ -31,6 +31,7 @@ PROGS =	gettimestamp \
 	rcu_rcpg \
 	rcu_rcpl \
 	rcu_rcpls \
+	rcu_sig \
 	rcu_ts
 
 all: $(PROGS)
@@ -79,6 +80,9 @@ rcu_rcpl: rcu_rcpl.c rcu_rcpl.h ../api.h rcutorture.h
 
 rcu_rcpls: rcu_rcpls.c rcu_rcpls.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_rcpls -DTEST rcu_rcpls.c -lpthread
+
+rcu_sig: rcu_sig.c rcu_sig.h ../api.h rcutorture.h
+	cc $(GCC_ARGS) -o rcu_sig -DTEST rcu_sig.c -lpthread
 
 rcu_ts: rcu_ts.c rcu_ts.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_ts -DTEST rcu_ts.c -lpthread
