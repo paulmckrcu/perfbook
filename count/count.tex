@@ -1534,32 +1534,13 @@ the result.
  61   spin_unlock(&gblcnt_mutex);
  62   return 1;
  63 }
- 64 
- 65 unsigned long read_count(void)
- 66 {
- 67   int c;
- 68   int cm;
- 69   int old;
- 70   int t;
- 71   unsigned long sum;
- 72 
- 73   spin_lock(&gblcnt_mutex);
- 74   sum = globalcount;
- 75   for_each_thread(t)
- 76     if (counterp[t] != NULL) {
- 77       split_counterandmax(counterp[t], &old, &c, &cm);
- 78       sum += c;
- 79     }
- 80   spin_unlock(&gblcnt_mutex);
- 81   return sum;
- 82 }
 \end{verbatim}
 }
-\caption{Atomic Limit Counter Add, Subtract, and Read}
-\label{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+\caption{Atomic Limit Counter Add and Subtract}
+\label{fig:count:Atomic Limit Counter Add and Subtract}
 \end{figure}
 
-Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}
 shows the \url{add_count()}, \url{sub_count()}, and
 \url{read_count()} functions.
 
@@ -1585,7 +1566,7 @@ execution continues in the loop at line~9.
 \QuickQuiz{}
 	Yecch!!!
 	Why the ugly \url{goto} on line~11 of
-	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}?
+	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}?
 	Haven't you heard of the \url{break} statement???
 \QuickQuizAnswer{
 	Replacing the \url{goto} with a \url{break} would require keeping
@@ -1600,7 +1581,7 @@ execution continues in the loop at line~9.
 
 \QuickQuiz{}
 	Why would the \url{atomic_cmpxchg()} primitive at lines~13-14 of
-	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}
 	ever fail?
 	After all, we picked up its old value on line~9 and have not
 	changed it!
@@ -1609,11 +1590,11 @@ execution continues in the loop at line~9.
 	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
 	might update this thread's \url{counterandmax} variable concurrently
 	with the execution of the fastpath on lines~8-14 of
-	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}.
+	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}.
 } \QuickQuizEnd
 
 Lines~16-32 of
-Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}
 show \url{add_count()}'s slowpath, which is protected by \url{gblcnt_mutex},
 which is acquired on line~17 and released on lines~24 and 30.
 Line~18 invokes \url{globalize_count()}, which moves this thread's
@@ -1633,20 +1614,47 @@ spreads counts to the local state if appropriate, line~30 releases
 returns success.
 
 Lines~34-63 of
-Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}
 show \url{sub_count()}, which is structured similarly to
 \url{add_count()}, having a fastpath on lines~41-48 and a slowpath on
 lines~49-62.
 A line-by-line analysis of this function is left as an exercise to
 the reader.
 
-Lines~65-82 show \url{read_count()}.
-Line~72 acquires \url{gblcnt_mutex} and line~80 releases it.
-Line~74 initializes local variable \url{sum} to the value of
-\url{globalcount}, and the loop spanning lines~75-79 adds the
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 unsigned long read_count(void)
+  2 {
+  3   int c;
+  4   int cm;
+  5   int old;
+  6   int t;
+  7   unsigned long sum;
+  8 
+  9   spin_lock(&gblcnt_mutex);
+ 10   sum = globalcount;
+ 11   for_each_thread(t)
+ 12     if (counterp[t] != NULL) {
+ 13       split_counterandmax(counterp[t], &old, &c, &cm);
+ 14       sum += c;
+ 15     }
+ 16   spin_unlock(&gblcnt_mutex);
+ 17   return sum;
+ 18 }
+\end{verbatim}
+}
+\caption{Atomic Limit Counter Read}
+\label{fig:count:Atomic Limit Counter Read}
+\end{figure}
+
+Figure~\ref{fig:count:Atomic Limit Counter Read} shows \url{read_count()}.
+Line~9 acquires \url{gblcnt_mutex} and line~16 releases it.
+Line~10 initializes local variable \url{sum} to the value of
+\url{globalcount}, and the loop spanning lines~11-15 adds the
 per-thread counters to this sum, isolating each per-thread counter
-using \url{split_counterandmax} on line 77.
-Finally, line~81 returns the sum.
+using \url{split_counterandmax} on line 13.
+Finally, line~17 returns the sum.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1834,6 +1842,529 @@ expense of adding atomic operations to the fastpaths, which slow down
 the fastpaths significantly.
 Although some workloads might tolerate this slowdown, it is worthwhile
 looking for algorithms with better read-side performance.
+One such algorithm uses a signal handler to steal counts from other
+threads.
+Because signal handlers run in the context of the signaled thread,
+atomic operations are not necessary, as shown in the next section.
+
+\subsection{Signal-Theft Limit Counter Design}
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{2in}{!}{\includegraphics{count/sig-theft}}
+\end{center}
+\caption{Signal-Theft State Machine}
+\label{fig:count:Signal-Theft State Machine}
+\end{figure}
+
+Figure~\ref{fig:count:Signal-Theft State Machine} shows the
+state diagram.
+The state machine starts out in the IDLE state, and when \url{add_count()}
+or \url{sub_count()} find that the combination of the local thread's count
+and the global count cannot accommodate the request, the corresponding
+slowpath sets each thread's \url{theft} state to REQ (unless that thread
+has no count, in which case it transitions directly to READY).
+Only the slowpath, which holds the \url{gblcnt_mutex} lock, is permitted to
+transition from the IDLE state, as indicated by the green color.
+The slowpath then sends a signal to each thread, and the corresponding
+signal handler checks the corresponding thread's \url{theft} and
+\url{counting} variables.
+If the \url{theft} state is not REQ, then the signal handler is not
+permitted to change the state, and therefore simply returns.
+Otherwise, if the \url{counting} variable is set, indicating that
+the current thread's fastpath is in progress, the signal handler
+sets the \url{theft} state to ACK, otherwise to READY.
+
+If the \url{theft} state is ACK,
+only the fastpath is permitted to change
+the \url{theft} state, as indicated by the blue color.
+When the fastpath completes, it sets the \url{theft} state to READY.
+
+Once the slowpath sees a thread's \url{theft} state is READY, the
+slowpath is permitted to steal that thread's count.
+The slowpath then sets that thread's \url{theft} state to IDLE.
+
+\QuickQuiz{}
+	In Figure~\ref{fig:count:Signal-Theft State Machine}, why is
+	the REQ \url{theft} state colored blue?
+\QuickQuizAnswer{
+	To indicate that only the fastpath is permitted to change the
+	\url{theft} state.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	In Figure~\ref{fig:count:Signal-Theft State Machine}, what is
+	the point of having separate REQ and ACK \url{theft} states?
+	Why not simplify the state machine by collapsing
+	them into a single state?
+	Then whichever of the signal handler or the fastpath gets there
+	first could set the state to READY.
+\QuickQuizAnswer{
+	Reasons why collapsing the REQ and ACK states would be a very
+	bad idea include:
+	\begin{enumerate}
+	\item	The slowpath uses the REQ and ACK states to determine
+		whether the signal should be retransmitted.
+		If the states were collapsed, the slowpath would have
+		no choice but to send redundant signals, which would
+		have the unhelpful effect of slowing down the fastpath.
+	\item	The following race would result:
+		\begin{enumerate}
+		\item	The slowpath sets a given thread's state to REQACK.
+		\item	That thread has just finished its fastpath, and
+			notes the REQACK state.
+		\item	The thread receives the signal, which also notes
+			the REQACK state, and, because there is no fastpath
+			in effect, sets the state to READY.
+		\item	The slowpath notes the READY state, steals the
+			count, and sets the state to IDLE, and completes.
+		\item	The fastpath sets the state to READY, disabling
+			further fastpath execution for this thread.
+		\end{enumerate}
+		The basic problem here is that the combined REQACK state
+		can be referenced by both the signal handler and the
+		fastpath.
+		The clear separation maintained by the four-state
+		setup ensures orderly state transitions.
+	\end{enumerate}
+	That said, you might well be able to make a three-state setup
+	work correctly.
+	If you do succeed, compare carefully to the four-state setup.
+	Is the three-state solution really preferable, and why or why not?
+} \QuickQuizEnd
+
+\subsection{Signal-Theft Limit Counter Implementation}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 #define THEFT_IDLE  0
+  2 #define THEFT_REQ   1
+  3 #define THEFT_ACK   2
+  4 #define THEFT_READY 3
+  5 
+  6 int __thread theft = THEFT_IDLE;
+  7 int __thread counting = 0;
+  8 unsigned long __thread counter = 0;
+  9 unsigned long __thread countermax = 0;
+ 10 unsigned long globalcountmax = 10000;
+ 11 unsigned long globalcount = 0;
+ 12 unsigned long globalreserve = 0;
+ 13 unsigned long *counterp[NR_THREADS] = { NULL };
+ 14 unsigned long *countermaxp[NR_THREADS] = { NULL };
+ 15 int *theftp[NR_THREADS] = { NULL };
+ 16 DEFINE_SPINLOCK(gblcnt_mutex);
+ 17 #define MAX_COUNTERMAX 100
+\end{verbatim}
+}
+\caption{Signal-Theft Limit Counter Data}
+\label{fig:count:Signal-Theft Limit Counter Data}
+\end{figure}
+
+Figure~\ref{fig:count:Signal-Theft Limit Counter Data}
+(\url{count_lim_sig.c})
+shows the data structures used by the signal-theft based counter
+implementation.
+Lines~1-7 define the states and values for the per-thread theft state machine
+described in the preceding section.
+Lines~8-17 are similar to earlier implementations, with the addition of
+lines~14 and 15 to allow remote access to a thread's \url{countermax}
+and \url{theft} variables, respectively.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void globalize_count(void)
+  2 {
+  3   globalcount += counter;
+  4   counter = 0;
+  5   globalreserve -= countermax;
+  6   countermax = 0;
+  7 }
+  8 
+  9 static void flush_local_count_sig(int unused)
+ 10 {
+ 11   if (ACCESS_ONCE(theft) != THEFT_REQ)
+ 12     return;
+ 13   smp_mb();
+ 14   ACCESS_ONCE(theft) = THEFT_ACK;
+ 15   if (!counting) {
+ 16     ACCESS_ONCE(theft) = THEFT_READY;
+ 17   }
+ 18   smp_mb();
+ 19 }
+ 20 
+ 21 static void flush_local_count(void)
+ 22 {
+ 23   int t;
+ 24   thread_id_t tid;
+ 25 
+ 26   for_each_tid(t, tid)
+ 27     if (theftp[t] != NULL) {
+ 28       if (*countermaxp[t] == 0) {
+ 29         ACCESS_ONCE(*theftp[t]) = THEFT_READY;
+ 30         continue;
+ 31       }
+ 32       ACCESS_ONCE(*theftp[t]) = THEFT_REQ;
+ 33       pthread_kill(tid, SIGUSR1);
+ 34     }
+ 35   for_each_tid(t, tid) {
+ 36     if (theftp[t] == NULL)
+ 37       continue;
+ 38     while (ACCESS_ONCE(*theftp[t]) != THEFT_READY) {
+ 39       poll(NULL, 0, 1);
+ 40       if (ACCESS_ONCE(*theftp[t]) == THEFT_REQ)
+ 41         pthread_kill(tid, SIGUSR1);
+ 42     }
+ 43     globalcount += *counterp[t];
+ 44     *counterp[t] = 0;
+ 45     globalreserve -= *countermaxp[t];
+ 46     *countermaxp[t] = 0;
+ 47     ACCESS_ONCE(*theftp[t]) = THEFT_IDLE;
+ 48   }
+ 49 }
+ 50 
+ 51 static void balance_count(void)
+ 52 {
+ 53   countermax = globalcountmax -
+ 54     globalcount - globalreserve;
+ 55   countermax /= num_online_threads();
+ 56   if (countermax > MAX_COUNTERMAX)
+ 57     countermax = MAX_COUNTERMAX;
+ 58   globalreserve += countermax;
+ 59   counter = countermax / 2;
+ 60   if (counter > globalcount)
+ 61     counter = globalcount;
+ 62   globalcount -= counter;
+ 63 }
+\end{verbatim}
+}
+\caption{Signal-Theft Limit Counter Value-Migration Functions}
+\label{fig:count:Signal-Theft Limit Counter Value-Migration Functions}
+\end{figure}
+
+Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}
+shows the functions responsible for migrating counts between per-thread
+variables and the global variables.
+Lines~1-7 shows \url{global_count()}, which is identical to earlier
+implementations.
+Lines~9-19 shows \url{flush_local_count_sig()}, which is the signal
+handler used in the theft process.
+Lines~11 and 12 check to see if the \url{theft} state is REQ, and, if not
+returns without change.
+Line~13 executes a memory barrier to ensure that the sampling of the
+theft variable happens before any change to that variable.
+Line~14 sets the \url{theft} state to ACK, and, if line~15 sees that
+this thread's fastpaths are not running, line~16 sets the \url{theft}
+state to READY.
+
+\QuickQuiz{}
+	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}
+	function \url{flush_local_count_sig()}, why are there
+	\url{ACCESS_ONCE()} wrappers around the uses of the
+	\url{theft} per-thread variable?
+\QuickQuizAnswer{
+	The first one one line~11 can be argued to be unnecessary.
+	The last two (lines~14 and 16) are important.
+	If these are removed, the compiler would be within its rights
+	to rewrite lines~14-17 as follows:
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\small
+	\begin{verbatim}
+ 14   theft = THEFT_READY;
+ 15   if (counting) {
+ 16     theft = THEFT_ACK;
+ 17   }
+	\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+	This would be fatal, as the slowpath might see the transient
+	value of \url{THEFT_READY}, and start stealing before the
+	corresponding thread was ready.
+} \QuickQuizEnd
+
+Lines~21-49 shows \url{flush_local_count()}, which is called from the
+slowpath to flush all threads' local counts.
+The loop spanning lines~26-34 advances the \url{theft} state for each
+thread that has local count, and also sends that thread a signal.
+Line~27 skips any non-existent threads.
+Otherwise, line~28 checks to see if the current thread holds any local
+count, and, if not, line~29 sets the thread's \url{theft} state to READY
+and line~28 skips to the next thread.
+Otherwise, line~32 sets the thread's \url{theft} state to REQ and
+line~29 sends the thread a signal.
+
+\QuickQuiz{}
+	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions},
+	why is it safe for line~28 to directly access the other thread's
+	\url{countermax} variable?
+\QuickQuizAnswer{
+	Because the other thread is not permitted to change the value
+	of its \url{countermax} variable unless it holds the
+	\url{gblcnt_mutex} lock.
+	But the caller has acquired this lock, so it is not possible
+	for the other thread to hold it, and therefore the other thread
+	is not permitted to change its \url{countermax} variable.
+	We can therefore safely access it --- but not change it.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions},
+	why doesn't line~33 check for the current thread sending itself
+	a signal?
+\QuickQuizAnswer{
+	There is no need for an additional check.
+	The caller of \url{flush_local_count()} has already invoked
+	\url{globalize_count()}, so the check on line~28 will have
+	succeeded, skipping the later \url{pthread_kill()}.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	The code in
+	Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions},
+	works with gcc and POSIX.
+	What would be required to make it also conform to the ISO C standard?
+\QuickQuizAnswer{
+	The \url{theft} variable must be of type \url{sig_atomic_t}
+	to guarantee that it can be safely shared between the signal
+	handler and the code interrupted by the signal.
+} \QuickQuizEnd
+
+The loop spanning lines~35-48 waits until each thread reaches READY state,
+then steals that thread's count.
+Lines~36-37 skip any non-existent threads, and the loop spanning
+lines~38-42 wait until the current thread's \url{theft} state becomes READY.
+Line~39 blocks for a millisecond to avoid priority-inversion problems,
+and if line~40 determines that the thread's signal has not yet arrived,
+line~41 resends the signal.
+Execution reaches line~43 when the thread's \url{theft} state becomes
+READY, so lines~43-46 do the thieving.
+Line~47 then sets the thread's \url{theft} state back to IDLE.
+
+\QuickQuiz{}
+	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}, why does line~41 resend the signal?
+\QuickQuizAnswer{
+	Because many operating systems over several decades have
+	had the property of losing the occasional signal.
+	Whether this is a feature or a bug is debatable, but
+	irrelevant.
+	The obvious symptom from the user's viewpoint will not be
+	a kernel bug, but rather a user application hanging.
+
+	\emph{Your} user application hanging!
+} \QuickQuizEnd
+
+Lines~51-63 show \url{balance_count()}, which is similar to that of
+earlier examples.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 int add_count(unsigned long delta)
+  2 {
+  3   int fastpath = 0;
+  4 
+  5   counting = 1;
+  6   barrier();
+  7   if (countermax - counter >= delta &&
+  8       ACCESS_ONCE(theft) <= THEFT_REQ) {
+  9     counter += delta;
+ 10     fastpath = 1;
+ 11   }
+ 12   barrier();
+ 13   counting = 0;
+ 14   barrier();
+ 15   if (ACCESS_ONCE(theft) == THEFT_ACK) {
+ 16     smp_mb();
+ 17     ACCESS_ONCE(theft) = THEFT_READY;
+ 18   }
+ 19   if (fastpath)
+ 20     return 1;
+ 21   spin_lock(&gblcnt_mutex);
+ 22   globalize_count();
+ 23   if (globalcountmax - globalcount -
+ 24       globalreserve < delta) {
+ 25     flush_local_count();
+ 26     if (globalcountmax - globalcount -
+ 27         globalreserve < delta) {
+ 28       spin_unlock(&gblcnt_mutex);
+ 29       return 0;
+ 30     }
+ 31   }
+ 32   globalcount += delta;
+ 33   balance_count();
+ 34   spin_unlock(&gblcnt_mutex);
+ 35   return 1;
+ 36 }
+ 37 
+ 38 int sub_count(unsigned long delta)
+ 39 {
+ 40   int fastpath = 0;
+ 41 
+ 42   counting = 1;
+ 43   barrier();
+ 44   if (counter >= delta &&
+ 45       ACCESS_ONCE(theft) <= THEFT_REQ) {
+ 46     counter -= delta;
+ 47     fastpath = 1;
+ 48   }
+ 49   barrier();
+ 50   counting = 0;
+ 51   barrier();
+ 52   if (ACCESS_ONCE(theft) == THEFT_ACK) {
+ 53     smp_mb();
+ 54     ACCESS_ONCE(theft) = THEFT_READY;
+ 55   }
+ 56   if (fastpath)
+ 57     return 1;
+ 58   spin_lock(&gblcnt_mutex);
+ 59   globalize_count();
+ 60   if (globalcount < delta) {
+ 61     flush_local_count();
+ 62     if (globalcount < delta) {
+ 63       spin_unlock(&gblcnt_mutex);
+ 64       return 0;
+ 65     }
+ 66   }
+ 67   globalcount -= delta;
+ 68   balance_count();
+ 69   spin_unlock(&gblcnt_mutex);
+ 70   return 1;
+ 71 }
+\end{verbatim}
+}
+\caption{Signal-Theft Limit Counter Add and Subtract Functions}
+\label{fig:count:Signal-Theft Limit Counter Add and Subtract Functions}
+\end{figure}
+
+Lines~1-36 of
+Figure~\ref{fig:count:Signal-Theft Limit Counter Add and Subtract Functions}
+shows the \url{add_count()} function.
+The fastpath spans lines~5-20, and the slowpath lines~21-35.
+Line~5 sets the per-thread \url{counting} variable to 1 so that
+any subsequent signal handlers interrupting this thread will
+set the \url{theft} state to ACK rather than READY, allowing this
+fastpath to complete properly.
+Line~6 prevents the compiler from reordering any of the fastpath body
+to preceed the setting of \url{counting}.
+Lines~7 and 8 check to see if the per-thread data can accommodate
+the \url{add_count()} and if there is no ongoing theft in progress,
+and if so line~9 does the fastpath addition and line~10 notes that
+the fastpath was taken.
+
+In either case, line~12 prevents the compiler from reordering the
+fastpath body to follow line~13, which permits any subsequent signal
+handlers to undertake theft.
+Line~14 again disables compiler reordering, and then line~15
+checks to see if the signal handler deferred the \url{theft}
+state-change to READY, and, if so, line~16 executes a memory
+barrier to ensure that any CPU that sees line~17 setting state to
+READY also sees the effects of line~9.
+If the fastpath addition at line~9 was executed, then line~20 returns
+success.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 unsigned long read_count(void)
+  2 {
+  3   int t;
+  4   unsigned long sum;
+  5 
+  6   spin_lock(&gblcnt_mutex);
+  7   sum = globalcount;
+  8   for_each_thread(t)
+  9     if (counterp[t] != NULL)
+ 10       sum += *counterp[t];
+ 11   spin_unlock(&gblcnt_mutex);
+ 12   return sum;
+ 13 }
+\end{verbatim}
+}
+\caption{Signal-Theft Limit Counter Read Function}
+\label{fig:count:Signal-Theft Limit Counter Read Function}
+\end{figure}
+
+Otherwise, we fall through to the slowpath starting at line~21.
+The structure of the slowpath is similar to those of earlier examples,
+so its analysis is left as an exercise to the reader.
+Similarly, the structure of \url{sub_count()} on lines~38-71 is the same
+as that of \url{add_count()}, so the analysis of \url{sub_count()} is also
+left as an exercise for the reader, as is the analysis of
+\url{read_count()} in
+Figure~\ref{fig:count:Signal-Theft Limit Counter Read Function}.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void count_init(void)
+  2 {
+  3   struct sigaction sa;
+  4 
+  5   sa.sa_handler = flush_local_count_sig;
+  6   sigemptyset(&sa.sa_mask);
+  7   sa.sa_flags = 0;
+  8   if (sigaction(SIGUSR1, &sa, NULL) != 0) {
+  9     perror("sigaction");
+ 10     exit(-1);
+ 11   }
+ 12 }
+ 13 
+ 14 void count_register_thread(void)
+ 15 {
+ 16   int idx = smp_thread_id();
+ 17 
+ 18   spin_lock(&gblcnt_mutex);
+ 19   counterp[idx] = &counter;
+ 20   countermaxp[idx] = &countermax;
+ 21   theftp[idx] = &theft;
+ 22   spin_unlock(&gblcnt_mutex);
+ 23 }
+ 24 
+ 25 void count_unregister_thread(int nthreadsexpected)
+ 26 {
+ 27   int idx = smp_thread_id();
+ 28 
+ 29   spin_lock(&gblcnt_mutex);
+ 30   globalize_count();
+ 31   counterp[idx] = NULL;
+ 32   countermaxp[idx] = NULL;
+ 33   theftp[idx] = NULL;
+ 34   spin_unlock(&gblcnt_mutex);
+ 35 }
+\end{verbatim}
+}
+\caption{Signal-Theft Limit Counter Initialization Functions}
+\label{fig:count:Signal-Theft Limit Counter Initialization Functions}
+\end{figure}
+
+Lines~1-12 of
+Figure~\ref{fig:count:Signal-Theft Limit Counter Initialization Functions}
+show \url{count_init()}, which set up \url{flush_local_count_sig()}
+as the signal handler for \url{SIGUSR1},
+enabling the \url{pthread_kill()} calls in \url{flush_local_count()}
+to invoke \url{flush_local_count_sig()}.
+The code for thread registry and unregistry is similar to that of
+earlier examples, so its analysis is left as an exercise for the
+reader.
+
+\subsection{Signal-Theft Limit Counter Discussion}
+
+The signal-theft implementation runs more than twice as fast as the
+atomic implementation on my Intel Core Duo laptop.
+Is it always preferable?
+
+The signal-theft implementation would be vastly preferable on Pentium-4
+systems, given their slow atomic instructions, but the old 80386-based
+Sequent Symmetry systems would do much better with the shorter path
+length of the atomic implementation.
+If ultimate performance is of the essence, you will need to measure
+them both on the system that your application is to be deployed on.
+
+This is but one reason why high-quality APIs are so important:
+they permit implementations to be changed as required by ever-changing
+hardware performance characteristics.
 
 \section{Applying Specialized Parallel Counters}
 \label{sec:count:Applying Specialized Parallel Counters}

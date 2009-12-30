@@ -1506,7 +1506,7 @@ ret = ~ret & tmp;
 \QuickQ{}
 	Yecch!!!
 	Why the ugly \url{goto} on line~11 of
-	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}?
+	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}?
 	Haven't you heard of the \url{break} statement???
 \QuickA{}
 	Replacing the \url{goto} with a \url{break} would require keeping
@@ -1520,7 +1520,7 @@ ret = ~ret & tmp;
 
 \QuickQ{}
 	Why would the \url{atomic_cmpxchg()} primitive at lines~13-14 of
-	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}
+	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}
 	ever fail?
 	After all, we picked up its old value on line~9 and have not
 	changed it!
@@ -1529,7 +1529,7 @@ ret = ~ret & tmp;
 	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
 	might update this thread's \url{counterandmax} variable concurrently
 	with the execution of the fastpath on lines~8-14 of
-	Figure~\ref{fig:count:Atomic Limit Counter Add, Subtract, and Read}.
+	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}.
 
 \QuickQ{}
 	What stops a thread from simply refilling its
@@ -1586,6 +1586,123 @@ ret = ~ret & tmp;
 	The caller of both \url{balance_coiunt()} and
 	\url{flush_local_count()} hold \url{gblcnt_mutex}, so
 	only one may be executing at a given time.
+
+\QuickQ{}
+	In Figure~\ref{fig:count:Signal-Theft State Machine}, why is
+	the REQ \url{theft} state colored blue?
+\QuickA{}
+	To indicate that only the fastpath is permitted to change the
+	\url{theft} state.
+
+\QuickQ{}
+	In Figure~\ref{fig:count:Signal-Theft State Machine}, what is
+	the point of having separate REQ and ACK \url{theft} states?
+	Why not simplify the state machine by collapsing
+	them into a single state?
+	Then whichever of the signal handler or the fastpath gets there
+	first could set the state to READY.
+\QuickA{}
+	Reasons why collapsing the REQ and ACK states would be a very
+	bad idea include:
+	\begin{enumerate}
+	\item	The slowpath uses the REQ and ACK states to determine
+		whether the signal should be retransmitted.
+		If the states were collapsed, the slowpath would have
+		no choice but to send redundant signals, which would
+		have the unhelpful effect of slowing down the fastpath.
+	\item	The following race would result:
+		\begin{enumerate}
+		\item	The slowpath sets a given thread's state to REQACK.
+		\item	That thread has just finished its fastpath, and
+			notes the REQACK state.
+		\item	The thread receives the signal, which also notes
+			the REQACK state, and, because there is no fastpath
+			in effect, sets the state to READY.
+		\item	The slowpath notes the READY state, steals the
+			count, and sets the state to IDLE, and completes.
+		\item	The fastpath sets the state to READY, disabling
+			further fastpath execution for this thread.
+		\end{enumerate}
+		The basic problem here is that the combined REQACK state
+		can be referenced by both the signal handler and the
+		fastpath.
+		The clear separation maintained by the four-state
+		setup ensures orderly state transitions.
+	\end{enumerate}
+	That said, you might well be able to make a three-state setup
+	work correctly.
+	If you do succeed, compare carefully to the four-state setup.
+	Is the three-state solution really preferable, and why or why not?
+
+\QuickQ{}
+	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}
+	function \url{flush_local_count_sig()}, why are there
+	\url{ACCESS_ONCE()} wrappers around the uses of the
+	\url{theft} per-thread variable?
+\QuickA{}
+	The first one one line~11 can be argued to be unnecessary.
+	The last two (lines~14 and 16) are important.
+	If these are removed, the compiler would be within its rights
+	to rewrite lines~14-17 as follows:
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\small
+	\begin{verbatim}
+ 14   theft = THEFT_READY;
+ 15   if (counting) {
+ 16     theft = THEFT_ACK;
+ 17   }
+	\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+	This would be fatal, as the slowpath might see the transient
+	value of \url{THEFT_READY}, and start stealing before the
+	corresponding thread was ready.
+
+\QuickQ{}
+	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions},
+	why is it safe for line~28 to directly access the other thread's
+	\url{countermax} variable?
+\QuickA{}
+	Because the other thread is not permitted to change the value
+	of its \url{countermax} variable unless it holds the
+	\url{gblcnt_mutex} lock.
+	But the caller has acquired this lock, so it is not possible
+	for the other thread to hold it, and therefore the other thread
+	is not permitted to change its \url{countermax} variable.
+	We can therefore safely access it --- but not change it.
+
+\QuickQ{}
+	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions},
+	why doesn't line~33 check for the current thread sending itself
+	a signal?
+\QuickA{}
+	There is no need for an additional check.
+	The caller of \url{flush_local_count()} has already invoked
+	\url{globalize_count()}, so the check on line~28 will have
+	succeeded, skipping the later \url{pthread_kill()}.
+
+\QuickQ{}
+	The code in
+	Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions},
+	works with gcc and POSIX.
+	What would be required to make it also conform to the ISO C standard?
+\QuickA{}
+	The \url{theft} variable must be of type \url{sig_atomic_t}
+	to guarantee that it can be safely shared between the signal
+	handler and the code interrupted by the signal.
+
+\QuickQ{}
+	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}, why does line~41 resend the signal?
+\QuickA{}
+	Because many operating systems over several decades have
+	had the property of losing the occasional signal.
+	Whether this is a feature or a bug is debatable, but
+	irrelevant.
+	The obvious symptom from the user's viewpoint will not be
+	a kernel bug, but rather a user application hanging.
+
+	\emph{Your} user application hanging!
 
 \QuickQ{}
 	The \url{++} operator works just fine for 1,000-digit numbers!!!
