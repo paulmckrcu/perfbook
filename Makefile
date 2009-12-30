@@ -117,10 +117,6 @@ EPSSOURCES = \
 	appendix/whymb/cacheSC.eps \
 	appendix/whymb/cacheSCwrite.eps \
 	appendix/whymb/hostileordering.eps \
-	count/GlobalInc.eps \
-	count/GlobalTreeInc.eps \
-	count/PerThreadInc.eps \
-	cpu/SystemArch.eps \
 	cartoons/CPU_toon_outoforder_colored.eps \
 	cartoons/LD,ACQ.eps \
 	cartoons/ManyFighting.eps \
@@ -136,6 +132,12 @@ EPSSOURCES = \
 	cartoons/trackmeet.eps \
 	cartoons/whippersnapper300.eps \
 	cartoons/whippersnapper600.eps \
+	count/GlobalInc.eps \
+	count/GlobalTreeInc.eps \
+	count/PerThreadInc.eps \
+	count/count_lim.eps \
+	count/sig-theft.eps \
+	cpu/SystemArch.eps \
 	defer/GracePeriodGood.eps \
 	defer/Linux_hlist.eps \
 	defer/Linux_list_abbr.eps \
@@ -198,6 +200,9 @@ SMPdesign/DiningPhilosopher4part-b.eps: SMPdesign/DiningPhilosopher4part-b.tex
 SMPdesign/DiningPhilosopher5PEM.eps: SMPdesign/DiningPhilosopher5PEM.tex
 	latex -output-directory=$(shell dirname $<) $<
 	dvips -E $(patsubst %.tex,%.dvi,$<) -o $@
+
+count/sig-theft.eps: count/sig-theft.dot
+	dot -Tps -o count/sig-theft.eps count/sig-theft.dot
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
