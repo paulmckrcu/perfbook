@@ -50,12 +50,12 @@ static void globalize_count(void)
 
 static void flush_local_count_sig(int unused)
 {
-	if (theft != THEFT_REQ)
+	if (ACCESS_ONCE(theft) != THEFT_REQ)
 		return;
 	smp_mb();
-	theft = THEFT_ACK;
+	ACCESS_ONCE(theft) = THEFT_ACK;
 	if (!counting) {
-		theft = THEFT_READY;
+		ACCESS_ONCE(theft) = THEFT_READY;
 	}
 	smp_mb();
 }
@@ -83,9 +83,9 @@ static void flush_local_count(void)
 				pthread_kill(tid, SIGUSR1);
 		}
 		globalcount += *counterp[t];
-		counterp[t] = 0;
+		*counterp[t] = 0;
 		globalreserve -= *countermaxp[t];
-		countermaxp[t] = 0;
+		*countermaxp[t] = 0;
 		*theftp[t] = THEFT_IDLE;
 	}
 }
