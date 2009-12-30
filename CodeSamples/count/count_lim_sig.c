@@ -68,25 +68,25 @@ static void flush_local_count(void)
 	for_each_tid(t, tid)
 		if (theftp[t] != NULL) {
 			if (*countermaxp[t] == 0) {
-				*theftp[t] = THEFT_READY;
+				ACCESS_ONCE(*theftp[t]) = THEFT_READY;
 				continue;
 			}
-			*theftp[t] = THEFT_REQ;
+			ACCESS_ONCE(*theftp[t]) = THEFT_REQ;
 			pthread_kill(tid, SIGUSR1);
 		}
 	for_each_tid(t, tid) {
 		if (theftp[t] == NULL)
 			continue;
-		while (*theftp[t] != THEFT_READY) {
+		while (ACCESS_ONCE(*theftp[t]) != THEFT_READY) {
 			poll(NULL, 0, 1);
-			if (*theftp[t] == THEFT_REQ)
+			if (ACCESS_ONCE(*theftp[t]) == THEFT_REQ)
 				pthread_kill(tid, SIGUSR1);
 		}
 		globalcount += *counterp[t];
 		*counterp[t] = 0;
 		globalreserve -= *countermaxp[t];
 		*countermaxp[t] = 0;
-		*theftp[t] = THEFT_IDLE;
+		ACCESS_ONCE(*theftp[t]) = THEFT_IDLE;
 	}
 }
 
@@ -109,16 +109,16 @@ int add_count(unsigned long delta)
 
 	counting = 1;
 	barrier();
-	if (countermax - counter >= delta && theft <= THEFT_REQ) {
+	if (countermax - counter >= delta && ACCESS_ONCE(theft) <= THEFT_REQ) {
 		counter += delta;
 		fastpath = 1;
 	}
 	barrier();
 	counting = 0;
 	barrier();
-	if (theft == THEFT_ACK) {
+	if (ACCESS_ONCE(theft) == THEFT_ACK) {
 		smp_mb();
-		theft = THEFT_READY;
+		ACCESS_ONCE(theft) = THEFT_READY;
 	}
 	if (fastpath)
 		return 1;
@@ -150,9 +150,9 @@ int sub_count(unsigned long delta)
 	barrier();
 	counting = 0;
 	barrier();
-	if (theft == THEFT_ACK) {
+	if (ACCESS_ONCE(theft) == THEFT_ACK) {
 		smp_mb();
-		theft = THEFT_READY;
+		ACCESS_ONCE(theft) = THEFT_READY;
 	}
 	if (fastpath)
 		return 1;
