@@ -619,7 +619,10 @@ the lock.
 The \url{pdeq_enqueue_r()} implementation (shown on lines~49-56)
 is quite similar.
 
-This compound implementation is somewhat more complex than the
+\subsubsection{Double-Ended Queue Discussion}
+\label{sec:SMPdesign:Double-Ended Queue Discussion}
+
+The compound implementation is somewhat more complex than the
 hashed variant presented in
 Section~\ref{sec:SMPdesign:Hashed Double-Ended Queue},
 but is still reasonably simple.
@@ -627,12 +630,26 @@ Of course, a more intelligent rebalancing scheme could be arbitrarily
 complex, but the simple scheme shown here will work well in a number
 of reasonable situations.
 
+The key point is that there can be significant overhead enqueueing to
+or dequeueing from a shared queue.
+It is therefore critically important that the overhead of the typical
+unit of work be quite large compared to the enqueue/dequeue overhead.
+
 \subsection{Partitioning Example Discussion}
 \label{sec:SMPdesign:Partitioning Example Discussion}
 
-In contrast to the dining philosophers solution, the double-ended
+The optimal solution to the dining philosophers problem given in
+the answer to the Quick Quiz in
+Section~\ref{sec:SMPdesign:Dining Philosophers Problem}
+is an excellent example of ``horizontal parallelism'' or
+``data parallelism''.
+The synchronization overhead in this case is nearly (or even exactly)
+zero.
+In contrast, the double-ended
 queue implementations are examples of ``vertical parallelism'' or
 ``pipelining'', given that data moves from one thread to another.
+The tighter coordination required for pipelining in turn requires
+larger units of work to obtain a given level of efficiency.
 
 \QuickQuiz{}
 	Is there a significantly better way of handling concurrency
@@ -646,7 +663,8 @@ queue implementations are examples of ``vertical parallelism'' or
 	to 2.0.
 	In contrast, horizontal-scaling designs can enable very large
 	speedups, and are especially attractive if there are multiple threads
-	working either end of the queue, because in this case the dequeue
+	working either end of the queue, because in this
+	mulitiple-thread case the dequeue
 	simply cannot provide strong ordering guarantees.
 	And if there are no guarantees, we may as well obtain the
 	performance benefits that come with refusing to provide the
