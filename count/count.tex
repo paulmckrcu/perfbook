@@ -30,6 +30,7 @@ counting.
 } \QuickQuizEnd
 
 \QuickQuiz{}
+	{ \bfseries Network-packet counting problem. }
 	Suppose that you need to collect statistics on the number
 	of networking packets (or total number of bytes) transmitted
 	and/or received.
@@ -59,12 +60,14 @@ counting.
 } \QuickQuizEnd
 
 \QuickQuiz{}
+	{ \bfseries Approximate structure-allocation limit problem. }
 	Suppose that you need to maintain a count of the number of
 	structures allocated in order to fail any allocations
 	once the number of structures in use exceeds a limit
 	(say, 10,000).
 	Suppose further that these structures are short-lived,
-	and that the limit is rarely exceeded.
+	that the limit is rarely exceeded, and that a ``sloppy''
+	approximate limit is acceptable.
 \QuickQuizAnswer{
 	Hint: the act of updating the counter must be blazingly
 	fast, but the counter is read out each time that the
@@ -73,18 +76,19 @@ counting.
 	\emph{except} that it absolutely must distinguish perfectly
 	between values below the limit and values greater than or
 	equal to the limit.
-	See Section~\ref{sec:count:Limit Counters}.
+	See Section~\ref{sec:count:Approximate Limit Counters}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
+	{ \bfseries Exact structure-allocation limit problem. }
 	Suppose that you need to maintain a count of the number of
 	structures allocated in order to fail any allocations
-	once the number of structures in use exceeds a limit
+	once the number of structures in use exceeds an exact limit
 	(say, 10,000).
 	Suppose further that these structures are short-lived,
 	and that the limit is rarely exceeded, that there is almost
 	always at least one structure in use, and suppose further
-	still that it is necessary to know when this counter reaches
+	still that it is necessary to know exactly when this counter reaches
 	zero, for example, in order to free up some memory
 	that is not required unless there is at least one structure
 	in use.
@@ -97,10 +101,11 @@ counting.
 	between values between the limit and zero on the one hand,
 	and values that either are less than or equal to zero or
 	are greater than or equal to the limit on the other hand.
-	See Section~\ref{sec:count:Applying Specialized Parallel Counters}.
+	See Section~\ref{sec:count:Exact Limit Counters}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
+	{ \bfseries Removable I/O device access-count problem. }
 	Suppose that you need to maintain a reference count on a
 	heavily used removable mass-storage device, so that you
 	can tell the user when it is safe to removed the device.
@@ -109,7 +114,8 @@ counting.
 	the system tells the user when it is safe to do so.
 \QuickQuizAnswer{
 	Hint: the act of updating the counter must be blazingly
-	fast, but because the counter is read out only when the
+	fast and scalable in order to avoid slowing down I/O operations,
+	but because the counter is read out only when the
 	user wishes to remove the device, the counter read-out
 	operation can be extremely slow.
 	Furthermore, there is no need to be able to read out
@@ -304,7 +310,7 @@ For another perspective on global atomic increment, consider
 Figure~\ref{fig:count:Data Flow For Global Atomic Increment}.
 In order for each CPU to get a chance to increment a given
 global variable, the cache line containing that variable must
-circulate among all the CPUs, as shows by the red arrows.
+circulate among all the CPUs, as shown by the red arrows.
 Such circulation will take significant time, resulting in
 the poor performance seen in
 Figure~\ref{fig:count:Atomic Increment Scalability on Nehalem}.
@@ -375,6 +381,9 @@ avoids the delays inherent in such circulation.
 This section covers the common special case of statistical counters, where
 the count is updated extremely frequently and the value is read out
 rarely, if ever.
+These will be used to solve the network-packet counting problem
+from the Quick Quiz on
+page~\pageref{chp:Counting}.
 
 \subsection{Design}
 
@@ -475,6 +484,31 @@ normal loads suffice, and no special atomic instructions are required.
 	which are incapable of atomically loading a \url{long}.
 	An upcoming version of the C standard aims to fill this gap,
 	but until then, we depend on the kindness of the gcc developers.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	How does the per-thread \url{counter} variable in
+	Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}
+	get initialized?
+\QuickQuizAnswer{
+	The C standard specifies that the initial value of
+	global variables is zero, unless they are explicitly initialized.
+	So the initial value of all the instances of \url{counter}
+	will be zero.
+
+	That said, one often takes differences of consecutive reads
+	from statistical counters, in which case the initial value
+	is irrelevant.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	How is the code in
+	Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}
+	supposed to permit more than one counter???
+\QuickQuizAnswer{
+	Indeed, this toy example does not support more than one counter.
+	Modifying it so that it can provide multiple counters is left
+	as an exercise to the reader.
 } \QuickQuizEnd
 
 \begin{figure}[tb]
@@ -812,12 +846,14 @@ Given what has been presented in this section, you should now be able
 to answer the Quick Quiz about statistical counters for networking
 near the beginning of this chapter.
 
-\section{Limit Counters}
-\label{sec:count:Limit Counters}
+\section{Approximate Limit Counters}
+\label{sec:count:Approximate Limit Counters}
 
 Another special case of counting involves limit-checking.
-For example, as noted in the Quick Quiz at the beginning of this
-chapter, suppose that you need to maintain a count of the number of
+For example, as noted in the approximate structure-allocation limit
+problem in the Quick Quiz on
+page~\pageref{chp:Counting},
+suppose that you need to maintain a count of the number of
 structures allocated in order to fail any allocations once the number
 of structures in use exceeds a limit, in this case, 10,000.
 Suppose further that these structures are short-lived, and that this
@@ -1334,9 +1370,19 @@ will cause a workload-dependent fraction of accesses to fall off the
 fastpath.
 As the number of threads increase, non-fastpath execution will become both
 a performance and a scalability problem.
+However, we will defer this problem and turn instead to counters
+with exact limits.
 
-Another way of more gracefully handling operations near the limits is
-to cause threads that have reserved counts to give them up.
+\section{Exact Limit Counters}
+\label{sec:count:Exact Limit Counters}
+
+To solve the exact structure-allocation limit problem noted in the
+Quick Quiz on
+page~\pageref{chp:Counting},
+we need a limit counter that can tell exactly when its limits are
+exceeded.
+One way of implementing such a limit counter is to
+cause threads that have reserved counts to give them up.
 One way to do this is to use atomic instructions.
 Of course, atomic instructions will slow down the fastpath, but on the
 other hand, it would be silly not to at least give them a try.
@@ -2366,15 +2412,137 @@ This is but one reason why high-quality APIs are so important:
 they permit implementations to be changed as required by ever-changing
 hardware performance characteristics.
 
+\QuickQuiz{}
+	What if you want an exact limit counter to be exact only for
+	its lower limit?
+\QuickQuizAnswer{
+	One simple solution is to overstate the upper limit by the
+	desired amount.
+	The limiting case of such overstatement results in the
+	upper limit being se to the largest value that the counter is
+	capable of representing.
+} \QuickQuizEnd
+
 \section{Applying Specialized Parallel Counters}
 \label{sec:count:Applying Specialized Parallel Counters}
 
-Bias value for tracking small numbers when only care sometimes.
+Although the exact limit counter implementations in
+Section~\ref{sec:count:Exact Limit Counters}
+can be very useful, they are not much help if the counter's value
+remains near zero at all times, as it might when counting the number
+of outstanding accesses to an I/O device.
+The high overhead of such near-zero counting is especially painful
+given that we normally don't care how many references there are.
+As noted in the removable I/O device access-count problem on
+page~\pageref{chp:Counting},
+the number of accesses is irrelevant except in those rare cases when
+someone is actually trying to remove the device.
 
-Reader-writer lock (or brlock) for atomic decision.
+One simple solution to this problem is to add a large ``bias''
+(for example, one billion) to the
+counter in order to ensure that the value is far enough from zero that
+the counter can operate efficiently.
+When someone wants to remove the device, this bias is subtracted from
+the counter value.
+Counting the last few accesses will be quite inefficient,
+but the important point is that the many prior accesses will have been
+been counted at full speed.
 
-Combination of bias and rwlock -- but rwlock only when bias removed.
-How to mediate switch from not using rwlock to using it?  See Defer...
+\QuickQuiz{}
+	What else had you better have done when using a biased counter?
+\QuickQuizAnswer{
+	You had better have set the upper limit to be large enough
+	accommodate the bias, the expected maximum number of accesses,
+	and enough ``slop'' to allow the counter to work efficiently
+	even when the number of accesses is at its maximum.
+} \QuickQuizEnd
+
+Although a biased counter can be quite helpful and useful, it is only a
+partial solution to the removable I/O device access-count problem
+called out on
+page~\pageref{chp:Counting}.
+When attempting to remove a device, we must not only know the precise
+number of current I/O accesses, we also need to prevent any future
+accesses from starting.
+One way to accomplish this is to read-acquire a reader-writer lock
+when updating the counter, and to write-acquire that same reader-writer
+lock when checking the counter.
+Code for doing I/O might be as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 read_lock(&mylock);
+  2 if (removing) {
+  3   read_unlock(&mylock);
+  4   cancel_io();
+  5 } else {
+  6   add_count(1);
+  7   read_unlock(&mylock);
+  8   do_io();
+  9   sub_count(1);
+ 10 }
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+Line~1 read-acquires the lock, and either line~3 or 7 releases it.
+Line~2 checks to see if the device is being removed, and, if so,
+line~3 releases the lock and line~4 cancels the I/O, or takes whatever
+action is appropriate given that the device is to be removed.
+Otherwise, line~6 increments the access count, line~7 releases the
+lock, line~8 performs the I/O, and line~9 decrements the access count.
+
+The code to remove the device might be as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 write_lock(&mylock);
+  2 removing = 1;
+  3 sub_count(mybias);
+  4 write_unlock(&mylock);
+  5 while (read_count() != 0) {
+  6   poll(NULL, 0, 1);
+  7 }
+  8 remove_device();
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+Line~1 write-acquires the lock and line~3 releases it.
+Line~2 notes that the device is being removed, and the loop spanning
+lines~5-7 wait for any I/O operations to complete.
+Finally, line~8 does any additional processing needed to prepare for
+device removal.
+
+\QuickQuiz{}
+	What other issues would need to be accounted for in a real system?
+\QuickQuizAnswer{
+	A huge number!!!
+
+	Here are a few to start with:
+
+	\begin{enumerate}
+	\item	There could be any number of devices, so that the
+		global variables are inappropriate, as are the
+		lack of arguments to functions like \url{do_io()}.
+	\item	Polling loops can be problematic in real systems.
+		In many cases, it is far better to have the last
+		completing I/O wake up the device-removal thread.
+	\item	The I/O might fail, and so \url{do_io()} will likely
+		need a return value.
+	\item	If the device fails, the last I/O might never complete.
+		In such cases, there might need to be some sort of
+		timeout to allow error recovery.
+	\item	Both \url{add_count()} and \url{sub_count()} can
+		fail, but their return values are not checked.
+	\item	Reader-writer locks do not scale well
+		@@@ more here @@@.
+	\end{enumerate}
+} \QuickQuizEnd
 
 \section{Parallel Counting Discussion}
 \label{sec:count:Parallel Counting Discussion}

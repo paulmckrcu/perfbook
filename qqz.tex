@@ -960,6 +960,7 @@ ret = ~ret & tmp;
 	Section~\ref{sec:count:Why Isn't Concurrent Counting Trivial?}.
 
 \QuickQ{}
+	{ \bfseries Network-packet counting problem. }
 	Suppose that you need to collect statistics on the number
 	of networking packets (or total number of bytes) transmitted
 	and/or received.
@@ -988,12 +989,14 @@ ret = ~ret & tmp;
 	See Section~\ref{sec:count:Statistical Counters}.
 
 \QuickQ{}
+	{ \bfseries Approximate structure-allocation limit problem. }
 	Suppose that you need to maintain a count of the number of
 	structures allocated in order to fail any allocations
 	once the number of structures in use exceeds a limit
 	(say, 10,000).
 	Suppose further that these structures are short-lived,
-	and that the limit is rarely exceeded.
+	that the limit is rarely exceeded, and that a ``sloppy''
+	approximate limit is acceptable.
 \QuickA{}
 	Hint: the act of updating the counter must be blazingly
 	fast, but the counter is read out each time that the
@@ -1002,17 +1005,18 @@ ret = ~ret & tmp;
 	\emph{except} that it absolutely must distinguish perfectly
 	between values below the limit and values greater than or
 	equal to the limit.
-	See Section~\ref{sec:count:Limit Counters}.
+	See Section~\ref{sec:count:Approximate Limit Counters}.
 
 \QuickQ{}
+	{ \bfseries Exact structure-allocation limit problem. }
 	Suppose that you need to maintain a count of the number of
 	structures allocated in order to fail any allocations
-	once the number of structures in use exceeds a limit
+	once the number of structures in use exceeds an exact limit
 	(say, 10,000).
 	Suppose further that these structures are short-lived,
 	and that the limit is rarely exceeded, that there is almost
 	always at least one structure in use, and suppose further
-	still that it is necessary to know when this counter reaches
+	still that it is necessary to know exactly when this counter reaches
 	zero, for example, in order to free up some memory
 	that is not required unless there is at least one structure
 	in use.
@@ -1025,9 +1029,10 @@ ret = ~ret & tmp;
 	between values between the limit and zero on the one hand,
 	and values that either are less than or equal to zero or
 	are greater than or equal to the limit on the other hand.
-	See Section~\ref{sec:count:Applying Specialized Parallel Counters}.
+	See Section~\ref{sec:count:Exact Limit Counters}.
 
 \QuickQ{}
+	{ \bfseries Removable I/O device access-count problem. }
 	Suppose that you need to maintain a reference count on a
 	heavily used removable mass-storage device, so that you
 	can tell the user when it is safe to removed the device.
@@ -1036,7 +1041,8 @@ ret = ~ret & tmp;
 	the system tells the user when it is safe to do so.
 \QuickA{}
 	Hint: the act of updating the counter must be blazingly
-	fast, but because the counter is read out only when the
+	fast and scalable in order to avoid slowing down I/O operations,
+	but because the counter is read out only when the
 	user wishes to remove the device, the counter read-out
 	operation can be extremely slow.
 	Furthermore, there is no need to be able to read out
@@ -1210,6 +1216,29 @@ ret = ~ret & tmp;
 	which are incapable of atomically loading a \url{long}.
 	An upcoming version of the C standard aims to fill this gap,
 	but until then, we depend on the kindness of the gcc developers.
+
+\QuickQ{}
+	How does the per-thread \url{counter} variable in
+	Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}
+	get initialized?
+\QuickA{}
+	The C standard specifies that the initial value of
+	global variables is zero, unless they are explicitly initialized.
+	So the initial value of all the instances of \url{counter}
+	will be zero.
+
+	That said, one often takes differences of consecutive reads
+	from statistical counters, in which case the initial value
+	is irrelevant.
+
+\QuickQ{}
+	How is the code in
+	Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}
+	supposed to permit more than one counter???
+\QuickA{}
+	Indeed, this toy example does not support more than one counter.
+	Modifying it so that it can provide multiple counters is left
+	as an exercise to the reader.
 
 \QuickQ{}
 	Why do we need an explicit array to find the other threads'
@@ -1703,6 +1732,49 @@ ret = ~ret & tmp;
 	a kernel bug, but rather a user application hanging.
 
 	\emph{Your} user application hanging!
+
+\QuickQ{}
+	What if you want an exact limit counter to be exact only for
+	its lower limit?
+\QuickA{}
+	One simple solution is to overstate the upper limit by the
+	desired amount.
+	The limiting case of such overstatement results in the
+	upper limit being se to the largest value that the counter is
+	capable of representing.
+
+\QuickQ{}
+	What else had you better have done when using a biased counter?
+\QuickA{}
+	You had better have set the upper limit to be large enough
+	accommodate the bias, the expected maximum number of accesses,
+	and enough ``slop'' to allow the counter to work efficiently
+	even when the number of accesses is at its maximum.
+
+\QuickQ{}
+	What other issues would need to be accounted for in a real system?
+\QuickA{}
+	A huge number!!!
+
+	Here are a few to start with:
+
+	\begin{enumerate}
+	\item	There could be any number of devices, so that the
+		global variables are inappropriate, as are the
+		lack of arguments to functions like \url{do_io()}.
+	\item	Polling loops can be problematic in real systems.
+		In many cases, it is far better to have the last
+		completing I/O wake up the device-removal thread.
+	\item	The I/O might fail, and so \url{do_io()} will likely
+		need a return value.
+	\item	If the device fails, the last I/O might never complete.
+		In such cases, there might need to be some sort of
+		timeout to allow error recovery.
+	\item	Both \url{add_count()} and \url{sub_count()} can
+		fail, but their return values are not checked.
+	\item	Reader-writer locks do not scale well
+		@@@ more here @@@.
+	\end{enumerate}
 
 \QuickQ{}
 	The \url{++} operator works just fine for 1,000-digit numbers!!!
