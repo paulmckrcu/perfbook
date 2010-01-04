@@ -315,3 +315,70 @@ It is hoped that compiler and library writers employ user-level
 RCU~\cite{MathieuDesnoyers2009URCU} to provide safe cross-thread
 access to \url{__thread} variables, greatly reducing the
 complexity seen by users of \url{__thread} variables.
+
+\section{RCU and Counters for Removable I/O Devices}
+\label{sec:count:RCU and Counters for Removable I/O Devices}
+
+Section~\ref{sec:count:Applying Specialized Parallel Counters}
+showed a fanciful pair of code fragments for dealing with counting
+I/O accesses to removable devices.
+These code fragments suffered from high overhead on the fastpath
+(starting an I/O) due to the need to acquire a reader-writer
+lock.
+
+This section shows how RCU may be used to avoid this overhead.
+
+The code for performing an I/O is quite similar to the original, with
+an RCU read-side critical section be substituted for the reader-writer
+lock read-side critical section in the original:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 rcu_read_lock();
+  2 if (removing) {
+  3   rcu_read_unlock();
+  4   cancel_io();
+  5 } else {
+  6   add_count(1);
+  7   rcu_read_unlock();
+  8   do_io();
+  9   sub_count(1);
+ 10 }
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+The RCU read-side primitives have minimal overhead, thus speeding up
+the fastpath, as desired.
+
+The updated code fragment removing a device is as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 spin_lock(&mylock);
+  2 removing = 1;
+  3 sub_count(mybias);
+  4 spin_unlock(&mylock);
+  5 synchronize_rcu();
+  6 while (read_count() != 0) {
+  7   poll(NULL, 0, 1);
+  8 }
+  9 remove_device();
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+Here we replace the reader-writer lock with an exclusive spinlock and
+add a \url{synchronize_rcu()} to wait for all of the RCU read-side
+critical sections to complete.
+Because of the \url{synchronize_rcu()},
+once we reach line~6, we know that all remaining I/Os have been accounted
+for.
+
+Of course, the overhead of \url{synchronize_rcu()} can be large,
+but given that device removal is quite rare, this is usually a good
+tradeoff.
