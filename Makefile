@@ -1,6 +1,5 @@
 LATEXSOURCES = \
 	perfbook.tex \
-	ack.tex \
 	legal.tex \
 	preface.tex \
 	qqz.sty origpub.sty \
