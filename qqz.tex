@@ -2059,6 +2059,42 @@ ret = ~ret & tmp;
 	``s'' is the per-CPU pool size,
 	and ``n'' is the number of CPUs.
 
+\QuickQAC{chp:Locking}{Locking}
+\QuickQ{}
+	What if the element we need to delete is not the first element
+	of the list on line~8 of
+	Figure~\ref{fig:locking:Per-Element Locking Without Existence Guarantees}?
+\QuickA{}
+	This is a very simple hash table with no chaining, so the only
+	element in a given bucket is the first element.
+	The reader is invited to adapt this example to a hash table with
+	full chaining.
+
+\QuickQ{}
+	What race condition can occur in
+	Figure~\ref{fig:locking:Per-Element Locking Without Existence Guarantees}?
+\QuickA{}
+	Consider the following sequence of events:
+	\begin{enumerate}
+	\item	Thread~0 invokes \url{delete(0)}, and reaches line~10 of
+		the figure, acquiring the lock.
+	\item	Thread~1 concurrently invokes \url{delete(0)}, and reaches
+		line~10, but spins on the lock because Thread~1 holds it.
+	\item	Thread~0 executes lines~11-14, removing the element from
+		the hashtable, releasing the lock, and then freeing the
+		element.
+	\item	Thread~0 continues execution, and allocates memory, getting
+		the exact block of memory that it just freed.
+	\item	Thread~0 then initializes this block of memory as some
+		other type of structure.
+	\item	Thread~1's \url{spin_lock()} operation fails due to the
+		fact that what it believes to be \url{p->lock} is no longer
+		a spinlock.
+	\end{enumerate}
+	Because there is no existence guarantee, the identity of the
+	data element can change while a thread is attempting to acquire
+	that element's lock on line~10!
+
 \QuickQAC{chp:defer:Deferred Processing}{Deferred Processing}
 \QuickQ{}
 	Why not implement reference-acquisition using
@@ -2367,29 +2403,72 @@ srcu_read_unlock(&srcucb, idx);
 	The dip in overhead therefore might well be a statistical aberration.
 
 \QuickQ{}
-	What race condition can occur in
-	Figure~ref{fig:defer:Per-Element Locking Without Existence Guarantees}?
+	What if the element we need to delete is not the first element
+	of the list on line~9 of
+	Figure~\ref{fig:defer:Existence Guarantees Enable Per-Element Locking}?
 \QuickA{}
-	Consider the following sequence of events:
+	As with
+	Figure~\ref{fig:locking:Per-Element Locking Without Existence Guarantees},
+	this is a very simple hash table with no chaining, so the only
+	element in a given bucket is the first element.
+	The reader is again invited to adapt this example to a hash table with
+	full chaining.
+
+\QuickQ{}
+	Why is it OK to exit the RCU read-side critical section on
+	line~15 of
+	Figure~\ref{fig:defer:Existence Guarantees Enable Per-Element Locking}
+	before releasing the lock on line~17?
+\QuickA{}
+	First, please note that the second check on line~14 is
+	necessary because some other
+	CPU might have removed this element while we were waiting
+	to acquire the lock.
+	However, the fact that we were in an RCU read-side critical section
+	while acquiring the lock guarantees that this element could not
+	possibly have been re-allocated and re-inserted into this
+	hash table.
+	Furthermore, once we acquire the lock, the lock itself guarantees
+	the element's existence, so we no longer need to be in an
+	RCU read-side critical section.
+
+	The question as to whether it is necessary to re-check the
+	element's key is left as an exercise to the reader.
+
+\QuickQ{}
+	Why not exit the RCU read-side critical section on
+	line~23 of
+	Figure~\ref{fig:defer:Existence Guarantees Enable Per-Element Locking}
+	before releasing the lock on line~22?
+\QuickA{}
+	Suppose we reverse the order of these two lines.
+	Then this code is vulnerable to the following sequence of
+	events:
 	\begin{enumerate}
-	\item	Thread~0 invokes \url{delete(0)}, and reaches line~10 of
-		the figure, acquiring the lock.
-	\item	Thread~1 concurrently invokes \url{delete(0)}, and reaches
-		line~10, but spins on the lock because Thread~1 holds it.
-	\item	Thread~0 executes lines~11-14, removing the element from
-		the hashtable, releasing the lock, and then freeing the
-		element.
-	\item	Thread~0 continues execution, and allocates memory, getting
-		the exact block of memory that it just freed.
-	\item	Thread~0 then initializes this block of memory as some
-		other type of structure.
-	\item	Thread~1's \url{spin_lock()} operation fails due to the
-		fact that what it believes to be \url{p->lock} is no longer
-		a spinlock.
+	\item	CPU~0 invokes \url{delete()}, and finds the element
+		to be deleted, executing through line~15.
+		It has not yet actually deleted the element, but
+		is about to do so.
+	\item	CPU~1 concurrently invokes \url{delete()}, attempting
+		to delete this same element.
+		However, CPU~0 still holds the lock, so CPU~1 waits
+		for it at line~13.
+	\item	CPU~0 executes lines~16 and 17, and blocks at
+		line~18 waiting for CPU~1 to exit its RCU read-side
+		critical section.
+	\item	CPU~1 now acquires the lock, but the test on line~14
+		fails because CPU~0 has already removed the element.
+		CPU~1 now executes line~22 (which we switched with line~23
+		for the purposes of this Quick Quiz)
+		and exits its RCU read-side critical section.
+	\item	CPU~0 can now return from \url{synchronize_rcu()},
+		and thus executes line~19, sending the element to
+		the freelist.
+	\item	CPU~1 now attempts to release a lock for an element
+		that has been freed, and, worse yet, possibly
+		reallocated as some other type of data structure.
+		This is a fatal memory-corruption error.
 	\end{enumerate}
-	Because there is no existence guarantee, the identity of the
-	data element can change while a thread is attempting to acquire
-	that element's lock on line~10!
 
 \QuickQ{}
 	But what if there is an arbitrarily long series of RCU
@@ -2745,8 +2824,8 @@ srcu_read_unlock(&srcucb, idx);
 	One could in fact use reader-writer locks in this manner.
 	However, textbook reader-writer locks suffer from memory
 	contention, so that the RCU read-side critical sections would
-	need to be quite long to actually permit parallel execution.
-	@@@ add reference to reader-writer locking discussion from LJ2003 @@@
+	need to be quite long to actually permit parallel
+	execution~\cite{McKenney03a}.
 
 	On the other hand, use of a reader-writer lock that is
 	read-acquired in \url{rcu_read_lock()} would avoid the
@@ -2992,8 +3071,7 @@ srcu_read_unlock(&srcucb, idx);
 	all having deterministic ($O(1)$) overheads and latencies?
 \QuickA{}
 	Special-purpose uniprocessor implementations of RCU can attain
-	this ideal.
-	See @@@.
+	this ideal~\cite{PaulEMcKenney2009BloatwatchRCU}.
 
 \QuickQ{}
 	If any even value is sufficient to tell \url{synchronize_rcu()}

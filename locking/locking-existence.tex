@@ -1,0 +1,122 @@
+% locking-existence.tex
+
+\section{Lock-Based Existence Guarantees}
+\label{sec:locking:Lock-Based Existence Guarantees}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 int delete(int key)
+  2 {
+  3   int b;
+  4   struct element *p;
+  5
+  6   b = hashfunction(key);
+  7   p = hashtable[b];
+  8   if (p == NULL || p->key != key)
+  9     return 0;
+ 10   spin_lock(&p->lock);
+ 11   hashtable[b] = NULL;
+ 12   spin_unlock(&p->lock);
+ 13   kfree(p);
+ 14   return 1;
+ 15 }
+\end{verbatim}
+}
+\caption{Per-Element Locking Without Existence Guarantees}
+\label{fig:locking:Per-Element Locking Without Existence Guarantees}
+\end{figure}
+
+A key challenge in parallel programming is to provide
+\emph{existence guarantees}~\cite{Gamsa99},
+so that attempts to delete an object that others are concurrently
+attempting to access are correctly resolved.
+Existence guarantees are extremely helpful in cases where a data
+element is to be protected by a lock or reference count that is
+located within the data element in question.
+Code failing to provide such guarantees is subject to subtle races,
+as shown in
+Figure~\ref{fig:locking:Per-Element Locking Without Existence Guarantees}.
+
+\QuickQuiz{}
+	What if the element we need to delete is not the first element
+	of the list on line~8 of
+	Figure~\ref{fig:locking:Per-Element Locking Without Existence Guarantees}?
+\QuickQuizAnswer{
+	This is a very simple hash table with no chaining, so the only
+	element in a given bucket is the first element.
+	The reader is invited to adapt this example to a hash table with
+	full chaining.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	What race condition can occur in
+	Figure~\ref{fig:locking:Per-Element Locking Without Existence Guarantees}?
+\QuickQuizAnswer{
+	Consider the following sequence of events:
+	\begin{enumerate}
+	\item	Thread~0 invokes \url{delete(0)}, and reaches line~10 of
+		the figure, acquiring the lock.
+	\item	Thread~1 concurrently invokes \url{delete(0)}, and reaches
+		line~10, but spins on the lock because Thread~1 holds it.
+	\item	Thread~0 executes lines~11-14, removing the element from
+		the hashtable, releasing the lock, and then freeing the
+		element.
+	\item	Thread~0 continues execution, and allocates memory, getting
+		the exact block of memory that it just freed.
+	\item	Thread~0 then initializes this block of memory as some
+		other type of structure.
+	\item	Thread~1's \url{spin_lock()} operation fails due to the
+		fact that what it believes to be \url{p->lock} is no longer
+		a spinlock.
+	\end{enumerate}
+	Because there is no existence guarantee, the identity of the
+	data element can change while a thread is attempting to acquire
+	that element's lock on line~10!
+} \QuickQuizEnd
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 int delete(int key)
+  2 {
+  3   int b;
+  4   struct element *p;
+  5   spinlock_t *sp;
+  6
+  7   b = hashfunction(key);
+  8   sp = &locktable[b];
+  9   spin_lock(sp);
+ 10   p = hashtable[b];
+ 11   if (p == NULL || p->key != key) {
+ 12     spin_unlock(sp);
+ 13     return 0;
+ 14   }
+ 15   hashtable[b] = NULL;
+ 16   spin_unlock(sp);
+ 17   kfree(p);
+ 18   return 1;
+ 19 }
+\end{verbatim}
+}
+\caption{Per-Element Locking With Lock-Based Existence Guarantees}
+\label{fig:locking:Per-Element Locking With Lock-Based Existence Guarantees}
+\end{figure}
+
+One way to fix this example is to use a hashed set of global locks, so
+that each hash bucket has its own lock, as shown in
+Figure~\ref{fig:locking:Per-Element Locking With Lock-Based Existence Guarantees}.
+This approach allows acquiring the proper lock (on line~9) before
+gaining a pointer to the data element (on line~10).
+Although this approach works quite well for elements contained in a
+single partitionable data structure such as the hash table shown in the
+figure, it can be problematic if a given data element can be a member
+of multiple hash tables or given more-complex data structures such
+as trees or graphs.
+These problems can be solved, in fact, such solutions form the basis
+of lock-based software transactional memory
+implementations~\cite{Shavit95,DaveDice2006DISC}.
+However,
+Section~\ref{sec:defer:RCU is a Way of Providing Existence Guarantees}
+describes a simpler way of providing existence guarantees for read-mostly
+data structures.

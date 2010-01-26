@@ -371,7 +371,7 @@ Fortunately,
 there are a number of approaches that avoid inconsistency and stale
 data~\cite{PaulEdwardMcKenneyPhD,Arcangeli03}, and some
 methods based on reference counting are discussed in
-Section~@@@.
+Section~\ref{sec:defer:Reference Counting}.
 
 \paragraph{Low-Priority RCU Readers Can Block High-Priority Reclaimers}
 
@@ -673,109 +673,14 @@ following section.
 Gamsa et al.~\cite{Gamsa99}
 discuss existence guarantees and describe how a mechanism
 resembling RCU can be used to provide these existence guarantees
-(see section~5 on page 7 of the PDF).
+(see section~5 on page 7 of the PDF), and
+Section~\ref{sec:locking:Lock-Based Existence Guarantees}
+discusses how to guarantee existence via locking, along with the
+ensuing disadvantages of doing so.
 The effect is that if any RCU-protected data element is accessed
 within an RCU read-side critical section, that data element is
 guaranteed to remain in existence for the duration of that RCU
 read-side critical section.
-
-@@@ move portions of the following to the locking chapter.
-
-\begin{figure}[tbp]
-{ \scriptsize
-\begin{verbatim}
-  1 int delete(int key)
-  2 {
-  3   int b;
-  4   struct element *p;
-  5
-  6   b = hashfunction(key);
-  7   p = hashtable[b];
-  8   if (p == NULL)
-  9     return 0;
- 10   spin_lock(&p->lock);
- 11   hashtable[b] = NULL;
- 12   spin_unlock(&p->lock);
- 13   kfree(p);
- 14   return 1;
- 15 }
-\end{verbatim}
-}
-\caption{Per-Element Locking Without Existence Guarantees}
-\label{fig:defer:Per-Element Locking Without Existence Guarantees}
-\end{figure}
-
-Existence guarantees are extremely helpful in cases where a data
-element is to be protected by a lock or reference count that is
-located within the data element in question.
-Code failing to provide such guarantees is subject to subtle races,
-as shown in
-Figure~ref{fig:defer:Per-Element Locking Without Existence Guarantees}.
-
-\QuickQuiz{}
-	What race condition can occur in
-	Figure~ref{fig:defer:Per-Element Locking Without Existence Guarantees}?
-\QuickQuizAnswer{
-	Consider the following sequence of events:
-	\begin{enumerate}
-	\item	Thread~0 invokes \url{delete(0)}, and reaches line~10 of
-		the figure, acquiring the lock.
-	\item	Thread~1 concurrently invokes \url{delete(0)}, and reaches
-		line~10, but spins on the lock because Thread~1 holds it.
-	\item	Thread~0 executes lines~11-14, removing the element from
-		the hashtable, releasing the lock, and then freeing the
-		element.
-	\item	Thread~0 continues execution, and allocates memory, getting
-		the exact block of memory that it just freed.
-	\item	Thread~0 then initializes this block of memory as some
-		other type of structure.
-	\item	Thread~1's \url{spin_lock()} operation fails due to the
-		fact that what it believes to be \url{p->lock} is no longer
-		a spinlock.
-	\end{enumerate}
-	Because there is no existence guarantee, the identity of the
-	data element can change while a thread is attempting to acquire
-	that element's lock on line~10!
-} \QuickQuizEnd
-
-\begin{figure}[tbp]
-{ \scriptsize
-\begin{verbatim}
-  1 int delete(int key)
-  2 {
-  3   int b;
-  4   struct element *p;
-  5   spinlock_t *sp;
-  6
-  7   b = hashfunction(key);
-  8   sp = &locktable[b];
-  9   spin_lock(sp);
- 10   p = hashtable[b];
- 11   if (p == NULL) {
- 12     spin_unlock(sp);
- 13     return 0;
- 14   }
- 15   hashtable[b] = NULL;
- 16   spin_unlock(sp);
- 17   kfree(p);
- 18   return 1;
- 19 }
-\end{verbatim}
-}
-\caption{Per-Element Locking With Lock-Based Existence Guarantees}
-\label{fig:defer:Per-Element Locking With Lock-Based Existence Guarantees}
-\end{figure}
-
-One way to fix this example is to use a hashed set of global locks, so
-that each hash bucket has its own lock, as shown in
-Figure~\ref{fig:defer:Per-Element Locking With Lock-Based Existence Guarantees}.
-This approach allows acquiring the proper lock (on line~9) before
-gaining a pointer to the data element (on line~10).
-Although this approach works quite well for elements contained in a
-single partitionable data structure such as the hash table shown in the
-figure, it can be problematic if a given data element can be a member
-of multiple hash tables or given more-complex data structures such
-as trees or graphs.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -784,17 +689,17 @@ as trees or graphs.
   2 {
   3   struct element *p;
   4   int b;
-  5
+  5   5
   6   b = hashfunction(key);
   7   rcu_read_lock();
   8   p = rcu_dereference(hashtable[b]);
-  9   if (p == NULL) {
+  9   if (p == NULL || p->key != key) {
  10     rcu_read_unlock();
  11     return 0;
  12   }
  13   spin_lock(&p->lock);
- 14   rcu_read_unlock();
- 15   if (hashtable[b] != NULL) {
+ 14   if (hashtable[b] == p && p->key == key) {
+ 15     rcu_read_unlock();
  16     hashtable[b] = NULL;
  17     spin_unlock(&p->lock);
  18     synchronize_rcu();
@@ -802,18 +707,115 @@ as trees or graphs.
  20     return 1;
  21   }
  22   spin_unlock(&p->lock);
- 23   return 0;
- 24 }
+ 23   rcu_read_unlock();
+ 24   return 0;
+ 25 }
 \end{verbatim}
 }
 \caption{Existence Guarantees Enable Per-Element Locking}
 \label{fig:defer:Existence Guarantees Enable Per-Element Locking}
 \end{figure}
 
+Figure~\ref{fig:defer:Existence Guarantees Enable Per-Element Locking}
+demonstrates how RCU-based existence guarantees can enable
+per-element locking via a function that deletes an element from
+a hash table.
+Line~6 computes a hash function, and line~7 enters an RCU
+read-side critical section.
+If line~9 finds that the corresponding bucket of the hash table is
+empty or that the element present is not the one we wish to delete,
+then line~10 exits the RCU read-side critical section and line~11
+indicates failure.
+
+\QuickQuiz{}
+	What if the element we need to delete is not the first element
+	of the list on line~9 of
+	Figure~\ref{fig:defer:Existence Guarantees Enable Per-Element Locking}?
+\QuickQuizAnswer{
+	As with
+	Figure~\ref{fig:locking:Per-Element Locking Without Existence Guarantees},
+	this is a very simple hash table with no chaining, so the only
+	element in a given bucket is the first element.
+	The reader is again invited to adapt this example to a hash table with
+	full chaining.
+} \QuickQuizEnd
+
+Otherwise, line~13 acquires the update-side spinlock, and
+line~14 then checks that the element is still the one that we want.
+If so, line~15 leaves the RCU read-side critical section,
+line~16 removes it from the table, line~17 releases
+the lock, line~18 waits for all pre-existing RCU read-side critical
+sections to complete, line~19 frees the newly removed element,
+and line~20 indicates success.
+If the element is no longer the one we want, line~22 releases
+the lock, line~23 leaves the RCU read-side critical section,
+and line~24 indicates failure to delete the specified key.
+
+\QuickQuiz{}
+	Why is it OK to exit the RCU read-side critical section on
+	line~15 of
+	Figure~\ref{fig:defer:Existence Guarantees Enable Per-Element Locking}
+	before releasing the lock on line~17?
+\QuickQuizAnswer{
+	First, please note that the second check on line~14 is
+	necessary because some other
+	CPU might have removed this element while we were waiting
+	to acquire the lock.
+	However, the fact that we were in an RCU read-side critical section
+	while acquiring the lock guarantees that this element could not
+	possibly have been re-allocated and re-inserted into this
+	hash table.
+	Furthermore, once we acquire the lock, the lock itself guarantees
+	the element's existence, so we no longer need to be in an
+	RCU read-side critical section.
+
+	The question as to whether it is necessary to re-check the
+	element's key is left as an exercise to the reader.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Why not exit the RCU read-side critical section on
+	line~23 of
+	Figure~\ref{fig:defer:Existence Guarantees Enable Per-Element Locking}
+	before releasing the lock on line~22?
+\QuickQuizAnswer{
+	Suppose we reverse the order of these two lines.
+	Then this code is vulnerable to the following sequence of
+	events:
+	\begin{enumerate}
+	\item	CPU~0 invokes \url{delete()}, and finds the element
+		to be deleted, executing through line~15.
+		It has not yet actually deleted the element, but
+		is about to do so.
+	\item	CPU~1 concurrently invokes \url{delete()}, attempting
+		to delete this same element.
+		However, CPU~0 still holds the lock, so CPU~1 waits
+		for it at line~13.
+	\item	CPU~0 executes lines~16 and 17, and blocks at
+		line~18 waiting for CPU~1 to exit its RCU read-side
+		critical section.
+	\item	CPU~1 now acquires the lock, but the test on line~14
+		fails because CPU~0 has already removed the element.
+		CPU~1 now executes line~22 (which we switched with line~23
+		for the purposes of this Quick Quiz)
+		and exits its RCU read-side critical section.
+	\item	CPU~0 can now return from \url{synchronize_rcu()},
+		and thus executes line~19, sending the element to
+		the freelist.
+	\item	CPU~1 now attempts to release a lock for an element
+		that has been freed, and, worse yet, possibly
+		reallocated as some other type of data structure.
+		This is a fatal memory-corruption error.
+	\end{enumerate}
+} \QuickQuizEnd
+
 Alert readers will recognize this as only a slight variation on
 the original "RCU is a way of waiting for things to finish" theme,
 which is addressed in
 Section~\ref{sec:deferRCU is a Way of Waiting for Things to Finish}.
+They might also note the deadlock-immunity advantages over the lock-based
+existence guarantees discussed in
+Section~\ref{sec:locking:Lock-Based Existence Guarantees}.
 
 \subsubsection{RCU is a Way of Providing Type-Safe Memory}
 \label{sec:deferRCU is a Way of Providing Type-Safe Memory}

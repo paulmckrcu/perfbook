@@ -45,6 +45,7 @@ LATEXSOURCES = \
 	SMPdesign/partexercises.tex \
 	SMPdesign/criteria.tex \
 	locking/locking.tex \
+	locking/locking-existence.tex \
 	time/time.tex \
 	toolsoftrade/toolsoftrade.tex
 
