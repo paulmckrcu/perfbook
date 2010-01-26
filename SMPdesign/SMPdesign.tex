@@ -497,8 +497,117 @@ all threads can ``own'' it via replication.
 \subsection{Locking Granularity and Performance}
 \label{sec:SMPdesign:Locking Granularity and Performance}
 
-\emph{@@@ summarize performance and scalability here, once
-we get clean performance numbers.}
+This section looks at locking granularity and performance from
+a mathematical synchronization-efficienty viewpoint.
+Readers who are uninspired by mathematics might choose to skip
+this section.
+
+The approach is to use a crude queueing model for the efficiency of
+synchronization mechanism that operate on a single shared global
+variable, based on an M/M/1 queue.
+M/M/1 queuing models are based on an exponentially distributed
+``inter-arrival rate'' $\lambda$ and an exponentially distributed
+``service rate'' $\mu$.
+The inter-arrival rate $\lambda$ can be thought of as the average
+number of synchronization operations per second that the system
+would process if the synchronization were free, in other words,
+$\lambda$ is an inverse measure of the overhead of each non-synchronization
+unit of work.
+For example, if each unit of work was a transaction, if each transaction
+took one millisecond to process, not counting synchronization overhead,
+then $\lambda$ would be 1,000 transactions per second.
+
+The service rate $\mu$ is defined similarly, but for the average
+number of synchronization operations per second that the system
+would process if the overhead of each transaction was zero, and
+ignoring the fact that CPUs must wait on each other to complete
+their increment operations, in other words, $\mu$ can be roughly
+thought of as the synchronization overhead in absence of contention.
+For example, some recent computer systems are able to do
+an atomic increment every 25 nanoseconds or so if all CPUs are
+doing atomic increments in a tight loop.\footnote{
+	Of course, if there are 8 CPUs, each CPU must wait 175 nanoseconds
+	for each of the other CPUs to do its increment before consuming
+	an additional 25 nanoseconds doing its own increment.}
+The value of $\mu$ is therefore about 40,000,000 atomic increments
+per second.
+
+Of course, the value of $\lambda$ increases with increasing numbers of
+CPUs, as each CPU is capable of processing transactions independently
+(again, ignoring synchronization):
+
+\begin{equation}
+	\lambda = n \lambda_0
+\end{equation}
+
+where $n$ is the number of CPUs and $\lambda_0$ is the transaction-processing
+capability of a single CPU.
+Note that the expected time for a single CPU to execute a single transaction
+is $1 / \lambda_0$.
+
+Because the CPUs have to ``wait in line'' behind each other to get their
+chance to increment the single shared variable, we can use the M/M/1
+queueing-model expression for the expected total waiting time:
+
+\begin{equation}
+	T = \frac{1}{\mu - \lambda}
+\end{equation}
+
+Substituting the above value of $\lambda$:
+
+\begin{equation}
+	T = \frac{1}{\mu - n \lambda_0}
+\end{equation}
+
+Now, the efficiency is just the ratio of the time required to process
+a transaction in absence of synchronization to the time required
+including synchronization:
+
+\begin{equation}
+	e = \frac{1 / \lambda_0}{T + 1 / \lambda_0}
+\end{equation}
+
+Substituting the above value for $T$ and simplifying:
+
+\begin{equation}
+	e = \frac{\frac{\mu}{\lambda_0} - n}{\frac{\mu}{\lambda_0} - (n - 1)}
+\end{equation}
+
+But the value of $\mu / \lambda_0$ is just the ratio of the time required
+to process the transaction (absent synchronization overhead) to that of 
+the synchronization overhead itself (absent contention).
+If we call this ratio $f$, we have:
+
+\begin{equation}
+	e = \frac{f - n}{f - (n - 1)}
+\end{equation}
+
+\begin{figure}[tbp]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{SMPdesign/synceff}}
+\end{center}
+\caption{Synchronization Efficiency}
+\label{fig:SMPdesign:Synchronization Efficiency}
+\end{figure}
+
+Figure~\ref{fig:SMPdesign:Synchronization Efficiency} plots the synchronization
+efficiency $e$ as a function of the number of CPUs/threads $n$ for
+a few values of the overhead ratio $f$.
+For example, again using the 25-nanosecond atomic increment, the
+$f=10$ line corresponds to each CPU attempting an atomic increment
+every 250 nanoseconds, and the $f=100$ line corresponds to each
+CPU attempting an atomic increment every 2.5 microseconds,
+which in turn corresponds to several thousand instructions.
+Given that each trace drops off sharply with increasing numbers of
+CPUs or threads, we can conclude that
+synchronization mechanisms based on
+atomic manipulation of a single global shared variable will not
+scale well if used heavily on current commodity hardware.
+
+It is therefore worthwhile to look into more-scalable approaches
+such as the data locking described in
+Section~\ref{sec:SMPdesign:Data Locking}
+or the parallel-fastpath approach discussed in the next section.
 
 \section{Parallel Fastpath}
 \label{sec:SMPdesign:Parallel Fastpath}

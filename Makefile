@@ -66,6 +66,7 @@ EPSSOURCES = \
 	SMPdesign/lockdeqpair.eps \
 	SMPdesign/smpalloc.eps \
 	SMPdesign/smpalloc.old.eps \
+	SMPdesign/synceff.eps \
 	SMPdesign/DiningPhilosopher5.eps \
 	SMPdesign/DiningPhilosopher5TB.eps \
 	SMPdesign/DiningPhilosopher4part-b.eps \
