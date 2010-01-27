@@ -483,53 +483,53 @@ int main(int argc, char *argv[])
 	struct deq_elem e1, e2, e3;
 	int i;
 	struct list_head *p;
-	struct pdeq dequeue;
+	struct pdeq deq;
 
-	init_pdeq(&dequeue);
+	init_pdeq(&deq);
 	printf("Empty dequeue: L: %p, R: %p\n",
-	       pdeq_dequeue_l(&dequeue), pdeq_dequeue_r(&dequeue));
+	       pdeq_dequeue_l(&deq), pdeq_dequeue_r(&deq));
 
 	e1.data = 1;
 	e2.data = 2;
 	e3.data = 3;
-	pdeq_enqueue_l(&e1.l, &dequeue);
-	pdeq_enqueue_l(&e2.l, &dequeue);
-	pdeq_enqueue_l(&e3.l, &dequeue);
-	d1 = getdata(pdeq_dequeue_l(&dequeue));
-	d2 = getdata(pdeq_dequeue_l(&dequeue));
-	d3 = getdata(pdeq_dequeue_l(&dequeue));
-	d4 = getdata(pdeq_dequeue_l(&dequeue));
+	pdeq_enqueue_l(&e1.l, &deq);
+	pdeq_enqueue_l(&e2.l, &deq);
+	pdeq_enqueue_l(&e3.l, &deq);
+	d1 = getdata(pdeq_dequeue_l(&deq));
+	d2 = getdata(pdeq_dequeue_l(&deq));
+	d3 = getdata(pdeq_dequeue_l(&deq));
+	d4 = getdata(pdeq_dequeue_l(&deq));
 	printf("Enqueue L, dequeue L: %d %d %d %d\n", d1, d2, d3, d4);
 
-	pdeq_enqueue_l(&e3.l, &dequeue);
-	pdeq_enqueue_l(&e2.l, &dequeue);
-	pdeq_enqueue_l(&e1.l, &dequeue);
-	d1 = getdata(pdeq_dequeue_r(&dequeue));
-	d2 = getdata(pdeq_dequeue_r(&dequeue));
-	d3 = getdata(pdeq_dequeue_r(&dequeue));
-	d4 = getdata(pdeq_dequeue_r(&dequeue));
+	pdeq_enqueue_l(&e3.l, &deq);
+	pdeq_enqueue_l(&e2.l, &deq);
+	pdeq_enqueue_l(&e1.l, &deq);
+	d1 = getdata(pdeq_dequeue_r(&deq));
+	d2 = getdata(pdeq_dequeue_r(&deq));
+	d3 = getdata(pdeq_dequeue_r(&deq));
+	d4 = getdata(pdeq_dequeue_r(&deq));
 	printf("Enqueue L, dequeue R: %d %d %d %d\n", d1, d2, d3, d4);
 
 
-	pdeq_enqueue_r(&e3.l, &dequeue);
-	pdeq_enqueue_r(&e2.l, &dequeue);
-	pdeq_enqueue_r(&e1.l, &dequeue);
-	d1 = getdata(pdeq_dequeue_l(&dequeue));
-	d2 = getdata(pdeq_dequeue_l(&dequeue));
-	d3 = getdata(pdeq_dequeue_l(&dequeue));
-	d4 = getdata(pdeq_dequeue_l(&dequeue));
+	pdeq_enqueue_r(&e3.l, &deq);
+	pdeq_enqueue_r(&e2.l, &deq);
+	pdeq_enqueue_r(&e1.l, &deq);
+	d1 = getdata(pdeq_dequeue_l(&deq));
+	d2 = getdata(pdeq_dequeue_l(&deq));
+	d3 = getdata(pdeq_dequeue_l(&deq));
+	d4 = getdata(pdeq_dequeue_l(&deq));
 	printf("Enqueue R, dequeue L: %d %d %d %d\n", d1, d2, d3, d4);
 
 	e1.data = 1;
 	e2.data = 2;
 	e3.data = 3;
-	pdeq_enqueue_r(&e1.l, &dequeue);
-	pdeq_enqueue_r(&e2.l, &dequeue);
-	pdeq_enqueue_r(&e3.l, &dequeue);
-	d1 = getdata(pdeq_dequeue_r(&dequeue));
-	d2 = getdata(pdeq_dequeue_r(&dequeue));
-	d3 = getdata(pdeq_dequeue_r(&dequeue));
-	d4 = getdata(pdeq_dequeue_r(&dequeue));
+	pdeq_enqueue_r(&e1.l, &deq);
+	pdeq_enqueue_r(&e2.l, &deq);
+	pdeq_enqueue_r(&e3.l, &deq);
+	d1 = getdata(pdeq_dequeue_r(&deq));
+	d2 = getdata(pdeq_dequeue_r(&deq));
+	d3 = getdata(pdeq_dequeue_r(&deq));
+	d4 = getdata(pdeq_dequeue_r(&deq));
 	printf("Enqueue R, dequeue R: %d %d %d %d\n", d1, d2, d3, d4);
 
 	conc_enq_l();
