@@ -33,7 +33,7 @@ void init_deq(struct deq *p)
 	INIT_LIST_HEAD(&p->chain);
 }
 
-struct list_head *deq_dequeue_l(struct deq *p)
+struct list_head *deq_pop_l(struct deq *p)
 {
 	struct list_head *e;
 
@@ -46,12 +46,12 @@ struct list_head *deq_dequeue_l(struct deq *p)
 	return e;
 }
 
-void deq_enqueue_l(struct list_head *e, struct deq *p)
+void deq_push_l(struct list_head *e, struct deq *p)
 {
 	list_add_tail(e, &p->chain);
 }
 
-struct list_head *deq_dequeue_r(struct deq *p)
+struct list_head *deq_pop_r(struct deq *p)
 {
 	struct list_head *e;
 
@@ -64,7 +64,7 @@ struct list_head *deq_dequeue_r(struct deq *p)
 	return e;
 }
 
-void deq_enqueue_r(struct list_head *e, struct deq *p)
+void deq_push_r(struct list_head *e, struct deq *p)
 {
 	list_add(e, &p->chain);
 }
@@ -74,7 +74,7 @@ void deq_enqueue_r(struct list_head *e, struct deq *p)
  * of deq structures in tandem, feeding each other as needed.
  * This of course requires some way of moving elements from one
  * to the other.  This implementation uses a trivial approach:
- * if a dequeue finds one empty, pull all elements from the
+ * if a pop finds one empty, pull all elements from the
  * other one.
  * 
  * Each individual deq has its own lock, with the left lock acquired
@@ -97,16 +97,16 @@ void init_pdeq(struct pdeq *d)
 	init_deq(&d->rdeq);
 }
 
-struct list_head *pdeq_dequeue_l(struct pdeq *d)
+struct list_head *pdeq_pop_l(struct pdeq *d)
 {
 	struct list_head *e;
 	int i;
 
 	spin_lock(&d->llock);
-	e = deq_dequeue_l(&d->ldeq);
+	e = deq_pop_l(&d->ldeq);
 	if (e == NULL) {
 		spin_lock(&d->rlock);
-		e = deq_dequeue_l(&d->rdeq);
+		e = deq_pop_l(&d->rdeq);
 		list_splice_init(&d->rdeq.chain, &d->ldeq.chain);
 		spin_unlock(&d->rlock);
 	}
@@ -114,20 +114,20 @@ struct list_head *pdeq_dequeue_l(struct pdeq *d)
 	return e;
 }
 
-struct list_head *pdeq_dequeue_r(struct pdeq *d)
+struct list_head *pdeq_pop_r(struct pdeq *d)
 {
 	struct list_head *e;
 	int i;
 
 	spin_lock(&d->rlock);
-	e = deq_dequeue_r(&d->rdeq);
+	e = deq_pop_r(&d->rdeq);
 	if (e == NULL) {
 		spin_unlock(&d->rlock);
 		spin_lock(&d->llock);
 		spin_lock(&d->rlock);
-		e = deq_dequeue_r(&d->rdeq);
+		e = deq_pop_r(&d->rdeq);
 		if (e == NULL) {
-			e = deq_dequeue_r(&d->ldeq);
+			e = deq_pop_r(&d->ldeq);
 			list_splice_init(&d->ldeq.chain, &d->rdeq.chain);
 		}
 		spin_unlock(&d->llock);
@@ -136,21 +136,21 @@ struct list_head *pdeq_dequeue_r(struct pdeq *d)
 	return e;
 }
 
-void pdeq_enqueue_l(struct list_head *e, struct pdeq *d)
+void pdeq_push_l(struct list_head *e, struct pdeq *d)
 {
 	int i;
 
 	spin_lock(&d->llock);
-	deq_enqueue_l(e, &d->ldeq);
+	deq_push_l(e, &d->ldeq);
 	spin_unlock(&d->llock);
 }
 
-void pdeq_enqueue_r(struct list_head *e, struct pdeq *d)
+void pdeq_push_r(struct list_head *e, struct pdeq *d)
 {
 	int i;
 
 	spin_lock(&d->rlock);
-	deq_enqueue_r(e, &d->rdeq);
+	deq_push_r(e, &d->rdeq);
 	spin_unlock(&d->rlock);
 }
 

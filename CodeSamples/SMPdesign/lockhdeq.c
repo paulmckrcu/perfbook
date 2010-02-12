@@ -35,7 +35,7 @@ void init_deq(struct deq *p)
 	INIT_LIST_HEAD(&p->chain);
 }
 
-struct list_head *deq_dequeue_l(struct deq *p)
+struct list_head *deq_pop_l(struct deq *p)
 {
 	struct list_head *e;
 
@@ -50,14 +50,14 @@ struct list_head *deq_dequeue_l(struct deq *p)
 	return e;
 }
 
-void deq_enqueue_l(struct list_head *e, struct deq *p)
+void deq_push_l(struct list_head *e, struct deq *p)
 {
 	spin_lock(&p->lock);
 	list_add_tail(e, &p->chain);
 	spin_unlock(&p->lock);
 }
 
-struct list_head *deq_dequeue_r(struct deq *p)
+struct list_head *deq_pop_r(struct deq *p)
 {
 	struct list_head *e;
 
@@ -72,7 +72,7 @@ struct list_head *deq_dequeue_r(struct deq *p)
 	return e;
 }
 
-void deq_enqueue_r(struct list_head *e, struct deq *p)
+void deq_push_r(struct list_head *e, struct deq *p)
 {
 	spin_lock(&p->lock);
 	list_add(e, &p->chain);
@@ -92,7 +92,7 @@ void deq_enqueue_r(struct list_head *e, struct deq *p)
  *                            lidx   ridx
  *
  *
- * List after three pdeq_enqueue_l() invocations of "a", "b", and "c":
+ * List after three pdeq_push_l() invocations of "a", "b", and "c":
  *
  *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
  *     |   |   |   |   | c | b | a |   |   |   |   |   |   |   |   |
@@ -101,7 +101,7 @@ void deq_enqueue_r(struct list_head *e, struct deq *p)
  *                   |               |
  *                lidx               ridx
  *
- * List after one pdeq_dequeue_r() invocations (removing "a"):
+ * List after one pdeq_pop_r() invocations (removing "a"):
  *
  *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
  *     |   |   |   |   | c | b |   |   |   |   |   |   |   |   |   |
@@ -159,52 +159,52 @@ void init_pdeq(struct pdeq *d)
 		init_deq(&d->bkt[i]);
 }
 
-struct list_head *pdeq_dequeue_l(struct pdeq *d)
+struct list_head *pdeq_pop_l(struct pdeq *d)
 {
 	struct list_head *e;
 	int i;
 
 	spin_lock(&d->llock);
 	i = moveright(d->lidx);
-	e = deq_dequeue_l(&d->bkt[i]);
+	e = deq_pop_l(&d->bkt[i]);
 	if (e != NULL)
 		d->lidx = i;
 	spin_unlock(&d->llock);
 	return e;
 }
 
-struct list_head *pdeq_dequeue_r(struct pdeq *d)
+struct list_head *pdeq_pop_r(struct pdeq *d)
 {
 	struct list_head *e;
 	int i;
 
 	spin_lock(&d->rlock);
 	i = moveleft(d->ridx);
-	e = deq_dequeue_r(&d->bkt[i]);
+	e = deq_pop_r(&d->bkt[i]);
 	if (e != NULL)
 		d->ridx = i;
 	spin_unlock(&d->rlock);
 	return e;
 }
 
-void pdeq_enqueue_l(struct list_head *e, struct pdeq *d)
+void pdeq_push_l(struct list_head *e, struct pdeq *d)
 {
 	int i;
 
 	spin_lock(&d->llock);
 	i = d->lidx;
-	deq_enqueue_l(e, &d->bkt[i]);
+	deq_push_l(e, &d->bkt[i]);
 	d->lidx = moveleft(d->lidx);
 	spin_unlock(&d->llock);
 }
 
-void pdeq_enqueue_r(struct list_head *e, struct pdeq *d)
+void pdeq_push_r(struct list_head *e, struct pdeq *d)
 {
 	int i;
 
 	spin_lock(&d->rlock);
 	i = d->ridx;
-	deq_enqueue_r(e, &d->bkt[i]);
+	deq_push_r(e, &d->bkt[i]);
 	d->ridx = moveright(d->ridx);
 	spin_unlock(&d->rlock);
 }

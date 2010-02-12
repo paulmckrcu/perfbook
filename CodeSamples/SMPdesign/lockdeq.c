@@ -31,7 +31,7 @@
  *                            lidx   ridx
  *
  *
- * List after three deq_enqueue_l() invocations of "a", "b", and "c":
+ * List after three deq_push_l() invocations of "a", "b", and "c":
  *
  *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
  *     |   |   |   |   | c | b | a |   |   |   |   |   |   |   |   |
@@ -40,7 +40,7 @@
  *                   |               |
  *                lidx               ridx
  *
- * List after one deq_dequeue_r() invocations (removing "a"):
+ * List after one deq_pop_r() invocations (removing "a"):
  *
  *     +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
  *     |   |   |   |   | c | b |   |   |   |   |   |   |   |   |   |
@@ -104,7 +104,7 @@ void init_pdeq(struct pdeq *d)
 	}
 }
 
-struct list_head *pdeq_dequeue_l(struct pdeq *d)
+struct list_head *pdeq_pop_l(struct pdeq *d)
 {
 	struct list_head *e;
 	int i;
@@ -126,7 +126,7 @@ struct list_head *pdeq_dequeue_l(struct pdeq *d)
 	return e;
 }
 
-struct list_head *pdeq_dequeue_r(struct pdeq *d)
+struct list_head *pdeq_pop_r(struct pdeq *d)
 {
 	struct list_head *e;
 	int i;
@@ -148,7 +148,7 @@ struct list_head *pdeq_dequeue_r(struct pdeq *d)
 	return e;
 }
 
-void pdeq_enqueue_l(struct list_head *e, struct pdeq *d)
+void pdeq_push_l(struct list_head *e, struct pdeq *d)
 {
 	int i;
 	struct deq_bkt *p;
@@ -163,7 +163,7 @@ void pdeq_enqueue_l(struct list_head *e, struct pdeq *d)
 	spin_unlock(&d->llock);
 }
 
-void pdeq_enqueue_r(struct list_head *e, struct pdeq *d)
+void pdeq_push_r(struct list_head *e, struct pdeq *d)
 {
 	int i;
 	struct deq_bkt *p;
