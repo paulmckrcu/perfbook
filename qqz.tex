@@ -1789,6 +1789,40 @@ ret = ~ret & tmp;
 	\end{enumerate}
 
 \QuickQ{}
+	On the \url{count_stat.c} row of
+	Table~\ref{tab:count:Statistical Counter Performance on Power 5},
+	we see that the update side scales linearly with the number of
+	threads.
+	How can that possibly be?
+\QuickA{}
+	The read-side code must scan the entire fixed-size array, regardless
+	of the number of threads, so there is no difference in performance.
+	In contrast, in the last two algorithms, readers must do more
+	work when there are more threads.
+	In addition, the last two algorithms interpose an additional
+	level of indirection because they map from integer thread ID
+	to the corresponding \url{__thread} variable.
+
+\QuickQ{}
+	Even on the last row of
+	Table~\ref{tab:count:Statistical Counter Performance on Power 5},
+	the read-side performance of these statistical counter
+	implementations is pretty horrible.
+	Why bother with them?
+\QuickA{}
+	``Use the right tool for the job.''
+	As can be seen from
+	Figure~\ref{fig:count:Atomic Increment Scalability on Nehalem},
+	single-variable atomic increment need not apply for any job
+	involving heavy use of parallel updates.
+	In contrast, the algorithms shown in
+	Table~\ref{tab:count:Statistical Counter Performance on Power 5}
+	do an excellent job of handling update-heavy situations.
+	Of course, if you have a read-mostly situation, you should
+	use something else, for example, a single atomically incremented
+	variable.
+
+\QuickQ{}
 	The \url{++} operator works just fine for 1,000-digit numbers!!!
 	Haven't you heard of operator overloading???
 \QuickA{}
@@ -3479,7 +3513,7 @@ srcu_read_unlock(&srcucb, idx);
 \QuickQ{}
 	Hey!!!
 	Line~45 of
-	Figure~\ref{fig:count:RCU and Per-Thread Statistical Counters}
+	Figure~\ref{fig:applyrcu:RCU and Per-Thread Statistical Counters}
 	modifies a value in a pre-existing \url{countarray} structure!
 	Didn't you say that this structure, once made available to
 	\url{read_count()}, remained constant???
@@ -3501,7 +3535,7 @@ srcu_read_unlock(&srcucb, idx);
 
 \QuickQ{}
 	Wow!!!
-	Figure~\ref{fig:count:RCU and Per-Thread Statistical Counters}
+	Figure~\ref{fig:applyrcu:RCU and Per-Thread Statistical Counters}
 	contains 69 lines of code, compared to only 42 in
 	Figure~\ref{fig:count:Per-Thread Statistical Counters}.
 	Is this extra complexity really worth it?
@@ -3526,7 +3560,7 @@ srcu_read_unlock(&srcucb, idx);
 	Figure~\ref{fig:count:Per-Thread Statistical Counters}, but
 	with all the scalability and performance benefits of the
 	implementation shown in
-	Figure~\ref{fig:count:RCU and Per-Thread Statistical Counters}!
+	Figure~\ref{fig:applyrcu:RCU and Per-Thread Statistical Counters}!
 
 \QuickQAC{sec:advsync:Advanced Synchronization}{Advanced Synchronization}
 \QuickQ{}

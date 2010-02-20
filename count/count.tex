@@ -2568,6 +2568,76 @@ perform nor scale well.
 This chapter has also presented a number of counting algorithms that
 perform and scale extremely well in certain special cases.
 
+\begin{table*}
+\begin{center}
+\begin{tabular}{l|r|r|r|r}
+	\multicolumn{3}{}{} & \multicolumn{2}{|c}{Reads} \\
+	\cline{4-5}
+	Algorithm & Section & Updates & 1 Core & 64 Cores \\
+	\hline
+	\hline
+	\url{count_stat.c} & \ref{sec:count:Array-Based Implementation} &
+		40.4 ns & 220 ns & 220 ns \\
+	\url{count_end.c} & \ref{sec:count:Per-Thread-Variable-Based Implementation} &
+		6.7 ns & 521 ns & 205,000 ns \\
+	\url{count_end_rcu.c} & \ref{sec:applyrcu:RCU and Per-Thread-Variable-Based Statistical Counters} &
+		6.7 ns & 481 ns & 3,700 ns \\
+\end{tabular}
+\end{center}
+\caption{Statistical Counter Performance on Power 5}
+\label{tab:count:Statistical Counter Performance on Power 5}
+\end{table*}
+
+Table~\ref{tab:count:Statistical Counter Performance on Power 5}
+shows the performance of the three parallel statistical counting
+algorithms.
+All three algorithms provide perfect linear scalability for updates.
+The per-thread-variable implementation is significantly faster on
+updates than the array-based implementation, but is slower at reads,
+and suffers severe lock contention when there are many parallel readers.
+This contention can be addressed using techniques introduced in
+Chapter~\ref{chp:defer:Deferred Processing},
+as shown on the last row of
+Table~\ref{tab:count:Statistical Counter Performance on Power 5}.
+
+\QuickQuiz{}
+	On the \url{count_stat.c} row of
+	Table~\ref{tab:count:Statistical Counter Performance on Power 5},
+	we see that the update side scales linearly with the number of
+	threads.
+	How is that possible given that the more threads there are,
+	the more per-thread counters must be summed up?
+\QuickQuizAnswer{
+	The read-side code must scan the entire fixed-size array, regardless
+	of the number of threads, so there is no difference in performance.
+	In contrast, in the last two algorithms, readers must do more
+	work when there are more threads.
+	In addition, the last two algorithms interpose an additional
+	level of indirection because they map from integer thread ID
+	to the corresponding \url{__thread} variable.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Even on the last row of
+	Table~\ref{tab:count:Statistical Counter Performance on Power 5},
+	the read-side performance of these statistical counter
+	implementations is pretty horrible.
+	So why bother with them?
+\QuickQuizAnswer{
+	``Use the right tool for the job.''
+
+	As can be seen from
+	Figure~\ref{fig:count:Atomic Increment Scalability on Nehalem},
+	single-variable atomic increment need not apply for any job
+	involving heavy use of parallel updates.
+	In contrast, the algorithms shown in
+	Table~\ref{tab:count:Statistical Counter Performance on Power 5}
+	do an excellent job of handling update-heavy situations.
+	Of course, if you have a read-mostly situation, you should
+	use something else, for example, a single atomically incremented
+	variable that can be read out using a single load.
+} \QuickQuizEnd
+
 The fact that these algorithms only work well in their respective special
 cases might be considered a major problem with parallel programming in
 general.
