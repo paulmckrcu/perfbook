@@ -2573,7 +2573,7 @@ perform and scale extremely well in certain special cases.
 \begin{table*}
 \begin{center}
 \begin{tabular}{l|r|r|r|r}
-	\multicolumn{3}{}{} & \multicolumn{2}{|c}{Reads} \\
+	& & & \multicolumn{2}{|c}{Reads} \\
 	\cline{4-5}
 	Algorithm & Section & Updates & 1 Core & 64 Cores \\
 	\hline
@@ -2638,6 +2638,66 @@ Table~\ref{tab:count:Statistical Counter Performance on Power 5}.
 	Of course, if you have a read-mostly situation, you should
 	use something else, for example, a single atomically incremented
 	variable that can be read out using a single load.
+} \QuickQuizEnd
+
+\begin{table*}
+\begin{center}
+\begin{tabular}{l|r|c|r|r|r}
+	& & & & \multicolumn{2}{|c}{Reads} \\
+	\cline{5-6}
+	Algorithm & Section & Exact? & Updates & 1 Core & 64 Cores \\
+	\hline
+	\hline
+	\url{count_lim.c} & \ref{fig:count:Simple Limit Counter Variables} &
+		N & 9.7 ns & 517 ns & 202,000 ns \\
+	\url{count_lim_app.c} & \ref{sec:count:Approximate Limit Counter Implementation} &
+		N & 6.6 ns & 520 ns & 205,000 ns \\
+	\url{count_lim_atomic.c} & \ref{sec:count:Atomic Limit Counter Implementation} &
+		Y & 56.1 ns & 606 ns & 166,000 ns \\
+	\url{count_lim_sig.c} & \ref{sec:count:Signal-Theft Limit Counter Implementation} &
+		Y & 17.5 ns & 520 ns & 205,000 ns \\
+\end{tabular}
+\end{center}
+\caption{Limit Counter Performance on Power 5}
+\label{tab:count:Limit Counter Performance on Power 5}
+\end{table*}
+
+Figure~\ref{tab:count:Limit Counter Performance on Power 5}
+shows the performance of the parallel limit-counting algorithms.
+Exact enforcement of the limits incurs a substantial performance
+penalty, although on the Power~5 system this penalty can be reduced
+by substituting read-side signals for update-side atomic operations.
+All of these implementations suffer from read-side lock contention
+in the face of concurrent readers.
+
+\QuickQuiz{}
+	Given the performance data shown in
+	Table~\ref{tab:count:Limit Counter Performance on Power 5},
+	we should always prefer update-side signals over read-side
+	atomic operations, right?
+\QuickQuizAnswer{
+	That depends on the workload.
+	Note that you need a million readers (with roughly
+	a 40-nanosecond performance gain) to make up for even one
+	writer (with almost a 40-\emph{millisecond} performance loss).
+	Although there are no shortage of workloads with far greater
+	read intensity, you will need to consider your particular
+	workload.
+
+	In addition, although memory barriers have historically been
+	expensive compared to ordinary instructions, you should
+	check this on the specific hardware you will be running.
+	The properties of computer hardware do change over time,
+	and algorithms must change accordingly.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Can advanced techniques be applied to address the lock
+	contention for readers seen in
+	Table~\ref{tab:count:Limit Counter Performance on Power 5}?
+\QuickQuizAnswer{
+	There are a number of ways one might go about this, and these
+	are left as exercises for the reader.
 } \QuickQuizEnd
 
 The fact that these algorithms only work well in their respective special
