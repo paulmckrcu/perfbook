@@ -41,6 +41,8 @@ LATEXSOURCES = \
 	defer/rcuapi.tex \
 	defer/rcuusage.tex \
 	defer/toyrcu.tex \
+	future/future.tex \
+	future/tm.tex \
 	SMPdesign/SMPdesign.tex \
 	SMPdesign/partexercises.tex \
 	SMPdesign/criteria.tex \
