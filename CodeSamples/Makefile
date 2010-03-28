@@ -1,6 +1,10 @@
 all:
 	(cd SMPdesign; make)
 	(cd advsync; make)
+	(cd count; make)
+	(cd defer; make)
+	(cd intro; make)
+	(cd tooloftrade; make)
 
 pthreads:
 	echo "/* MECHANICALLY GENERATED, DO NOT EDIT!!! */" > api.h
