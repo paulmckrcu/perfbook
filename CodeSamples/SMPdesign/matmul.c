@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
 	while (atomic_read(&ndone) != nthread)
 		poll(NULL, 0, 1);
 	endtime = get_microseconds();
-	printf("dim = %d, nthread = %d, duration = %lld : %lld us\n",
+	printf("dim = %ld, nthread = %d, duration = %lld : %lld us\n",
 	       dim, nthread, endtime - startcreatetime, endtime - starttime);
 	return 0;
 }
