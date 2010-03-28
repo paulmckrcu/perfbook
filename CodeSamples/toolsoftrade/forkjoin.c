@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <sys/wait.h>
 #include "../api.h"
 
 int main(int argc, char *argv[])
@@ -29,6 +30,7 @@ int main(int argc, char *argv[])
 	int i;
 	int nforks;
 	int pid;
+	int stat_val;
 
 	if (argc != 2) {
 		fprintf(stderr, "Usage: %s nforks\n", argv[0]);
@@ -38,7 +40,10 @@ int main(int argc, char *argv[])
 	printf("%d fork()s\n", nforks);
 	printf("Starting at ");
 	fflush(stdout);
-	system("date");
+	stat_val = system("date");
+	if (!WIFEXITED(stat_val) || WEXITSTATUS(stat_val)) {
+		fprintf(stderr, "system(\"date\") failed: %x\n", stat_val);
+	}
 	for (i = 0; i < nforks; i++) {
 		pid = fork();
 		if (pid == 0) { /* child */
@@ -56,7 +61,10 @@ int main(int argc, char *argv[])
 	waitall();
 	printf("Finished at ");
 	fflush(stdout);
-	system("date");
+	stat_val = system("date");
+	if (!WIFEXITED(stat_val) || WEXITSTATUS(stat_val)) {
+		fprintf(stderr, "system(\"date\") failed: %x\n", stat_val);
+	}
 
 	return 0;
 }

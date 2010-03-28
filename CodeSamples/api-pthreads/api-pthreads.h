@@ -164,7 +164,8 @@ static int __smp_thread_id(void)
 		}
 	}
 	spin_unlock(&__thread_id_map_mutex);
-	fprintf(stderr, "smp_thread_id: Rogue thread, id: %d(%#x)\n", tid, tid);
+	fprintf(stderr, "smp_thread_id: Rogue thread, id: %d(%#x)\n",
+		(int)tid, (int)tid);
 	exit(-1);
 }
 
@@ -213,7 +214,8 @@ static void *wait_thread(thread_id_t tid)
 			break;
 	}
 	if (i >= NR_THREADS){
-		fprintf(stderr, "wait_thread: bad tid = %d(%#x)\n", tid, tid);
+		fprintf(stderr, "wait_thread: bad tid = %d(%#x)\n",
+			(int)tid, (int)tid);
 		exit(-1);
 	}
 	if (pthread_join(tid, &vp) != 0) {
