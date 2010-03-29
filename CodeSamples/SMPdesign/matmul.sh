@@ -18,9 +18,9 @@
 #
 # Copyright (c) 2009 Paul E. McKenney, IBM.
 
-for ((ncpus=1;ncpus<=8;ncpus++))
+for ncpus in 1 2 4 8 16 32 64
 do
-	for dim in 100 200 500 1000
+	for dim in 64 128 256 512 1024
 	do
 		./matmul $dim $ncpus
 		./matmul $dim $ncpus
