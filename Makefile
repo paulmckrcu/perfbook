@@ -66,6 +66,7 @@ EPSSOURCES = \
 	SMPdesign/lockdeqhash.eps \
 	SMPdesign/lockdeqhash1R.eps \
 	SMPdesign/lockdeqpair.eps \
+	SMPdesign/matmuleff.eps \
 	SMPdesign/smpalloc.eps \
 	SMPdesign/smpalloc.old.eps \
 	SMPdesign/synceff.eps \

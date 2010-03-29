@@ -608,11 +608,86 @@ CPUs or threads, we can conclude that
 synchronization mechanisms based on
 atomic manipulation of a single global shared variable will not
 scale well if used heavily on current commodity hardware.
+This is a mathematical depiction of the forces leading to the parallel
+counting algorithms that were discussed in Chapter~\ref{chp:Counting}.
 
-It is therefore worthwhile to look into more-scalable approaches
+The concept of efficiency is useful even in cases having little or
+no formal synchronization.
+Consider for example a matrix multiply, in which the columns of one
+matrix are multiplied (via ``dot product'') by the rows of another,
+resulting in an entry in a third matrix.
+Because none of these operations conflict, it is possible to partition
+the columns of the first matrix among a group of threads, with each thread
+computing the corresponding columns of the result matrix.
+The threads can therefore operate entirely independently, with no
+synchronization overhead whatsoever, as is done in
+\texttt{matmul.c}.
+One might therefore expect a parallel matrix multiply to have a
+perfect efficiency of 1.0.
+
+\begin{figure}[tbp]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{SMPdesign/matmuleff}}
+\end{center}
+\caption{Matrix Multiply Efficiency}
+\label{fig:SMPdesign:Matrix Multiply Efficiency}
+\end{figure}
+
+However,
+Figure~\ref{fig:SMPdesign:Matrix Multiply Efficiency}
+tells a different story, especially for a 64-by-64 matrix multiply,
+which never gets above an efficiency of about 0.7, even when running
+single-threaded.
+The 512-by-512 matrix multiply's efficiency is measurably less
+than 1.0 on as few as 10 threads, and even the 1024-by-1024 matrix
+multiply deviates noticeably from perfection at a few tens of threads.
+
+\QuickQuiz{}
+	How can a single-threaded 64-by-64 matrix multiple possibly
+	have an efficiency of less than 1.0?
+	Shouldn't all of the traces in
+	Figure~\ref{fig:SMPdesign:Matrix Multiply Efficiency}
+	have efficiency of exactly 1.0 when running on only one thread?
+\QuickQuizAnswer{
+	The \texttt{matmul.c} program creates the specified number of
+	worker threads, so even the single-worker-thread case incurs
+	thread-creation overhead.
+	Making the changes required to optimize away thread-creation
+	overhead in the single-worker-thread case is left as an
+	exercise to the reader.
+} \QuickQuizEnd
+
+Given these inefficiencies,
+it is worthwhile to look into more-scalable approaches
 such as the data locking described in
 Section~\ref{sec:SMPdesign:Data Locking}
 or the parallel-fastpath approach discussed in the next section.
+
+\QuickQuiz{}
+	How are data-parallel techniques going to help with matrix
+	multiply?
+	It is \emph{already} data parallel!!!
+\QuickQuizAnswer{
+	I am glad that you are paying attention!
+	This example serves to show that although data parallelism can
+	be a very good thing, it is not some magic wand that automatically
+	wards off any and all sources of inefficiency.
+	Linear scaling at full performance, even to ``only'' 64 threads,
+	requires care at all phases of design and implementation.
+
+	In particular, you need to pay careful attention to the
+	size of the partitions.
+	For example, if you split a 64-by-64 matrix multiply across
+	64 threads, each thread gets only 64 floating-point multiplies.
+	The cost of a floating-point multiply is miniscule compared to
+	the overhead of thread creation.
+
+	Moral: If you have a parallel program with variable input,
+	always include a check for the input size being too small to
+	be worth parallelizing.
+	And when it is not helpful to parallelize, it is not helpful
+	to spawn a single thread, now is it?
+} \QuickQuizEnd
 
 \section{Parallel Fastpath}
 \label{sec:SMPdesign:Parallel Fastpath}

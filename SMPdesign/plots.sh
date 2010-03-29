@@ -50,3 +50,23 @@ set term postscript portrait
 set output "|../utilities/gnuplotepsfix > synceff.eps"
 replot
 ---EOF---
+
+gnuplot << ---EOF---
+set term gif
+set size square ${plotsize},${plotsize}
+set output "matmuleff.gif"
+set xlabel "Number of CPUs/Threads"
+set ylabel "Matrix Multiply Efficiency"
+set logscale x
+set xrange [1:100]
+set nokey
+set label 1 "64" at 3.5,0.4 right
+set label 2 "128" at 3.8,0.72 right
+set label 3 "256" at 17,0.68 right
+set label 4 "512" at 75,0.58 right
+set label 5 "1024" at 90,0.93 right
+plot "matmul.sh.2010.03.28a.dat" w l, "matmul.sh.2010.03.28a.dat" w l
+set term postscript portrait
+set output "|../utilities/gnuplotepsfix > matmuleff.eps"
+replot
+---EOF---
