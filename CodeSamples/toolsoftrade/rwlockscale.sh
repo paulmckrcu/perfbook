@@ -26,8 +26,8 @@ do
 	do
 		for ((i = 0; i < 3; i++))
 		do
-			./rwlockscale $ncpus $hold 0
-			./rwlockscale $ncpus 0 $hold
+			./prwl_scale $ncpus $hold 0
+			./prwl_scale $ncpus 0 $hold
 		done
 	done
 done
