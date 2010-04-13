@@ -19,7 +19,7 @@ set xtics rotate
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
 #plot "clockfreq.dat", "clockfreqP4.dat", "clockfreqP3.dat"
-plot "clockfreqP4.dat", "clockfreqP3.dat", "clockfreqP2.dat", "clockfreqPPro.dat", "clockfreqXeonDC.dat"
+plot "clockfreqP4.dat", "clockfreqP3.dat", "clockfreqP2.dat", "clockfreqPPro.dat", "clockfreqXeonDC.dat", "clockfreqAtom.dat"
 # plot "clockfreqP4.dat", "clockfreqP3.dat", "clockfreqP2.dat"
 set term postscript portrait ${fontsize}
 set size square ${plotsize},${plotsize}
