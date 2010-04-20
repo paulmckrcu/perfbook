@@ -485,7 +485,41 @@ that a given build of the Linux kernel currently has at most
 three implementations behind four APIs (given that RCU Classic
 and Realtime RCU share the same API).
 However, careful inspection and analysis will be required, just as
-would be required for one of the many locking APIs.
+would be required in order to eliminate one of the many locking APIs.
+
+The various RCU APIs are distinguished by the forward-progress
+guarantees that their RCU read-side critical sections must provide,
+and also by their scope, as follows:
+
+\begin{enumerate}
+\item	RCU BH: read-side critical sections
+	must guarantee forward progress against everything except for
+	NMI and IRQ handlers, but not including softirq handlers.
+	RCU BH is global in scope.
+\item	RCU Sched: read-side critical sections must guarantee forward
+	progress against everything except for NMI and IRQ handlers,
+	including softirq handlers.
+	RCU Sched is global in scope.
+\item	RCU (both classic and real-time): read-side critical sections
+	must guarantee forward progress against everything except for
+	NMI handlers, IRQ handlers, softirq handlers, and (in the
+	real-time case) higher-priority real-time tasks.
+	RCU is global in scope.
+\item	SRCU and QRCU: read-side critical sections need not guarantee
+	forward progress unless some other task is waiting for the
+	corresponding grace period to complete, in which case these
+	read-side critical sections should complete in no more than
+	a few seconds (and preferably much more quickly).\footnote{
+		Thanks to James Bottomley for urging me to this
+		formulation, as opposed to simply saying that
+		there are no forward-progress guarantees.}
+	SRCU's and QRCU's scope is defined by the use of the corresponding
+	\url{srcu_struct} or \url{qrcu_struct}, respectively.
+\end{enumerate}
+
+In other words, SRCU and QRCU compensate for their extremely weak
+forward-progress guarantees by permitting the developer to restrict
+their scope.
 
 \subsubsection{RCU has Publish-Subscribe and Version-Maintenance APIs}
 \label{sec:defer:RCU has Publish-Subscribe and Version-Maintenance APIs}
