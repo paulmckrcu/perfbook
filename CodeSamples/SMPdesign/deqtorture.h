@@ -148,7 +148,7 @@ do { \
 } while (0)
 
 /*
- * Initialize a deq_test structure for enqueuing.
+ * Initialize a deq_test structure for dequeuing.
  * The caller must provide a struct pdeq named "d", an atomic_t named
  * "count", and an int named "goflag".
  */
