@@ -53,6 +53,7 @@ LATEXSOURCES = \
 
 EPSSOURCES = \
 	SMPdesign/AllocatorPool.eps \
+	SMPdesign/CPUvsEnet.eps \
 	SMPdesign/DiningPhilosopher4.eps \
 	SMPdesign/DiningPhilosopher4part.eps \
 	SMPdesign/DiningPhilosopher4PEM.eps \
@@ -67,6 +68,7 @@ EPSSOURCES = \
 	SMPdesign/lockdeqhash1R.eps \
 	SMPdesign/lockdeqpair.eps \
 	SMPdesign/matmuleff.eps \
+	SMPdesign/mipsperbuck.eps \
 	SMPdesign/smpalloc.eps \
 	SMPdesign/smpalloc.old.eps \
 	SMPdesign/synceff.eps \
