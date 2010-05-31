@@ -16,9 +16,15 @@
 
 include ../Makefile.arch
 
-PROGS =	wfenqueue
+PROGS =	q singleq wfenqueue
 
 all: $(PROGS)
+
+q: q.c q.h queuetorture.h ../api.h
+	cc $(GCC_ARGS) -o q -DTEST q.c -lpthread
+
+singleq: singleq.c singleq.h queuetorture.h ../api.h
+	cc $(GCC_ARGS) -o singleq -DTEST singleq.c -lpthread
 
 wfenqueue: wfenqueue.c wfenqueue.h ../api.h
 	cc $(GCC_ARGS) -o wfenqueue -DTEST wfenqueue.c -lpthread
