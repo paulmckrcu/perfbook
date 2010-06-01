@@ -26,7 +26,7 @@ q: q.c q.h queuetorture.h ../api.h
 singleq: singleq.c singleq.h queuetorture.h ../api.h
 	cc $(GCC_ARGS) -o singleq -DTEST singleq.c -lpthread
 
-wfenqueue: wfenqueue.c wfenqueue.h ../api.h
+wfenqueue: wfenqueue.c q.h queuetorture.h ../api.h
 	cc $(GCC_ARGS) -o wfenqueue -DTEST wfenqueue.c -lpthread
 
 clean:

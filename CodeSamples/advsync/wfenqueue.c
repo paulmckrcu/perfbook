@@ -19,70 +19,54 @@
  */
 
 #include "../api.h"
-#include "wfenqueue.h"
+#include "q.h"
 
-void wfenqueue_init(struct wfenqueue *wp)
+void init_q(struct queue *qp)
 {
-	wp->head = &wp->dummy;
-	wp->tail = &wp->dummy.next;
-	wp->dummy.next = NULL;
-	spin_lock_init(&wp->mutex);
+	qp->head = &qp->dummy;
+	qp->tail = &qp->dummy.next;
+	qp->dummy.next = NULL;
+	spin_lock_init(&qp->mutex);
 }
 
-void wfenqueue_enq(struct wfenqueue_elem *ep, struct wfenqueue *wp)
+int q_push(struct el *ep, struct queue *qp)
 {
-	struct wfenqueue_elem **tail;
+	struct el **tail;
 
 	ep->next = NULL;
-	tail = xchg(&wp->tail, ep);
+	tail = xchg(&qp->tail, ep);
 	*tail = ep;
+	return 1;
 }
 
-struct wfenqueue_elem *__wfenqueue_deq(struct wfenqueue *wp)
+struct el *__q_pop(struct queue *qp)
 {
-	struct wfenqueue_elem *ep;
+	struct el *ep;
 
-	if (wp->head == &wp->dummy && wp->tail == &wp->dummy.next)
+	if (qp->head == &qp->dummy && qp->tail == &qp->dummy.next)
 		return NULL;
-	ep = wp->head;
+	ep = qp->head;
 	while (ep->next == NULL) {
 		poll(NULL, 0, 1);
 	}
-	wp->head = ep->next;
-	if (ep == &wp->dummy) {
-		wfenqueue_enq(ep, wp);
-		return __wfenqueue_deq(wp);
+	qp->head = ep->next;
+	if (ep == &qp->dummy) {
+		q_push(ep, qp);
+		return __q_pop(qp);
 	}
 	return ep;
 }
 
-struct wfenqueue_elem *wfenqueue_deq(struct wfenqueue *wp)
+struct el *q_pop(struct queue *qp)
 {
-	struct wfenqueue_elem *ep;
+	struct el *ep;
 
-	spin_lock(&wp->mutex);
-	ep = __wfenqueue_deq(wp);
-	spin_unlock(&wp->mutex);
+	spin_lock(&qp->mutex);
+	ep = __q_pop(qp);
+	spin_unlock(&qp->mutex);
 	return ep;
 }
 
 #ifdef TEST
-int main(int argc, char *argv[])
-{
-	struct wfenqueue wq;
-	struct wfenqueue_elem e1;
-	struct wfenqueue_elem e2;
-	struct wfenqueue_elem *ep;
-
-	wfenqueue_init(&wq);
-	printf("enqueuing %p\n", &e1);
-	wfenqueue_enq(&e1, &wq);
-	printf("enqueuing %p\n", &e2);
-	wfenqueue_enq(&e2, &wq);
-	ep = wfenqueue_deq(&wq);
-	printf("dequeued %p\n", ep);
-	ep = wfenqueue_deq(&wq);
-	printf("dequeued %p\n", ep);
-	return 0;
-}
+#include "queuetorture.h"
 #endif /* #ifdef TEST */
