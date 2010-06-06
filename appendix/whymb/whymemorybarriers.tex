@@ -271,7 +271,7 @@ to the line without first consulting with other CPUs.
 As with the ``exclusive'' state, because the corresponding value
 in memory is up to date,
 this cache can discard this data without writing it back to memory
-or handing it off to some other CPU
+or handing it off to some other CPU.
 
 A line in the ``invalid'' state is empty, in other words, it holds
 no data.
@@ -425,7 +425,8 @@ The transition arcs in this figure are as follows:
 	the transition.
 \item[Transition (f):]
 	Some other CPU reads the cache line, and it is supplied from
-	this CPU's cache, which retains a read-only copy.
+	this CPU's cache, which retains a read-only copy, possibly also
+	writing it back to memory.
 	This transition is initiated by the reception of a ``read''
 	message, and this CPU responds with a ``read response'' message
 	containing the requested data.
@@ -511,7 +512,7 @@ CPU~0's cache, and is still valid in memory.
 CPU~3 also loads the data at address~0, so that it is in the
 ``shared'' state in both CPUs' caches, and is still valid in memory.
 Next CPU~0 loads some other cache line (at address~8),
-which forces the data at address~0 out of its cache via a writeback,
+which forces the data at address~0 out of its cache via an invalidation,
 replacing it with the data at address~8.
 CPU~2 now does a load from address~0, but this CPU realizes that it will
 soon need to store to it, and so it uses a ``read invalidate'' message
@@ -543,7 +544,7 @@ Finally, CPU~1 reads the cache line at address~8, which uses a
 	\hline
 	2 & 3 & Load		& 0/S & -/I & -/I & 0/S   & V & V \\
 	\hline
-	3 & 0 & Writeback	& 8/S & -/I & -/I & 0/S   & V & V \\
+	3 & 0 & Invalidation	& 8/S & -/I & -/I & 0/S   & V & V \\
 	\hline
 	4 & 2 & RMW		& 8/S & -/I & 0/E & -/I   & V & V \\
 	\hline
@@ -756,6 +757,14 @@ Then the sequence of operations might be as follows:
 	failed assertion.
 \end{enumerate}
 
+\QuickQuiz{}
+	In step~1 above, why does CPU~0 need to issue a ``read invalidate''
+	rather than a simple ``invalidate''?
+\QuickQuizAnswer{
+	Because the cache line in question contains more than just the
+	variable \url{a}.
+} \QuickQuizEnd
+
 The hardware designers cannot help directly here, since the CPUs have
 no idea which variables are related, let alone how they might be related.
 Therefore, the hardware designers provide memory-barrier instructions
@@ -797,7 +806,7 @@ With this latter approach the sequence of operations might be as follows:
 \item	CPU~1 executes \url{while (b == 0) continue}, but the cache line
 	containing ``b'' is not in its cache.
 	It therefore transmits a ``read'' message.
-\item	CPU~0 executes \url{smp_mp()}, and marks all current store-buffer
+\item	CPU~0 executes \url{smp_mb()}, and marks all current store-buffer
 	entries (namely, the \url{a = 1}).
 \item	CPU~0 executes \url{b = 1}.
 	It already owns this cache line (in other words, the cache line
@@ -820,7 +829,8 @@ With this latter approach the sequence of operations might be as follows:
 	transmits the cache line containing ``a'' to CPU~0 and
 	invalidates this cache line from its own cache.
 \item	CPU~0 receives the cache line containing ``a'' and applies
-	the buffered store.
+	the buffered store, placing this line into the ``modified''
+	state.
 \item	Since the store to ``a'' was the only
 	entry in the store buffer that was marked by the \url{smp_mb()},
 	CPU~0 can also store the new value of ``b'' --- except for the
@@ -837,7 +847,7 @@ With this latter approach the sequence of operations might be as follows:
 	the cache line containing ``b'' into the ``exclusive'' state.
 	CPU~0 now stores the new value of ``b'' into the cache line.
 \item	CPU~0 receives the ``read'' message, and transmits the
-	cache line containing the original value of ``b''
+	cache line containing the new value of ``b''
 	to CPU~1.
 	It also marks its own copy of this cache line as ``shared''.
 \item	CPU~1 receives the cache line containing ``b'' and installs
@@ -854,7 +864,7 @@ With this latter approach the sequence of operations might be as follows:
 
 As you can see, this process involves no small amount of bookkeeping.
 Even something intuitively simple, like ``load the value of a'' can
-involves lots of complex steps in silicon.
+involve lots of complex steps in silicon.
 
 \section{Store Sequences Result in Unnecessary Stalls}
 \label{sec:app:whymb:Store Sequences Result in Unnecessary Stalls}
@@ -926,6 +936,12 @@ as discussed in the next section.
 \subsection{Invalidate Queues and Memory Barriers}
 \label{sec:app:whymb:Invalidate Queues and Memory Barriers}
 
+Let us suppose that CPUs queue invalidation requests, but respond to
+them immediately.
+This approach minimizes the cache-invalidation latency seen by CPUs
+doing stores, but can defeat memory barriers, as seen in the following
+example.
+
 Suppose the values of ``a'' and ``b'' are initially zero,
 that ``a'' is replicated read-only (MESI ``shared'' state),
 and that ``b''
@@ -963,6 +979,11 @@ Then the sequence of operations might be as follows:
 \item	CPU~1 executes \url{while (b == 0) continue}, but the cache line
 	containing ``b'' is not in its cache.
 	It therefore transmits a ``read'' message.
+\item	CPU~1 receives CPU~0's ``invalidate'' message, queues it, and
+	immediately responds to it.
+\item	CPU~0 receives the response from CPU~1, and is therefore free
+	to proceed past the \url{smp_mb()} on line~4 above, moving
+	the value of ``a'' from its store buffer to its cache line.
 \item	CPU~0 executes \url{b = 1}.
 	It already owns this cache line (in other words, the cache line
 	is already in either the ``modified'' or the ``exclusive'' state),
@@ -970,10 +991,6 @@ Then the sequence of operations might be as follows:
 \item	CPU~0 receives the ``read'' message, and transmits the
 	cache line containing the now-updated value of ``b''
 	to CPU~1, also marking the line as ``shared'' in its own cache.
-\item	CPU~1 receives the ``invalidate'' message for ``a'', places
-	it into its invalidate queue, and transmits an ``invalidate
-	acknowledge'' message to CPU~0.
-	Note that the old value of ``a'' still remains in CPU~1's cache.
 \item	CPU~1 receives the cache line containing ``b'' and installs
 	it in its cache.
 \item	CPU~1 can now finish executing \url{while (b == 0) continue},
@@ -982,24 +999,34 @@ Then the sequence of operations might be as follows:
 \item	CPU~1 executes the \url{assert(a == 1)}, and, since the
 	old value of ``a'' is still in CPU~1's cache,
 	this assertion fails.
-\item	CPU~1 processes the queued ``invalidate'' message, and
+\item	Despite the assertion failure, CPU~1 processes the queued
+	``invalidate'' message, and (tardily)
 	invalidates the cache line containing ``a'' from its own cache.
-	But it is too late.
-\item	CPU~0 receives the ``invalidate acknowledge'' message for ``a''
-	from CPU~0, and therefore applies
-	the buffered store just in time to fall victim to CPU~1's
-	failed assertion.
 \end{enumerate}
 
-Once again, the CPU designers cannot do much about this situation,
-since the hardware does not know what relationships there might be
-among what to the CPU are just different piles of bits.
+\QuickQuiz{}
+	In step~1 of the first scenario in
+	Section~\ref{sec:app:whymb:Invalidate Queues and Memory Barriers},
+	why is an ``invalidate'' sent instead of a ''read invalidate''
+	message?
+	Doesn't CPU~0 need the values of the other variables that share
+	this cache line with ``a''?
+\QuickQuizAnswer{
+	CPU~0 already has the values of these variables, given that it
+	has a read-only copy of the cache line containing ``a''.
+	Therefore, all CPU~0 need do is to cause the other CPUs to discard
+	their copies of this cache line.
+	An ``invalidate'' message therefore suffices.
+} \QuickQuizEnd
+
+There is clearly not much point in accelerating invalidation responses
+if doing so causes memory barriers to effectively be ignored.
 However, the memory-barrier instructions can interact with
 the invalidate queue, so that when a given CPU executes a memory
 barrier, it marks all the entries currently in its invalidate queue,
 and forces any subsequent load to wait until all marked entries
 have been applied to the CPU's cache.
-Therefore, we can add a memory barrier as follows:
+Therefore, we can add a memory barrier to function \url{bar} as follows:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1022,6 +1049,22 @@ Therefore, we can add a memory barrier as follows:
 \end{minipage}
 \vspace{5pt}
 
+\QuickQuiz{}
+	Say what???
+	Why do we need a memory barrier here, given that the CPU cannot
+	possibly execute the \url{assert()} until after the
+	\url{while} loop completes???
+\QuickQuizAnswer{
+	CPUs are free to speculatively execute, which can have the effect
+	of executing the assertion before the \url{while} loop completes.
+	That said, some weakly ordered CPUs respect ``control dependencies.''
+	Such CPUs would execute an implicit memory barrier after each
+	conditional branch, such as the branch terminating the \url{while}
+	loop.
+	This example nevertheless uses an explicit memory barrier, as would
+	be required on DEC Alpha.
+} \QuickQuizEnd
+
 With this change, the sequence of operations might be as follows:
 \begin{enumerate}
 \item	CPU~0 executes \url{a = 1}.  The corresponding
@@ -1032,6 +1075,11 @@ With this change, the sequence of operations might be as follows:
 \item	CPU~1 executes \url{while (b == 0) continue}, but the cache line
 	containing ``b'' is not in its cache.
 	It therefore transmits a ``read'' message.
+\item	CPU~1 receives CPU~0's ``invalidate'' message, queues it, and
+	immediately responds to it.
+\item	CPU~0 receives the response from CPU~1, and is therefore free
+	to proceed past the \url{smp_mb()} on line~4 above, moving
+	the value of ``a'' from its store buffer to its cache line.
 \item	CPU~0 executes \url{b = 1}.
 	It already owns this cache line (in other words, the cache line
 	is already in either the ``modified'' or the ``exclusive'' state),
@@ -1039,41 +1087,28 @@ With this change, the sequence of operations might be as follows:
 \item	CPU~0 receives the ``read'' message, and transmits the
 	cache line containing the now-updated value of ``b''
 	to CPU~1, also marking the line as ``shared'' in its own cache.
-\item	CPU~1 receives the ``invalidate'' message for ``a'', places
-	it into its invalidate queue, and transmits an ``invalidate
-	acknowledge'' message to CPU~0.
-	Note that the old value of ``a'' still remains in CPU~1's cache.
 \item	CPU~1 receives the cache line containing ``b'' and installs
 	it in its cache.
 \item	CPU~1 can now finish executing \url{while (b == 0) continue},
 	and since it finds that the value of ``b'' is 1, it proceeds
-	to the next statement.
-\item	CPU~1 executes the \url{smp_mb()}, marking the entry in its
-	invalidate queue.
-\item	CPU~1 executes the \url{assert(a == 1)}, but since there
-	is a marked entry for the cache line containing ``a'' in the
-	invalidate queue, CPU~1 must stall this load until that
-	entry in the invalidate queue has been applied.
-\item	CPU~1 processes the ``invalidate'' message, removing the
-	cacheline containing ``a'' from its cache.
-\item	CPU~1 is now free to load the value of ``a'', but since this
-	results in a cache miss, it must send a ``read'' message to
-	fetch the corresponding cache line.
-\item	CPU~0 receives the ``invalidate acknowledge'' message for ``a''
-	from CPU~0, and therefore applies
-	the buffered store, changing the MESI state of the corresponding
-	cache line to ``modified''.
-\item	CPU~0 receives the ``read'' message for ``a''
-	from CPU~1, and therefore changes the state of the corresponding
-	cache line to ``shared'', and transmits the cache line to
-	CPU~1.
-\item	CPU~1 receives the cache line containing ``a'', and can therefore
-	do the load.
-	Since this load returns the updated value of ``a'', the
-	assertion passes.
+	to the next statement, which is now a memory barrier.
+\item	CPU~1 must now stall until it processes all pre-existing
+	messages in its invalidation queue.
+\item	CPU~1 now processes the queued
+	``invalidate'' message, and
+	invalidates the cache line containing ``a'' from its own cache.
+\item	CPU~1 executes the \url{assert(a == 1)}, and, since the
+	cache line containing ``a'' is no longer in CPU~1's cache,
+	it transmits a ``read'' message.
+\item	CPU~0 responds to this ``read'' message with the cache line
+	containing the new value of ``a''.
+\item	CPU~1 receives this cache line, which contains a value of 1 for
+	``a'', so that the assertion does not trigger.
 \end{enumerate}
 
 With much passing of MESI messages, the CPUs arrive at the correct answer.
+This section illustrates why CPU designers must be extremely careful
+with their cache-coherence optimizations.
 
 \section{Read and Write Memory Barriers}
 \label{sec:app:whymb:Read and Write Memory Barriers}
