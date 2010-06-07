@@ -1256,8 +1256,8 @@ as we will see.\footnote{
 \subsection{Example 1}
 \label{sec:app:whymb:Example 1}
 
-Figure\ref{tab:app:whymb:Memory Barrier Example 1}
-shows three code fragments, executed concurrently by CPUs~1, 2, and 3.
+Table~\ref{tab:app:whymb:Memory Barrier Example 1}
+shows three code fragments, executed concurrently by CPUs~0, 1, and 2.
 Each of ``a'', ``b'', and ``c'' are initially zero.
 
 \begin{table}
@@ -1293,7 +1293,7 @@ Therefore, CPU~2 might well see CPU~1's assignment to ``c'' before
 it sees CPU~0's assignment to ``a'', causing the assertion to fire,
 despite the memory barriers.
 
-In theory, portable code could not on this example coding technique,
+In theory, portable code cannot rely on this example code sequence,
 however, in practice it actually does work on all mainstream computer systems.
 
 \QuickQuiz{}
@@ -1309,13 +1309,15 @@ however, in practice it actually does work on all mainstream computer systems.
 	intuitive causal ordering: if B saw the effects of A's accesses,
 	and C saw the effects of B's accesses, then C must also see
 	the effects of A's accesses.
+	In short, hardware designers have taken at least a little pity
+	on software developers.
 } \QuickQuizEnd
 
 \subsection{Example 2}
 \label{sec:app:whymb:Example 2}
 
-Figure\ref{tab:app:whymb:Memory Barrier Example 2}
-shows three code fragments, executed concurrently by CPUs~1, 2, and 3.
+Table~\ref{tab:app:whymb:Memory Barrier Example 2}
+shows three code fragments, executed concurrently by CPUs~0, 1, and 2.
 Both ``a'' and ``b'' are initially zero.
 
 \begin{table}
@@ -1341,7 +1343,7 @@ Both ``a'' and ``b'' are initially zero.
 Again, suppose CPU~0 recently experienced many cache misses, so that its
 message queue is full, but that CPU~1 has been running exclusively within
 the cache, so that its message queue is empty.
-Then CPU~0's assignment to ``a'' and ``b'' will appear in Node~0's cache
+Then CPU~0's assignment to ``a'' will appear in Node~0's cache
 immediately (and thus be visible to CPU~1), but will be blocked behind
 CPU~0's prior traffic.
 In contrast, CPU~1's assignment to ``b'' will sail through CPU~1's
@@ -1350,15 +1352,15 @@ Therefore, CPU~2 might well see CPU~1's assignment to ``b'' before
 it sees CPU~0's assignment to ``a'', causing the assertion to fire,
 despite the memory barriers.
 
-In theory, portable code could not on this example coding technique, however,
-as before, in practice it actually does work on all
+In theory, portable code should not rely on this example code fragment,
+however, as before, in practice it actually does work on most
 mainstream computer systems.
 
 \subsection{Example 3}
 \label{sec:app:whymb:Example 3}
 
-Figure\ref{tab:app:whymb:Memory Barrier Example 3}
-shows three code fragments, executed concurrently by CPUs~1, 2, and 3.
+Table~\ref{tab:app:whymb:Memory Barrier Example 3}
+shows three code fragments, executed concurrently by CPUs~0, 1, and 2.
 All variables are initially zero.
 
 \begin{table}
@@ -1373,7 +1375,7 @@ All variables are initially zero.
  1 &	\url{a = 1;} &			& \\
  2 &	\url{smb_wmb();} &		& \\
  3 &	\url{b = 1;} & \url{while (b == 0)}; & \url{while (b == 0)}; \\
- 4 &		     & \url{smp_mb();}	& \url{smb_mb();} \\
+ 4 &		     & \url{smp_mb();}	& \url{smp_mb();} \\
  5 &		     & \url{c = 1;}	& \url{d = 1;} \\
  6 &	\url{while (c == 0);} &		& \\
  7 &	\url{while (d == 0);} &		& \\
@@ -1387,7 +1389,7 @@ All variables are initially zero.
 
 Note that neither CPU~1 nor CPU~2 can proceed to line~4 until they see
 CPU~0's assignment to ``b'' on line~3.
-Once CPU~1 and 2 have executed their memory barriers on line~3, they
+Once CPU~1 and 2 have executed their memory barriers on line~4, they
 are both guaranteed to see all assignments by CPU~0 preceding its memory
 barrier on line~2.
 Similarly, CPU~0's memory barrier on line~8 pairs with those of CPUs~1 and 2
@@ -1428,9 +1430,6 @@ the first four columns indicate whether a given CPU allows the four
 possible combinations of loads and stores to be reordered.
 The next two columns indicate whether a given CPU allows loads and stores
 to be reordered with atomic instructions.
-With only six CPUs, we have five different combinations of load-store
-reorderings, and three of the four possible atomic-instruction
-reorderings.
 
 The seventh column, dependent reads reordered, requires some explanation,
 which is undertaken in the following section covering Alpha CPUs.
@@ -1555,8 +1554,8 @@ only on Alpha CPUs.
 more information on use of these primitives.}
 
 These primitives generate code only in SMP kernels, however, each
-also has a UP version ({\tt smp\_mb()}, {tt smp\_rmb()}, {\tt smp\_wmb()},
-and {\tt smp\_read\_barrier\_depends()},
+also has a UP version ({\tt mb()}, {\tt rmb()}, {\tt wmb()},
+and {\tt read\_barrier\_depends()},
 respectively) that generate a memory barrier even in UP kernels. The {\tt smp\_}
 versions should be used in most cases. However, these latter primitives
 are useful when writing drivers, because MMIO accesses must remain
@@ -1835,7 +1834,7 @@ Finally, IA64 offers a global total order for ``release'' operations,
 including the ``mf'' instruction.
 This provides the notion of transitivity, where if a given code fragment
 sees a given access as having happened, any later code fragment will
-also see that earlier access has having happened.
+also see that earlier access as having happened.
 Assuming, that is, that all the code fragments involved correctly use
 memory barriers.
 
@@ -1889,8 +1888,7 @@ However, Linux's {\tt smp\_wmb()} instruction is never used for MMIO
 (since a driver must carefully order MMIOs in UP as well as
 SMP kernels, after all), so it is defined to be the lighter weight
 {\tt eieio} instruction.
-This instruction may well be unique in having a five-vowel mneumonic,
-which stands for ``enforce in-order execution of I/O''.
+This instruction may well be unique in having a five-vowel mneumonic.
 The {\tt smp\_mb()} instruction is also defined to be the {\tt sync}
 instruction, but both {\tt smp\_rmb()} and {\tt rmb()} are defined to
 be the lighter-weight {\tt lwsync} instruction.
