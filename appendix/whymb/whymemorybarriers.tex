@@ -1188,8 +1188,9 @@ technical specifications, let us instead design a mythical but maximally
 memory-ordering-hostile computer architecture.\footnote{
 	Readers preferring a detailed look at real hardware
 	architectures are encouraged to consult CPU vendors'
-	manuals~\cite{ALPHA95,AMDOpteron02,IntelItanium02v2,PowerPC94,MichaelLyons02a,SPARC94,IntelXeonV3-96a,IntelXeonV2b-96a,IBMzSeries04a} or
-	Gharachorloo's dissertation~\cite{Gharachorloo95}.}
+	manuals~\cite{ALPHA95,AMDOpteron02,IntelItanium02v2,PowerPC94,MichaelLyons02a,SPARC94,IntelXeonV3-96a,IntelXeonV2b-96a,IBMzSeries04a},
+	Gharachorloo's dissertation~\cite{Gharachorloo95}, or
+	Peter Sewell's work~\cite{PeterSewell2010weakmemory}.}
 
 This hardware must obey the following ordering
 constraints~\cite{PaulMcKenney2005i,PaulMcKenney2005j}:
@@ -1489,6 +1490,8 @@ but rarely used in practice.
 	Alpha		& Y & Y & Y & Y   & Y & Y & Y & Y \\
 	\hline
 	AMD64		& ~ & ~ & ~ & Y   & ~ & ~ & ~ & ~ \\
+	\hline
+	ARMv7-A/R	& Y & Y & Y & Y   & Y & Y & y & Y \\
 	\hline
 	IA64		& Y & Y & Y & Y   & Y & Y & ~ & Y \\
 	\hline
@@ -1793,6 +1796,105 @@ The AMD64 implementation of the Linux {\tt smp\_mb()} primitive is {\tt mfence},
 In theory, these might be relaxed, but any such relaxation must take
 SSE and 3DNOW instructions into account.
 
+\subsection{ARMv7-A/R}
+
+The ARM family of CPUs is extremely popular in embedded applications,
+particularly for power-constrained applications such as cellphones.
+There have nevertheless been multiprocessor implementations of ARM
+for more than five years.
+Its memory model is similar to that of Power
+(see Section~\ref{sec:app:whymb:POWER / Power PC}, but ARM uses a
+different set of memory-barrier instructions~\cite{ARMv7A:2010}:
+
+\begin{enumerate}
+\item	\url{DMB} (data memory barrier) causes the specified type of
+	operations to \emph{appear} to have completed before any
+	subsequent operations of the same type.
+	The ``type'' of operations can be all operations or can be
+	restricted to only writes (similar to the Alpha \url{wmb}
+	and the POWER \url{eieio} instructions).
+	In addition, ARM allows cache coherence to have one of three
+	scopes: single processor, a subset of the processors
+	(``inner'') and global (``outer'').
+\item	\url{DSB} (data synchronization barrier) causes the specified
+	type of operations to actually complete before any subsequent
+	operations (of any type) are executed.
+	The ``type'' of operations is the same as that of \url{DMB}.
+	The \url{DSB} instruction was called \url{DWB} (drain write buffer
+	or data write barrier, your choice) in early versions of the
+	ARM architecture.
+\item	\url{ISB} (instruction synchronization barrier) flushes the CPU
+	pipeline, so that all instructions following the \url{ISB}
+	are fetched only after the \url{ISB} completes.
+	For example, if you are writing a self-modifying program
+	(such as a JIT), you should execute an \url{ISB} after
+	between generating the code and executing it.
+\end{enumerate}
+
+None of these instructions exactly match the semantics of Linux's
+\url{rmb()} primitive, which must therefore be implemented as a full
+\url{DMB}.
+The \url{DMB} and \url{DSB} instructions have a recursive definition
+of accesses ordered before and after the barrier, which has an effect
+similar to that of POWER's cumulativity.
+
+One difference between the ARMv7 and the POWER memory models is that
+while POWER respects both data and control dependencies, ARMv7 respects
+only data dependencies.
+The difference between these two CPU families can be seen in the
+following code fragment, which was discussed earlier in
+Section~\ref{sec:app:whymb:Invalidate Queues and Memory Barriers}:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 void foo(void)
+  2 {
+  3   a = 1;
+  4   smp_wmb();
+  5   b = 1;
+  6 }
+  7
+  8 void bar(void)
+  9 {
+ 10   while (b == 0) continue;
+ 11   assert(a == 1);
+ 12 }
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+There is a control dependency between lines~10 and 11 in the above example.
+This control dependency would cause POWER to insert an implicit memory
+barrier between these two lines, but ARM would instead permit line~11
+to be speculatively executed before line~10 completed.\footnote{
+	Of course, as written above, the compiler would be within
+	its rights to reorder lines~10 and 11.
+	So please be careful out there!}
+On the other hand, these two CPUs would both respect the data dependency
+in the following code:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 int oof(void)
+  2 {
+  3   struct el *p;
+  4 
+  5   p = global_pointer;
+  6   return p->a;
+  7 }
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+Both CPUs would place an implicit memory barrier between lines~5 and 6,
+avoiding line~6 seeing a pre-initialization value for \url{p->a}.
+Assuming that the compiler was prevented from reordering these two
+lines, of course!
+
 \subsection{IA64}
 
 IA64 offers a weak consistency model, so that in absence of explicit
@@ -1847,7 +1949,8 @@ no code, however, they do use the gcc {\tt memory} attribute to disable
 compiler optimizations that would reorder code across the memory
 barrier.
 
-\subsection{POWER}
+\subsection{POWER / Power PC}
+\label{sec:app:whymb:POWER / Power PC}
 
 The POWER and Power PC\textsuperscript{\textregistered}
 CPU families have a wide variety of memory-barrier
