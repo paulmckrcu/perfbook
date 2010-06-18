@@ -676,7 +676,8 @@ the other in the store buffer.
 
 This example breaks a very important guarantee, namely that each CPU
 will always see its own operations as if they happened in program order.
-This guarantee is violently counter-intuitive to software types, so much so
+Breaking this guarantee is violently counter-intuitive to software types,
+so much so
 that the hardware guys took pity and implemented ``store forwarding'',
 where each CPU refers to (or ``snoops'') its store buffer as well
 as its cache when performing loads, as shown in
@@ -792,7 +793,7 @@ The program fragment must be updated to contain the memory barrier:
 \vspace{5pt}
 
 The memory barrier \url{smp_mb()} will cause the CPU to flush its store
-buffer before applying subsequent stores to their cache lines.
+buffer before applying each subsequent store to its variable's cache line.
 The CPU could either simply stall until the store buffer was empty
 before proceeding, or it could use the store buffer to hold subsequent
 stores until all of the prior entries in the store buffer had been
@@ -821,7 +822,7 @@ With this latter approach the sequence of operations might be as follows:
 	It also marks its own copy of this cache line as ``shared''.
 \item	CPU~1 receives the cache line containing ``b'' and installs
 	it in its cache.
-\item	CPU~1 can now finish executing \url{while (b == 0) continue},
+\item	CPU~1 can now load the value of ``b'',
 	but since it finds that the value of ``b'' is still 0, it repeats
 	the \url{while} statement.
 	The new value of ``b'' is safely hidden in CPU~0's store buffer.
@@ -852,8 +853,9 @@ With this latter approach the sequence of operations might be as follows:
 	It also marks its own copy of this cache line as ``shared''.
 \item	CPU~1 receives the cache line containing ``b'' and installs
 	it in its cache.
-\item	CPU~1 can now finish executing \url{while (b == 0) continue},
-	and since it finds that the value of ``b'' is 1, it proceeds
+\item	CPU~1 can now load the value of ``b'',
+	and since it finds that the value of ``b'' is 1, it
+	exits the \url{while} loop and proceeds
 	to the next statement.
 \item	CPU~1 executes the \url{assert(a == 1)}, but the cache line containing
 	``a'' is no longer in its cache.
@@ -1122,7 +1124,7 @@ to do anything with the store queue.
 Many CPU architectures therefore provide weaker memory-barrier
 instructions that do only one or the other of these two.
 Roughly speaking, a ``read memory barrier'' marks only the invalidate
-queue and a ``write memory barrier'' marks only the store buffer.
+queue and a ``write memory barrier'' marks only the store buffer,
 while a full-fledged memory barrier does both.
 
 The effect of this is that a read memory barrier orders only loads
@@ -1388,7 +1390,7 @@ All variables are initially zero.
 \label{tab:app:whymb:Memory Barrier Example 3}
 \end{table}
 
-Note that neither CPU~1 nor CPU~2 can proceed to line~4 until they see
+Note that neither CPU~1 nor CPU~2 can proceed to line~5 until they see
 CPU~0's assignment to ``b'' on line~3.
 Once CPU~1 and 2 have executed their memory barriers on line~4, they
 are both guaranteed to see all assignments by CPU~0 preceding its memory
@@ -1400,16 +1402,33 @@ other CPUs.
 Therefore, CPU~2's assertion on line~9 is guaranteed \emph{not} to fire.
 
 \QuickQuiz{}
-	Suppose that lines~3-5 for CPUs~1 and 2 are in an interrupt
+	Suppose that lines~3-5 for CPUs~1 and 2 in
+	Table~\ref{tab:app:whymb:Memory Barrier Example 3}
+	are in an interrupt
 	handler, and that the CPU~2's line~9 is run at process level.
 	What changes, if any, are required to enable the code to work
 	correctly, in other words, to prevent the assertion from firing?
 \QuickQuizAnswer{
-	The assertion will need to coded so as to ensure that the load of
+	The assertion will need to written to ensure that the load of
 	``e'' precedes that of ``a''.
 	In the Linux kernel, the barrier() primitive may be used to accomplish
 	this in much the same way that the memory barrier was used in the
 	assertions in the previous examples.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	If CPU~2 executed an \url{assert(e==0||c==1)} in the example in
+	Table~\ref{tab:app:whymb:Memory Barrier Example 3},
+	would this assert ever trigger?
+\QuickQuizAnswer{
+	The result depends on whether the CPU supports ``transitivity.''
+	In other words, CPU~0 stored to ``e'' after seeing CPU~1's
+	store to ``c'', with a memory barrier between CPU~0's load
+	from ``c'' and store to ``e''.
+	If some other CPU sees CPU~0's store to ``e'', is it also
+	guaranteed to see CPU~1's store?
+
+	All CPUs I am aware of claim to provide transitivity.
 } \QuickQuizEnd
 
 The Linux kernel's \url{synchronize_rcu()} primitive uses an algorithm
@@ -1782,6 +1801,34 @@ instructions, so {\tt smp\_mb()} is {\tt mb}, {\tt smp\_rmb()} is {\tt rmb},
 and {\tt smp\_wmb()} is {\tt wmb}.
 Alpha is the only CPU where {\tt smp\_read\_barrier\_depends()} is
 an {\tt smp\_mb()} rather than a no-op.
+
+\QuickQuiz{}
+	Why is Alpha's \url{smp_read_barrier_depends()} an
+	\url{smp_mb()} rather than \url{smp_rmb()}?
+\QuickQuizAnswer{
+	First, Alpha has only \url{mb} and \url{wmb} instructions,
+	so \url{smp_rmb()} would be implemented by the Alpha \url{mb}
+	instruction in either case.
+
+	More importantly, \url{smp_read_barrier_depends()} must
+	order subsequent stores.
+	For example, consider the following code:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 p = global_pointer;
+  2 smp_read_barrier_depends();
+  3 if (do_something_with(p->a, p->b) == 0)
+  4   p->hey_look = 1;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	Here the store to \url{p->hey_look} must be ordered,
+	not just the loads from \url{p->a} and \url{p->b}.
+} \QuickQuizEnd
 
 For more detail on Alpha, see the reference manual~\cite{ALPHA95}.
 

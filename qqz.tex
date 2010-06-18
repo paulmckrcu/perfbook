@@ -4127,16 +4127,59 @@ STORE r0,counter
 	on software developers.
 
 \QuickQ{}
-	Suppose that lines~3-5 for CPUs~1 and 2 are in an interrupt
+	Suppose that lines~3-5 for CPUs~1 and 2 in
+	Table~\ref{tab:app:whymb:Memory Barrier Example 3}
+	are in an interrupt
 	handler, and that the CPU~2's line~9 is run at process level.
 	What changes, if any, are required to enable the code to work
 	correctly, in other words, to prevent the assertion from firing?
 \QuickA{}
-	The assertion will need to coded so as to ensure that the load of
+	The assertion will need to written to ensure that the load of
 	``e'' precedes that of ``a''.
 	In the Linux kernel, the barrier() primitive may be used to accomplish
 	this in much the same way that the memory barrier was used in the
 	assertions in the previous examples.
+
+\QuickQ{}
+	If CPU~2 executed an \url{assert(e==0||c==1)} in the example in
+	Table~\ref{tab:app:whymb:Memory Barrier Example 3},
+	would this assert ever trigger?
+\QuickA{}
+	The result depends on whether the CPU supports ``transitivity.''
+	In other words, CPU~0 stored to ``e'' after seeing CPU~1's
+	store to ``c'', with a memory barrier between CPU~0's load
+	from ``c'' and store to ``e''.
+	If some other CPU sees CPU~0's store to ``e'', is it also
+	guaranteed to see CPU~1's store?
+
+	All CPUs I am aware of claim to provide transitivity.
+
+\QuickQ{}
+	Why is Alpha's \url{smp_read_barrier_depends()} an
+	\url{smp_mb()} rather than \url{smp_rmb()}?
+\QuickA{}
+	First, Alpha has only \url{mb} and \url{wmb} instructions,
+	so \url{smp_rmb()} would be implemented by the Alpha \url{mb}
+	instruction in either case.
+
+	More importantly, \url{smp_read_barrier_depends()} must
+	order subsequent stores.
+	For example, consider the following code:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 p = global_pointer;
+  2 smp_read_barrier_depends();
+  3 if (do_something_with(p->a, p->b) == 0)
+  4   p->hey_look = 1;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	Here the store to \url{p->hey_look} must be ordered,
+	not just the loads from \url{p->a} and \url{p->b}.
 
 \QuickQAC{app:rcuimpl:Read-Copy Update Implementations}{Read-Copy Update Implementations}
 \QuickQ{}
