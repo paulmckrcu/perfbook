@@ -24,16 +24,16 @@
 
 DEFINE_SPINLOCK(rcu_gp_lock);
 
-#define URCU_QS_IDLE	0	/* No grace period in progress. */
-#define	URCU_QS_REQ	1	/* Requesting quiescent state from thread. */
-#define URCU_QS_ACK	2	/* Request acknowledged, need unlock. */
-#define	URCU_QS_DONE	3	/* Quiescent state done. */
+#define URCU_QS_IDLE	-1	/* No grace period in progress. */
+#define	URCU_QS_REQ	0	/* Requesting quiescent state from thread. */
+#define URCU_QS_ACK	1	/* Request acknowledged, need unlock. */
+#define	URCU_QS_DONE	2	/* Quiescent state done. */
 
 struct urcu_state {
 	int		urcu_nesting;
 	sig_atomic_t	urcu_qs;
 };
-struct urcu_state __thread urcu_state;
+struct urcu_state __thread urcu_state = { .urcu_qs = URCU_QS_IDLE };
 DEFINE_PER_THREAD(struct urcu_state *, urcu_statep);
 
 static void rcu_read_lock(void)
