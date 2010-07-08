@@ -38,14 +38,16 @@ DEFINE_PER_THREAD(struct urcu_state *, urcu_statep);
 
 static void rcu_read_lock(void)
 {
-	ACCESS_ONCE(urcu_state.urcu_nesting)++;
+	int n;
+
+	urcu_state.urcu_nesting++;
 	barrier();
 }
 
 static void rcu_read_unlock(void)
 {
 	barrier();
-	if (--ACCESS_ONCE(urcu_state.urcu_nesting) == 0 &&
+	if (--urcu_state.urcu_nesting == 0 &&
 	    urcu_state.urcu_qs >= URCU_QS_ACK) {
 		smp_mb();
 		urcu_state.urcu_qs = URCU_QS_DONE;
