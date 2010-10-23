@@ -47,8 +47,8 @@ static void rcu_read_lock(void)
 static void rcu_read_unlock(void)
 {
 	barrier();
-	if (--urcu_state.urcu_nesting == 0 &&
-	    urcu_state.urcu_qs >= URCU_QS_ACK) {
+	if (likely(--urcu_state.urcu_nesting == 0) &&
+	    unlikely(urcu_state.urcu_qs >= URCU_QS_ACK)) {
 		smp_mb();
 		urcu_state.urcu_qs = URCU_QS_DONE;
 	}
