@@ -36,4 +36,8 @@ void count_init(void)
 {
 }
 
+void count_cleanup(void)
+{
+}
+
 #include "counttorture.h"

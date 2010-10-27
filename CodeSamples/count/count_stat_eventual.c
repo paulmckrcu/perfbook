@@ -1,6 +1,6 @@
 /*
- * count_nonatomic.c: simple non-atomic counter.  It might not actually
- * 	be non-atomic on some systems.
+ * count_stat_eventual.c: Per-thread atomic statistical counters with
+ *	"eventually consistent" semantics.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,29 +16,60 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * Copyright (c) 2009 Paul E. McKenney, IBM Corporation.
+ * Copyright (c) 2010 Paul E. McKenney, IBM Corporation.
  */
 
 #include "../api.h"
 
-unsigned long counter = 0;
+DEFINE_PER_THREAD(atomic_t, counter);
+atomic_t global_count;
+int stopflag;
 
 void inc_count(void)
 {
-	counter++;
+	atomic_inc(&__get_thread_var(counter));
 }
 
 unsigned long read_count(void)
 {
-	return counter;
+	return atomic_read(&global_count);
+}
+
+void *eventual(void *arg)
+{
+	int t;
+	int sum;
+
+	while (stopflag < 3) {
+		sum = 0;
+		for_each_thread(t)
+			sum += atomic_xchg(&per_thread(counter, t), 0);
+		atomic_add(sum, &global_count);
+		poll(NULL, 0, 1);
+		if (stopflag) {
+			smp_mb();
+			stopflag++;
+		}
+	}
+	return NULL;
 }
 
 void count_init(void)
 {
+	thread_id_t tid;
+
+	if (pthread_create(&tid, NULL, eventual, NULL) != 0) {
+		perror("count_init:pthread_create");
+		exit(-1);
+	}
 }
 
 void count_cleanup(void)
 {
+	stopflag = 1;
+	while (stopflag < 3)
+		poll(NULL, 0, 1);
+	smp_mb();
 }
 
 #include "counttorture.h"

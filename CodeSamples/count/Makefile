@@ -27,6 +27,7 @@ PROGS =	count_atomic \
 	count_nonatomic \
 	count_stat \
 	count_stat_atomic \
+	count_stat_eventual \
 	count_tstat
 
 RCU_SRCS = ../defer/rcu_nest32.h ../defer/rcu_nest32.c
@@ -65,6 +66,9 @@ count_stat: count_stat.c ../api.h counttorture.h
 
 count_stat_atomic: count_stat_atomic.c ../api.h counttorture.h
 	cc $(GCC_ARGS) -o count_stat_atomic count_stat_atomic.c -lpthread
+
+count_stat_eventual: count_stat_eventual.c ../api.h counttorture.h
+	cc $(GCC_ARGS) -o count_stat_eventual count_stat_eventual.c -lpthread
 
 count_tstat: count_tstat.c ../api.h counttorture.h
 	cc $(GCC_ARGS) -o count_tstat count_tstat.c -lpthread

@@ -526,9 +526,120 @@ Figure~\ref{fig:count:Data Flow For Per-Thread Increment},
 the reason for this is that each CPU can make rapid progress incrementing
 its thread's variable, with no expensive communication required crossing
 the full diameter of the computer system.
-However, this excellent scalability comes at the cost of increased
-overhead compared to that of the simple non-atomic increment.
-This overhead is due to the array indexing hidden in the
+However, this excellent update-side scalability comes at great read-side
+expense for large numbers of threads.
+The next section shows one way to reduce read-side expense while
+still retaining the update-side scalability.
+
+\subsection{Eventually Consistent Implementation}
+\label{sec:count:Eventually Consistent Implementation}
+
+One way to retain update-side scalability while greatly improving
+read-side performance is to weaken consistency requirements.
+While the counting algorithm in the previous section is guaranteed to
+return a value between the value that an ideal counter would hace
+taken on near the beginning of \url{read_count()}'s execution and
+that near the end of \url{read_count()}'s execution.
+\emph{Eventual consistency} (@@@ cite Vogels paper @@@) provides a weaker
+guarantee: in absence of calls to \url{inc_count()}, calls to
+\url{read_count()} will eventually return the correct answer.
+
+We exploit eventual consistency by maintaining a global counter.
+However, updaters only manipulate their per-thread counters.
+A separate thread is provided to transfer counts from the per-thread
+counters to the global counter.
+Readers simply access the value of the global counter.
+If updaters are active, the value used by the readers will be out of
+date, however, once updates cease, the global counter will eventually
+converge on the true value---hence this approach qualifies as
+eventually consistent.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 DEFINE_PER_THREAD(atomic_t, counter);
+  2 atomic_t global_count;
+  3 int stopflag;
+  4 
+  5 void inc_count(void)
+  6 {
+  7   atomic_inc(&__get_thread_var(counter));
+  8 }
+  9 
+ 10 unsigned long read_count(void)
+ 11 {
+ 12   return atomic_read(&global_count);
+ 13 }
+ 14 
+ 15 void *eventual(void *arg)
+ 16 {
+ 17   int t;
+ 18   int sum;
+ 19 
+ 20   while (stopflag < 3) {
+ 21     sum = 0;
+ 22     for_each_thread(t)
+ 23       sum += atomic_xchg(&per_thread(counter, t), 0);
+ 24     atomic_add(sum, &global_count);
+ 25     poll(NULL, 0, 1);
+ 26     if (stopflag) {
+ 27       smp_mb();
+ 28       stopflag++;
+ 29     }
+ 30   }
+ 31   return NULL;
+ 32 }
+ 33 
+ 34 void count_init(void)
+ 35 {
+ 36   thread_id_t tid;
+ 37 
+ 38   if (pthread_create(&tid, NULL, eventual, NULL) != 0) {
+ 39     perror("count_init:pthread_create");
+ 40     exit(-1);
+ 41   }
+ 42 }
+ 43 
+ 44 void count_cleanup(void)
+ 45 {
+ 46   stopflag = 1;
+ 47   while (stopflag < 3)
+ 48     poll(NULL, 0, 1);
+ 49   smp_mb();
+ 50 }
+\end{verbatim}
+}
+\caption{Array-Based Per-Thread Eventually Consistent Counters}
+\label{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
+\end{figure}
+
+The implementation is shows in
+Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
+(\url{count_stat_eventual.c}).
+Lines~1-2 show the per-thread variable and the global variable that
+track the counter's value, and line three shows \url{stopflag}
+which is used to coordinate termination (for the case where we want
+to terminate the program with an accurate counter value).
+The \url{inc_count()} function shown on lines~5-8 is identical to its
+counterpart in
+Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}.
+The \url{read_count()} function shown on lines~10-13 simply returns the
+value of the \url{global_count} variable.
+
+However, the \url{count_init()} function on lines~34-42
+creates the \url{eventual()} thread shown on lines~15-32, which
+cycles through all the threads, using the \url{atomic_xchg()} function
+to remove count from each thread's local \url{counter}, adding the
+sum to the \url{global_count} variable.
+The \url{eventual()} thread waits an arbitrarly chosen one millisecond
+between passes.
+The \url{count_cleanup()} function on lines~44-50 coordinates termination.
+
+This approach gives extremely fast counter read-out while still
+supporting linear counter-update performance.
+However, this excellent read-side performance and update-side scalability
+comes at the cost of high update-side overhead, due to both the
+atomic operations and the array indexing hidden in the
 \url{__get_thread_var()} primitive, which can be quite expensive
 on some CPUs with deep pipelines.
 

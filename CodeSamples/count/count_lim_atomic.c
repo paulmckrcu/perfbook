@@ -209,5 +209,9 @@ void count_unregister_thread(int nthreadsexpected)
 	spin_unlock(&gblcnt_mutex);
 }
 
+void count_cleanup(void)
+{
+}
+
 #define NEED_REGISTER_THREAD
 #include "limtorture.h"

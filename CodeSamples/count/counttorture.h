@@ -141,6 +141,7 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 	goflag = GOFLAG_STOP;
 	smp_mb();
 	wait_all_threads();
+	count_cleanup();
 	for_each_thread(t) {
 		n_reads += per_thread(n_reads_pt, t);
 		n_updates += per_thread(n_updates_pt, t);

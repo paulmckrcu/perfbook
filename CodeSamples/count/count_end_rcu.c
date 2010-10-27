@@ -93,5 +93,9 @@ void count_unregister_thread(int nthreadsexpected)
 	free(capold);
 }
 
+void count_cleanup(void)
+{
+}
+
 #define NEED_REGISTER_THREAD
 #include "counttorture.h"
