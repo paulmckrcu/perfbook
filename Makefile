@@ -199,18 +199,22 @@ embedfonts:
 SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
 	latex -output-directory=$(shell dirname $<) $<
 	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
+	sh utilities/fixanepsfonts.sh SMPdesign/DiningPhilosopher5.eps
 
 SMPdesign/DiningPhilosopher5TB.eps: SMPdesign/DiningPhilosopher5TB.tex
 	latex -output-directory=$(shell dirname $<) $<
 	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
+	sh utilities/fixanepsfonts.sh SMPdesign/DiningPhilosopher5TB.eps
 
 SMPdesign/DiningPhilosopher4part-b.eps: SMPdesign/DiningPhilosopher4part-b.tex
 	latex -output-directory=$(shell dirname $<) $<
 	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
+	sh utilities/fixanepsfonts.sh SMPdesign/DiningPhilosopher4part-b.eps
 
 SMPdesign/DiningPhilosopher5PEM.eps: SMPdesign/DiningPhilosopher5PEM.tex
 	latex -output-directory=$(shell dirname $<) $<
 	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
+	sh utilities/fixanepsfonts.sh SMPdesign/DiningPhilosopher5PEM.eps
 
 count/sig-theft.eps: count/sig-theft.dot
 	dot -Tps -o count/sig-theft.eps count/sig-theft.dot
