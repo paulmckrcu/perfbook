@@ -1,5 +1,4 @@
-# fixdotfonts.sh: Convert all .eps files produced by dot (graphviz) to
-#	use embeddable fonts.
+# fixanepsfonts.sh: Convert the specified .eps files to use embeddable fonts.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,20 +16,15 @@
 #
 # Copyright (c) 2010 Paul E. McKenney, IBM Corporation.
 
-names=`find . -name '*.dot' -print`
+names=$*
 for i in $names
 do
-	basename=`echo $i | sed -e 's/\.dot$//'`
-	if test -f $basename.eps
+	if grep -q Nimbus $i
 	then
-		if grep -q Nimbus $basename.eps
-		then
-			:
-		else
-			mv $basename.eps $basename.eps.badfonts
-			sh utilities/fixfonts.sh < $basename.eps.badfonts \
-						 > $basename.eps
-			rm $basename.eps.badfonts
-		fi
+		:
+	else
+		mv $i $i.badfonts
+		sh utilities/fixfonts.sh < $i.badfonts > $i
+		rm $i.badfonts
 	fi
 done

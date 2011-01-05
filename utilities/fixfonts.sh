@@ -1,4 +1,5 @@
-# fixfonts.sh: Convert the specified .eps file to use embeddable fonts.
+# fixfonts.sh: Convert an .eps file to use embeddable fonts, taking from
+#	standard input and putting on standar output.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
