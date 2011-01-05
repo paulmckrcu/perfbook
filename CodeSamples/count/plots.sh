@@ -1,4 +1,26 @@
 #! /bin/sh
+#
+# Create plots from the counting test programs.
+#
+# Execute this script in the current directory.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+# Copyright (C) IBM Corporation, 2009
+#
+# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
 fontsize=10
 plotsize=0.5
@@ -22,7 +44,7 @@ plot "data/count_atomic:u.2009.05.03a.dat" w e, "data/count_atomic:u.2009.05.03a
 ---EOF---
 
 gnuplot << ---EOF---
-set term postscript portrait ${fontsize}
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../../fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|../../utilities/gnuplotepsfix > atomic125.eps"
 set xlabel "Number of CPUs/Threads"
@@ -43,7 +65,7 @@ replot
 ---EOF---
 
 gnuplot << ---EOF---
-set term postscript portrait ${fontsize}
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../../fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|../../utilities/gnuplotepsfix > atomic_nehalem.eps"
 set xlabel "Number of CPUs/Threads"

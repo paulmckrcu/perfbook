@@ -1,4 +1,24 @@
 #! /bin/sh
+#
+# Create plots for the SMPdesign directory.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+# Copyright (C) IBM Corporation, 2009
+#
+# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
 fontsize=10
 plotsize=0.5
@@ -21,7 +41,7 @@ set xtics rotate
 #plot "clockfreq.dat", "clockfreqP4.dat", "clockfreqP3.dat"
 plot "clockfreq80x86.dat", "clockfreqPPro.dat", "clockfreqP1.dat", "clockfreqP2.dat", "clockfreqP3.dat", "clockfreqP4.dat", "clockfreqXeonDC.dat", "clockfreqAtom.dat", "clockfreqNehalem.dat"
 # plot "clockfreqP4.dat", "clockfreqP3.dat", "clockfreqP2.dat"
-set term postscript portrait ${fontsize}
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|../utilities/gnuplotepsfix > clockfreq.eps"
 replot
@@ -46,7 +66,7 @@ set label 2 "x86 CPUs" at 2001,100 left
 #plot "clockfreq.dat", "clockfreqP4.dat", "clockfreqP3.dat"
 plot "enet.dat" w l, "clockfreq80x86.dat", "clockfreqPPro.dat", "clockfreqP1.dat", "clockfreqP2.dat", "clockfreqP3.dat", "clockfreqP4.dat", "clockfreqXeonDC.dat", "clockfreqAtom.dat", "clockfreqNehalem.dat"
 # plot "clockfreqP4.dat", "clockfreqP3.dat", "clockfreqP2.dat"
-set term postscript portrait ${fontsize}
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|../utilities/gnuplotepsfix > CPUvsEnet.eps"
 replot
@@ -70,7 +90,7 @@ set xtics rotate
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "mipsperbuck.dat"
 # plot "clockfreqP4.dat", "clockfreqP3.dat", "clockfreqP2.dat"
-set term postscript portrait ${fontsize}
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|../utilities/gnuplotepsfix > mipsperbuck.eps"
 replot
@@ -95,7 +115,7 @@ set label 4 "75" at 76,0.5 left
 set label 5 "100" at 96,0.65 right
 eff(f,n)=(f-n)/(f-(n-1.))
 plot eff(10,x), eff(25,x), eff(50,x), eff(75,x), eff(100,x)
-set term postscript portrait
+set term postscript portrait enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
 set output "|../utilities/gnuplotepsfix > synceff.eps"
 replot
 ---EOF---
@@ -115,7 +135,7 @@ set label 3 "256" at 17,0.68 right
 set label 4 "512" at 75,0.58 right
 set label 5 "1024" at 90,0.93 right
 plot "matmul.sh.2010.03.28a.dat" w l, "matmul.sh.2010.03.28a.dat" w l
-set term postscript portrait
+set term postscript portrait enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
 set output "|../utilities/gnuplotepsfix > matmuleff.eps"
 replot
 ---EOF---

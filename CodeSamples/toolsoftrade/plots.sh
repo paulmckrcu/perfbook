@@ -22,7 +22,7 @@ fontsize=10
 plotsize=0.7
 
 gnuplot << ---EOF---
-set term postscript portrait ${fontsize}
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../../fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|../../utilities/gnuplotepsfix.7 > rwlockscale.eps"
 set xlabel "Number of CPUs (Threads)"
