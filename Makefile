@@ -179,7 +179,7 @@ perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
 	ps2pdf -dEmbedAllFonts=true perfbook-2up.ps perfbook-2up.pdf
 	rm perfbook.ps perfbook-2up.ps
 
-perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) extraction
+perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	latex perfbook || :
 	test -d bib/. && bibtex perfbook || :
 	latex perfbook || :
@@ -192,6 +192,9 @@ extraction:
 	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
 	cat perfbook_flat.tex qqz.tex | sh utilities/extractcontrib.sh > contrib.tex
 	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
+
+embedfonts:
+	sh utilities/figfixfonts.sh
 
 SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
 	latex -output-directory=$(shell dirname $<) $<
