@@ -54,7 +54,7 @@ set nokey
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "smpalloc-af.1.dat", "smpalloc-af.2.dat"
-set term postscript portrait ${fontsize}
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../../fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "| ../../utilities/gnuplotepsfix > smpalloc.eps"
 replot

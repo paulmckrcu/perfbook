@@ -194,7 +194,8 @@ extraction:
 	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
 
 embedfonts:
-	sh utilities/figfixfonts.sh
+	sh utilities/fixfigfonts.sh
+	sh utilities/fixdotfonts.sh
 
 SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
 	latex -output-directory=$(shell dirname $<) $<

@@ -1,4 +1,4 @@
-# figfixfonts.sh: Convert all .eps files produced by xfig to use
+# fixdotfonts.sh: Convert all .eps files produced by xfig to use
 #	embeddable fonts.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -17,10 +17,10 @@
 #
 # Copyright (c) 2010 Paul E. McKenney, IBM Corporation.
 
-names=`find . -name '*.fig' -print`
+names=`find . -name '*.dot' -print`
 for i in $names
 do
-	basename=`echo $i | sed -e 's/\.fig$//'`
+	basename=`echo $i | sed -e 's/\.dot$//'`
 	if test -f $basename.eps
 	then
 		if grep -q Nimbus $basename.eps
@@ -28,20 +28,8 @@ do
 			:
 		else
 			mv $basename.eps $basename.eps.badfonts
-			sed < $basename.eps.badfonts > $basename.eps \
-				-e 's+Times-Roman+NimbusSanL-Regu+g' \
-				-e 's+Times+NimbusSanL-Regu+g' \
-				-e 's+Helvetica-BoldOblique+NimbusSanL-BoldItal+g' \
-				-e 's+Helvetica-Oblique+NimbusSanL-ReguItal+g' \
-				-e 's+Helvetica-Bold+NimbusSanL-Bold+g' \
-				-e 's+Helvetica-Bold-iso+NimbusSanL-Bold+g' \
-				-e 's+Helvetica+NimbusSanL-Regu+g' \
-				-e 's+Helvetica-iso+NimbusSanL-Regu+g' \
-				-e 's+Symbol+StandardSymL+g' \
-				-e 's+Courier+NimbusMonL-Regu+g' \
-				-e 's+Courier-Bold+NimbusMonL-Bold+g' \
-				-e 's+Courier-Oblique+NimbusMonL-ReguObli+g' \
-				-e 's+Courier-BoldOblique+NimbusMonL-BoldObli+g'
+			sh utilities/fixfonts.sh < $basename.eps.badfonts \
+						 > $basename.eps
 			rm $basename.eps.badfonts
 		fi
 	fi
