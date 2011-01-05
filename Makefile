@@ -70,7 +70,6 @@ EPSSOURCES = \
 	SMPdesign/matmuleff.eps \
 	SMPdesign/mipsperbuck.eps \
 	SMPdesign/smpalloc.eps \
-	SMPdesign/smpalloc.old.eps \
 	SMPdesign/synceff.eps \
 	SMPdesign/DiningPhilosopher5.eps \
 	SMPdesign/DiningPhilosopher5TB.eps \
