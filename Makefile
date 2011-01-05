@@ -169,12 +169,14 @@ all: 2up
 2up: perfbook-2up.pdf
 
 perfbook.pdf: perfbook.dvi $(EPSSOURCES)
-	dvipdf perfbook
+	dvips -Pdownload35 perfbook
+	ps2pdf -dEmbedAllFonts=true perfbook.ps perfbook.pdf
+	rm perfbook.ps
 
 perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
-	dvips perfbook
+	dvips -Pdownload35 perfbook
 	psnup -2 perfbook.ps perfbook-2up.ps
-	ps2pdf perfbook-2up.ps perfbook-2up.pdf
+	ps2pdf -dEmbedAllFonts=true perfbook-2up.ps perfbook-2up.pdf
 	rm perfbook.ps perfbook-2up.ps
 
 perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) extraction
@@ -193,19 +195,19 @@ extraction:
 
 SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
 	latex -output-directory=$(shell dirname $<) $<
-	dvips -E $(patsubst %.tex,%.dvi,$<) -o $@
+	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
 
 SMPdesign/DiningPhilosopher5TB.eps: SMPdesign/DiningPhilosopher5TB.tex
 	latex -output-directory=$(shell dirname $<) $<
-	dvips -E $(patsubst %.tex,%.dvi,$<) -o $@
+	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
 
 SMPdesign/DiningPhilosopher4part-b.eps: SMPdesign/DiningPhilosopher4part-b.tex
 	latex -output-directory=$(shell dirname $<) $<
-	dvips -E $(patsubst %.tex,%.dvi,$<) -o $@
+	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
 
 SMPdesign/DiningPhilosopher5PEM.eps: SMPdesign/DiningPhilosopher5PEM.tex
 	latex -output-directory=$(shell dirname $<) $<
-	dvips -E $(patsubst %.tex,%.dvi,$<) -o $@
+	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
 
 count/sig-theft.eps: count/sig-theft.dot
 	dot -Tps -o count/sig-theft.eps count/sig-theft.dot
