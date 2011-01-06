@@ -59,7 +59,7 @@ void count_init(void)
 		fprintf(stderr, "Out of memory\n");
 		exit(-1);
 	}
-	bzero(countarrayp, sizeof(*countarrayp));
+	memset(countarrayp, '\0', sizeof(*countarrayp));
 }
 
 void count_register_thread(void)
