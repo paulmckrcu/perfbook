@@ -21,6 +21,7 @@
  */
 
 #include "../defer/rcu_nest32.c"
+#include <string.h>
 
 struct countarray {
 	unsigned long total;
