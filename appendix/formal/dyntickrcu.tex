@@ -1,36 +1,36 @@
 % appendix/formal/dyntickrcu.tex
 
-\section{Promela Parable: dynticks and Preemptable RCU}
-\label{app:formal:Promela Parable: dynticks and Preemptable RCU}
+\section{Promela Parable: dynticks and Preemptible RCU}
+\label{app:formal:Promela Parable: dynticks and Preemptible RCU}
 
-In early 2008, a preemptable variant of RCU was accepted into
+In early 2008, a preemptible variant of RCU was accepted into
 mainline Linux in support of real-time workloads,
 a variant similar to the RCU implementations in
 the -rt patchset~\cite{IngoMolnar05a}
 since August 2005.
-Preemptable RCU is needed for real-time workloads because older
+Preemptible RCU is needed for real-time workloads because older
 RCU implementations disable preemption across RCU read-side
 critical sections, resulting in excessive real-time latencies.
 
 However, one disadvantage of the older -rt implementation
-(described in Appendix~\ref{app:rcuimpl:Preemptable RCU})
+(described in Appendix~\ref{app:rcuimpl:Preemptible RCU})
 was that each grace period
 requires work to be done on each CPU, even if that CPU is in a low-power
 ``dynticks-idle'' state,
 and thus incapable of executing RCU read-side critical sections.
 The idea behind the dynticks-idle state is that idle CPUs
 should be physically powered down in order to conserve energy.
-In short, preemptable RCU can disable a valuable energy-conservation
+In short, preemptible RCU can disable a valuable energy-conservation
 feature of recent Linux kernels.
 Although Josh Triplett and Paul McKenney
 had discussed some approaches for allowing
 CPUs to remain in low-power state throughout an RCU grace period
 (thus preserving the Linux kernel's ability to conserve energy), matters
 did not come to a head until Steve Rostedt integrated a new dyntick
-implementation with preemptable RCU in the -rt patchset.
+implementation with preemptible RCU in the -rt patchset.
 
 This combination caused one of Steve's systems to hang on boot, so in
-October, Paul coded up a dynticks-friendly modification to preemptable RCU's
+October, Paul coded up a dynticks-friendly modification to preemptible RCU's
 grace-period processing.
 Steve coded up \url{rcu_irq_enter()} and \url{rcu_irq_exit()}
 interfaces called from the
@@ -86,18 +86,18 @@ that has a smaller state space.
 Even better would be an algorithm so simple that its correctness was
 obvious to the casual observer!
 
-Section~\ref{app:formal:Introduction to Preemptable RCU and dynticks}
-gives an overview of preemptable RCU's dynticks interface,
-Section~\ref{app:formal:Validating Preemptable RCU and dynticks},
+Section~\ref{app:formal:Introduction to Preemptible RCU and dynticks}
+gives an overview of preemptible RCU's dynticks interface,
+Section~\ref{app:formal:Validating Preemptible RCU and dynticks},
 and
 Section~\ref{app:formal:Lessons (Re)Learned} lists
 lessons (re)learned during this effort.
 
-\subsection{Introduction to Preemptable RCU and dynticks}
-\label{app:formal:Introduction to Preemptable RCU and dynticks}
+\subsection{Introduction to Preemptible RCU and dynticks}
+\label{app:formal:Introduction to Preemptible RCU and dynticks}
 
 The per-CPU \url{dynticks_progress_counter} variable is
-central to the interface between dynticks and preemptable RCU.
+central to the interface between dynticks and preemptible RCU.
 This variable has an even value whenever the corresponding CPU
 is in dynticks-idle mode, and an odd value otherwise.
 A CPU exits dynticks-idle mode for the following three reasons:
@@ -109,7 +109,7 @@ A CPU exits dynticks-idle mode for the following three reasons:
 \item	when entering an NMI handler.
 \end{enumerate}
 
-Preemptable RCU's grace-period machinery samples the value of
+Preemptible RCU's grace-period machinery samples the value of
 the \url{dynticks_progress_counter} variable in order to
 determine when a dynticks-idle CPU may safely be ignored.
 
@@ -297,15 +297,15 @@ These two sections have described how the
 entry to and exit from dynticks-idle mode, both by tasks and by
 interrupts and NMIs.
 The following section describes how this variable is used by
-preemptable RCU's grace-period machinery.
+preemptible RCU's grace-period machinery.
 
 \subsubsection{Grace-Period Interface}
 \label{app:formal:Grace-Period Interface}
 
-Of the four preemptable RCU grace-period states shown in
-Figure~\ref{app:rcuimpl:Preemptable RCU State Machine} on
-page~\pageref{app:rcuimpl:Preemptable RCU State Machine} in
-Appendix~\ref{app:rcuimpl:Preemptable RCU},
+Of the four preemptible RCU grace-period states shown in
+Figure~\ref{app:rcuimpl:Preemptible RCU State Machine} on
+page~\pageref{app:rcuimpl:Preemptible RCU State Machine} in
+Appendix~\ref{app:rcuimpl:Preemptible RCU},
 only the \url{rcu_try_flip_waitack_state()}
 and \url{rcu_try_flip_waitmb_state()} states need to wait
 for other CPUs to respond.
@@ -408,8 +408,8 @@ code.
 	Read the next section to see if you were correct.
 } \QuickQuizEnd
 
-\subsection{Validating Preemptable RCU and dynticks}
-\label{app:formal:Validating Preemptable RCU and dynticks}
+\subsection{Validating Preemptible RCU and dynticks}
+\label{app:formal:Validating Preemptible RCU and dynticks}
 
 This section develops a Promela model for the interface between
 dynticks and RCU step by step, with each of the following sections
@@ -508,7 +508,7 @@ as well as portions of
 \url{rcu_try_flip_waitmb()}, all from the 2.6.25-rc4 kernel.
 The following \url{grace_period()} Promela process models
 these functions as they would be invoked during a single pass
-through preemptable RCU's grace-period processing.
+through preemptible RCU's grace-period processing.
 
 { \scriptsize
 \begin{verbatim}
@@ -1822,7 +1822,7 @@ This effort provided some lessons (re)learned:
 \section{Simplicity Avoids Formal Verification}
 \label{app:formal:Simplicity Avoids Formal Verification}
 
-The complexity of the dynticks interface for preemptable RCU is primarily
+The complexity of the dynticks interface for preemptible RCU is primarily
 due to the fact that both irqs and NMIs use the same code path and the
 same state variables.
 This leads to the notion of providing separate code paths and variables
@@ -2220,7 +2220,7 @@ of the NMI handler.
 This limitation of sharing allows the individual functions to be
 understood one at a time, in happy contrast to the situation
 described in
-Section~\ref{app:formal:Promela Parable: dynticks and Preemptable RCU},
+Section~\ref{app:formal:Promela Parable: dynticks and Preemptible RCU},
 where an NMI might change shared state at any point during execution of
 the irq functions.
 
