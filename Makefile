@@ -185,6 +185,9 @@ perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	latex perfbook || :
 	latex perfbook || :
 
+perfbook.html: $(LATEXSOURCES) $(EPSSOURCES) perfbook.dvi
+	latex2html -split 0 perfbook || :
+
 extraction:
 	echo > qqz.tex
 	texexpand perfbook.tex > perfbook_flat.tex
