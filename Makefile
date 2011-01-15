@@ -168,12 +168,12 @@ all: 2up
 2up: perfbook-2up.pdf
 
 perfbook.pdf: perfbook.dvi $(EPSSOURCES)
-	dvips -Pdownload35 perfbook
+	dvips -o -Pdownload35 perfbook
 	ps2pdf -dEmbedAllFonts=true perfbook.ps perfbook.pdf
 	rm perfbook.ps
 
 perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
-	dvips -Pdownload35 perfbook
+	dvips -o -Pdownload35 perfbook
 	psnup -2 perfbook.ps perfbook-2up.ps
 	ps2pdf -dEmbedAllFonts=true perfbook-2up.ps perfbook-2up.pdf
 	rm perfbook.ps perfbook-2up.ps
