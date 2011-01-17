@@ -159,7 +159,10 @@ EPSSOURCES = \
 	easy/Mandel_zoom_00_mandelbrot_set.eps \
 	intro/FourTaskCategories.eps \
 	intro/Generality.eps \
-	intro/PPGrelation.eps
+	intro/PPGrelation.eps \
+	locking/DeadlockCycle.eps \
+	locking/LockingTheHero.eps \
+	locking/LockingTheSlob.eps
 
 all: 2up
 

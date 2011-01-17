@@ -16,15 +16,17 @@ There are a number of reasons behind this dichotomy:
 	work well in most cases, for example:
 	\begin{enumerate}
 	\item	Lock hierarchies to avoid deadlock.
-	\item	Deadlock-detection tools.
+	\item	Deadlock-detection tools, for example, the Linux kernel's
+		lockdep facility~\cite{JonathanCorbet2006lockdep}.
 	\item	Locking-friendly data structures, such as
-		arrays, hash tables, and radix trees.
+		arrays, hash tables, and radix trees, which will
+		be covered in Chapter~\ref{chp:Data Structures}.
 	\end{enumerate}
 \item	Some of locking's sins are problems only at high levels of
-	contention, levels that are usually reached only by poorly
-	designed programs.
+	contention, levels reached only by poorly designed programs.
 \item	Some of locking's sins are avoided by using other synchronization
-	mechanisms in concert with locking, such as reference counters,
+	mechanisms in concert with locking.
+	These other mechanisms include reference counters,
 	statistical counters, simple non-blocking data structures, and RCU.
 \item	Until quite recently, almost all large shared-memory parallel
 	programs were developed in secret, so that it was difficult for
@@ -36,7 +38,21 @@ There are a number of reasons behind this dichotomy:
 This chapter will give an overview of a number of ways to avoid locking's
 more serious sins.
 
-% @@CARTOON@@ animated lock with black hat, curly moustache, evil grin
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{locking/LockingTheSlob}}
+\end{center}
+\caption{Locking: Villain or Slob?}
+\label{fig:locking:Locking: Villain or Slob?}
+\end{figure}
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{locking/LockingTheHero}}
+\end{center}
+\caption{Locking: Workhorse or Hero?}
+\label{fig:locking:Locking: Workhorse or Hero?}
+\end{figure}
 
 \section{Staying Alive}
 \label{sec:locking:Staying Alive}
@@ -49,6 +65,179 @@ unfairness, and inefficiency.
 
 \subsection{Deadlock}
 \label{sec:locking:Deadlock}
+
+Deadlock occurs when each of a group of threads is holding at least one
+lock while at the same time waiting on a lock held by a member
+of the same group.
+
+Without some sort of external intervention, deadlock is forever.
+No thread can acquire the lock it is waiting on until that
+lock is released by the thread holding it, but the thread holding
+it cannot release it until the holding thread acquires the lock that
+it is waiting on.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{locking/DeadlockCycle}}
+\end{center}
+\caption{Deadlock Cycle}
+\label{fig:locking:Deadlock Cycle}
+\end{figure}
+
+We can create a directed-graph representation of a deadlock scenario
+with nodes for threads and locks, as shown in
+Figure~\ref{fig:locking:Deadlock Cycle}.
+An arrow from a lock to a thread indicates that the thread holds
+the lock, for example, Thread~B holds Locks~2 and 4.
+An arrow from a thread to a lock indicates that the thread is waiting
+on the lock, for example, Thread~B is waiting on Lock~3.
+
+A deadlock scenario will always contain at least one deadlock cycle.
+In Figure~\ref{fig:locking:Deadlock Cycle}, this cycle is
+Thread~B, Lock~3, Thread~C, Lock~4, and back to Thread~B.
+
+\QuickQuiz{}
+	But the definition of deadlock only said that each thread
+	was holding at least one lock and waiting on another lock
+	that was held by some thread.
+	How do you know that there is a cycle?
+\QuickQuizAnswer{
+	Suppose that there is not cycle in the graph.
+	We would then have a directed acyclic graph (DAG), which would
+	have at least one leaf node.
+
+	If this leaf node was a lock, then we would have a thread
+	that was waiting on a lock that wasn't held by any thread,
+	which violates the definition.
+	(And in this case the thread would immediately acquire the
+	lock.)
+
+	On the other hand, if this leaf node was a thread, then
+	we would have a thread that was not waiting on any lock,
+	again violating the definition.
+	(And in this case, the thread would either be running or
+	blocked on something that is not a lock.)
+
+	Therefore, given this definition of deadlock, there must
+	be a cycle in the corresponding graph.
+} \QuickQuizEnd
+
+Although there are some software environments such as database systems
+that can repair an existing deadlock, this approach requires either that
+one of the threads be killed or that a lock be forcibly stolen from one
+of the threads.
+This killing and forcible stealing can be appropriate for transactions,
+but is problematic for kernel and application-level use of locking.
+
+Kernels and applications therefore work to avoid deadlocks.
+There are three major approaches,
+locking hierarchies, conditional locking, and
+single-lock-at-a-time designs.
+
+Locking hierarchies order the locks and prohibit acquiring locks out
+of order.
+In Figure~\ref{fig:locking:Deadlock Cycle},
+we might order the locks numerically, so that a thread was
+forbidden from acquiring a given lock if it already held a lock
+with the same or a higher number.
+Thread~B has violated this hierarchy because it is attempting to
+acquire Lock~3 while holding Lock~4, which permitted the deadlock
+to occur.
+
+Again, to apply a locking hierarchy, order the locks and prohibit
+out-of-order lock acquisition.
+In large program, it is wise to use tools to enforce your locking
+hierarchy~\cite{JonathanCorbet2006lockdep}.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 spin_lock(&lock2);
+  2 layer_2_processing(pkt);
+  3 nextlayer = layer_1(pkt);
+  4 spin_lock(&nextlayer->lock1);
+  5 layer_1_processing(pkt);
+\end{verbatim}
+}
+\caption{Protocol Layering and Deadlock}
+\label{fig:locking:Protocol Layering and Deadlock}
+\end{figure}
+
+But suppose that there is no reasonable locking hierarchy.
+This can happen in real life, for example, in layered network protocol stacks
+where packets flow in both directions.
+In the networking case, it might be necessary to hold the locks from
+both layers when passing a packet from one layer to another.
+Given that packets travel both up and down the protocol stack, this
+is an excellent recipe for deadlock, as illustrated in
+Figure~\ref{fig:locking:Protocol Layering and Deadlock}.
+Here, a packet moving down the stack towards the wire must acquire
+the next layer's lock out of order.
+Given that packets moving up the stack away from the wire are acquiring
+the locks in order, the lock acquisition in line~4 of the figure
+can result in deadlock.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 retry:
+  2   spin_lock(&lock2);
+  3   layer_2_processing(pkt);
+  4   nextlayer = layer_1(pkt);
+  5   if (!spin_trylock(&nextlayer->lock1)) {
+  6     spin_unlock(&lock2);
+  7     spin_lock(&nextlayer->lock1);
+  8     spin_lock((&lock2);
+  9     if (layer_1(pkt) != nextlayer) {
+ 10       spin_unlock(&nextlayer->lock1);
+ 11       spin_unlock((&lock2);
+ 12       goto retry;
+ 13     }
+ 14   }
+ 15   layer_1_processing(pkt);
+\end{verbatim}
+}
+\caption{Avoiding Deadlock Via Conditional Locking}
+\label{fig:locking:Avoiding Deadlock Via Conditional Locking}
+\end{figure}
+
+One way to avoid deadlocks in this case is to impose a locking hierarchy,
+but when it is necessary to acquire a lock out of order, acquire it
+conditionally, as shown in
+Figure~\ref{fig:locking:Avoiding Deadlock Via Conditional Locking}.
+Instead of unconditionally acquiring the layer-1 lock, line~5
+conditionally acquires the lock using the \url{spin_trylock()} primitive.
+This primitive acquires the lock immediately if the lock is available
+(returning non-zero), and otherwise returns zero without acquiring the lock.
+
+If \url{spin_trylock()} was successful, line~15 does the needed
+layer-1 processing.
+Otherwise, line~6 releases the lock, and lines~7 and 8 acquire them in
+the correct order.
+Unfortunately, there might be multiple networking devices on
+the system (e.g., Ethernet and WiFi), so that the \url{layer_1()}
+function must make a routing decision.
+This decision might change at any time, especially if the system
+is mobile.\footnote{
+	And, in contrast to the 1900s, mobility is the common case.}
+Therefore, line~9 must recheck the decision, and if it has changed,
+must release the locks and start over.
+
+\QuickQuiz{}
+	Can the transformation from
+	Figure~\ref{fig:locking:Protocol Layering and Deadlock} to
+	Figure~\ref{fig:locking:Avoiding Deadlock Via Conditional Locking}
+	be applied universally?
+\QuickQuizAnswer{
+	Absolutely not!
+
+	This transformation assumes that the
+	\url{layer_2_processing()} function is idempotent, given that
+	it might be executed multiple times on the same packet when
+	the \url{layer_1()} routing decision changes.
+	Therefore, in real life, this transformation can become
+	arbitrarily complex.
+} \QuickQuizEnd
 
 \subsection{Livelock}
 \label{sec:locking:Livelock}
