@@ -164,16 +164,18 @@ EPSSOURCES = \
 	locking/LockingTheHero.eps \
 	locking/LockingTheSlob.eps
 
-all: 2up
+all: 1up
 
 1up: perfbook.pdf
 
 2up: perfbook-2up.pdf
 
-perfbook.pdf: perfbook.dvi $(EPSSOURCES)
-	dvips -o -Pdownload35 perfbook
-	ps2pdf -dEmbedAllFonts=true perfbook.ps perfbook.pdf
-	rm perfbook.ps
+perfbook.pdf: $(EPSSOURCES)
+	pdflatex perfbook || :
+	test -d bib/. && bibtex perfbook || :
+	pdflatex perfbook || :
+	pdflatex perfbook || :
+	pdflatex perfbook || :
 
 perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
 	dvips -o -Pdownload35 perfbook
@@ -201,6 +203,7 @@ extraction:
 embedfonts:
 	sh utilities/fixfigfonts.sh
 	sh utilities/fixdotfonts.sh
+	sh utilities/eps2pdf.sh
 
 SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
 	latex -output-directory=$(shell dirname $<) $<
