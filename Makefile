@@ -170,7 +170,7 @@ all: 1up
 
 2up: perfbook-2up.pdf
 
-perfbook.pdf: $(EPSSOURCES)
+perfbook.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	pdflatex perfbook || :
 	test -d bib/. && bibtex perfbook || :
 	pdflatex perfbook || :
