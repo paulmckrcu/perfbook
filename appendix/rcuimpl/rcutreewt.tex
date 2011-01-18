@@ -48,11 +48,11 @@ Section~\ref{app:rcuimpl:rcutreewt:Tracking Dyntick State}
 describes the data structures used to track each CPU's dyntick-idle state,
 Section~\ref{app:rcuimpl:rcutreewt:Nodes in the Hierarchy}
 describes the fields in the per-node data structure making up the
-\url{rcu_node} hierarchy,
+\co{rcu_node} hierarchy,
 Section~\ref{app:rcuimpl:rcutreewt:Per-CPU Data}
-describes per-CPU \url{rcu_data} structure,
+describes per-CPU \co{rcu_data} structure,
 Section~\ref{app:rcuimpl:rcutreewt:RCU Global State}
-describes the field in the global \url{rcu_state} structure,
+describes the field in the global \co{rcu_state} structure,
 and
 Section~\ref{app:rcuimpl:rcutreewt:Kernel Parameters}
 describes the kernel parameters that control Hierarchical RCU's
@@ -71,24 +71,24 @@ data-structure descriptions.
 \subsubsection{Tracking Dyntick State}
 \label{app:rcuimpl:rcutreewt:Tracking Dyntick State}
 
-The per-CPU \url{rcu_dynticks} structure tracks dynticks state using the
+The per-CPU \co{rcu_dynticks} structure tracks dynticks state using the
 following fields:
 
 \begin{description}
-\item[\url{dynticks_nesting}:]
-	This \url{int} counts the number of reasons that the corresponding
+\item[\co{dynticks_nesting}:]
+	This \co{int} counts the number of reasons that the corresponding
 	CPU should be monitored for RCU read-side critical sections.
 	If the CPU is in dynticks-idle mode, then this counts the
 	irq nesting level, otherwise it is one greater than the
 	irq nesting level.
-\item[\url{dynticks}:]
-	This \url{int} counter's value is even if the corresponding CPU is
+\item[\co{dynticks}:]
+	This \co{int} counter's value is even if the corresponding CPU is
 	in dynticks-idle mode and there are no irq handlers currently
 	running on that CPU, otherwise the counter's value is odd.
 	In other words, if this counter's value is odd, then the
 	corresponding CPU might be in an RCU read-side critical section.
-\item[\url{dynticks_nmi}:]
-	This \url{int} counter's value is odd if the corresponding CPU is
+\item[\co{dynticks_nmi}:]
+	This \co{int} counter's value is odd if the corresponding CPU is
 	in an NMI handler, but only if the NMI arrived while this
 	CPU was in dyntick-idle mode with no irq handlers running.
 	Otherwise, the counter's value will be even.
@@ -99,32 +99,32 @@ This state is shared between the rcu and rcu\_bh implementations.
 \subsubsection{Nodes in the Hierarchy}
 \label{app:rcuimpl:rcutreewt:Nodes in the Hierarchy}
 
-As noted earlier, the \url{rcu_node} hierarchy is flattened into
-the \url{rcu_state} structure as shown in
+As noted earlier, the \co{rcu_node} hierarchy is flattened into
+the \co{rcu_state} structure as shown in
 Figure~\ref{fig:app:rcuimpl:rcutree:Mapping rcu-node Hierarchy Into Array}
 on
 page~\pageref{fig:app:rcuimpl:rcutree:Mapping rcu-node Hierarchy Into Array}.
-Each \url{rcu_node} in this hierarchy has fields as follows:
+Each \co{rcu_node} in this hierarchy has fields as follows:
 
 \begin{description}
-\item[\url{lock}:]
+\item[\co{lock}:]
 	This spinlock guards the non-constant fields in this structure.
 	This lock is acquired from softirq context, so must disable
 	irqs.
 
 \QuickQuiz{}
 	Why not simply disable bottom halves (softirq) when acquiring
-	the \url{rcu_data} structure's \url{lock}?
+	the \co{rcu_data} structure's \co{lock}?
 	Wouldn't this be faster?
 \QuickQuizAnswer{
 	Because this lock can be acquired from functions
-	called by \url{call_rcu()}, which in turn can be
+	called by \co{call_rcu()}, which in turn can be
 	invoked from irq handlers.
 	Therefore, irqs \emph{must} be disabled when
 	holding this lock.
 } \QuickQuizEnd
 
-	The \url{lock} field of the root \url{rcu_node} has additional
+	The \co{lock} field of the root \co{rcu_node} has additional
 	responsibilities:
 	\begin{enumerate}
 	\item	Serializes CPU-stall checking, so that a given stall
@@ -137,99 +137,99 @@ Each \url{rcu_node} in this hierarchy has fields as follows:
 	\item	Prevents new grace periods from starting in code that
 		needs to run within the confines of a single grace period.
 	\item	Serializes the state machine forcing quiescent states
-		(in \url{force_quiescent_state()}) in order to
+		(in \co{force_quiescent_state()}) in order to
 		keep the number of reschedule IPIs down to a dull
 		roar.
 	\end{enumerate}
-\item[\url{qsmask}:]
-	This bitmask tracks which CPUs (for leaf \url{rcu_node} structures)
-	or groups of CPUs (for non-leaf \url{rcu_node} structures)
+\item[\co{qsmask}:]
+	This bitmask tracks which CPUs (for leaf \co{rcu_node} structures)
+	or groups of CPUs (for non-leaf \co{rcu_node} structures)
 	still need to pass through a quiescent state in order for the
 	current grace period to end.
-\item[\url{qsmaskinit}:]
+\item[\co{qsmaskinit}:]
 	This bitmask tracks which CPUs or groups of CPUs will need to
 	pass through a quiescent state for subsequent grace periods
 	to end.
-	The online/offline code manipulates the \url{qsmaskinit} fields,
-	which are copied to the corresponding \url{qsmask} fields at
+	The online/offline code manipulates the \co{qsmaskinit} fields,
+	which are copied to the corresponding \co{qsmask} fields at
 	the beginning of each grace period.
 	This copy operation is one reason why grace period initialization
 	must exclude online/offline operations.
-\item[\url{grpmask}:]
+\item[\co{grpmask}:]
 	This bitmask has a single bit set, and that is the bit corresponding
-	to the this \url{rcu_node} structure's position in the parent
-	\url{rcu_node} structure's \url{qsmask} and \url{qsmaskinit}
+	to the this \co{rcu_node} structure's position in the parent
+	\co{rcu_node} structure's \co{qsmask} and \co{qsmaskinit}
 	fields.
 	Use of this field simplifies quiescent-state processing,
 	as suggested by Manfred Spraul.
 
 \QuickQuiz{}
-	How about the \url{qsmask} and \url{qsmaskinit}
-	fields for the leaf \url{rcu_node} structures?
+	How about the \co{qsmask} and \co{qsmaskinit}
+	fields for the leaf \co{rcu_node} structures?
 	Doesn't there have to be some way to work out
 	which of the bits in these fields corresponds
-	to each CPU covered by the \url{rcu_node} structure
+	to each CPU covered by the \co{rcu_node} structure
 	in question?
 \QuickQuizAnswer{
 	Indeed there does!
-	The \url{grpmask} field in each CPU's \url{rcu_data}
+	The \co{grpmask} field in each CPU's \co{rcu_data}
 	structure does this job.
 } \QuickQuizEnd
 
-\item[\url{grplo}:]
+\item[\co{grplo}:]
 	This field contains the number of the lowest-numbered CPU covered
-	by this \url{rcu_node} structure.
-\item[\url{grphi}:]
+	by this \co{rcu_node} structure.
+\item[\co{grphi}:]
 	This field contains the number of the highest-numbered CPU covered
-	by this \url{rcu_node} structure.
-\item[\url{grpnum}:]
-	This field contains the bit number in the parent \url{rcu_node}
-	structure's \url{qsmask} and \url{qsmaskinit} fields that this
-	\url{rcu_node} structure corresponds to.
-	In other words, given a pointer \url{rnp} to a given
-	\url{rcu_node} structure, it will always be the case that
-	\url{1UL << rnp->grpnum == rnp->grpmask}.
-	The \url{grpnum} field is used only for tracing output.
-\item[\url{level}:]
-	This field contains zero for the root \url{rcu_node} structure,
-	one for the \url{rcu_node} structures that are children of
+	by this \co{rcu_node} structure.
+\item[\co{grpnum}:]
+	This field contains the bit number in the parent \co{rcu_node}
+	structure's \co{qsmask} and \co{qsmaskinit} fields that this
+	\co{rcu_node} structure corresponds to.
+	In other words, given a pointer \co{rnp} to a given
+	\co{rcu_node} structure, it will always be the case that
+	\co{1UL << rnp->grpnum == rnp->grpmask}.
+	The \co{grpnum} field is used only for tracing output.
+\item[\co{level}:]
+	This field contains zero for the root \co{rcu_node} structure,
+	one for the \co{rcu_node} structures that are children of
 	the root, and so on down the hierarchy.
-\item[\url{parent}:]
-	This field is a pointer to the parent \url{rcu_node} structure,
-	or NULL for the root \url{rcu_node} structure.
+\item[\co{parent}:]
+	This field is a pointer to the parent \co{rcu_node} structure,
+	or NULL for the root \co{rcu_node} structure.
 \end{description}
 
 \subsubsection{Per-CPU Data}
 \label{app:rcuimpl:rcutreewt:Per-CPU Data}
 
-The \url{rcu_data} structure contains RCU's per-CPU state.
+The \co{rcu_data} structure contains RCU's per-CPU state.
 It contains control variables governing grace periods and
-quiescent states (\url{completed}, \url{gpnum}, \url{passed_quiesc_completed},
-\url{passed_quiesc}, \url{qs_pending}, \url{beenonline}, \url{mynode},
-and \url{grpmask}).
-The \url{rcu_data} structure also contains control variables pertaining
+quiescent states (\co{completed}, \co{gpnum}, \co{passed_quiesc_completed},
+\co{passed_quiesc}, \co{qs_pending}, \co{beenonline}, \co{mynode},
+and \co{grpmask}).
+The \co{rcu_data} structure also contains control variables pertaining
 to RCU callbacks
-(\url{nxtlist}, \url{nxttail}, \url{qlen}, and \url{blimit}).
+(\co{nxtlist}, \co{nxttail}, \co{qlen}, and \co{blimit}).
 Kernels with dynticks enabled will have relevant control variables in
-the \url{rcu_data} structure
-(\url{dynticks}, \url{dynticks_snap}, and \url{dynticks_nmi_snap}).
-The \url{rcu_data} structure contains event counters used by tracing
-(\url{dynticks_fqs} given dynticks, \url{offline_fqs}, and \url{resched_ipi}).
-Finally, a pair of fields count calls to \url{rcu_pending()} in order
-to determine when to force quiescent states (\url{n_rcu_pending} and
-\url{n_rcu_pending_force_qs}), and a \url{cpu} field indicates which
-CPU to which a given \url{rcu_data} structure corresponds.
+the \co{rcu_data} structure
+(\co{dynticks}, \co{dynticks_snap}, and \co{dynticks_nmi_snap}).
+The \co{rcu_data} structure contains event counters used by tracing
+(\co{dynticks_fqs} given dynticks, \co{offline_fqs}, and \co{resched_ipi}).
+Finally, a pair of fields count calls to \co{rcu_pending()} in order
+to determine when to force quiescent states (\co{n_rcu_pending} and
+\co{n_rcu_pending_force_qs}), and a \co{cpu} field indicates which
+CPU to which a given \co{rcu_data} structure corresponds.
 
 Each of these fields is described below.
 
 \begin{description}
-\item[\url{completed}:]
+\item[\co{completed}:]
 	This field contains the number of the most recent grace period
 	that this CPU is aware of having completed.
-\item[\url{gpnum}:]
+\item[\co{gpnum}:]
 	This field contains the number of the most recent grace period
 	that this CPU is aware of having started.
-\item[\url{passed_quiesc_completed}:]
+\item[\co{passed_quiesc_completed}:]
 	This field contains the number of the grace period that had most
 	recently completed when this
 	CPU last passed through a quiescent state.
@@ -243,20 +243,20 @@ Each of these fields is described below.
 	This field is initialized to a (possibly mythical) past
 	grace period number to avoid race conditions when booting
 	and when onlining a CPU.
-\item[\url{passed_quiesc}:]
+\item[\co{passed_quiesc}:]
 	This field indicates whether this CPU has passed
 	through a quiescent state since the grace period number
-	stored in \url{passed_quiesc_completed} completed.
+	stored in \co{passed_quiesc_completed} completed.
 	This field is cleared each time the corresponding CPU
 	becomes aware of the start of a new grace period.
-\item[\url{qs_pending}:]
+\item[\co{qs_pending}:]
 	This field indicates that this CPU is aware that the core
 	RCU mechanism is waiting for it to pass through a quiescent state.
 	This field is set to one when the CPU detects a new grace
 	period or when a CPU is coming online.
 
 \QuickQuiz{}
-	But why bother setting \url{qs_pending} to one when a CPU
+	But why bother setting \co{qs_pending} to one when a CPU
 	is coming online, given that being offline is an extended
 	quiescent state that should cover any ongoing grace period?
 \QuickQuizAnswer{
@@ -266,7 +266,7 @@ Each of these fields is described below.
 
 \QuickQuiz{}
 	Why record the last completed grace period number in
-	\url{passed_quiesc_completed}?
+	\co{passed_quiesc_completed}?
 	Doesn't that cause this RCU implementation to be vulnerable
 	to quiescent states seen while no grace period was in progress
 	being incorrectly applied to the next grace period that starts?
@@ -275,33 +275,33 @@ Each of these fields is described below.
 	to avoid races where a quiescent state noted near the end of
 	one grace period is incorrectly applied to the next grace
 	period, especially for dyntick and CPU-offline grace periods.
-	Therefore, \url{force_quiescent_state()} and friends all
+	Therefore, \co{force_quiescent_state()} and friends all
 	check the last completed grace period number to avoid such races.
 
 	Now these dyntick and CPU-offline grace periods are only checked
 	for when a grace period is actually active.
 	The only quiescent states that can be recorded when no grace
 	period is in progress are self-detected quiescent states,
-	which are recorded in the \url{passed_quiesc_completed},
-	\url{passed_quiesc}, and \url{qs_pending}.
+	which are recorded in the \co{passed_quiesc_completed},
+	\co{passed_quiesc}, and \co{qs_pending}.
 	These variables are initialized every time the corresponding
 	CPU notices that a new grace period has started, preventing
 	any obsolete quiescent states from being applied to the
 	new grace period.
 
 	All that said, optimizing grace-period latency may require that
-	\url{gpnum} be tracked in addition to \url{completed}.
+	\co{gpnum} be tracked in addition to \co{completed}.
 } \QuickQuizEnd
 
-\item[\url{beenonline}:]
+\item[\co{beenonline}:]
 	This field, initially zero, is set to one whenever the corresponding
 	CPU comes online.
 	This is used to avoid producing useless tracing output for CPUs
 	that never have been online, which is useful in kernels where
-	\url{NR_CPUS} greatly exceeds the actual number of CPUs.
+	\co{NR_CPUS} greatly exceeds the actual number of CPUs.
 
 \QuickQuiz{}
-	What is the point of running a system with \url{NR_CPUS}
+	What is the point of running a system with \co{NR_CPUS}
 	way bigger than the actual number of CPUs?
 \QuickQuizAnswer{
 	Because this allows producing a single binary of the Linux kernel
@@ -309,42 +309,42 @@ Each of these fields is described below.
 	and validation.
 } \QuickQuizEnd
 
-\item[\url{mynode}:]
-	This field is a pointer to the leaf \url{rcu_node} structure that
+\item[\co{mynode}:]
+	This field is a pointer to the leaf \co{rcu_node} structure that
 	handles the corresponding CPU.
-\item[\url{grpmask}:]
+\item[\co{grpmask}:]
 	This field is a bitmask that has the single bit set that indicates
-	which bit in \url{mynode->qsmask} signifies the corresponding CPU.
-\item[\url{nxtlist}:]
-	This field is a pointer to the oldest RCU callback (\url{rcu_head}
-	structure) residing on this CPU, or \url{NULL} if this CPU currently
+	which bit in \co{mynode->qsmask} signifies the corresponding CPU.
+\item[\co{nxtlist}:]
+	This field is a pointer to the oldest RCU callback (\co{rcu_head}
+	structure) residing on this CPU, or \co{NULL} if this CPU currently
 	has no such callbacks.
-	Additional callbacks may be chained via their \url{next} pointers.
-\item[\url{nxttail}:]
+	Additional callbacks may be chained via their \co{next} pointers.
+\item[\co{nxttail}:]
 	This field is an array of double-indirect tail pointers
-	into the \url{nxtlist} callback list.
-	If \url{nxtlist} is empty, then all of the \url{nxttail} pointers
-	directly reference the \url{nxtlist} field.
-	Each element of the \url{nxttail} array has meaning as follows:
+	into the \co{nxtlist} callback list.
+	If \co{nxtlist} is empty, then all of the \co{nxttail} pointers
+	directly reference the \co{nxtlist} field.
+	Each element of the \co{nxttail} array has meaning as follows:
 	\begin{description}
-	\item[\url{RCU_DONE_TAIL=0}:]
-		This element references the \url{->next} field of
+	\item[\co{RCU_DONE_TAIL=0}:]
+		This element references the \co{->next} field of
 		the last callback that has passed through its grace
-		period and is ready to invoke, or references the \url{nxtlist}
+		period and is ready to invoke, or references the \co{nxtlist}
 		field if there is no such callback.
-	\item[\url{RCU_WAIT_TAIL=1}:]
-		This element references the \url{next} field of the
+	\item[\co{RCU_WAIT_TAIL=1}:]
+		This element references the \co{next} field of the
 		last callback that is waiting for the current grace
-		period to end, or is equal to the \url{RCU_DONE_TAIL}
+		period to end, or is equal to the \co{RCU_DONE_TAIL}
 		element if there is no such callback.
-	\item[\url{RCU_NEXT_READY_TAIL=2}:]
-		This element references the \url{next} field of the
+	\item[\co{RCU_NEXT_READY_TAIL=2}:]
+		This element references the \co{next} field of the
 		last callback that is ready to wait for the next
-		grace period, or is equal to the \url{RCU_WAIT_TAIL}
+		grace period, or is equal to the \co{RCU_WAIT_TAIL}
 		element if there is no such callback.
-	\item[\url{RCU_NEXT_TAIL=3}:]
-		This element references the \url{next} field of the
-		last callback in the list, or references the \url{nxtlist}
+	\item[\co{RCU_NEXT_TAIL=3}:]
+		This element references the \co{next} field of the
+		last callback in the list, or references the \co{nxtlist}
 		field if the list is empty.
 	\end{description}
 
@@ -356,36 +356,36 @@ Each of these fields is described below.
 	simplifies callback processing.
 } \QuickQuizEnd
 
-\item[\url{qlen}:]
+\item[\co{qlen}:]
 	This field contains the number of callbacks queued on
-	\url{nxtlist}.
-\item[\url{blimit}:]
+	\co{nxtlist}.
+\item[\co{blimit}:]
 	This field contains the maximum number of callbacks that may
 	be invoked at a time.
 	This limitation improves system responsiveness under heavy load.
-\item[\url{dynticks}:]
-	This field references the \url{rcu_dynticks} structure for
+\item[\co{dynticks}:]
+	This field references the \co{rcu_dynticks} structure for
 	the corresponding CPU, which is described in
 	Section~\ref{app:rcuimpl:rcutreewt:Tracking Dyntick State}.
-\item[\url{dynticks_snap}:]
-	This field contains a past value of \url{dynticks->dynticks},
+\item[\co{dynticks_snap}:]
+	This field contains a past value of \co{dynticks->dynticks},
 	which is used to detect when a CPU passes through a dynticks
 	idle state when this CPU happens to be in an irq
-	handler each time that \url{force_quiescent_state()} checks it.
-\item[\url{dynticks_nmi_snap}:]
-	This field contains a past value of \url{dynticks->dynticks_nmi},
+	handler each time that \co{force_quiescent_state()} checks it.
+\item[\co{dynticks_nmi_snap}:]
+	This field contains a past value of \co{dynticks->dynticks_nmi},
 	which is used to detect when a CPU passes through a dynticks
 	idle state when this CPU happens to be in an NMI
-	handler each time that \url{force_quiescent_state()} checks it.
-\item[\url{dynticks_fqs}:]
+	handler each time that \co{force_quiescent_state()} checks it.
+\item[\co{dynticks_fqs}:]
 	This field counts the number of times that some other CPU noted
 	a quiescent state on behalf of
-	the CPU corresponding to this \url{rcu_data} structure due to
+	the CPU corresponding to this \co{rcu_data} structure due to
 	its being in dynticks-idle mode.
-\item[\url{offline_fqs}:]
+\item[\co{offline_fqs}:]
 	This field counts the number of times that some other CPU noted
 	a quiescent state on behalf of
-	the CPU corresponding to this \url{rcu_data} structure due to
+	the CPU corresponding to this \co{rcu_data} structure due to
 	its being offline.
 
 \QuickQuiz{}
@@ -394,145 +394,145 @@ Each of these fields is described below.
 	Yecch!
 	Won't that result in excessive overheads in the not-uncommon
 	case of a system with a small number of CPUs but a large value
-	for \url{NR_CPUS}?
+	for \co{NR_CPUS}?
 \QuickQuizAnswer{
 	Actually, no it will not!
 
-	Offline CPUs are excluded from both the \url{qsmask} and
-	\url{qsmaskinit} bit masks, so RCU normally ignores them.
+	Offline CPUs are excluded from both the \co{qsmask} and
+	\co{qsmaskinit} bit masks, so RCU normally ignores them.
 	However, there are races with online/offline operations that
-	can result in an offline CPU having its \url{qsmask} bit set.
+	can result in an offline CPU having its \co{qsmask} bit set.
 	These races must of course be handled correctly, and the way
 	they are handled is to permit other CPUs to note that RCU
 	is waiting on a quiescent state from an offline CPU.
 } \QuickQuizEnd
 
-\item[\url{resched_ipi}:]
+\item[\co{resched_ipi}:]
 	This field counts the number of times that a reschedule IPI
 	is sent to the corresponding CPU.
 	Such IPIs are sent to CPUs that fail to report passing through
 	a quiescent states in a timely manner, but are neither offline
 	nor in dynticks idle state.
-\item[\url{n_rcu_pending}:]
-	This field counts the number of calls to \url{rcu_pending()},
+\item[\co{n_rcu_pending}:]
+	This field counts the number of calls to \co{rcu_pending()},
 	which is called once per jiffy on non-dynticks-idle CPUs.
-\item[\url{n_rcu_pending_force_qs}:]
-	This field holds a threshold value for \url{n_rcu_pending}.
-	If \url{n_rcu_pending} reaches this threshold, that indicates
+\item[\co{n_rcu_pending_force_qs}:]
+	This field holds a threshold value for \co{n_rcu_pending}.
+	If \co{n_rcu_pending} reaches this threshold, that indicates
 	that the current grace period has extended too long, so
-	\url{force_quiescent_state()} is invoked to expedite it.
+	\co{force_quiescent_state()} is invoked to expedite it.
 \end{description}
 
 \subsubsection{RCU Global State}
 \label{app:rcuimpl:rcutreewt:RCU Global State}
 
-The \url{rcu_state} structure contains RCU's global state for
+The \co{rcu_state} structure contains RCU's global state for
 each instance of RCU (rcu and rcu\_bh).
 It includes fields relating to
-the hierarchy of \url{rcu_node} structures, including
-the \url{node} array itself,
-the \url{level} array that contains
+the hierarchy of \co{rcu_node} structures, including
+the \co{node} array itself,
+the \co{level} array that contains
 pointers to the levels of the hierarchy,
-the \url{levelcnt} array that contains the count of nodes at each level
+the \co{levelcnt} array that contains the count of nodes at each level
 of the hierarchy,
-the \url{levelspread} array that contains the number of children
+the \co{levelspread} array that contains the number of children
 per node for each level of the hierarchy,
-and the \url{rda} array of pointer to each of the CPU's
-\url{rcu_data} structures.
-The \url{rcu_state} structure also contains a number of fields
+and the \co{rda} array of pointer to each of the CPU's
+\co{rcu_data} structures.
+The \co{rcu_state} structure also contains a number of fields
 coordinating various details of the current grace period and its
-interaction with other mechanisms (\url{signaled},
-\url{gpnum}, \url{completed}, \url{onofflock}, \url{fqslock},
-\url{jiffies_force_qs}, \url{n_force_qs}, \url{n_force_qs_lh},
-\url{n_force_qs_ngp}, \url{gp_start}, \url{jiffies_stall},
-and \url{dynticks_completed}).
+interaction with other mechanisms (\co{signaled},
+\co{gpnum}, \co{completed}, \co{onofflock}, \co{fqslock},
+\co{jiffies_force_qs}, \co{n_force_qs}, \co{n_force_qs_lh},
+\co{n_force_qs_ngp}, \co{gp_start}, \co{jiffies_stall},
+and \co{dynticks_completed}).
 
 Each of these fields are described below.
 
 \begin{description}
-\item[\url{node}:]
-	This field is the array of \url{rcu_node} structures,
+\item[\co{node}:]
+	This field is the array of \co{rcu_node} structures,
 	with the root node of the hierarchy being located at
-	\url{->node[0]}.
+	\co{->node[0]}.
 	The size of this array is specified by the
-	\url{NUM_RCU_NODES} C-preprocessor macro, which is computed
-	from \url{NR_CPUS} and \url{CONFIG_RCU_FANOUT}
+	\co{NUM_RCU_NODES} C-preprocessor macro, which is computed
+	from \co{NR_CPUS} and \co{CONFIG_RCU_FANOUT}
 	as described in
 	Section~\ref{app:rcuimpl:rcutreewt:Kernel Parameters}.
-	Note that traversing the \url{->node} array starting at
+	Note that traversing the \co{->node} array starting at
 	element zero has the effect of doing a breadth-first search
-	of the \url{rcu_node} hierarchy.
-\item[\url{level}:]
-	This field is an array of pointers into the \url{node} array.
+	of the \co{rcu_node} hierarchy.
+\item[\co{level}:]
+	This field is an array of pointers into the \co{node} array.
 	The root node of the hierarchy is referenced by
-	\url{->level[0]}, the first node of the second level of
-	the hierarchy (if there is one) by \url{->level[1]}, and so on.
+	\co{->level[0]}, the first node of the second level of
+	the hierarchy (if there is one) by \co{->level[1]}, and so on.
 	The first leaf node is referenced by
-	\url{->level[NUM_RCU_LVLS-1]}, and the size of the \url{level}
-	array is thus specified by \url{NUM_RCU_LVLS}, which is
+	\co{->level[NUM_RCU_LVLS-1]}, and the size of the \co{level}
+	array is thus specified by \co{NUM_RCU_LVLS}, which is
 	computed as described in
 	Section~\ref{app:rcuimpl:rcutreewt:Kernel Parameters}.
-	The \url{->level} field is often used in combination with
-	\url{->node} to scan a level of the \url{rcu_node} hierarchy,
+	The \co{->level} field is often used in combination with
+	\co{->node} to scan a level of the \co{rcu_node} hierarchy,
 	for example, all of the leaf nodes.
-	The elements of \url{->level} are filled in by the
-	boot-time \url{rcu_init_one()} function.
-\item[\url{levelcnt}:]
-	This field is an array containing the number of \url{rcu_node}
+	The elements of \co{->level} are filled in by the
+	boot-time \co{rcu_init_one()} function.
+\item[\co{levelcnt}:]
+	This field is an array containing the number of \co{rcu_node}
 	structures in each level of the hierarchy, including the
-	number of \url{rcu_data} structures referencing the leaf
-	\url{rcu_node} structures, so that this array has one more
-	element than does the \url{->level} array.
-	Note that \url{->levelcnt[0]} will always contain a value of
-	one, corresponding to the single root \url{rcu_node} at the
+	number of \co{rcu_data} structures referencing the leaf
+	\co{rcu_node} structures, so that this array has one more
+	element than does the \co{->level} array.
+	Note that \co{->levelcnt[0]} will always contain a value of
+	one, corresponding to the single root \co{rcu_node} at the
 	top of the hierarchy.
 	This array is initialized with the values
-	\url{NUM_RCU_LVL_0},
-	\url{NUM_RCU_LVL_1},
-	\url{NUM_RCU_LVL_2}, and
-	\url{NUM_RCU_LVL_3},
+	\co{NUM_RCU_LVL_0},
+	\co{NUM_RCU_LVL_1},
+	\co{NUM_RCU_LVL_2}, and
+	\co{NUM_RCU_LVL_3},
 	which are C-preprocessor macros computed as described in
 	Section~\ref{app:rcuimpl:rcutreewt:Kernel Parameters}.
-	The \url{->levelcnt} field is used to initialize
+	The \co{->levelcnt} field is used to initialize
 	other parts of the hierarchy and for debugging purposes.
-\item[\url{levelspread}:]
+\item[\co{levelspread}:]
 	Each element of this field contains the desired number of children
-	for the corresponding level of the \url{rcu_node} hierarchy.
+	for the corresponding level of the \co{rcu_node} hierarchy.
 	This array's element's values are computed at runtime
-	by one of the two \url{rcu_init_levelspread()} functions,
-	selected by the \url{CONFIG_RCU_FANOUT_EXACT} kernel parameter.
-\item[\url{rda}:]
+	by one of the two \co{rcu_init_levelspread()} functions,
+	selected by the \co{CONFIG_RCU_FANOUT_EXACT} kernel parameter.
+\item[\co{rda}:]
 	Each element of this field contains a pointer to the
-	corresponding CPU's \url{rcu_data} structure.
+	corresponding CPU's \co{rcu_data} structure.
 	This array is initialized at boot time by the
-	\url{RCU_DATA_PTR_INIT()} macro.
-\item[\url{signaled}:]
+	\co{RCU_DATA_PTR_INIT()} macro.
+\item[\co{signaled}:]
 	This field is used to maintain state used by the
-	\url{force_quiescent_state()} function, as described in
+	\co{force_quiescent_state()} function, as described in
 	Section~\ref{app:rcuimpl:rcutreewt:Forcing Quiescent States}.
 	This field takes on values as follows:
 	\begin{description}
-	\item[\url{RCU_GP_INIT}:]
+	\item[\co{RCU_GP_INIT}:]
 		This value indicates that the current grace period
 		is still in the process of being initialized,
-		so that \url{force_quiescent_state()} should take
+		so that \co{force_quiescent_state()} should take
 		no action.
 		Of course, grace-period initialization would need
 		to stretch out for three jiffies before this race
 		could arise, but if you have a very large number
 		of CPUs, this race could in fact occur.
 		Once grace-period initialization is complete,
-		this value is set to either \url{RCU_SAVE_DYNTICK}
-		(if \url{CONFIG_NO_HZ}) or \url{RCU_FORCE_QS} otherwise.
-	\item[\url{RCU_SAVE_DYNTICK}:]
-		This value indicates that \url{force_quiescent_state()}
+		this value is set to either \co{RCU_SAVE_DYNTICK}
+		(if \co{CONFIG_NO_HZ}) or \co{RCU_FORCE_QS} otherwise.
+	\item[\co{RCU_SAVE_DYNTICK}:]
+		This value indicates that \co{force_quiescent_state()}
 		should check the dynticks state of any CPUs that have
 		not yet reported quiescent states for the current
 		grace period.
 		Quiescent states will be reported on behalf of any
 		CPUs that are in dyntick-idle mode.
-	\item[\url{RCU_FORCE_QS}:]
-		This value indicates that \url{force_quiescent_state()}
+	\item[\co{RCU_FORCE_QS}:]
+		This value indicates that \co{force_quiescent_state()}
 		should recheck dynticks state along with the online/offline
 		state of any CPUs that have
 		not yet reported quiescent states for the current
@@ -544,104 +544,104 @@ Each of these fields are described below.
 		If all else fails, a reschedule IPI will be sent to
 		the laggard CPU.
 	\end{description}
-	This field is guarded by the root \url{rcu_node} structure's lock.
+	This field is guarded by the root \co{rcu_node} structure's lock.
 
 \QuickQuiz{}
 	So what guards the earlier fields in this structure?
 \QuickQuizAnswer{
 	Nothing does, as they are constants set at compile time
 	or boot time.
-	Of course, the fields internal to each \url{rcu_node}
-	in the \url{->node} array may change, but they are
+	Of course, the fields internal to each \co{rcu_node}
+	in the \co{->node} array may change, but they are
 	guarded separately.
 } \QuickQuizEnd
 
-\item[\url{gpnum}:]
+\item[\co{gpnum}:]
 	This field contains the number of the current grace period,
 	or that of the last grace period if no grace period is currently
 	in effect.
-	This field is guarded by the root \url{rcu_node} structure's lock,
+	This field is guarded by the root \co{rcu_node} structure's lock,
 	but is frequently accessed (but never modified) without holding
 	this lock.
-\item[\url{completed}:]
+\item[\co{completed}:]
 	This field contains the number of the last completed grace period.
-	As such, it is equal to \url{->gpnum} when there is no grace period
-	in progress, or one less than \url{->gpnum} when there is a
+	As such, it is equal to \co{->gpnum} when there is no grace period
+	in progress, or one less than \co{->gpnum} when there is a
 	grace period in progress.
 	In principle, one could replace this pair of fields with a single
 	boolean, as is done in Classic RCU in some versions of Linux,
 	but in practice race resolution is much simpler given the pair
 	of numbers.
-	This field is guarded by the root \url{rcu_node} structure's lock,
+	This field is guarded by the root \co{rcu_node} structure's lock,
 	but is frequently accessed (but never modified) without holding
 	this lock.
-\item[\url{onofflock}:]
+\item[\co{onofflock}:]
 	This field prevents online/offline processing from running
 	concurrently with grace-period initialization.
-	There is one exception to this: if the \url{rcu_node}
+	There is one exception to this: if the \co{rcu_node}
 	hierarchy consists of but a single structure, then
-	that single structure's \url{->lock} field will instead take on
+	that single structure's \co{->lock} field will instead take on
 	this job.
-\item[\url{fqslock}:]
+\item[\co{fqslock}:]
 	This field prevents more than one task from forcing quiescent
-	states with \url{force_quiescent_state()}.
-\item[\url{jiffies_force_qs}:]
+	states with \co{force_quiescent_state()}.
+\item[\co{jiffies_force_qs}:]
 	This field contains the time, in jiffies, when
-	\url{force_quiescent_state()} should be invoked in order to
+	\co{force_quiescent_state()} should be invoked in order to
 	force CPUs into quiescent states and/or report extended
 	quiescent states.
-	This field is guarded by the root \url{rcu_node} structure's lock,
+	This field is guarded by the root \co{rcu_node} structure's lock,
 	but is frequently accessed (but never modified) without holding
 	this lock.
-\item[\url{n_force_qs}:]
-	This field counts the number of calls to \url{force_quiescent_state()}
+\item[\co{n_force_qs}:]
+	This field counts the number of calls to \co{force_quiescent_state()}
 	that actually do work, as opposed to leaving early due to
 	the grace period having already completed, some other
-	CPU currently running \url{force_quiescent_state()},
-	or \url{force_quiescent_state()} having run too recently.
+	CPU currently running \co{force_quiescent_state()},
+	or \co{force_quiescent_state()} having run too recently.
 	This field is used for tracing and debugging, and
-	is guarded by \url{->fqslock}.
-\item[\url{n_force_qs_lh}:]
+	is guarded by \co{->fqslock}.
+\item[\co{n_force_qs_lh}:]
 	This field holds an approximate count of the number of times that
-	\url{force_quiescent_state()} returned early due to the
-	\url{->fqslock} being held by some other CPU.
+	\co{force_quiescent_state()} returned early due to the
+	\co{->fqslock} being held by some other CPU.
 	This field is used for tracing and debugging, and is not
 	guarded by any lock, hence its approximate nature.
-\item[\url{n_force_qs_ngp}:]
+\item[\co{n_force_qs_ngp}:]
 	This field counts the number of times that
-	\url{force_quiescent_state()} that successfully acquire
-	\url{->fqslock}, but then find that there is no grace period
+	\co{force_quiescent_state()} that successfully acquire
+	\co{->fqslock}, but then find that there is no grace period
 	in progress.
 	This field is used for tracing and debugging, and
-	is guarded by \url{->fqslock}.
-\item[\url{gp_start}:]
+	is guarded by \co{->fqslock}.
+\item[\co{gp_start}:]
 	This field records the time at which the most recent grace period
 	began, in jiffies.
 	This is used to detect stalled CPUs, but only when the
-	\url{CONFIG_RCU_CPU_STALL_DETECTOR} kernel parameter is selected.
-	This field is guarded by the root \url{rcu_node}'s \url{->lock},
+	\co{CONFIG_RCU_CPU_STALL_DETECTOR} kernel parameter is selected.
+	This field is guarded by the root \co{rcu_node}'s \co{->lock},
 	but is sometimes accessed (but not modified) outside of this
 	lock.
-\item[\url{jiffies_stall}:]
+\item[\co{jiffies_stall}:]
 	This field holds the time, in jiffies, at which the current
 	grace period will have extended for so long that it will
 	be appropriate to check for CPU stalls.
-	As with \url{->gp_start}, this field exists only when the
-	\url{CONFIG_RCU_CPU_STALL_DETECTOR} kernel parameter is selected.
-	This field is guarded by the root \url{rcu_node}'s \url{->lock},
+	As with \co{->gp_start}, this field exists only when the
+	\co{CONFIG_RCU_CPU_STALL_DETECTOR} kernel parameter is selected.
+	This field is guarded by the root \co{rcu_node}'s \co{->lock},
 	but is sometimes accessed (but not modified) outside of this
 	lock.
-\item[\url{dynticks_completed}:]
-	This field records the value of \url{->completed} at the time when
-	\url{force_quiescent_state()} snapshots dyntick state, but
+\item[\co{dynticks_completed}:]
+	This field records the value of \co{->completed} at the time when
+	\co{force_quiescent_state()} snapshots dyntick state, but
 	is also initialized to an earlier grace period at the beginning
 	of each grace period.
 	This field is used to prevent dyntick-idle quiescent states
 	from a prior grace period from being applied to the current
 	grace period.
-	As such, this field exists only when the \url{CONFIG_NO_HZ}
+	As such, this field exists only when the \co{CONFIG_NO_HZ}
 	kernel parameter is selected.
-	This field is guarded by the root \url{rcu_node}'s \url{->lock},
+	This field is guarded by the root \co{rcu_node}'s \co{->lock},
 	but is sometimes accessed (but not modified) outside of this
 	lock.
 \end{description}
@@ -652,19 +652,19 @@ Each of these fields are described below.
 The following kernel parameters affect this variant of RCU:
 
 \begin{itemize}
-\item	\url{NR_CPUS}, the maximum number of CPUs in the system.
-\item	\url{CONFIG_RCU_FANOUT}, the desired number of children for
-	each node in the \url{rcu_node} hierarchy.
-\item	\url{CONFIG_RCU_FANOUT_EXACT}, a boolean preventing rebalancing
-	of the \url{rcu_node} hierarchy.
-\item	\url{CONFIG_HOTPLUG_CPU}, permitting CPUs to come online and go
+\item	\co{NR_CPUS}, the maximum number of CPUs in the system.
+\item	\co{CONFIG_RCU_FANOUT}, the desired number of children for
+	each node in the \co{rcu_node} hierarchy.
+\item	\co{CONFIG_RCU_FANOUT_EXACT}, a boolean preventing rebalancing
+	of the \co{rcu_node} hierarchy.
+\item	\co{CONFIG_HOTPLUG_CPU}, permitting CPUs to come online and go
 	offline.
-\item	\url{CONFIG_NO_HZ}, indicating that dynticks-idle mode is supported.
-\item	\url{CONFIG_SMP}, indicating that multiple CPUs may be present.
-\item	\url{CONFIG_RCU_CPU_STALL_DETECTOR}, indicating that RCU should
+\item	\co{CONFIG_NO_HZ}, indicating that dynticks-idle mode is supported.
+\item	\co{CONFIG_SMP}, indicating that multiple CPUs may be present.
+\item	\co{CONFIG_RCU_CPU_STALL_DETECTOR}, indicating that RCU should
 	check for stalled CPUs when RCU grace periods extend too long.
-\item	\url{CONFIG_RCU_TRACE}, indicating that RCU should provide
-	tracing information in \url{debugfs}.
+\item	\co{CONFIG_RCU_TRACE}, indicating that RCU should provide
+	tracing information in \co{debugfs}.
 \end{itemize}
 
 \begin{figure*}[tbp]
@@ -705,39 +705,39 @@ The following kernel parameters affect this variant of RCU:
 \label{fig:app:rcuimpl:rcutreewt:Determining Shape of RCU Hierarchy}
 \end{figure*}
 
-The \url{CONFIG_RCU_FANOUT} and \url{NR_CPUS} parameters are used to
-determine the shape of the \url{rcu_node} hierarchy at compile time,
+The \co{CONFIG_RCU_FANOUT} and \co{NR_CPUS} parameters are used to
+determine the shape of the \co{rcu_node} hierarchy at compile time,
 as shown in
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Determining Shape of RCU Hierarchy}.
-Line~1 defines the maximum depth of the \url{rcu_node} hierarchy,
+Line~1 defines the maximum depth of the \co{rcu_node} hierarchy,
 currently three.
 Note that increasing the maximum permitted depth requires changes
-elsewhere, for example, adding another leg to the \url{#if}
+elsewhere, for example, adding another leg to the \co{#if}
 statement running from lines~6-26.
 Lines~2-4 compute the fanout, the square of the fanout, and the cube
 of the fanout, respectively.
 
-Then these values are compared to \url{NR_CPUS} to determine the required
-depth of the \url{rcu_node} hierarchy, which is placed into
-\url{NUM_RCU_LVLS}, which is used to size a number of arrays
-in the \url{rcu_state} structure.
+Then these values are compared to \co{NR_CPUS} to determine the required
+depth of the \co{rcu_node} hierarchy, which is placed into
+\co{NUM_RCU_LVLS}, which is used to size a number of arrays
+in the \co{rcu_state} structure.
 There is always one node at the root level, and there are always
-\url{NUM_CPUS} number of \url{rcu_data} structures below the leaf
+\co{NUM_CPUS} number of \co{rcu_data} structures below the leaf
 level.
 If there is more than just the root level, the number of nodes at
 the leaf level is computed
-by dividing \url{NR_CPUS} by \url{RCU_FANOUT}, rounding up.
+by dividing \co{NR_CPUS} by \co{RCU_FANOUT}, rounding up.
 The number of nodes at other levels is computed in a similar manner,
-but using (for example) \url{RCU_FANOUT_SQ} instead of \url{RCU_FANOUT}.
+but using (for example) \co{RCU_FANOUT_SQ} instead of \co{RCU_FANOUT}.
 
 Line~28 then sums up all of the levels, resulting in the number of
-\url{rcu_node} structures plus the number of \url{rcu_data} structures.
-Finally, line~29 subtracts \url{NR_CPUS} (which is the number of
-\url{rcu_data} structures) from the sum, resulting in the number
-of \url{rcu_node} structures, which is retained in
-\url{NUM_RCU_NODES}.
-This value is then used to size the \url{->nodes} array in the
-\url{rcu_state} structure.
+\co{rcu_node} structures plus the number of \co{rcu_data} structures.
+Finally, line~29 subtracts \co{NR_CPUS} (which is the number of
+\co{rcu_data} structures) from the sum, resulting in the number
+of \co{rcu_node} structures, which is retained in
+\co{NUM_RCU_NODES}.
+This value is then used to size the \co{->nodes} array in the
+\co{rcu_state} structure.
 
 \subsection{External Interfaces}
 \label{app:rcuimpl:rcutreewt:External Interfaces}
@@ -746,26 +746,26 @@ RCU's external interfaces include not just the standard RCU API,
 but also the internal interfaces to the rest of the kernel that
 are required for the RCU implementation itself.
 The interfaces are
-\url{rcu_read_lock()}),
-\url{rcu_read_unlock()}),
-\url{rcu_read_lock_bh()}),
-\url{rcu_read_unlock_bh()}),
-\url{call_rcu()} (which is a wrapper around
-\url{__call_rcu()}),
-\url{call_rcu_bh()} (ditto),
-\url{rcu_check_callbacks()},
-\url{rcu_process_callbacks()} (which is a wrapper around
-\url{__rcu_process_callbacks()},
-\url{rcu_pending()} (which is a wrapper around
-\url{__rcu_pending()}),
-\url{rcu_needs_cpu()},
-\url{rcu_cpu_notify()}, and
-\url{__rcu_init()}.
-Note that \url{synchronize_rcu()} and \url{rcu_barrier()} are
+\co{rcu_read_lock()}),
+\co{rcu_read_unlock()}),
+\co{rcu_read_lock_bh()}),
+\co{rcu_read_unlock_bh()}),
+\co{call_rcu()} (which is a wrapper around
+\co{__call_rcu()}),
+\co{call_rcu_bh()} (ditto),
+\co{rcu_check_callbacks()},
+\co{rcu_process_callbacks()} (which is a wrapper around
+\co{__rcu_process_callbacks()},
+\co{rcu_pending()} (which is a wrapper around
+\co{__rcu_pending()}),
+\co{rcu_needs_cpu()},
+\co{rcu_cpu_notify()}, and
+\co{__rcu_init()}.
+Note that \co{synchronize_rcu()} and \co{rcu_barrier()} are
 common to all RCU implementations, and are defined in terms of
-\url{call_rcu()}.
-Similarly, \url{rcu_barrier_bh()} is common to all RCU implementations
-and is defined in terms of \url{call_rcu_bh()}.
+\co{call_rcu()}.
+Similarly, \co{rcu_barrier_bh()} is common to all RCU implementations
+and is defined in terms of \co{call_rcu_bh()}.
 
 These external APIs are each described in the following sections.
 
@@ -810,17 +810,17 @@ These external APIs are each described in the following sections.
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:RCU Read-Side Critical Sections}
 shows the functions that demark RCU read-side critical sections.
-Lines~1-6 show \url{__rcu_read_lock()}, which begins an ``rcu''
+Lines~1-6 show \co{__rcu_read_lock()}, which begins an ``rcu''
 read-side critical section.
 line~3 disables preemption,
 line~4 is a sparse marker noting the beginning of an RCU read-side critical
 section,
 and
 line~5 updates lockdep state.
-Lines~8-13 show \url{__rcu_read_unlock()}, which is the inverse of
-\url{__rcu_read_lock()}.
-Lines~15-20 show \url{__rcu_read_lock_bh()} and lines~22-27 show
-\url{__rcu_read_unlock_bh()}, which are analogous to the previous
+Lines~8-13 show \co{__rcu_read_unlock()}, which is the inverse of
+\co{__rcu_read_lock()}.
+Lines~15-20 show \co{__rcu_read_lock_bh()} and lines~22-27 show
+\co{__rcu_read_unlock_bh()}, which are analogous to the previous
 two functions, but disable and enable bottom-half processing rather
 than preemption.
 
@@ -833,16 +833,16 @@ than preemption.
 	What gives here?
 \QuickQuizAnswer{
 	Appearances can be deceiving.
-	The \url{preempt_disable()}, \url{preempt_enable()},
-	\url{local_bh_disable()}, and \url{local_bh_enable()} each
+	The \co{preempt_disable()}, \co{preempt_enable()},
+	\co{local_bh_disable()}, and \co{local_bh_enable()} each
 	do a single non-atomic manipulation of local data.
-	Even that assumes \url{CONFIG_PREEMPT}, otherwise,
-	the \url{preempt_disable()} and \url{preempt_enable()}
+	Even that assumes \co{CONFIG_PREEMPT}, otherwise,
+	the \co{preempt_disable()} and \co{preempt_enable()}
 	functions emit no code, not even compiler directives.
-	The \url{__acquire()} and \url{__release()} functions
+	The \co{__acquire()} and \co{__release()} functions
 	emit no code (not even compiler directives), but are instead
-	used by the \url{sparse} semantic-parsing bug-finding program.
-	Finally, \url{rcu_read_acquire()} and \url{rcu_read_release()}
+	used by the \co{sparse} semantic-parsing bug-finding program.
+	Finally, \co{rcu_read_acquire()} and \co{rcu_read_release()}
 	emit no code (not even compiler directives) unless the
 	``lockdep'' lock-order debugging facility is enabled, in
 	which case they can indeed be somewhat expensive.
@@ -914,55 +914,55 @@ than preemption.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree call-rcu}
-shows the code for \url{__call_rcu()}, \url{call_rcu()}, and
-\url{call_rcu_bh()}.
-Note that \url{call_rcu()} and \url{call_rcu_bh()} are simple wrappers
-for \url{call_rcu()}, and thus will not be considered further here.
+shows the code for \co{__call_rcu()}, \co{call_rcu()}, and
+\co{call_rcu_bh()}.
+Note that \co{call_rcu()} and \co{call_rcu_bh()} are simple wrappers
+for \co{call_rcu()}, and thus will not be considered further here.
 
-Turning attention to \url{__call_rcu()}, lines~9-10 initialize the
-specified \url{rcu_head}, and line~11 ensures that updates to
+Turning attention to \co{__call_rcu()}, lines~9-10 initialize the
+specified \co{rcu_head}, and line~11 ensures that updates to
 RCU-protected data structures carried out prior to invoking
-\url{__call_rcu()} are seen prior to callback registry.
+\co{__call_rcu()} are seen prior to callback registry.
 Lines~12 and 34 disable and re-enable interrupts to prevent destructive
-interference by any calls to \url{__call_rcu()} from an interrupt
+interference by any calls to \co{__call_rcu()} from an interrupt
 handler.
-Line 13 obtains a reference to the current CPU's \url{rcu_data}
-structure, line~14 invokes \url{rcu_process_gp_end()} in order
+Line 13 obtains a reference to the current CPU's \co{rcu_data}
+structure, line~14 invokes \co{rcu_process_gp_end()} in order
 to advance callbacks if the current grace period has now ended,
-while line~15 invokes \url{check_for_new_grace_period()} to
+while line~15 invokes \co{check_for_new_grace_period()} to
 record state if a new grace period has started.
 
 \QuickQuiz{}
-	Why not simply use \url{__get_cpu_var()} to pick up a
+	Why not simply use \co{__get_cpu_var()} to pick up a
 	reference to the
-	current CPU's \url{rcu_data} structure on line~13 in
+	current CPU's \co{rcu_data} structure on line~13 in
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree call-rcu}?
 \QuickQuizAnswer{
-	Because we might be called either from \url{call_rcu()}
-	(in which case we would need \url{__get_cpu_var(rcu_data)})
-	or from \url{call_rcu_bh()} (in which case we would need
-	\url{__get_cpu_var(rcu_bh_data)}).
-	Using the \url{->rda[]} array of whichever
-	\url{rcu_state} structure we were passed works correctly
-	regardless of which API \url{__call_rcu()} was invoked from
+	Because we might be called either from \co{call_rcu()}
+	(in which case we would need \co{__get_cpu_var(rcu_data)})
+	or from \co{call_rcu_bh()} (in which case we would need
+	\co{__get_cpu_var(rcu_bh_data)}).
+	Using the \co{->rda[]} array of whichever
+	\co{rcu_state} structure we were passed works correctly
+	regardless of which API \co{__call_rcu()} was invoked from
 	(suggested by Lai Jiangshan~\cite{LaiJiangshan2008NewClassicAlgorithm}).
 } \QuickQuizEnd
 
 Lines~16 and 17 enqueue the new callback.
 Lines 18 and 19 check to see there is a grace period in progress,
-and, if not, line~23 acquires the root \url{rcu_node} structure's
-lock and line~24 invokes \url{rcu_start_gp()} to start a new grace
+and, if not, line~23 acquires the root \co{rcu_node} structure's
+lock and line~24 invokes \co{rcu_start_gp()} to start a new grace
 period (and also to release the lock).
 
 Line~26 checks to see if too many RCU callbacks are waiting on
-this CPU, and, if so, line~27 increases \url{->blimit} in order
+this CPU, and, if so, line~27 increases \co{->blimit} in order
 to increase the rate at which callbacks are processed, while
-line~28 invokes \url{force_quiescent_state()} urgently in order to
+line~28 invokes \co{force_quiescent_state()} urgently in order to
 try to convince holdout CPUs to pass through quiescent states.
 Otherwise, lines~29-32 check to see if it has been too long since
 the grace period started (or since the last call to
-\url{force_quiescent_state()}, as the case may be), and, if so,
-line~33 invokes \url{force_quiescent_state()} non-urgently, again
+\co{force_quiescent_state()}, as the case may be), and, if so,
+line~33 invokes \co{force_quiescent_state()} non-urgently, again
 to convince holdout CPUs to pass through quiescent states.
 
 \subsubsection{\tt rcu\_check\_callbacks()}
@@ -1026,25 +1026,25 @@ to convince holdout CPUs to pass through quiescent states.
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-check-callbacks}
 shows the code that is called from the scheduling-clock interrupt
 handler once per jiffy from each CPU.
-The \url{rcu_pending()} function (which is a wrapper for \url{__rcu_pending()})
-is invoked, and if it returns non-zero, then \url{rcu_check_callbacks()}
+The \co{rcu_pending()} function (which is a wrapper for \co{__rcu_pending()})
+is invoked, and if it returns non-zero, then \co{rcu_check_callbacks()}
 is invoked.
-(Note that there is some thought being given to merging \url{rcu_pending()}
-into \url{rcu_check_callbacks()}.)
+(Note that there is some thought being given to merging \co{rcu_pending()}
+into \co{rcu_check_callbacks()}.)
 
-Starting with \url{__rcu_pending()}, line 4 counts this call to
-\url{rcu_pending()} for use in deciding when to force quiescent states.
-Line~6 invokes \url{check_cpu_stall()} in order to report on CPUs
+Starting with \co{__rcu_pending()}, line 4 counts this call to
+\co{rcu_pending()} for use in deciding when to force quiescent states.
+Line~6 invokes \co{check_cpu_stall()} in order to report on CPUs
 that are spinning in the kernel, or perhaps that have hardware problems,
-if \url{CONFIG_RCU_CPU_STALL_DETECTOR} is selected.
+if \co{CONFIG_RCU_CPU_STALL_DETECTOR} is selected.
 Lines~7-23 perform a series of checks, returning non-zero if RCU
 needs the current CPU to do something.
 Line~7 checks to see if the current CPU owes RCU a quiescent state for the
 current grace period,
-line~9 invokes \url{cpu_has_callbacks_ready_to_invoke()} to see if
+line~9 invokes \co{cpu_has_callbacks_ready_to_invoke()} to see if
 the current CPU has callbacks whose grace period has ended, thus being
 ready to invoke,
-line~11 invokes \url{cpu_needs_another_gp()} to see if the current
+line~11 invokes \co{cpu_needs_another_gp()} to see if the current
 CPU has callbacks that need another RCU grace period to elapse,
 line~13 checks to see if the current grace period has ended,
 line~15 checks to see if a new grace period has started,
@@ -1053,17 +1053,17 @@ to force holdout CPUs to pass through a quiescent state.
 This latter check breaks down as follows: (1) lines~17-18 check to see
 if there is a grace period in progress, and, if so, lines~19-22
 check to see if sufficient jiffies (lines~19-20) or calls to
-\url{rcu_pending()} (lines~21-22) have elapsed that
-\url{force_quiescent_state()} should be invoked.
+\co{rcu_pending()} (lines~21-22) have elapsed that
+\co{force_quiescent_state()} should be invoked.
 If none of the checks in the series triggers, then line~24 returns
-zero, indicating that \url{rcu_check_callbacks()} need not be invoked.
+zero, indicating that \co{rcu_check_callbacks()} need not be invoked.
 
-Lines~27-33 show \url{rcu_pending()}, which simply invokes
-\url{__rcu_pending()} twice, once for ``rcu'' and again for
+Lines~27-33 show \co{rcu_pending()}, which simply invokes
+\co{__rcu_pending()} twice, once for ``rcu'' and again for
 ``rcu\_bh''.
 
 \QuickQuiz{}
-	Given that \url{rcu_pending()} is always called twice
+	Given that \co{rcu_pending()} is always called twice
 	on lines~29-32 of
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-check-callbacks},
 	shouldn't there be some way to combine the checks of the
@@ -1071,9 +1071,9 @@ Lines~27-33 show \url{rcu_pending()}, which simply invokes
 \QuickQuizAnswer{
 	Sorry, but this was a trick question.
 	The C language's short-circuit boolean expression evaluation
-	means that \url{__rcu_pending()} is invoked on
-	\url{rcu_bh_state} only if the prior invocation on
-	\url{rcu_state} returns zero.
+	means that \co{__rcu_pending()} is invoked on
+	\co{rcu_bh_state} only if the prior invocation on
+	\co{rcu_state} returns zero.
 
 	The reason the two calls are in this order is that
 	``rcu'' is used more heavily than is ``rcu\_bh'', so
@@ -1081,16 +1081,16 @@ Lines~27-33 show \url{rcu_pending()}, which simply invokes
 	is the second.
 } \QuickQuizEnd
 
-Lines~35-48 show \url{rcu_check_callbacks()}, which checks to see
+Lines~35-48 show \co{rcu_check_callbacks()}, which checks to see
 if the scheduling-clock interrupt interrupted an extended quiescent
 state, and then initiates RCU's softirq processing
-(\url{rcu_process_callbacks()}).
+(\co{rcu_process_callbacks()}).
 Lines~37-41 perform this check for ``rcu'', while lines~42-43
 perform the check for ``rcu\_bh''.
 
 Lines~37-39 check to see if the scheduling clock interrupt came
 from user-mode execution (line~37) or directly from the idle
-loop (line~38's \url{idle_cpu()} invocation) with no intervening
+loop (line~38's \co{idle_cpu()} invocation) with no intervening
 levels of interrupt (the remainder of line~38 and all of line~39).
 If this check succeeds, so that the scheduling clock interrupt
 did come from an extended quiescent state, then
@@ -1105,18 +1105,18 @@ line~43 reports the quiescent state for ``rcu\_bh'' only.
 \QuickQuiz{}
 	Shouldn't line~42 of
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-check-callbacks}
-	also check for \url{in_hardirq()}?
+	also check for \co{in_hardirq()}?
 \QuickQuizAnswer{
 	No.
-	The \url{rcu_read_lock_bh()} primitive disables
+	The \co{rcu_read_lock_bh()} primitive disables
 	softirq, not hardirq.
-	Because \url{call_rcu_bh()} need only wait for pre-existing
+	Because \co{call_rcu_bh()} need only wait for pre-existing
 	``rcu\_bh'' read-side critical sections to complete,
-	we need only check \url{in_softirq()}.
+	we need only check \co{in_softirq()}.
 } \QuickQuizEnd
 
 In either case, line~45 invokes an RCU softirq, which will result in
-\url{rcu_process_callbacks()} being called on this CPU at some future
+\co{rcu_process_callbacks()} being called on this CPU at some future
 time (like when interrupts are re-enabled after exiting the
 scheduler-clock interrupt).
 
@@ -1163,44 +1163,44 @@ scheduler-clock interrupt).
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}
-shows the code for \url{rcu_process_callbacks()}, which is a wrapper around
-\url{__rcu_process_callbacks()}.
+shows the code for \co{rcu_process_callbacks()}, which is a wrapper around
+\co{__rcu_process_callbacks()}.
 These functions are invoked as a result of a call to
-\url{raise_softirq(RCU_SOFTIRQ)}, for example, line~47 of
+\co{raise_softirq(RCU_SOFTIRQ)}, for example, line~47 of
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-check-callbacks},
 which is normally done if there is reason to believe that the RCU core
 needs this CPU to do something.
 
 Lines~7-10 check to see if it has been awhile since the current grace
-period started, and, if so, line~11 invokes \url{force_quiescent_state()}
+period started, and, if so, line~11 invokes \co{force_quiescent_state()}
 in order to try to convince holdout CPUs to pass through a quiescent
 state for this grace period.
 
 \QuickQuiz{}
 	But don't we also need to check that a grace period is
-	actually in progress in \url{__rcu_process_callbacks} in
+	actually in progress in \co{__rcu_process_callbacks} in
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}?
 \QuickQuizAnswer{
 	Indeed we do!
-	And the first thing that \url{force_quiescent_state()} does
+	And the first thing that \co{force_quiescent_state()} does
 	is to perform exactly that check.
 } \QuickQuizEnd
 
-In any case, line~12 invokes \url{rcu_process_gp_end()}, which checks to
+In any case, line~12 invokes \co{rcu_process_gp_end()}, which checks to
 see if some other CPU ended the
 last grace period that this CPU was aware of, and, if so, notes the
 end of the grace period and advances this CPU's RCU callbacks
 accordingly.
-Line~13 invokes \url{rcu_check_quiescent_state()}, which checks to
+Line~13 invokes \co{rcu_check_quiescent_state()}, which checks to
 see if some other CPU has started a new grace period, and also whether
 the current CPU has passed through a quiescent state for the current
 grace period, updating state appropriately if so.
 Line~14 checks to see if there is no grace period in progress and whether
 the current CPU has callbacks that need another grace period.
-If so, line~15 acquires the root \url{rcu_node} structure's lock,
-and line~17 invokes \url{rcu_start_gp()}, which starts a new grace
-period (and also releases the root \url{rcu_node} structure's lock).
-In either case, line~18 invokes \url{rcu_do_batch()}, which
+If so, line~15 acquires the root \co{rcu_node} structure's lock,
+and line~17 invokes \co{rcu_start_gp()}, which starts a new grace
+period (and also releases the root \co{rcu_node} structure's lock).
+In either case, line~18 invokes \co{rcu_do_batch()}, which
 invokes any of this CPU's callbacks whose grace period has completed.
 
 \QuickQuiz{}
@@ -1209,23 +1209,23 @@ invokes any of this CPU's callbacks whose grace period has completed.
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcutree rcu-process-callbacks}?
 \QuickQuizAnswer{
 	One of the CPUs will be the first to acquire the root
-	\url{rcu_node} structure's lock, and that CPU will start
+	\co{rcu_node} structure's lock, and that CPU will start
 	the grace period.
 	The other CPU will then acquire the lock and invoke
-	\url{rcu_start_gp()}, which, seeing that a grace period
+	\co{rcu_start_gp()}, which, seeing that a grace period
 	is already in progress, will immediately release the
 	lock and return.
 } \QuickQuizEnd
 
-Lines~21-30 are \url{rcu_process_callbacks()}, which is again a
-wrapper for \url{__rcu_process_callbacks()}.
+Lines~21-30 are \co{rcu_process_callbacks()}, which is again a
+wrapper for \co{__rcu_process_callbacks()}.
 Line~24 executes a memory barrier to ensure that any prior RCU
 read-side critical sections are seen to have ended before any
 subsequent RCU processing.
-Lines~25-26 and 27-28 invoke \url{__rcu_process_callbacks()} for
+Lines~25-26 and 27-28 invoke \co{__rcu_process_callbacks()} for
 ``rcu'' and ``rcu\_bh'', respectively, and, finally,
 line~29 executes a memory barrier to ensure that any RCU
-processing carried out by \url{__rcu_process_callbacks()}
+processing carried out by \co{__rcu_process_callbacks()}
 is seen prior to any subsequent RCU read-side critical sections.
 
 \subsubsection{{\tt rcu\_needs\_cpu()} and {\tt rcu\_cpu\_notify()}}
@@ -1269,17 +1269,17 @@ is seen prior to any subsequent RCU read-side critical sections.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-needs-cpu and rcu-cpu-notify}
-shows the code for \url{rcu_needs_cpu()} and \url{rcu_cpu_notify()},
+shows the code for \co{rcu_needs_cpu()} and \co{rcu_cpu_notify()},
 which are invoked by the Linux kernel to check on switching to
 dynticks-idle mode and to handle CPU hotplug, respectively.
 
-Lines~1-5 show \url{rcu_needs_cpu()}, which simply checks if the specified
+Lines~1-5 show \co{rcu_needs_cpu()}, which simply checks if the specified
 CPU has either ``rcu'' (line~3) or ``rcu\_bh'' (line 4) callbacks.
 
-Lines~7-28 show \url{rcu_cpu_notify()}, which is a very typical
-CPU-hotplug notifier function with the typical \url{switch} statement.
-Line~16 invokes \url{rcu_online_cpu()} if the specified CPU is going
-to be coming online, and line~22 invokes \url{rcu_offline_cpu()} if
+Lines~7-28 show \co{rcu_cpu_notify()}, which is a very typical
+CPU-hotplug notifier function with the typical \co{switch} statement.
+Line~16 invokes \co{rcu_online_cpu()} if the specified CPU is going
+to be coming online, and line~22 invokes \co{rcu_offline_cpu()} if
 the specified CPU has gone to be going offline.
 It is important to note that CPU-hotplug operations are not atomic,
 but rather happen in stages that can extend for multiple grace periods.
@@ -1300,40 +1300,40 @@ of coming or going.
 This section walks through the initialization code, which links the
 main data structures together as shown in
 Figure~\ref{fig:app:rcuimpl:rcutree:Initialized RCU Data Layout}.
-The yellow region represents fields in the \url{rcu_state} data
-structure, including the \url{->node} array, individual elements
+The yellow region represents fields in the \co{rcu_state} data
+structure, including the \co{->node} array, individual elements
 of which are shown in pink, matching the convention used in
 Section~\ref{app:rcuimpl:rcutree:Hierarchical RCU Overview}.
-The blue boxes each represent one \url{rcu_data} structure,
-and the group of blue boxes makes up a set of per-CPU \url{rcu_data}
+The blue boxes each represent one \co{rcu_data} structure,
+and the group of blue boxes makes up a set of per-CPU \co{rcu_data}
 structures.
 
-The \url{->levelcnt[]} array is initialized at compile time, as is
-\url{->level[0]}, but the rest of the values and pointers are filled
+The \co{->levelcnt[]} array is initialized at compile time, as is
+\co{->level[0]}, but the rest of the values and pointers are filled
 in by the functions described in the following sections.
 The figure shows a two-level hierarchy, but one-level and three-level
 hierarchies are possible as well.
-Each element of the \url{->levelspread[]} array gives the number of
+Each element of the \co{->levelspread[]} array gives the number of
 children per node at the corresponding level of the hierarchy.
 In the figure, therefore, the root node has two children and the
 nodes at the leaf level each have three children.
-Each element of the \url{levelcnt[]} array indicates how many nodes
+Each element of the \co{levelcnt[]} array indicates how many nodes
 there are on the corresponding level of the hierarchy: 1 at the root
-level, 2 at the leaf level, and 6 at the \url{rcu_data} level---and any
+level, 2 at the leaf level, and 6 at the \co{rcu_data} level---and any
 extra elements are unused and left as zero.
-Each element of the \url{->level[]} array references the first
-node of the corresponding level of the \url{rcu_node} hierarchy,
-and each element of the \url{->rda[]} array references the corresponding
-CPU's \url{rcu_data} structure.
-The \url{->parent} field of each \url{rcu_node} structure references
-its parent, except for the root \url{rcu_node} structure, which
-has a \url{NULL} \url{->parent} pointer.
-Finally, the \url{->mynode} field of each \url{rcu_data} structure
-references its parent \url{rcu_node} structure.
+Each element of the \co{->level[]} array references the first
+node of the corresponding level of the \co{rcu_node} hierarchy,
+and each element of the \co{->rda[]} array references the corresponding
+CPU's \co{rcu_data} structure.
+The \co{->parent} field of each \co{rcu_node} structure references
+its parent, except for the root \co{rcu_node} structure, which
+has a \co{NULL} \co{->parent} pointer.
+Finally, the \co{->mynode} field of each \co{rcu_data} structure
+references its parent \co{rcu_node} structure.
 
 \QuickQuiz{}
 	How does the code traverse a given path through
-	the \url{rcu_node} hierarchy from root to leaves?
+	the \co{rcu_node} hierarchy from root to leaves?
 \QuickQuizAnswer{
 	It turns out that the code never needs to do such a traversal,
 	so there is nothing special in place to handle this.
@@ -1380,41 +1380,41 @@ structure.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init-levelspread}
-shows the code for the \url{rcu_init_levelspread()} function, which controls
+shows the code for the \co{rcu_init_levelspread()} function, which controls
 the fanout, or the number of children per parent,
-in the \url{rcu_node} hierarchy.
+in the \co{rcu_node} hierarchy.
 There are two versions of this function, one shown on lines~2-9 that
-enforces the exact fanout (specified by \url{CONFIG_RCU_FANOUT}),
+enforces the exact fanout (specified by \co{CONFIG_RCU_FANOUT}),
 and the other on lines~11-25 that determines the number of child nodes
 based indirectly on the specified fanout, but then balances the tree.
-The \url{CONFIG_RCU_FANOUT_EXACT} kernel parameter selects which version
+The \co{CONFIG_RCU_FANOUT_EXACT} kernel parameter selects which version
 to use for a given kernel build.
 
 The exact-fanout version simply assigns all of the elements of the
-specified \url{rcu_state} structure's \url{->levelspread} array to
-the \url{CONFIG_RCU_FANOUT} kernel parameter, as shown by the loop
+specified \co{rcu_state} structure's \co{->levelspread} array to
+the \co{CONFIG_RCU_FANOUT} kernel parameter, as shown by the loop
 on lines~7 and 8.
 
 The hierarchy-balancing version on lines~11-24
-uses a pair of local variables \url{ccur} and \url{cprv} which track
-the number of \url{rcu_node} structures on the current and previous
+uses a pair of local variables \co{ccur} and \co{cprv} which track
+the number of \co{rcu_node} structures on the current and previous
 levels, respectively.
-This function works from the leaf level up the hierarchy, so \url{cprv}
-is initialized by line~18 to \url{NR_CPUS}, which corresponds
-to the number of \url{rcu_data} structures that feed into the leaf level.
+This function works from the leaf level up the hierarchy, so \co{cprv}
+is initialized by line~18 to \co{NR_CPUS}, which corresponds
+to the number of \co{rcu_data} structures that feed into the leaf level.
 Lines~19-23 iterate from the leaf to the root.
 Within this loop, line~20 picking up
-the number of \url{rcu_node} structures for the current level into
-\url{ccur}.
+the number of \co{rcu_node} structures for the current level into
+\co{ccur}.
 Line~21 then rounds up the ratio of the number of nodes on the previous
-(lower) level (be they \url{rcu_node} or \url{rcu_data})
-to the number of \url{rcu_node} structures on the current
-level, placing the result in the specified \url{rcu_state} structure's
-\url{->levelspread} array.
+(lower) level (be they \co{rcu_node} or \co{rcu_data})
+to the number of \co{rcu_node} structures on the current
+level, placing the result in the specified \co{rcu_state} structure's
+\co{->levelspread} array.
 Line~22 then sets up for the next pass through the loop.
 
-After a call to either function, the \url{->levelspread} array contains
-the number of children for each level of the \url{rcu_node} hierarchy.
+After a call to either function, the \co{->levelspread} array contains
+the number of children for each level of the \co{rcu_node} hierarchy.
 
 \subsubsection{\tt rcu\_init\_one()}
 \label{app:rcuimpl:rcutreewt:rcu-init-one}
@@ -1465,67 +1465,67 @@ the number of children for each level of the \url{rcu_node} hierarchy.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init-one}
-shows the code for \url{rcu_init_one()}, which does boot-time initialization
+shows the code for \co{rcu_init_one()}, which does boot-time initialization
 for the specified
-\url{rcu_state} structure.
+\co{rcu_state} structure.
 
 Recall from
 Section~\ref{app:rcuimpl:rcutreewt:RCU Global State}
-that the \url{->levelcnt[]} array in the \url{rcu_state} structure
+that the \co{->levelcnt[]} array in the \co{rcu_state} structure
 is compile-time initialized to the number of nodes at each level of
 the hierarchy starting from the root,
 with an additional element in the array initialized
-to the maximum possible number of CPUs, \url{NR_CPUS}.
-In addition, the first element of the \url{->level[]} array is compile-time
-initialized to reference to the root \url{rcu_node} structure, which is
+to the maximum possible number of CPUs, \co{NR_CPUS}.
+In addition, the first element of the \co{->level[]} array is compile-time
+initialized to reference to the root \co{rcu_node} structure, which is
 in turn
-the first element of the \url{->node[]} array in the \url{rcu_state} structure.
+the first element of the \co{->node[]} array in the \co{rcu_state} structure.
 This array is further laid out in breadth-first order.
 Keeping all of this in mind, the loop at lines~8-10 initializes the rest
-of the \url{->level[]} array to reference the first \url{rcu_node} structure
-of each level of the \url{rcu_node} hierarchy.
+of the \co{->level[]} array to reference the first \co{rcu_node} structure
+of each level of the \co{rcu_node} hierarchy.
 
-Line~11 then invokes \url{rcu_init_levelspread()}, which fills in the
-\url{->levelspread[]} array, as was described in
+Line~11 then invokes \co{rcu_init_levelspread()}, which fills in the
+\co{->levelspread[]} array, as was described in
 Section~\ref{app:rcuimpl:rcutreewt:rcu-init-levelspread}.
 The auxiliary arrays are then fully initialized, and thus ready for
 the loop from lines~15-35, each pass through which initializes
-one level of the \url{rcu_node} hierarchy, starting from the leaves.
+one level of the \co{rcu_node} hierarchy, starting from the leaves.
 
-Line~13 computes the number of CPUs per \url{rcu_node} structure for
+Line~13 computes the number of CPUs per \co{rcu_node} structure for
 the current level of the hierarchy, and line~14 obtains a pointer
-to the first \url{rcu_node} structure on the current level of the
+to the first \co{rcu_node} structure on the current level of the
 hierarchy, in preparation for the loop from lines~15-34, each pass
-through which initializes one \url{rcu_node} structure.
+through which initializes one \co{rcu_node} structure.
 
-Lines~16-18 initialize the \url{rcu_node} structure's spinlock and
+Lines~16-18 initialize the \co{rcu_node} structure's spinlock and
 its CPU masks.
-The \url{qsmaskinit} field will have bits set as CPUs come online
-later in boot, and the \url{qsmask} field will have bits set
+The \co{qsmaskinit} field will have bits set as CPUs come online
+later in boot, and the \co{qsmask} field will have bits set
 when the first grace period starts.
-Line~19 sets the \url{->grplo} field to the number of the this
-\url{rcu_node} structure's first CPU and line~20 sets the
-\url{->grphi} to the number of this \url{rcu_node} structure's
+Line~19 sets the \co{->grplo} field to the number of the this
+\co{rcu_node} structure's first CPU and line~20 sets the
+\co{->grphi} to the number of this \co{rcu_node} structure's
 last CPU.
-If the last \url{rcu_node} structure on a given level of the
+If the last \co{rcu_node} structure on a given level of the
 hierarchy is only partially full, lines~21 and 22 set its
-\url{->grphi} field to the number of the last possible CPU in the system.
+\co{->grphi} field to the number of the last possible CPU in the system.
 
-Lines~24-26 initialize the \url{->grpnum}, \url{->grpmask}, and
-\url{->parent} fields for the root \url{rcu_node} structure, which
+Lines~24-26 initialize the \co{->grpnum}, \co{->grpmask}, and
+\co{->parent} fields for the root \co{rcu_node} structure, which
 has no parent, hence the zeroes and NULL.
 Lines~28-31 initialize these same fields for the rest of the
-\url{rcu_node} structures in the hierarchy.
-Line~28 computes the \url{->grpnum} field as the index of this
-\url{rcu_node} structure within
+\co{rcu_node} structures in the hierarchy.
+Line~28 computes the \co{->grpnum} field as the index of this
+\co{rcu_node} structure within
 the set having the same parent, and
-line~29 sets the corresponding bit in the \url{->grpmask} field.
+line~29 sets the corresponding bit in the \co{->grpmask} field.
 Finally, lines~30-31 places a pointer to the parent node into the
-\url{->parent} field.
+\co{->parent} field.
 These three fields will used to propagate quiescent states up the
 hierarchy.
 
-Finally, line~33 records the hierarchy level in \url{->level},
+Finally, line~33 records the hierarchy level in \co{->level},
 which is used for tracing when traversing the full hierarchy.
 
 \subsubsection{\tt \_\_rcu\_init()}
@@ -1569,40 +1569,40 @@ which is used for tracing when traversing the full hierarchy.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init}
-shows the \url{__rcu_init()} function and its \url{RCU_DATA_PTR_INIT()}
+shows the \co{__rcu_init()} function and its \co{RCU_DATA_PTR_INIT()}
 helper macro.
-The \url{__rcu_init()} function is invoked during early boot,
+The \co{__rcu_init()} function is invoked during early boot,
 before the scheduler has initialized, and before more than one
 CPU is running.
 
-The \url{RCU_DATA_PTR_INIT()} macro takes as arguments a pointer to
-an \url{rcu_state} structure and the name of a set of \url{rcu_data}
+The \co{RCU_DATA_PTR_INIT()} macro takes as arguments a pointer to
+an \co{rcu_state} structure and the name of a set of \co{rcu_data}
 per-CPU variables.
-This macro scans the per-CPU \url{rcu_data}
-structures, assigning the \url{->mynode} pointer of each \url{rcu_data}
-structure to point to the corresponding leaf \url{rcu_node} structure.
-It also fills out the specified \url{rcu_state} structure's
-\url{->rda[]} array entries to each point to the corresponding
-\url{rcu_data} structure.
-Line~3 picks up a pointer to the first leaf \url{rcu_node} structure
-in local variable \url{rnp} (which must be declared by the invoker of
+This macro scans the per-CPU \co{rcu_data}
+structures, assigning the \co{->mynode} pointer of each \co{rcu_data}
+structure to point to the corresponding leaf \co{rcu_node} structure.
+It also fills out the specified \co{rcu_state} structure's
+\co{->rda[]} array entries to each point to the corresponding
+\co{rcu_data} structure.
+Line~3 picks up a pointer to the first leaf \co{rcu_node} structure
+in local variable \co{rnp} (which must be declared by the invoker of
 this macro),
-and line~4 sets local variable \url{j} to the corresponding leaf-node
+and line~4 sets local variable \co{j} to the corresponding leaf-node
 number of zero.
 Each pass through the loop spanning lines~5-10 performs initialization
-for the corresponding potential CPU (as specified by \url{NR_CPUS}).
+for the corresponding potential CPU (as specified by \co{NR_CPUS}).
 Within this loop, line~6 checks to see if we have moved beyond the
-bounds of the current leaf \url{rcu_node} structure, and, if so,
+bounds of the current leaf \co{rcu_node} structure, and, if so,
 line~7 advances to the next structure.
-Then, still within the loop, line~8 sets the \url{->mynode} pointer
-of the current CPU's \url{rcu_data} structure to reference the current
-leaf \url{rcu_node} structure, and line~9 sets the current CPU's \url{->rda[]}
-element (within the \url{rcu_state} structure) to reference the
-current CPU's \url{rcu_data} structure.
+Then, still within the loop, line~8 sets the \co{->mynode} pointer
+of the current CPU's \co{rcu_data} structure to reference the current
+leaf \co{rcu_node} structure, and line~9 sets the current CPU's \co{->rda[]}
+element (within the \co{rcu_state} structure) to reference the
+current CPU's \co{rcu_data} structure.
 
 \QuickQuiz{}
 	C-preprocessor macros are \emph{so} 1990s!
-	Why not get with the times and convert \url{RCU_DATA_PTR_INIT()}
+	Why not get with the times and convert \co{RCU_DATA_PTR_INIT()}
 	in Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init}
 	to be a function?
 \QuickQuizAnswer{
@@ -1613,18 +1613,18 @@ current CPU's \url{rcu_data} structure.
 	a function.
 	One could of course build an array of pointers, then pass a
 	reference to the array in, but that is part of what
-	the \url{RCU_DATA_PTR_INIT()} macro is doing in the first place.
+	the \co{RCU_DATA_PTR_INIT()} macro is doing in the first place.
 } \QuickQuizEnd
 
-The \url{__rcu_init()} function first invokes \url{rcu_init_one()}
-on the \url{rcu_state} structure on line~19, then invokes
-\url{RCU_DATA_PTR_INIT()} on the \url{rcu_state} structure and
-the \url{rcu_data} set of per-CPU variables.
-It then repeats this for \url{rcu_bh_state} and \url{rcu_bh_data}
+The \co{__rcu_init()} function first invokes \co{rcu_init_one()}
+on the \co{rcu_state} structure on line~19, then invokes
+\co{RCU_DATA_PTR_INIT()} on the \co{rcu_state} structure and
+the \co{rcu_data} set of per-CPU variables.
+It then repeats this for \co{rcu_bh_state} and \co{rcu_bh_data}
 on lines~21-22.
-The loop spanning lines~24-26 invokes \url{rcu_cpu_notify()} for
+The loop spanning lines~24-26 invokes \co{rcu_cpu_notify()} for
 each CPU that is currently online (which should be only the boot
-CPU), and line~27 registers a notifier so that \url{rcu_cpu_notify()}
+CPU), and line~27 registers a notifier so that \co{rcu_cpu_notify()}
 will be invoked each time a CPU comes online, in order to inform
 RCU of its presence.
 
@@ -1632,7 +1632,7 @@ RCU of its presence.
 	What happens if a CPU comes online between the time
 	that the last online CPU is notified on lines~25-26 of
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init}
-	and the time that \url{register_cpu_notifier()} is invoked
+	and the time that \co{register_cpu_notifier()} is invoked
 	on line~27?
 \QuickQuizAnswer{
 	Only one CPU is online at this point, so the only way another
@@ -1640,7 +1640,7 @@ RCU of its presence.
 	is not doing.
 } \QuickQuizEnd
 
-The \url{rcu_cpu_notify()} and related functions are discussed in
+The \co{rcu_cpu_notify()} and related functions are discussed in
 Section~\ref{app:rcuimpl:rcutreewt:CPU Hotplug}
 below.
 
@@ -1649,7 +1649,7 @@ below.
 
 The CPU-hotplug functions described in the following sections
 allow RCU to track which CPUs are and are not present, but also
-complete initialization of each CPU's \url{rcu_data} structure
+complete initialization of each CPU's \co{rcu_data} structure
 as that CPU comes online.
 
 \subsubsection{\tt rcu\_init\_percpu\_data()}
@@ -1708,56 +1708,56 @@ as that CPU comes online.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init-percpu-data}
-shows the code for \url{rcu_init_percpu_data()}, which initializes
-the specified CPU's \url{rcu_data} structure in response to booting
+shows the code for \co{rcu_init_percpu_data()}, which initializes
+the specified CPU's \co{rcu_data} structure in response to booting
 up or to that CPU coming online.
-It also sets up the \url{rcu_node} hierarchy so that this CPU will
+It also sets up the \co{rcu_node} hierarchy so that this CPU will
 participate in future grace periods.
 
-Line~8 gets a pointer to this CPU's \url{rcu_data} structure, based
-on the specified \url{rcu_state} structure, and places this pointer
-into the local variable \url{rdp}.
-Line~9 gets a pointer to the root \url{rcu_node} structure for the
-specified \url{rcu_state} structure, placing it in local variable
-\url{rnp}.
+Line~8 gets a pointer to this CPU's \co{rcu_data} structure, based
+on the specified \co{rcu_state} structure, and places this pointer
+into the local variable \co{rdp}.
+Line~9 gets a pointer to the root \co{rcu_node} structure for the
+specified \co{rcu_state} structure, placing it in local variable
+\co{rnp}.
 
-Lines~11-29 initialize the fields of the \url{rcu_data} structure
-under the protection of the root \url{rcu_node} structure's lock
+Lines~11-29 initialize the fields of the \co{rcu_data} structure
+under the protection of the root \co{rcu_node} structure's lock
 in order to ensure consistent values.
 Line~17 is important for tracing, due to the fact that many Linux
-distributions set \url{NR_CPUS} to a very large number, which could
-result in excessive output when tracing \url{rcu_data} structures.
-The \url{->beenonline} field is used to solve this problem, as
-it will be set to the value one on any \url{rcu_data} structure
+distributions set \co{NR_CPUS} to a very large number, which could
+result in excessive output when tracing \co{rcu_data} structures.
+The \co{->beenonline} field is used to solve this problem, as
+it will be set to the value one on any \co{rcu_data} structure
 corresponding to a CPU that has ever been online, and set to zero
-for all other \url{rcu_data} structures.
+for all other \co{rcu_data} structures.
 This allows the tracing code to easily ignore irrelevant CPUs.
 
-Lines~30-40 propagate the onlining CPU's bit up the \url{rcu_node}
-hierarchy, proceeding until either the root \url{rcu_node} is
+Lines~30-40 propagate the onlining CPU's bit up the \co{rcu_node}
+hierarchy, proceeding until either the root \co{rcu_node} is
 reached or until the corresponding bit is already set, whichever
 comes first.
-This bit-setting is done under the protection of \url{->onofflock}
+This bit-setting is done under the protection of \co{->onofflock}
 in order to exclude initialization of a new grace period, and, in addition,
-each \url{rcu_node} structure is initialized under the protection
+each \co{rcu_node} structure is initialized under the protection
 of its lock.
-Line~41 then invokes \url{cpu_quiet()} to signal RCU that this
+Line~41 then invokes \co{cpu_quiet()} to signal RCU that this
 CPU has been in an extended quiescent state, and finally, line~42
 re-enables irqs.
 
 \QuickQuiz{}
-	Why call \url{cpu_quiet()} on line~41 of
+	Why call \co{cpu_quiet()} on line~41 of
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-init-percpu-data},
 	given that we are excluding grace periods with various
 	locks, and given that any earlier grace periods would not have
 	been waiting on this previously-offlined CPU?
 \QuickQuizAnswer{
 	A new grace period might have started just after the
-	\url{->onofflock} was released on line~40.
-	The \url{cpu_quiet()} will help expedite such a grace period.
+	\co{->onofflock} was released on line~40.
+	The \co{cpu_quiet()} will help expedite such a grace period.
 } \QuickQuizEnd
 
-It is important to note that \url{rcu_init_percpu_data()} is invoked
+It is important to note that \co{rcu_init_percpu_data()} is invoked
 not only at boot time, but also every time that a given CPU is brought
 online.
 
@@ -1788,32 +1788,32 @@ online.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-online-cpu}
-shows the code for \url{rcu_online_cpu()}, which informs RCU that the
+shows the code for \co{rcu_online_cpu()}, which informs RCU that the
 specified CPU is coming online.
 
-When dynticks (\url{CONFIG_NO_HZ}) is enabled, line~6 obtains a
-reference to the specified CPU's \url{rcu_dynticks} structure, which
+When dynticks (\co{CONFIG_NO_HZ}) is enabled, line~6 obtains a
+reference to the specified CPU's \co{rcu_dynticks} structure, which
 is shared between the ``rcu'' and ``rcu\_bh'' implementations of RCU.
-Line~7 sets the \url{->dynticks_nesting} field to the value one,
+Line~7 sets the \co{->dynticks_nesting} field to the value one,
 reflecting the fact that a newly onlined CPU is not in dynticks-idle
-mode (recall that the \url{->dynticks_nesting} field tracks the
+mode (recall that the \co{->dynticks_nesting} field tracks the
 number of reasons that the corresponding CPU needs to be tracked for
 RCU read-side critical sections, in this case because it can run
 process-level code).
-Line~8 forces the \url{->dynticks} field to an odd value that is
+Line~8 forces the \co{->dynticks} field to an odd value that is
 at least as large as the last value it had when previously online,
 again reflecting the fact that newly onlined CPUs are not in dynticks-idle
-mode, and line~9 forces the \url{->dynticks_nmi} field to an even value
+mode, and line~9 forces the \co{->dynticks_nmi} field to an even value
 that is at least as large as the last value it had when previously
 online, reflecting the fact that this CPU is not currently executing
 in an NMI handler.
 
 Lines~11-13 are executed regardless of the value of the
-\url{CONFIG_NO_HZ} kernel parameter.
-Line~11 initializes the specified CPU's \url{rcu_data} structure
+\co{CONFIG_NO_HZ} kernel parameter.
+Line~11 initializes the specified CPU's \co{rcu_data} structure
 for ``rcu'', and line~12 does so for ``rcu\_bh''.
-Finally, line~13 registers the \url{rcu_process_callbacks()} to be
-invoked by subsequent \url{raise_softirq()} invocations on this CPU.
+Finally, line~13 registers the \co{rcu_process_callbacks()} to be
+invoked by subsequent \co{raise_softirq()} invocations on this CPU.
 
 \subsubsection{\tt rcu\_offline\_cpu()}
 \label{app:rcuimpl:rcutreewt:rcu-offline-cpu}
@@ -1875,63 +1875,63 @@ invoked by subsequent \url{raise_softirq()} invocations on this CPU.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}
-shows the code for \url{__rcu_offline_cpu()} and its wrapper
-function, \url{rcu_offline_cpu()}.
+shows the code for \co{__rcu_offline_cpu()} and its wrapper
+function, \co{rcu_offline_cpu()}.
 The purpose of this wrapper function (shown in lines~43-47 of the figure)
-is simply to invoke \url{__rcu_offline_cpu()} twice, once for ``rcu'' and
+is simply to invoke \co{__rcu_offline_cpu()} twice, once for ``rcu'' and
 again for ``rcu\_bh''.
-The purpose of the \url{__rcu_offline_cpu()} function is to
+The purpose of the \co{__rcu_offline_cpu()} function is to
 prevent future grace periods from waiting on the CPU being offlined,
 to note the extended quiescent state, and to find a new home for
 any RCU callbacks in process on this CPU.
 
-Turning to \url{__rcu_offline_cpu()}, shown on lines~1-41 of the figure,
-line~12 acquires the specified \url{rcu_state} structure's
-\url{->onofflock}, excluding grace-period initialization for
-multi-\url{rcu_node} hierarchies.
+Turning to \co{__rcu_offline_cpu()}, shown on lines~1-41 of the figure,
+line~12 acquires the specified \co{rcu_state} structure's
+\co{->onofflock}, excluding grace-period initialization for
+multi-\co{rcu_node} hierarchies.
 
 \QuickQuiz{}
-	But what if the \url{rcu_node} hierarchy has only a single
+	But what if the \co{rcu_node} hierarchy has only a single
 	structure, as it would on a small system?
 	What prevents concurrent grace-period initialization in that
 	case, given the code in
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu}?
 \QuickQuizAnswer{
-	The later acquisition of the sole \url{rcu_node} structure's
-	\url{->lock} on line~16 excludes grace-period initialization,
+	The later acquisition of the sole \co{rcu_node} structure's
+	\co{->lock} on line~16 excludes grace-period initialization,
 	which must acquire this same lock in order to initialize this
-	sole \url{rcu_node} structure for the new grace period.
+	sole \co{rcu_node} structure for the new grace period.
 
-	The \url{->onofflock} is needed only for multi-node hierarchies,
+	The \co{->onofflock} is needed only for multi-node hierarchies,
 	and is used in that case as an alternative to acquiring and
-	holding \emph{all} of the \url{rcu_node} structures'
-	\url{->lock} fields, which would be incredibly painful on
+	holding \emph{all} of the \co{rcu_node} structures'
+	\co{->lock} fields, which would be incredibly painful on
 	large systems.
 } \QuickQuizEnd
 
-Line~13 picks up a pointer to the leaf \url{rcu_node} structure corresponding
-to this CPU, using the \url{->mynode} pointer in this CPU's \url{rcu_data}
+Line~13 picks up a pointer to the leaf \co{rcu_node} structure corresponding
+to this CPU, using the \co{->mynode} pointer in this CPU's \co{rcu_data}
 structure
 (see Figure~\ref{fig:app:rcuimpl:rcutree:Initialized RCU Data Layout}).
 Line~14 picks up a mask with this CPU's bit set for use on
-the leaf \url{rcu_node} structure's \url{qsmask} field.
+the leaf \co{rcu_node} structure's \co{qsmask} field.
 
 The loop spanning lines~15-25 then clears this CPU's bits up the
-\url{rcu_node} hierarchy, starting with this CPU's leaf \url{rcu_node}
+\co{rcu_node} hierarchy, starting with this CPU's leaf \co{rcu_node}
 structure.
-Line~16 acquires the current \url{rcu_node} structure's \url{->lock}
+Line~16 acquires the current \co{rcu_node} structure's \co{->lock}
 field, and line~17 clears the bit corresponding to this CPU
-(or group, higher up in the hierarchy) from the \url{->qsmaskinit}
+(or group, higher up in the hierarchy) from the \co{->qsmaskinit}
 field, so that future grace periods will not wait on quiescent states
 from this CPU.
-If the resulting \url{->qsmaskinit} value is non-zero, as checked by
+If the resulting \co{->qsmaskinit} value is non-zero, as checked by
 line~18, then the
-current \url{rcu_node} structure has other online CPUs that it
-must track, so line~19 releases the current \url{rcu_node} structure's
-\url{->lock} and line~20 exits the loop.
-Otherwise, we need to continue walking up the \url{rcu_node} hierarchy.
+current \co{rcu_node} structure has other online CPUs that it
+must track, so line~19 releases the current \co{rcu_node} structure's
+\co{->lock} and line~20 exits the loop.
+Otherwise, we need to continue walking up the \co{rcu_node} hierarchy.
 In this case, line~22 picks up the mask to apply to the next level up,
-line~23 releases the current \url{rcu_node} structure's \url{->lock},
+line~23 releases the current \co{rcu_node} structure's \co{->lock},
 and line~24 advances up to the next level of the hierarchy.
 Line~25 exits the loop should we exit out the top of the hierarchy.
 
@@ -1948,21 +1948,21 @@ Line~25 exits the loop should we exit out the top of the hierarchy.
 	during the normal shutdown procedure.
 } \QuickQuizEnd
 
-Line~26 picks up the specified \url{rcu_state} structure's
-\url{->completed} field into the local variable \url{lastcomp},
-line~27 releases \url{->onofflock} (but leaves irqs disabled),
-and line~28 invokes \url{cpu_quiet()} in order to note that the
+Line~26 picks up the specified \co{rcu_state} structure's
+\co{->completed} field into the local variable \co{lastcomp},
+line~27 releases \co{->onofflock} (but leaves irqs disabled),
+and line~28 invokes \co{cpu_quiet()} in order to note that the
 CPU being offlined is now in an extended quiescent state, passing
-in \url{lastcomp} to avoid reporting this quiescent state against
+in \co{lastcomp} to avoid reporting this quiescent state against
 a different grace period than it occurred in.
 
 \QuickQuiz{}
 	Suppose that line~26 got executed seriously out of order in
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-offline-cpu},
-	so that \url{lastcomp} is set to some prior grace period, but
+	so that \co{lastcomp} is set to some prior grace period, but
 	so that the current grace period is still waiting on the
 	now-offline CPU?
-	In this case, won't the call to \url{cpu_quiet()} fail to
+	In this case, won't the call to \co{cpu_quiet()} fail to
 	report the quiescent state, thus causing the grace period
 	to wait forever for this now-offline CPU?
 \QuickQuizAnswer{
@@ -1970,11 +1970,11 @@ a different grace period than it occurred in.
 	the execution of line~26 from being pushed that far out of
 	order.
 	Nevertheless, even if line~26 managed to be misordered that
-	dramatically, what would happen is that \url{force_quiescent_state()}
+	dramatically, what would happen is that \co{force_quiescent_state()}
 	would eventually be invoked, and would notice that the current
 	grace period was waiting for a quiescent state from an offline
 	CPU.
-	Then \url{force_quiescent_state()} would report the extended
+	Then \co{force_quiescent_state()} would report the extended
 	quiescent state on behalf of the offlined CPU.
 } \QuickQuizEnd
 
@@ -1987,7 +1987,7 @@ a different grace period than it occurred in.
 \QuickQuizAnswer{
 	It really does not need to care in this case.
 	However, because it \emph{does} need to care in many other
-	cases, the \url{cpu_quiet()} function does take the
+	cases, the \co{cpu_quiet()} function does take the
 	grace-period number as an argument, so some value must be
 	supplied.
 } \QuickQuizEnd
@@ -1995,9 +1995,9 @@ a different grace period than it occurred in.
 Lines~29-39 move any RCU callbacks from the CPU going offline to the
 currently running CPU.
 This operation must avoid reordering the callbacks being moved, as
-otherwise \url{rcu_barrier()} will not work correctly.
-Line~29 puts a pointer to the currently running CPU's \url{rcu_data}
-structure into local variable \url{rdp_me}.
+otherwise \co{rcu_barrier()} will not work correctly.
+Line~29 puts a pointer to the currently running CPU's \co{rcu_data}
+structure into local variable \co{rdp_me}.
 Line~30 then checks to see if the CPU going offline has any RCU callbacks.
 If so, lines~31-38 move them.
 Line~31 splices the list of callbacks onto the end of the running CPU's
@@ -2033,11 +2033,11 @@ Finally, line~40 re-enables irqs.
 
 This section describes the miscellaneous utility functions:
 \begin{enumerate}
-\item	\url{rcu_batches_completed}
-\item	\url{rcu_batches_completed_bh}
-\item	\url{cpu_has_callbacks_ready_to_invoke}
-\item	\url{cpu_needs_another_gp}
-\item	\url{rcu_get_root}
+\item	\co{rcu_batches_completed}
+\item	\co{rcu_batches_completed_bh}
+\item	\co{cpu_has_callbacks_ready_to_invoke}
+\item	\co{cpu_needs_another_gp}
+\item	\co{rcu_get_root}
 \end{enumerate}
 
 \begin{figure}[tbp]
@@ -2081,23 +2081,23 @@ This section describes the miscellaneous utility functions:
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Miscellaneous Functions}
 shows a number of miscellaneous functions.
-Lines~1-9 shown \url{rcu_batches_completed()} and
-\url{rcu_batches_completed_bh()}, which are used by the rcutorture
+Lines~1-9 shown \co{rcu_batches_completed()} and
+\co{rcu_batches_completed_bh()}, which are used by the rcutorture
 test suite.
-Lines~11-15 show \url{cpu_has_callbacks_ready_to_invoke()}, which
-indicates whether the specified \url{rcu_data} structure has RCU
+Lines~11-15 show \co{cpu_has_callbacks_ready_to_invoke()}, which
+indicates whether the specified \co{rcu_data} structure has RCU
 callbacks that have passed through their grace period, which
 is indicated by the ``done'' tail pointer no longer pointing
 to the head of the list.
-Lines~17-24 show \url{cpu_needs_another_gp()}, which indicates
-whether the CPU corresponding to the specified \url{rcu_data}
+Lines~17-24 show \co{cpu_needs_another_gp()}, which indicates
+whether the CPU corresponding to the specified \co{rcu_data}
 structure requires an additional grace period during a time when
 no grace period is in progress.
-Note that the specified \url{rcu_data} structure is required
-to be associated with the specified \url{rcu_state} structure.
-Finally, lines~26-30 show \url{rcu_get_root()}, which returns
-the root \url{rcu_node} structure associated with the specified
-\url{rcu_state} structure.
+Note that the specified \co{rcu_data} structure is required
+to be associated with the specified \co{rcu_state} structure.
+Finally, lines~26-30 show \co{rcu_get_root()}, which returns
+the root \co{rcu_node} structure associated with the specified
+\co{rcu_state} structure.
 
 \subsection{Grace-Period-Detection Functions}
 \label{app:rcuimpl:rcutreewt:Grace-Period-Detection Functions}
@@ -2121,7 +2121,7 @@ Section~\ref{app:rcuimpl:rcutreewt:Noting End of Old Grace Periods}
 covers functions that allow CPUs to note that an existing grace period
 has ended,
 Section~\ref{app:rcuimpl:rcutreewt:Starting a Grace Period}
-covers \url{rcu_start_gp()}, which starts a new grace period, and
+covers \co{rcu_start_gp()}, which starts a new grace period, and
 Section~\ref{app:rcuimpl:rcutreewt:Reporting Quiescent States}
 covers functions involved in reporting CPUs' quiescent states to
 the RCU core.
@@ -2161,42 +2161,42 @@ the RCU core.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Noting New Grace Periods}
-shows the code for \url{note_new_gpnum()}, which updates state to reflect
-a new grace period, as well as \url{check_for_new_grace_period()}, which
+shows the code for \co{note_new_gpnum()}, which updates state to reflect
+a new grace period, as well as \co{check_for_new_grace_period()}, which
 is used by CPUs to detect when other CPUs have started a new grace period.
 
-Line~4 of \url{note_new_gpnum()} sets the \url{->qs_pending} flag is
-the current CPU's \url{rcu_data} structure to indicate that RCU needs
-a quiescent state from this CPU, line~5 clears the \url{->passed_quiesc}
+Line~4 of \co{note_new_gpnum()} sets the \co{->qs_pending} flag is
+the current CPU's \co{rcu_data} structure to indicate that RCU needs
+a quiescent state from this CPU, line~5 clears the \co{->passed_quiesc}
 flag to indicate that this CPU has not yet passed through such a
 quiescent state,
-line~6 copies the grace-period number from the global \url{rcu_state}
-structure to this CPU's \url{rcu_data} structure so that this CPU will
+line~6 copies the grace-period number from the global \co{rcu_state}
+structure to this CPU's \co{rcu_data} structure so that this CPU will
 remember that it has already noted the beginning of this new grace
 period.
 Finally, lines~7-8 record the time in jiffies at which this CPU
 will attempt to force holdout CPUs to pass through quiescent states
-(by invoking \url{force_quiescent_state()} on or after that future time),
+(by invoking \co{force_quiescent_state()} on or after that future time),
 assuming that the grace period does not end beforehand.
 
-Lines~18 and 23 of \url{check_for_new_grace_period()} disable and
+Lines~18 and 23 of \co{check_for_new_grace_period()} disable and
 re-enable interrupts, respectively.
 Line~19 checks to see if there is a new grace period that the current
-CPU has not yet noted, and, if so, line~20 invokes \url{note_new_gpnum()}
+CPU has not yet noted, and, if so, line~20 invokes \co{note_new_gpnum()}
 in order to note the new grace period, and line~21 sets the return value
 accordingly.
 Either way, line~24 returns status: non-zero if a new grace period has
 started, and zero otherwise.
 
 \QuickQuiz{}
-	Why not just expand \url{note_new_gpnum()} inline into
-	\url{check_for_new_grace_period()} in
+	Why not just expand \co{note_new_gpnum()} inline into
+	\co{check_for_new_grace_period()} in
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Noting New Grace Periods}?
 \QuickQuizAnswer{
-	Because \url{note_new_gpnum()} must be called for each new
+	Because \co{note_new_gpnum()} must be called for each new
 	grace period, including both those started by this CPU and
 	those started by other CPUs.
-	In contrast, \url{check_for_new_grace_period()} is called only
+	In contrast, \co{check_for_new_grace_period()} is called only
 	for the case where some other CPU started the grace period.
 } \QuickQuizEnd
 
@@ -2241,7 +2241,7 @@ started, and zero otherwise.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Noting End of Old Grace Periods}
-shows \url{rcu_process_gp_end()}, which is invoked when a CPU suspects
+shows \co{rcu_process_gp_end()}, which is invoked when a CPU suspects
 that a grace period might have ended (possibly because the CPU in question
 in fact ended the grace period).
 If a grace period really has ended, then this function advances the
@@ -2251,9 +2251,9 @@ Figure~\ref{fig:app:rcuimpl:rcutree:RCU Callback List}.
 This multiple tail pointer layout, spearheaded by
 Lai Jiangshan, simplifies list
 handling~\cite{LaiJiangshan2008NewClassicAlgorithm}.
-In this figure, the blue box represents one CPU's \url{rcu_data}
+In this figure, the blue box represents one CPU's \co{rcu_data}
 structure, with the six white boxes at the bottom of the diagram
-representing a list of six RCU callbacks (\url{rcu_head} structures).
+representing a list of six RCU callbacks (\co{rcu_head} structures).
 In this list, the first three callbacks have passed through their
 grace period and are thus waiting to be invoked, the fourth
 callback (the first on the second line) is waiting for the current
@@ -2266,15 +2266,15 @@ associated with a specific grace period, is empty.
 Lines~8 and 19 of
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Noting End of Old Grace Periods}
 suppress and re-enable interrupts, respectively.
-Line~9 picks up a snapshot of the \url{rcu_state} structure's
-\url{->completed} field, storing it in the local variable
-\url{completed_snap}.
+Line~9 picks up a snapshot of the \co{rcu_state} structure's
+\co{->completed} field, storing it in the local variable
+\co{completed_snap}.
 Line~10 checks to see if the current CPU is not yet aware of the
 end of a grace period, and if it is not aware,
 lines~11-16 advance this CPU's RCU callbacks by manipulating the
 tail pointers.
 Line~17 then records the most recently completed grace period number
-in this CPU's \url{rcu_data} structure in the \url{->completed}
+in this CPU's \co{rcu_data} structure in the \co{->completed}
 field.
 
 \subsubsection{Starting a Grace Period}
@@ -2337,28 +2337,28 @@ field.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}
-shows \url{rcu_start_gp()}, which starts a new grace period,
-also releasing the root \url{rcu_node} structure's lock, which
+shows \co{rcu_start_gp()}, which starts a new grace period,
+also releasing the root \co{rcu_node} structure's lock, which
 must be acquired by the caller.
 
-Line~4 is annotation for the \url{sparse} utility, indicating
-that \url{rcu_start_gp()} releases the root \url{rcu_node}
+Line~4 is annotation for the \co{sparse} utility, indicating
+that \co{rcu_start_gp()} releases the root \co{rcu_node}
 structure's lock.
-Local variable \url{rdp} references the running CPU's \url{rcu_data}
-structure, \url{rnp} references the root \url{rcu_node} structure,
-and \url{rnp_cur} and \url{rnp_end} are used as cursors in traversing
-the \url{rcu_node} hierarchy.
+Local variable \co{rdp} references the running CPU's \co{rcu_data}
+structure, \co{rnp} references the root \co{rcu_node} structure,
+and \co{rnp_cur} and \co{rnp_end} are used as cursors in traversing
+the \co{rcu_node} hierarchy.
 
-Line~10 invokes \url{cpu_needs_another_gp()} to see if this CPU really
+Line~10 invokes \co{cpu_needs_another_gp()} to see if this CPU really
 needs another grace period to be started, and if not, line~11
-releases the root \url{rcu_node} structure's lock and line~12 returns.
+releases the root \co{rcu_node} structure's lock and line~12 returns.
 This code path can be executed due to multiple CPUs concurrently
 attempting to start a grace period.
 In this case, the winner will start the grace period, and the losers
 will exit out via this code path.
 
-Otherwise, line~14 increments the specified \url{rcu_state} structure's
-\url{->gpnum} field, officially marking the start of a new grace
+Otherwise, line~14 increments the specified \co{rcu_state} structure's
+\co{->gpnum} field, officially marking the start of a new grace
 period.
 
 \QuickQuiz{}
@@ -2370,82 +2370,82 @@ period.
 \QuickQuizAnswer{
 	There are two cases of interest.
 
-	In the first case, there is only a single \url{rcu_node}
+	In the first case, there is only a single \co{rcu_node}
 	structure in the hierarchy.
-	Since the CPU executing in \url{rcu_start_gp()} is currently
-	holding that \url{rcu_node} structure's lock, the CPU
+	Since the CPU executing in \co{rcu_start_gp()} is currently
+	holding that \co{rcu_node} structure's lock, the CPU
 	attempting to report the quiescent state will not be able
 	to acquire this lock until initialization is complete,
 	at which point the quiescent state will be reported
 	normally.
 
-	In the second case, there are multiple \url{rcu_node} structures,
-	and the leaf \url{rcu_node} structure corresponding to the
+	In the second case, there are multiple \co{rcu_node} structures,
+	and the leaf \co{rcu_node} structure corresponding to the
 	CPU that is attempting to report the quiescent state already
-	has that CPU's \url{->qsmask} bit cleared.
+	has that CPU's \co{->qsmask} bit cleared.
 	Therefore, the CPU attempting to report the quiescent state
 	will give up, and some later quiescent state for that CPU
 	will be applied to the new grace period.
 } \QuickQuizEnd
 
-Line~15 sets the \url{->signaled} field to \url{RCU_GP_INIT} in order
+Line~15 sets the \co{->signaled} field to \co{RCU_GP_INIT} in order
 to prevent any other CPU from attempting to force an end to the new
 grace period before its initialization completes.
 Lines~16-18 schedule the next attempt to force an end to the new
 grace period, first in terms of jiffies and second in terms of the
-number of calls to \url{rcu_pending}.
+number of calls to \co{rcu_pending}.
 Of course, if the grace period ends naturally before that time,
 there will be no need to attempt to force it.
-Line~20 invokes \url{record_gp_stall_check_time()} to schedule a
+Line~20 invokes \co{record_gp_stall_check_time()} to schedule a
 longer-term progress check---if the grace period extends beyond this
 time, it should be considered to be an error.
-Line~22 invokes \url{note_new_gpnum()} in order to initialize this
-CPU's \url{rcu_data} structure to account for the new grace period.
+Line~22 invokes \co{note_new_gpnum()} in order to initialize this
+CPU's \co{rcu_data} structure to account for the new grace period.
 
 Lines~23-26 advance all of this CPU's callbacks so that they will
 be eligible to be invoked at the end of this new grace period.
 This represents an acceleration of callbacks, as other CPUs would only
-be able to move the \url{RCU_NEXT_READY_TAIL} batch to be serviced
-by the current grace period; the \url{RCU_NEXT_TAIL} would instead
-need to be advanced to the \url{RCU_NEXT_READY_TAIL} batch.
-The reason that this CPU can accelerate the \url{RCU_NEXT_TAIL} batch
+be able to move the \co{RCU_NEXT_READY_TAIL} batch to be serviced
+by the current grace period; the \co{RCU_NEXT_TAIL} would instead
+need to be advanced to the \co{RCU_NEXT_READY_TAIL} batch.
+The reason that this CPU can accelerate the \co{RCU_NEXT_TAIL} batch
 is that it knows exactly when this new grace period started.
 In contrast, other CPUs would be unable to correctly resolve the
 race between the start of a new grace period and the arrival of
 a new RCU callback.
 
-Line~27 checks to see if there is but one \url{rcu_node} structure in
-the hierarchy, and if so, line~28 sets the \url{->qsmask}
+Line~27 checks to see if there is but one \co{rcu_node} structure in
+the hierarchy, and if so, line~28 sets the \co{->qsmask}
 bits corresponding to all online CPUs, in other words, corresponding
 to those CPUs that must pass through a quiescent state for the new
 grace period to end.
-Line~29 releases the root \url{rcu_node} structure's lock and line~30
+Line~29 releases the root \co{rcu_node} structure's lock and line~30
 returns.
 In this case, gcc's dead-code elimination is expected to dispense with
 lines~32-46.
 
-Otherwise, the \url{rcu_node} hierarchy has multiple structures, requiring
+Otherwise, the \co{rcu_node} hierarchy has multiple structures, requiring
 a more involved initialization scheme.
-Line~32 releases the root \url{rcu_node} structure's lock, but keeps
+Line~32 releases the root \co{rcu_node} structure's lock, but keeps
 interrupts disabled, and then line~33 acquires the specified
-\url{rcu_state} structure's \url{->onofflock}, preventing any
+\co{rcu_state} structure's \co{->onofflock}, preventing any
 concurrent CPU-hotplug operations from manipulating RCU-specific state.
 
-Line~34 sets the \url{rnp_end} local variable to reference the first
-leaf \url{rcu_node} structure, which also happens to be the
-\url{rcu_node} structure immediately following the last non-leaf
-\url{rcu_node} structure in the \url{->node} array.
-Line~35 sets the \url{rnp_cur} local variable to reference the root
-\url{rcu_node} structure, which also happens to be first such structure
-in the \url{->node} array.
-Lines~36 and 37 then traverse all of the non-leaf \url{rcu_node} structures,
-setting the bits corresponding to lower-level \url{rcu_node} structures
+Line~34 sets the \co{rnp_end} local variable to reference the first
+leaf \co{rcu_node} structure, which also happens to be the
+\co{rcu_node} structure immediately following the last non-leaf
+\co{rcu_node} structure in the \co{->node} array.
+Line~35 sets the \co{rnp_cur} local variable to reference the root
+\co{rcu_node} structure, which also happens to be first such structure
+in the \co{->node} array.
+Lines~36 and 37 then traverse all of the non-leaf \co{rcu_node} structures,
+setting the bits corresponding to lower-level \co{rcu_node} structures
 that have CPUs that must pass through quiescent states in order for
 the new grace period to end.
 
 \QuickQuiz{}
 	Hey!
-	Shouldn't we hold the non-leaf \url{rcu_node} structures'
+	Shouldn't we hold the non-leaf \co{rcu_node} structures'
 	locks when munging their state in line~37 of
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}???
 \QuickQuizAnswer{
@@ -2456,27 +2456,27 @@ the new grace period to end.
 		(which is initializing it) won't pass through a
 		quiescent state.
 		Therefore, there is no race with another invocation
-		of \url{rcu_start_gp()}.
-	\item	The running CPU holds \url{->onofflock}, so there
+		of \co{rcu_start_gp()}.
+	\item	The running CPU holds \co{->onofflock}, so there
 		is no race with CPU-hotplug operations.
-	\item	The leaf \url{rcu_node} structures are not yet initialized,
-		so they have all of their \url{->qsmask} bits cleared.
+	\item	The leaf \co{rcu_node} structures are not yet initialized,
+		so they have all of their \co{->qsmask} bits cleared.
 		This means that any other CPU attempting to report
 		a quiescent state will stop at the leaf level,
 		and thus cannot race with the current CPU for non-leaf
-		\url{rcu_node} structures.
+		\co{rcu_node} structures.
 	\item	The RCU tracing functions access, but do not modify,
-		the \url{rcu_node} structures' fields.
+		the \co{rcu_node} structures' fields.
 		Races with these functions is therefore harmless.
 	\end{enumerate}
 } \QuickQuizEnd
 
-Line~38 sets local variable \url{rnp_end} to one past the last leaf
-\url{rcu_node} structure, and line~39 sets local variable \url{rnp_cur}
-to the first leaf \url{rcu_node} structure, so that the loop spanning
-lines~40-44 traverses all leaves of the \url{rcu_node} hierarchy.
+Line~38 sets local variable \co{rnp_end} to one past the last leaf
+\co{rcu_node} structure, and line~39 sets local variable \co{rnp_cur}
+to the first leaf \co{rcu_node} structure, so that the loop spanning
+lines~40-44 traverses all leaves of the \co{rcu_node} hierarchy.
 During each pass through this loop, line~41 acquires the current
-leaf \url{rcu_node} structure's lock, line~42 sets the bits corresponding
+leaf \co{rcu_node} structure's lock, line~42 sets the bits corresponding
 to online CPUs (each of which must pass through a quiescent state
 before the new grace period can end), and line~43 releases the lock.
 
@@ -2486,11 +2486,11 @@ before the new grace period can end), and line~43 releases the lock.
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Starting a Grace Period}?
 \QuickQuizAnswer{
 	If we were to do so, we would either be needlessly acquiring locks
-	for the non-leaf \url{rcu_node} structures or would need
+	for the non-leaf \co{rcu_node} structures or would need
 	ugly checks for a given node being a leaf node on each pass
 	through the loop.
 	(Recall that we must acquire the locks for the leaf
-	\url{rcu_node} structures due to races with CPUs attempting
+	\co{rcu_node} structures due to races with CPUs attempting
 	to report quiescent states.)
 
 	Nevertheless, it is quite possible that experience on very large
@@ -2498,9 +2498,9 @@ before the new grace period can end), and line~43 releases the lock.
 	to do.
 } \QuickQuizEnd
 
-Line~45 then sets the specified \url{rcu_state} structure's \url{->signaled}
+Line~45 then sets the specified \co{rcu_state} structure's \co{->signaled}
 field to permit forcing of quiescent states, and
-line~46 releases the \url{->onofflock} to permit CPU-hotplug
+line~46 releases the \co{->onofflock} to permit CPU-hotplug
 operations to manipulate RCU state.
 
 \subsubsection{Reporting Quiescent States}
@@ -2509,20 +2509,20 @@ operations to manipulate RCU state.
 This hierarchical RCU implementation implements a layered approach
 to reporting quiescent states, using the following functions:
 \begin{enumerate}
-\item	\url{rcu_qsctr_inc()} and \url{rcu_bh_qsctr_inc()}
+\item	\co{rcu_qsctr_inc()} and \co{rcu_bh_qsctr_inc()}
 	are invoked when a given CPU passes through a
 	quiescent state for ``rcu'' and ``rcu\_bh'', respectively.
 	Note that the dynticks-idle and CPU-offline quiescent states
 	are handled specially, due to the fact that such a CPU
 	is not executing, and thus is unable to report itself as
 	being in a quiescent state.
-\item	\url{rcu_check_quiescent_state()} checks to see if the current
-	CPU has passed through a quiescent state, invoking \url{cpu_quiet()}
+\item	\co{rcu_check_quiescent_state()} checks to see if the current
+	CPU has passed through a quiescent state, invoking \co{cpu_quiet()}
 	if so.
-\item	\url{cpu_quiet()} reports the specified CPU as having passed
-	through a quiescent state by invoking \url{cpu_quiet_msk()}.
+\item	\co{cpu_quiet()} reports the specified CPU as having passed
+	through a quiescent state by invoking \co{cpu_quiet_msk()}.
 	The specified CPU must either be the current CPU or an offline CPU.
-\item	\url{cpu_quiet_msk()} reports the specified vector of CPUs as
+\item	\co{cpu_quiet_msk()} reports the specified vector of CPUs as
 	having passed through a quiescent state.  The CPUs in the
 	vector need not be the current CPU, nor must they be offline.
 \end{enumerate}
@@ -2552,23 +2552,23 @@ Each of these functions is described below.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for Recording Quiescent States}
-shows the code for \url{rcu_qsctr_inc()} and \url{rcu_bh_qsctr_inc()},
+shows the code for \co{rcu_qsctr_inc()} and \co{rcu_bh_qsctr_inc()},
 which note the current CPU's passage through a quiescent state.
 
-Line~3 of \url{rcu_qsctr_inc()} obtains a pointer to the specified
-CPU's \url{rcu_data} structure (which corresponds to ``rcu'' as opposed
+Line~3 of \co{rcu_qsctr_inc()} obtains a pointer to the specified
+CPU's \co{rcu_data} structure (which corresponds to ``rcu'' as opposed
 to ``rcu\_bh'').
-Line~4 sets the \url{->passed_quiesc} field, recording the
+Line~4 sets the \co{->passed_quiesc} field, recording the
 quiescent state.
-Line~5 sets the \url{->passed_quiesc_completed} field to the number
+Line~5 sets the \co{->passed_quiesc_completed} field to the number
 of the last completed grace period that this CPU knows of (which is
-stored in the \url{->completed} field of the \url{rcu_data}
+stored in the \co{->completed} field of the \co{rcu_data}
 structure).
 
-The \url{rcu_bh_qsctr_inc()} function operates in the same manner,
-the only difference being that line~10 obtains the \url{rcu_data}
-pointer from the \url{rcu_bh_data} per-CPU variable rather than
-the \url{rcu_data} per-CPU variable.
+The \co{rcu_bh_qsctr_inc()} function operates in the same manner,
+the only difference being that line~10 obtains the \co{rcu_data}
+pointer from the \co{rcu_bh_data} per-CPU variable rather than
+the \co{rcu_data} per-CPU variable.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -2593,13 +2593,13 @@ the \url{rcu_data} per-CPU variable.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-check-quiescent-state}
-shows the code for \url{rcu_check_quiescent_state()}, which is invoked
-from \url{rcu_process_callbacks()}
+shows the code for \co{rcu_check_quiescent_state()}, which is invoked
+from \co{rcu_process_callbacks()}
 (described in Section~\ref{app:rcuimpl:rcutreewt:rcu-process-callbacks})
 in order to determine when other CPUs have started a new grace period
 and to inform RCU of recent quiescent states for this CPU.
 
-Line~5 invokes \url{check_for_new_grace_period()} to check for
+Line~5 invokes \co{check_for_new_grace_period()} to check for
 a new grace period having been started by some other CPU, and also
 updating this CPU's local state to account for that new grace period.
 If a new grace period has just started, line~6 returns.
@@ -2607,14 +2607,14 @@ Line~7 checks to see if RCU is still expecting a quiescent state from
 the current CPU, and line~8 returns if not.
 Line~9 checks to see if this CPU has passed through a quiescent state
 since the start of the current grace period (in other words, if
-\url{rcu_qsctr_inc()} or \url{rcu_bh_qsctr_inc()} have been invoked
+\co{rcu_qsctr_inc()} or \co{rcu_bh_qsctr_inc()} have been invoked
 for ``rcu'' and ``rcu\_bh'', respectively), and line 10 returns if not.
 
 Therefore, execution reaches line~11 only if a previously noted grace
 period is still in effect, if this CPU needs to pass through a
 quiescent state in order to allow this grace period to end, and
 if this CPU has passed through such a quiescent state.
-In this case, lines~11-12 invoke \url{cpu_quiet()} in order to report
+In this case, lines~11-12 invoke \co{cpu_quiet()} in order to report
 this quiescent state to RCU.
 
 \QuickQuiz{}
@@ -2637,19 +2637,19 @@ this quiescent state to RCU.
 
 	In the first case, the prior grace period could not have
 	ended without this CPU explicitly reporting a quiescent
-	state, which would leave \url{->qs_pending} zero.
+	state, which would leave \co{->qs_pending} zero.
 	This in turn would mean that lines~7-8 would return, so
-	that control would not reach \url{cpu_quiet()} unless
-	\url{check_for_new_grace_period()} had noted the new grace
+	that control would not reach \co{cpu_quiet()} unless
+	\co{check_for_new_grace_period()} had noted the new grace
 	period.
 	However, if the current grace period had been noted, it would
-	also have set \url{->passed_quiesc} to zero, in which case
-	lines~9-10 would have returned, again meaning that \url{cpu_quiet()}
+	also have set \co{->passed_quiesc} to zero, in which case
+	lines~9-10 would have returned, again meaning that \co{cpu_quiet()}
 	would not be invoked.
-	Finally, the only way that \url{->passed_quiesc} could be invoked
-	would be if \url{rcu_check_callbacks()} was invoked by
+	Finally, the only way that \co{->passed_quiesc} could be invoked
+	would be if \co{rcu_check_callbacks()} was invoked by
 	a scheduling-clock interrupt that occurred somewhere between
-	lines~5 and 9 of \url{rcu_check_quiescent_state()} in
+	lines~5 and 9 of \co{rcu_check_quiescent_state()} in
 	Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for rcu-check-quiescent-state}.
 	However, this would be a case of a quiescent state occurring
 	in the \emph{current} grace period, which would be totally
@@ -2707,12 +2707,12 @@ this quiescent state to RCU.
 \end{figure}
 
 Figure~\ref{fig:app:rcuimpl:rcutreewt:Code for cpu-quiet}
-shows \url{cpu_quiet}, which is used to report a quiescent state
+shows \co{cpu_quiet}, which is used to report a quiescent state
 for the specified CPU.
 As noted earlier, this must either be the currently running CPU
 or a CPU that is guaranteed to remain offline throughout.
 
-Line~9 picks up a pointer to the leaf \url{rcu_node} structure
+Line~9 picks up a pointer to the leaf \co{rcu_node} structure
 responsible for this CPU.
 Line~10 acquires this leaf \url{rcu_node} structure's lock and
 disables interrupts.
