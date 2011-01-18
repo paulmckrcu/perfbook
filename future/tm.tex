@@ -80,7 +80,7 @@ Here are some options for handling of I/O within transactions:
 	However, special handling is required in cases where multiple
 	record-oriented output streams are merged onto a single file
 	from multiple processes, as might be done using the ``a+''
-	option to \url{fopen()} or the \url{O_APPEND}  flag to \url{open()}.
+	option to \co{fopen()} or the \co{O_APPEND}  flag to \co{open()}.
 	In addition, as will be seen in the next section, common
 	networking operations cannot be handled via buffering.
 \item	Prohibit I/O within transactions, so that any attempt to execute
@@ -210,7 +210,7 @@ is simply an especially problematic case of I/O.
 \label{sec:future:Memory-Mapping Operations}
 
 It is perfectly legal to execute memory-mapping operations (including
-\url{mmap()}, \url{shmat()}, and \url{munmap()}~\cite{TheOpenGroup1997SUS})
+\co{mmap()}, \co{shmat()}, and \co{munmap()}~\cite{TheOpenGroup1997SUS})
 within a lock-based critical section,
 and, at least in principle, from within an RCU read-side critical section.
 What happens when you attempt to execute such an operation from within
@@ -250,7 +250,7 @@ Here are some memory-mapping options available to TM:
 	transactions.
 \end{enumerate}
 
-In is interesting to note that \url{munmap()} leaves the relevant region
+In is interesting to note that \co{munmap()} leaves the relevant region
 of memory unmapped, which could have additional interesting
 implications.\footnote{
 	This difference between mapping and unmapping was noted by
@@ -279,11 +279,11 @@ following code fragment:
 \end{minipage}
 \vspace{5pt}
 
-This pseudo-code fragment uses \url{pthread_create()} to spawn one thread
-per CPU, then uses \url{pthread_join()} to wait for each to complete,
-all under the protection of \url{pthread_mutex_lock()}.
+This pseudo-code fragment uses \co{pthread_create()} to spawn one thread
+per CPU, then uses \co{pthread_join()} to wait for each to complete,
+all under the protection of \co{pthread_mutex_lock()}.
 The effect is to execute a lock-based critical section in parallel,
-and one could obtain a similar effect using \url{fork()} and \url{wait()}.
+and one could obtain a similar effect using \co{fork()} and \co{wait()}.
 Of course, the critical section would need to be quite large to justify
 the thread-spawning overhead, but there are many examples of large
 critical sections in production software.
@@ -291,18 +291,18 @@ critical sections in production software.
 What might TM do about thread spawning within a transaction?
 
 \begin{enumerate}
-\item	Declare \url{pthread_create()} to be illegal within transactions,
+\item	Declare \co{pthread_create()} to be illegal within transactions,
 	resulting in transaction abort (preferred) or undefined
 	behavior. Alternatively, enlist the compiler to enforce
-	\url{pthread_create()}-free transactions.
-\item	Permit \url{pthread_create()} to be executed within a
+	\co{pthread_create()}-free transactions.
+\item	Permit \co{pthread_create()} to be executed within a
 	transaction, but only the parent thread will be considered to
 	be part of the transaction.
 	This approach seems to be reasonably compatible with existing and
 	posited TM implementations, but seems to be a trap for the unwary.
 	This approach raises further questions, such as how to handle
 	conflicting child-thread accesses.
-\item	Convert the \url{pthread_create()}s to function calls.
+\item	Convert the \co{pthread_create()}s to function calls.
 	This approach is also an attractive nuisance, as it does not
 	handle the not-uncommon cases where the child threads communicate
 	with one another.
@@ -317,7 +317,7 @@ What might TM do about thread spawning within a transaction?
 	if the parent thread does not wait for its children before
 	committing the transaction.
 	Even more interesting, what happens if the parent conditionally
-	executes \url{pthread_join()} based on the values of variables
+	executes \co{pthread_join()} based on the values of variables
 	participating in the transaction?
 	The answers to these questions are reasonably straightforward
 	in the case of locking.
@@ -542,11 +542,11 @@ One interesting distinction is persistence, in other words, whether the
 lock can exist independently of the address space of the process using
 the lock.
 
-Non-persistent locks include \url{pthread_mutex_lock()},
-\url{pthread_rwlock_rdlock()}, and most kernel-level locking primitives.
+Non-persistent locks include \co{pthread_mutex_lock()},
+\co{pthread_rwlock_rdlock()}, and most kernel-level locking primitives.
 If the memory locations instantiating a non-persistent lock's data
 structures disappear, so does the lock.
-For typical use of \url{pthread_mutex_lock()}, this means that when the
+For typical use of \co{pthread_mutex_lock()}, this means that when the
 process exits, all of its locks vanish.
 This property can be exploited in order to trivialize lock cleanup
 at program shutdown time, but makes it more difficult for unrelated
@@ -555,10 +555,10 @@ to share memory.
 
 Persistent locks help avoid the need to share memory among unrelated
 applications.
-Persistent locking APIs include the flock family, \url{lockf()}, System
-V semaphores, or the \url{O_CREAT} flag to \url{open()}.
+Persistent locking APIs include the flock family, \co{lockf()}, System
+V semaphores, or the \co{O_CREAT} flag to \co{open()}.
 These persistent APIs can be used to protect large-scale operations
-spanning runs of multiple applications, and, in the case of \url{O_CREAT}
+spanning runs of multiple applications, and, in the case of \co{O_CREAT}
 even surviving operating-system reboot.
 If need be, locks can span multiple computer systems via distributed
 lock managers.
@@ -718,31 +718,31 @@ be solved.
 \subsection{The exec() System Call}
 \label{sec:future:The exec System Call}
 
-One can execute an \url{exec()} system call while holding a lock, and
+One can execute an \co{exec()} system call while holding a lock, and
 also from within an RCU read-side critical section.
 The exact semantics depends on the type of primitive.
 
 In the case of non-persistent primitives (including
-\url{pthread_mutex_lock()}, \url{pthread_rwlock_rdlock()}, and RCU),
-if the \url{exec()} succeeds, the whole address space vanishes, along
+\co{pthread_mutex_lock()}, \co{pthread_rwlock_rdlock()}, and RCU),
+if the \co{exec()} succeeds, the whole address space vanishes, along
 with any locks being held.
-Of course, if the \url{exec()} fails, the address space still lives,
+Of course, if the \co{exec()} fails, the address space still lives,
 so any associated locks would also still live.
 A bit strange perhaps, but reasonably well defined.
 
 On the other hand, persistent primitives (including the flock family,
-\url{lockf()}, System V semaphores, and the \url{O_CREAT} flag to
-\url{open()}) would survive regardless of whether the \url{exec()}
-succeeded or failed, so that the \url{exec()}ed program might well
+\co{lockf()}, System V semaphores, and the \co{O_CREAT} flag to
+\co{open()}) would survive regardless of whether the \co{exec()}
+succeeded or failed, so that the \co{exec()}ed program might well
 release them.
 
 \QuickQuiz{}
 	What about non-persistent primitives represented by data
-	structures in \url{mmap()} regions of memory?
-	What happens when their is an \url{exec()} within a critical
+	structures in \co{mmap()} regions of memory?
+	What happens when their is an \co{exec()} within a critical
 	section of such a primitive?
 \QuickQuizAnswer{
-	If the \url{exec()}ed program maps those same regions of
+	If the \co{exec()}ed program maps those same regions of
 	memory, then this program could in principle simply release
 	the lock.
 	The question as to whether this approach is sound from a
@@ -750,45 +750,45 @@ release them.
 	the reader.
 } \QuickQuizEnd
 
-What happens when you attempt to execute an \url{exec()} system call
+What happens when you attempt to execute an \co{exec()} system call
 from within a transaction?
 
 \begin{enumerate}
-\item	Disallow \url{exec()} within transactions, so that the enclosing
-	transactions abort upon encountering the \url{exec()}.
+\item	Disallow \co{exec()} within transactions, so that the enclosing
+	transactions abort upon encountering the \co{exec()}.
 	This is well defined, but clearly requires non-TM synchronization
-	primitives for use in conjunction with \url{exec()}.
-\item	Disallow \url{exec()} within transactions, with the compiler
+	primitives for use in conjunction with \co{exec()}.
+\item	Disallow \co{exec()} within transactions, with the compiler
 	enforcing this prohibition.
 	There is a draft specification for TM in C++ that takes
 	this approach, allowing functions to be decorated with
-	the \url{transaction_safe} and \url{transaction_unsafe}
+	the \co{transaction_safe} and \co{transaction_unsafe}
 	attributes.\footnote{
 		Thanks to Mark Moir for pointing me at this spec, and
 		to Michael Wong for having pointed me at an earlier
 		revision some time back.}
 	This approach has some advantages over aborting the transaction
 	at runtime, but again requires non-TM synchronization primitives
-	for use in conjunction with \url{exec()}.
+	for use in conjunction with \co{exec()}.
 \item	Treat the transaction in a manner similar to non-persistent	
 	Locking primitives, so that the transaction survives if exec()
-	fails, and silently commits if the \url{exec()} succeeds.
+	fails, and silently commits if the \co{exec()} succeeds.
 	The case were some of the variables affected by the transaction
-	reside in \url{mmap()}ed memory (and thus could survive a successful
-	\url{exec()} system call) is left as an exercise for the reader.
-\item	Abort the transaction (and the \url{exec()} system call) if the
-	\url{exec()} system call would have succeeded, but allow the
-	transaction to continue if the \url{exec()} system call would
+	reside in \co{mmap()}ed memory (and thus could survive a successful
+	\co{exec()} system call) is left as an exercise for the reader.
+\item	Abort the transaction (and the \co{exec()} system call) if the
+	\co{exec()} system call would have succeeded, but allow the
+	transaction to continue if the \co{exec()} system call would
 	fail.
 	This is in some sense the ``correct'' approach, but it would
 	require considerable work for a rather unsatisfying result.
 \end{enumerate}
 
-The \url{exec()} system call is perhaps the strangest example of an
+The \co{exec()} system call is perhaps the strangest example of an
 obstacle to universal TM applicability, as it is not completely clear
 what approach makes sense, and some might argue that this is merely a
 reflection of the perils of interacting with execs in real life.
-That said, the two options prohibiting \url{exec()} within transactions
+That said, the two options prohibiting \co{exec()} within transactions
 are perhaps the most logical of the group.
 
 \subsection{RCU}
@@ -803,9 +803,9 @@ The fact that they applied TM to the Linux 2.6 kernel, which uses RCU,
 forced them to integrate TM and RCU, with TM taking the place of locking
 for RCU updates.
 Unfortunately, although the paper does state that the RCU implementation's
-locks (e.g., \url{rcu_ctrlblk.lock}) were converted to transactions,
+locks (e.g., \co{rcu_ctrlblk.lock}) were converted to transactions,
 it is silent about what happened to locks used in RCU-based updates
-(e.g., \url{dcache_lock}).
+(e.g., \co{dcache_lock}).
 
 It is important to note that RCU permits readers and updaters to run
 concurrently, further permitting RCU readers to access data that is in
@@ -839,7 +839,7 @@ Some possibilities are as follows:
 	In particular, log-based TM implementations that maintain
 	old values in the log (thus making for excellent TM commit
 	performance) are not likely to be happy with this approach.
-	Perhaps the \url{rcu_dereference()} primitive can be leveraged
+	Perhaps the \co{rcu_dereference()} primitive can be leveraged
 	to permit RCU to access the old values within a greater range
 	of TM implementations, though performance might still be an issue.
 \item	If an RCU reader executes an access that conflicts with an
@@ -865,7 +865,7 @@ Some possibilities are as follows:
 	In some these cases, RCU can safely be permitted to see a
 	transactional pointer update that is subsequently rolled back,
 	as long as the transaction respects memory ordering and as long
-	as the roll-back process uses \url{call_rcu()} to free up the
+	as the roll-back process uses \co{call_rcu()} to free up the
 	corresponding structure.
 	Unfortunately, not all TM implementations respect memory barriers
 	within a transaction.
@@ -892,7 +892,7 @@ conclusions:
 	subject to rollback and retry.
 	This property underlies TM's difficulties with irreversible
 	operations, including unbuffered I/O, RPCs, memory-mapping
-	operations, time delays, and the \url{exec()} system call.
+	operations, time delays, and the \co{exec()} system call.
 	This property also has the unfortunate consequence of introducing
 	all the complexities inherent in the possibility of
 	failure into synchronization primitives, often in a developer-visible

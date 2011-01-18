@@ -95,8 +95,8 @@ One key attribute of RCU is the ability to safely scan data, even
 though that data is being modified concurrently.
 To provide this ability for concurrent insertion,
 RCU uses what can be thought of as a publish-subscribe mechanism.
-For example, consider an initially \url{NULL} global pointer
-\url{gp} that is to be modified to point to a newly allocated
+For example, consider an initially \co{NULL} global pointer
+\co{gp} that is to be modified to point to a newly allocated
 and initialized data structure.
 The code fragment shown in
 Figure~\ref{fig:defer:Data Structure Publication (Unsafe)}
@@ -105,13 +105,13 @@ might be used for this purpose.
 
 Unfortunately, there is nothing forcing the compiler and CPU to execute
 the last four assignment statements in order.
-If the assignment to \url{gp} happens before the initialization
-of \url{p} fields, then concurrent readers could see the
+If the assignment to \co{gp} happens before the initialization
+of \co{p} fields, then concurrent readers could see the
 uninitialized values.
 Memory barriers are required to keep things ordered, but memory barriers
 are notoriously difficult to use.
 We therefore encapsulate them into a primitive
-\url{rcu_assign_pointer()} that has publication semantics.
+\co{rcu_assign_pointer()} that has publication semantics.
 The last four lines would then be as follows:
 
 \vspace{5pt}
@@ -125,10 +125,10 @@ The last four lines would then be as follows:
 \end{minipage}
 \vspace{5pt}
 
-The \url{rcu_assign_pointer()}
+The \co{rcu_assign_pointer()}
 would \emph{publish} the new structure, forcing both the compiler
-and the CPU to execute the assignment to \url{gp} \emph{after}
-the assignments to the fields referenced by \url{p}
+and the CPU to execute the assignment to \co{gp} \emph{after}
+the assignments to the fields referenced by \co{p}
 
 However, it is not sufficient to only enforce ordering at the
 updater, as the reader must enforce proper ordering as well.
@@ -149,19 +149,19 @@ Although this code fragment might well seem immune to misordering,
 unfortunately, the
 DEC Alpha CPU~\cite{PaulMcKenney2005i,PaulMcKenney2005j}
 and value-speculation compiler optimizations can, believe it or not,
-cause the values of \url{p->a}, \url{p->b}, and
-\url{p->c} to be fetched before the value of \url{p}.
+cause the values of \co{p->a}, \co{p->b}, and
+\co{p->c} to be fetched before the value of \co{p}.
 This is perhaps easiest to see in the case of value-speculation
 compiler optimizations, where the compiler guesses the value
-of \url{p} fetches \url{p->a}, \url{p->b}, and
-\url{p->c} then fetches the actual value of \url{p}
+of \co{p} fetches \co{p->a}, \co{p->b}, and
+\co{p->c} then fetches the actual value of \co{p}
 in order to check whether its guess was correct.
 This sort of optimization is quite aggressive, perhaps insanely so,
 but does actually occur in the context of profile-driven optimization.
 
 Clearly, we need to prevent this sort of skullduggery on the
 part of both the compiler and the CPU.
-The \url{rcu_dereference()} primitive uses
+The \co{rcu_dereference()} primitive uses
 whatever memory-barrier instructions and compiler
 directives are required for this purpose:
 
@@ -178,19 +178,19 @@ directives are required for this purpose:
 \end{minipage}
 \vspace{5pt}
 
-The \url{rcu_dereference()} primitive can thus be thought of
+The \co{rcu_dereference()} primitive can thus be thought of
 as \emph{subscribing} to a given value of the specified pointer,
 guaranteeing that subsequent dereference operations will see any
 initialization that occurred before the corresponding publish
-(\url{rcu_assign_pointer()} operation.
-The \url{rcu_read_lock()} and \url{rcu_read_unlock()}
+(\co{rcu_assign_pointer()} operation.
+The \co{rcu_read_lock()} and \co{rcu_read_unlock()}
 calls are absolutely required: they define the extent of the
 RCU read-side critical section.
 Their purpose is explained in
 Section~\ref{sec:defer:Wait For Pre-Existing RCU Readers to Complete},
 however, they never spin or block, nor do they prevent the
-\url{list_add_rcu()} from executing concurrently.
-In fact, in non-\url{CONFIG_PREEMPT} kernels, they generate
+\co{list_add_rcu()} from executing concurrently.
+In fact, in non-\co{CONFIG_PREEMPT} kernels, they generate
 absolutely no code.
 
 \begin{figure}[tb]
@@ -209,12 +209,12 @@ absolutely no code.
 \label{fig:defer:Linux Linked List Abbreviated}
 \end{figure}
 
-Although \url{rcu_assign_pointer()} and
-\url{rcu_dereference()} can in theory be used to construct any
+Although \co{rcu_assign_pointer()} and
+\co{rcu_dereference()} can in theory be used to construct any
 conceivable RCU-protected data structure, in practice it is often better
 to use higher-level constructs.
-Therefore, the \url{rcu_assign_pointer()} and
-\url{rcu_dereference()}
+Therefore, the \co{rcu_assign_pointer()} and
+\co{rcu_dereference()}
 primitives have been embedded in special RCU variants of Linux's
 list-manipulation API.
 Linux has two variants of doubly linked list, the circular
@@ -257,9 +257,9 @@ the code shown in
 Figure~\ref{fig:defer:RCU Data Structure Publication}.
 
 Line~15 must be protected by some synchronization mechanism (most
-commonly some sort of lock) to prevent multiple \url{list_add()}
+commonly some sort of lock) to prevent multiple \co{list_add()}
 instances from executing concurrently.
-However, such synchronization does not prevent this \url{list_add()}
+However, such synchronization does not prevent this \co{list_add()}
 instance from executing concurrently with RCU readers.
 
 Subscribing to an RCU-protected list is straightforward:
@@ -277,9 +277,9 @@ Subscribing to an RCU-protected list is straightforward:
 \end{minipage}
 \vspace{5pt}
 
-The \url{list_add_rcu()} primitive publishes
+The \co{list_add_rcu()} primitive publishes
 an entry into the specified list, guaranteeing that the corresponding
-\url{list_for_each_entry_rcu()} invocation will properly
+\co{list_for_each_entry_rcu()} invocation will properly
 subscribe to this same entry.
 
 \QuickQuiz{}
@@ -383,24 +383,24 @@ circular list:
 Category  & Publish	& Retract	& Subscribe \\
 \hline
 \hline
-Pointers  & \url{rcu_assign_pointer()}
-			& \url{rcu_assign_pointer(..., NULL)}
-					& \url{rcu_dereference()} \\
+Pointers  & \co{rcu_assign_pointer()}
+			& \co{rcu_assign_pointer(..., NULL)}
+					& \co{rcu_dereference()} \\
 \hline
 Lists     & \parbox{1.5in}{
-		\url{list_add_rcu()} \\
-		\url{list_add_tail_rcu()} \\
-		\url{list_replace_rcu()} }
-			& \url{list_del_rcu()}
-					& \url{list_for_each_entry_rcu()} \\
+		\co{list_add_rcu()} \\
+		\co{list_add_tail_rcu()} \\
+		\co{list_replace_rcu()} }
+			& \co{list_del_rcu()}
+					& \co{list_for_each_entry_rcu()} \\
 \hline
 Hlists    & \parbox{1.5in}{
-		\url{hlist_add_after_rcu()} \\
-		\url{hlist_add_before_rcu()}  \\
-		\url{hlist_add_head_rcu()} \\
-		\url{hlist_replace_rcu()} }
-			& \url{hlist_del_rcu()}
-					& \url{hlist_for_each_entry_rcu()}
+		\co{hlist_add_after_rcu()} \\
+		\co{hlist_add_before_rcu()}  \\
+		\co{hlist_add_head_rcu()} \\
+		\co{hlist_replace_rcu()} }
+			& \co{hlist_del_rcu()}
+					& \co{hlist_for_each_entry_rcu()}
 \end{tabular}
 \end{center}
 \caption{RCU Publish and Subscribe Primitives}
@@ -411,8 +411,8 @@ The set of RCU publish and subscribe primitives are shown in
 Table~\ref{tab:defer:RCU Publish and Subscribe Primitives},
 along with additional primitives to ``unpublish'', or retract.
 
-Note that the \url{list_replace_rcu()}, \url{list_del_rcu()},
-\url{hlist_replace_rcu()}, and \url{hlist_del_rcu()}
+Note that the \co{list_replace_rcu()}, \co{list_del_rcu()},
+\co{hlist_replace_rcu()}, and \co{hlist_del_rcu()}
 APIs add a complication.
 When is it safe to free up the data element that was replaced or
 removed?
@@ -437,8 +437,8 @@ using explicit tracking.
 In RCU's case, the things waited on are called
 ``RCU read-side critical sections''.
 An RCU read-side critical section starts with an
-\url{rcu_read_lock()} primitive, and ends with a corresponding
-\url{rcu_read_unlock()} primitive.
+\co{rcu_read_lock()} primitive, and ends with a corresponding
+\co{rcu_read_unlock()} primitive.
 RCU read-side critical sections can be nested, and may contain pretty
 much any code, as long as that code does not explicitly block or sleep
 (although a special form of RCU called SRCU~\cite{PaulEMcKenney2006c}
@@ -476,7 +476,7 @@ RCU to wait for readers:
 \item	Make a change, for example, replace an element in a linked list.
 \item	Wait for all pre-existing RCU read-side critical sections to
 	completely finish (for example, by using the
-	\url{synchronize_rcu()} primitive).
+	\co{synchronize_rcu()} primitive).
 	The key observation here is that subsequent RCU read-side critical
 	sections have no way to gain a reference to the newly removed
 	element.
@@ -516,32 +516,32 @@ RCU to wait for readers:
 The code fragment shown in
 Figure~\ref{fig:defer:Canonical RCU Replacement Example},
 adapted from those in Section~\ref{sec:defer:Publish-Subscribe Mechanism},
-demonstrates this process, with field \url{a} being the search key.
+demonstrates this process, with field \co{a} being the search key.
 
 Lines~19, 20, and 21 implement the three steps called out above.
 Lines~16-19 gives RCU (``read-copy update'') its name: while permitting
 concurrent \emph{reads}, line~16 \emph{copies} and lines~17-19
 do an \emph{update}.
 
-The \url{synchronize_rcu()} primitive might seem a bit
+The \co{synchronize_rcu()} primitive might seem a bit
 mysterious at first.
 After all, it must wait for all RCU read-side critical sections to
 complete, and, as we saw earlier, the
-\url{rcu_read_lock()} and \url{rcu_read_unlock()} primitives
+\co{rcu_read_lock()} and \co{rcu_read_unlock()} primitives
 that delimit RCU read-side critical sections don't even generate any
-code in non-\url{CONFIG_PREEMPT} kernels!
+code in non-\co{CONFIG_PREEMPT} kernels!
 
 There is a trick, and the trick is that RCU Classic read-side critical
-sections delimited by \url{rcu_read_lock()} and
-\url{rcu_read_unlock()} are not permitted to block or sleep.
+sections delimited by \co{rcu_read_lock()} and
+\co{rcu_read_unlock()} are not permitted to block or sleep.
 Therefore, when a given CPU executes a context switch, we are guaranteed
 that any prior RCU read-side critical sections will have completed.
 This means that as soon as each
 CPU has executed at least one context switch, \emph{all}
 prior RCU read-side critical sections are guaranteed to have completed,
-meaning that \url{synchronize_rcu()} can safely return.
+meaning that \co{synchronize_rcu()} can safely return.
 
-Thus, RCU Classic's \url{synchronize_rcu()}
+Thus, RCU Classic's \co{synchronize_rcu()}
 can conceptually be as simple as the following
 (see Appendix~\ref{defer:``Toy'' RCU Implementations}
 for additional ``toy'' RCU implementations):
@@ -555,15 +555,15 @@ for additional ``toy'' RCU implementations):
 \end{minipage}
 \vspace{5pt}
 
-Here, \url{run_on()} switches the current thread to the
+Here, \co{run_on()} switches the current thread to the
 specified CPU, which forces a context switch on that CPU.
-The \url{for_each_online_cpu()} loop therefore forces a
+The \co{for_each_online_cpu()} loop therefore forces a
 context switch on each CPU, thereby guaranteeing that all prior
 RCU read-side critical sections have completed, as required.
 Although this simple approach works for kernels in which preemption
 is disabled across RCU read-side critical sections, in other
-words, for non-\url{CONFIG_PREEMPT} and \url{CONFIG_PREEMPT}
-kernels, it does \emph{not} work for \url{CONFIG_PREEMPT_RT}
+words, for non-\co{CONFIG_PREEMPT} and \co{CONFIG_PREEMPT}
+kernels, it does \emph{not} work for \co{CONFIG_PREEMPT_RT}
 realtime (-rt) kernels.
 Therefore, realtime RCU uses a different approach based loosely on reference
 counters~\cite{PaulEMcKenney2007PreemptibleRCU}.
@@ -578,7 +578,7 @@ realtime response, which rules out implementations (like the simple
 two-liner above) that rely on disabling preemption.
 
 Although it is good to know that there is a simple conceptual
-implementation of \url{synchronize_rcu()}, other questions remain.
+implementation of \co{synchronize_rcu()}, other questions remain.
 For example, what exactly do RCU
 readers see when traversing a concurrently updated list?
 This question is addressed in the following section.
@@ -625,16 +625,16 @@ to read as follows:
 
 This code will update the list as shown in
 Figure~\ref{fig:defer:RCU Deletion From Linked List}.
-The triples in each element represent the values of fields \url{a},
-\url{b}, and \url{c}, respectively.
+The triples in each element represent the values of fields \co{a},
+\co{b}, and \co{c}, respectively.
 The red-shaded elements
 indicate that RCU readers might be holding references to them.
 Please note that
 we have omitted the backwards pointers and the link from the tail
 of the list to the head for clarity.
 
-After the \url{list_del_rcu()} on
-line~3 has completed, the \url{5,6,7}~element
+After the \co{list_del_rcu()} on
+line~3 has completed, the \co{5,6,7}~element
 has been removed from the list, as shown in the second row of
 Figure~\ref{fig:defer:RCU Deletion From Linked List}.
 Since readers do not synchronize directly with updaters,
@@ -642,22 +642,22 @@ readers might be concurrently scanning this list.
 These concurrent readers might or might not see the newly removed element,
 depending on timing.
 However, readers that were delayed (e.g., due to interrupts, ECC memory
-errors, or, in \url{CONFIG_PREEMPT_RT} kernels, preemption)
+errors, or, in \co{CONFIG_PREEMPT_RT} kernels, preemption)
 just after fetching a pointer to the newly removed element might
 see the old version of the list for quite some time after the
 removal.
 Therefore, we now have two versions of the list, one with element
-\url{5,6,7} and one without.
-The \url{5,6,7}~element is
+\co{5,6,7} and one without.
+The \co{5,6,7}~element is
 shaded yellow, indicating
 that old readers might still be referencing it, but that new
 readers cannot obtain a reference to it.
 
 Please note that readers are not permitted to maintain references to
-element~\url{5,6,7} after exiting from their RCU read-side
+element~\co{5,6,7} after exiting from their RCU read-side
 critical sections.
 Therefore,
-once the \url{synchronize_rcu()} on
+once the \co{synchronize_rcu()} on
 line~4 completes, so that all pre-existing readers are
 guaranteed to have completed,
 there can be no more readers referencing this
@@ -665,11 +665,11 @@ element, as indicated by its green shading on the third row of
 Figure~\ref{fig:defer:RCU Deletion From Linked List}.
 We are thus back to a single version of the list.
 
-At this point, the \url{5,6,7}~element may safely be
+At this point, the \co{5,6,7}~element may safely be
 freed, as shown on the final row of
 Figure~\ref{fig:defer:RCU Deletion From Linked List}.
 At this point, we have completed the deletion of
-element~\url{5,6,7}.
+element~\co{5,6,7}.
 The following section covers replacement.
 
 \paragraph{Example 2: Maintaining Multiple Versions During Replacement}
@@ -702,14 +702,14 @@ Figure~\ref{fig:defer:Canonical RCU Replacement Example}:
 \label{fig:defer:RCU Replacement in Linked List}
 \end{figure}
 
-The initial state of the list, including the pointer \url{p},
+The initial state of the list, including the pointer \co{p},
 is the same as for the deletion example, as shown on the
 first row of
 Figure~\ref{fig:defer:RCU Replacement in Linked List}.
 
 As before,
-the triples in each element represent the values of fields \url{a},
-\url{b}, and \url{c}, respectively.
+the triples in each element represent the values of fields \co{a},
+\co{b}, and \co{c}, respectively.
 The red-shaded elements might be referenced by readers,
 and because readers do not synchronize directly with updaters,
 readers might run concurrently with this entire replacement process.
@@ -721,7 +721,7 @@ The following text describes how to replace the \url{5,6,7} element
 with \url{5,2,3} in such a way that any given reader sees one of these
 two values.
 
-Line~1 \url{kmalloc()}s a replacement element, as follows,
+Line~1 \co{kmalloc()}s a replacement element, as follows,
 resulting in the state as shown in the second row of
 Figure~\ref{fig:defer:RCU Replacement in Linked List}.
 At this point, no reader can hold a reference to the newly allocated
@@ -734,8 +734,8 @@ Figure~\ref{fig:defer:RCU Replacement in Linked List}.
 The newly allocated element still cannot be referenced by readers, but
 it is now initialized.
 
-Line~3 updates \url{q->b} to the value ``2'', and
-line~4 updates \url{q->c} to the value ``3'', as shown on the fourth row of
+Line~3 updates \co{q->b} to the value ``2'', and
+line~4 updates \co{q->c} to the value ``3'', as shown on the fourth row of
 Figure~\ref{fig:defer:RCU Replacement in Linked List}.
 
 Now, line~5 does the replacement, so that the new element is
@@ -743,16 +743,16 @@ finally visible to readers, and hence is shaded red, as shown on
 the fifth row of
 Figure~\ref{fig:defer:RCU Replacement in Linked List}.
 At this point, as shown below, we have two versions of the list.
-Pre-existing readers might see the \url{5,6,7} element (which is
+Pre-existing readers might see the \co{5,6,7} element (which is
 therefore now shaded yellow), but
-new readers will instead see the \url{5,2,3} element.
+new readers will instead see the \co{5,2,3} element.
 But any given reader is guaranteed to see some well-defined list.
 
-After the \url{synchronize_rcu()} on line~6 returns,
+After the \co{synchronize_rcu()} on line~6 returns,
 a grace period will have elapsed, and so all reads that started before the
-\url{list_replace_rcu()} will have completed.
+\co{list_replace_rcu()} will have completed.
 In particular, any readers that might have been holding references
-to the \url{5,6,7} element are guaranteed to have exited
+to the \co{5,6,7} element are guaranteed to have exited
 their RCU read-side critical sections, and are thus prohibited from
 continuing to hold a reference.
 Therefore, there can no longer be any readers holding references
@@ -761,7 +761,7 @@ Figure~\ref{fig:defer:RCU Replacement in Linked List}.
 As far as the readers are concerned, we are back to having a single version
 of the list, but with the new element in place of the old.
 
-After the \url{kfree()} on line 7 completes, the list will
+After the \co{kfree()} on line 7 completes, the list will
 appear as shown on the final row of
 Figure~\ref{fig:defer:RCU Replacement in Linked List}.
 

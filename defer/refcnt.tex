@@ -38,7 +38,7 @@ There are a number of possible answers to this question, including:
 	the reference is acquired.
 	Type-safety guarantees can be provided by special-purpose
 	memory allocators, and can also be provided by the
-	\url{SLAB_DESTROY_BY_RCU} feature within the Linux kernel,
+	\co{SLAB_DESTROY_BY_RCU} feature within the Linux kernel,
 	again, as will be seen in
 	Section~\ref{sec:defer:Read-Copy Update (RCU)}.
 \end{enumerate}
@@ -200,7 +200,7 @@ own private use, but must allow other CPU, tasks, timer handlers,
 or I/O completion handlers that it later spawns to also access this object.
 Any CPU that hands the object off must first acquire a new reference
 on behalf of the recipient object.
-In the Linux kernel, the \url{kref} primitives are used to implement
+In the Linux kernel, the \co{kref} primitives are used to implement
 this style of reference counting, as shown in
 Figure~\ref{fig:defer:Linux Kernel kref API}.
 
@@ -282,33 +282,33 @@ RCU read-side critical sections.
 \label{fig:defer:Linux Kernel kref API}
 \end{figure}
 
-The \url{kref} structure itself, consisting of a single atomic
+The \co{kref} structure itself, consisting of a single atomic
 data item, is shown in lines~1-3 of
 Figure~\ref{fig:defer:Linux Kernel kref API}.
-The \url{kref_init()} function on lines~5-8 initializes the counter
+The \co{kref_init()} function on lines~5-8 initializes the counter
 to the value ``1''.
-Note that the \url{atomic_set()} primitive is a simple
-assignment, the name stems from the data type of \url{atomic_t}
+Note that the \co{atomic_set()} primitive is a simple
+assignment, the name stems from the data type of \co{atomic_t}
 rather than from the operation.
-The \url{kref_init()} function must be invoked during object creation,
+The \co{kref_init()} function must be invoked during object creation,
 before the object has been made available to any other CPU.
 
-The \url{kref_get()} function on lines~10-14 unconditionally atomically
+The \co{kref_get()} function on lines~10-14 unconditionally atomically
 increments the counter.
-The \url{atomic_inc()} primitive does not necessarily explicitly
+The \co{atomic_inc()} primitive does not necessarily explicitly
 disable compiler
-optimizations on all platforms, but the fact that the \url{kref}
+optimizations on all platforms, but the fact that the \co{kref}
 primitives are in a separate module and that the Linux kernel build
 process does no cross-module optimizations has the same effect.
 
-The \url{kref_put()} function on lines~16-28 checks for the counter having the
+The \co{kref_put()} function on lines~16-28 checks for the counter having the
 value ``1'' on line~22
-(in which case no concurrent \url{kref_get()} is permitted),
+(in which case no concurrent \co{kref_get()} is permitted),
 or if atomically decrementing the counter results in zero on line~23.
-In either of these two cases, \url{kref_put()} invokes the
-specified \url{release} function and returns ``1'', telling the
+In either of these two cases, \co{kref_put()} invokes the
+specified \co{release} function and returns ``1'', telling the
 caller that cleanup was performed.
-Otherwise, \url{kref_put()} returns ``0''.
+Otherwise, \co{kref_put()} returns ``0''.
 
 \QuickQuiz{}
 	If the check on line~22 of
@@ -341,7 +341,7 @@ Otherwise, \url{kref_put()} returns ``0''.
 This style of reference is used in the Linux kernel's networking
 layer to track the destination caches that are used in packet routing.
 The actual implementation is quite a bit more involved; this section
-focuses on the aspects of \url{struct} \url{dst_entry} reference-count
+focuses on the aspects of \co{struct} \co{dst_entry} reference-count
 handling that matches this use case,
 shown in Figure~\ref{fig:defer:Linux Kernel dst-clone API}.
 
@@ -371,26 +371,26 @@ shown in Figure~\ref{fig:defer:Linux Kernel dst-clone API}.
 \label{fig:defer:Linux Kernel dst-clone API}
 \end{figure}
 
-The \url{dst_clone()} primitive may be used if the caller
-already has a reference to the specified \url{dst_entry},
+The \co{dst_clone()} primitive may be used if the caller
+already has a reference to the specified \co{dst_entry},
 in which case it obtains another reference that may be handed off
 to some other entity within the kernel.
-Because a reference is already held by the caller, \url{dst_clone()}
+Because a reference is already held by the caller, \co{dst_clone()}
 need not execute any memory barriers.
-The act of handing the \url{dst_entry} to some other entity might
+The act of handing the \co{dst_entry} to some other entity might
 or might not require a memory barrier, but if such a memory barrier
 is required, it will be embedded in the mechanism used to hand the
-\url{dst_entry} off.
+\co{dst_entry} off.
 
-The \url{dst_release()} primitive may be invoked from any environment,
-and the caller might well reference elements of the \url{dst_entry}
-structure immediately prior to the call to \url{dst_release()}.
-The \url{dst_release()} primitive therefore contains a memory
+The \co{dst_release()} primitive may be invoked from any environment,
+and the caller might well reference elements of the \co{dst_entry}
+structure immediately prior to the call to \co{dst_release()}.
+The \co{dst_release()} primitive therefore contains a memory
 barrier on line~14 preventing both the compiler and the CPU
 from misordering accesses.
 
-Please note that the programmer making use of \url{dst_clone()} and
-\url{dst_release()} need not be aware of the memory barriers, only
+Please note that the programmer making use of \co{dst_clone()} and
+\co{dst_release()} need not be aware of the memory barriers, only
 of the rules for using these two primitives.
 
 \subsubsection{Atomic Counting With Check and Release Memory Barrier}
@@ -422,7 +422,7 @@ as shown below.
 	used after it has been cleaned up.
 } \QuickQuizEnd
 
-The Linux kernel's \url{fget()} and \url{fput()} primitives
+The Linux kernel's \co{fget()} and \co{fput()} primitives
 use this style of reference counting.
 Simplified versions of these functions are shown in
 Figure~\ref{fig:defer:Linux Kernel fget/fput API}.
@@ -477,16 +477,16 @@ Figure~\ref{fig:defer:Linux Kernel fget/fput API}.
 \label{fig:defer:Linux Kernel fget/fput API}
 \end{figure}
 
-Line~4 of \url{fget()} fetches the pointer to the current
+Line~4 of \co{fget()} fetches the pointer to the current
 process's file-descriptor table, which might well be shared
 with other processes.
-Line~6 invokes \url{rcu_read_lock()}, which
+Line~6 invokes \co{rcu_read_lock()}, which
 enters an RCU read-side critical section.
-The callback function from any subsequent \url{call_rcu()} primitive
-will be deferred until a matching \url{rcu_read_unlock()} is reached
+The callback function from any subsequent \co{call_rcu()} primitive
+will be deferred until a matching \co{rcu_read_unlock()} is reached
 (line~10 or 14 in this example).
 Line~7 looks up the file structure corresponding to the file
-descriptor specified by the \url{fd} argument, as will be
+descriptor specified by the \co{fd} argument, as will be
 described later.
 If there is an open file corresponding to the specified file descriptor,
 then line~9 attempts to atomically acquire a reference count.
@@ -495,43 +495,43 @@ section and report failure.
 Otherwise, if the attempt is successful, lines~14-15 exit the read-side
 critical section and return a pointer to the file structure.
 
-The \url{fcheck_files()} primitive is a helper function for
-\url{fget()}.
-It uses the \url{rcu_dereference()} primitive to safely fetch an
+The \co{fcheck_files()} primitive is a helper function for
+\co{fget()}.
+It uses the \co{rcu_dereference()} primitive to safely fetch an
 RCU-protected pointer for later dereferencing (this emits a
 memory barrier on CPUs such as DEC Alpha in which data dependencies
 do not enforce memory ordering).
-Line~22 uses \url{rcu_dereference()} to fetch a pointer to this
+Line~22 uses \co{rcu_dereference()} to fetch a pointer to this
 task's current file-descriptor table,
 and line~24 checks to see if the specified file descriptor is in range.
 If so, line~25 fetches the pointer to the file structure, again using
-the \url{rcu_dereference()} primitive.
-Line~26 then returns a pointer to the file structure or \url{NULL}
+the \co{rcu_dereference()} primitive.
+Line~26 then returns a pointer to the file structure or \co{NULL}
 in case of failure.
 
-The \url{fput()} primitive releases a reference to a file structure.
+The \co{fput()} primitive releases a reference to a file structure.
 Line~31 atomically decrements the reference count, and, if the result
-was zero, line~32 invokes the \url{call_rcu()} primitives in order to
-free up the file structure (via the \url{file_free_rcu()} function
-specified in \url{call_rcu()}'s second argument),
+was zero, line~32 invokes the \co{call_rcu()} primitives in order to
+free up the file structure (via the \co{file_free_rcu()} function
+specified in \co{call_rcu()}'s second argument),
 but only after all currently-executing
 RCU read-side critical sections complete.
 The time period required for all currently-executing RCU read-side
 critical sections to complete is termed a ``grace period''.
-Note that the \url{atomic_dec_and_test()} primitive contains
+Note that the \co{atomic_dec_and_test()} primitive contains
 a memory barrier.
 This memory barrier is not necessary in this example, since the structure
 cannot be destroyed until the RCU read-side critical section completes,
 but in Linux, all atomic operations that return a result must
 by definition contain memory barriers.
 
-Once the grace period completes, the \url{file_free_rcu()} function
+Once the grace period completes, the \co{file_free_rcu()} function
 obtains a pointer to the file structure on line~39, and frees it
 on line~40.
 
 This approach is also used by Linux's virtual-memory system,
-see \url{get_page_unless_zero()} and \url{put_page_testzero()} for
-page structures as well as \url{try_to_unuse()} and \url{mmput()}
+see \co{get_page_unless_zero()} and \co{put_page_testzero()} for
+page structures as well as \co{try_to_unuse()} and \co{mmput()}
 for memory-map structures.
 
 \subsection{Linux Primitives Supporting Reference Counting}
@@ -571,14 +571,14 @@ summarized in the following list.
 	This is not an atomic operation, and it neither issues memory
 	barriers nor disables compiler optimizations.
 \item	{\tt void call\_rcu(struct rcu\_head *head, void (*func)(struct rcu\_head *head));}~~
-	Invokes \url{func(head)} some time after all currently executing RCU
-	read-side critical sections complete, however, the \url{call_rcu()}
+	Invokes \co{func(head)} some time after all currently executing RCU
+	read-side critical sections complete, however, the \co{call_rcu()}
 	primitive returns immediately.
-	Note that \url{head} is normally a field within an RCU-protected
-	data structure, and that \url{func} is normally a function that
+	Note that \co{head} is normally a field within an RCU-protected
+	data structure, and that \co{func} is normally a function that
 	frees up this data structure.
-	The time interval between the invocation of \url{call_rcu()} and
-	the invocation of \url{func} is termed a ``grace period''.
+	The time interval between the invocation of \co{call_rcu()} and
+	the invocation of \co{func} is termed a ``grace period''.
 	Any interval of time containing a grace period is itself a
 	grace period.
 \item	{\tt type *container\_of(p, type, f);}~~
@@ -591,7 +591,7 @@ summarized in the following list.
 	RCU read-side critical sections may be nested.
 \item	{\tt void smp\_mb\_\_before\_atomic\_dec(void);}~~
 	Issues a memory barrier and disables code-motion compiler
-	optimizations only if the platform's \url{atomic_dec()}
+	optimizations only if the platform's \co{atomic_dec()}
 	primitive does not already do so.
 \item	{\tt struct rcu\_head}~~
 	A data structure used by the RCU infrastructure to track
@@ -614,7 +614,7 @@ counters, as was discussed in Chapter~\ref{chp:Counting}.
 This approach eliminates the need for atomic instructions or memory
 barriers on the increment and decrement primitives, but still requires
 that code-motion compiler optimizations be disabled.
-In addition, the primitives such as \url{synchronize_srcu()}
+In addition, the primitives such as \co{synchronize_srcu()}
 that check for the aggregate reference
 count reaching zero can be quite slow.
 This underscores the fact that these techniques are designed

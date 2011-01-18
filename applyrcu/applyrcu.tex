@@ -13,10 +13,10 @@ performance and scalability, and in still other cases, both.
 Section~\ref{sec:count:Per-Thread-Variable-Based Implementation}
 described an implementation of statistical counters that provided
 excellent
-performance, roughly that of simple increment (as in the C \url{++}
+performance, roughly that of simple increment (as in the C \co{++}
 operator), and linear scalability --- but only for incrementing
-via \url{inc_count()}.
-Unfortunately, threads needing to read out the value via \url{read_count()}
+via \co{inc_count()}.
+Unfortunately, threads needing to read out the value via \co{read_count()}
 were required to acquire a global
 lock, and thus incurred high overhead and suffered poor scalability.
 The code for the lock-based implementation is shown in
@@ -26,51 +26,51 @@ Page~\pageref{fig:count:Per-Thread Statistical Counters}.
 \QuickQuiz{}
 	Why on earth did we need that global lock in the first place?
 \QuickQuizAnswer{
-	A given thread's \url{__thread} variables vanish when that
+	A given thread's \co{__thread} variables vanish when that
 	thread exits.
 	It is therefore necessary to synchronize any operation that
-	accesses other threads' \url{__thread} variables with
+	accesses other threads' \co{__thread} variables with
 	thread exit.
-	Without such synchronization, accesses to \url{__thread} variable
+	Without such synchronization, accesses to \co{__thread} variable
 	of a just-exited thread will result in segmentation faults.
 } \QuickQuizEnd
 
 \subsection{Design}
 
-The hope is to use RCU rather than \url{final_mutex} to protect the
-thread traversal in \url{read_count()} in order to obtain excellent
-performance and scalability from \url{read_count()}, rather than just
-from \url{inc_count()}.
+The hope is to use RCU rather than \co{final_mutex} to protect the
+thread traversal in \co{read_count()} in order to obtain excellent
+performance and scalability from \co{read_count()}, rather than just
+from \co{inc_count()}.
 However, we do not want to give up any accuracy in the computed sum.
 In particular, when a given thread exits, we absolutely cannot
 lose the exiting thread's count, nor can we double-count it.
 Such an error could result in inaccuracies equal to the full
 precision of the result, in other words, such an error would
 make the result completely useless.
-And in fact, one of the purposes of \url{final_mutex} is to
-ensure that threads do not come and go in the middle of \url{read_count()}
+And in fact, one of the purposes of \co{final_mutex} is to
+ensure that threads do not come and go in the middle of \co{read_count()}
 execution.
 
 \QuickQuiz{}
-	Just what is the accuracy of \url{read_count()}, anyway?
+	Just what is the accuracy of \co{read_count()}, anyway?
 \QuickQuizAnswer{
 	Refer to
 	Figure~\ref{fig:count:Per-Thread Statistical Counters} on
 	Page~\pageref{fig:count:Per-Thread Statistical Counters}.
-	Clearly, if there are no concurrent invocations of \url{inc_count()},
-	\url{read_count()} will return an exact result.
+	Clearly, if there are no concurrent invocations of \co{inc_count()},
+	\co{read_count()} will return an exact result.
 	However, if there \emph{are} concurrent invocations of
-	\url{inc_count()}, then the sum is in fact changing as
-	\url{read_count()} performs its summation.
+	\co{inc_count()}, then the sum is in fact changing as
+	\co{read_count()} performs its summation.
 	That said, because thread creation and exit are excluded by
-	\url{final_mutex}, the pointers in \url{counterp} remain constant.
+	\co{final_mutex}, the pointers in \co{counterp} remain constant.
 
 	Let's imagine a mythical machine that is able to take an
 	instantaneous snapshot of its memory.
 	Suppose that this machine takes such a snapshot at the
-	beginning of \url{read_count()}'s execution, and another
-	snapshot at the end of \url{read_count()}'s execution.
-	Then \url{read_count()} will access each thread's counter
+	beginning of \co{read_count()}'s execution, and another
+	snapshot at the end of \co{read_count()}'s execution.
+	Then \co{read_count()} will access each thread's counter
 	at some time between these two snapshots, and will therefore
 	obtain a result that is bounded by those of the two snapshots,
 	inclusive.
@@ -81,29 +81,29 @@ execution.
 	The expected error is therefore half of the difference between
 	the pair of sums that would have been obtained from each of the
 	two snapshots, that is to say, half of the execution time of
-	\url{read_count()} multiplied by the number of expected calls to
-	\url{inc_count()} per unit time.
+	\co{read_count()} multiplied by the number of expected calls to
+	\co{inc_count()} per unit time.
 
 	Or, for those who prefer equations:
 	\begin{equation}
 	\epsilon = \frac{T_r R_i}{2}
 	\end{equation}
-	where $\epsilon$ is the expected error in \url{read_count()}'s
+	where $\epsilon$ is the expected error in \co{read_count()}'s
 	return value,
-	$T_r$ is the time that \url{read_count()} takes to execute,
-	and $R_i$ is the rate of \url{inc_count()} calls per unit time.
+	$T_r$ is the time that \co{read_count()} takes to execute,
+	and $R_i$ is the rate of \co{inc_count()} calls per unit time.
 	(And of course, $T_r$ and $R_i$ should use the same units of
 	time: microseconds and calls per microsecond, seconds and calls
 	per second, or whatever, as long as they are the same units.)
 } \QuickQuizEnd
 
-Therefore, if we are to dispense with \url{final_mutex}, we will need
+Therefore, if we are to dispense with \co{final_mutex}, we will need
 to come up with some other method for ensuring consistency.
 One approach is to place the total count for all previously exited
 threads and the array of pointers to the per-thread counters into a single
 structure.
-Such a structure, once made available to \url{read_count()}, is
-held constant, ensuring that \url{read_count()} sees consistent data.
+Such a structure, once made available to \co{read_count()}, is
+held constant, ensuring that \co{read_count()} sees consistent data.
 
 \subsection{Implementation}
 
@@ -188,88 +188,88 @@ held constant, ensuring that \url{read_count()} sees consistent data.
 
 Lines~1-4 of
 Figure~\ref{fig:applyrcu:RCU and Per-Thread Statistical Counters}
-show the \url{countarray} structure, which contains a
-\url{->total} field for the count from previously exited threads,
-and a \url{counterp[]} array of pointers to the per-thread
-\url{counter} for each currently running thread.
-This structure allows a given execution of \url{read_count()}
+show the \co{countarray} structure, which contains a
+\co{->total} field for the count from previously exited threads,
+and a \co{counterp[]} array of pointers to the per-thread
+\co{counter} for each currently running thread.
+This structure allows a given execution of \co{read_count()}
 to see a total that is consistent with the indicated set of running
 threads.
 
-Lines~6-8 contain the definition of the per-thread \url{counter}
-variable, the global pointer \url{countarrayp} referencing
-the current \url{countarray} structure, and
-the \url{final_mutex} spinlock.
+Lines~6-8 contain the definition of the per-thread \co{counter}
+variable, the global pointer \co{countarrayp} referencing
+the current \co{countarray} structure, and
+the \co{final_mutex} spinlock.
 
-Lines~10-13 show \url{inc_count()}, which is unchanged from
+Lines~10-13 show \co{inc_count()}, which is unchanged from
 Figure~\ref{fig:count:Per-Thread Statistical Counters}.
 
-Lines~15-29 show \url{read_count()}, which has changed significantly.
-Lines~21 and 27 substitute \url{rcu_read_lock()} and
-\url{rcu_read_unlock()} for acquisition and release of \url{final_mutex}.
-Line~22 uses \url{rcu_dereference()} to snapshot the
-current \url{countarray} structure into local variable \url{cap}.
-Proper use of RCU will guarantee that this \url{countarray} structure
+Lines~15-29 show \co{read_count()}, which has changed significantly.
+Lines~21 and 27 substitute \co{rcu_read_lock()} and
+\co{rcu_read_unlock()} for acquisition and release of \co{final_mutex}.
+Line~22 uses \co{rcu_dereference()} to snapshot the
+current \co{countarray} structure into local variable \co{cap}.
+Proper use of RCU will guarantee that this \co{countarray} structure
 will remain with us through at least the end of the current RCU
 read-side critical section at line~27.
-Line 23 initializes \url{sum} to \url{cap->total}, which is the
+Line 23 initializes \co{sum} to \co{cap->total}, which is the
 sum of the counts of threads that have previously exited.
 Lines~24-26 add up the per-thread counters corresponding to currently
 running threads, and, finally, line 28 returns the sum.
 
-The initial value for \url{countarrayp} is
-provided by \url{count_init()} on lines~31-39.
+The initial value for \co{countarrayp} is
+provided by \co{count_init()} on lines~31-39.
 This function runs before the first thread is created, and its job
 is to allocate
-and zero the initial structure, and then assign it to \url{countarrayp}.
+and zero the initial structure, and then assign it to \co{countarrayp}.
 
-Lines~41-48 show the \url{count_register_thread()} function, which
+Lines~41-48 show the \co{count_register_thread()} function, which
 is invoked by each newly created thread.
 Line~43 picks up the current thread's index, line~45 acquires
-\url{final_mutex}, line~46 installs a pointer to this thread's
-\url{counter}, and line~47 releases \url{final_mutex}.
+\co{final_mutex}, line~46 installs a pointer to this thread's
+\co{counter}, and line~47 releases \co{final_mutex}.
 
 \QuickQuiz{}
 	Hey!!!
 	Line~45 of
 	Figure~\ref{fig:applyrcu:RCU and Per-Thread Statistical Counters}
-	modifies a value in a pre-existing \url{countarray} structure!
+	modifies a value in a pre-existing \co{countarray} structure!
 	Didn't you say that this structure, once made available to
-	\url{read_count()}, remained constant???
+	\co{read_count()}, remained constant???
 \QuickQuizAnswer{
 	Indeed I did say that.
-	And it would be possible to make \url{count_register_thread()}
-	allocate a new structure, much as \url{count_unregister_thread()}
+	And it would be possible to make \co{count_register_thread()}
+	allocate a new structure, much as \co{count_unregister_thread()}
 	currently does.
 
 	But this is unnecessary.
-	Recall the derivation of the error bounds of \url{read_count()}
+	Recall the derivation of the error bounds of \co{read_count()}
 	that was based on the snapshots of memory.
-	Because new threads start with initial \url{counter} values of
+	Because new threads start with initial \co{counter} values of
 	zero, the derivation holds even if we add a new thread partway
-	through \url{read_count()}'s execution.
+	through \co{read_count()}'s execution.
 	So, interestingly enough, when adding a new thread, this
 	implementation gets the effect of allocating a new structure,
 	but without actually having to do the allocation.
 } \QuickQuizEnd
 
-Lines~50-70 shows \url{count_unregister_thread()}, which is invoked
+Lines~50-70 shows \co{count_unregister_thread()}, which is invoked
 by each thread just before it exits.
-Lines~56-60 allocate a new \url{countarray} structure,
-line~61 acquires \url{final_mutex} and line~67 releases it.
-Line~62 copies the contents of the current \url{countarray} into
-the newly allocated version, line~63 adds the exiting thread's \url{counter}
-to new structure's total, and line~64 \url{NULL}s the exiting thread's
-\url{counterp[]} array element.
+Lines~56-60 allocate a new \co{countarray} structure,
+line~61 acquires \co{final_mutex} and line~67 releases it.
+Line~62 copies the contents of the current \co{countarray} into
+the newly allocated version, line~63 adds the exiting thread's \co{counter}
+to new structure's total, and line~64 \co{NULL}s the exiting thread's
+\co{counterp[]} array element.
 Line~65 then retains a pointer to the current (soon to be old)
-\url{countarray} structure, and line~66 uses \url{rcu_assign_pointer()}
-to install the new version of the \url{countarray} structure.
+\co{countarray} structure, and line~66 uses \co{rcu_assign_pointer()}
+to install the new version of the \co{countarray} structure.
 Line~68 waits for a grace period to elapse, so that any threads that
-might be concurrently executing in \url{read_count}, and thus might
-have references to the old \url{countarray} structure, will be allowed
+might be concurrently executing in \co{read_count}, and thus might
+have references to the old \co{countarray} structure, will be allowed
 to exit their RCU read-side critical sections, thus dropping any such
 references.
-Line~69 can then safely free the old \url{countarray} structure.
+Line~69 can then safely free the old \co{countarray} structure.
 
 \subsection{Discussion}
 
@@ -281,18 +281,18 @@ Line~69 can then safely free the old \url{countarray} structure.
 	Is this extra complexity really worth it?
 \QuickQuizAnswer{
 	This of course needs to be decided on a case-by-case basis.
-	If you need an implementation of \url{read_count()} that
+	If you need an implementation of \co{read_count()} that
 	scales linearly, then the lock-based implementation shown in
 	Figure~\ref{fig:count:Per-Thread Statistical Counters}
 	simply will not work for you.
-	On the other hand, if calls to \url{count_read()} are sufficiently
+	On the other hand, if calls to \co{count_read()} are sufficiently
 	rare, then the lock-based version is simpler and might thus be
 	better, although much of the size difference is due
-	to the structure definition, memory allocation, and \url{NULL}
+	to the structure definition, memory allocation, and \co{NULL}
 	return checking.
 
 	Of course, a better question is "why doesn't the language
-	implement cross-thread access to \url{__thread} variables?"
+	implement cross-thread access to \co{__thread} variables?"
 	After all, such an implementation would make both the locking
 	and the use of RCU unnecessary.
 	This would in turn enable an implementation that
@@ -304,17 +304,17 @@ Line~69 can then safely free the old \url{countarray} structure.
 } \QuickQuizEnd
 
 Use of RCU enables exiting threads to wait until other threads are
-guaranteed to be done using the exiting threads' \url{__thread} variables.
-This allows the \url{read_count()} function to dispense with locking,
+guaranteed to be done using the exiting threads' \co{__thread} variables.
+This allows the \co{read_count()} function to dispense with locking,
 thereby providing
-excellent performance and scalability for both the \url{inc_count()}
-and \url{read_count()} functions.
+excellent performance and scalability for both the \co{inc_count()}
+and \co{read_count()} functions.
 However, this performance and scalability come at the cost of some increase
 in code complexity.
 It is hoped that compiler and library writers employ user-level
 RCU~\cite{MathieuDesnoyers2009URCU} to provide safe cross-thread
-access to \url{__thread} variables, greatly reducing the
-complexity seen by users of \url{__thread} variables.
+access to \co{__thread} variables, greatly reducing the
+complexity seen by users of \co{__thread} variables.
 
 \section{RCU and Counters for Removable I/O Devices}
 \label{sec:applyrcu:RCU and Counters for Removable I/O Devices}
@@ -373,12 +373,12 @@ The updated code fragment removing a device is as follows:
 \vspace{5pt}
 
 Here we replace the reader-writer lock with an exclusive spinlock and
-add a \url{synchronize_rcu()} to wait for all of the RCU read-side
+add a \co{synchronize_rcu()} to wait for all of the RCU read-side
 critical sections to complete.
-Because of the \url{synchronize_rcu()},
+Because of the \co{synchronize_rcu()},
 once we reach line~6, we know that all remaining I/Os have been accounted
 for.
 
-Of course, the overhead of \url{synchronize_rcu()} can be large,
+Of course, the overhead of \co{synchronize_rcu()} can be large,
 but given that device removal is quite rare, this is usually a good
 tradeoff.

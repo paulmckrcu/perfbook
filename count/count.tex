@@ -169,20 +169,20 @@ systems, the performance is excellent.
 
 There is just one large fly in the ointment: this approach can lose
 counts.
-On my dual-core laptop, a short run invoked \url{inc_count()}
+On my dual-core laptop, a short run invoked \co{inc_count()}
 100,014,000 times, but the final value of the counter was only
 52,909,118.
 Although it is true that approximate values have their place in computing,
 it is almost always necessary to do better than this.
 
 \QuickQuiz{}
-	But doesn't the \url{++} operator produce an x86 add-to-memory
+	But doesn't the \co{++} operator produce an x86 add-to-memory
 	instruction?
 	And won't the CPU cache cause this to be atomic?
 \QuickQuizAnswer{
-	Although the \url{++} operator \emph{could} be atomic, there
+	Although the \co{++} operator \emph{could} be atomic, there
 	is no requirement that it be so.
-	Furthermore, the \url{ACCESS_ONCE()} primitive forces most
+	Furthermore, the \co{ACCESS_ONCE()} primitive forces most
 	version of \url{gcc} to load the value to a register, increment
 	the register, then store the value to memory, which is
 	decidedly non-atomic.
@@ -457,19 +457,19 @@ Such an array can be wrapped into per-thread primitives, as shown in
 Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}
 (\url{count_stat.c}).
 Line~1 defines an array containing a set of per-thread counters of
-type \url{long} named, creatively enough, \url{counter}.
+type \co{long} named, creatively enough, \co{counter}.
 
 Lines~3-6 show a function that increments the counters, using the
-\url{__get_thread_var()} primitive to locate the currently running
-thread's element of the \url{counter} array.
+\co{__get_thread_var()} primitive to locate the currently running
+thread's element of the \co{counter} array.
 Because this element is modified only by the corresponding thread,
 non-atomic increment suffices.
 
 Lines~8-16 show a function that reads out the aggregate value of the counter,
-using the \url{for_each_thread()} primitive to iterate over the list of
-currently running threads, and using the \url{per_thread()} primitive
+using the \co{for_each_thread()} primitive to iterate over the list of
+currently running threads, and using the \co{per_thread()} primitive
 to fetch the specified thread's counter.
-Because the hardware can fetch and store a properly aligned \url{long}
+Because the hardware can fetch and store a properly aligned \co{long}
 atomically, and because gcc is kind enough to make use of this capability,
 normal loads suffice, and no special atomic instructions are required.
 
@@ -481,19 +481,19 @@ normal loads suffice, and no special atomic instructions are required.
 	undefined.
 	It turns out that the C standard really has no other choice,
 	given that C must support (for example) eight-bit architectures
-	which are incapable of atomically loading a \url{long}.
+	which are incapable of atomically loading a \co{long}.
 	An upcoming version of the C standard aims to fill this gap,
 	but until then, we depend on the kindness of the gcc developers.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	How does the per-thread \url{counter} variable in
+	How does the per-thread \co{counter} variable in
 	Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}
 	get initialized?
 \QuickQuizAnswer{
 	The C standard specifies that the initial value of
 	global variables is zero, unless they are explicitly initialized.
-	So the initial value of all the instances of \url{counter}
+	So the initial value of all the instances of \co{counter}
 	will be zero.
 
 	That said, one often takes differences of consecutive reads
@@ -520,7 +520,7 @@ normal loads suffice, and no special atomic instructions are required.
 \end{figure}
 
 This approach scales linearly with increasing number of updater threads
-invoking \url{inc_count()}.
+invoking \co{inc_count()}.
 As is shown by the green arrows in
 Figure~\ref{fig:count:Data Flow For Per-Thread Increment},
 the reason for this is that each CPU can make rapid progress incrementing
@@ -538,12 +538,12 @@ One way to retain update-side scalability while greatly improving
 read-side performance is to weaken consistency requirements.
 While the counting algorithm in the previous section is guaranteed to
 return a value between the value that an ideal counter would have
-taken on near the beginning of \url{read_count()}'s execution and
-that near the end of \url{read_count()}'s execution.
+taken on near the beginning of \co{read_count()}'s execution and
+that near the end of \co{read_count()}'s execution.
 \emph{Eventual consistency}~\cite{WernerVogels:2009:EventuallyConsistent}
 provides a weaker
-guarantee: in absence of calls to \url{inc_count()}, calls to
-\url{read_count()} will eventually return the correct answer.
+guarantee: in absence of calls to \co{inc_count()}, calls to
+\co{read_count()} will eventually return the correct answer.
 
 We exploit eventual consistency by maintaining a global counter.
 However, updaters only manipulate their per-thread counters.
@@ -618,34 +618,34 @@ The implementation is shown in
 Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
 (\url{count_stat_eventual.c}).
 Lines~1-2 show the per-thread variable and the global variable that
-track the counter's value, and line three shows \url{stopflag}
+track the counter's value, and line three shows \co{stopflag}
 which is used to coordinate termination (for the case where we want
 to terminate the program with an accurate counter value).
-The \url{inc_count()} function shown on lines~5-8 is identical to its
+The \co{inc_count()} function shown on lines~5-8 is identical to its
 counterpart in
 Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}.
-The \url{read_count()} function shown on lines~10-13 simply returns the
-value of the \url{global_count} variable.
+The \co{read_count()} function shown on lines~10-13 simply returns the
+value of the \co{global_count} variable.
 
-However, the \url{count_init()} function on lines~34-42
-creates the \url{eventual()} thread shown on lines~15-32, which
-cycles through all the threads, using the \url{atomic_xchg()} function
-to remove count from each thread's local \url{counter}, adding the
-sum to the \url{global_count} variable.
-The \url{eventual()} thread waits an arbitrarily chosen one millisecond
+However, the \co{count_init()} function on lines~34-42
+creates the \co{eventual()} thread shown on lines~15-32, which
+cycles through all the threads, using the \co{atomic_xchg()} function
+to remove count from each thread's local \co{counter}, adding the
+sum to the \co{global_count} variable.
+The \co{eventual()} thread waits an arbitrarily chosen one millisecond
 between passes.
-The \url{count_cleanup()} function on lines~44-50 coordinates termination.
+The \co{count_cleanup()} function on lines~44-50 coordinates termination.
 
 This approach gives extremely fast counter read-out while still
 supporting linear counter-update performance.
 However, this excellent read-side performance and update-side scalability
 comes at the cost of high update-side overhead, due to both the
 atomic operations and the array indexing hidden in the
-\url{__get_thread_var()} primitive, which can be quite expensive
+\co{__get_thread_var()} primitive, which can be quite expensive
 on some CPUs with deep pipelines.
 
 \QuickQuiz{}
-	Why does \url{inc_count()} in
+	Why does \co{inc_count()} in
 	Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
 	need to use atomic instructions?
 \QuickQuizAnswer{
@@ -653,27 +653,27 @@ on some CPUs with deep pipelines.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	Won't the single global thread in the function \url{eventual()} of
+	Won't the single global thread in the function \co{eventual()} of
 	Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
 	be just as severe a bottleneck as a global lock would be?
 \QuickQuizAnswer{
 	In this case, no.
 	What will happen instead is that the estimate of the counter
-	value returned by \url{read_count()} will become more inaccurate.
+	value returned by \co{read_count()} will become more inaccurate.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	Won't the estimate returned by \url{read_count()} in
+	Won't the estimate returned by \co{read_count()} in
 	Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
 	become increasingly
 	inaccurate as the number of threads rises?
 \QuickQuizAnswer{
 	Yes.
 	If this proves problematic, one fix is to provide multiple
-	\url{eventual()} threads, each covering its own subset of
+	\co{eventual()} threads, each covering its own subset of
 	the other threads.
 	In even more extreme cases, a tree-like hierarchy of
-	\url{eventual()} threads might be required.
+	\co{eventual()} threads might be required.
 } \QuickQuizEnd
 
 \subsection{Per-Thread-Variable-Based Implementation}
@@ -730,7 +730,7 @@ on some CPUs with deep pipelines.
 \label{fig:count:Per-Thread Statistical Counters}
 \end{figure}
 
-Fortunately, gcc provides an \url{__thread} storage class that provides
+Fortunately, gcc provides an \co{__thread} storage class that provides
 per-thread storage.
 This can be used as shown in
 Figure~\ref{fig:count:Per-Thread Statistical Counters} (\url{count_end.c})
@@ -739,17 +739,17 @@ a statistical counter that not only scales, but that also incurs little
 or no performance penalty to incrementers compared to simple non-atomic
 increment.
 
-Lines~1-4 define needed variables: \url{counter} is the per-thread counter
-variable, the \url{counterp[]} array allows threads to access each others'
+Lines~1-4 define needed variables: \co{counter} is the per-thread counter
+variable, the \co{counterp[]} array allows threads to access each others'
 counters, finalcount accumulates the total as individual threads exit,
-and \url{final_mutex} coordinates between threads accumulating the total
+and \co{final_mutex} coordinates between threads accumulating the total
 value of the counter and exiting threads.
 
 \QuickQuiz{}
 	Why do we need an explicit array to find the other threads'
 	counters?
-	Why doesn't gcc provide a \url{per_thread()} interface, similar
-	to the Linux kernel's \url{per_cpu()} primitive, to allow
+	Why doesn't gcc provide a \co{per_thread()} interface, similar
+	to the Linux kernel's \co{per_cpu()} primitive, to allow
 	threads to more easily access each others' per-thread variables?
 \QuickQuizAnswer{
 	Why indeed?
@@ -771,7 +771,7 @@ value of the counter and exiting threads.
 
 	A key limitation that the Linux kernel imposes is a compile-time
 	maximum limit on the number of CPUs, namely,
-	\url{CONFIG_NR_CPUS}.
+	\co{CONFIG_NR_CPUS}.
 	In contrast, in user space, there is no hard-coded upper limit
 	on the number of threads.
 
@@ -787,10 +787,10 @@ value of the counter and exiting threads.
 	that it will someday appear.
 } \QuickQuizEnd
 
-The \url{inc_count()} function used by updaters is quite simple, as can
+The \co{inc_count()} function used by updaters is quite simple, as can
 be seen on lines~6-9.
 
-The \url{read_count()} function used by readers is a bit more complex.
+The \co{read_count()} function used by readers is a bit more complex.
 Line~16 acquires a lock to exclude exiting threads, and line~21 releases
 it.
 Line~17 initializes the sum to the count accumulated by those threads that
@@ -800,7 +800,7 @@ Finally, line~22 returns the sum.
 
 \QuickQuiz{}
 	Why on earth do we need something as heavyweight as a \emph{lock}
-	guarding the summation in the function \url{read_count()} in
+	guarding the summation in the function \co{read_count()} in
 	Figure~\ref{fig:count:Per-Thread Statistical Counters}?
 \QuickQuizAnswer{
 	Remember, when a thread exits, its per-thread variables disappear.
@@ -815,14 +815,14 @@ Finally, line~22 returns the sum.
 	lighter-weight mechanisms for implementing the required coordination.
 } \QuickQuizEnd
 
-Lines~25-32 show the \url{count_register_thread()} function, which
+Lines~25-32 show the \co{count_register_thread()} function, which
 must be called by each thread before its first use of this counter.
-This function simply sets up this thread's element of the \url{counterp[]}
-array to point to its per-thread \url{counter} variable.
+This function simply sets up this thread's element of the \co{counterp[]}
+array to point to its per-thread \co{counter} variable.
 
 \QuickQuiz{}
 	Why on earth do we need to acquire the lock in
-	\url{count_register_thread()} in
+	\co{count_register_thread()} in
 	Figure~\ref{fig:count:Per-Thread Statistical Counters}?
 	It is a single properly aligned machine-word store to a location
 	that no other thread is modifying, so it should be atomic anyway,
@@ -836,17 +836,17 @@ array to point to its per-thread \url{counter} variable.
 	a hundred or so CPUs, no need to get fancy.
 } \QuickQuizEnd
 
-Lines~34-42 show the \url{count_unregister_thread()} function, which
+Lines~34-42 show the \co{count_unregister_thread()} function, which
 must be called prior to exit by each thread that previously called
-\url{count_register_thread()}.
+\co{count_register_thread()}.
 Line~38 acquires the lock, and line~41 releases it, thus excluding any
-calls to \url{read_count()} as well as other calls to
-\url{count_unregister_thread()}.
-Line~39 adds this thread's \url{counter} to the global \url{finalcount},
-and then \url{NULL}s out its \url{counterp[]} array entry.
-A subsequent call to \url{read_count()} will see the exiting thread's
-count in the global \url{finalcount}, and will skip the exiting thread
-when sequencing through the \url{counterp[]} array, thus obtaining
+calls to \co{read_count()} as well as other calls to
+\co{count_unregister_thread()}.
+Line~39 adds this thread's \co{counter} to the global \co{finalcount},
+and then \co{NULL}s out its \co{counterp[]} array entry.
+A subsequent call to \co{read_count()} will see the exiting thread's
+count in the global \co{finalcount}, and will skip the exiting thread
+when sequencing through the \co{counterp[]} array, thus obtaining
 the correct total.
 
 This approach gives updaters almost exactly the same performance as
@@ -1020,8 +1020,8 @@ On the other hand, if freed structures are credited to the CPU that
 allocated them, it will be necessary for CPUs to manipulate each
 others' counters, which will require lots of expensive atomic instructions.
 Furthermore, because structures come in different sizes, rather than supporting
-\url{inc_count()} and \url{dec_count()} interfaces, we implement
-\url{add_count()} and \url{sub_count()} to allow variable-sized structures
+\co{inc_count()} and \co{dec_count()} interfaces, we implement
+\co{add_count()} and \co{sub_count()} to allow variable-sized structures
 to be properly accounted for.
 
 In short, for many important workloads, we cannot fully partition the counter.
@@ -1091,32 +1091,32 @@ use is also made of a more conservatively designed global algorithm.
 Figure~\ref{fig:count:Simple Limit Counter Variables}
 shows both the per-thread and global variables used by this
 implementation.
-The per-thread \url{counter} and \url{countermax} variables are the
+The per-thread \co{counter} and \co{countermax} variables are the
 corresponding thread's local counter and the upper bound on that
 counter, respectively.
-The \url{globalcountmax} variable on line~3 contains the upper
-bound for the aggregate counter, and the \url{globalcount} variable
+The \co{globalcountmax} variable on line~3 contains the upper
+bound for the aggregate counter, and the \co{globalcount} variable
 on line~4 is the global counter.
-The sum of \url{globalcount} and each thread's \url{counter} gives
+The sum of \co{globalcount} and each thread's \co{counter} gives
 the aggregate value of the overall counter.
-The \url{globalreserve} variable on line~5 is the sum of all of the
-per-thread \url{countermax} variables.
+The \co{globalreserve} variable on line~5 is the sum of all of the
+per-thread \co{countermax} variables.
 The relationship among these variables is shown by
 Figure~\ref{fig:count:Simple Limit Counter Variable Relationships}:
 \begin{enumerate}
-\item	The sum of \url{globalcount} and \url{globalreserve} must
-	be less than or equal to \url{globalcountmax}.
-\item	The sum of all threads' \url{countermax} values must be
-	less than or equal to \url{globalreserve}.
-\item	Each thread's \url{counter} must be less than or equal to
-	that thread's \url{countermax}.
+\item	The sum of \co{globalcount} and \co{globalreserve} must
+	be less than or equal to \co{globalcountmax}.
+\item	The sum of all threads' \co{countermax} values must be
+	less than or equal to \co{globalreserve}.
+\item	Each thread's \co{counter} must be less than or equal to
+	that thread's \co{countermax}.
 \end{enumerate}
 
-Each element of the \url{counterp[]} array references the corresponding
-thread's \url{counter} variable, and, finally, the \url{gblcnt_mutex}
+Each element of the \co{counterp[]} array references the corresponding
+thread's \co{counter} variable, and, finally, the \co{gblcnt_mutex}
 spinlock guards all of the global variables, in other words, no thread
 is permitted to access or modify any of the global variables unless it
-has acquired \url{gblcnt_mutex}.
+has acquired \co{gblcnt_mutex}.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1178,14 +1178,14 @@ has acquired \url{gblcnt_mutex}.
 \end{figure}
 
 Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}
-shows the \url{add_count()}, \url{sub_count()}, and \url{read_count()}
+shows the \co{add_count()}, \co{sub_count()}, and \co{read_count()}
 functions (\url{count_lim.c}).
 
-Lines~1-18 show \url{add_count()}, which adds the specified value \url{delta}
+Lines~1-18 show \co{add_count()}, which adds the specified value \co{delta}
 to the counter.
-Line~3 checks to see if there is room for \url{delta} on this thread's
-\url{counter}, and, if so, line~4 adds it and line~6 returns success.
-This is the \url{add_counter()} fastpath, and it does no atomic operations,
+Line~3 checks to see if there is room for \co{delta} on this thread's
+\co{counter}, and, if so, line~4 adds it and line~6 returns success.
+This is the \co{add_counter()} fastpath, and it does no atomic operations,
 references only per-thread variables, and should not incur any cache misses.
 
 \QuickQuiz{}
@@ -1208,8 +1208,8 @@ references only per-thread variables, and should not incur any cache misses.
 	Two words.
 	``Integer overflow.''
 
-	Try the above formulation with \url{counter} equal to 10 and
-	\url{delta} equal to \url{ULONG_MAX}.
+	Try the above formulation with \co{counter} equal to 10 and
+	\co{delta} equal to \co{ULONG_MAX}.
 	Then try it again with the code shown in
 	Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}.
 
@@ -1222,34 +1222,34 @@ references only per-thread variables, and should not incur any cache misses.
 } \QuickQuizEnd
 
 If the test on line~3 fails, we must access global variables, and thus
-must acquire \url{gblcnt_mutex} on line~7, which we release on line~11
+must acquire \co{gblcnt_mutex} on line~7, which we release on line~11
 in the failure case or on line~16 in the success case.
-Line~8 invokes \url{globalize_count()}, shown in
+Line~8 invokes \co{globalize_count()}, shown in
 Figure~\ref{fig:count:Simple Limit Counter Utility Functions},
 which clears the thread-local variables, adjusting the global variables
 as needed, thus simplifying global processing.
 (But don't take \url{my} word for it, try coding it yourself!)
-Lines~9 and 10 check to see if addition of \url{delta} can be accommodated,
+Lines~9 and 10 check to see if addition of \co{delta} can be accommodated,
 with the meaning of the expression preceding the less-than sign shown in
 Figure~\ref{fig:count:Simple Limit Counter Variable Relationships}
 as the difference in height of the two red bars.
-If the addition of \url{delta} cannot be accommodated, then
-line~11 (as noted earlier) releases \url{gblcnt_mutex} and line~12
+If the addition of \co{delta} cannot be accommodated, then
+line~11 (as noted earlier) releases \co{gblcnt_mutex} and line~12
 returns indicating failure.
 
-Otherwise, line~14 subtracts \url{delta} from \url{globalcount},
-line~15 invokes \url{balance_count()} (shown in
+Otherwise, line~14 subtracts \co{delta} from \co{globalcount},
+line~15 invokes \co{balance_count()} (shown in
 Figure~\ref{fig:count:Simple Limit Counter Utility Functions})
 in order to update both the global and the per-thread variables
-(hopefully setting this thread's \url{countermax} to re-enable the
+(hopefully setting this thread's \co{countermax} to re-enable the
 fastpath),
 if appropriate, to re-enable fastpath processing, line~16 release
-\url{gblcnt_mutex} (again, as noted earlier), and, finally,
+\co{gblcnt_mutex} (again, as noted earlier), and, finally,
 line~17 returns indicating success.
 
 \QuickQuiz{}
-	Why do \url{globalize_count()} to zero the per-thread variables,
-	only to later call \url{balance_count()} to refill them in
+	Why do \co{globalize_count()} to zero the per-thread variables,
+	only to later call \co{balance_count()} to refill them in
 	Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}?
 	Why not just leave the per-thread variables non-zero?
 \QuickQuizAnswer{
@@ -1260,57 +1260,57 @@ line~17 returns indicating success.
 	overflow!
 } \QuickQuizEnd
 
-Lines~20-36 show \url{sub_count()}, which subtracts the specified
-\url{delta} from the counter.
+Lines~20-36 show \co{sub_count()}, which subtracts the specified
+\co{delta} from the counter.
 Line~22 checks to see if the per-thread counter can accommodate
 this subtraction, and, if so, line~23 does the subtraction and
 line~24 returns success.
-These lines form \url{sub_count()}'s fastpath, and, as with
-\url{add_count()}, this fastpath executes no costly operations.
+These lines form \co{sub_count()}'s fastpath, and, as with
+\co{add_count()}, this fastpath executes no costly operations.
 
-If the fastpath cannot accommodate subtraction of \url{delta},
+If the fastpath cannot accommodate subtraction of \co{delta},
 execution proceeds to the slowpath on lines~26-35.
 Because the slowpath must access global state, line~26
-acquires \url{gblcnt_mutex}, which is release either by line~29
+acquires \co{gblcnt_mutex}, which is release either by line~29
 (in case of failure) or by line~34 (in case of success).
-Line~27 invokes \url{globalize_count()}, shown in
+Line~27 invokes \co{globalize_count()}, shown in
 Figure~\ref{fig:count:Simple Limit Counter Utility Functions},
 which again clears the thread-local variables, adjusting the global variables
 as needed.
 Line~28 checks to see if the counter can accommodate subtracting
-\url{delta}, and, if not, line~29 releases \url{gblcnt_mutex}
+\co{delta}, and, if not, line~29 releases \co{gblcnt_mutex}
 (as noted earlier) and line~30 returns failure.
 
 \QuickQuiz{}
-	Given that \url{globalreserve} counted against us in \url{add_count()},
-	why doesn't it count for us in \url{sub_count()} in
+	Given that \co{globalreserve} counted against us in \co{add_count()},
+	why doesn't it count for us in \co{sub_count()} in
 	Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}?
 \QuickQuizAnswer{
-	The \url{globalreserve} variable tracks the sum of all threads'
-	\url{countermax} variables.
-	The sum of these threads' \url{counter} variables might be anywhere
-	from zero to \url{globalreserve}.
+	The \co{globalreserve} variable tracks the sum of all threads'
+	\co{countermax} variables.
+	The sum of these threads' \co{counter} variables might be anywhere
+	from zero to \co{globalreserve}.
 	We must therefore take a conservative approach, assuming that
-	all threads' \url{counter} variables are full in \url{add_count()}
-	and that they are all empty in \url{sub_count()}.
+	all threads' \co{counter} variables are full in \co{add_count()}
+	and that they are all empty in \co{sub_count()}.
 
 	But remember this question, as we will come back to it later.
 } \QuickQuizEnd
 
 If, on the other hand, line~28 finds that the counter \emph{can}
-accommodate subtracting \url{delta}, then line~32 does the subtraction,
-line~33 invokes \url{balance_count()} (shown in
+accommodate subtracting \co{delta}, then line~32 does the subtraction,
+line~33 invokes \co{balance_count()} (shown in
 Figure~\ref{fig:count:Simple Limit Counter Utility Functions})
 in order to update both global and per-thread variables
 (hopefully re-enabling the fastpath),
-line~34 releases \url{gblcnt_mutex}, and line~35 returns success.
+line~34 releases \co{gblcnt_mutex}, and line~35 returns success.
 
 \QuickQuiz{}
-	Why have both \url{add_count()} and \url{sub_count()} in
+	Why have both \co{add_count()} and \co{sub_count()} in
 	Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}?
-	Why not simply pass a negative number to \url{add_count()}?
+	Why not simply pass a negative number to \co{add_count()}?
 \QuickQuizAnswer{
-	Given that \url{add_count()} takes an \url{unsigned} \url{long}
+	Given that \co{add_count()} takes an \co{unsigned} \co{long}
 	as its argument, it is going to be a bit tough to pass it a
 	negative number.
 	And unless you have some anti-matter memory, there is little
@@ -1318,14 +1318,14 @@ line~34 releases \url{gblcnt_mutex}, and line~35 returns success.
 	of structures in use!
 } \QuickQuizEnd
 
-Lines~38-50 show \url{read_count()}, which returns the aggregate value
+Lines~38-50 show \co{read_count()}, which returns the aggregate value
 of the counter.
-It acquires \url{gblcnt_mutex} on line~43 and releases it on line 48,
-excluding global operations from \url{add_count()} and \url{sub_count()},
+It acquires \co{gblcnt_mutex} on line~43 and releases it on line 48,
+excluding global operations from \co{add_count()} and \co{sub_count()},
 and, as we will see, also excluding thread creation and exit.
-Line~44 initializes local variable \url{sum} to the value of
-\url{globalcount}, and then the loop spanning lines~45-47 sums the
-per-thread \url{counter} variables.
+Line~44 initializes local variable \co{sum} to the value of
+\co{globalcount}, and then the loop spanning lines~45-47 sums the
+per-thread \co{counter} variables.
 Line~49 then returns the sum.
 
 \begin{figure}[tbp]
@@ -1376,74 +1376,74 @@ Line~49 then returns the sum.
 \end{figure}
 
 Figure~\ref{fig:count:Simple Limit Counter Utility Functions}
-shows a number of utility functions that support the \url{add_count()}
-\url{sub_count()}, and \url{read_count()} primitives shown in
+shows a number of utility functions that support the \co{add_count()}
+\co{sub_count()}, and \co{read_count()} primitives shown in
 Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}.
 
-Lines~1-7 show \url{globalize_count()}, which zeros the current thread's
+Lines~1-7 show \co{globalize_count()}, which zeros the current thread's
 per-thread counters, adjusting the global variables appropriately.
 It is important to note that this function does not change the aggregate
 value of the counter, but instead changes how the counter's current value
 is represented.
-Line~3 adds the thread's \url{counter} variable to \url{globalcount},
-and line~4 zeroes \url{counter}.
-Similarly, line~5 subtracts the per-thread \url{countermax} from
-\url{globalreserve}, and line~6 zeroes \url{countermax}.
+Line~3 adds the thread's \co{counter} variable to \co{globalcount},
+and line~4 zeroes \co{counter}.
+Similarly, line~5 subtracts the per-thread \co{countermax} from
+\co{globalreserve}, and line~6 zeroes \co{countermax}.
 It is helpful to refer to
 Figure~\ref{fig:count:Simple Limit Counter Variable Relationships}
-when reading both this function and \url{balance_count()}, which is next.
+when reading both this function and \co{balance_count()}, which is next.
 
-Lines~9-19 show \url{balance_count()}, which can is, roughly speaking
-the inverse of \url{globalize_count()}.
-This function sets the current thread's \url{counter} and \url{countermax}
-variables (with corresponding adjustments to \url{globalcount}
-and \url{globalreserve}) in an attempt to promote use of
-\url{add_count()}'s and \url{sub_count()}'s fastpaths.
-As with \url{globalize_count()}, \url{balance_count()} does not change
+Lines~9-19 show \co{balance_count()}, which can is, roughly speaking
+the inverse of \co{globalize_count()}.
+This function sets the current thread's \co{counter} and \co{countermax}
+variables (with corresponding adjustments to \co{globalcount}
+and \co{globalreserve}) in an attempt to promote use of
+\co{add_count()}'s and \co{sub_count()}'s fastpaths.
+As with \co{globalize_count()}, \co{balance_count()} does not change
 the aggregate value of the counter.
 Lines~11-13 compute this thread's share of that portion of
-\url{globalcountmax} that is not already covered by either
-\url{globalcount} or \url{globalreserve}, and assign the
-computed quantity to this thread's \url{countermax}.
-Line~14 makes the corresponding adjustment to \url{globalreserve}.
-Line~15 sets this thread's \url{counter} to the middle of the range
-from zero to \url{countermax}.
-Line~16 checks to see whether \url{globalcount} can in fact accommodate
-this value of \url{counter}, and, if not, line~17 decreases \url{counter}
+\co{globalcountmax} that is not already covered by either
+\co{globalcount} or \co{globalreserve}, and assign the
+computed quantity to this thread's \co{countermax}.
+Line~14 makes the corresponding adjustment to \co{globalreserve}.
+Line~15 sets this thread's \co{counter} to the middle of the range
+from zero to \co{countermax}.
+Line~16 checks to see whether \co{globalcount} can in fact accommodate
+this value of \co{counter}, and, if not, line~17 decreases \co{counter}
 accordingly.
 Finally, in either case, line~18 makes the corresponding adjustment to
-\url{globalcount}.
+\co{globalcount}.
 
-Lines~21-28 show \url{count_register_thread()}, which sets up state for
+Lines~21-28 show \co{count_register_thread()}, which sets up state for
 newly created threads.
 This function simply installs
-a pointer to the newly created thread's \url{counter} variable into
-the corresponding entry of the \url{counterp[]} array under the protection
-of \url{gblcnt_mutex}.
+a pointer to the newly created thread's \co{counter} variable into
+the corresponding entry of the \co{counterp[]} array under the protection
+of \co{gblcnt_mutex}.
 
-Finally, lines~30-38 show \url{count_unregister_thread()}, which tears down
+Finally, lines~30-38 show \co{count_unregister_thread()}, which tears down
 state for a soon-to-be-exiting thread.
-Line~34 acquires \url{gblcnt_mutex} and line~37 releases it.
-Line~35 invokes \url{globalize_count()} to clear out this thread's
+Line~34 acquires \co{gblcnt_mutex} and line~37 releases it.
+Line~35 invokes \co{globalize_count()} to clear out this thread's
 counter state, and line~36 clears this thread's entry in the
-\url{counterp[]} array.
+\co{counterp[]} array.
 
 \subsection{Simple Limit Counter Discussion}
 
 This type of counter is quite fast when aggregate values are near zero,
 with some overhead due to the comparison and branch in both
-\url{add_count()}'s and \url{sub_count()}'s fastpaths.
-However, the use of a per-thread \url{countermax} reserve means that
-\url{add_count()} can fail even when
-the aggregate value of the counter is nowhere near \url{globalcountmax}.
-Similarly, \url{sub_count()} can fail
+\co{add_count()}'s and \co{sub_count()}'s fastpaths.
+However, the use of a per-thread \co{countermax} reserve means that
+\co{add_count()} can fail even when
+the aggregate value of the counter is nowhere near \co{globalcountmax}.
+Similarly, \co{sub_count()} can fail
 even when the aggregate value of the counter is nowhere near zero.
 
 In many cases, this is unacceptable.
-Even if the \url{globalcountmax} is intended to be an approximate limit,
+Even if the \co{globalcountmax} is intended to be an approximate limit,
 there is usually a limit to exactly how much approximation can be tolerated.
 One way to limit the degree of approximation is to impose an upper limit
-on the value of the per-thread \url{countermax} instances.
+on the value of the per-thread \co{countermax} instances.
 This task is undertaken in the next section.
 
 \subsection{Approximate Limit Counter Implementation}
@@ -1496,20 +1496,20 @@ only the changes are shown here.
 Figure~\ref{fig:count:Approximate Limit Counter Variables}
 is identical to
 Figure~\ref{fig:count:Simple Limit Counter Variables},
-with the addition of \url{MAX_COUNTERMAX}, which sets the maximum
-permissible value of the per-thread \url{countermax} variable.
+with the addition of \co{MAX_COUNTERMAX}, which sets the maximum
+permissible value of the per-thread \co{countermax} variable.
 
 Similarly,
 Figure~\ref{fig:count:Approximate Limit Counter Balancing}
-is identical to the \url{balance_count()} function in
+is identical to the \co{balance_count()} function in
 Figure~\ref{fig:count:Simple Limit Counter Utility Functions}),
 with the addition of lines~5 and 6, which enforce the
-\url{MAX_COUNTERMAX} limit on the per-thread \url{countermax} variable.
+\co{MAX_COUNTERMAX} limit on the per-thread \co{countermax} variable.
 
 \subsection{Approximate Limit Counter Discussion}
 
 These changes greatly reduce the limit inaccuracy seen in the previous version,
-but present another problem: any given value of \url{MAX_COUNTERMAX}
+but present another problem: any given value of \co{MAX_COUNTERMAX}
 will cause a workload-dependent fraction of accesses to fall off the
 fastpath.
 As the number of threads increase, non-fastpath execution will become both
@@ -1535,13 +1535,13 @@ other hand, it would be silly not to at least give them a try.
 \label{sec:count:Atomic Limit Counter Implementation}
 
 Unfortunately, when causing a given thread to give up its count, it is
-necessary to atomically manipulate both that thread's \url{counter}
-and \url{countermax} variables.
+necessary to atomically manipulate both that thread's \co{counter}
+and \co{countermax} variables.
 The usual way to do this is to combine these two variables into a
 single variable,
 for example, given a 32-bit variable, using the high-order 16 bits to
-represent \url{counter} and the low-order 16 bits to represent
-\url{countermax}.
+represent \co{counter} and the low-order 16 bits to represent
+\co{countermax}.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1589,21 +1589,21 @@ The variables and access functions for a simple atomic limit counter
 are shown in
 Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}
 (\url{count_lim_atomic.c}).
-The \url{counter} and \url{countermax} variables in earlier algorithms
-are combined into the single variable \url{counterandmax} shown on
-line~1, with \url{counter} in the upper half and \url{countermax} in
+The \co{counter} and \co{countermax} variables in earlier algorithms
+are combined into the single variable \co{counterandmax} shown on
+line~1, with \co{counter} in the upper half and \co{countermax} in
 the lower half.
-This variable is of type \url{atomic_t}, which has an underlying
-representation of \url{int}.
+This variable is of type \co{atomic_t}, which has an underlying
+representation of \co{int}.
 
-Lines~2-6 show the definitions for \url{globalcountmax}, \url{globalcount},
-\url{globalreserve}, \url{counterp}, and \url{gblcnt_mutex}, all of which
+Lines~2-6 show the definitions for \co{globalcountmax}, \co{globalcount},
+\co{globalreserve}, \co{counterp}, and \co{gblcnt_mutex}, all of which
 take on roles similar to their counterparts in
 Figure~\ref{fig:count:Approximate Limit Counter Variables}.
-Line~7 defines \url{CM_BITS}, which gives the number of bits in each half
-of \url{counterandmax}, and line~8 defines \url{MAX_COUNTERMAX}, which
+Line~7 defines \co{CM_BITS}, which gives the number of bits in each half
+of \co{counterandmax}, and line~8 defines \co{MAX_COUNTERMAX}, which
 gives the maximum value that may be held in either half of
-\url{counterandmax}.
+\co{counterandmax}.
 
 \QuickQuiz{}
 	In what way does line~7 of
@@ -1619,44 +1619,44 @@ gives the maximum value that may be held in either half of
 	standard?  What drawbacks would it have?)
 } \QuickQuizEnd
 
-Lines~10-15 show the \url{split_counterandmax_int()} function, which,
-when given the underlying \url{int} from the \url{atomic_t}
-\url{counterandmax} variable.
-Line~13 isolates the most-significant half of this \url{int},
-placing the result as specified by argument \url{c},
-and line~14 isolates the least-significant half of this \url{int},
-placing the result as specified by argument \url{cm}.
+Lines~10-15 show the \co{split_counterandmax_int()} function, which,
+when given the underlying \co{int} from the \co{atomic_t}
+\co{counterandmax} variable.
+Line~13 isolates the most-significant half of this \co{int},
+placing the result as specified by argument \co{c},
+and line~14 isolates the least-significant half of this \co{int},
+placing the result as specified by argument \co{cm}.
 
-Lines~17-25 show the \url{split_counterandmax()} function, which
-picks up the underlying \url{int} from the specified variable
-on line~21, stores it as specified by the \url{old} argument on
-line~23, and then invokes \url{split_counterandmax_int()} to split
+Lines~17-25 show the \co{split_counterandmax()} function, which
+picks up the underlying \co{int} from the specified variable
+on line~21, stores it as specified by the \co{old} argument on
+line~23, and then invokes \co{split_counterandmax_int()} to split
 it on line~24.
 
 \QuickQuiz{}
-	Given that there is only one \url{counterandmax} variable,
+	Given that there is only one \co{counterandmax} variable,
 	why bother passing in a pointer to it on line~18 of
 	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}?
 \QuickQuizAnswer{
-	There is only one \url{counterandmax} variable \emph{per thread}.
+	There is only one \co{counterandmax} variable \emph{per thread}.
 	Later, we will see code that needs to pass other threads'
-	\url{counterandmax} variables to \url{split_counterandmax()}.
+	\co{counterandmax} variables to \co{split_counterandmax()}.
 } \QuickQuizEnd
 
-Lines~27-33 show the \url{merge_counterandmax()} function, which
-can be thought of as the inverse of \url{split_counterandmax()}.
-Line~31 merges the \url{counter} and \url{countermax}
-values passed in \url{c} and \url{cm}, respectively, and returns
+Lines~27-33 show the \co{merge_counterandmax()} function, which
+can be thought of as the inverse of \co{split_counterandmax()}.
+Line~31 merges the \co{counter} and \co{countermax}
+values passed in \co{c} and \co{cm}, respectively, and returns
 the result.
 
 \QuickQuiz{}
-	Why does \url{merge_counterandmax()} in
+	Why does \co{merge_counterandmax()} in
 	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}
-	return an \url{int} rather than storing directly into an
-	\url{atomic_t}?
+	return an \co{int} rather than storing directly into an
+	\co{atomic_t}?
 \QuickQuizAnswer{
-	Later, we will see that we need the \url{int} return to pass
-	to the \url{atomic_cmpxchg()} primitive.
+	Later, we will see that we need the \co{int} return to pass
+	to the \co{atomic_cmpxchg()} primitive.
 } \QuickQuizEnd
 
 \begin{figure}[tbp]
@@ -1732,38 +1732,38 @@ the result.
 \end{figure}
 
 Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}
-shows the \url{add_count()}, \url{sub_count()}, and
-\url{read_count()} functions.
+shows the \co{add_count()}, \co{sub_count()}, and
+\co{read_count()} functions.
 
-Lines~1-32 show \url{add_count()}, whose fastpath spans lines~8-15,
+Lines~1-32 show \co{add_count()}, whose fastpath spans lines~8-15,
 with the remainder of the function being the slowpath.
 Lines~8-14 of the fastpath form a compare-and-swap (CAS) loop, with
-the \url{atomic_cmpxchg()} primitives on lines~13-14 performing the
+the \co{atomic_cmpxchg()} primitives on lines~13-14 performing the
 actual CAS.
-Line~9 splits the current thread's \url{counterandmax} variable into its
-\url{counter} (in \url{c}) and \url{countermax} (in \url{cm}) components,
-while placing the underlying \url{int} into \url{old}.
-Line~10 checks whether the amount \url{delta} can be accommodated
+Line~9 splits the current thread's \co{counterandmax} variable into its
+\co{counter} (in \co{c}) and \co{countermax} (in \co{cm}) components,
+while placing the underlying \co{int} into \co{old}.
+Line~10 checks whether the amount \co{delta} can be accommodated
 locally (taking care to avoid integer overflow), and if not,
 line~11 transfers to the slowpath.
-Otherwise, line~11 combines an updated \url{counter} value with the
-original \url{countermax} value into \url{new}.
-The \url{atomic_cmpxchg()} primitive on lines~13-14 then atomically
-compares this thread's \url{counterandmax} variable to \url{old},
-updating its value to \url{new} if the comparison succeeds.
+Otherwise, line~11 combines an updated \co{counter} value with the
+original \co{countermax} value into \co{new}.
+The \co{atomic_cmpxchg()} primitive on lines~13-14 then atomically
+compares this thread's \co{counterandmax} variable to \co{old},
+updating its value to \co{new} if the comparison succeeds.
 If the comparison succeeds, line~15 returns success, otherwise,
 execution continues in the loop at line~9.
 
 \QuickQuiz{}
 	Yecch!
-	Why the ugly \url{goto} on line~11 of
+	Why the ugly \co{goto} on line~11 of
 	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}?
-	Haven't you heard of the \url{break} statement???
+	Haven't you heard of the \co{break} statement???
 \QuickQuizAnswer{
-	Replacing the \url{goto} with a \url{break} would require keeping
+	Replacing the \co{goto} with a \co{break} would require keeping
 	a flag to determine whether or not line~15 should return, which
 	is not the sort of thing you want on a fastpath.
-	If you really hate the \url{goto} that much, your best bet would
+	If you really hate the \co{goto} that much, your best bet would
 	be to pull the fastpath into a separate function that returned
 	success or failure, with ``failure'' indicating a need for the
 	slowpath.
@@ -1771,43 +1771,43 @@ execution continues in the loop at line~9.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	Why would the \url{atomic_cmpxchg()} primitive at lines~13-14 of
+	Why would the \co{atomic_cmpxchg()} primitive at lines~13-14 of
 	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}
 	ever fail?
 	After all, we picked up its old value on line~9 and have not
 	changed it!
 \QuickQuizAnswer{
-	Later, we will see how the \url{flush_local_count()} function in
+	Later, we will see how the \co{flush_local_count()} function in
 	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
-	might update this thread's \url{counterandmax} variable concurrently
+	might update this thread's \co{counterandmax} variable concurrently
 	with the execution of the fastpath on lines~8-14 of
 	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}.
 } \QuickQuizEnd
 
 Lines~16-32 of
 Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}
-show \url{add_count()}'s slowpath, which is protected by \url{gblcnt_mutex},
+show \co{add_count()}'s slowpath, which is protected by \co{gblcnt_mutex},
 which is acquired on line~17 and released on lines~24 and 30.
-Line~18 invokes \url{globalize_count()}, which moves this thread's
+Line~18 invokes \co{globalize_count()}, which moves this thread's
 state to the global counters.
-Lines~19-20 check whether the \url{delta} value can be accommodated by
+Lines~19-20 check whether the \co{delta} value can be accommodated by
 the current global state, and, if not, line~21 invokes
-\url{flush_local_count()} to flush all threads' local state to the
-global counters, and then lines~22-23 recheck whether \url{delta} can
+\co{flush_local_count()} to flush all threads' local state to the
+global counters, and then lines~22-23 recheck whether \co{delta} can
 be accommodated.
-If, after all that, the addition of \url{delta} still cannot be accommodated,
-then line~24 releases \url{gblcnt_mutex} (as noted earlier), and
+If, after all that, the addition of \co{delta} still cannot be accommodated,
+then line~24 releases \co{gblcnt_mutex} (as noted earlier), and
 then line~25 returns failure.
 
-Otherwise, line~28 adds \url{delta} to the global counter, line~29
+Otherwise, line~28 adds \co{delta} to the global counter, line~29
 spreads counts to the local state if appropriate, line~30 releases
-\url{gblcnt_mutex} (again, as noted earlier), and finally, line 31
+\co{gblcnt_mutex} (again, as noted earlier), and finally, line 31
 returns success.
 
 Lines~34-63 of
 Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}
-show \url{sub_count()}, which is structured similarly to
-\url{add_count()}, having a fastpath on lines~41-48 and a slowpath on
+show \co{sub_count()}, which is structured similarly to
+\co{add_count()}, having a fastpath on lines~41-48 and a slowpath on
 lines~49-62.
 A line-by-line analysis of this function is left as an exercise to
 the reader.
@@ -1839,12 +1839,12 @@ the reader.
 \label{fig:count:Atomic Limit Counter Read}
 \end{figure}
 
-Figure~\ref{fig:count:Atomic Limit Counter Read} shows \url{read_count()}.
-Line~9 acquires \url{gblcnt_mutex} and line~16 releases it.
-Line~10 initializes local variable \url{sum} to the value of
-\url{globalcount}, and the loop spanning lines~11-15 adds the
+Figure~\ref{fig:count:Atomic Limit Counter Read} shows \co{read_count()}.
+Line~9 acquires \co{gblcnt_mutex} and line~16 releases it.
+Line~10 initializes local variable \co{sum} to the value of
+\co{globalcount}, and the loop spanning lines~11-15 adds the
 per-thread counters to this sum, isolating each per-thread counter
-using \url{split_counterandmax} on line 13.
+using \co{split_counterandmax} on line 13.
 Finally, line~17 returns the sum.
 
 \begin{figure}[tbp]
@@ -1931,97 +1931,97 @@ Finally, line~17 returns the sum.
 
 Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
 shows the utility functions
-\url{globalize_count()},
-\url{flush_local_count()},
-\url{balance_count()},
-\url{count_register_thread()}, and
-\url{count_unregister_thread()}.
-The code for \url{globalize_count()} is shown on lines~1-12, and
+\co{globalize_count()},
+\co{flush_local_count()},
+\co{balance_count()},
+\co{count_register_thread()}, and
+\co{count_unregister_thread()}.
+The code for \co{globalize_count()} is shown on lines~1-12, and
 it is similar to that of previous algorithms, with the addition of
-line~7, which is now required to split out \url{counter} and
-\url{countermax} from \url{counterandmax}.
+line~7, which is now required to split out \co{counter} and
+\co{countermax} from \co{counterandmax}.
 
-The code for \url{flush_local_count()}, which moves all threads' local
+The code for \co{flush_local_count()}, which moves all threads' local
 counter state to the global counter, is shown on lines~14-32.
-Line~22 checks to see if the value of \url{globalreserve} permits
+Line~22 checks to see if the value of \co{globalreserve} permits
 any per-thread counts, and, if not, line~23 returns.
-Otherwise, line~24 initializes local variable \url{zero} to a combined
-zeroed \url{counter} and \url{countermax}.
+Otherwise, line~24 initializes local variable \co{zero} to a combined
+zeroed \co{counter} and \co{countermax}.
 The loop spanning lines~25-31 sequences through each thread.
 Line~26 checks to see if the current thread has counter state,
 and, if so, lines~27-30 move that state to the global counters.
 Line~27 atomically fetches the current thread's state
 while replacing it with zero.
-Line~28 splits this state into its \url{counter} (in local variable \url{c})
-and \url{countermax} (in local variable \url{cm}) components.
-Line~29 adds this thread's \url{counter} to \url{globalcount}, while
-line~30 subtracts this thread's \url{countermax} from \url{globalreserve}.
+Line~28 splits this state into its \co{counter} (in local variable \co{c})
+and \co{countermax} (in local variable \co{cm}) components.
+Line~29 adds this thread's \co{counter} to \co{globalcount}, while
+line~30 subtracts this thread's \co{countermax} from \co{globalreserve}.
 
 \QuickQuiz{}
 	What stops a thread from simply refilling its
-	\url{counterandmax} variable immediately after
-	\url{flush_local_count()} on line 14 of
+	\co{counterandmax} variable immediately after
+	\co{flush_local_count()} on line 14 of
 	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
 	empties it?
 \QuickQuizAnswer{
-	This other thread cannot refill its \url{counterandmax}
-	until the caller of \url{flush_local_count()} releases the
-	\url{gblcnt_mutex}.
-	By that time, the caller of \url{flush_local_count()} will have
+	This other thread cannot refill its \co{counterandmax}
+	until the caller of \co{flush_local_count()} releases the
+	\co{gblcnt_mutex}.
+	By that time, the caller of \co{flush_local_count()} will have
 	finished making use of the counts, so there will be no problem
 	with this other thread refilling --- assuming that the value
-	of \url{globalcount} is large enough to permit a refill.
+	of \co{globalcount} is large enough to permit a refill.
 } \QuickQuizEnd
 
 \QuickQuiz{}
 	What prevents concurrent execution of the fastpath of either
-	\url{atomic_add()} or \url{atomic_sub()} from interfering with
-	the \url{counterandmax} variable while
-	\url{flush_local_count()} is accessing it on line 27 of
+	\co{atomic_add()} or \co{atomic_sub()} from interfering with
+	the \co{counterandmax} variable while
+	\co{flush_local_count()} is accessing it on line 27 of
 	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
 	empties it?
 \QuickQuizAnswer{
 	Nothing.
 	Consider the following three cases:
 	\begin{enumerate}
-	\item	If \url{flush_local_count()}'s \url{atomic_xchg()} executes
-		before the \url{split_counterandmax()} of either fastpath,
-		then the fastpath will see a zero \url{counter} and
-		\url{countermax}, and will thus transfer to the slowpath
-		(unless of course \url{delta} is zero).
-	\item	If \url{flush_local_count()}'s \url{atomic_xchg()} executes
-		after the \url{split_counterandmax()} of either fastpath,
-		but before that fastpath's \url{atomic_cmpxchg()},
-		then the \url{atomic_cmpxchg()} will fail, causing the
+	\item	If \co{flush_local_count()}'s \co{atomic_xchg()} executes
+		before the \co{split_counterandmax()} of either fastpath,
+		then the fastpath will see a zero \co{counter} and
+		\co{countermax}, and will thus transfer to the slowpath
+		(unless of course \co{delta} is zero).
+	\item	If \co{flush_local_count()}'s \co{atomic_xchg()} executes
+		after the \co{split_counterandmax()} of either fastpath,
+		but before that fastpath's \co{atomic_cmpxchg()},
+		then the \co{atomic_cmpxchg()} will fail, causing the
 		fastpath to restart, which reduces to case~1 above.
-	\item	If \url{flush_local_count()}'s \url{atomic_xchg()} executes
-		after the \url{atomic_cmpxchg()} of either fastpath,
+	\item	If \co{flush_local_count()}'s \co{atomic_xchg()} executes
+		after the \co{atomic_cmpxchg()} of either fastpath,
 		then the fastpath will (most likely) complete successfully
-		before \url{flush_local_count()} zeroes the thread's
-		\url{counterandmax} variable.
+		before \co{flush_local_count()} zeroes the thread's
+		\co{counterandmax} variable.
 	\end{enumerate}
 	Either way, the race is resolved correctly.
 } \QuickQuizEnd
 
-Lines~34-54 show the code for \url{balance_count()}, which refills
-the calling thread's local \url{counterandmax} variable.
+Lines~34-54 show the code for \co{balance_count()}, which refills
+the calling thread's local \co{counterandmax} variable.
 This function is quite similar to that of the preceding algorithms,
-with changes required to handle the merged \url{counterandmax} variable.
+with changes required to handle the merged \co{counterandmax} variable.
 Detailed analysis of the code is left as an exercise for the reader,
-as it is with the \url{count_register_thread()} function starting on
-line~56 and the \url{count_unregister_thread()} function starting on
+as it is with the \co{count_register_thread()} function starting on
+line~56 and the \co{count_unregister_thread()} function starting on
 line~65.
 
 \QuickQuiz{}
-	Given that the \url{atomic_set()} primitive does a simple
-	store to the specified \url{atomic_t}, how can line~53 of
-	\url{balance_count()} in
+	Given that the \co{atomic_set()} primitive does a simple
+	store to the specified \co{atomic_t}, how can line~53 of
+	\co{balance_count()} in
 	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
-	work correctly in face of concurrent \url{flush_local_count()}
+	work correctly in face of concurrent \co{flush_local_count()}
 	updates to this variable?
 \QuickQuizAnswer{
-	The caller of both \url{balance_count()} and
-	\url{flush_local_count()} hold \url{gblcnt_mutex}, so
+	The caller of both \co{balance_count()} and
+	\co{flush_local_count()} hold \co{gblcnt_mutex}, so
 	only one may be executing at a given time.
 } \QuickQuizEnd
 
@@ -2050,42 +2050,42 @@ atomic operations are not necessary, as shown in the next section.
 
 Figure~\ref{fig:count:Signal-Theft State Machine} shows the
 state diagram.
-The state machine starts out in the IDLE state, and when \url{add_count()}
-or \url{sub_count()} find that the combination of the local thread's count
+The state machine starts out in the IDLE state, and when \co{add_count()}
+or \co{sub_count()} find that the combination of the local thread's count
 and the global count cannot accommodate the request, the corresponding
-slowpath sets each thread's \url{theft} state to REQ (unless that thread
+slowpath sets each thread's \co{theft} state to REQ (unless that thread
 has no count, in which case it transitions directly to READY).
-Only the slowpath, which holds the \url{gblcnt_mutex} lock, is permitted to
+Only the slowpath, which holds the \co{gblcnt_mutex} lock, is permitted to
 transition from the IDLE state, as indicated by the green color.
 The slowpath then sends a signal to each thread, and the corresponding
-signal handler checks the corresponding thread's \url{theft} and
-\url{counting} variables.
-If the \url{theft} state is not REQ, then the signal handler is not
+signal handler checks the corresponding thread's \co{theft} and
+\co{counting} variables.
+If the \co{theft} state is not REQ, then the signal handler is not
 permitted to change the state, and therefore simply returns.
-Otherwise, if the \url{counting} variable is set, indicating that
+Otherwise, if the \co{counting} variable is set, indicating that
 the current thread's fastpath is in progress, the signal handler
-sets the \url{theft} state to ACK, otherwise to READY.
+sets the \co{theft} state to ACK, otherwise to READY.
 
-If the \url{theft} state is ACK,
+If the \co{theft} state is ACK,
 only the fastpath is permitted to change
-the \url{theft} state, as indicated by the blue color.
-When the fastpath completes, it sets the \url{theft} state to READY.
+the \co{theft} state, as indicated by the blue color.
+When the fastpath completes, it sets the \co{theft} state to READY.
 
-Once the slowpath sees a thread's \url{theft} state is READY, the
+Once the slowpath sees a thread's \co{theft} state is READY, the
 slowpath is permitted to steal that thread's count.
-The slowpath then sets that thread's \url{theft} state to IDLE.
+The slowpath then sets that thread's \co{theft} state to IDLE.
 
 \QuickQuiz{}
 	In Figure~\ref{fig:count:Signal-Theft State Machine}, why is
-	the REQ \url{theft} state colored blue?
+	the REQ \co{theft} state colored blue?
 \QuickQuizAnswer{
 	To indicate that only the fastpath is permitted to change the
-	\url{theft} state.
+	\co{theft} state.
 } \QuickQuizEnd
 
 \QuickQuiz{}
 	In Figure~\ref{fig:count:Signal-Theft State Machine}, what is
-	the point of having separate REQ and ACK \url{theft} states?
+	the point of having separate REQ and ACK \co{theft} states?
 	Why not simplify the state machine by collapsing
 	them into a single state?
 	Then whichever of the signal handler or the fastpath gets there
@@ -2160,8 +2160,8 @@ implementation.
 Lines~1-7 define the states and values for the per-thread theft state machine
 described in the preceding section.
 Lines~8-17 are similar to earlier implementations, with the addition of
-lines~14 and 15 to allow remote access to a thread's \url{countermax}
-and \url{theft} variables, respectively.
+lines~14 and 15 to allow remote access to a thread's \co{countermax}
+and \co{theft} variables, respectively.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -2238,23 +2238,23 @@ and \url{theft} variables, respectively.
 Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}
 shows the functions responsible for migrating counts between per-thread
 variables and the global variables.
-Lines~1-7 shows \url{global_count()}, which is identical to earlier
+Lines~1-7 shows \co{global_count()}, which is identical to earlier
 implementations.
-Lines~9-19 shows \url{flush_local_count_sig()}, which is the signal
+Lines~9-19 shows \co{flush_local_count_sig()}, which is the signal
 handler used in the theft process.
-Lines~11 and 12 check to see if the \url{theft} state is REQ, and, if not
+Lines~11 and 12 check to see if the \co{theft} state is REQ, and, if not
 returns without change.
 Line~13 executes a memory barrier to ensure that the sampling of the
 theft variable happens before any change to that variable.
-Line~14 sets the \url{theft} state to ACK, and, if line~15 sees that
-this thread's fastpaths are not running, line~16 sets the \url{theft}
+Line~14 sets the \co{theft} state to ACK, and, if line~15 sees that
+this thread's fastpaths are not running, line~16 sets the \co{theft}
 state to READY.
 
 \QuickQuiz{}
 	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}
-	function \url{flush_local_count_sig()}, why are there
-	\url{ACCESS_ONCE()} wrappers around the uses of the
-	\url{theft} per-thread variable?
+	function \co{flush_local_count_sig()}, why are there
+	\co{ACCESS_ONCE()} wrappers around the uses of the
+	\co{theft} per-thread variable?
 \QuickQuizAnswer{
 	The first one (on line~11) can be argued to be unnecessary.
 	The last two (lines~14 and 16) are important.
@@ -2272,32 +2272,32 @@ state to READY.
 	\end{minipage}
 	\vspace{5pt}
 	This would be fatal, as the slowpath might see the transient
-	value of \url{THEFT_READY}, and start stealing before the
+	value of \co{THEFT_READY}, and start stealing before the
 	corresponding thread was ready.
 } \QuickQuizEnd
 
-Lines~21-49 shows \url{flush_local_count()}, which is called from the
+Lines~21-49 shows \co{flush_local_count()}, which is called from the
 slowpath to flush all threads' local counts.
-The loop spanning lines~26-34 advances the \url{theft} state for each
+The loop spanning lines~26-34 advances the \co{theft} state for each
 thread that has local count, and also sends that thread a signal.
 Line~27 skips any non-existent threads.
 Otherwise, line~28 checks to see if the current thread holds any local
-count, and, if not, line~29 sets the thread's \url{theft} state to READY
+count, and, if not, line~29 sets the thread's \co{theft} state to READY
 and line~28 skips to the next thread.
-Otherwise, line~32 sets the thread's \url{theft} state to REQ and
+Otherwise, line~32 sets the thread's \co{theft} state to REQ and
 line~29 sends the thread a signal.
 
 \QuickQuiz{}
 	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions},
 	why is it safe for line~28 to directly access the other thread's
-	\url{countermax} variable?
+	\co{countermax} variable?
 \QuickQuizAnswer{
 	Because the other thread is not permitted to change the value
-	of its \url{countermax} variable unless it holds the
-	\url{gblcnt_mutex} lock.
+	of its \co{countermax} variable unless it holds the
+	\co{gblcnt_mutex} lock.
 	But the caller has acquired this lock, so it is not possible
 	for the other thread to hold it, and therefore the other thread
-	is not permitted to change its \url{countermax} variable.
+	is not permitted to change its \co{countermax} variable.
 	We can therefore safely access it --- but not change it.
 } \QuickQuizEnd
 
@@ -2307,9 +2307,9 @@ line~29 sends the thread a signal.
 	a signal?
 \QuickQuizAnswer{
 	There is no need for an additional check.
-	The caller of \url{flush_local_count()} has already invoked
-	\url{globalize_count()}, so the check on line~28 will have
-	succeeded, skipping the later \url{pthread_kill()}.
+	The caller of \co{flush_local_count()} has already invoked
+	\co{globalize_count()}, so the check on line~28 will have
+	succeeded, skipping the later \co{pthread_kill()}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -2318,7 +2318,7 @@ line~29 sends the thread a signal.
 	works with gcc and POSIX.
 	What would be required to make it also conform to the ISO C standard?
 \QuickQuizAnswer{
-	The \url{theft} variable must be of type \url{sig_atomic_t}
+	The \co{theft} variable must be of type \co{sig_atomic_t}
 	to guarantee that it can be safely shared between the signal
 	handler and the code interrupted by the signal.
 } \QuickQuizEnd
@@ -2326,13 +2326,13 @@ line~29 sends the thread a signal.
 The loop spanning lines~35-48 waits until each thread reaches READY state,
 then steals that thread's count.
 Lines~36-37 skip any non-existent threads, and the loop spanning
-lines~38-42 wait until the current thread's \url{theft} state becomes READY.
+lines~38-42 wait until the current thread's \co{theft} state becomes READY.
 Line~39 blocks for a millisecond to avoid priority-inversion problems,
 and if line~40 determines that the thread's signal has not yet arrived,
 line~41 resends the signal.
-Execution reaches line~43 when the thread's \url{theft} state becomes
+Execution reaches line~43 when the thread's \co{theft} state becomes
 READY, so lines~43-46 do the thieving.
-Line~47 then sets the thread's \url{theft} state back to IDLE.
+Line~47 then sets the thread's \co{theft} state back to IDLE.
 
 \QuickQuiz{}
 	In Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}, why does line~41 resend the signal?
@@ -2347,7 +2347,7 @@ Line~47 then sets the thread's \url{theft} state back to IDLE.
 	\emph{Your} user application hanging!
 } \QuickQuizEnd
 
-Lines~51-63 show \url{balance_count()}, which is similar to that of
+Lines~51-63 show \co{balance_count()}, which is similar to that of
 earlier examples.
 
 \begin{figure}[tbp]
@@ -2432,16 +2432,16 @@ earlier examples.
 
 Lines~1-36 of
 Figure~\ref{fig:count:Signal-Theft Limit Counter Add and Subtract Functions}
-shows the \url{add_count()} function.
+shows the \co{add_count()} function.
 The fastpath spans lines~5-20, and the slowpath lines~21-35.
-Line~5 sets the per-thread \url{counting} variable to 1 so that
+Line~5 sets the per-thread \co{counting} variable to 1 so that
 any subsequent signal handlers interrupting this thread will
-set the \url{theft} state to ACK rather than READY, allowing this
+set the \co{theft} state to ACK rather than READY, allowing this
 fastpath to complete properly.
 Line~6 prevents the compiler from reordering any of the fastpath body
-to precede the setting of \url{counting}.
+to precede the setting of \co{counting}.
 Lines~7 and 8 check to see if the per-thread data can accommodate
-the \url{add_count()} and if there is no ongoing theft in progress,
+the \co{add_count()} and if there is no ongoing theft in progress,
 and if so line~9 does the fastpath addition and line~10 notes that
 the fastpath was taken.
 
@@ -2449,7 +2449,7 @@ In either case, line~12 prevents the compiler from reordering the
 fastpath body to follow line~13, which permits any subsequent signal
 handlers to undertake theft.
 Line~14 again disables compiler reordering, and then line~15
-checks to see if the signal handler deferred the \url{theft}
+checks to see if the signal handler deferred the \co{theft}
 state-change to READY, and, if so, line~16 executes a memory
 barrier to ensure that any CPU that sees line~17 setting state to
 READY also sees the effects of line~9.
@@ -2481,10 +2481,10 @@ success.
 Otherwise, we fall through to the slowpath starting at line~21.
 The structure of the slowpath is similar to those of earlier examples,
 so its analysis is left as an exercise to the reader.
-Similarly, the structure of \url{sub_count()} on lines~38-71 is the same
-as that of \url{add_count()}, so the analysis of \url{sub_count()} is also
+Similarly, the structure of \co{sub_count()} on lines~38-71 is the same
+as that of \co{add_count()}, so the analysis of \co{sub_count()} is also
 left as an exercise for the reader, as is the analysis of
-\url{read_count()} in
+\co{read_count()} in
 Figure~\ref{fig:count:Signal-Theft Limit Counter Read Function}.
 
 \begin{figure}[tbp]
@@ -2533,10 +2533,10 @@ Figure~\ref{fig:count:Signal-Theft Limit Counter Read Function}.
 
 Lines~1-12 of
 Figure~\ref{fig:count:Signal-Theft Limit Counter Initialization Functions}
-show \url{count_init()}, which set up \url{flush_local_count_sig()}
-as the signal handler for \url{SIGUSR1},
-enabling the \url{pthread_kill()} calls in \url{flush_local_count()}
-to invoke \url{flush_local_count_sig()}.
+show \co{count_init()}, which set up \co{flush_local_count_sig()}
+as the signal handler for \co{SIGUSR1},
+enabling the \co{pthread_kill()} calls in \co{flush_local_count()}
+to invoke \co{flush_local_count_sig()}.
 The code for thread registry and unregistry is similar to that of
 earlier examples, so its analysis is left as an exercise for the
 reader.
@@ -2685,16 +2685,16 @@ device removal.
 	\begin{enumerate}
 	\item	There could be any number of devices, so that the
 		global variables are inappropriate, as are the
-		lack of arguments to functions like \url{do_io()}.
+		lack of arguments to functions like \co{do_io()}.
 	\item	Polling loops can be problematic in real systems.
 		In many cases, it is far better to have the last
 		completing I/O wake up the device-removal thread.
-	\item	The I/O might fail, and so \url{do_io()} will likely
+	\item	The I/O might fail, and so \co{do_io()} will likely
 		need a return value.
 	\item	If the device fails, the last I/O might never complete.
 		In such cases, there might need to be some sort of
 		timeout to allow error recovery.
-	\item	Both \url{add_count()} and \url{sub_count()} can
+	\item	Both \co{add_count()} and \co{sub_count()} can
 		fail, but their return values are not checked.
 	\item	Reader-writer locks do not scale well.
 		One way of avoiding the high read-acquisition costs
@@ -2708,7 +2708,7 @@ device removal.
 
 This chapter has presented the reliability, performance, and
 scalability problems with traditional counting primitives.
-The C-language \url{++} operator is not guaranteed to function reliably in
+The C-language \co{++} operator is not guaranteed to function reliably in
 multithreaded code, and atomic operations to a single variable neither
 perform nor scale well.
 This chapter has also presented a number of counting algorithms that
@@ -2760,7 +2760,7 @@ Table~\ref{tab:count:Statistical Counter Performance on Power 5}.
 	work when there are more threads.
 	In addition, the last two algorithms interpose an additional
 	level of indirection because they map from integer thread ID
-	to the corresponding \url{__thread} variable.
+	to the corresponding \co{__thread} variable.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -2847,23 +2847,23 @@ in the face of concurrent readers.
 The fact that these algorithms only work well in their respective special
 cases might be considered a major problem with parallel programming in
 general.
-After all, the C-language \url{++} operator works just fine in single-threaded
+After all, the C-language \co{++} operator works just fine in single-threaded
 code, and not just for special cases, but in general, right?
 
 This line of reasoning does contain a grain of truth, but is in essence
 misguided.
 The problem is not parallelism as such, but rather scalability.
-To understand this, first consider the C-language \url{++} operator.
+To understand this, first consider the C-language \co{++} operator.
 The fact is that it does \emph{not} work in general, only for a restricted
 range of numbers.
-If you need to deal with 1,000-digit decimal numbers, the C-language \url{++}
+If you need to deal with 1,000-digit decimal numbers, the C-language \co{++}
 operator will not work for you.
 
 \QuickQuiz{}
-	The \url{++} operator works just fine for 1,000-digit numbers!
+	The \co{++} operator works just fine for 1,000-digit numbers!
 	Haven't you heard of operator overloading???
 \QuickQuizAnswer{
-	In the C++ language, you might well be able to use \url{++}
+	In the C++ language, you might well be able to use \co{++}
 	on a 1,000-digit number, assuming that you had access to a
 	class implementing such numbers.
 	But as of 2010, the C language does not permit operator overloading.

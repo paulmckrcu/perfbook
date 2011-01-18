@@ -79,7 +79,7 @@ of order, which could cause serious confusion, as illustrated in
 Figure~\ref{fig:advsync:CPUs Can Do Things Out of Order}.
 Compilers and synchronization primitives (such as locking and RCU)
 are responsible for maintaining the illusion of ordering through use of
-``memory barriers'' (for example, \url{smp_mb()} in the Linux kernel).
+``memory barriers'' (for example, \co{smp_mb()} in the Linux kernel).
 These memory barriers can be explicit instructions, as they are on
 ARM, POWER, Itanium, and Alpha, or they can be implied by other instructions,
 as they are on x86.
@@ -143,9 +143,9 @@ where variables A, B, and C are initially zero:
 \label{fig:advsync:Parallel Hardware is Non-Causal}
 \end{figure}
 
-Intuitively, \url{thread0()} assigns to B after it assigns to A,
-\url{thread1()} waits until \url{thread0()} has assigned to B before
-assigning to C, and \url{thread2()} waits until \url{thread1()} has
+Intuitively, \co{thread0()} assigns to B after it assigns to A,
+\co{thread1()} waits until \co{thread0()} has assigned to B before
+assigning to C, and \co{thread2()} waits until \co{thread1()} has
 assigned to C before referencing A.
 Therefore, again intuitively, the assertion on line~21 cannot possibly
 fire.
@@ -179,8 +179,8 @@ greatly \emph{increase} the probability of failure in this run.
 \QuickQuiz{}
 	Great...  So how do I fix it?
 \QuickQuizAnswer{
-	The easiest fix is to replace the \url{barrier()} on
-	line~12 with an \url{smp_mb()}.
+	The easiest fix is to replace the \co{barrier()} on
+	line~12 with an \co{smp_mb()}.
 } \QuickQuizEnd
 
 So what should you do?
@@ -205,7 +205,7 @@ To see this, consider the program fragment shown in
 Figure~\ref{fig:advsync:Software Logic Analyzer}.
 This code fragment is executed in parallel by several CPUs.
 Line~1 sets a shared variable to the current CPU's ID, line~2
-initializes several variables from a \url{gettb()} function that
+initializes several variables from a \co{gettb()} function that
 delivers the value of fine-grained hardware ``timebase'' counter that is
 synchronized among all CPUs (not available from all CPU architectures,
 unfortunately!), and the loop from lines~3-8 records the length of
@@ -242,12 +242,12 @@ the loop if not for the check on lines~7-8.
 \label{fig:advsync:Software Logic Analyzer}
 \end{figure}
 
-Upon exit from the loop, \url{firsttb} will hold a timestamp
-taken shortly after the assignment and \url{lasttb} will hold
+Upon exit from the loop, \co{firsttb} will hold a timestamp
+taken shortly after the assignment and \co{lasttb} will hold
 a timestamp taken before the last sampling of the shared variable
-that still retained the assigned value, or a value equal to \url{firsttb}
+that still retained the assigned value, or a value equal to \co{firsttb}
 if the shared variable had changed before entry into the loop.
-This allows us to plot each CPU's view of the value of \url{state.variable}
+This allows us to plot each CPU's view of the value of \co{state.variable}
 over a 532-nanosecond time period, as shown in
 Figure~\ref{fig:advsync:A Variable With Multiple Simultaneous Values}.
 This data was collected on 1.5GHz POWER5 system with 8 cores, each containing
@@ -373,17 +373,17 @@ the series of values seen by all CPUs will be consistent with at
 least one global ordering.
 For example, in the series of accesses shown in
 Figure~\ref{fig:advsync:A Variable With Multiple Simultaneous Values},
-CPU~1 sees the sequence \url{{1,2}},
-CPU~2 sees the sequence \url{{2}},
-CPU~3 sees the sequence \url{{3,2}},
+CPU~1 sees the sequence \tt{{1,2}},
+CPU~2 sees the sequence \tt{{2}},
+CPU~3 sees the sequence \tt{{3,2}},
 and
-CPU~4 sees the sequence \url{{4,2}}.
-This is consistent with the global sequence \url{{3,1,4,2}},
+CPU~4 sees the sequence \tt{{4,2}}.
+This is consistent with the global sequence \tt{{3,1,4,2}},
 but also with all five of the other sequence of these four numbers that end
 in ``2''.
 
 Had the CPUs used atomic operations (such as the Linux kernel's
-\url{atomic_inc_return()} primitive) rather than simple stores of
+\co{atomic_inc_return()} primitive) rather than simple stores of
 unique values, their observations would
 be guaranteed to determine a single globally consistent sequence of values.
 
@@ -412,9 +412,9 @@ on this weaker if-then conditional ordering guarantee.
 \begin{tabular}{l|l}
 	CPU 1 &			CPU 2 \\
 	\hline
-	\url{access(A);} &	\url{access(B);} \\
-	\url{smp_mb();} &	\url{smp_mb();} \\
-	\url{access(B);} &	\url{access(A);} \\
+	\co{access(A);} &	\co{access(B);} \\
+	\co{smp_mb();} &	\co{smp_mb();} \\
+	\co{access(B);} &	\co{access(A);} \\
 \end{tabular}
 \end{minipage}
 \vspace{5pt}
@@ -506,23 +506,23 @@ pairings that portable software may depend on.
 	\begin{tabular}{l|l}
 		CPU 1 &			CPU 2 \\
 		\hline
-		\url{A=1;} &		\url{Y=B;} \\
-		\url{smp_mb();} &	\url{smp_mb();} \\
-		\url{B=1;} &		\url{X=A;} \\
+		\co{A=1;} &		\co{Y=B;} \\
+		\co{smp_mb();} &	\co{smp_mb();} \\
+		\co{B=1;} &		\co{X=A;} \\
 	\end{tabular}
 	\end{minipage}
 	\vspace{5pt}
 	After both CPUs have completed executing these code sequences,
-	if \url{Y==1}, then we must also have \url{X==1}.
-	In this case, the fact that \url{Y==1} means that
+	if \co{Y==1}, then we must also have \co{X==1}.
+	In this case, the fact that \co{Y==1} means that
 	CPU~2's load prior to its memory barrier has
 	seen the store following CPU~1's memory barrier.
 	Due to the pairwise nature of memory barriers, CPU~2's
 	load following its memory barrier must therefore see
 	the store that precedes CPU~1's memory barrier, so that
-	\url{Y==1}.
+	\co{Y==1}.
 
-	On the other hand, if \url{Y==0}, the memory-barrier condition
+	On the other hand, if \co{Y==0}, the memory-barrier condition
 	does not hold, and so in this case, X could be either 0 or 1.
 
 \paragraph{Pairing 2.}
@@ -535,28 +535,28 @@ pairings that portable software may depend on.
 	\begin{tabular}{l|l}
 		CPU 1 &			CPU 2 \\
 		\hline
-		\url{X=A;} &		\url{Y=B;} \\
-		\url{smp_mb();} &	\url{smp_mb();} \\
-		\url{B=1;} &		\url{A=1;} \\
+		\co{X=A;} &		\co{Y=B;} \\
+		\co{smp_mb();} &	\co{smp_mb();} \\
+		\co{B=1;} &		\co{A=1;} \\
 	\end{tabular}
 	\end{minipage}
 	\vspace{5pt}
 	After both CPUs have completed executing these code sequences,
-	if \url{X==1}, then we must also have \url{Y==0}.
-	In this case, the fact that \url{X==1} means that
+	if \co{X==1}, then we must also have \co{Y==0}.
+	In this case, the fact that \co{X==1} means that
 	CPU~1's load prior to its memory barrier has
 	seen the store following CPU~2's memory barrier.
 	Due to the pairwise nature of memory barriers, CPU~1's
 	store following its memory barrier must therefore see
 	the results of CPU~2's load preceding its memory barrier,
-	so that \url{Y==0}.
+	so that \co{Y==0}.
 
-	On the other hand, if \url{X==0}, the memory-barrier condition
+	On the other hand, if \co{X==0}, the memory-barrier condition
 	does not hold, and so in this case, Y could be either 0 or 1.
 
-	The two CPUs' code sequences are symmetric, so if \url{Y==1}
+	The two CPUs' code sequences are symmetric, so if \co{Y==1}
 	after both CPUs have finished executing these code sequences,
-	then we must have \url{X==0}.
+	then we must have \co{X==0}.
 
 \paragraph{Pairing 3.}
 	In this pairing, one CPU executes a load followed by a
@@ -569,24 +569,24 @@ pairings that portable software may depend on.
 	\begin{tabular}{l|l}
 		CPU 1 &			CPU 2 \\
 		\hline
-		\url{X=A;} &		\url{B=2;} \\
-		\url{smp_mb();} &	\url{smp_mb();} \\
-		\url{B=1;} &		\url{A=1;} \\
+		\co{X=A;} &		\co{B=2;} \\
+		\co{smp_mb();} &	\co{smp_mb();} \\
+		\co{B=1;} &		\co{A=1;} \\
 	\end{tabular}
 	\end{minipage}
 	\vspace{5pt}
 	After both CPUs have completed executing these code sequences,
-	if \url{X==1}, then we must also have \url{B==1}.
-	In this case, the fact that \url{X==1} means that
+	if \co{X==1}, then we must also have \co{B==1}.
+	In this case, the fact that \co{X==1} means that
 	CPU~1's load prior to its memory barrier has
 	seen the store following CPU~2's memory barrier.
 	Due to the pairwise nature of memory barriers, CPU~1's
 	store following its memory barrier must therefore see
 	the results of CPU~2's store preceding its memory barrier.
 	This means that CPU~1's store to B will overwrite CPU~2's
-	store to B, resulting in \url{B==1}.
+	store to B, resulting in \co{B==1}.
 
-	On the other hand, if \url{X==0}, the memory-barrier condition
+	On the other hand, if \co{X==0}, the memory-barrier condition
 	does not hold, and so in this case, B could be either 1 or 2.
 
 \subsubsection{Pair-Wise Memory Barriers: Semi-Portable Combinations}
@@ -610,16 +610,16 @@ introduced since the year 2000.
 \paragraph{Stores ``Pass in the Night''.}
 	In the following example, after both CPUs have finished
 	executing their code sequences, it is quite tempting to
-	conclude that the result \url{{A==1,B==2}} cannot happen.
+	conclude that the result \tt{{A==1,B==2}} cannot happen.
 	\vspace{5pt}
 	\begin{minipage}[t]{\columnwidth}
 	\tt
 	\begin{tabular}{l|l}
 		CPU 1 &			CPU 2 \\
 		\hline
-		\url{A=1;} &		\url{B=2;} \\
-		\url{smp_mb();} &	\url{smp_mb();} \\
-		\url{B=1;} &		\url{A=2;} \\
+		\co{A=1;} &		\co{B=2;} \\
+		\co{smp_mb();} &	\co{smp_mb();} \\
+		\co{B=1;} &		\co{A=2;} \\
 	\end{tabular}
 	\end{minipage}
 	\vspace{5pt}
@@ -680,8 +680,8 @@ safely depend on.
 
 \subsubsection{Semantics Sufficient to Implement Locking}
 
-Suppose we have an exclusive lock (\url{spinlock_t} in the Linux
-kernel, \url{pthread_mutex_t} in pthreads code) that guards a number
+Suppose we have an exclusive lock (\co{spinlock_t} in the Linux
+kernel, \co{pthread_mutex_t} in pthreads code) that guards a number
 of variables (in other words, these variables are not accessed except
 from the lock's critical sections).
 The following properties must then hold true:
@@ -814,11 +814,11 @@ they interact with a typical locking implementation.
 \label{sec:advsync:Review of Locking Implementations}
 
 Naive pseudocode for simple lock and unlock operations are shown below.
-Note that the \url{atomic_xchg()} primitive implies a memory barrier
+Note that the \co{atomic_xchg()} primitive implies a memory barrier
 both before and after the atomic exchange operation, which eliminates
-the need for an explicit memory barrier in \url{spin_lock()}.
-Note also that, despite the names, \url{atomic_read()} and
-\url{atomic_set()} do \emph{not}
+the need for an explicit memory barrier in \co{spin_lock()}.
+Note also that, despite the names, \co{atomic_read()} and
+\co{atomic_set()} do \emph{not}
 execute any atomic instructions, instead, it merely executes a
 simple load and store, respectively.
 This pseudocode follows a number of Linux implementations for
@@ -847,8 +847,8 @@ laid out in Section~\ref{sec:advsync:What Can You Trust?}.
 \label{codesample:advsync:Naive Lock and Unlock Pseudocode}
 \vspace{5pt}
 
-The \url{spin_lock()} primitive cannot proceed until
-the preceding \url{spin_unlock()} primitive completes.
+The \co{spin_lock()} primitive cannot proceed until
+the preceding \co{spin_unlock()} primitive completes.
 If CPU~1 is releasing a lock that CPU~2 is attempting to acquire,
 the sequence of operations might be as follows:
 
@@ -858,13 +858,13 @@ the sequence of operations might be as follows:
 \begin{tabular}{l|l}
 	CPU 1 &			CPU 2 \\
 	\hline
-	(critical section) &	\url{atomic_xchg(&lck->a, 1)->1} \\
-	\url{smp_mb();} &	\url{lck->a->1} \\
-	\url{lck->a=0;} &	\url{lck->a->1} \\
-	&			\url{lck->a->0} \\
-	&			(implicit \url{smp_mb()} 1) \\
-	&			\url{atomic_xchg(&lck->a, 1)->0} \\
-	&			(implicit \url{smp_mb()} 2) \\
+	(critical section) &	\co{atomic_xchg(&lck->a, 1)->1} \\
+	\co{smp_mb();} &	\co{lck->a->1} \\
+	\co{lck->a=0;} &	\co{lck->a->1} \\
+	&			\co{lck->a->0} \\
+	&			(implicit \co{smp_mb()} 1) \\
+	&			\co{atomic_xchg(&lck->a, 1)->0} \\
+	&			(implicit \co{smp_mb()} 2) \\
 	&			(critical section) \\
 \end{tabular}
 \end{minipage}
@@ -872,7 +872,7 @@ the sequence of operations might be as follows:
 
 In this particular case, pairwise memory barriers suffice to keep
 the two critical sections in place.
-CPU~2's \url{atomic_xchg(&lck->a, 1)} has seen CPU~1's \url{lck->a=0},
+CPU~2's \co{atomic_xchg(&lck->a, 1)} has seen CPU~1's \co{lck->a=0},
 so therefore everything in CPU~2's following critical section must see
 everything that CPU~1's preceding critical section did.
 Conversely, CPU~1's critical section cannot see anything that CPU~2's
@@ -952,7 +952,7 @@ interface between the CPU and rest of the system (the dotted lines).
 
 
 For example, consider the following sequence of events given the
-initial values \url{{A = 1, B = 2}}:
+initial values \tt{{A = 1, B = 2}}:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1006,7 +1006,7 @@ perceived by the loads made by another CPU in the same order as the stores were
 committed.
 
 As a further example, consider this sequence of events given the
-initial values \url{{A = 1, B = 2, C = 3, P = &A, Q = &C}}:
+initial values \tt{{A = 1, B = 2, C = 3, P = \&A, Q = \&C}}:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1021,8 +1021,8 @@ initial values \url{{A = 1, B = 2, C = 3, P = &A, Q = &C}}:
 \vspace{5pt}
 
 There is an obvious data dependency here,
-as the value loaded into \url{D} depends on
-the address retrieved from \url{P} by CPU~2.
+as the value loaded into \co{D} depends on
+the address retrieved from \co{P} by CPU~2.
 At the end of the sequence, any of the
 following results are possible:
 
@@ -1446,7 +1446,7 @@ of the confines of a given architecture:
 The usage requirements of data dependency barriers are a little subtle, and
 it's not always obvious that they're needed.  To illustrate, consider the
 following sequence of events, with initial values
-\url{{A = 1, B = 2, C = 3, P = &A, Q = &C}}:
+\tt{{A = 1, B = 2, C = 3, P = \&A, Q = \&C}}:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1464,8 +1464,8 @@ following sequence of events, with initial values
 \vspace{5pt}
 
 There's a clear data dependency here, and it would seem intuitively
-obvious that by the end of the sequence, \url{Q} must be either \url{&A}
-or \url{&B}, and that:
+obvious that by the end of the sequence, \co{Q} must be either \co{&A}
+or \co{&B}, and that:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1478,8 +1478,8 @@ or \url{&B}, and that:
 \vspace{5pt}
 
 Counter-intuitive though it might be, it is quite possible that
-CPU~2's perception of \url{P} might be updated \emph{before} its perception
-of \url{B}, thus leading to the following situation:
+CPU~2's perception of \co{P} might be updated \emph{before} its perception
+of \co{B}, thus leading to the following situation:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1496,7 +1496,7 @@ Alpha).
 
 To deal with this, a data dependency barrier must be inserted between the
 address load and the data load (again with initial values of
-\url{{A = 1, B = 2, C = 3, P = &A, Q = &C}}):
+\tt{{A = 1, B = 2, C = 3, P = \&A, Q = \&C}}):
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1521,17 +1521,17 @@ Note that this extremely counterintuitive situation arises most easily on
 machines with split caches, so that, for example, one cache bank processes
 even-numbered cache lines and the other bank processes odd-numbered cache
 lines.
-The pointer \url{P} might be stored in an odd-numbered cache line, and the
-variable \url{B} might be stored in an even-numbered cache line.  Then, if the
+The pointer \co{P} might be stored in an odd-numbered cache line, and the
+variable \co{B} might be stored in an even-numbered cache line.  Then, if the
 even-numbered bank of the reading CPU's cache is extremely busy while the
 odd-numbered bank is idle, one can see the new value of the
-pointer \url{P} (which is \url{&B}),
-but the old value of the variable \url{B} (which is 1).
+pointer \co{P} (which is \co{&B}),
+but the old value of the variable \co{B} (which is 1).
 
 Another example of where data dependency barriers might by required is where a
 number is read from memory and then used to calculate the index for an array
 access with initial values
-\url{{M[0] = 1, M[1] = 2, M[3] = 3, P = 0, Q = 3}}:
+\tt{{M[0] = 1, M[1] = 2, M[3] = 3, P = 0, Q = 3}}:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1551,7 +1551,7 @@ access with initial values
 
 The data dependency barrier is very important to the Linux kernel's
 RCU system, for example,
-see \url{rcu_dereference()} in \url{include/linux/rcupdate.h}.
+see \co{rcu_dereference()} in \url{include/linux/rcupdate.h}.
 This permits the current
 target of an RCU'd pointer to be replaced with a new modified target, without
 the replacement target appearing to be incompletely initialised.
@@ -1677,9 +1677,9 @@ Consider the following sequence of events:
 
 This sequence of events is committed to the memory coherence system in an order
 that the rest of the system might perceive as the unordered set of
-\url{{A=1,B=2,C=3}}
+\tt{{A=1,B=2,C=3}}
 all occurring before the unordered set of
-\url{{D=4,E=5}}, as shown in
+\tt{{D=4,E=5}}, as shown in
 Figure~\ref{fig:advsync:Write Barrier Ordering Semantics}.
 
 \begin{figure*}[htb]
@@ -1692,7 +1692,7 @@ Figure~\ref{fig:advsync:Write Barrier Ordering Semantics}.
 
 Secondly, data dependency barriers act as a partial orderings on data-dependent
 loads.  Consider the following sequence of events with initial values
-\url{{B = 7, X = 9, Y = 8, C = &Y}}:
+\tt{{B = 7, X = 9, Y = 8, C = \&Y}}:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1721,13 +1721,13 @@ effectively random order, despite the write barrier issued by CPU~1:
 \ContributedBy{Figure}{fig:advsync:Data Dependency Barrier Omitted}{David Howells}
 \end{figure*}
 
-In the above example, CPU~2 perceives that \url{B} is 7,
-despite the load of \url{*C}
-(which would be \url{B}) coming after the \url{LOAD} of \url{C}.
+In the above example, CPU~2 perceives that \co{B} is 7,
+despite the load of \co{*C}
+(which would be \co{B}) coming after the \co{LOAD} of \co{C}.
 
 If, however, a data dependency barrier were to be placed between the load of C
-and the load of \url{*C} (i.e.: \url{B}) on CPU~2, again with initial values of
-\url{{B = 7, X = 9, Y = 8, C = &Y}}:
+and the load of \co{*C} (i.e.: \co{B}) on CPU~2, again with initial values of
+\tt{{B = 7, X = 9, Y = 8, C = \&Y}}:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1759,7 +1759,7 @@ Figure~\ref{fig:advsync:Data Dependency Barrier Supplied}.
 
 And thirdly, a read barrier acts as a partial order on loads.  Consider the
 following sequence of events, with initial values
-\url{{A = 0, B = 9}}:
+\tt{{A = 0, B = 9}}:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1787,9 +1787,9 @@ some effectively random order, despite the write barrier issued by CPU~1:
 \ContributedBy{Figure}{fig:advsync:Read Barrier Needed}{David Howells}
 \end{figure*}
 
-If, however, a read barrier were to be placed between the load of \url{B}
-and the load of \url{A} on CPU~2, again with initial values of
-\url{{A = 0, B = 9}}:
+If, however, a read barrier were to be placed between the load of \co{B}
+and the load of \co{A} on CPU~2, again with initial values of
+\tt{{A = 0, B = 9}}:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1822,7 +1822,7 @@ Figure~\ref{fig:advsync:Read Barrier Supplied}.
 To illustrate this more completely, consider what could happen if the code
 contained a load of A either side of the read barrier, once again
 with the same initial values of
-\url{{A = 0, B = 9}}:
+\tt{{A = 0, B = 9}}:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1841,8 +1841,8 @@ with the same initial values of
 \end{minipage}
 \vspace{5pt}
 
-Even though the two loads of \url{A}
-both occur after the load of \url{B}, they may both
+Even though the two loads of \co{A}
+both occur after the load of \co{B}, they may both
 come up with different values, as shown in
 Figure~\ref{fig:advsync:Read Barrier Supplied, Double Load}.
 
@@ -1854,7 +1854,7 @@ Figure~\ref{fig:advsync:Read Barrier Supplied, Double Load}.
 \ContributedBy{Figure}{fig:advsync:Read Barrier Supplied, Double Load}{David Howells}
 \end{figure*}
 
-Of course, it may well be that CPU~1's update to \url{A} becomes perceptible
+Of course, it may well be that CPU~1's update to \co{A} becomes perceptible
 to CPU~2 before the read barrier completes, as shown in
 Figure~\ref{fig:advsync:Read Barrier Supplied, Take Two}.
 
@@ -1866,11 +1866,11 @@ Figure~\ref{fig:advsync:Read Barrier Supplied, Take Two}.
 \ContributedBy{Figure}{fig:advsync:Read Barrier Supplied, Take Two}{David Howells}
 \end{figure*}
 
-The guarantee is that the second load will always come up with \url{A == 1}
+The guarantee is that the second load will always come up with \co{A == 1}
 if the
-load of \url{B} came up with \url{B == 2}.
+load of \co{B} came up with \co{B == 2}.
 No such guarantee exists for the first load of
-\url{A}; that may come up with either \url{A == 0} or \url{A == 1}.
+\co{A}; that may come up with either \co{A == 0} or \co{A == 1}.
 
 \subsubsection{Read Memory Barriers vs. Load Speculation}
 \label{sec:advsync:Read Memory Barriers vs. Load Speculation}
@@ -1904,7 +1904,7 @@ For example, consider the following:
 
 On some CPUs, divide instructions can take a long time to complete,
 which means that CPU~2's bus might go idle during that time.
-CPU~2 might therefore speculatively load \url{A} before the divides
+CPU~2 might therefore speculatively load \co{A} before the divides
 complete.
 In the (hopefully) unlikely event of an exception from one of the dividees,
 this speculative load will have been wasted, but in the (again, hopefully)
@@ -1943,9 +1943,9 @@ dependent on the type of barrier used.  If there was no change made to the
 speculated memory location, then the speculated value will just be used,
 as shown in
 Figure~\ref{fig:advsync:Speculative Loads and Barrier}.
-On the other hand, if there was an update or invalidation to \url{A}
+On the other hand, if there was an update or invalidation to \co{A}
 from some other CPU, then the speculation will be cancelled and the
-value of \url{A} will be reloaded,
+value of \co{A} will be reloaded,
 as shown in Figure~\ref{fig:advsync:Speculative Loads Cancelled by Barrier}.
 
 \begin{figure*}[htb]
@@ -2112,23 +2112,23 @@ operations concurrently:
   \# & Ordering: legitimate or not? \\
   \hline
   \hline
-  1 & \url{*A; *B; LOCK; *C; *D; UNLOCK; *E; *F;} \\
+  1 & \co{*A; *B; LOCK; *C; *D; UNLOCK; *E; *F;} \\
   \hline
-  2 & \url{*A; {*B; LOCK;} *C; *D; UNLOCK; *E; *F;} \\
+  2 & \tt{*A; {*B; LOCK;} *C; *D; UNLOCK; *E; *F;} \\
   \hline
-  3 & \url{{*F; *A;} *B; LOCK; *C; *D; UNLOCK; *E;} \\
+  3 & \tt{{*F; *A;} *B; LOCK; *C; *D; UNLOCK; *E;} \\
   \hline
-  4 & \url{*A; *B; {LOCK; *C;} *D; {UNLOCK; *E;} *F;} \\
+  4 & \tt{*A; *B; {LOCK; *C;} *D; {UNLOCK; *E;} *F;} \\
   \hline
-  5 & \url{*B; LOCK; *C; *D; *A; UNLOCK; *E; *F;} \\
+  5 & \co{*B; LOCK; *C; *D; *A; UNLOCK; *E; *F;} \\
   \hline
-  6 & \url{*A; *B; *C; LOCK; *D; UNLOCK; *E; *F;} \\
+  6 & \co{*A; *B; *C; LOCK; *D; UNLOCK; *E; *F;} \\
   \hline
-  7 & \url{*A; *B; LOCK; *C; UNLOCK; *D; *E; *F;} \\
+  7 & \co{*A; *B; LOCK; *C; UNLOCK; *D; *E; *F;} \\
   \hline
-  8 & \url{{*B; *A; LOCK;} {*D; *C;} {UNLOCK; *F; *E;}} \\
+  8 & \tt{{*B; *A; LOCK;} {*D; *C;} {UNLOCK; *F; *E;}} \\
   \hline
-  9 & \url{*B; LOCK; *C; *D; UNLOCK; {*F; *A;} *E; } \\
+  9 & \tt{*B; LOCK; *C; *D; UNLOCK; {*F; *A;} *E; } \\
 \end{tabular}
 \caption{Lock-Based Critical Sections}
 \label{tab:advsync:Lock-Based Critical Sections}
@@ -2335,7 +2335,7 @@ the corresponding architecture.
 However, primitives that implement atomic operations, such as locking
 primitives and atomic data-structure manipulation and traversal primitives,
 will normally include any needed memory barriers in their definitions.
-However, there are some exceptions, such as \url{atomic_inc()} in the
+However, there are some exceptions, such as \co{atomic_inc()} in the
 Linux kernel, so be sure to review the documentation, and, if possible,
 the actual implementations, for your software environment.
 
