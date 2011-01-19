@@ -157,6 +157,8 @@ hierarchy~\cite{JonathanCorbet2006lockdep}.
   3 nextlayer = layer_1(pkt);
   4 spin_lock(&nextlayer->lock1);
   5 layer_1_processing(pkt);
+  6 spin_unlock(&lock2);
+  7 spin_unlock(&nextlayer->lock1);
 \end{verbatim}
 }
 \caption{Protocol Layering and Deadlock}
@@ -195,6 +197,8 @@ can result in deadlock.
  13     }
  14   }
  15   layer_1_processing(pkt);
+ 16 spin_unlock(&lock2);
+ 17 spin_unlock(&nextlayer->lock1);
 \end{verbatim}
 }
 \caption{Avoiding Deadlock Via Conditional Locking}
@@ -239,6 +243,31 @@ must release the locks and start over.
 	arbitrarily complex.
 } \QuickQuizEnd
 
+\QuickQuiz{}
+	But the complexity in
+	Figure~\ref{fig:locking:Avoiding Deadlock Via Conditional Locking}
+	is well worthwhile given that it avoids deadlock, right?
+\QuickQuizAnswer{
+	Maybe.
+
+	If the routing decision in \co{layer_1()} changes often enough,
+	the code will always retry, never making forward progress.
+	This is termed ``livelock'' (Section~\ref{sec:locking:Livelock})
+	if no thread makes any forward progress or
+	``starvation'' (Section~\ref{sec:locking:Starvation})
+	if some threads make forward progress but other do not.
+} \QuickQuizEnd
+
+In some cases, it is possible to avoid nesting locks, thus avoiding
+deadlock.
+However, there must be some mechanism to ensure that the needed data
+structures remain in existence during the time that neither lock is
+held.
+One such mechanism is discussed in
+Section~\ref{sec:locking:Lock-Based Existence Guarantees}
+and several others are presented in
+Chapter~\ref{chp:defer:Deferred Processing}.
+
 \subsection{Livelock}
 \label{sec:locking:Livelock}
 
@@ -263,7 +292,7 @@ must release the locks and start over.
 \subsection{Beyond Reader-Writer Locks}
 \label{sec:locking:Beyond Reader-Writer Locks}
 
-Sequence locks.  VAXCluster six-state locking.
+VAXCluster six-state locking.
 
 \subsection{While Waiting}
 \label{sec:locking:While Waiting}
