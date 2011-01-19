@@ -164,11 +164,7 @@ EPSSOURCES = \
 	locking/LockingTheHero.eps \
 	locking/LockingTheSlob.eps
 
-all: 1up
-
-1up: perfbook.pdf
-
-2up: perfbook-2up.pdf
+all: perfbook.pdf
 
 perfbook.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	pdflatex perfbook || :
@@ -176,12 +172,6 @@ perfbook.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	pdflatex perfbook || :
 	pdflatex perfbook || :
 	pdflatex perfbook || :
-
-perfbook-2up.pdf: perfbook.dvi $(EPSSOURCES)
-	dvips -o -Pdownload35 perfbook
-	psnup -2 perfbook.ps perfbook-2up.ps
-	ps2pdf -dEmbedAllFonts=true perfbook-2up.ps perfbook-2up.pdf
-	rm perfbook.ps perfbook-2up.ps
 
 perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	latex perfbook || :
