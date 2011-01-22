@@ -269,10 +269,82 @@ and several others are presented in
 Chapter~\ref{chp:defer:Deferred Processing}.
 
 \subsection{Livelock}
-\label{sec:locking:Livelock}
+\label{sec:locking:Livelock and Starvation}
 
-\subsection{Starvation}
-\label{sec:locking:Starvation}
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void thread1(void)
+  2 {
+  3 retry:
+  4   spin_lock(&lock1);
+  5   do_one_thing();
+  6   if (!spin_trylock(&lock2)) {
+  7     spin_unlock(&lock1);
+  8     goto retry;
+  9   }
+ 10   do_another_thing();
+ 11   spin_unlock(&lock2);
+ 12   spin_unlock(&lock1);
+ 13 }
+ 14 
+ 15 void thread2(void)
+ 16 {
+ 17 retry:
+ 18   spin_lock(&lock2);
+ 19   do_a_third_thing();
+ 20   if (!spin_trylock(&lock1)) {
+ 21     spin_unlock(&lock2);
+ 22     goto retry;
+ 23   }
+ 24   do_a_fourth_thing();
+ 25   spin_unlock(&lock1);
+ 26   spin_unlock(&lock2);
+ 27 }
+\end{verbatim}
+}
+\caption{Abusing Conditional Locking}
+\label{fig:locking:Protocol Layering and Deadlock}
+\end{figure}
+
+Although conditional locking can an effective deadlock-avoidance mechanism,
+it can be abused.
+Consider for example the beautifully symmetric example shown in
+Figure~\ref{fig:locking:Protocol Layering and Deadlock}.
+This example's beauty hids an ugly livelock.
+To see this, consider the following sequence of events:
+
+\begin{enumerate}
+\item	Thread~1 acquires \co{lock1} on line~4, then invokes
+	\co{do_one_thing()}.
+\item	Thread~2 acquires \co{lock2} on line~18, then invokes
+	\co{do_a_third_thing()}.
+\item	Thread~1 attempts to acquire \co{lock2}, but fails because
+	Thread~2 holds it.
+\item	Thread~2 attempts to acquire \co{lock1}, but fails because
+	Thread~1 holds it.
+\item	Thread~1 releases \co{lock1}, and jumps to \co{retry}.
+\item	Thread~2 releases \co{lock2}, and jumps to \co{retry}.
+\item	The livelock dance repeats from the beginning.
+\end{enumerate}
+
+\QuickQuiz{}
+	How can the livelock shown in
+	Figure~\ref{fig:locking:Protocol Layering and Deadlock}
+	be avoided?
+\QuickQuizAnswer{
+	This is left as an exercise to the reader.
+	Figure~\ref{fig:locking:Avoiding Deadlock Via Conditional Locking}
+	provides some good hints.
+	In many cases, livelocks are a hint that you should revisit your
+	locking design.
+	Or visit it in the first place if your locking design
+	``just grew''.
+} \QuickQuizEnd
+
+Starvation is very similar to livelock.
+Put another way, a livelock is an extreme form of starvation where
+all threads starve.
 
 \subsection{Unfairness}
 \label{sec:locking:Unfairness}
@@ -282,6 +354,13 @@ Chapter~\ref{chp:defer:Deferred Processing}.
 
 \section{Types of Locks}
 \label{sec:locking:Types of Locks}
+
+There are a surprising number of types of locks, more than this
+short chapter can possibly do justice to.
+The following sections discuss
+exclusive locks (Section~\ref{sec:locking:Exclusive Locks}),
+reader-writer locks (Section~\ref{sec:locking:Reader-Writer Locks}), and
+multi-role locks (Section~\ref{sec:locking:Beyond Reader-Writer Locks}).
 
 \subsection{Exclusive Locks}
 \label{sec:locking:Exclusive Locks}
@@ -293,13 +372,5 @@ Chapter~\ref{chp:defer:Deferred Processing}.
 \label{sec:locking:Beyond Reader-Writer Locks}
 
 VAXCluster six-state locking.
-
-\subsection{While Waiting}
-\label{sec:locking:While Waiting}
-
-Spinlocks, sleeplocks, spin-sleeplocks (maybe), conditional locking.
-
-\subsection{Sleeping Safely}
-\label{sec:locking:Sleeping Safely}
 
 \input{locking/locking-existence}
