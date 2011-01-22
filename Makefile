@@ -158,6 +158,7 @@ EPSSOURCES = \
 	defer/rwlockRCUupdate.eps \
 	easy/Mandel_zoom_00_mandelbrot_set.eps \
 	intro/FourTaskCategories.eps \
+	intro/FourTaskOrder.eps \
 	intro/Generality.eps \
 	intro/PPGrelation.eps \
 	locking/DeadlockCycle.eps \

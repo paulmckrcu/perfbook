@@ -5,7 +5,7 @@
 This chapter describes how to design software to take advantage of
 the multiple CPUs that are increasingly appearing in commodity systems.
 It does this by presenting a number of idioms, or ``design patterns''
-that can help you balance performance, scalability, and realtime response.
+that can help you balance performance, scalability, and response time.
 As noted in earlier chapters, the most important decision you will make
 when creating parallel software is how to carry out the partitioning.
 Correctly partitioned problems lead to simple, scalable, and
@@ -744,8 +744,10 @@ as depicted in Figure~\ref{fig:SMPdesign:Parallel-Fastpath Design Patterns}:
 \begin{enumerate}
 \item	Reader/Writer Locking
 	(described below in Section~\ref{sec:SMPdesign:Reader/Writer Locking}).
-\item	Read-copy update (RCU), which is very briefly described below
-	in Section~\ref{sec:SMPdesign:Read-Copy Update Introduction}).
+\item	Read-copy update (RCU), which may be used as a high-performance
+	replacement for reader/writer locking, is introduced in
+	Section~\ref{sec:defer:Read-Copy Update (RCU)}, and will not
+	be discussed further in this chapter.
 \item   Hierarchical Locking~(\cite{McKenney95b}), which is touched upon
 	in Section~\ref{sec:SMPdesign:Hierarchical Locking}.
 \item	Resource Allocator Caches~(\cite{McKenney95b,McKenney93}).
@@ -810,87 +812,6 @@ asymmetric locking design used in several clustered systems.
 Locking in general and reader-writer locking in particular is described
 extensively in
 Chapter~\ref{chp:Locking}.
-
-\subsection{Read-Copy Update Introduction}
-\label{sec:SMPdesign:Read-Copy Update Introduction}
-
-Read-copy update (RCU) is a mutual-exclusion mechanism which can be
-used as an alternative to reader-writer locking.
-RCU features extremely low-overhead wait-free read-side critical sections,
-however, updates can be expensive, as they must leave old versions of the
-data structure in place for the sake of pre-existing readers.
-These old versions may be reclaimed once all such pre-existing readers
-complete their accesses.~\cite{WikipediaRCU}.
-
-It turns out that our example hash-search program is well-suited to RCU.
-Other programs may be more difficult to adapt to RCU,
-and more detail on such adaptation may be found in
-Section~\ref{sec:defer:Read-Copy Update (RCU)}.
-
-In some implementations of RCU
-(such as that of Hart et al.~\cite{ThomasEHart2006a}),
-the search code can be implemented
-exactly as in sequential programs, as was shown in
-Figure~\ref{fig:SMPdesign:Sequential-Program Hash Table Search}.
-However, other environments, including the Linux kernel, require
-that the RCU read-side critical sections be marked explicitly,
-as shown in
-Figure~\ref{fig:SMPdesign:RCU Hash Table Search}.
-Such marking can be a great favor to whoever must later read the code!
-
-\begin{figure}[htbp]
-{ \scriptsize
-\begin{verbatim}
-  1 struct hash_table
-  2 {
-  3   long nbuckets;
-  4   struct node **buckets;
-  5 };
-  6
-  7 typedef struct node {
-  8   unsigned long key;
-  9   struct node *next;
- 10 } node_t;
- 11
- 12 int hash_search(struct hash_table *h, long key)
- 13 {
- 14   struct node *cur;
- 15   int retval;
- 16
- 17   rcu_read_lock();
- 18   cur = h->buckets[key % h->nbuckets];
- 19   while (cur != NULL) {
- 20     if (cur->key >= key) {
- 21       retval = (cur->key == key);
- 22       rcu_read_unlock();
- 23       return retval;
- 24     }
- 25     cur = cur->next;
- 26   }
- 27   rcu_read_unlock();
- 28   return 0;
- 29 }
-\end{verbatim}
-}
-\caption{RCU Hash Table Search}
-\label{fig:SMPdesign:RCU Hash Table Search}
-\end{figure}
-
-Update-side code must wait for a ``grace period'' after removing an
-element before freeing it, and RCU implementations provide special
-primitives for this purpose.
-For example, the Linux kernel provides \co{synchronize_rcu()} to
-block until the end of a subsequent grace period (and other related primitives
-as well),
-while Hart et al.~\cite{ThomasEHart2006a} provide a \co{free_node_later()}
-primitive that frees the specified data element after the end of a
-subsequent grace period (in contrast to their \co{free_node()} primitive
-that immediately frees the specified data element).
-
-RCU's greatest strength is its low-overhead (in some cases, zero-overhead)
-read-side primitives.
-In many implementations, these primitives are in fact deterministic,
-which is useful in realtime environments.
 
 \subsection{Hierarchical Locking}
 \label{sec:SMPdesign:Hierarchical Locking}
