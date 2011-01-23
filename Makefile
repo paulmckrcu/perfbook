@@ -181,13 +181,22 @@ perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	latex perfbook || :
 	latex perfbook || :
 
-perfbook.html: $(LATEXSOURCES) $(EPSSOURCES) perfbook.dvi
-	latex2html -split 0 perfbook || :
-
-extraction:
+perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
 	echo > qqz.tex
 	texexpand perfbook.tex > perfbook_flat.tex
 	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
+
+qqz_html.tex: perfbook_flat.tex
+	sh utilities/prep4html.sh < qqz.tex > qqz_html.tex
+
+perfbook_html.tex: perfbook_flat.tex qqz_html.tex perfbook.pdf
+	sh utilities/prep4html.sh < perfbook_flat.tex > perfbook_html.tex
+	cp perfbook.bbl perfbook_html.bbl
+
+perfbook_html: perfbook_html.tex
+	latex2html -show_section_numbers perfbook_html
+
+extraction: perfbook_flat.tex
 	cat perfbook_flat.tex qqz.tex | sh utilities/extractcontrib.sh > contrib.tex
 	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
 
