@@ -189,7 +189,13 @@ perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
 qqz_html.tex: perfbook_flat.tex
 	sh utilities/prep4html.sh < qqz.tex > qqz_html.tex
 
-perfbook_html.tex: perfbook_flat.tex qqz_html.tex perfbook.pdf
+origpub_html.tex: perfbook_flat.tex
+	sh utilities/prep4html.sh < origpub.tex > origpub_html.tex
+
+contrib_html.tex: perfbook_flat.tex
+	sh utilities/prep4html.sh < contrib.tex > contrib_html.tex
+
+perfbook_html.tex: perfbook_flat.tex qqz_html.tex origpub_html.tex contrib_html.tex perfbook.pdf
 	sh utilities/prep4html.sh < perfbook_flat.tex > perfbook_html.tex
 	cp perfbook.bbl perfbook_html.bbl
 

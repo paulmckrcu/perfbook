@@ -23,7 +23,11 @@
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
 gawk '
-/^\\renewcommand\\/ {
+/^\\renewcommand\\/ ||
+/^\\OriginallyPublished{/ ||
+/^\\RangeOriginallyPublished{/ ||
+/^\\ContributedBy{/ ||
+/^\\QContributedBy{/ {
 	print "%%prep4html.sh%%" $0
 	printed = 1;
 }
@@ -105,6 +109,87 @@ gawk '
 /^\\QuickA{/ {
 	print "%%prep4html.sh%% " $0
 	print "\\\\ ~ \\\\ \\textbf{Answer:} \\\\"
+	print "%%prep4html.sh%% " $0
+	printed = 1;
+}
+
+/^\\ListOriginalPublications/ {
+	print "%%prep4html.sh%% " $0
+	print "\\begin{enumerate}"
+	print "\\input{origpub_html}"
+	print "\\end{enumerate}"
+	print "%%prep4html.sh%% " $0
+	printed = 1;
+}
+
+/^\\OrigPubItem{/ {
+	print "%%prep4html.sh%%" $0
+	l = $0;
+	split(l,a,/{/);
+	itemlevel = a[2];
+	sub(/}/,"",itemlevel);
+	itemlabel = a[3];
+	sub(/}/,"",itemlabel);
+	itemname = a[4];
+	sub(/}/,"",itemname);
+	itempub = a[5];
+	sub(/}/,"",itempub);
+	itemcite = a[6];
+	sub(/}/,"",itemcite);
+	print "\\item\t" itemlevel "~\\ref{" itemlabel "}"
+	print "\t(``" itemname "'"''"')"
+	print "\ton page~\\pageref{" itemlabel "}"
+	print "\toriginally appeared in " itempub "~\\cite{" itemcite "}."
+	print "%%prep4html.sh%% " $0
+	printed = 1;
+}
+
+/^\\RangeOrigPub{/ {
+	print "%%prep4html.sh%%" $0
+	l = $0;
+	split(l,a,/{/);
+	itemlevel = a[2];
+	sub(/}/,"",itemlevel);
+	itemlabel1 = a[3];
+	sub(/}/,"",itemlabel1);
+	itemlabel2 = a[4];
+	sub(/}/,"",itemlabel2);
+	itemname = a[5];
+	sub(/}/,"",itemname);
+	itempub = a[6];
+	sub(/}/,"",itempub);
+	itemcite = a[7];
+	sub(/}/,"",itemcite);
+	print "\\item\t" itemlevel "~\\ref{" itemlabel1 "}---\\ref{" itemlabel2 "}"
+	print "\t(``" itemname "'"''"')"
+	print "\ton pages~\\pageref{" itemlabel "}---\\pageref{" itemlabel2 "}"
+	print "\toriginally appeared in " itempub "~\\cite{" itemcite "}."
+	print "%%prep4html.sh%% " $0
+	printed = 1;
+}
+
+/^\\ListContributions/ {
+	print "%%prep4html.sh%% " $0
+	print "\\begin{enumerate}"
+	print "\\input{contrib_html}"
+	print "\\end{enumerate}"
+	print "%%prep4html.sh%% " $0
+	printed = 1;
+}
+
+/^\\ContribItem{/ {
+	print "%%prep4html.sh%%" $0
+	l = $0;
+	split(l,a,/{/);
+	itemlevel = a[2];
+	sub(/}/,"",itemlevel);
+	itemlabel = a[3];
+	sub(/}/,"",itemlabel);
+	itemartist = a[4];
+	sub(/}/,"",itemartist);
+	print "\\item\t" itemlevel "~\\ref{" itemlabel "}"
+	print "\t(p~\\pageref{" itemlabel "})"
+	print "\tby " itemartist "."
 	print "%%prep4html.sh%% " $0
 	printed = 1;
 }
