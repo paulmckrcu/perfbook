@@ -77,7 +77,7 @@ critical section from blocking an unbounded number of RCU callbacks.
 SRCU uses two strategies to achieve this goal:
 \begin{enumerate}
 \item	refusing to provide asynchronous grace-period interfaces,
-	such as the Classic RCU's \url{call_rcu()} API, and
+	such as the Classic RCU's \co{call_rcu()} API, and
 \item	isolating grace-period detection within each subsystem using SRCU.
 \end{enumerate}
 The rationale for these strategies are discussed in the following sections.
@@ -85,7 +85,7 @@ The rationale for these strategies are discussed in the following sections.
 \subsubsection{Abolish Asynchronous Grace-Period APIs}
 \label{sec:app:rcuimpl:Abolish Asynchronous Grace-Period APIs}
 
-The problem with the \url{call_rcu()} API is that a single thread can
+The problem with the \co{call_rcu()} API is that a single thread can
 generate an arbitrarily large number of blocks of memory awaiting a
 grace period, as illustrated by the following:
 
@@ -99,7 +99,7 @@ grace period, as illustrated by the following:
 \end{minipage}
 \vspace{5pt}
 
-In contrast, the analogous code using \url{synchronize_rcu()} can
+In contrast, the analogous code using \co{synchronize_rcu()} can
 have at most a single block of memory per thread awaiting a grace period:
 
 \vspace{5pt}
@@ -115,8 +115,8 @@ have at most a single block of memory per thread awaiting a grace period:
 \end{minipage}
 \vspace{5pt}
 
-Therefore, SRCU provides an equivalent to \url{synchronize_rcu()}, but not
-to \url{call_rcu()}.
+Therefore, SRCU provides an equivalent to \co{synchronize_rcu()}, but not
+to \co{call_rcu()}.
 
 \subsubsection{Isolate Grace-Period Detection}
 \label{sec:app:rcuimpl:Isolate Grace-Period Detection}
@@ -152,10 +152,10 @@ presumably bounded, the total amount of memory awaiting a grace period
 will also be bounded.
 The designer of a given subsystem is responsible for: (1) ensuring that
 SRCU read-side sleeping is bounded and (2) limiting the amount of memory
-waiting for \url{synchronize_srcu()}.\footnote{
+waiting for \co{synchronize_srcu()}.\footnote{
 	For example, an SRCU-protected hash table might have a lock
 	per hash chain, thus allowing at most one block per hash
-	chain to be waiting for \url{synchronize_srcu()}.}
+	chain to be waiting for \co{synchronize_srcu()}.}
 
 This is precisely the approach that SRCU takes, as described in the
 following section.
@@ -185,28 +185,28 @@ long srcu_batches_completed(struct srcu_struct *sp);
 \label{sec:app:rcuimpl:Initialization and Cleanup}
 
 Each subsystem using SRCU must create an
-\url{struct} \url{srcu_struct},
+\co{struct} \co{srcu_struct},
 either by declaring a variable of this type or by
-dynamically allocating the memory, for example, via \url{kmalloc()}.
+dynamically allocating the memory, for example, via \co{kmalloc()}.
 Once this structure is in place, it must be initialized via
-\url{init_srcu_struct()}, which returns zero for success or an error
+\co{init_srcu_struct()}, which returns zero for success or an error
 code for failure (for example, upon memory exhaustion).
 
-If the \url{struct} \url{srcu_struct} is dynamically allocated, then
-\url{cleanup_srcu_struct()} must be called before it is freed.
-Similarly, if the \url{struct} \url{srcu_struct} is a variable declared within
-a Linux kernel module, then \url{cleanup_srcu_struct()} must be called
+If the \co{struct} \co{srcu_struct} is dynamically allocated, then
+\co{cleanup_srcu_struct()} must be called before it is freed.
+Similarly, if the \co{struct} \co{srcu_struct} is a variable declared within
+a Linux kernel module, then \co{cleanup_srcu_struct()} must be called
 before the module is unloaded.
 Either way, the caller must take care to ensure that all SRCU read-side
 critical sections have completed (and that no more will commence) before
-calling \url{cleanup_srcu_struct()}.
+calling \co{cleanup_srcu_struct()}.
 One way to accomplish this is described in
 Section~\ref{sec:app:rcuimpl:Cleaning Up Safely}.
 
 \subsubsection{Read-Side Primitives}
 \label{sec:app:rcuimpl:Read-Side Primitives}
 
-The read-side \url{srcu_read_lock()} and \url{srcu_read_unlock()} primitives
+The read-side \co{srcu_read_lock()} and \co{srcu_read_unlock()} primitives
 are used as shown:
 
 \vspace{5pt}
@@ -220,11 +220,11 @@ are used as shown:
 \end{minipage}
 \vspace{5pt}
 
-The \url{ss} variable is the \url{struct} \url{srcu_struct} whose initialization
+The \co{ss} variable is the \co{struct} \co{srcu_struct} whose initialization
 was described in Section~\ref{sec:app:rcuimpl:Initialization and Cleanup},
-and the \url{idx} variable is an integer that in effect tells
-\url{srcu_read_unlock()} the grace period during which the corresponding
-\url{srcu_read_lock()} started.
+and the \co{idx} variable is an integer that in effect tells
+\co{srcu_read_unlock()} the grace period during which the corresponding
+\co{srcu_read_lock()} started.
 
 This carrying of an index is a departure from the RCU API, which,
 when required, stores the equivalent information in the task structure.
@@ -235,7 +235,7 @@ reasonably store this index in the task structure.
 \subsubsection{Update-Side Primitives}
 \label{sec:app:rcuimpl:Update-Side Primitives}
 
-The \url{synchronize_srcu()} primitives may be used as shown below:
+The \co{synchronize_srcu()} primitives may be used as shown below:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -250,16 +250,16 @@ The \url{synchronize_srcu()} primitives may be used as shown below:
 
 As one might expect by analogy with Classic RCU, this primitive blocks
 until until after the completion of all SRCU read-side critical sections
-that started before the \url{synchronize_srcu()} started, as shown
+that started before the \co{synchronize_srcu()} started, as shown
 in Table~\ref{tab:app:rcuimpl:SRCU Update and Read-Side Critical Sections}.
 Here, CPU~1 need only wait for the completion of CPU~0's SRCU read-side
 critical section.
 It need not wait for the completion of CPU~2's SRCU read-side critical
 section, because CPU~2 did not start this critical section until \emph{after}
-CPU~1 began executing \url{synchronize_srcu()}.
-Finally, CPU~1's \url{synchronize_srcu()} need not wait for CPU~3's
-SRCU read-side critical section, because CPU~3 is using \url{s2} rather
-than \url{s1} as its \url{struct} \url{srcu_struct}.
+CPU~1 began executing \co{synchronize_srcu()}.
+Finally, CPU~1's \co{synchronize_srcu()} need not wait for CPU~3's
+SRCU read-side critical section, because CPU~3 is using \co{s2} rather
+than \co{s1} as its \co{struct} \co{srcu_struct}.
 CPU~3's SRCU read-side critical section is thus related to a different
 set of grace periods than those of CPUs~0 and 2.
 
@@ -273,26 +273,26 @@ set of grace periods than those of CPUs~0 and 2.
 				\multicolumn{1}{c}{CPU 3} \\
 	\hline
 	\hline
-	1 & \url{i0 = srcu_read_lock(&s1)} & & &
-				\url{i3 = srcu_read_lock(&s2)} \\
+	1 & \co{i0 = srcu_read_lock(&s1)} & & &
+				\co{i3 = srcu_read_lock(&s2)} \\
 	\hline
-	2 &	& \url{synchronize_srcu(&s1)} enter & & \\
+	2 &	& \co{synchronize_srcu(&s1)} enter & & \\
 	\hline
-	3 & 	&	& \url{i2 = srcu_read_lock(&s1)} & \\
+	3 & 	&	& \co{i2 = srcu_read_lock(&s1)} & \\
 	\hline
-	4 & \url{srcu_read_unlock(&s1, i0)} & & & \\
+	4 & \co{srcu_read_unlock(&s1, i0)} & & & \\
 	\hline
-	5 &	& \url{synchronize_srcu(&s1)} exit & & \\
+	5 &	& \co{synchronize_srcu(&s1)} exit & & \\
 	\hline
-	6 & 	&	 & \url{srcu_read_unlock(&s1, i2)} & \\
+	6 & 	&	 & \co{srcu_read_unlock(&s1, i2)} & \\
 \end{tabular}
 \end{center}
 \caption{SRCU Update and Read-Side Critical Sections}
 \label{tab:app:rcuimpl:SRCU Update and Read-Side Critical Sections}
 \end{table*}
 
-The \url{srcu_batches_completed()} primitive may be used to
-monitor the progress of a given \url{struct} \url{srcu_struct}'s
+The \co{srcu_batches_completed()} primitive may be used to
+monitor the progress of a given \co{struct} \co{srcu_struct}'s
 grace periods.
 This primitive is used in ``torture tests'' that validate SRCU's operation.
 
@@ -308,7 +308,7 @@ module is to be safely unloaded.
 
 In some cases, such as the RCU torture module,
 only a small known set of threads are using the
-SRCU read-side primitives against a particular \url{struct} \url{srcu_struct}.
+SRCU read-side primitives against a particular \co{struct} \co{srcu_struct}.
 In these cases, the module-exit code need only kill that set of threads,
 wait for them to exit, and then clean up.
 
@@ -351,7 +351,7 @@ could be accomplished without a reboot.
 \label{fig:app:rcuimpl:SRCU Safe Cleanup}
 \end{figure}
 
-The \url{readside()} function overlaps an RCU and an SRCU read-side
+The \co{readside()} function overlaps an RCU and an SRCU read-side
 critical section, with the former running from lines~5-11 and the
 latter running from lines 10-13.
 The RCU read-side critical section uses Pure
@@ -362,27 +362,27 @@ The RCU read-side critical section uses Pure
 RCU~\cite{PaulEdwardMcKenneyPhD}
 %
 to guard the
-value of the \url{nomoresrcu} variable.
+value of the \co{nomoresrcu} variable.
 If this variable is set, we are cleaning up, and therefore must not enter
-the SRCU read-side critical section, so we return \url{-EINVAL} instead.
+the SRCU read-side critical section, so we return \co{-EINVAL} instead.
 On the other hand, if we are not yet cleaning up, we proceed into the
 SRCU read-side critical section.
 
-The \url{cleanup()} function first sets the \url{nomoresrcu} variable
+The \co{cleanup()} function first sets the \co{nomoresrcu} variable
 on line~19, but then must wait for all currently executing RCU read-side
-critical sections to complete via the \url{synchronize_rcu()} primitive
+critical sections to complete via the \co{synchronize_rcu()} primitive
 on line~20.
-Once the \url{cleanup()} function reaches line~21, all calls to
-\url{readside()} that could possibly have seen \url{nomorersrcu} equal
+Once the \co{cleanup()} function reaches line~21, all calls to
+\co{readside()} that could possibly have seen \co{nomorersrcu} equal
 to zero must have already reached line~11, and therefore already must
 have entered their SRCU read-side critical section.
-All future calls to \url{readside()} will exit via line~8, and will thus
+All future calls to \co{readside()} will exit via line~8, and will thus
 refrain from entering the read-side critical section.
 
-Therefore, once \url{cleanup()} completes its call to
-\url{synchronize_srcu()} on line~21, all SRCU read-side critical sections
+Therefore, once \co{cleanup()} completes its call to
+\co{synchronize_srcu()} on line~21, all SRCU read-side critical sections
 will have completed, and no new ones will be able to start.
-It is therefore safe on line~22 to call \url{cleanup_srcu_struct()}
+It is therefore safe on line~22 to call \co{cleanup_srcu_struct()}
 to clean up.
 
 \subsection{Implementation}
@@ -398,12 +398,12 @@ SRCU's data structures are shown in
 Figure~\ref{fig:app:rcuimpl:SRCU Data Structures},
 and are depicted schematically in
 Figure~\ref{fig:app:whymb:SRCU Data-Structure Diagram}.
-The \url{completed} field is a count of the number of grace periods
-since the \url{struct} \url{srcu} was initialized, and as shown in the
+The \co{completed} field is a count of the number of grace periods
+since the \co{struct} \co{srcu} was initialized, and as shown in the
 diagram, its low-order bit is used to index the
-\url{struct} \url{srcu_struct_array}.
-The \url{per_cpu_ref} field points to the array, and the
-\url{mutex} field is used to permit but one \url{synchronize_srcu()} at
+\co{struct} \co{srcu_struct_array}.
+The \co{per_cpu_ref} field points to the array, and the
+\co{mutex} field is used to permit but one \co{synchronize_srcu()} at
 a time to proceed.
 
 \begin{figure}[htbp]
@@ -435,11 +435,11 @@ a time to proceed.
 \subsubsection{Initialization Implementation}
 \label{sec:app:rcuimpl:Initialization Implementation}
 
-SRCU's initialization function, \url{init_srcu_struct()}, is shown in
+SRCU's initialization function, \co{init_srcu_struct()}, is shown in
 Figure~\ref{fig:app:rcuimpl:SRCU Initialization}.
 This function simply initializes the fields in the
-\url{struct} \url{srcu_struct}, returning zero if initialization succeeds
-or \url{-ENOMEM} otherwise.
+\co{struct} \co{srcu_struct}, returning zero if initialization succeeds
+or \co{-ENOMEM} otherwise.
 
 \begin{figure}[htbp]
 { \scriptsize
@@ -460,28 +460,28 @@ or \url{-ENOMEM} otherwise.
 
 SRCU's cleanup functions are shown in
 Figure~\ref{fig:app:rcuimpl:SRCU Cleanup}.
-The main cleanup function, \url{cleanup_srcu_struct()} is shown
+The main cleanup function, \co{cleanup_srcu_struct()} is shown
 on lines~19-29 of this figure, however, it immediately invokes
-\url{srcu_readers_active()}, shown on lines~13-17 of this figure,
+\co{srcu_readers_active()}, shown on lines~13-17 of this figure,
 to verify that there are no readers currently using this
-\url{struct} \url{srcu_struct}.
+\co{struct} \co{srcu_struct}.
 
-The \url{srcu_readers_active()} function simply returns the sum of
-\url{srcu_readers_active_idx()} on both possible indexes,
-while \url{srcu_readers_active_idx()}, as shown on lines~1-11,
+The \co{srcu_readers_active()} function simply returns the sum of
+\co{srcu_readers_active_idx()} on both possible indexes,
+while \co{srcu_readers_active_idx()}, as shown on lines~1-11,
 sums up the per-CPU counters corresponding to the specified index,
 returning the result.
 
-If the value returned from \url{srcu_readers_active()} is non-zero,
-then \url{cleanup_srcu_struct()} issues a warning on line~24 and
+If the value returned from \co{srcu_readers_active()} is non-zero,
+then \co{cleanup_srcu_struct()} issues a warning on line~24 and
 simply returns on lines~25 and 26, declining to destroy a
-\url{struct} \url{srcu_struct} that is still in use.
+\co{struct} \co{srcu_struct} that is still in use.
 Such a warning always indicates a bug, and given that the bug
 has been reported, it is better to allow the system to continue
 with a modest memory leak than to introduce possible memory corruption.
 
-Otherwise, \url{cleanup_srcu_struct()} frees the array of per-CPU
-counters and \url{NULL}s the pointer on lines~27 and 28.
+Otherwise, \co{cleanup_srcu_struct()} frees the array of per-CPU
+counters and \co{NULL}s the pointer on lines~27 and 28.
 
 \begin{figure}[htbp]
 { \scriptsize
@@ -524,7 +524,7 @@ counters and \url{NULL}s the pointer on lines~27 and 28.
 \subsubsection{Read-Side Implementation}
 \label{sec:app:rcuimpl:Read-Side Implementation}
 
-The code implementing \url{srcu_read_lock()} is shown in
+The code implementing \co{srcu_read_lock()} is shown in
 Figure~\ref{fig:app:rcuimpl:Read-Side Acquisition}.
 This function has been carefully constructed to avoid the
 need for memory barriers and atomic instructions.
@@ -534,29 +534,29 @@ the sequence of code to execute unpreempted on a single CPU.
 Line~6 picks up the bottom bit of the grace-period counter, which will
 be used to select which rank of per-CPU counters is to be used for this
 SRCU read-side critical section.
-The \url{barrier()} call on line~7 is a directive to the compiler
+The \co{barrier()} call on line~7 is a directive to the compiler
 that ensures that the index is
 fetched but once,\footnote{
-	Please note that, despite the name, \url{barrier()}
+	Please note that, despite the name, \co{barrier()}
 	has absolutely no effect on the CPU's ability to
 	reorder execution of both code and of memory accesses.}
 so that the index used on line~9 is the same
 one returned on line~12.
 Lines~8-9 increment the selected counter for the current CPU.\footnote{
-	It is important to note that the \url{smp_processor_id()} primitive
+	It is important to note that the \co{smp_processor_id()} primitive
 	has long-term meaning only if preemption is disabled.
 	In absence of preemption disabling, a potential preemption
 	immediately following execution of this primitive could
 	cause the subsequent code to execute on some other CPU.}
 Line~10 forces subsequent execution to occur \emph{after}
 lines~8-9, in order to prevent to misordering of any code
-in a non-\url{CONFIG_PREEMPT} build, but only
+in a non-\co{CONFIG_PREEMPT} build, but only
 from the perspective of an intervening interrupt handler.
-However, in a \url{CONFIG_PREEMPT} kernel, the required \url{barrier()}
-call is embedded in the \url{preempt_enable()} on line~11, so the
-\url{srcu_barrier()} is a no-op in that case.
+However, in a \co{CONFIG_PREEMPT} kernel, the required \co{barrier()}
+call is embedded in the \co{preempt_enable()} on line~11, so the
+\co{srcu_barrier()} is a no-op in that case.
 Finally, line~12 returns the index so that it may be passed in to the
-corresponding \url{srcu_read_unlock()}.
+corresponding \co{srcu_read_unlock()}.
 
 \begin{figure}[htbp]
 { \scriptsize
@@ -580,18 +580,18 @@ corresponding \url{srcu_read_unlock()}.
 \label{fig:app:rcuimpl:Read-Side Acquisition}
 \end{figure}
 
-The code for \url{srcu_read_unlock()} is shown in
+The code for \co{srcu_read_unlock()} is shown in
 Figure~\ref{fig:app:rcuimpl:Read-Side Release}.
 Again, lines~3 and 7 disable and re-enable preemption so that the
 whole code sequence executes unpreempted on a single CPU.
-In \url{CONFIG_PREEMPT} kernels, the \url{preempt_disable()} on line~3
-contains a \url{barrier()} primitive, otherwise, the \url{barrier()}
+In \co{CONFIG_PREEMPT} kernels, the \co{preempt_disable()} on line~3
+contains a \co{barrier()} primitive, otherwise, the \co{barrier()}
 is supplied by line~4.
 Again, this directive forces the subsequent code to execute after
 the critical section from the perspective of intervening
 interrupt handlers.
 Lines~5 and 6 decrement the counter for this CPU, but with the same
-index as was used by the corresponding \url{srcu_read_lock()}.
+index as was used by the corresponding \co{srcu_read_lock()}.
 
 \begin{figure}[htbp]
 { \scriptsize
@@ -619,10 +619,10 @@ memory barriers are executed prior to observing the counters.
 \subsubsection{Update-Side Implementation}
 \label{sec:app:rcuimpl:Update-Side Implementation}
 
-The key point behind SRCU is that \url{synchronize_sched()}
+The key point behind SRCU is that \co{synchronize_sched()}
 blocks until all currently-executing preempt-disabled regions of
 code complete.
-The \url{synchronize_srcu()} primitive makes heavy use of this effect,
+The \co{synchronize_srcu()} primitive makes heavy use of this effect,
 as can be seen in
 Figure~\ref{fig:app:rcuimpl:Update-Side Implementation}.
 
@@ -632,9 +632,9 @@ at least two grace periods have elapsed since the snapshot,
 and, if so, releases the lock and returns --- in this case, someone
 else has done our work for us.
 Otherwise, line~11 guarantees that any other CPU that sees the
-incremented value of the grace period counter in \url{srcu_read_lock()}
+incremented value of the grace period counter in \co{srcu_read_lock()}
 also sees any changes made by this CPU prior to entering
-\url{synchronize_srcu()}.
+\co{synchronize_srcu()}.
 This guarantee is required to make sure that any SRCU read-side
 critical sections not blocking the next grace period have seen
 any prior changes.
@@ -642,25 +642,25 @@ any prior changes.
 Line~12 fetches the bottom bit of the grace-period counter for later
 use as an index into the per-CPU counter arrays, and then line~13
 increments the grace-period counter.
-Line~14 then waits for any currently-executing \url{srcu_read_lock()}
+Line~14 then waits for any currently-executing \co{srcu_read_lock()}
 to complete, so that by the time that we reach line~15, all
-extant instances of \url{srcu_read_lock()} will be using the updated
-value from \url{sp->completed}.
-Therefore, the counters sampled in by \url{srcu_readers_active_idx()}
+extant instances of \co{srcu_read_lock()} will be using the updated
+value from \co{sp->completed}.
+Therefore, the counters sampled in by \co{srcu_readers_active_idx()}
 on line~15 are guaranteed to
 be monotonically decreasing, so that once their sum reaches zero, it
 is guaranteed to stay there.
 
-However, there are no memory barriers in the \url{srcu_read_unlock()}
+However, there are no memory barriers in the \co{srcu_read_unlock()}
 primitive, so the CPU is within its rights to reorder the counter
 decrement up into the SRCU critical section, so that references to
 an SRCU-protected data structure could in effect ``bleed out'' of the
 SRCU critical section.
-This scenario is addressed by the \url{synchronize_sched()} on line~17,
-which blocks until all other CPUs executing in \url{preempt_disable()}
-code sequences (such as that in \url{srcu_read_unlock()}) complete these
+This scenario is addressed by the \co{synchronize_sched()} on line~17,
+which blocks until all other CPUs executing in \co{preempt_disable()}
+code sequences (such as that in \co{srcu_read_unlock()}) complete these
 sequences.
-Because completion of a given \url{preempt_disable()} code sequence
+Because completion of a given \co{preempt_disable()} code sequence
 is observed from the CPU executing that sequence, completion of the
 sequence implies completion of any prior SRCU read-side critical section.
 Any required memory barriers are supplied by the code making the
@@ -669,8 +669,8 @@ observation.
 At this point, it is therefore safe to release the mutex as shown
 on line~18 and return to the caller, who can now be assured that
 all SRCU read-side critical sections sharing the same
-\url{struct} \url{srcu_struct}
-will observe any update made prior to the call to \url{synchronize_srcu()}.
+\co{struct} \co{srcu_struct}
+will observe any update made prior to the call to \co{synchronize_srcu()}.
 
 \begin{figure}[htbp]
 { \scriptsize

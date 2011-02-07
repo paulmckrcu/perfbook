@@ -51,8 +51,8 @@ using explicit tracking.
 In RCU's case, the things waited on are called
 "RCU read-side critical sections".
 An RCU read-side critical section starts with an
-\url{rcu_read_lock()} primitive, and ends with a corresponding
-\url{rcu_read_unlock()} primitive.
+\co{rcu_read_lock()} primitive, and ends with a corresponding
+\co{rcu_read_unlock()} primitive.
 RCU read-side critical sections can be nested, and may contain pretty
 much any code, as long as that code does not explicitly block or sleep
 (although a special form of RCU called SRCU, described in
@@ -105,17 +105,17 @@ the RCU grace period ends.
 \label{fig:app:rcuimpl:rcutree:Flat Classic RCU State}
 \end{figure}
 
-Classic RCU's most important data structure is the \url{rcu_ctrlblk}
-structure, which contains the \url{->cpumask} field, which contains
+Classic RCU's most important data structure is the \co{rcu_ctrlblk}
+structure, which contains the \co{->cpumask} field, which contains
 one bit per CPU, as shown in
 Figure~\ref{fig:app:rcuimpl:rcutree:Flat Classic RCU State}.
 Each CPU's bit is set to one at the beginning of each grace period,
 and each CPU must clear its bit after it passes through a quiescent
 state.
 Because multiple CPUs might want to clear their bits concurrently,
-which would corrupt the \url{->cpumask} field, a
-\url{->lock}
-spinlock is used to protect \url{->cpumask}, preventing any
+which would corrupt the \co{->cpumask} field, a
+\co{->lock}
+spinlock is used to protect \co{->cpumask}, preventing any
 such corruption.
 Unfortunately, this spinlock can also suffer extreme contention if there
 are more than a few hundred CPUs, which might soon become quite common
@@ -172,14 +172,14 @@ is a very good start:
 \item	RCU read-side critical sections must be permitted in NMI
 	handlers as well as irq handlers.  Note that preemptible RCU
 	was able to avoid this requirement due to a separately
-	implemented \url{synchronize_sched()}.
+	implemented \co{synchronize_sched()}.
 \item	RCU must operate gracefully in face of repeated CPU-hotplug
 	operations.
 	This is simply carrying forward a requirement met by both
 	classic and real-time.
 \item	It must be possible to wait for all previously registered
 	RCU callbacks to complete, though this is already provided
-	in the form of \url{rcu_barrier()}.
+	in the form of \co{rcu_barrier()}.
 \item	Detecting CPUs that are failing to respond is desirable,
 	to assist diagnosis both of RCU and of various infinite
 	loop bugs and hardware failures that can prevent RCU grace
@@ -212,22 +212,22 @@ in contention on RCU's internal locks.
 One effective way to reduce lock contention is to create a hierarchy,
 as shown in
 Figure~\ref{fig:app:rcuimpl:rcutree:Hierarchical RCU State}.
-Here, each of the four \url{rcu_node} structures has its own lock,
+Here, each of the four \co{rcu_node} structures has its own lock,
 so that only CPUs~0 and 1 will acquire the lower left
-\url{rcu_node}'s lock, only CPUs~2 and 3 will acquire the
-lower middle \url{rcu_node}'s lock, and only CPUs~4 and 5
-will acquire the lower right \url{rcu_node}'s lock.
+\co{rcu_node}'s lock, only CPUs~2 and 3 will acquire the
+lower middle \co{rcu_node}'s lock, and only CPUs~4 and 5
+will acquire the lower right \co{rcu_node}'s lock.
 During any given grace period,
-only one of the CPUs accessing each of the lower \url{rcu_node}
-structures will access the upper \url{rcu_node}, namely, the
+only one of the CPUs accessing each of the lower \co{rcu_node}
+structures will access the upper \co{rcu_node}, namely, the
 last of each pair of CPUs to record a quiescent state for the corresponding
 grace period.
 
 This results in a significant reduction in lock contention:
 instead of six CPUs contending for a single lock each grace period,
-we have only three for the upper \url{rcu_node}'s lock
+we have only three for the upper \co{rcu_node}'s lock
 (a reduction of 50\%) and only
-two for each of the lower \url{rcu_node}s' locks (a reduction
+two for each of the lower \co{rcu_node}s' locks (a reduction
 of 67\%).
 
 \begin{figure}[htb]
@@ -238,20 +238,20 @@ of 67\%).
 \label{fig:app:rcuimpl:rcutree:Mapping rcu-node Hierarchy Into Array}
 \end{figure}
 
-The tree of \url{rcu_node} structures is embedded into
-a linear array in the \url{rcu_state} structure,
+The tree of \co{rcu_node} structures is embedded into
+a linear array in the \co{rcu_state} structure,
 with the root of the tree in element zero, as shown in
 Figure~\ref{fig:app:rcuimpl:rcutree:Mapping rcu-node Hierarchy Into Array}
 for an eight-CPU
 system with a three-level hierarchy.
-Each arrow links a given \url{rcu_node} structure to its parent,
-representing the \url{rcu_node}'s \url{->parent} field.
-Each \url{rcu_node} indicates the range of CPUs covered,
+Each arrow links a given \co{rcu_node} structure to its parent,
+representing the \co{rcu_node}'s \co{->parent} field.
+Each \co{rcu_node} indicates the range of CPUs covered,
 so that the root node covers all of the CPUs, each node in the second
 level covers half of the CPUs, and each node in the leaf level covering
 a pair of CPUs.
 This array is allocated statically at compile time based on the value
-of \url{NR_CPUS}.
+of \co{NR_CPUS}.
 
 \begin{figure}[htbp]
 \begin{center}
@@ -269,15 +269,15 @@ as indicated by the red rectangles.
 Suppose that all six CPUs simultaneously try to tell RCU that they have
 passed through a quiescent state.
 Only one of each pair will be able to acquire the lock on the
-corresponding lower \url{rcu_node}, and so the second figure
+corresponding lower \co{rcu_node}, and so the second figure
 shows the result if the lucky CPUs are numbers 0, 3, and 5, as indicated
 by the green rectangles.
 Once these lucky CPUs have finished, then the other CPUs will acquire
 the lock, as shown in the third figure.
 Each of these CPUs will see that they are the last in their group,
 and therefore all three will attempt to move to the upper
-\url{rcu_node}.
-Only one at a time can acquire the upper \url{rcu_node} structure's
+\co{rcu_node}.
+Only one at a time can acquire the upper \co{rcu_node} structure's
 lock, and the fourth, fifth, and sixth figures show the sequence of
 states assuming that CPU~1, CPU~2, and CPU~4 acquire
 the lock in that order.
@@ -297,16 +297,16 @@ contending for any one lock, in happy contrast to Classic RCU,
 where all six CPUs might contend.
 However, even more dramatic reductions in lock contention are
 possible with larger numbers of CPUs.
-Consider a hierarchy of \url{rcu_node} structures, with
+Consider a hierarchy of \co{rcu_node} structures, with
 64 lower structures and 64*64=4,096 CPUs, as shown in
 Figure~\ref{fig:app:rcuimpl:rcutree:Hierarchical RCU State 4,096 CPUs}.
 
-Here each of the lower \url{rcu_node} structures' locks
+Here each of the lower \co{rcu_node} structures' locks
 are acquired by 64 CPUs, a 64-times reduction from the 4,096 CPUs
 that would acquire Classic RCU's single global lock.
 Similarly, during a given grace period, only one CPU from each of
-the lower \url{rcu_node} structures will acquire the
-upper \url{rcu_node} structure's lock, which is again
+the lower \co{rcu_node} structures will acquire the
+upper \co{rcu_node} structure's lock, which is again
 a 64x reduction from the contention level that would be experienced
 by Classic RCU running on a 4,096-CPU system.
 
@@ -315,19 +315,19 @@ by Classic RCU running on a 4,096-CPU system.
 	With all those new locks, how do you avoid deadlock?
 \QuickQuizAnswer{
 	Deadlock is avoided by never holding more than one of the
-	\url{rcu_node} structures' locks at a given time.
+	\co{rcu_node} structures' locks at a given time.
 	This algorithm uses two more locks, one to prevent CPU hotplug
 	operations from running concurrently with grace-period advancement
-	(\url{onofflock}) and another
+	(\co{onofflock}) and another
 	to permit only one CPU at a time from forcing a quiescent state
-	to end quickly (\url{fqslock}).
+	to end quickly (\co{fqslock}).
 	These are subject to a locking hierarchy, so that
-	\url{fqslock} must be acquired before
-	\url{onofflock}, which in turn must be acquired before
-	any of the \url{rcu_node} structures' locks.
+	\co{fqslock} must be acquired before
+	\co{onofflock}, which in turn must be acquired before
+	any of the \co{rcu_node} structures' locks.
 
 	Also, as a practical matter, refusing to ever hold more than
-	one of the \url{rcu_node} locks means that it is unnecessary
+	one of the \co{rcu_node} locks means that it is unnecessary
 	to track which ones are held.
 	Such tracking would be painful as well as unnecessary.
 } \QuickQuizEnd
@@ -351,12 +351,12 @@ by Classic RCU running on a 4,096-CPU system.
 	to something reasonable, like sixteen or so!!!
 \QuickQuizAnswer{
 	OK, have it your way, then!
-	Set \url{CONFIG_RCU_FANOUT=16} and (for \url{NR_CPUS=4096})
+	Set \co{CONFIG_RCU_FANOUT=16} and (for \co{NR_CPUS=4096})
 	you will get a
-	three-level hierarchy with with 256 \url{rcu_node} structures
-	at the lowest level, 16 \url{rcu_node} structures as intermediate
-	nodes, and a single root-level \url{rcu_node}.
-	The penalty you will pay is that more \url{rcu_node} structures
+	three-level hierarchy with with 256 \co{rcu_node} structures
+	at the lowest level, 16 \co{rcu_node} structures as intermediate
+	nodes, and a single root-level \co{rcu_node}.
+	The penalty you will pay is that more \co{rcu_node} structures
 	will need to be scanned when checking to see which CPUs need help
 	completing their quiescent states (256 instead of only 64).
 } \QuickQuizEnd
@@ -370,22 +370,22 @@ by Classic RCU running on a 4,096-CPU system.
 \end{figure}
 
 The implementation maintains some per-CPU data, such as lists of
-RCU callbacks, organized into \url{rcu_data} structures.
-In addition, rcu (as in \url{call_rcu()}) and
-rcu\_bh (as in \url{call_rcu_bh()}) each maintain their own
+RCU callbacks, organized into \co{rcu_data} structures.
+In addition, rcu (as in \co{call_rcu()}) and
+rcu\_bh (as in \co{call_rcu_bh()}) each maintain their own
 hierarchy, as shown in
 Figure~\ref{fig:app:rcuimpl:rcutree:Hierarchical RCU State With BH}.
 
 \QuickQuiz{}
 	OK, so what is the story with the colors?
 \QuickQuizAnswer{
-	Data structures analogous to \url{rcu_state} (including
-	\url{rcu_ctrlblk}) are yellow,
+	Data structures analogous to \co{rcu_state} (including
+	\co{rcu_ctrlblk}) are yellow,
 	those containing the bitmaps used to determine when CPUs have checked
 	in are pink,
-	and the per-CPU \url{rcu_data} structures are blue.
+	and the per-CPU \co{rcu_data} structures are blue.
 	The data structures used to conserve energy
-	(such as \url{rcu_dynticks}) will be colored green.
+	(such as \co{rcu_dynticks}) will be colored green.
 } \QuickQuizEnd
 
 The next section discusses energy conservation.
@@ -427,16 +427,16 @@ from ending.
 \end{figure}
 
 This is accomplished by requiring that all CPUs manipulate counters
-located in a per-CPU \url{rcu_dynticks} structure.
+located in a per-CPU \co{rcu_dynticks} structure.
 Loosely speaking, these counters have even-numbered values when the
 corresponding CPU is in dynticks idle mode, and have odd-numbered values
 otherwise.
 RCU thus needs to wait for quiescent states only for those CPUs whose
-\url{rcu_dynticks} counters are odd, and need not wake up sleeping
+\co{rcu_dynticks} counters are odd, and need not wake up sleeping
 CPUs, whose counters will be even.
 As shown in
 Figure~\ref{fig:app:rcuimpl:rcutree:Hierarchical RCU State With Dynticks},
-each per-CPU \url{rcu_dynticks} structure
+each per-CPU \co{rcu_dynticks} structure
 is shared by the ``rcu'' and ``rcu\_bh'' implementations.
 
 The following section presents a high-level view of the RCU state machine.
@@ -472,7 +472,7 @@ CPUs will mark those CPUs as being in an extended quiescent state,
 taking the ``Y'' branch out of the ``CPUs in dyntick-idle
 Mode?'' decision diamond (but note that CPUs in dyntick-idle mode
 will \emph{not} be sent resched IPIs).
-Finally, if \url{CONFIG_RCU_CPU_STALL_DETECTOR} is enabled,
+Finally, if \co{CONFIG_RCU_CPU_STALL_DETECTOR} is enabled,
 truly excessive delays in reaching quiescent states will exercise the
 ``Complain About Holdout CPUs'' path.
 
@@ -544,27 +544,27 @@ Each of these use cases is described in the following sections.
 \subsubsection{Start a New Grace Period}
 \label{app:rcuimpl:rcutree:Start a New Grace Period}
 
-The \url{rcu_start_gp()} function starts a new grace period.
+The \co{rcu_start_gp()} function starts a new grace period.
 This function is invoked when a CPU having callbacks waiting for a
 grace period notices that no grace period is in progress.
 
-The \url{rcu_start_gp()} function updates state in
-the \url{rcu_state} and \url{rcu_data} structures
+The \co{rcu_start_gp()} function updates state in
+the \co{rcu_state} and \co{rcu_data} structures
 to note the newly started grace period,
-acquires the \url{->onoff} lock (and disables irqs) to exclude
+acquires the \co{->onoff} lock (and disables irqs) to exclude
 any concurrent CPU-hotplug operations,
 sets the
-bits in all of the \url{rcu_node} structures to indicate
+bits in all of the \co{rcu_node} structures to indicate
 that all CPUs (including this one) must pass through a quiescent
 state,
 and finally
-releases the \url{->onoff} lock.
+releases the \co{->onoff} lock.
 
 The bit-setting operation is carried out in two phases.
-First, the non-leaf \url{rcu_node} structures' bits are set without
-holding any additional locks, and then finally each leaf \url{rcu_node}
+First, the non-leaf \co{rcu_node} structures' bits are set without
+holding any additional locks, and then finally each leaf \co{rcu_node}
 structure's bits are set in turn while holding that structure's
-\url{->lock}.
+\co{->lock}.
 
 \QuickQuiz{}
 	But what happens if a CPU tries to report going through a quiescent
@@ -574,20 +574,20 @@ structure's bits are set in turn while holding that structure's
 
 	\begin{enumerate}
 	\item	A CPU corresponding to a non-yet-initialized leaf
-		\url{rcu_node} structure tries to report a quiescent state.
+		\co{rcu_node} structure tries to report a quiescent state.
 		This CPU will see its bit already cleared, so will give up on
 		reporting its quiescent state.
 		Some later quiescent state will serve for the new grace period.
-	\item	A CPU corresponding to a leaf \url{rcu_node} structure that
+	\item	A CPU corresponding to a leaf \co{rcu_node} structure that
 		is currently being initialized tries to report a quiescent
 		state.
-		This CPU will see that the \url{rcu_node} structure's
-		\url{->lock} is held, so will spin until it is
+		This CPU will see that the \co{rcu_node} structure's
+		\co{->lock} is held, so will spin until it is
 		released.
-		But once the lock is released, the \url{rcu_node}
+		But once the lock is released, the \co{rcu_node}
 		structure will have been initialized, reducing to the
 		following case.
-	\item	A CPU corresponding to a leaf \url{rcu_node} that has
+	\item	A CPU corresponding to a leaf \co{rcu_node} that has
 		already been initialized tries to report a quiescent state.
 		This CPU will find its bit set, and will therefore clear it.
 		If it is the last CPU for that leaf node, it will
@@ -622,47 +622,47 @@ the idle loop), and user-mode execution, while quiescent states for
 rcu\_bh are any code outside of softirq with interrupts enabled.
 Note that an quiescent state for rcu is also a quiescent state
 for rcu\_bh.
-Quiescent states for rcu are recorded by invoking \url{rcu_qsctr_inc()},
+Quiescent states for rcu are recorded by invoking \co{rcu_qsctr_inc()},
 while quiescent states for rcu\_bh are recorded by invoking
-\url{rcu_bh_qsctr_inc()}.
+\co{rcu_bh_qsctr_inc()}.
 These two functions record their state in the current CPU's
-\url{rcu_data} structure.
+\co{rcu_data} structure.
 
 These functions are invoked from the scheduler, from
-\url{__do_softirq()}, and from \url{rcu_check_callbacks()}.
+\co{__do_softirq()}, and from \co{rcu_check_callbacks()}.
 This latter function is invoked from the scheduling-clock interrupt,
 and analyzes state to determine whether this interrupt occurred within
-a quiescent state, invoking \url{rcu_qsctr_inc()} and/or
-\url{rcu_bh_qsctr_inc()}, as appropriate.
-It also raises \url{RCU_SOFTIRQ}, which results in
-\url{rcu_process_callbacks()} being invoked on the current
+a quiescent state, invoking \co{rcu_qsctr_inc()} and/or
+\co{rcu_bh_qsctr_inc()}, as appropriate.
+It also raises \co{RCU_SOFTIRQ}, which results in
+\co{rcu_process_callbacks()} being invoked on the current
 CPU at some later time from softirq context.
 
 \subsubsection{Announce a Quiescent State to RCU}
 \label{app:rcuimpl:rcutree:Announce a Quiescent State to RCU}
 
-The afore-mentioned \url{rcu_process_callbacks()} function
+The afore-mentioned \co{rcu_process_callbacks()} function
 has several duties:
 
 \begin{enumerate}
 \item	Determining when to take measures to end an over-long grace period
-	(via \url{force_quiescent_state()}).
+	(via \co{force_quiescent_state()}).
 \item	Taking appropriate action when some other CPU detected the end of
-	a grace period (via \url{rcu_process_gp_end()}).
+	a grace period (via \co{rcu_process_gp_end()}).
 	``Appropriate action`` includes advancing this CPU's
 	callbacks and recording the new grace period.
 	This same function updates state in response to some other
 	CPU starting a new grace period.
 \item	Reporting the current CPU's quiescent states to the core RCU
-	mechanism (via \url{rcu_check_quiescent_state()}, which
-	in turn invokes \url{cpu_quiet()}).
+	mechanism (via \co{rcu_check_quiescent_state()}, which
+	in turn invokes \co{cpu_quiet()}).
 	This of course might mark the end of the current grace period.
 \item	Starting a new grace period if there is no grace period in progress
 	and this CPU has RCU callbacks still waiting for a grace period
-	(via \url{cpu_needs_another_gp()} and
-	\url{rcu_start_gp()}).
+	(via \co{cpu_needs_another_gp()} and
+	\co{rcu_start_gp()}).
 \item	Invoking any of this CPU's callbacks whose grace period has ended
-	(via \url{rcu_do_batch()}).
+	(via \co{rcu_do_batch()}).
 \end{enumerate}
 
 These interactions are carefully orchestrated in order to avoid
@@ -672,39 +672,39 @@ grace period against the current grace period.
 \subsubsection{Enter and Leave Dynticks Idle Mode}
 \label{app:rcuimpl:rcutree:Enter and Leave Dynticks Idle Mode}
 
-The scheduler invokes \url{rcu_enter_nohz()} to
-enter dynticks-idle mode, and invokes \url{rcu_exit_nohz()}
+The scheduler invokes \co{rcu_enter_nohz()} to
+enter dynticks-idle mode, and invokes \co{rcu_exit_nohz()}
 to exit it.
-The \url{rcu_enter_nohz()} function increments a per-CPU
-\url{dynticks_nesting} variable and
-also a per-CPU \url{dynticks} counter, the latter of which which must
+The \co{rcu_enter_nohz()} function increments a per-CPU
+\co{dynticks_nesting} variable and
+also a per-CPU \co{dynticks} counter, the latter of which which must
 then have an even-numbered value.
-The \url{rcu_exit_nohz()} function decrements this same
-per-CPU \url{dynticks_nesting} variable,
-and again increments the per-CPU \url{dynticks}
+The \co{rcu_exit_nohz()} function decrements this same
+per-CPU \co{dynticks_nesting} variable,
+and again increments the per-CPU \co{dynticks}
 counter, the latter of which must then have an odd-numbered value.
 
-The \url{dynticks} counter can be sampled by other CPUs.
+The \co{dynticks} counter can be sampled by other CPUs.
 If the value is even, the first CPU is in an extended quiescent state.
 Similarly, if the counter value changes during a given grace period,
 the first CPU must have been in an extended quiescent state at some
 point during the grace period.
-However, there is another \url{dynticks_nmi} per-CPU variable
+However, there is another \co{dynticks_nmi} per-CPU variable
 that must also be sampled, as will be discussed below.
 
 \subsubsection{Interrupt from Dynticks Idle Mode}
 \label{app:rcuimpl:rcutree:Interrupt from Dynticks Idle Mode}
 
 Interrupts from dynticks idle mode are handled by
-\url{rcu_irq_enter()} and \url{rcu_irq_exit()}.
-The \url{rcu_irq_enter()} function increments the
-per-CPU \url{dynticks_nesting} variable, and, if the prior
-value was zero, also increments the \url{dynticks}
+\co{rcu_irq_enter()} and \co{rcu_irq_exit()}.
+The \co{rcu_irq_enter()} function increments the
+per-CPU \co{dynticks_nesting} variable, and, if the prior
+value was zero, also increments the \co{dynticks}
 per-CPU variable (which must then have an odd-numbered value).
 
-The \url{rcu_irq_exit()} function decrements the
-per-CPU \url{dynticks_nesting} variable, and, if the new
-value is zero, also increments the \url{dynticks}
+The \co{rcu_irq_exit()} function decrements the
+per-CPU \co{dynticks_nesting} variable, and, if the new
+value is zero, also increments the \co{dynticks}
 per-CPU variable (which must then have an even-numbered value).
 
 Note that entering an irq handler exits dynticks idle mode
@@ -715,59 +715,59 @@ You have been warned.
 \subsubsection{NMI from Dynticks Idle Mode}
 \label{app:rcuimpl:rcutree:NMI from Dynticks Idle Mode}
 
-NMIs from dynticks idle mode are handled by \url{rcu_nmi_enter()}
-and \url{rcu_nmi_exit()}.
-These functions both increment the \url{dynticks_nmi} counter,
-but only if the aforementioned \url{dynticks} counter is even.
+NMIs from dynticks idle mode are handled by \co{rcu_nmi_enter()}
+and \co{rcu_nmi_exit()}.
+These functions both increment the \co{dynticks_nmi} counter,
+but only if the aforementioned \co{dynticks} counter is even.
 In other words, NMI's refrain from manipulating the
-\url{dynticks_nmi} counter if the NMI occurred in non-dynticks-idle
+\co{dynticks_nmi} counter if the NMI occurred in non-dynticks-idle
 mode or within an interrupt handler.
 
 The only difference between these two functions is the error checks,
-as \url{rcu_nmi_enter()} must leave the \url{dynticks_nmi}
-counter with an odd value, and \url{rcu_nmi_exit()} must leave
+as \co{rcu_nmi_enter()} must leave the \co{dynticks_nmi}
+counter with an odd value, and \co{rcu_nmi_exit()} must leave
 this counter with an even value.
 
 \subsubsection{Note That a CPU is in Dynticks Idle Mode}
 \label{app:rcuimpl:rcutree:Note That a CPU is in Dynticks Idle Mode}
 
-The \url{force_quiescent_state()} function implements a
+The \co{force_quiescent_state()} function implements a
 three-phase state machine.
-The first phase (\url{RCU_INITIALIZING}) waits for \url{rcu_start_gp()}
+The first phase (\co{RCU_INITIALIZING}) waits for \co{rcu_start_gp()}
 to complete grace-period initialization.
-This state is not exited by \url{force_quiescent_state()}, but rather
-by \url{rcu_start_gp()}.
+This state is not exited by \co{force_quiescent_state()}, but rather
+by \co{rcu_start_gp()}.
 
-In the second phase (\url{RCU_SAVE_DYNTICK}), the
-\url{dyntick_save_progress_counter()} function scans the CPUs that
+In the second phase (\co{RCU_SAVE_DYNTICK}), the
+\co{dyntick_save_progress_counter()} function scans the CPUs that
 have not yet reported a quiescent state, recording their per-CPU
-\url{dynticks} and \url{dynticks_nmi} counters.
+\co{dynticks} and \co{dynticks_nmi} counters.
 If these counters both have even-numbered values, then the corresponding
 CPU is in dynticks-idle state, which is therefore noted as an extended
-quiescent state (reported via \url{cpu_quiet_msk()}).
+quiescent state (reported via \co{cpu_quiet_msk()}).
 
-In the third phase (\url{RCU_FORCE_QS}), the
-\url{rcu_implicit_dynticks_qs()} function again scans the CPUs
+In the third phase (\co{RCU_FORCE_QS}), the
+\co{rcu_implicit_dynticks_qs()} function again scans the CPUs
 that have not yet reported a quiescent state (either explicitly or
-implicitly during the \url{RCU_SAVE_DYNTICK} phase), again checking the
-per-CPU \url{dynticks} and \url{dynticks_nmi} counters.
+implicitly during the \co{RCU_SAVE_DYNTICK} phase), again checking the
+per-CPU \co{dynticks} and \co{dynticks_nmi} counters.
 If each of these has either changed in value or is now even, then
 the corresponding CPU has either passed through or is now in dynticks
 idle, which as before is noted as an extended quiescent state.
 
-If \url{rcu_implicit_dynticks_qs()} finds that a given CPU
+If \co{rcu_implicit_dynticks_qs()} finds that a given CPU
 has neither been in dynticks idle mode nor reported a quiescent state,
-it invokes \url{rcu_implicit_offline_qs()}, which checks to see
+it invokes \co{rcu_implicit_offline_qs()}, which checks to see
 if that CPU is offline, which is also reported as an extended quiescent
 state.
-If the CPU is online, then \url{rcu_implicit_offline_qs()} sends
+If the CPU is online, then \co{rcu_implicit_offline_qs()} sends
 it a reschedule IPI in an attempt to remind it of its duty to report
 a quiescent state to RCU.
 
-Note that \url{force_quiescent_state()} does not directly
-invoke either \url{dyntick_save_progress_counter()} or
-\url{rcu_implicit_dynticks_qs()}, instead passing these functions
-to an intervening \url{rcu_process_dyntick()} function that
+Note that \co{force_quiescent_state()} does not directly
+invoke either \co{dyntick_save_progress_counter()} or
+\co{rcu_implicit_dynticks_qs()}, instead passing these functions
+to an intervening \co{rcu_process_dyntick()} function that
 abstracts out the common code involved in scanning the CPUs and reporting
 extended quiescent states.
 
@@ -779,7 +779,7 @@ extended quiescent states.
 	time, resulting in confusion?
 \QuickQuizAnswer{
 	They will both attempt to acquire the lock on the same leaf
-	\url{rcu_node} structure.
+	\co{rcu_node} structure.
 	The first one to acquire the lock will report the quiescent state
 	and clear the appropriate bit, and the second one to acquire the
 	lock will see that this bit has already been cleared.
@@ -799,14 +799,14 @@ extended quiescent states.
 	In fact, there is no need for the RCU grace period to even
 	\emph{start}.
 
-	RCU will restart if some irq handler does a \url{call_rcu()},
+	RCU will restart if some irq handler does a \co{call_rcu()},
 	which will cause an RCU callback to appear on the corresponding CPU,
 	which will force that CPU out of dyntick-idle mode, which will in turn
 	permit the current RCU grace period to come to an end.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	Given that \url{force_quiescent_state()} is a three-phase state
+	Given that \co{force_quiescent_state()} is a three-phase state
 	machine, don't we have triple the scheduling latency due to scanning
 	all the CPUs?
 \QuickQuizAnswer{
@@ -817,7 +817,7 @@ extended quiescent states.
 	is no different than that of a single-phase algorithm.
 	If the scheduling latency becomes a problem, one approach would be to
 	recode the state machine to scan the CPUs incrementally, most likely
-	by keeping state on a per-leaf-\url{rcu_node} basis.
+	by keeping state on a per-leaf-\co{rcu_node} basis.
 	But first show me a problem in the real world, \emph{then}
 	I will consider fixing it!
 } \QuickQuizEnd
@@ -825,27 +825,27 @@ extended quiescent states.
 \subsubsection{Offline a CPU}
 \label{app:rcuimpl:rcutree:Offline a CPU}
 
-CPU-offline events cause \url{rcu_cpu_notify()} to invoke
-\url{rcu_offline_cpu()}, which in turn invokes
-\url{__rcu_offline_cpu()} on both the rcu and the rcu\_bh
+CPU-offline events cause \co{rcu_cpu_notify()} to invoke
+\co{rcu_offline_cpu()}, which in turn invokes
+\co{__rcu_offline_cpu()} on both the rcu and the rcu\_bh
 instances of the data structures.
 This function clears the outgoing CPU's bits so that future grace
 periods will not expect this CPU to announce quiescent states,
-and further invokes \url{cpu_quiet()} in order to announce
+and further invokes \co{cpu_quiet()} in order to announce
 the offline-induced extended quiescent state.
-This work is performed with the global \url{->onofflock}
+This work is performed with the global \co{->onofflock}
 held in order to prevent interference with concurrent grace-period
 initialization.
 
 \QuickQuiz{}
-	But the other reason to hold \url{->onofflock} is to prevent
+	But the other reason to hold \co{->onofflock} is to prevent
 	multiple concurrent online/offline operations, right?
 \QuickQuizAnswer{
 	Actually, no!
 	The CPU-hotplug code's synchronization design prevents multiple
 	concurrent CPU online/offline operations, so only one CPU
 	online/offline operation can be executing at any given time.
-	Therefore, the only purpose of \url{->onofflock} is to prevent a CPU
+	Therefore, the only purpose of \co{->onofflock} is to prevent a CPU
 	online or offline operation from running concurrently with grace-period
 	initialization.
 } \QuickQuizEnd
@@ -853,18 +853,18 @@ initialization.
 \subsubsection{Online a CPU}
 \label{app:rcuimpl:rcutree:Online a CPU}
 
-CPU-online events cause \url{rcu_cpu_notify()} to invoke
-\url{rcu_online_cpu()}, which initializes the incoming CPU's
-dynticks state, and then invokes \url{rcu_init_percpu_data()}
-to initialize the incoming CPU's \url{rcu_data} structure,
+CPU-online events cause \co{rcu_cpu_notify()} to invoke
+\co{rcu_online_cpu()}, which initializes the incoming CPU's
+dynticks state, and then invokes \co{rcu_init_percpu_data()}
+to initialize the incoming CPU's \co{rcu_data} structure,
 and also to set this CPU's bits (again protected by
-the global \url{->onofflock}) so that future grace periods
+the global \co{->onofflock}) so that future grace periods
 will wait for a quiescent state from this CPU.
-Finally, \url{rcu_online_cpu()}
+Finally, \co{rcu_online_cpu()}
 sets up the RCU softirq vector for this CPU.
 
 \QuickQuiz{}
-	Given all these acquisitions of the global \url{->onofflock},
+	Given all these acquisitions of the global \co{->onofflock},
 	won't there
 	be horrible lock contention when running with thousands of CPUs?
 \QuickQuizAnswer{
@@ -876,7 +876,7 @@ sets up the RCU softirq vector for this CPU.
 	locking, so at most two CPUs can be contending for this lock at any
 	given time.
 
-	Lock contention on \url{->onofflock} should therefore
+	Lock contention on \co{->onofflock} should therefore
 	be no problem, even on systems with thousands of CPUs.
 } \QuickQuizEnd
 
@@ -895,7 +895,7 @@ sets up the RCU softirq vector for this CPU.
 		This means that CPUs going offline need to have their callbacks
 		migrated to some other CPU, thus, we cannot allow CPUs to
 		simply go quietly offline.
-	\item	Present-day Linux systems run with \url{NR_CPUS}
+	\item	Present-day Linux systems run with \co{NR_CPUS}
 		much larger than the actual number of CPUs.
 		A unified approach could thus end up uselessly waiting on
 		CPUs that are not just offline, but which never existed in
@@ -904,7 +904,7 @@ sets up the RCU softirq vector for this CPU.
 		at a time during boot, and therefore must handle the online
 		process.
 		This onlining must exclude grace-period initialization, so
-		the \url{->onofflock} must still be used.
+		the \co{->onofflock} must still be used.
 	\item	CPUs often switch into and out of dyntick-idle mode
 		extremely frequently, so it is not reasonable to use the
 		heavyweight online/offline code path for entering and exiting
@@ -915,13 +915,13 @@ sets up the RCU softirq vector for this CPU.
 \subsubsection{Detect a Too-Long Grace Period}
 \label{app:rcuimpl:rcutree:Detect a Too-Long Grace Period}
 
-When the \url{CONFIG_RCU_CPU_STALL_DETECTOR} kernel parameter
-is specified, the \url{record_gp_stall_check_time()} function
+When the \co{CONFIG_RCU_CPU_STALL_DETECTOR} kernel parameter
+is specified, the \co{record_gp_stall_check_time()} function
 records the time and also a timestamp set three seconds into the future.
 If the current grace period still has not ended by that time, the
-\url{check_cpu_stall()} function will check for the culprit,
-invoking \url{print_cpu_stall()} if the current CPU is the
-holdout, or \url{print_other_cpu_stall()} if it is some other CPU.
+\co{check_cpu_stall()} function will check for the culprit,
+invoking \co{print_cpu_stall()} if the current CPU is the
+holdout, or \co{print_other_cpu_stall()} if it is some other CPU.
 A two-jiffies offset helps ensure that CPUs report on themselves
 when possible, taking advantage of the fact that a CPU can normally
 do a better job of tracing its own stack than it can tracing some other
@@ -954,7 +954,7 @@ when concurrently onlining and offlining CPUs and when CPUs are concurrently
 entering and exiting dynticks idle mode.
 I use a script @@@ move to CodeSamples, ref @@@
 % <a href="http://lwn.net/Articles/305786/">script</a> to online and offline CPUs,
-and use the \url{test_no_idle_hz} module parameter to rcutorture
+and use the \co{test_no_idle_hz} module parameter to rcutorture
 to stress-test dynticks idle mode.
 Just to be fully paranoid, I sometimes run a kernbench workload in parallel
 as well.
@@ -970,67 +970,67 @@ script @@@ move to CodeSamples, ref @@@
 % <a href="http://lwn.net/Articles/305787/">script</a>, and are as follows:
 
 \begin{enumerate}
-\item    \url{CONFIG_CLASSIC_RCU}: Classic RCU.
-\item    \url{CONFIG_PREEMPT_RCU}: Preemptible (real-time) RCU.
-\item    \url{CONFIG_TREE_RCU}: Classic RCU for huge SMP systems.
-\item    \url{CONFIG_RCU_FANOUT}: Number of children for each
-		\url{rcu_node}.
-\item    \url{CONFIG_RCU_FANOUT_EXACT}: Balance the
-		\url{rcu_node} tree.
-\item    \url{CONFIG_HOTPLUG_CPU}: Allow CPUs to be offlined
+\item    \co{CONFIG_CLASSIC_RCU}: Classic RCU.
+\item    \co{CONFIG_PREEMPT_RCU}: Preemptible (real-time) RCU.
+\item    \co{CONFIG_TREE_RCU}: Classic RCU for huge SMP systems.
+\item    \co{CONFIG_RCU_FANOUT}: Number of children for each
+		\co{rcu_node}.
+\item    \co{CONFIG_RCU_FANOUT_EXACT}: Balance the
+		\co{rcu_node} tree.
+\item    \co{CONFIG_HOTPLUG_CPU}: Allow CPUs to be offlined
 		and onlined.
-\item    \url{CONFIG_NO_HZ}: Enable dyntick-idle mode.
-\item    \url{CONFIG_SMP}: Enable multi-CPU operation.
-\item    \url{CONFIG_RCU_CPU_STALL_DETECTOR}: Enable RCU to detect
+\item    \co{CONFIG_NO_HZ}: Enable dyntick-idle mode.
+\item    \co{CONFIG_SMP}: Enable multi-CPU operation.
+\item    \co{CONFIG_RCU_CPU_STALL_DETECTOR}: Enable RCU to detect
 		when CPUs go on extended quiescent-state vacations.
-\item    \url{CONFIG_RCU_TRACE}: Generate RCU trace files in debugfs.
+\item    \co{CONFIG_RCU_TRACE}: Generate RCU trace files in debugfs.
 \end{enumerate}
 
-We ignore the \url{CONFIG_DEBUG_LOCK_ALLOC} configuration
+We ignore the \co{CONFIG_DEBUG_LOCK_ALLOC} configuration
 variable under the perhaps-naive assumption that hierarchical RCU
 could not have broken lockdep.
 There are still 10 configuration variables, which would result in
 1,024 combinations if they were independent boolean variables.
 Fortunately the first three are mutually exclusive, which reduces
-the number of combinations down to 384, but \url{CONFIG_RCU_FANOUT}
+the number of combinations down to 384, but \co{CONFIG_RCU_FANOUT}
 can take on values from 2 to 64, increasing the number of combinations
 to 12,096.
 This is an infeasible number of combinations.
 
-One key observation is that only \url{CONFIG_NO_HZ}
-and \url{CONFIG_PREEMPT} can be expected to have changed behavior
-if either \url{CONFIG_CLASSIC_RCU} or
-\url{CONFIG_PREEMPT_RCU} are in effect, as only these portions
+One key observation is that only \co{CONFIG_NO_HZ}
+and \co{CONFIG_PREEMPT} can be expected to have changed behavior
+if either \co{CONFIG_CLASSIC_RCU} or
+\co{CONFIG_PREEMPT_RCU} are in effect, as only these portions
 of the two pre-existing RCU implementations were changed during this effort.
 This cuts out almost two thirds of the possible combinations.
 
 Furthermore, not all of the possible values of
-\url{CONFIG_RCU_FANOUT} produce significantly different results,
+\co{CONFIG_RCU_FANOUT} produce significantly different results,
 in fact only a few cases really need to be tested separately:
 
 \begin{enumerate}
 \item	Single-node ``tree''.
 \item	Two-level balanced tree.
 \item	Three-level balanced tree.
-\item	Autobalanced tree, where \url{CONFIG_RCU_FANOUT}
+\item	Autobalanced tree, where \co{CONFIG_RCU_FANOUT}
 	specifies an unbalanced tree, but such that it is auto-balanced
-	in absence of \url{CONFIG_RCU_FANOUT_EXACT}.
+	in absence of \co{CONFIG_RCU_FANOUT_EXACT}.
 \item	Unbalanced tree.
 \end{enumerate}
 
-Looking further, \url{CONFIG_HOTPLUG_CPU} makes sense only
-given \url{CONFIG_SMP}, and \url{CONFIG_RCU_CPU_STALL_DETECTOR}
+Looking further, \co{CONFIG_HOTPLUG_CPU} makes sense only
+given \co{CONFIG_SMP}, and \co{CONFIG_RCU_CPU_STALL_DETECTOR}
 is independent, and really only needs to be tested once (though someone
 even more paranoid than am I might decide to test it both with
-and without \url{CONFIG_SMP}).
-Similarly, \url{CONFIG_RCU_TRACE} need only be tested once,
+and without \co{CONFIG_SMP}).
+Similarly, \co{CONFIG_RCU_TRACE} need only be tested once,
 but the truly paranoid (such as myself) will choose to run it both with
-and without \url{CONFIG_NO_HZ}.
+and without \co{CONFIG_NO_HZ}.
 
 This allows us to obtain excellent coverage of RCU with only 15
 test cases.
 All test cases specify the following configuration parameters in order
-to run rcutorture and so that \url{CONFIG_HOTPLUG_CPU=n} actually
+to run rcutorture and so that \co{CONFIG_HOTPLUG_CPU=n} actually
 takes effect:
 
 \vspace{5pt}
@@ -1311,7 +1311,7 @@ The 15 test cases are as follows:
 For a large change that affects RCU core code, one should run
 rcutorture for each of the above combinations, and concurrently
 with CPU offlining and onlining for cases with
-\url{CONFIG_HOTPLUG_CPU}.
+\co{CONFIG_HOTPLUG_CPU}.
 For small changes, it may suffice to run kernbench in each case.
 Of course, if the change is confined to a particular subset of
 the configuration parameters, it may be possible to reduce the
@@ -1334,7 +1334,7 @@ sufficient for at least the next few years.
 This RCU implementation of course has some limitations:
 
 \begin{enumerate}
-\item	The \url{force_quiescent_state()} can scan the full
+\item	The \co{force_quiescent_state()} can scan the full
 	set of CPUs with irqs disabled.
 	This would be fatal in a real-time implementation of RCU,
 	so if hierarchy ever needs to be introduced to preemptible
@@ -1343,7 +1343,7 @@ This RCU implementation of course has some limitations:
 	systems, but actual testing on such systems is required
 	to prove this one way or the other.
 	
-	On busy systems, the \url{force_quiescent_state()} scan
+	On busy systems, the \co{force_quiescent_state()} scan
 	would not be expected to happen,
 	as CPUs should pass through quiescent states within three
 	jiffies of the start of a quiescent state.  On semi-busy
@@ -1360,13 +1360,13 @@ This RCU implementation of course has some limitations:
 	increase the time required to end a grace period, but would
 	nonetheless be a likely solution.
 	
-\item	The \url{rcu_node} hierarchy is created at compile
-	time, and is therefore sized for the worst-case \url{NR_CPUS}
+\item	The \co{rcu_node} hierarchy is created at compile
+	time, and is therefore sized for the worst-case \co{NR_CPUS}
 	number of CPUs.
-	However, even for 4,096 CPUs, the \url{rcu_node}
+	However, even for 4,096 CPUs, the \co{rcu_node}
 	hierarchy consumes only 65 cache lines on a 64-bit machine
 	(and just you try accommodating 4,096 CPUs on a 32-bit machine!).
-	Of course, a kernel built with \url{NR_CPUS=4096}
+	Of course, a kernel built with \co{NR_CPUS=4096}
 	running on a 16-CPU machine would use a two-level tree when
 	a single-node tree would work just fine.
 	Although this configuration would incur added locking overhead,
@@ -1378,7 +1378,7 @@ This RCU implementation of course has some limitations:
 	kernel text and 456 bytes of kernel data for a total of 2,213 bytes,
 	while the new hierarchical RCU implementation consumes 4,006
 	bytes of kernel text and 624 bytes of kernel data for a total
-	of 4,630 bytes on a \url{NR_CPUS=4} system.
+	of 4,630 bytes on a \co{NR_CPUS=4} system.
 	This is a non-problem even for most embedded systems, which
 	often come with hundreds of megabytes of main memory.
 	However, if this is a problem for tiny embedded systems, it may

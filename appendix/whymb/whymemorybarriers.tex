@@ -650,7 +650,7 @@ Figure~\ref{fig:app:whymb:Caches With Store Buffers},
 one would be surprised.
 Such a system could potentially see the following sequence of events:
 \begin{enumerate}
-\item	CPU 0 starts executing the \url{a = 1}.
+\item	CPU 0 starts executing the \co{a = 1}.
 \item	CPU 0 looks ``a'' up in the cache, and finds that it is missing.
 \item	CPU 0 therefore sends a ``read invalidate'' message in order to
 	get exclusive ownership of the cache line containing ``a''.
@@ -658,7 +658,7 @@ Such a system could potentially see the following sequence of events:
 \item	CPU 1 receives the ``read invalidate'' message, and responds
 	by transmitting the cache line and removing that cacheline from
 	its cache.
-\item	CPU 0 starts executing the \url{b = a + 1}.
+\item	CPU 0 starts executing the \co{b = a + 1}.
 \item	CPU 0 receives the cache line from CPU 1, which still has
 	a value of zero for ``a''.
 \item	CPU 0 loads ``a'' from its cache, finding the value zero.
@@ -669,7 +669,7 @@ Such a system could potentially see the following sequence of events:
 \item	CPU 0 adds one to the value zero loaded for ``a'' above,
 	and stores it into the cache line containing ``b''
 	(which we will assume is already owned by CPU 0).
-\item	CPU 0 executes \url{assert(b == 2)}, which fails.
+\item	CPU 0 executes \co{assert(b == 2)}, which fails.
 \end{enumerate}
 
 The problem is that we have two copies of ``a'', one in the cache and
@@ -730,13 +730,13 @@ Suppose further that the cache line containing ``a'' resides only in CPU~1's
 cache, and that the cache line containing ``b'' is owned by CPU 0.
 Then the sequence of operations might be as follows:
 \begin{enumerate}
-\item	CPU~0 executes \url{a = 1}.  The cache line is not in
+\item	CPU~0 executes \co{a = 1}.  The cache line is not in
 	CPU~0's cache, so CPU~0 places the new value of ``a'' in its
 	store buffer and transmits a ``read invalidate'' message.
-\item	CPU~1 executes \url{while (b == 0) continue}, but the cache line
+\item	CPU~1 executes \co{while (b == 0) continue}, but the cache line
 	containing ``b'' is not in its cache.
 	It therefore transmits a ``read'' message.
-\item	CPU~0 executes \url{b = 1}.
+\item	CPU~0 executes \co{b = 1}.
 	It already owns this cache line (in other words, the cache line
 	is already in either the ``modified'' or the ``exclusive'' state),
 	so it stores the new value of ``b'' in its cache line.
@@ -745,10 +745,10 @@ Then the sequence of operations might be as follows:
 	to CPU~1, also marking the line as ``shared'' in its own cache.
 \item	CPU~1 receives the cache line containing ``b'' and installs
 	it in its cache.
-\item	CPU~1 can now finish executing \url{while (b == 0) continue},
+\item	CPU~1 can now finish executing \co{while (b == 0) continue},
 	and since it finds that the value of ``b'' is 1, it proceeds
 	to the next statement.
-\item	CPU~1 executes the \url{assert(a == 1)}, and, since CPU~1 is
+\item	CPU~1 executes the \co{assert(a == 1)}, and, since CPU~1 is
 	working with the old value of ``a'', this assertion fails.
 \item	CPU~1 receives the ``read invalidate'' message, and
 	transmits the cache line containing ``a'' to CPU~0 and
@@ -764,7 +764,7 @@ Then the sequence of operations might be as follows:
 	rather than a simple ``invalidate''?
 \QuickQuizAnswer{
 	Because the cache line in question contains more than just the
-	variable \url{a}.
+	variable \co{a}.
 } \QuickQuizEnd
 
 The hardware designers cannot help directly here, since the CPUs have
@@ -793,7 +793,7 @@ The program fragment must be updated to contain the memory barrier:
 \end{minipage}
 \vspace{5pt}
 
-The memory barrier \url{smp_mb()} will cause the CPU to flush its store
+The memory barrier \co{smp_mb()} will cause the CPU to flush its store
 buffer before applying each subsequent store to its variable's cache line.
 The CPU could either simply stall until the store buffer was empty
 before proceeding, or it could use the store buffer to hold subsequent
@@ -802,15 +802,15 @@ applied.
 
 With this latter approach the sequence of operations might be as follows:
 \begin{enumerate}
-\item	CPU~0 executes \url{a = 1}.  The cache line is not in
+\item	CPU~0 executes \co{a = 1}.  The cache line is not in
 	CPU~0's cache, so CPU~0 places the new value of ``a'' in its
 	store buffer and transmits a ``read invalidate'' message.
-\item	CPU~1 executes \url{while (b == 0) continue}, but the cache line
+\item	CPU~1 executes \co{while (b == 0) continue}, but the cache line
 	containing ``b'' is not in its cache.
 	It therefore transmits a ``read'' message.
-\item	CPU~0 executes \url{smp_mb()}, and marks all current store-buffer
-	entries (namely, the \url{a = 1}).
-\item	CPU~0 executes \url{b = 1}.
+\item	CPU~0 executes \co{smp_mb()}, and marks all current store-buffer
+	entries (namely, the \co{a = 1}).
+\item	CPU~0 executes \co{b = 1}.
 	It already owns this cache line (in other words, the cache line
 	is already in either the ``modified'' or the ``exclusive'' state),
 	but there is a marked entry in the store buffer.
@@ -825,7 +825,7 @@ With this latter approach the sequence of operations might be as follows:
 	it in its cache.
 \item	CPU~1 can now load the value of ``b'',
 	but since it finds that the value of ``b'' is still 0, it repeats
-	the \url{while} statement.
+	the \co{while} statement.
 	The new value of ``b'' is safely hidden in CPU~0's store buffer.
 \item	CPU~1 receives the ``read invalidate'' message, and
 	transmits the cache line containing ``a'' to CPU~0 and
@@ -834,7 +834,7 @@ With this latter approach the sequence of operations might be as follows:
 	the buffered store, placing this line into the ``modified''
 	state.
 \item	Since the store to ``a'' was the only
-	entry in the store buffer that was marked by the \url{smp_mb()},
+	entry in the store buffer that was marked by the \co{smp_mb()},
 	CPU~0 can also store the new value of ``b'' --- except for the
 	fact that the cache line containing ``b'' is now in ``shared''
 	state.
@@ -842,7 +842,7 @@ With this latter approach the sequence of operations might be as follows:
 \item	CPU~1 receives the ``invalidate'' message, invalidates the
 	cache line containing ``b'' from its cache, and sends an
 	``acknowledgement'' message to CPU~0.
-\item	CPU~1 executes \url{while (b == 0) continue}, but the cache line
+\item	CPU~1 executes \co{while (b == 0) continue}, but the cache line
 	containing ``b'' is not in its cache.
 	It therefore transmits a ``read'' message to CPU~0.
 \item	CPU~0 receives the ``acknowledgement'' message, and puts
@@ -856,9 +856,9 @@ With this latter approach the sequence of operations might be as follows:
 	it in its cache.
 \item	CPU~1 can now load the value of ``b'',
 	and since it finds that the value of ``b'' is 1, it
-	exits the \url{while} loop and proceeds
+	exits the \co{while} loop and proceeds
 	to the next statement.
-\item	CPU~1 executes the \url{assert(a == 1)}, but the cache line containing
+\item	CPU~1 executes the \co{assert(a == 1)}, but the cache line containing
 	``a'' is no longer in its cache.
 	Once it gets this cache from CPU~0, it will be
 	working with the up-to-date value of ``a'', and the assertion
@@ -949,8 +949,8 @@ Suppose the values of ``a'' and ``b'' are initially zero,
 that ``a'' is replicated read-only (MESI ``shared'' state),
 and that ``b''
 is owned by CPU~0 (MESI ``exclusive'' or ``modified'' state).
-Then suppose that CPU~0 executes \url{foo()} while CPU~1 executes
-function \url{bar()} in the following code fragment:
+Then suppose that CPU~0 executes \co{foo()} while CPU~1 executes
+function \co{bar()} in the following code fragment:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -974,20 +974,20 @@ function \url{bar()} in the following code fragment:
 
 Then the sequence of operations might be as follows:
 \begin{enumerate}
-\item	CPU~0 executes \url{a = 1}.  The corresponding
+\item	CPU~0 executes \co{a = 1}.  The corresponding
 	cache line is read-only in
 	CPU~0's cache, so CPU~0 places the new value of ``a'' in its
 	store buffer and transmits an ``invalidate'' message in order
 	to flush the corresponding cache line from CPU~1's cache.
-\item	CPU~1 executes \url{while (b == 0) continue}, but the cache line
+\item	CPU~1 executes \co{while (b == 0) continue}, but the cache line
 	containing ``b'' is not in its cache.
 	It therefore transmits a ``read'' message.
 \item	CPU~1 receives CPU~0's ``invalidate'' message, queues it, and
 	immediately responds to it.
 \item	CPU~0 receives the response from CPU~1, and is therefore free
-	to proceed past the \url{smp_mb()} on line~4 above, moving
+	to proceed past the \co{smp_mb()} on line~4 above, moving
 	the value of ``a'' from its store buffer to its cache line.
-\item	CPU~0 executes \url{b = 1}.
+\item	CPU~0 executes \co{b = 1}.
 	It already owns this cache line (in other words, the cache line
 	is already in either the ``modified'' or the ``exclusive'' state),
 	so it stores the new value of ``b'' in its cache line.
@@ -996,10 +996,10 @@ Then the sequence of operations might be as follows:
 	to CPU~1, also marking the line as ``shared'' in its own cache.
 \item	CPU~1 receives the cache line containing ``b'' and installs
 	it in its cache.
-\item	CPU~1 can now finish executing \url{while (b == 0) continue},
+\item	CPU~1 can now finish executing \co{while (b == 0) continue},
 	and since it finds that the value of ``b'' is 1, it proceeds
 	to the next statement.
-\item	CPU~1 executes the \url{assert(a == 1)}, and, since the
+\item	CPU~1 executes the \co{assert(a == 1)}, and, since the
 	old value of ``a'' is still in CPU~1's cache,
 	this assertion fails.
 \item	Despite the assertion failure, CPU~1 processes the queued
@@ -1029,7 +1029,7 @@ the invalidate queue, so that when a given CPU executes a memory
 barrier, it marks all the entries currently in its invalidate queue,
 and forces any subsequent load to wait until all marked entries
 have been applied to the CPU's cache.
-Therefore, we can add a memory barrier to function \url{bar} as follows:
+Therefore, we can add a memory barrier to function \co{bar} as follows:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -1055,29 +1055,29 @@ Therefore, we can add a memory barrier to function \url{bar} as follows:
 \QuickQuiz{}
 	Say what???
 	Why do we need a memory barrier here, given that the CPU cannot
-	possibly execute the \url{assert()} until after the
-	\url{while} loop completes?
+	possibly execute the \co{assert()} until after the
+	\co{while} loop completes?
 \QuickQuizAnswer{
 	CPUs are free to speculatively execute, which can have the effect
-	of executing the assertion before the \url{while} loop completes.
+	of executing the assertion before the \co{while} loop completes.
 } \QuickQuizEnd
 
 With this change, the sequence of operations might be as follows:
 \begin{enumerate}
-\item	CPU~0 executes \url{a = 1}.  The corresponding
+\item	CPU~0 executes \co{a = 1}.  The corresponding
 	cache line is read-only in
 	CPU~0's cache, so CPU~0 places the new value of ``a'' in its
 	store buffer and transmits an ``invalidate'' message in order
 	to flush the corresponding cache line from CPU~1's cache.
-\item	CPU~1 executes \url{while (b == 0) continue}, but the cache line
+\item	CPU~1 executes \co{while (b == 0) continue}, but the cache line
 	containing ``b'' is not in its cache.
 	It therefore transmits a ``read'' message.
 \item	CPU~1 receives CPU~0's ``invalidate'' message, queues it, and
 	immediately responds to it.
 \item	CPU~0 receives the response from CPU~1, and is therefore free
-	to proceed past the \url{smp_mb()} on line~4 above, moving
+	to proceed past the \co{smp_mb()} on line~4 above, moving
 	the value of ``a'' from its store buffer to its cache line.
-\item	CPU~0 executes \url{b = 1}.
+\item	CPU~0 executes \co{b = 1}.
 	It already owns this cache line (in other words, the cache line
 	is already in either the ``modified'' or the ``exclusive'' state),
 	so it stores the new value of ``b'' in its cache line.
@@ -1086,7 +1086,7 @@ With this change, the sequence of operations might be as follows:
 	to CPU~1, also marking the line as ``shared'' in its own cache.
 \item	CPU~1 receives the cache line containing ``b'' and installs
 	it in its cache.
-\item	CPU~1 can now finish executing \url{while (b == 0) continue},
+\item	CPU~1 can now finish executing \co{while (b == 0) continue},
 	and since it finds that the value of ``b'' is 1, it proceeds
 	to the next statement, which is now a memory barrier.
 \item	CPU~1 must now stall until it processes all pre-existing
@@ -1094,7 +1094,7 @@ With this change, the sequence of operations might be as follows:
 \item	CPU~1 now processes the queued
 	``invalidate'' message, and
 	invalidates the cache line containing ``a'' from its own cache.
-\item	CPU~1 executes the \url{assert(a == 1)}, and, since the
+\item	CPU~1 executes the \co{assert(a == 1)}, and, since the
 	cache line containing ``a'' is no longer in CPU~1's cache,
 	it transmits a ``read'' message.
 \item	CPU~0 responds to this ``read'' message with the cache line
@@ -1112,8 +1112,8 @@ with their cache-coherence optimizations.
 
 In the previous section, memory barriers were used to mark entries in
 both the store buffer and the invalidate queue.
-But in our code fragment, \url{foo()} had no reason to do anything
-with the invalidate queue, and \url{bar()} similarly had no reason
+But in our code fragment, \co{foo()} had no reason to do anything
+with the invalidate queue, and \co{bar()} similarly had no reason
 to do anything with the store queue.
 
 Many CPU architectures therefore provide weaker memory-barrier
@@ -1133,7 +1133,7 @@ completed before any store following the write memory barrier.
 A full-fledged memory barrier orders both loads and stores, but again
 only on the CPU executing the memory barrier.
 
-If we update \url{foo} and \url{bar} to use read and write memory
+If we update \co{foo} and \co{bar} to use read and write memory
 barriers, they appear as follows:
 
 \vspace{5pt}
@@ -1197,14 +1197,14 @@ constraints~\cite{PaulMcKenney2005i,PaulMcKenney2005j}:
 \item	CPUs will reorder a given operation with a store only
 	if the two operations are referencing different locations.
 \item	All of a given CPU's loads preceding a read memory barrier
-	(\url{smp_rmb()}) will be perceived by all CPUs to precede
+	(\co{smp_rmb()}) will be perceived by all CPUs to precede
 	any loads following that read memory barrier.
 \item	All of a given CPU's stores preceding a write memory barrier
-	(\url{smp_wmb()}) will be perceived by all CPUs to precede
+	(\co{smp_wmb()}) will be perceived by all CPUs to precede
 	any stores following that write memory barrier.
 \item	All of a given CPU's accesses (loads and stores) preceding a
 	full memory barrier
-	(\url{smp_mb()}) will be perceived by all CPUs to precede
+	(\co{smp_mb()}) will be perceived by all CPUs to precede
 	any accesses following that memory barrier.
 \end{enumerate}
 
@@ -1267,12 +1267,12 @@ Each of ``a'', ``b'', and ``c'' are initially zero.
 			\multicolumn{1}{c}{CPU 2} \\
 	\hline
 	\hline
-	\url{a = 1;}	 &		& \\
-	\url{smp_wmb();} & \url{while (b == 0)}; & \\
-	\url{b = 1;}	 & \url{c = 1;} & \url{z = c;} \\
-			 &		& \url{smp_rmb();} \\
-			 &		& \url{x = a;} \\
-			 &		& \url{assert(z == 0 || x == 1);} \\
+	\co{a = 1;}	 &		& \\
+	\co{smp_wmb();} & \co{while (b == 0)}; & \\
+	\co{b = 1;}	 & \co{c = 1;} & \co{z = c;} \\
+			 &		& \co{smp_rmb();} \\
+			 &		& \co{x = a;} \\
+			 &		& \co{assert(z == 0 || x == 1);} \\
 \end{tabular}
 \end{center}
 \caption{Memory Barrier Example 1}
@@ -1327,11 +1327,11 @@ Both ``a'' and ``b'' are initially zero.
 			\multicolumn{1}{c}{CPU 2} \\
 	\hline
 	\hline
-	\url{a = 1;} & \url{while (a == 0)}; & \\
-		     & \url{smp_mb();}	& \url{y = b;} \\
-		     & \url{b = 1;}	& \url{smp_rmb();} \\
-		     &			& \url{x = a;} \\
-		     &			& \url{assert(y == 0 || x == 1);} \\
+	\co{a = 1;} & \co{while (a == 0)}; & \\
+		     & \co{smp_mb();}	& \co{y = b;} \\
+		     & \co{b = 1;}	& \co{smp_rmb();} \\
+		     &			& \co{x = a;} \\
+		     &			& \co{assert(y == 0 || x == 1);} \\
 \end{tabular}
 \end{center}
 \caption{Memory Barrier Example 2}
@@ -1370,15 +1370,15 @@ All variables are initially zero.
 			\multicolumn{1}{c}{CPU 2} \\
 	\hline
 	\hline
- 1 &	\url{a = 1;} &			& \\
- 2 &	\url{smb_wmb();} &		& \\
- 3 &	\url{b = 1;} & \url{while (b == 0)}; & \url{while (b == 0)}; \\
- 4 &		     & \url{smp_mb();}	& \url{smp_mb();} \\
- 5 &		     & \url{c = 1;}	& \url{d = 1;} \\
- 6 &	\url{while (c == 0);} &		& \\
- 7 &	\url{while (d == 0);} &		& \\
- 8 &	\url{smp_mb();} &		& \\
- 9 &	\url{e = 1;} &			& \url{assert(e == 0 || a == 1);} \\
+ 1 &	\co{a = 1;} &			& \\
+ 2 &	\co{smb_wmb();} &		& \\
+ 3 &	\co{b = 1;} & \co{while (b == 0)}; & \co{while (b == 0)}; \\
+ 4 &		     & \co{smp_mb();}	& \co{smp_mb();} \\
+ 5 &		     & \co{c = 1;}	& \co{d = 1;} \\
+ 6 &	\co{while (c == 0);} &		& \\
+ 7 &	\co{while (d == 0);} &		& \\
+ 8 &	\co{smp_mb();} &		& \\
+ 9 &	\co{e = 1;} &			& \co{assert(e == 0 || a == 1);} \\
 \end{tabular}
 \end{center}
 \caption{Memory Barrier Example 3}
@@ -1412,7 +1412,7 @@ Therefore, CPU~2's assertion on line~9 is guaranteed \emph{not} to fire.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	If CPU~2 executed an \url{assert(e==0||c==1)} in the example in
+	If CPU~2 executed an \co{assert(e==0||c==1)} in the example in
 	Table~\ref{tab:app:whymb:Memory Barrier Example 3},
 	would this assert ever trigger?
 \QuickQuizAnswer{
@@ -1426,7 +1426,7 @@ Therefore, CPU~2's assertion on line~9 is guaranteed \emph{not} to fire.
 	All CPUs I am aware of claim to provide transitivity.
 } \QuickQuizEnd
 
-The Linux kernel's \url{synchronize_rcu()} primitive uses an algorithm
+The Linux kernel's \co{synchronize_rcu()} primitive uses an algorithm
 similar to that shown in this example.
 
 \section{Memory-Barrier Instructions For Specific CPUs}
@@ -1798,14 +1798,14 @@ Alpha is the only CPU where {\tt smp\_read\_barrier\_depends()} is
 an {\tt smp\_mb()} rather than a no-op.
 
 \QuickQuiz{}
-	Why is Alpha's \url{smp_read_barrier_depends()} an
-	\url{smp_mb()} rather than \url{smp_rmb()}?
+	Why is Alpha's \co{smp_read_barrier_depends()} an
+	\co{smp_mb()} rather than \co{smp_rmb()}?
 \QuickQuizAnswer{
-	First, Alpha has only \url{mb} and \url{wmb} instructions,
-	so \url{smp_rmb()} would be implemented by the Alpha \url{mb}
+	First, Alpha has only \co{mb} and \co{wmb} instructions,
+	so \co{smp_rmb()} would be implemented by the Alpha \co{mb}
 	instruction in either case.
 
-	More importantly, \url{smp_read_barrier_depends()} must
+	More importantly, \co{smp_read_barrier_depends()} must
 	order subsequent stores.
 	For example, consider the following code:
 
@@ -1821,8 +1821,8 @@ an {\tt smp\_mb()} rather than a no-op.
 \end{minipage}
 \vspace{5pt}
 
-	Here the store to \url{p->hey_look} must be ordered,
-	not just the loads from \url{p->a} and \url{p->b}.
+	Here the store to \co{p->hey_look} must be ordered,
+	not just the loads from \co{p->a} and \co{p->b}.
 } \QuickQuizEnd
 
 For more detail on Alpha, see the reference manual~\cite{ALPHA95}.
@@ -1849,34 +1849,34 @@ Its memory model is similar to that of Power
 different set of memory-barrier instructions~\cite{ARMv7A:2010}:
 
 \begin{enumerate}
-\item	\url{DMB} (data memory barrier) causes the specified type of
+\item	\co{DMB} (data memory barrier) causes the specified type of
 	operations to \emph{appear} to have completed before any
 	subsequent operations of the same type.
 	The ``type'' of operations can be all operations or can be
-	restricted to only writes (similar to the Alpha \url{wmb}
-	and the POWER \url{eieio} instructions).
+	restricted to only writes (similar to the Alpha \co{wmb}
+	and the POWER \co{eieio} instructions).
 	In addition, ARM allows cache coherence to have one of three
 	scopes: single processor, a subset of the processors
 	(``inner'') and global (``outer'').
-\item	\url{DSB} (data synchronization barrier) causes the specified
+\item	\co{DSB} (data synchronization barrier) causes the specified
 	type of operations to actually complete before any subsequent
 	operations (of any type) are executed.
-	The ``type'' of operations is the same as that of \url{DMB}.
-	The \url{DSB} instruction was called \url{DWB} (drain write buffer
+	The ``type'' of operations is the same as that of \co{DMB}.
+	The \co{DSB} instruction was called \co{DWB} (drain write buffer
 	or data write barrier, your choice) in early versions of the
 	ARM architecture.
-\item	\url{ISB} (instruction synchronization barrier) flushes the CPU
-	pipeline, so that all instructions following the \url{ISB}
-	are fetched only after the \url{ISB} completes.
+\item	\co{ISB} (instruction synchronization barrier) flushes the CPU
+	pipeline, so that all instructions following the \co{ISB}
+	are fetched only after the \co{ISB} completes.
 	For example, if you are writing a self-modifying program
-	(such as a JIT), you should execute an \url{ISB} after
+	(such as a JIT), you should execute an \co{ISB} after
 	between generating the code and executing it.
 \end{enumerate}
 
 None of these instructions exactly match the semantics of Linux's
-\url{rmb()} primitive, which must therefore be implemented as a full
-\url{DMB}.
-The \url{DMB} and \url{DSB} instructions have a recursive definition
+\co{rmb()} primitive, which must therefore be implemented as a full
+\co{DMB}.
+The \co{DMB} and \co{DSB} instructions have a recursive definition
 of accesses ordered before and after the barrier, which has an effect
 similar to that of POWER's cumulativity.
 
@@ -1884,7 +1884,7 @@ ARM also implements control dependencies, so that if a conditional
 branch depends on a load, then any store executed after that conditional
 branch will be ordered after the load.
 However, loads following the conditional branch will \emph{not}
-be guaranteed to be ordered unless there is an \url{ISB}
+be guaranteed to be ordered unless there is an \co{ISB}
 instruction between the branch and the load.
 Consider the following example:
 
@@ -1904,15 +1904,15 @@ Consider the following example:
 \vspace{5pt}
 
 In this example, load-store control dependency ordering causes
-the load from \url{x} on line~1 to be ordered before the store to
-\url{y} on line~4.
+the load from \co{x} on line~1 to be ordered before the store to
+\co{y} on line~4.
 However, ARM does not respect load-load control dependencies, so that
 the load on line~1 might well happen \emph{after} the
 load on line~5.
 On the other hand, the combination of the conditional branch on line~2
-and the \url{ISB} instruction on line~6 ensures that
+and the \co{ISB} instruction on line~6 ensures that
 the load on line~7 happens after the load on line~1.
-Note that inserting an additional \url{ISB} instruction somewhere between
+Note that inserting an additional \co{ISB} instruction somewhere between
 lines~3 and 4 would enforce ordering between lines~1 and 5.
 
 \subsection{IA64}
@@ -2025,8 +2025,8 @@ Much more detail is available from
 McKenney and Silvera~\cite{PaulEMcKenneyN2745r2009}.
 
 Power respects control dependencies in much the same way that ARM
-does, with the exception that the Power \url{isync} instruction
-is substituted for the ARM \url{ISB} instruction.
+does, with the exception that the Power \co{isync} instruction
+is substituted for the ARM \co{ISB} instruction.
 
 Many members of the POWER architecture have incoherent instruction
 caches, so that a store to memory will not necessarily be reflected
