@@ -22,6 +22,6 @@ do
 	basename=`echo $i | sed -e 's/\.eps$//'`
 	if test ! -f $basename.pdf -o $basename.eps -nt $basename.pdf
 	then
-		a2ping --below --hires $basename.eps $basename.pdf
+		a2ping --below --hires --bboxfrom=compute-gs $basename.eps $basename.pdf
 	fi
 done
