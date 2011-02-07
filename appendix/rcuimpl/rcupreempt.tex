@@ -8,13 +8,13 @@ The preemptible RCU implementation is unusual in that
 it permits read-side critical
 sections to be preempted and to be blocked waiting for locks.
 However, it does not handle general blocking
-(for example, via the \url{wait_event()} primitive):
+(for example, via the \co{wait_event()} primitive):
 if you need that, you should instead use SRCU, which is described in
 Appendix~\ref{app:rcuimpl:Sleepable RCU Implementation}.
 In contrast to SRCU,
 preemptible RCU only permits blocking within primitives that are
 both subject to priority inheritance and non-blocking in a
-non-\url{CONFIG_PREEMPT} kernel.
+non-\co{CONFIG_PREEMPT} kernel.
 This ability to acquire blocking locks and to be preempted within
 RCU read-side critical sections is required for the aggressive real-time
 capabilities provided by Ingo Molnar's -rt patchset.
@@ -47,7 +47,7 @@ RCU implementation ever devised.
 \QuickQuizAnswer{
 	Because blocked readers stall RCU grace periods,
 	which can result in OOM.
-	For example, if a reader did a \url{wait_event()} within
+	For example, if a reader did a \co{wait_event()} within
 	an RCU read-side critical section, and that event never occurred,
 	then RCU grace periods would stall indefinitely, guaranteeing that
 	the system would OOM sooner or later.
@@ -66,14 +66,14 @@ RCU implementation ever devised.
 
 \QuickQuiz{}
 	Could the prohibition against using primitives
-	that would block in a non-\url{CONFIG_PREEMPT} kernel be lifted,
+	that would block in a non-\co{CONFIG_PREEMPT} kernel be lifted,
 	and if so, under what conditions?
 \QuickQuizAnswer{
 	If testing and benchmarking demonstrated that the
 	preemptible RCU worked well enough that classic RCU could be dispensed
 	with entirely, and if priority inheritance was implemented for blocking
 	synchronization primitives
-	such as \url{semaphore}s, then those primitives could be
+	such as \co{semaphore}s, then those primitives could be
 	used in RCU read-side critical sections.
 } \QuickQuizEnd
 
@@ -106,14 +106,14 @@ Figure~\ref{app:rcuimpl:Buggy Grace Period From Broken RCU},
 where time advances from left to right.
 The red "Removal" box represents the update-side critical section that
 modifies the RCU-protected data structure, for example, via
-\url{list_del_rcu()}; the large yellow "Grace Period" box
+\co{list_del_rcu()}; the large yellow "Grace Period" box
 represents a grace period (surprise!) which might be invoked via
-\url{synchronize_rcu()}, and the green "Reclamation" box
+\co{synchronize_rcu()}, and the green "Reclamation" box
 represents freeing the affected data element,
-perhaps via \url{kfree()}.
+perhaps via \co{kfree()}.
 The blue "Reader" boxes each represent an RCU read-side critical section,
-for example, beginning with \url{rcu_read_lock()} and ending with
-\url{rcu_read_unlock()}.
+for example, beginning with \co{rcu_read_lock()} and ending with
+\co{rcu_read_unlock()}.
 The red-rimmed "Reader" box is an example of an illegal situation:
 any so-called RCU implementation that permits a read-side critical section
 to completely overlap a grace period is buggy, since the updater might
@@ -163,11 +163,11 @@ the grace-period state machine, and a walk through the read-side primitives.
 \end{figure}
 
 Because this implementation of preemptible RCU does not require memory
-barriers in \url{rcu_read_lock()} and \url{rcu_read_unlock()},
+barriers in \co{rcu_read_lock()} and \co{rcu_read_unlock()},
 a multi-stage grace-period detection algorithm is required.
-Instead of using a single \url{wait} queue of callbacks
+Instead of using a single \co{wait} queue of callbacks
 (which has sufficed for earlier RCU implementations), this implementation
-uses an array of \url{wait} queues, so that RCU callbacks
+uses an array of \co{wait} queues, so that RCU callbacks
 are enqueued on each element of this array in turn.
 This difference in callback flow is shown in
 Figure~\ref{app:rcuimpl:Classic vs. Preemptible RCU Callback Processing}
@@ -190,9 +190,9 @@ any sequence of four stages would form a full grace period.
 \end{figure}
 
 To determine when a grace-period stage can end,
-preemptible RCU uses a per-CPU two-element \url{rcu_flipctr} array
+preemptible RCU uses a per-CPU two-element \co{rcu_flipctr} array
 that tracks in-progress RCU read-side critical sections.
-One element of a given CPU's \url{rcu_flipctr} array tracks
+One element of a given CPU's \co{rcu_flipctr} array tracks
 old RCU read-side critical sections, in other words, critical sections
 that started before the current grace-period stage.
 The other element tracks new RCU read-side critical
@@ -202,76 +202,76 @@ stage, as shown in
 Figure~\ref{app:rcuimpl:Preemptible RCU Counter Flip Operation}.
 
 During the first stage on the left-hand side of the above figure,
-\url{rcu_flipctr[0]} tracks the new
+\co{rcu_flipctr[0]} tracks the new
 RCU read-side critical sections, and is therefore incremented by
-\url{rcu_read_lock()} and decremented by \url{rcu_read_unlock()}.
-Similarly, \url{rcu_flipctr[1]} tracks the old RCU read-side
+\co{rcu_read_lock()} and decremented by \co{rcu_read_unlock()}.
+Similarly, \co{rcu_flipctr[1]} tracks the old RCU read-side
 critical sections (those that started during earlier stages), and
-is therefore decremented by \url{rcu_read_unlock()} and never
+is therefore decremented by \co{rcu_read_unlock()} and never
 incremented at all.
 
-Because each CPU's old \url{rcu_flipctr[1]} elements are never
+Because each CPU's old \co{rcu_flipctr[1]} elements are never
 incremented, their sum across all CPUs must eventually go to zero,
 although preemption in the midst of an RCU read-side critical section might
 cause any individual counter to remain non-zero or even to go negative.
-For example, suppose that a task calls \url{rcu_read_lock()} on
+For example, suppose that a task calls \co{rcu_read_lock()} on
 one CPU, is preempted, resumes on another CPU, and then calls
-\url{rcu_read_unlock()}.
+\co{rcu_read_unlock()}.
 The first CPU's counter will then be +1 and the second CPU's counter
 will be -1, however, they will still sum to zero.
 Regardless of possible preemption, when the sum of the old counter
 elements does go to zero, it is safe to move to the next grace-period
 stage, as shown on the right-hand side of the above figure.
 
-In this second stage, the elements of each CPU's \url{rcu_flipctr}
+In this second stage, the elements of each CPU's \co{rcu_flipctr}
 counter array switch roles.
-The \url{rcu_flipctr[0]} counter now tracks the old RCU read-side
+The \co{rcu_flipctr[0]} counter now tracks the old RCU read-side
 critical sections, in other words, the ones that started during
 grace period stage 0.
-Similarly, the \url{rcu_flipctr[1]} counter now tracks the new
+Similarly, the \co{rcu_flipctr[1]} counter now tracks the new
 RCU read-side critical sections that start in grace period stage 1.
-Therefore, \url{rcu_read_lock()} now increments
-\url{rcu_flipctr[1]}, while \url{rcu_read_unlock()} still
+Therefore, \co{rcu_read_lock()} now increments
+\co{rcu_flipctr[1]}, while \co{rcu_read_unlock()} still
 might decrement either counter.
-Specifically, if the matching \url{rcu_read_lock()} executed
+Specifically, if the matching \co{rcu_read_lock()} executed
 during grace-period stage 0 (the old stage at this point), then
-\url{rcu_read_unlock()} must decrement \url{rcu_flipctr[0]},
-but if the matching \url{rcu_read_lock()} executed during
-grace-period stage 1 (the new stage), then \url{rcu_read_unlock()}
-must instead decrement \url{rcu_flipctr[1]}.
+\co{rcu_read_unlock()} must decrement \co{rcu_flipctr[0]},
+but if the matching \co{rcu_read_lock()} executed during
+grace-period stage 1 (the new stage), then \co{rcu_read_unlock()}
+must instead decrement \co{rcu_flipctr[1]}.
 
-The critical point is that all \url{rcu_flipctr} elements
+The critical point is that all \co{rcu_flipctr} elements
 tracking the old RCU read-side critical sections must strictly decrease.
 Therefore, once the sum of these old counters reaches zero,
 it cannot change.
 
-The \url{rcu_read_lock()} primitive uses the bottom
+The \co{rcu_read_lock()} primitive uses the bottom
 bit of the current grace-period counter
-(\url{rcu_ctrlblk.completed & 0x1}) to index the
-\url{rcu_flipctr} array,
+(\co{rcu_ctrlblk.completed & 0x1}) to index the
+\co{rcu_flipctr} array,
 and records this index in the task structure.
-The matching \url{rcu_read_unlock()} uses this recorded
+The matching \co{rcu_read_unlock()} uses this recorded
 value to ensure that it decrements a counter corresponding to
-the one that the matching \url{rcu_read_lock()} incremented.
+the one that the matching \co{rcu_read_lock()} incremented.
 Of course, if the RCU read-side critical section has been preempted,
-\url{rcu_read_lock()} might be decrementing the counter
+\co{rcu_read_lock()} might be decrementing the counter
 belonging to a different CPU than the one whose counter was incremented
-by the matching \url{rcu_read_lock()}.
+by the matching \co{rcu_read_lock()}.
 
-Each CPU also maintains \url{rcu_flip_flag} and
-\url{rcu_mb_flag} per-CPU variables.
-The \url{rcu_flip_flag} variable is used to synchronize the
+Each CPU also maintains \co{rcu_flip_flag} and
+\co{rcu_mb_flag} per-CPU variables.
+The \co{rcu_flip_flag} variable is used to synchronize the
 start of each grace-period stage: once a given CPU has responded
-to its \url{rcu_flip_flag}, it must refrain from incrementing
-the \url{rcu_flip} array element that now corresponds to
+to its \co{rcu_flip_flag}, it must refrain from incrementing
+the \co{rcu_flip} array element that now corresponds to
 the old grace-period stage.
-The CPU that advances the counter (\url{rcu_ctrlblk.completed})
-changes the value of each CPU's \url{rcu_mb_flag} to
-\url{rcu_flipped}, but a given \url{rcu_mb_flag}
-may be changed back to \url{rcu_flip_seen} only by
+The CPU that advances the counter (\co{rcu_ctrlblk.completed})
+changes the value of each CPU's \co{rcu_mb_flag} to
+\co{rcu_flipped}, but a given \co{rcu_mb_flag}
+may be changed back to \co{rcu_flip_seen} only by
 the corresponding CPU.
 
-The \url{rcu_mb_flag} variable is used to force each CPU to
+The \co{rcu_mb_flag} variable is used to force each CPU to
 execute a memory barrier at the end of each grace-period stage.
 These memory barriers are required to ensure that memory accesses from
 RCU read-side critical sections ending in a given grace-period stage
@@ -279,51 +279,51 @@ are ordered before the end of that stage.
 This approach gains the benefits memory barriers at the
 beginning and end of each RCU read-side critical section without
 having to actually execute all those costly barriers.
-The \url{rcu_mb_flag} is set to \url{rcu_mb_needed} by
+The \co{rcu_mb_flag} is set to \co{rcu_mb_needed} by
 the CPU that detects that the sum of the old counters is zero,
-but a given \url{rcu_mb_flag} is changed back to
-\url{rcu_mb_done} only by the corresponding CPU, and even
+but a given \co{rcu_mb_flag} is changed back to
+\co{rcu_mb_done} only by the corresponding CPU, and even
 then only after executing a memory barrier.
 
 \subsubsection{Data Structures}
 \label{app:rcuimpl:Data Structures}
 
 This section describes preemptible RCU's major data structures, including
-\url{rcu_ctrlblk}, \url{rcu_data}, \url{rcu_flipctr},
-\url{rcu_try_flip_state}, \url{rcu_try_flip_flag}, and
-\url{rcu_mb_flag}.
+\co{rcu_ctrlblk}, \co{rcu_data}, \co{rcu_flipctr},
+\co{rcu_try_flip_state}, \co{rcu_try_flip_flag}, and
+\co{rcu_mb_flag}.
 
 \paragraph{{\tt rcu\_ctrlblk}}
 \label{app:rcuimpl:rcu_ctrlblk}
 
-The \url{rcu_ctrlblk} structure is global, and holds the lock
-that protects grace-period processing (\url{fliplock}) as well
-as holding the global grace-period counter (\url{completed}).
-The least-significant bit of \url{completed} is used by
-\url{rcu_read_lock()} to select which set of counters to increment.
+The \co{rcu_ctrlblk} structure is global, and holds the lock
+that protects grace-period processing (\co{fliplock}) as well
+as holding the global grace-period counter (\co{completed}).
+The least-significant bit of \co{completed} is used by
+\co{rcu_read_lock()} to select which set of counters to increment.
 
 \paragraph{{\tt rcu\_data}}
 \label{app:rcuimpl:rcu_data}
 
-The \url{rcu_data} structure is a per-CPU structure, and
+The \co{rcu_data} structure is a per-CPU structure, and
 contains the following fields:
 
 \begin{itemize}
-\item	\url{lock} guards the remaining fields in this structure.
-\item	\url{completed} is used to synchronize CPU-local
-	activity with the global counter in \url{rcu_ctrlblk}.
-\item	\url{waitlistcount} is used to maintain a count of the
+\item	\co{lock} guards the remaining fields in this structure.
+\item	\co{completed} is used to synchronize CPU-local
+	activity with the global counter in \co{rcu_ctrlblk}.
+\item	\co{waitlistcount} is used to maintain a count of the
 	number of non-empty wait-lists.
-	This field is used by \url{rcu_pending()} to help determine
+	This field is used by \co{rcu_pending()} to help determine
 	if this CPU has any RCU-related work left to be done.
-\item	\url{nextlist}, \url{nextail}, \url{waitlist},
-	\url{waittail}, \url{donelist}, and
-	\url{donetail} form lists containing
+\item	\co{nextlist}, \co{nextail}, \co{waitlist},
+	\co{waittail}, \co{donelist}, and
+	\co{donetail} form lists containing
 	RCU callbacks that are waiting for invocation at the end
 	of a grace period.
-	Each list has a tail pointer, allowing \url{O(1)} appends.
+	Each list has a tail pointer, allowing $O\left(1\right)$ appends.
 	The RCU callbacks flow through these lists as shown below.
-\item	\url{rcupreempt_trace} accumulates statistics.
+\item	\co{rcupreempt_trace} accumulates statistics.
 \end{itemize}
 
 \begin{figure}[htb]
@@ -336,9 +336,9 @@ contains the following fields:
 
 Figure~\ref{app:rcuimpl:Preemptible RCU Callback Flow}
 shows how RCU callbacks flow through a given
-\url{rcu_data} structure's lists, from creation by
-\url{call_rcu()} through invocation by
-\url{rcu_process_callbacks()}.
+\co{rcu_data} structure's lists, from creation by
+\co{call_rcu()} through invocation by
+\co{rcu_process_callbacks()}.
 Each blue arrow represents one pass by the grace-period state machine,
 which is described in a later section.
 
@@ -347,7 +347,7 @@ which is described in a later section.
 \paragraph{{\tt rcu\_flipctr}}
 \label{app:rcuimpl:rcu_flipctr}
 
-As noted earlier, the \url{rcu_flipctr}
+As noted earlier, the \co{rcu_flipctr}
 per-CPU array of counters contains the
 counter pairs that track outstanding RCU read-side critical sections.
 Any given counter in this array can go negative, for example, when
@@ -360,24 +360,24 @@ furthermore go to zero at the end of that grace period.
 \paragraph{{\tt rcu\_try\_flip\_state}}
 \label{app:rcuimpl:rcu_try_flip_state}
 
-The \url{rcu_try_flip_state} variable tracks the current state of
+The \co{rcu_try_flip_state} variable tracks the current state of
 the grace-period state machine, as described in the next section.
 
 \paragraph{{\tt rcu\_try\_flip\_flag}}
 \label{app:rcuimpl:rcu_try_flip_flag}
 
-The \url{rcu_try_flip_flag} per-CPU variable alerts the corresponding
+The \co{rcu_try_flip_flag} per-CPU variable alerts the corresponding
 CPU that the grace-period counter has recently been incremented, and
 also records that CPU's acknowledgment.
 Once a given CPU has acknowledged the counter flip, all subsequent actions
-taken by \url{rcu_read_lock()} on that CPU must account for the
+taken by \co{rcu_read_lock()} on that CPU must account for the
 new value of the grace-period counter, in particular, when incrementing
-\url{rcu_flipctr} in \url{rcu_read_lock()}.
+\co{rcu_flipctr} in \co{rcu_read_lock()}.
 
 \paragraph{{\tt rcu\_mb\_flag}}
 \label{app:rcuimpl:rcu_mb_flag}
 
-The \url{rcu_mb_flag} per-CPU variable alerts the corresponding
+The \co{rcu_mb_flag} per-CPU variable alerts the corresponding
 CPU that it must execute a memory barrier in order for the grace-period
 state machine to proceed, and also records that CPU's acknowledgment.
 Once a given CPU has executed its memory barrier, the memory operations
@@ -394,31 +394,31 @@ state machine, and then walks through the relevant code.
 \paragraph{Grace-Period State Machine Overview}
 \label{app:rcuimpl:Grace-Period State Machine Overview}
 
-The state (recorded in \url{rcu_try_flip_state})
+The state (recorded in \co{rcu_try_flip_state})
 can take on the following values:
 
 \begin{itemize}
-\item	\url{rcu_try_flip_idle_state}:  the grace-period state
+\item	\co{rcu_try_flip_idle_state}:  the grace-period state
 	machine is idle due to there being no RCU grace-period activity.
-	The \url{rcu_ctrlblk.completed} grace-period counter
+	The \co{rcu_ctrlblk.completed} grace-period counter
 	is incremented upon exit from this state, and all of the
-	per-CPU \url{rcu_flip_flag} variables are set
-	to \url{rcu_flipped}.
-\item	\url{rcu_try_flip_waitack_state}:
+	per-CPU \co{rcu_flip_flag} variables are set
+	to \co{rcu_flipped}.
+\item	\co{rcu_try_flip_waitack_state}:
 	waiting for all CPUs to acknowledge that they have seen the
 	previous state's increment, which they do by setting their
-	\url{rcu_flip_flag} variables to \url{rcu_flip_seen}.
+	\co{rcu_flip_flag} variables to \co{rcu_flip_seen}.
 	Once all CPUs have so acknowledged, we know that the old
 	set of counters can no longer be incremented.
-\item	\url{rcu_try_flip_waitzero_state}:
+\item	\co{rcu_try_flip_waitzero_state}:
 	waiting for the old counters to sum to zero.
 	Once the counters sum to zero, all of the per-CPU
-	\url{rcu_mb_flag} variables are set to
-	\url{rcu_mb_needed}.
-\item	\url{rcu_try_flip_waitmb_state}:
+	\co{rcu_mb_flag} variables are set to
+	\co{rcu_mb_needed}.
+\item	\co{rcu_try_flip_waitmb_state}:
 	waiting for all CPUs to execute a memory-barrier instruction,
-	which they signify by setting their \url{rcu_mb_flag}
-	variables to \url{rcu_mb_done}.
+	which they signify by setting their \co{rcu_mb_flag}
+	variables to \co{rcu_mb_done}.
 	Once all CPUs have done so, all CPUs are guaranteed to see
 	the changes made by any RCU read-side critical section that
 	started before the beginning of the corresponding grace period,
@@ -455,7 +455,7 @@ a later section.
 In the meantime, here are some important things to note:
 
 \begin{enumerate}
-\item	The increment of the \url{rcu_ctrlblk.completed} counter
+\item	The increment of the \co{rcu_ctrlblk.completed} counter
 	might be observed at different times by different CPUs, as
 	indicated by the blue oval.  However, after a given
 	CPU has acknowledged the increment, it is required to
@@ -471,15 +471,15 @@ In the meantime, here are some important things to note:
 	other CPU has jumped the gun, using the new value of the counter
 	before the counter was actually incremented.
 	In fact, in theory, a given CPU might see the next increment of the
-	\url{rcu_ctrlblk.completed} counter as early as
+	\co{rcu_ctrlblk.completed} counter as early as
 	the last preceding memory barrier.
 	(Note well that this sentence is very imprecise.
 	If you intend to do correctness proofs involving memory barriers,
 	please see Appendix~\ref{app:rcuimpl:Formal Validation}.
-\item	Because \url{rcu_read_lock()} does not contain any
+\item	Because \co{rcu_read_lock()} does not contain any
 	memory barriers, the corresponding RCU read-side critical
 	sections might be reordered by the CPU to follow the
-	\url{rcu_read_unlock()}.
+	\co{rcu_read_unlock()}.
 	Therefore, the memory barriers are required to ensure
 	that the actions of the RCU read-side critical sections
 	have in fact completed.
@@ -516,21 +516,21 @@ In the meantime, here are some important things to note:
 
 This section walks through the C code that implements the RCU
 grace-period state machine, which is invoked from the scheduling-clock
-interrupt, which invokes \url{rcu_check_callbacks()} with
+interrupt, which invokes \co{rcu_check_callbacks()} with
 irqs (and thus also preemption) disabled.
 This function is implemented as shown in
 Figure~\ref{fig:app:rcuimpl:rcu_check_callbacks() Implementation}.
-Line~4 selects the \url{rcu_data} structure corresponding
+Line~4 selects the \co{rcu_data} structure corresponding
 to the current CPU, and line~6 checks to see if this CPU needs
 to execute a memory barrier to advance the state machine out of the
-\url{rcu_try_flip_waitmb_state} state.
+\co{rcu_try_flip_waitmb_state} state.
 Line~7 checks to see if this CPU is already aware of the
 current grace-period stage number, and line~8 attempts to advance the
 state machine if so.
-Lines~9 and 12 hold the \url{rcu_data}'s lock, and
+Lines~9 and 12 hold the \co{rcu_data}'s lock, and
 line~11 advances callbacks if appropriate.
 Line~10 updates RCU tracing statistics, if enabled via
-\url{CONFIG_RCU_TRACE}.
+\co{CONFIG_RCU_TRACE}.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -548,14 +548,14 @@ Line~10 updates RCU tracing statistics, if enabled via
 \label{fig:app:rcuimpl:rcu_check_mb() Implementation}
 \end{figure}
 
-The \url{rcu_check_mb()} function executes a memory barrier
+The \co{rcu_check_mb()} function executes a memory barrier
 as needed as shown in
 Figure~\ref{fig:app:rcuimpl:rcu_check_mb() Implementation}.
 Line~3 checks to see if this CPU needs to execute a memory barrier,
 and, if so, line~4 executes one and line~5 informs the state
 machine.
 Note that this memory barrier ensures that any CPU that sees the new
-value of \url{rcu_mb_flag} will also see the memory operations
+value of \co{rcu_mb_flag} will also see the memory operations
 executed by this CPU in any prior RCU read-side critical section.
 
 \begin{figure}[tbp]
@@ -595,13 +595,13 @@ executed by this CPU in any prior RCU read-side critical section.
 \label{fig:app:rcuimpl:rcu_try_flip() Implementation}
 \end{figure}
 
-The \url{rcu_try_flip()} function implements the top level of
+The \co{rcu_try_flip()} function implements the top level of
 the RCU grace-period state machine, as shown in
 Figure~\ref{fig:app:rcuimpl:rcu_try_flip() Implementation}.
 Line~6 attempts to acquire the global RCU state-machine lock,
 and returns if unsuccessful.
 Lines;~5 and 7 accumulate RCU-tracing statistics (again, if
-\url{CONFIG_RCU_TRACE} is enabled).
+\co{CONFIG_RCU_TRACE} is enabled).
 Lines~10 through 26 execute the state machine,
 each invoking a function specific to that state.
 Each such function returns 1 if the state needs to be advanced and
@@ -636,7 +636,7 @@ that was acquired by line~6.
 \label{fig:app:rcuimpl:rcu_try_flip_idle() Implementation}
 \end{figure}
 
-The \url{rcu_try_flip_idle()} function is called when the
+The \co{rcu_try_flip_idle()} function is called when the
 RCU grace-period state machine is idle, and is thus responsible for
 getting it started when needed.
 Its code is shown in
@@ -648,7 +648,7 @@ If instead there is work to do, line~11 increments the
 grace-period stage counter, line~12 does a memory barrier
 to ensure that CPUs see the new counter before they see the
 request to acknowledge it, and lines~13 and 14 set all of
-the online CPUs' \url{rcu_flip_flag}.
+the online CPUs' \co{rcu_flip_flag}.
 Finally, line~15 tells the top-level state machine to
 advance to the next state.
 
@@ -675,12 +675,12 @@ advance to the next state.
 \label{fig:app:rcuimpl:rcu_try_flip_waitack() Implementation}
 \end{figure}
 
-The \url{rcu_try_flip_waitack()} function, shown in
+The \co{rcu_try_flip_waitack()} function, shown in
 Figure~\ref{fig:app:rcuimpl:rcu_try_flip_waitack() Implementation},
 checks to see
 if all online CPUs have acknowledged the counter flip (AKA "increment",
-but called "flip" because the bottom bit, which \url{rcu_read_lock()}
-uses to index the \url{rcu_flipctr} array, \emph{does} flip).
+but called "flip" because the bottom bit, which \co{rcu_read_lock()}
+uses to index the \co{rcu_flipctr} array, \emph{does} flip).
 If they have, it tells the top-level grace-period state machine to
 move to the next state.
 
@@ -725,7 +725,7 @@ to advance to the next state.
 \label{fig:app:rcuimpl:rcu_try_flip_waitzero() Implementation}
 \end{figure}
 
-The \url{rcu_try_flip_waitzero()} function, shown in
+The \co{rcu_try_flip_waitzero()} function, shown in
 Figure~\ref{fig:app:rcuimpl:rcu_try_flip_waitzero() Implementation},
 checks to see if
 all pre-existing RCU read-side critical sections have completed,
@@ -738,7 +738,7 @@ no CPU sees the subsequent call for a memory barrier before it
 has exited its last RCU read-side critical section.
 This possibility might seem remote, but again, CPU designers have
 done stranger things, and besides, this is anything but a fastpath.
-Lines~15 and 16 set all online CPUs' \url{rcu_mb_flag}
+Lines~15 and 16 set all online CPUs' \co{rcu_mb_flag}
 variables, and line~18 tells the state machine to advance to
 the next state.
 
@@ -765,7 +765,7 @@ the next state.
 \label{fig:app:rcuimpl:rcu_try_flip_waitmb() Implementation}
 \end{figure}
 
-The \url{rcu_try_flip_waitmb()} function, shown in
+The \co{rcu_try_flip_waitmb()} function, shown in
 Figure~\ref{fig:app:rcuimpl:rcu_try_flip_waitmb() Implementation},
 checks to see
 if all online CPUs have executed the requested memory barrier,
@@ -831,22 +831,22 @@ state machine to advance.
 \label{fig:app:rcuimpl:__rcu_advance_callbacks() Implementation}
 \end{figure}
 
-The \url{__rcu_advance_callbacks()} function, shown in
+The \co{__rcu_advance_callbacks()} function, shown in
 Figure~\ref{fig:app:rcuimpl:__rcu_advance_callbacks() Implementation},
 advances callbacks and acknowledges the counter flip.
-Line~7 checks to see if the global \url{rcu_ctrlblk.completed}
+Line~7 checks to see if the global \co{rcu_ctrlblk.completed}
 counter has advanced since the last call by the current CPU to this
 function.
 If not, callbacks need not be advanced (lines~8-37).
 Otherwise, lines~8 through 37 advance callbacks through the lists
 (while maintaining a count of the number of non-empty lists in the
-\url{wlc} variable).
+\co{wlc} variable).
 In either case, lines~38 through 43 acknowledge the counter flip
 if needed.
 
 \QuickQuiz{}
 	How is it possible for lines~38-43 of
-	\url{__rcu_advance_callbacks()} to be executed when
+	\co{__rcu_advance_callbacks()} to be executed when
 	lines~7-37 have not?
 	Won't they both be executed just after a counter flip, and
 	never at any other time?
@@ -854,17 +854,17 @@ if needed.
 	Consider the following sequence of events:
 	\begin{enumerate}
 	\item	CPU 0 executes lines~5-12 of
-		\url{rcu_try_flip_idle()}.
-	\item	CPU 1 executes \url{__rcu_advance_callbacks()}.
-		Because \url{rcu_ctrlblk.completed} has been
+		\co{rcu_try_flip_idle()}.
+	\item	CPU 1 executes \co{__rcu_advance_callbacks()}.
+		Because \co{rcu_ctrlblk.completed} has been
 		incremented, lines~7-37 execute.
-		However, none of the \url{rcu_flip_flag} variables
+		However, none of the \co{rcu_flip_flag} variables
 		have been set, so lines~38-43 do \emph{not} execute.
 	\item	CPU 0 executes lines~13-15 of
-		\url{rcu_try_flip_idle()}.
-	\item	Later, CPU 1 again executes \url{__rcu_advance_callbacks()}.
+		\co{rcu_try_flip_idle()}.
+	\item	Later, CPU 1 again executes \co{__rcu_advance_callbacks()}.
 		The counter has not been incremented since the earlier
-		execution, but the \url{rcu_flip_flag} variables have
+		execution, but the \co{rcu_flip_flag} variables have
 		all been set, so only lines~38-43 are executed.
 	\end{enumerate}
 } \QuickQuizEnd
@@ -873,8 +873,8 @@ if needed.
 \subsubsection{Read-Side Primitives}
 \label{app:rcuimpl:Read-Side Primitives}
 
-This section examines the \url{rcu_read_lock()} and
-\url{rcu_read_unlock()} primitives, followed by a
+This section examines the \co{rcu_read_lock()} and
+\co{rcu_read_unlock()} primitives, followed by a
 discussion of how this implementation deals with the fact
 that these two primitives do not contain memory barriers.
 
@@ -910,16 +910,16 @@ that these two primitives do not contain memory barriers.
 \label{fig:app:rcuimpl:__rcu_read_lock() Implementation}
 \end{figure}
 
-The implementation of \url{rcu_read_lock()} is as shown in
+The implementation of \co{rcu_read_lock()} is as shown in
 Figure~\ref{fig:app:rcuimpl:__rcu_read_lock() Implementation}.
 Line~7 fetches this task's RCU read-side critical-section nesting
 counter.
 If line~8 finds that this counter is non-zero,
 then we are already protected by an outer
-\url{rcu_read_lock()}, in which case line~9 simply increments
+\co{rcu_read_lock()}, in which case line~9 simply increments
 this counter.
 
-However, if this is the outermost \url{rcu_read_lock()},
+However, if this is the outermost \co{rcu_read_lock()},
 then more work is required.
 Lines~13 and 18 suppress and restore irqs to ensure that the
 intervening code is neither preempted nor interrupted by a
@@ -928,10 +928,10 @@ Line~14 fetches the grace-period counter,
 line~15 increments the current counter for
 this CPU, line~16 increments the nesting counter,
 and line~17 records the old/new counter index so that
-\url{rcu_read_unlock()} can decrement the corresponding
+\co{rcu_read_unlock()} can decrement the corresponding
 counter (but on whatever CPU it ends up running on).
 
-The \url{ACCESS_ONCE()} macros force the compiler to
+The \co{ACCESS_ONCE()} macros force the compiler to
 emit the accesses in order.
 Although this does not prevent the CPU from reordering the accesses
 from the viewpoint of other CPUs, it does ensure that NMI and
@@ -939,39 +939,39 @@ SMI handlers running on this CPU will see these accesses in order.
 This is critically important:
 
 \begin{enumerate}
-\item	In absence of the \url{ACCESS_ONCE()} in the assignment
-	to \url{idx}, the compiler would be within its rights
-	to: (a) eliminate the local variable \url{idx} and
+\item	In absence of the \co{ACCESS_ONCE()} in the assignment
+	to \co{idx}, the compiler would be within its rights
+	to: (a) eliminate the local variable \co{idx} and
 	(b) compile the increment on line~16 as a
 	fetch-increment-store sequence, doing separate accesses to
-	\url{rcu_ctrlblk.completed} for the fetch and the
+	\co{rcu_ctrlblk.completed} for the fetch and the
 	store.
-	If the value of \url{rcu_ctrlblk.completed} had
+	If the value of \co{rcu_ctrlblk.completed} had
 	changed in the meantime, this would corrupt the
-	\url{rcu_flipctr} values.
-\item	If the assignment to \url{rcu_read_lock_nesting}
+	\co{rcu_flipctr} values.
+\item	If the assignment to \co{rcu_read_lock_nesting}
 	(line~17) were to be reordered to precede the increment
-	of \url{rcu_flipctr} (line~16), and if an
+	of \co{rcu_flipctr} (line~16), and if an
 	NMI occurred between these two events, then an
-	\url{rcu_read_lock()} in that NMI's handler
+	\co{rcu_read_lock()} in that NMI's handler
 	would incorrectly conclude that it was already under the
-	protection of \url{rcu_read_lock()}.
-\item	If the assignment to \url{rcu_read_lock_nesting}
+	protection of \co{rcu_read_lock()}.
+\item	If the assignment to \co{rcu_read_lock_nesting}
         (line~17) were to be reordered to follow the assignment
-	to \url{rcu_flipctr_idx} (line~18), and if an
+	to \co{rcu_flipctr_idx} (line~18), and if an
 	NMI occurred between these two events, then an
-	\url{rcu_read_lock()} in that NMI's handler
-	would clobber \url{rcu_flipctr_idx}, possibly
-	causing the matching \url{rcu_read_unlock()} to
+	\co{rcu_read_lock()} in that NMI's handler
+	would clobber \co{rcu_flipctr_idx}, possibly
+	causing the matching \co{rcu_read_unlock()} to
 	decrement the wrong counter.
 	This in turn could result in premature ending of a
 	grace period, indefinite extension of a grace period,
 	or even both.
 \end{enumerate}
 
-It is not clear that the \url{ACCESS_ONCE} on the assignment to
-\url{nesting} (line~7) is required.
-It is also unclear whether the \url{smp_read_barrier_depends()}
+It is not clear that the \co{ACCESS_ONCE} on the assignment to
+\co{nesting} (line~7) is required.
+It is also unclear whether the \co{smp_read_barrier_depends()}
 (line~15) is needed: it was added to ensure that changes to index
 and value remain ordered.
 
@@ -979,7 +979,7 @@ The reasons that irqs must be disabled from line~13 through
 line~19 are as follows:
 
 \begin{enumerate}
-\item	Suppose one CPU loaded \url{rcu_ctrlblk.completed}
+\item	Suppose one CPU loaded \co{rcu_ctrlblk.completed}
 	(line~14), then a second CPU incremented this counter,
 	and then the first CPU took a scheduling-clock interrupt.
 	The first CPU would then see that it needed to acknowledge
@@ -994,13 +994,13 @@ line~19 are as follows:
 	Either situation could disrupt grace-period detection.
 \item	Disabling irqs has the side effect of disabling preemption.
 	If this code were to be preempted between fetching
-	\url{rcu_ctrlblk.completed} (line~14) and
-	incrementing \url{rcu_flipctr} (line~16),
+	\co{rcu_ctrlblk.completed} (line~14) and
+	incrementing \co{rcu_flipctr} (line~16),
 	it might well be migrated to some other CPU.
 	This would result in it non-atomically incrementing
 	the counter from that other CPU.
-	If this CPU happened to be executing in \url{rcu_read_lock()}
-	or \url{rcu_read_unlock()} just at that time, one
+	If this CPU happened to be executing in \co{rcu_read_lock()}
+	or \co{rcu_read_unlock()} just at that time, one
 	of the increments or decrements might be lost, again
 	disrupting grace-period detection.
 	The same result could happen on RISC machines if the preemption
@@ -1009,26 +1009,26 @@ line~19 are as follows:
 	counter).
 \item	Permitting preemption in the midst
 	of line~16, between selecting the current CPU's copy
-	of the \url{rcu_flipctr} array and the increment of
-	the element indicated by \url{rcu_flipctr_idx}, can
+	of the \co{rcu_flipctr} array and the increment of
+	the element indicated by \co{rcu_flipctr_idx}, can
 	result in a similar failure.
 	Execution might well resume on some other CPU.
 	If this resumption happened concurrently with an
-	\url{rcu_read_lock()} or \url{rcu_read_unlock()}
+	\co{rcu_read_lock()} or \co{rcu_read_unlock()}
 	running on the original CPU,
 	an increment or decrement might be lost, resulting in either
 	premature termination of a grace period, indefinite extension
 	of a grace period, or even both.
 \item	Failing to disable preemption can also defeat RCU priority
-	boosting, which relies on \url{rcu_read_lock_nesting}
+	boosting, which relies on \co{rcu_read_lock_nesting}
 	to determine when a given task is in an RCU read-side
 	critical section.
 	So, for example, if a given task is indefinitely
-	preempted just after incrementing \url{rcu_flipctr},
-	but before updating \url{rcu_read_lock_nesting},
+	preempted just after incrementing \co{rcu_flipctr},
+	but before updating \co{rcu_read_lock_nesting},
 	then it will stall RCU grace periods for as long as it
 	is preempted.
-	However, because \url{rcu_read_lock_nesting} has not
+	However, because \co{rcu_read_lock_nesting} has not
 	yet been incremented, the RCU priority booster has no way
 	to tell that boosting is needed.
 	Therefore, in the presence of CPU-bound realtime threads,
@@ -1076,115 +1076,115 @@ interrupts on modern CPUs.
 \label{fig:app:rcuimpl:__rcu_read_unlock() Implementation}
 \end{figure}
 
-The implementation of \url{rcu_read_unlock()} is shown in
+The implementation of \co{rcu_read_unlock()} is shown in
 Figure~\ref{fig:app:rcuimpl:__rcu_read_unlock() Implementation}.
-Line~7 fetches the \url{rcu_read_lock_nesting} counter,
+Line~7 fetches the \co{rcu_read_lock_nesting} counter,
 which line~8 checks to see if we are under the protection of an
-enclosing \url{rcu_read_lock()} primitive.
+enclosing \co{rcu_read_lock()} primitive.
 If so, line~9 simply decrements the counter.
 
-However, as with \url{rcu_read_lock()}, we otherwise must do
+However, as with \co{rcu_read_lock()}, we otherwise must do
 more work.
 Lines~13 and 17 disable and restore irqs in order to prevent
 the scheduling-clock interrupt from invoking the grace-period state machine
-while in the midst of \url{rcu_read_unlock()} processing.
-Line~14 picks up the \url{rcu_flipctr_idx} that was
-saved by the matching \url{rcu_read_lock()},
+while in the midst of \co{rcu_read_unlock()} processing.
+Line~14 picks up the \co{rcu_flipctr_idx} that was
+saved by the matching \co{rcu_read_lock()},
 line~15
-decrements \url{rcu_read_lock_nesting} so that irq and
-NMI/SMI handlers will henceforth update \url{rcu_flipctr},
+decrements \co{rcu_read_lock_nesting} so that irq and
+NMI/SMI handlers will henceforth update \co{rcu_flipctr},
 line~16 decrements the counter (with the same index as, but possibly
 on a different CPU than, that incremented by the matching
-\url{rcu_read_lock()}.
+\co{rcu_read_lock()}.
 
-The \url{ACCESS_ONCE()} macros and irq disabling
+The \co{ACCESS_ONCE()} macros and irq disabling
 are required for similar reasons that they are in
-\url{rcu_read_lock()}.
+\co{rcu_read_lock()}.
 
 \QuickQuiz{}
 	What problems could arise if the lines containing
-	\url{ACCESS_ONCE()} in \url{rcu_read_unlock()}
+	\co{ACCESS_ONCE()} in \co{rcu_read_unlock()}
 	were reordered by the compiler?
 \QuickQuizAnswer{
 	\begin{enumerate}
-	\item	If the \url{ACCESS_ONCE()} were omitted from the
-		fetch of \url{rcu_flipctr_idx} (line~14), then the compiler
-		would be within its rights to eliminate \url{idx}.
-		It would also be free to compile the \url{rcu_flipctr}
+	\item	If the \co{ACCESS_ONCE()} were omitted from the
+		fetch of \co{rcu_flipctr_idx} (line~14), then the compiler
+		would be within its rights to eliminate \co{idx}.
+		It would also be free to compile the \co{rcu_flipctr}
 		decrement as a fetch-increment-store sequence, separately
-		fetching \url{rcu_flipctr_idx} for both the fetch and
+		fetching \co{rcu_flipctr_idx} for both the fetch and
 		the store.
 		If an NMI were to occur between the fetch and the store, and
-		if the NMI handler contained an \url{rcu_read_lock()},
-		then the value of \url{rcu_flipctr_idx} would change
+		if the NMI handler contained an \co{rcu_read_lock()},
+		then the value of \co{rcu_flipctr_idx} would change
 		in the meantime, resulting in corruption of the
-		\url{rcu_flipctr} values, destroying the ability
+		\co{rcu_flipctr} values, destroying the ability
 		to correctly identify grace periods.
 	\item	Another failure that could result from omitting the
-		\url{ACCESS_ONCE()} from line~14 is due to
+		\co{ACCESS_ONCE()} from line~14 is due to
 		the compiler reordering this statement to follow the
-		decrement of \url{rcu_read_lock_nesting}
+		decrement of \co{rcu_read_lock_nesting}
 		(line~16).
 		In this case, if an NMI were to occur between these two
-		statements, then any \url{rcu_read_lock()} in the
-		NMI handler could corrupt \url{rcu_flipctr_idx},
-		causing the wrong \url{rcu_flipctr} to be
+		statements, then any \co{rcu_read_lock()} in the
+		NMI handler could corrupt \co{rcu_flipctr_idx},
+		causing the wrong \co{rcu_flipctr} to be
 		decremented.
-		As with the analogous situation in \url{rcu_read_lock()},
+		As with the analogous situation in \co{rcu_read_lock()},
 		this could result in premature grace-period termination,
 		an indefinite grace period, or even both.
-	\item	If \url{ACCESS_ONCE()} macros were omitted such that
-		the update of \url{rcu_read_lock_nesting} could be
+	\item	If \co{ACCESS_ONCE()} macros were omitted such that
+		the update of \co{rcu_read_lock_nesting} could be
 		interchanged by the compiler with the decrement of
-		\url{rcu_flipctr}, and if an NMI occurred in between,
-		any \url{rcu_read_lock()} in the NMI handler would
+		\co{rcu_flipctr}, and if an NMI occurred in between,
+		any \co{rcu_read_lock()} in the NMI handler would
 		incorrectly conclude that it was protected by an enclosing
-		\url{rcu_read_lock()}, and fail to increment the
-		\url{rcu_flipctr} variables.
+		\co{rcu_read_lock()}, and fail to increment the
+		\co{rcu_flipctr} variables.
 	\end{enumerate}
 
-	It is not clear that the \url{ACCESS_ONCE()} on the
-	fetch of \url{rcu_read_lock_nesting} (line~7) is required.
+	It is not clear that the \co{ACCESS_ONCE()} on the
+	fetch of \co{rcu_read_lock_nesting} (line~7) is required.
 } \QuickQuizEnd
 
 \QuickQuiz{}
 	What problems could arise if the lines containing
-	\url{ACCESS_ONCE()} in \url{rcu_read_unlock()}
+	\co{ACCESS_ONCE()} in \co{rcu_read_unlock()}
 	were reordered by the CPU?
 \QuickQuizAnswer{
-	Absolutely none!  The code in \url{rcu_read_unlock()}
+	Absolutely none!  The code in \co{rcu_read_unlock()}
 	interacts with the scheduling-clock interrupt handler
 	running on the same CPU, and is thus insensitive to reorderings
 	because CPUs always see their own accesses as if they occurred
 	in program order.
-	Other CPUs do access the \url{rcu_flipctr}, but because these
+	Other CPUs do access the \co{rcu_flipctr}, but because these
 	other CPUs don't access any of the other variables, ordering is
 	irrelevant.
 } \QuickQuizEnd
 
 \QuickQuiz{}
 	What problems could arise in
-	\url{rcu_read_unlock()} if irqs were not disabled?
+	\co{rcu_read_unlock()} if irqs were not disabled?
 \QuickQuizAnswer{
 	\begin{enumerate}
 	\item	Disabling irqs has the side effect of disabling preemption.
 		Suppose that this code were to be preempted in the midst
 		of line~17 between selecting the current CPU's copy
-		of the \url{rcu_flipctr} array and the decrement of
-		the element indicated by \url{rcu_flipctr_idx}.
+		of the \co{rcu_flipctr} array and the decrement of
+		the element indicated by \co{rcu_flipctr_idx}.
 		Execution might well resume on some other CPU.
 		If this resumption happened concurrently with an
-		\url{rcu_read_lock()} or \url{rcu_read_unlock()}
+		\co{rcu_read_lock()} or \co{rcu_read_unlock()}
 		running on the original CPU,
 		an increment or decrement might be lost, resulting in either
 		premature termination of a grace period, indefinite extension
 		of a grace period, or even both.
 	\item	Failing to disable preemption can also defeat RCU priority
-		boosting, which relies on \url{rcu_read_lock_nesting}
+		boosting, which relies on \co{rcu_read_lock_nesting}
 		to determine which tasks to boost.
 		If preemption occurred between the update of
-		\url{rcu_read_lock_nesting} (line~16) and of
-		\url{rcu_flipctr} (line~17), then a grace
+		\co{rcu_read_lock_nesting} (line~16) and of
+		\co{rcu_flipctr} (line~17), then a grace
 		period might be stalled until this task resumed.
 		But because the RCU priority booster has no way of knowing
 		that this particular task is stalling grace periods, needed
@@ -1213,9 +1213,9 @@ are required for similar reasons that they are in
 
 Note that these two primitives contains no memory barriers, so there is
 nothing to stop the CPU from executing the critical section
-before executing the \url{rcu_read_lock()} or after executing
-the \url{rcu_read_unlock()}.
-The purpose of the \url{rcu_try_flip_waitmb_state} is to
+before executing the \co{rcu_read_lock()} or after executing
+the \co{rcu_read_unlock()}.
+The purpose of the \co{rcu_try_flip_waitmb_state} is to
 account for this possible reordering, but only at the beginning or end of
 a grace period.
 To see why this approach is helpful, consider
@@ -1268,7 +1268,7 @@ which is taken in the next section.
 \subsubsection{Conceptual Validation}
 \label{app:rcuimpl:Conceptual Validation}
 
-Because neither \url{rcu_read_lock()} nor \url{rcu_read_unlock()}
+Because neither \co{rcu_read_lock()} nor \co{rcu_read_unlock()}
 contain memory barriers, the RCU read-side critical section can bleed
 out on weakly ordered machines.
 In addition, the relatively loose coupling of this RCU implementation
@@ -1292,37 +1292,37 @@ while CPU~1 executes the longest possible RCU read-side critical
 section.
 Because the callback queues are advanced just before acknowledging a
 counter flip, the latest that CPU~0 can execute its
-\url{list_del_rcu()} and \url{call_rcu()} is just before
+\co{list_del_rcu()} and \co{call_rcu()} is just before
 its scheduling-clock interrupt that acknowledges the counter flip.
-The \url{call_rcu()} invocation places the callback on CPU~0's
-\url{next} list, and the interrupt will move the callback from
-the \url{next} list to the \url{wait[0]} list.
-This callback will move again (from the \url{wait[0]} list
-to the \url{wait[1]} list) at CPU~0's first scheduling-clock
+The \co{call_rcu()} invocation places the callback on CPU~0's
+\co{next} list, and the interrupt will move the callback from
+the \co{next} list to the \co{wait[0]} list.
+This callback will move again (from the \co{wait[0]} list
+to the \co{wait[1]} list) at CPU~0's first scheduling-clock
 interrupt following the next counter flip.
-Similarly, the callback will move from the \url{wait[1]} list
-to the \url{done} list at CPU~0's first scheduling-clock
+Similarly, the callback will move from the \co{wait[1]} list
+to the \co{done} list at CPU~0's first scheduling-clock
 interrupt following the counter flip resulting in the value 3.
 The callback might be invoked immediately afterward.
 
 Meanwhile, CPU~1 is executing an RCU read-side critical section.
-Let us assume that the \url{rcu_read_lock()} follows the first
+Let us assume that the \co{rcu_read_lock()} follows the first
 counter flip (the one resulting in the value 1), so that the
-\url{rcu_read_lock()} increments CPU~1's
-\url{rcu_flipctr[1]} counter.
-Note that because \url{rcu_read_lock()} does not contain any
+\co{rcu_read_lock()} increments CPU~1's
+\co{rcu_flipctr[1]} counter.
+Note that because \co{rcu_read_lock()} does not contain any
 memory barriers, the contents of the critical section might be executed
 early by the CPU.
 However, this early execution cannot precede the last memory barrier
 executed by CPU~1, as shown on the diagram.
-This is nevertheless sufficiently early that an \url{rcu_dereference()}
+This is nevertheless sufficiently early that an \co{rcu_dereference()}
 could fetch a pointer to the item being deleted by CPU~0's
-\url{list_del_rcu()}.
+\co{list_del_rcu()}.
 
-Because the \url{rcu_read_lock()} incremented an index-1 counter,
-the corresponding \url{rcu_read_unlock()} must
+Because the \co{rcu_read_lock()} incremented an index-1 counter,
+the corresponding \co{rcu_read_unlock()} must
 precede the "old counters zero" event for index 1.
-However, because \url{rcu_read_unlock()} contains no memory
+However, because \co{rcu_read_unlock()} contains no memory
 barriers, the contents of the corresponding RCU read-side critical
 section (possibly including a reference to the item deleted by
 CPU~0) can be executed late by CPU~1.
@@ -1344,45 +1344,45 @@ a full grace period, and hence it is safe to do:
 
 \QuickQuiz{}
 	Suppose that the irq disabling in
-	\url{rcu_read_lock()} was replaced by preemption disabling.
-	What effect would that have on \url{GP_STAGES}?
+	\co{rcu_read_lock()} was replaced by preemption disabling.
+	What effect would that have on \co{GP_STAGES}?
 \QuickQuizAnswer{
-	No finite value of \url{GP_STAGES} suffices.
+	No finite value of \co{GP_STAGES} suffices.
 	The following scenario, courtesy of Oleg Nesterov, demonstrates this:
 
 	Suppose that low-priority Task~A has executed
-	\url{rcu_read_lock()} on CPU 0,
-	and thus has incremented \url{per_cpu(rcu_flipctr, 0)[0]},
+	\co{rcu_read_lock()} on CPU 0,
+	and thus has incremented \co{per_cpu(rcu_flipctr, 0)[0]},
 	which thus has a value of one.
 	Suppose further that Task~A is now preempted indefinitely.
 
 	Given this situation, consider the following sequence of events:
 	\begin{enumerate}
-	\item	Task~B starts executing \url{rcu_read_lock()}, also on
+	\item	Task~B starts executing \co{rcu_read_lock()}, also on
 		CPU 0, picking up the low-order bit of
-		\url{rcu_ctrlblk.completed}, which is still equal to zero.
+		\co{rcu_ctrlblk.completed}, which is still equal to zero.
 	\item	Task~B is interrupted by a sufficient number of scheduling-clock
 		interrupts to allow the current grace-period stage to complete,
 		and also be sufficient long-running interrupts to allow the
 		RCU grace-period state machine to advance the
-		\url{rcu_ctrlblk.complete} counter so that its bottom bit
+		\co{rcu_ctrlblk.complete} counter so that its bottom bit
 		is now equal to one and all CPUs have acknowledged this
 		increment operation.
 	\item	CPU 1 starts summing the index==0 counters, starting with
-		\url{per_cpu(rcu_flipctr, 0)[0]}, which is equal to one
+		\co{per_cpu(rcu_flipctr, 0)[0]}, which is equal to one
 		due to Task~A's increment.
-		CPU 1's local variable \url{sum} is therefore equal to one.
+		CPU 1's local variable \co{sum} is therefore equal to one.
 	\item	Task~B returns from interrupt, resuming its execution of
-		\url{rcu_read_lock()}, incrementing
-		\url{per_cpu(rcu_flipctr, 0)[0]}, which now has a value
+		\co{rcu_read_lock()}, incrementing
+		\co{per_cpu(rcu_flipctr, 0)[0]}, which now has a value
 		of two.
 	\item	Task~B is migrated to CPU 2.
 	\item	Task~B completes its RCU read-side critical section, and
-		executes \url{rcu_read_unlock()}, which decrements
-		\url{per_cpu(rcu_flipctr, 2)[0]}, which is now -1.
-	\item	CPU 1 now adds \url{per_cpu(rcu_flipctr, 1)[0]} and
-		\url{per_cpu(rcu_flipctr, 2)[0]} to its
-		local variable \url{sum}, obtaining the value zero.
+		executes \co{rcu_read_unlock()}, which decrements
+		\co{per_cpu(rcu_flipctr, 2)[0]}, which is now -1.
+	\item	CPU 1 now adds \co{per_cpu(rcu_flipctr, 1)[0]} and
+		\co{per_cpu(rcu_flipctr, 2)[0]} to its
+		local variable \co{sum}, obtaining the value zero.
 	\item	CPU 1 then incorrectly concludes that all prior RCU read-side
 		critical sections have completed, and advances to the next
 		RCU grace-period stage.
@@ -1391,20 +1391,20 @@ a full grace period, and hence it is safe to do:
 	\end{enumerate}
 
 	This sequence of events could repeat indefinitely, so that no finite
-	value of \url{GP_STAGES} could prevent disrupting Task~A.
+	value of \co{GP_STAGES} could prevent disrupting Task~A.
 	This sequence of events demonstrates the importance of the promise
 	made by CPUs that acknowledge an increment of
-	\url{rcu_ctrlblk.completed}, as the problem illustrated by the
+	\co{rcu_ctrlblk.completed}, as the problem illustrated by the
 	above sequence of events is caused by Task~B's repeated failure
 	to honor this promise.
 
 	Therefore, more-pervasive changes to the grace-period state will be
-	required in order for \url{rcu_read_lock()} to be able to safely
+	required in order for \co{rcu_read_lock()} to be able to safely
 	dispense with irq disabling.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	Why can't the \url{rcu_dereference()}
+	Why can't the \co{rcu_dereference()}
 	precede the memory barrier?
 \QuickQuizAnswer{
 	Because the memory barrier is being executed in
@@ -1412,15 +1412,15 @@ a full grace period, and hence it is safe to do:
 	a single value of the PC is saved upon interrupt, so that the
 	interrupt occurs at a definite place in the code.
 	Therefore, if the
-	\url{rcu_dereference()} were to precede the memory barrier,
+	\co{rcu_dereference()} were to precede the memory barrier,
 	the interrupt would have had to have occurred after the
-	\url{rcu_dereference()}, and therefore
+	\co{rcu_dereference()}, and therefore
 	the interrupt would also have had to have occurred after the
-	\url{rcu_read_lock()} that begins the RCU read-side critical
+	\co{rcu_read_lock()} that begins the RCU read-side critical
 	section.
-	This would have forced the \url{rcu_read_lock()} to use
+	This would have forced the \co{rcu_read_lock()} to use
 	the earlier value of the grace-period counter, which would in turn
-	have meant that the corresponding \url{rcu_read_unlock()}
+	have meant that the corresponding \co{rcu_read_unlock()}
 	would have had to precede the first "Old counters zero [0]" rather
 	than the second one.
 	This in turn would have meant that the read-side critical section
@@ -1462,11 +1462,11 @@ Appendix~\ref{app:formal:Formal Verification}.
 	In addition, the memory barriers must be strong enough to order
 	the relevant operations.
 	For example, CPU~1's last prior memory barrier must order stores
-	(for example, \url{smp_wmb()} or \url{smp_mb()}).
+	(for example, \co{smp_wmb()} or \co{smp_mb()}).
 	Similarly, if CPU~0 needs an explicit memory barrier to
 	ensure that its later load follows the one that saw the increment,
-	then this memory barrier needs to be an \url{smp_rmb()}
-	or \url{smp_mb()}.
+	then this memory barrier needs to be an \co{smp_rmb()}
+	or \co{smp_mb()}.
 
 	In general, much care is required when proving parallel algorithms.
 } \QuickQuizEnd

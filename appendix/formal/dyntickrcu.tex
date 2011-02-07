@@ -32,11 +32,11 @@ implementation with preemptible RCU in the -rt patchset.
 This combination caused one of Steve's systems to hang on boot, so in
 October, Paul coded up a dynticks-friendly modification to preemptible RCU's
 grace-period processing.
-Steve coded up \url{rcu_irq_enter()} and \url{rcu_irq_exit()}
+Steve coded up \co{rcu_irq_enter()} and \co{rcu_irq_exit()}
 interfaces called from the
-\url{irq_enter()} and \url{irq_exit()} interrupt
+\co{irq_enter()} and \co{irq_exit()} interrupt
 entry/exit functions.
-These \url{rcu_irq_enter()} and \url{rcu_irq_exit()}
+These \co{rcu_irq_enter()} and \co{rcu_irq_exit()}
 functions are needed to allow RCU to reliably handle situations where
 a dynticks-idle CPUs is momentarily powered up for an interrupt
 handler containing RCU read-side critical sections.
@@ -96,7 +96,7 @@ lessons (re)learned during this effort.
 \subsection{Introduction to Preemptible RCU and dynticks}
 \label{app:formal:Introduction to Preemptible RCU and dynticks}
 
-The per-CPU \url{dynticks_progress_counter} variable is
+The per-CPU \co{dynticks_progress_counter} variable is
 central to the interface between dynticks and preemptible RCU.
 This variable has an even value whenever the corresponding CPU
 is in dynticks-idle mode, and an odd value otherwise.
@@ -110,19 +110,19 @@ A CPU exits dynticks-idle mode for the following three reasons:
 \end{enumerate}
 
 Preemptible RCU's grace-period machinery samples the value of
-the \url{dynticks_progress_counter} variable in order to
+the \co{dynticks_progress_counter} variable in order to
 determine when a dynticks-idle CPU may safely be ignored.
 
 The following three sections give an overview of the task
 interface, the interrupt/NMI interface, and the use of
-the \url{dynticks_progress_counter} variable by the
+the \co{dynticks_progress_counter} variable by the
 grace-period machinery.
 
 \subsubsection{Task Interface}
 \label{app:formal:Task Interface}
 
 When a given CPU enters dynticks-idle mode because it has no more
-tasks to run, it invokes \url{rcu_enter_nohz()}:
+tasks to run, it invokes \co{rcu_enter_nohz()}:
 
 { \scriptsize
 \begin{verbatim}
@@ -135,15 +135,15 @@ tasks to run, it invokes \url{rcu_enter_nohz()}:
 \end{verbatim}
 }
 
-This function simply increments \url{dynticks_progress_counter} and
+This function simply increments \co{dynticks_progress_counter} and
 checks that the result is even, but first executing a memory barrier
 to ensure that any other CPU that sees the new value of
-\url{dynticks_progress_counter} will also see the completion
+\co{dynticks_progress_counter} will also see the completion
 of any prior RCU read-side critical sections.
 
 Similarly, when a CPU that is in dynticks-idle mode prepares to
 start executing a newly runnable task, it invokes
-\url{rcu_exit_nohz}:
+\co{rcu_exit_nohz}:
 
 { \scriptsize
 \begin{verbatim}
@@ -157,15 +157,15 @@ start executing a newly runnable task, it invokes
 \end{verbatim}
 }
 
-This function again increments \url{dynticks_progress_counter},
+This function again increments \co{dynticks_progress_counter},
 but follows it with a memory barrier to ensure that if any other CPU
 sees the result of any subsequent RCU read-side critical section,
 then that other CPU will also see the incremented value of
-\url{dynticks_progress_counter}.
-Finally, \url{rcu_exit_nohz()} checks that the result of the
+\co{dynticks_progress_counter}.
+Finally, \co{rcu_exit_nohz()} checks that the result of the
 increment is an odd value.
 
-The \url{rcu_enter_nohz()} and \url{rcu_exit_nohz}
+The \co{rcu_enter_nohz()} and \co{rcu_exit_nohz}
 functions handle the case where a CPU enters and exits dynticks-idle
 mode due to task execution, but does not handle interrupts, which are
 covered in the following section.
@@ -173,17 +173,17 @@ covered in the following section.
 \subsubsection{Interrupt Interface}
 \label{app:formal:Interrupt Interface}
 
-The \url{rcu_irq_enter()} and \url{rcu_irq_exit()}
+The \co{rcu_irq_enter()} and \co{rcu_irq_exit()}
 functions handle interrupt/NMI entry and exit, respectively.
 Of course, nested interrupts must also be properly accounted for.
 The possibility of nested interrupts is handled by a second per-CPU
-variable, \url{rcu_update_flag}, which is incremented upon
-entry to an interrupt or NMI handler (in \url{rcu_irq_enter()})
-and is decremented upon exit (in \url{rcu_irq_exit()}).
-In addition, the pre-existing \url{in_interrupt()} primitive is
+variable, \co{rcu_update_flag}, which is incremented upon
+entry to an interrupt or NMI handler (in \co{rcu_irq_enter()})
+and is decremented upon exit (in \co{rcu_irq_exit()}).
+In addition, the pre-existing \co{in_interrupt()} primitive is
 used to distinguish between an outermost or a nested interrupt/NMI.
 
-Interrupt entry is handled by the \url{rcu_irq_enter}
+Interrupt entry is handled by the \co{rcu_irq_enter}
 shown below:
 
 { \scriptsize
@@ -206,33 +206,33 @@ shown below:
 }
 
 Line~3 fetches the current CPU's number, while lines~5 and 6
-increment the \url{rcu_update_flag} nesting counter if it
+increment the \co{rcu_update_flag} nesting counter if it
 is already non-zero.
 Lines~7-9 check to see whether we are the outermost level of
-interrupt, and, if so, whether \url{dynticks_progress_counter}
+interrupt, and, if so, whether \co{dynticks_progress_counter}
 needs to be incremented.
-If so, line~10 increments \url{dynticks_progress_counter},
+If so, line~10 increments \co{dynticks_progress_counter},
 line~11 executes a memory barrier, and line~12 increments
-\url{rcu_update_flag}.
-As with \url{rcu_exit_nohz()}, the memory barrier ensures that
+\co{rcu_update_flag}.
+As with \co{rcu_exit_nohz()}, the memory barrier ensures that
 any other CPU that sees the effects of an RCU read-side critical section
-in the interrupt handler (following the \url{rcu_irq_enter()}
+in the interrupt handler (following the \co{rcu_irq_enter()}
 invocation) will also see the increment of
-\url{dynticks_progress_counter}.
+\co{dynticks_progress_counter}.
 
 \QuickQuiz{}
-	Why not simply increment \url{rcu_update_flag}, and then only
-	increment \url{dynticks_progress_counter} if the old value
-	of \url{rcu_update_flag} was zero???
+	Why not simply increment \co{rcu_update_flag}, and then only
+	increment \co{dynticks_progress_counter} if the old value
+	of \co{rcu_update_flag} was zero???
 \QuickQuizAnswer{
 	This fails in presence of NMIs.
 	To see this, suppose an NMI was received just after
-	\url{rcu_irq_enter()} incremented \url{rcu_update_flag},
-	but before it incremented \url{dynticks_progress_counter}.
-	The instance of \url{rcu_irq_enter()} invoked by the NMI
-	would see that the original value of \url{rcu_update_flag}
+	\co{rcu_irq_enter()} incremented \co{rcu_update_flag},
+	but before it incremented \co{dynticks_progress_counter}.
+	The instance of \co{rcu_irq_enter()} invoked by the NMI
+	would see that the original value of \co{rcu_update_flag}
 	was non-zero, and would therefore refrain from incrementing
-	\url{dynticks_progress_counter}.
+	\co{dynticks_progress_counter}.
 	This would leave the RCU grace-period machinery no clue that the
 	NMI handler was executing on this CPU, so that any RCU read-side
 	critical sections in the NMI handler would lose their RCU protection.
@@ -244,16 +244,16 @@ invocation) will also see the increment of
 \QuickQuiz{}
 	But if line~7 finds that we are the outermost interrupt,
 	wouldn't we \emph{always} need to increment
-	\url{dynticks_progress_counter}?
+	\co{dynticks_progress_counter}?
 \QuickQuizAnswer{
 	Not if we interrupted a running task!
-	In that case, \url{dynticks_progress_counter} would
-	have already been incremented by \url{rcu_exit_nohz()},
+	In that case, \co{dynticks_progress_counter} would
+	have already been incremented by \co{rcu_exit_nohz()},
 	and there would be no need to increment it again.
 } \QuickQuizEnd
 
 Interrupt exit is handled similarly by
-\url{rcu_irq_exit()}:
+\co{rcu_irq_exit()}:
 
 { \scriptsize
 \begin{verbatim}
@@ -275,25 +275,25 @@ Interrupt exit is handled similarly by
 }
 
 Line~3 fetches the current CPU's number, as before.
-Line~5 checks to see if the \url{rcu_update_flag} is
+Line~5 checks to see if the \co{rcu_update_flag} is
 non-zero, returning immediately (via falling off the end of the
 function) if not.
 Otherwise, lines~6 through 12 come into play.
-Line~6 decrements \url{rcu_update_flag}, returning
+Line~6 decrements \co{rcu_update_flag}, returning
 if the result is not zero.
 Line~8 verifies that we are indeed leaving the outermost
 level of nested interrupts, line~9 executes a memory barrier,
-line~10 increments \url{dynticks_progress_counter},
+line~10 increments \co{dynticks_progress_counter},
 and lines~11 and 12 verify that this variable is now even.
-As with \url{rcu_enter_nohz()}, the memory barrier ensures that
+As with \co{rcu_enter_nohz()}, the memory barrier ensures that
 any other CPU that sees the increment of
-\url{dynticks_progress_counter}
+\co{dynticks_progress_counter}
 will also see the effects of an RCU read-side critical section
-in the interrupt handler (preceding the \url{rcu_irq_exit()}
+in the interrupt handler (preceding the \co{rcu_irq_exit()}
 invocation).
 
 These two sections have described how the
-\url{dynticks_progress_counter} variable is maintained during
+\co{dynticks_progress_counter} variable is maintained during
 entry to and exit from dynticks-idle mode, both by tasks and by
 interrupts and NMIs.
 The following section describes how this variable is used by
@@ -306,19 +306,19 @@ Of the four preemptible RCU grace-period states shown in
 Figure~\ref{app:rcuimpl:Preemptible RCU State Machine} on
 page~\pageref{app:rcuimpl:Preemptible RCU State Machine} in
 Appendix~\ref{app:rcuimpl:Preemptible RCU},
-only the \url{rcu_try_flip_waitack_state()}
-and \url{rcu_try_flip_waitmb_state()} states need to wait
+only the \co{rcu_try_flip_waitack_state()}
+and \co{rcu_try_flip_waitmb_state()} states need to wait
 for other CPUs to respond.
 
 Of course, if a given CPU is in dynticks-idle state, we shouldn't
 wait for it.
 Therefore, just before entering one of these two states,
 the preceding state takes a snapshot of each CPU's
-\url{dynticks_progress_counter} variable, placing the
+\co{dynticks_progress_counter} variable, placing the
 snapshot in another per-CPU variable,
-\url{rcu_dyntick_snapshot}.
+\co{rcu_dyntick_snapshot}.
 This is accomplished by invoking
-\url{dyntick_save_progress_counter}, shown below:
+\co{dyntick_save_progress_counter}, shown below:
 
 { \scriptsize
 \begin{verbatim}
@@ -330,8 +330,8 @@ This is accomplished by invoking
 \end{verbatim}
 }
 
-The \url{rcu_try_flip_waitack_state()} state invokes
-\url{rcu_try_flip_waitack_needed()}, shown below:
+The \co{rcu_try_flip_waitack_state()} state invokes
+\co{rcu_try_flip_waitack_needed()}, shown below:
 
 { \scriptsize
 \begin{verbatim}
@@ -354,9 +354,9 @@ The \url{rcu_try_flip_waitack_state()} state invokes
 }
 
 Lines~7 and 8 pick up current and snapshot versions of
-\url{dynticks_progress_counter}, respectively.
+\co{dynticks_progress_counter}, respectively.
 The memory barrier on line~ensures that the counter checks
-in the later \url{rcu_try_flip_waitzero_state} follow
+in the later \co{rcu_try_flip_waitzero_state} follow
 the fetches of these counters.
 Lines~10 and 11 return zero (meaning no communication with the
 specified CPU is required) if that CPU has remained in dynticks-idle
@@ -369,8 +369,8 @@ the old value of the grace-period counter.
 If neither of these conditions hold, line~14 returns one, meaning
 that the CPU needs to explicitly respond.
 
-For its part, the \url{rcu_try_flip_waitmb_state} state
-invokes \url{rcu_try_flip_waitmb_needed()}, shown below:
+For its part, the \co{rcu_try_flip_waitmb_state} state
+invokes \co{rcu_try_flip_waitmb_needed()}, shown below:
 
 { \scriptsize
 \begin{verbatim}
@@ -392,10 +392,10 @@ invokes \url{rcu_try_flip_waitmb_needed()}, shown below:
 \end{verbatim}
 }
 
-This is quite similar to \url{rcu_try_flip_waitack_needed},
+This is quite similar to \co{rcu_try_flip_waitack_needed},
 the difference being in lines~12 and 13, because any transition
 either to or from dynticks-idle state executes the memory barrier
-needed by the \url{rcu_try_flip_waitmb_state()} state.
+needed by the \co{rcu_try_flip_waitmb_state()} state.
 
 We now have seen all the code involved in the interface between
 RCU and the dynticks-idle state.
@@ -422,8 +422,8 @@ adding assertions, interrupts, and finally NMIs.
 This section translates the process-level dynticks entry/exit
 code and the grace-period processing into
 Promela~\cite{Holzmann03a}.
-We start with \url{rcu_exit_nohz()} and
-\url{rcu_enter_nohz()}
+We start with \co{rcu_exit_nohz()} and
+\co{rcu_enter_nohz()}
 from the 2.6.25-rc4 kernel, placing these in a single Promela
 process that models exiting and entering dynticks-idle mode in
 a loop as follows:
@@ -455,21 +455,21 @@ a loop as follows:
 }
 
 Lines~6 and 20 define a loop.
-Line~7 exits the loop once the loop counter \url{i}
-has exceeded the limit \url{MAX_DYNTICK_LOOP_NOHZ}.
+Line~7 exits the loop once the loop counter \co{i}
+has exceeded the limit \co{MAX_DYNTICK_LOOP_NOHZ}.
 Line~8 tells the loop construct to execute lines~9-19
 for each pass through the loop.
 Because the conditionals on lines~7 and 8 are exclusive of
 each other, the normal Promela random selection of true conditions
 is disabled.
-Lines~9 and 11 model \url{rcu_exit_nohz()}'s non-atomic
-increment of \url{dynticks_progress_counter}, while
-line 12 models the \url{WARN_ON()}.
-The \url{atomic} construct simply reduces the Promela state space,
-given that the \url{WARN_ON()} is not strictly speaking part
+Lines~9 and 11 model \co{rcu_exit_nohz()}'s non-atomic
+increment of \co{dynticks_progress_counter}, while
+line 12 models the \co{WARN_ON()}.
+The \co{atomic} construct simply reduces the Promela state space,
+given that the \co{WARN_ON()} is not strictly speaking part
 of the algorithm.
 Lines~14-18 similarly models the increment and
-\url{WARN_ON()} for \url{rcu_enter_nohz()}.
+\co{WARN_ON()} for \co{rcu_enter_nohz()}.
 Finally, line~19 increments the loop counter.
 
 Each pass through the loop therefore models a CPU exiting
@@ -477,8 +477,8 @@ dynticks-idle mode (for example, starting to execute a task), then
 re-entering dynticks-idle mode (for example, that same task blocking).
 
 \QuickQuiz{}
-	Why isn't the memory barrier in \url{rcu_exit_nohz()}
-	and \url{rcu_enter_nohz()} modeled in Promela?
+	Why isn't the memory barrier in \co{rcu_exit_nohz()}
+	and \co{rcu_enter_nohz()} modeled in Promela?
 \QuickQuizAnswer{
 	Promela assumes sequential consistency, so
 	it is not necessary to model memory barriers.
@@ -489,8 +489,8 @@ re-entering dynticks-idle mode (for example, that same task blocking).
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	Isn't it a bit strange to model \url{rcu_exit_nohz()}
-	followed by \url{rcu_enter_nohz()}?
+	Isn't it a bit strange to model \co{rcu_exit_nohz()}
+	followed by \co{rcu_enter_nohz()}?
 	Wouldn't it be more natural to instead model entry before exit?
 \QuickQuizAnswer{
 	It probably would be more natural, but we will need
@@ -500,13 +500,13 @@ re-entering dynticks-idle mode (for example, that same task blocking).
 The next step is to model the interface to RCU's grace-period
 processing.
 For this, we need to model
-\url{dyntick_save_progress_counter()},
-\url{rcu_try_flip_waitack_needed()},
-\url{rcu_try_flip_waitmb_needed()},
+\co{dyntick_save_progress_counter()},
+\co{rcu_try_flip_waitack_needed()},
+\co{rcu_try_flip_waitmb_needed()},
 as well as portions of
-\url{rcu_try_flip_waitack()} and
-\url{rcu_try_flip_waitmb()}, all from the 2.6.25-rc4 kernel.
-The following \url{grace_period()} Promela process models
+\co{rcu_try_flip_waitack()} and
+\co{rcu_try_flip_waitmb()}, all from the 2.6.25-rc4 kernel.
+The following \co{grace_period()} Promela process models
 these functions as they would be invoked during a single pass
 through preemptible RCU's grace-period processing.
 
@@ -554,40 +554,40 @@ through preemptible RCU's grace-period processing.
 
 Lines~6-9 print out the loop limit (but only into the .trail file
 in case of error) and models a line of code
-from \url{rcu_try_flip_idle()} and its call to
-\url{dyntick_save_progress_counter()}, which takes a
-snapshot of the current CPU's \url{dynticks_progress_counter}
+from \co{rcu_try_flip_idle()} and its call to
+\co{dyntick_save_progress_counter()}, which takes a
+snapshot of the current CPU's \co{dynticks_progress_counter}
 variable.
 These two lines are executed atomically to reduce state space.
 
 Lines~10-22 model the relevant code in
-\url{rcu_try_flip_waitack()} and its call to
-\url{rcu_try_flip_waitack_needed()}.
+\co{rcu_try_flip_waitack()} and its call to
+\co{rcu_try_flip_waitack_needed()}.
 This loop is modeling the grace-period state machine waiting for
 a counter-flip acknowledgement from each CPU, but only that part
 that interacts with dynticks-idle CPUs.
 
-Line~23 models a line from \url{rcu_try_flip_waitzero()}
-and its call to \url{dyntick_save_progress_counter()}, again
-taking a snapshot of the CPU's \url{dynticks_progress_counter}
+Line~23 models a line from \co{rcu_try_flip_waitzero()}
+and its call to \co{dyntick_save_progress_counter()}, again
+taking a snapshot of the CPU's \co{dynticks_progress_counter}
 variable.
 
 Finally, lines~24-36 model the relevant code in
-\url{rcu_try_flip_waitack()} and its call to
-\url{rcu_try_flip_waitack_needed()}.
+\co{rcu_try_flip_waitack()} and its call to
+\co{rcu_try_flip_waitack_needed()}.
 This loop is modeling the grace-period state-machine waiting for
 each CPU to execute a memory barrier, but again only that part
 that interacts with dynticks-idle CPUs.
 
 \QuickQuiz{}
 	Wait a minute!
-	In the Linux kernel, both \url{dynticks_progress_counter} and
-	\url{rcu_dyntick_snapshot} are per-CPU variables.
+	In the Linux kernel, both \co{dynticks_progress_counter} and
+	\co{rcu_dyntick_snapshot} are per-CPU variables.
 	So why are they instead being modeled as single global variables?
 \QuickQuizAnswer{
 	Because the grace-period code processes each
-	CPU's \url{dynticks_progress_counter} and
-	\url{rcu_dyntick_snapshot} variables separately,
+	CPU's \co{dynticks_progress_counter} and
+	\co{rcu_dyntick_snapshot} variables separately,
 	we can collapse the state onto a single CPU.
 	If the grace-period code were instead to do something special
 	given specific values on specific CPUs, then we would indeed need
@@ -611,7 +611,7 @@ The next section therefore adds safety assertions.
 A safe RCU implementation must never permit a grace period to
 complete before the completion of any RCU readers that started
 before the start of the grace period.
-This is modeled by a \url{grace_period_state} variable that
+This is modeled by a \co{grace_period_state} variable that
 can take on three states as follows:
 
 \vspace{5pt}
@@ -625,7 +625,7 @@ can take on three states as follows:
 \end{minipage}
 \vspace{5pt}
 
-The \url{grace_period()} process sets this variable as it
+The \co{grace_period()} process sets this variable as it
 progresses through the grace-period phases, as shown below:
 
 { \scriptsize
@@ -680,16 +680,16 @@ progresses through the grace-period phases, as shown below:
 
 Lines~6, 10, 25, 26, 29, and 44 update this variable (combining
 atomically with algorithmic operations where feasible) to
-allow the \url{dyntick_nohz()} process to verify the basic
+allow the \co{dyntick_nohz()} process to verify the basic
 RCU safety property.
 The form of this verification is to assert that the value of the
-\url{grace_period_state} variable cannot jump from
-\url{GP_IDLE} to \url{GP_DONE} during a time period
+\co{grace_period_state} variable cannot jump from
+\co{GP_IDLE} to \co{GP_DONE} during a time period
 over which RCU readers could plausibly persist.
 
 \QuickQuiz{}
 	Given there are a pair of back-to-back changes to
-	\url{grace_period_state} on lines~25 and 26,
+	\co{grace_period_state} on lines~25 and 26,
 	how can we be sure that line~25's changes won't be lost?
 \QuickQuizAnswer{
 	Recall that Promela and spin trace out
@@ -700,7 +700,7 @@ over which RCU readers could plausibly persist.
 	doing so.
 } \QuickQuizEnd
 
-The \url{dyntick_nohz()} Promela process implements
+The \co{dyntick_nohz()} Promela process implements
 this verification as shown below:
 
 { \scriptsize
@@ -735,11 +735,11 @@ this verification as shown below:
 \end{verbatim}
 }
 
-Line~13 sets a new \url{old_gp_idle} flag if the
-value of the \url{grace_period_state} variable is
-\url{GP_IDLE} at the beginning of task execution,
-and the assertion at lines~18 and 19 fire if the \url{grace_period_state}
-variable has advanced to \url{GP_DONE} during task execution,
+Line~13 sets a new \co{old_gp_idle} flag if the
+value of the \co{grace_period_state} variable is
+\co{GP_IDLE} at the beginning of task execution,
+and the assertion at lines~18 and 19 fire if the \co{grace_period_state}
+variable has advanced to \co{GP_DONE} during task execution,
 which would be illegal given that a single RCU read-side critical
 section could span the entire intervening time period.
 
@@ -756,8 +756,8 @@ The next section therefore covers verifying liveness.
 
 Although liveness can be difficult to prove, there is a simple
 trick that applies here.
-The first step is to make \url{dyntick_nohz()} indicate that
-it is done via a \url{dyntick_nohz_done} variable, as shown on
+The first step is to make \co{dyntick_nohz()} indicate that
+it is done via a \co{dyntick_nohz_done} variable, as shown on
 line~27 of the following:
 
 { \scriptsize
@@ -794,7 +794,7 @@ line~27 of the following:
 }
 
 With this variable in place, we can add assertions to
-\url{grace_period()} to check for unnecessary blockage
+\co{grace_period()} to check for unnecessary blockage
 as follows:
 
 { \scriptsize
@@ -854,16 +854,16 @@ as follows:
 \end{verbatim}
 }
 
-We have added the \url{shouldexit} variable on line~5,
+We have added the \co{shouldexit} variable on line~5,
 which we initialize to zero on line~10.
-Line~17 asserts that \url{shouldexit} is not set, while
-line~18 sets \url{shouldexit} to the \url{dyntick_nohz_done}
-variable maintained by \url{dyntick_nohz()}.
+Line~17 asserts that \co{shouldexit} is not set, while
+line~18 sets \co{shouldexit} to the \co{dyntick_nohz_done}
+variable maintained by \co{dyntick_nohz()}.
 This assertion will therefore trigger if we attempt to take more than
 one pass through the wait-for-counter-flip-acknowledgement
-loop after \url{dyntick_nohz()} has completed
+loop after \co{dyntick_nohz()} has completed
 execution.
-After all, if \url{dyntick_nohz()} is done, then there cannot be
+After all, if \co{dyntick_nohz()} is done, then there cannot be
 any more state changes to force us out of the loop, so going through twice
 in this state means an infinite loop, which in turn means no end to the
 grace period.
@@ -875,12 +875,12 @@ However, running this
 model (\url{dyntickRCU-base-sl-busted.spin})
 results in failure, as line~23 is checking that the wrong variable
 is even.
-Upon failure, \url{spin} writes out a
+Upon failure, \co{spin} writes out a
 ``trail'' file
 (\url{dyntickRCU-base-sl-busted.spin.trail})
 file, which records the sequence of states that lead to the failure.
 Use the {\tt spin -t -p -g -l dyntickRCU-base-sl-busted.spin}
-command to cause \url{spin} to retrace this sequence of state,
+command to cause \co{spin} to retrace this sequence of state,
 printing the statements executed and the values of variables
 (\url{dyntickRCU-base-sl-busted.spin.trail.txt}).
 Note that the line numbers do not match the listing above due to
@@ -888,31 +888,31 @@ the fact that spin takes both functions in a single file.
 However, the line numbers \emph{do} match the full
 model (\url{dyntickRCU-base-sl-busted.spin}).
 
-We see that the \url{dyntick_nohz()} process completed
+We see that the \co{dyntick_nohz()} process completed
 at step 34 (search for ``34:''), but that the
-\url{grace_period()} process nonetheless failed to exit the loop.
-The value of \url{curr} is \url{6} (see step 35)
-and that the value of \url{snap} is \url{5} (see step 17).
+\co{grace_period()} process nonetheless failed to exit the loop.
+The value of \co{curr} is \co{6} (see step 35)
+and that the value of \co{snap} is \co{5} (see step 17).
 Therefore the first condition on line~21 above does not hold because
-\url{curr != snap}, and the second condition on line~23
-does not hold either because \url{snap} is odd and because
-\url{curr} is only one greater than \url{snap}.
+\co{curr != snap}, and the second condition on line~23
+does not hold either because \co{snap} is odd and because
+\co{curr} is only one greater than \co{snap}.
 
 So one of these two conditions has to be incorrect.
-Referring to the comment block in \url{rcu_try_flip_waitack_needed()}
+Referring to the comment block in \co{rcu_try_flip_waitack_needed()}
 for the first condition:
 
 \begin{quote}
 	If the CPU remained in dynticks mode for the entire time
 	and didn't take any interrupts, NMIs, SMIs, or whatever,
-	then it cannot be in the middle of an \url{rcu_read_lock()}, so
-	the next \url{rcu_read_lock()} it executes must use the new value
+	then it cannot be in the middle of an \co{rcu_read_lock()}, so
+	the next \co{rcu_read_lock()} it executes must use the new value
 	of the counter.  So we can safely pretend that this CPU
 	already acknowledged the counter.
 \end{quote}
 
-The first condition does match this, because if \url{curr == snap}
-and if \url{curr} is even, then the corresponding CPU has been
+The first condition does match this, because if \co{curr == snap}
+and if \co{curr} is even, then the corresponding CPU has been
 in dynticks-idle mode the entire time, as required.
 So let's look at the comment block for the second condition:
 
@@ -922,15 +922,15 @@ So let's look at the comment block for the second condition:
 	that this CPU already acknowledged the counter.
 \end{quote}
 
-The first part of the condition is correct, because if \url{curr}
-and \url{snap} differ by two, there will be at least one even
+The first part of the condition is correct, because if \co{curr}
+and \co{snap} differ by two, there will be at least one even
 number in between, corresponding to having passed completely through
 a dynticks-idle phase.
 However, the second part of the condition corresponds to having
 \emph{started} in dynticks-idle mode, not having \emph{finished}
 in this mode.
-We therefore need to be testing \url{curr} rather than
-\url{snap} for being an even number.
+We therefore need to be testing \co{curr} rather than
+\co{snap} for being an even number.
 
 The corrected C code is as follows:
 
@@ -957,7 +957,7 @@ The corrected C code is as follows:
 Lines~10-13 can now be combined and simplified,
 resulting in the following.
 A similar simplification can be applied to
-\url{rcu_try_flip_waitmb_needed}.
+\co{rcu_try_flip_waitmb_needed}.
 
 { \scriptsize
 \begin{verbatim}
@@ -985,7 +985,7 @@ However, it is worth noting that the first version of the liveness
 verification failed to catch this bug, due to a bug in the liveness
 verification itself.
 This liveness-verification bug was located by inserting an infinite
-loop in the \url{grace_period()} process, and noting that
+loop in the \co{grace_period()} process, and noting that
 the liveness-verification code failed to detect this problem!
 
 We have now successfully verified both safety and liveness
@@ -998,21 +998,21 @@ We also need to handle interrupts, a task taken up in the next section.
 There are a couple of ways to model interrupts in Promela:
 \begin{enumerate}
 \item	using C-preprocessor tricks to insert the interrupt handler
-	between each and every statement of the \url{dynticks_nohz()}
+	between each and every statement of the \co{dynticks_nohz()}
 	process, or
 \item	modeling the interrupt handler with a separate process.
 \end{enumerate}
 
 A bit of thought indicated that the second approach would have a
 smaller state space, though it requires that the interrupt handler
-somehow run atomically with respect to the \url{dynticks_nohz()}
-process, but not with respect to the \url{grace_period()}
+somehow run atomically with respect to the \co{dynticks_nohz()}
+process, but not with respect to the \co{grace_period()}
 process.
 
 Fortunately, it turns out that Promela permits you to branch
 out of atomic statements.
 This trick allows us to have the interrupt handler set a flag, and
-recode \url{dynticks_nohz()} to atomically check this flag
+recode \co{dynticks_nohz()} to atomically check this flag
 and execute only when the flag is not set.
 This can be accomplished with a C-preprocessor macro that takes
 a label and a Promela statement as follows:
@@ -1043,7 +1043,7 @@ EXECUTE_MAINLINE(stmt1,
 \vspace{5pt}
 
 Line~2 of the macro creates the specified statement label.
-Lines~3-8 are an atomic block that tests the \url{in_dyntick_irq}
+Lines~3-8 are an atomic block that tests the \co{in_dyntick_irq}
 variable, and if this variable is set (indicating that the interrupt
 handler is active), branches out of the atomic block back to the
 label.
@@ -1054,8 +1054,8 @@ is active, as required.
 \subsubsection{Validating Interrupt Handlers}
 \label{app:formal:Validating Interrupt Handlers}
 
-The first step is to convert \url{dyntick_nohz()} to
-\url{EXECUTE_MAINLINE()} form, as follows:
+The first step is to convert \co{dyntick_nohz()} to
+\co{EXECUTE_MAINLINE()} form, as follows:
 
 { \scriptsize
 \begin{verbatim}
@@ -1089,20 +1089,20 @@ The first step is to convert \url{dyntick_nohz()} to
 }
 
 It is important to note that when a group of statements is passed
-to \url{EXECUTE_MAINLINE()}, as in lines~11-14, all
+to \co{EXECUTE_MAINLINE()}, as in lines~11-14, all
 statements in that group execute atomically.
 
 \QuickQuiz{}
 	But what would you do if you needed the statements in a single
-	\url{EXECUTE_MAINLINE()} group to execute non-atomically?
+	\co{EXECUTE_MAINLINE()} group to execute non-atomically?
 \QuickQuizAnswer{
 	The easiest thing to do would be to put
-	each such statement in its own \url{EXECUTE_MAINLINE()}
+	each such statement in its own \co{EXECUTE_MAINLINE()}
 	statement.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	But what if the \url{dynticks_nohz()} process had
+	But what if the \co{dynticks_nohz()} process had
 	``if'' or ``do'' statements with conditions,
 	where the statement bodies of these constructs
 	needed to execute non-atomically?
@@ -1148,7 +1148,7 @@ statements in that group execute atomically.
 	be open-coded in the following sections.
 } \QuickQuizEnd
 
-The next step is to write a \url{dyntick_irq()} process
+The next step is to write a \co{dyntick_irq()} process
 to model an interrupt handler:
 
 { \scriptsize
@@ -1206,18 +1206,18 @@ to model an interrupt handler:
 \end{verbatim}
 }
 
-The loop from line~7-48 models up to \url{MAX_DYNTICK_LOOP_IRQ}
+The loop from line~7-48 models up to \co{MAX_DYNTICK_LOOP_IRQ}
 interrupts, with lines~8 and 9 forming the loop condition and line~45
 incrementing the control variable.
-Line~10 tells \url{dyntick_nohz()} that an interrupt handler
-is running, and line~45 tells \url{dyntick_nohz()} that this
+Line~10 tells \co{dyntick_nohz()} that an interrupt handler
+is running, and line~45 tells \co{dyntick_nohz()} that this
 handler has completed.
 Line~49 is used for liveness verification, much as is the corresponding
-line of \url{dyntick_nohz()}.
+line of \co{dyntick_nohz()}.
 
 \QuickQuiz{}
-	Why are lines~45 and 46 (the \url{in_dyntick_irq = 0;}
-	and the \url{i++;}) executed atomically?
+	Why are lines~45 and 46 (the \co{in_dyntick_irq = 0;}
+	and the \co{i++;}) executed atomically?
 \QuickQuizAnswer{
 	These lines of code pertain to controlling the
 	model, not to the code being modeled, so there is no reason to
@@ -1226,22 +1226,22 @@ line of \url{dyntick_nohz()}.
 	of the state space.
 } \QuickQuizEnd
 
-Lines~11-25 model \url{rcu_irq_enter()}, and
-lines~26 and 27 model the relevant snippet of \url{__irq_enter()}.
+Lines~11-25 model \co{rcu_irq_enter()}, and
+lines~26 and 27 model the relevant snippet of \co{__irq_enter()}.
 Lines~28 and 29 verifies safety in much the same manner as do the
-corresponding lines of \url{dynticks_nohz()}.
-Lines~30 and 31 model the relevant snippet of \url{__irq_exit()},
-and finally lines~32-43 model \url{rcu_irq_exit()}.
+corresponding lines of \co{dynticks_nohz()}.
+Lines~30 and 31 model the relevant snippet of \co{__irq_exit()},
+and finally lines~32-43 model \co{rcu_irq_exit()}.
 
 \QuickQuiz{}
-	What property of interrupts is this \url{dynticks_irq()}
+	What property of interrupts is this \co{dynticks_irq()}
 	process unable to model?
 \QuickQuizAnswer{
 	One such property is nested interrupts,
 	which are handled in the following section.
 } \QuickQuizEnd
 
-The \url{grace_period} process then becomes as follows:
+The \co{grace_period} process then becomes as follows:
 
 { \scriptsize
 \begin{verbatim}
@@ -1297,11 +1297,11 @@ The \url{grace_period} process then becomes as follows:
 \end{verbatim}
 }
 
-The implementation of \url{grace_period()} is very similar
+The implementation of \co{grace_period()} is very similar
 to the earlier one.
 The only changes are the addition of line~10 to add the new
 interrupt-count parameter, changes to lines~19 and 39 to
-add the new \url{dyntick_irq_done} variable to the liveness
+add the new \co{dyntick_irq_done} variable to the liveness
 checks, and of course the optimizations on lines~22 and 42.
 
 This model (\url{dyntickRCU-irqnn-ssl.spin})
@@ -1315,7 +1315,7 @@ This topic is taken up in the nest section.
 \label{app:formal:Validating Nested Interrupt Handlers}
 
 Nested interrupt handlers may be modeled by splitting the body of
-the loop in \url{dyntick_irq()} as follows:
+the loop in \co{dyntick_irq()} as follows:
 
 { \scriptsize
 \begin{verbatim}
@@ -1393,22 +1393,22 @@ the loop in \url{dyntick_irq()} as follows:
 \end{verbatim}
 }
 
-This is similar to the earlier \url{dynticks_irq()} process.
-It adds a second counter variable \url{j} on line~5, so that
-\url{i} counts entries to interrupt handlers and \url{j}
+This is similar to the earlier \co{dynticks_irq()} process.
+It adds a second counter variable \co{j} on line~5, so that
+\co{i} counts entries to interrupt handlers and \co{j}
 counts exits.
-The \url{outermost} variable on line~7 helps determine
-when the \url{grace_period_state} variable needs to be sampled
+The \co{outermost} variable on line~7 helps determine
+when the \co{grace_period_state} variable needs to be sampled
 for the safety checks.
 The loop-exit check on lines~10 and 11 is updated to require that the
 specified number of interrupt handlers are exited as well as entered,
-and the increment of \url{i} is moved to line~41, which is
+and the increment of \co{i} is moved to line~41, which is
 the end of the interrupt-entry model.
-Lines~13-16 set the \url{outermost} variable to indicate
+Lines~13-16 set the \co{outermost} variable to indicate
 whether this is the outermost of a set of nested interrupts and to
-set the \url{in_dyntick_irq} variable that is used by the
-\url{dyntick_nohz()} process.
-Lines~34-40 capture the state of the \url{grace_period_state}
+set the \co{in_dyntick_irq} variable that is used by the
+\co{dyntick_nohz()} process.
+Lines~34-40 capture the state of the \co{grace_period_state}
 variable, but only when in the outermost interrupt handler.
 
 Line~42 has the do-loop conditional for interrupt-exit modeling:
@@ -1416,9 +1416,9 @@ as long as we have exited fewer interrupts than we have entered, it is
 legal to exit another interrupt.
 Lines~43-50 check the safety criterion, but only if we are exiting
 from the outermost interrupt level.
-Finally, lines~65-68 increment the interrupt-exit count \url{j}
+Finally, lines~65-68 increment the interrupt-exit count \co{j}
 and, if this is the outermost interrupt level, clears
-\url{in_dyntick_irq}.
+\co{in_dyntick_irq}.
 
 This model (\url{dyntickRCU-irq-ssl.spin})
 results in a correct verification with a bit more than half a million
@@ -1431,7 +1431,7 @@ which are taken up in the nest section.
 
 We take the same general approach for NMIs as we do for interrupts,
 keeping in mind that NMIs do not nest.
-This results in a \url{dyntick_nmi()} process as follows:
+This results in a \co{dyntick_nmi()} process as follows:
 
 { \scriptsize
 \begin{verbatim}
@@ -1490,10 +1490,10 @@ This results in a \url{dyntick_nmi()} process as follows:
 
 Of course, the fact that we have NMIs requires adjustments in
 the other components.
-For example, the \url{EXECUTE_MAINLINE()} macro now needs to
-pay attention to the NMI handler (\url{in_dyntick_nmi}) as well
-as the interrupt handler (\url{in_dyntick_irq}) by checking
-the \url{dyntick_nmi_done} variable as follows:
+For example, the \co{EXECUTE_MAINLINE()} macro now needs to
+pay attention to the NMI handler (\co{in_dyntick_nmi}) as well
+as the interrupt handler (\co{in_dyntick_irq}) by checking
+the \co{dyntick_nmi_done} variable as follows:
 
 { \scriptsize
 \begin{verbatim}
@@ -1509,9 +1509,9 @@ the \url{dyntick_nmi_done} variable as follows:
 \end{verbatim}
 }
 
-We will also need to introduce an \url{EXECUTE_IRQ()}
-macro that checks \url{in_dyntick_nmi} in order to allow
-\url{dyntick_irq()} to exclude \url{dyntick_nmi()}:
+We will also need to introduce an \co{EXECUTE_IRQ()}
+macro that checks \co{in_dyntick_nmi} in order to allow
+\co{dyntick_irq()} to exclude \co{dyntick_nmi()}:
 
 { \scriptsize
 \begin{verbatim}
@@ -1526,8 +1526,8 @@ macro that checks \url{in_dyntick_nmi} in order to allow
 \end{verbatim}
 }
 
-It is further necessary to convert \url{dyntick_irq()}
-to \url{EXECUTE_IRQ()} as follows:
+It is further necessary to convert \co{dyntick_irq()}
+to \co{EXECUTE_IRQ()} as follows:
 
 { \scriptsize
 \begin{verbatim}
@@ -1644,9 +1644,9 @@ to \url{EXECUTE_IRQ()} as follows:
 Note that we have open-coded the ``if'' statements
 (for example, lines~17-29).
 In addition, statements that process strictly local state
-(such as line~58) need not exclude \url{dyntick_nmi()}.
+(such as line~58) need not exclude \co{dyntick_nmi()}.
 
-Finally, \url{grace_period()} requires only a few changes:
+Finally, \co{grace_period()} requires only a few changes:
 
 { \scriptsize
 \begin{verbatim}
@@ -1707,9 +1707,9 @@ Finally, \url{grace_period()} requires only a few changes:
 \end{verbatim}
 }
 
-We have added the \url{printf()} for the new
-\url{MAX_DYNTICK_LOOP_NMI} parameter on line~11 and
-added \url{dyntick_nmi_done} to the \url{shouldexit}
+We have added the \co{printf()} for the new
+\co{MAX_DYNTICK_LOOP_NMI} parameter on line~11 and
+added \co{dyntick_nmi_done} to the \co{shouldexit}
 assignments on lines~22 and 44.
 
 The model (\url{dyntickRCU-irq-nmi-ssl.spin})
@@ -1791,13 +1791,13 @@ This effort provided some lessons (re)learned:
 \item	{\bf Documenting code can help locate bugs}.
 	In this case, the documentation effort located
 	a misplaced memory barrier in
-	\url{rcu_enter_nohz()} and \url{rcu_exit_nohz()},
+	\co{rcu_enter_nohz()} and \co{rcu_exit_nohz()},
 	as shown by the patch in
 	Figure~\ref{fig:app:formal:Memory-Barrier Fix Patch}.
 \item	{\bf Validate your code early, often, and up to the point
 	of destruction.}
 	This effort located one subtle bug in
-	\url{rcu_try_flip_waitack_needed()}
+	\co{rcu_try_flip_waitack_needed()}
 	that would have been quite difficult to test or debug, as
 	shown by the patch in
 	Figure~\ref{fig:app:formal:Variable-Name-Typo Fix Patch}.
@@ -1810,7 +1810,7 @@ This effort provided some lessons (re)learned:
 	getting a good night's sleep
 	can be an extremely effective debugging technique.
 \item	{\bf Use of atomic instructions can simplify verification.}
-	Unfortunately, use of the \url{cmpxchg} atomic instruction
+	Unfortunately, use of the \co{cmpxchg} atomic instruction
 	would also slow down the critical irq fastpath, so they
 	are not appropriate in this case.
 \item	{\bf The need for complex formal verification often indicates
@@ -1858,46 +1858,46 @@ Manfred Spraul~\cite{ManfredSpraul2008StateMachineRCU}.
 Figure~\ref{fig:app:formal:Variables for Simple Dynticks Interface}
 shows the new per-CPU state variables.
 These variables are grouped into structs to allow multiple independent
-RCU implementations (e.g., \url{rcu} and \url{rcu_bh}) to conveniently
+RCU implementations (e.g., \co{rcu} and \co{rcu_bh}) to conveniently
 and efficiently share dynticks state.
 In what follows, they can be thought of as independent per-CPU variables.
 
-The \url{dynticks_nesting}, \url{dynticks}, and \url{dynticks_snap} variables
-are for the irq code paths, and the \url{dynticks_nmi} and
-\url{dynticks_nmi_snap} variables are for the NMI code paths, although
+The \co{dynticks_nesting}, \co{dynticks}, and \co{dynticks_snap} variables
+are for the irq code paths, and the \co{dynticks_nmi} and
+\co{dynticks_nmi_snap} variables are for the NMI code paths, although
 the NMI code path will also reference (but not modify) the
-\url{dynticks_nesting} variable.
+\co{dynticks_nesting} variable.
 These variables are used as follows:
 
 \begin{description}
-\item[\url{dynticks_nesting}:]
+\item[\co{dynticks_nesting}:]
 	This counts the number of reasons that the corresponding
 	CPU should be monitored for RCU read-side critical sections.
 	If the CPU is in dynticks-idle mode, then this counts the
 	irq nesting level, otherwise it is one greater than the
 	irq nesting level.
-\item[\url{dynticks}:]
+\item[\co{dynticks}:]
 	This counter's value is even if the corresponding CPU is
 	in dynticks-idle mode and there are no irq handlers currently
 	running on that CPU, otherwise the counter's value is odd.
 	In other words, if this counter's value is odd, then the
 	corresponding CPU might be in an RCU read-side critical section.
-\item[\url{dynticks_nmi}:]
+\item[\co{dynticks_nmi}:]
 	This counter's value is odd if the corresponding CPU is
 	in an NMI handler, but only if the NMI arrived while this
 	CPU was in dyntick-idle mode with no irq handlers running.
 	Otherwise, the counter's value will be even.
-\item[\url{dynticks_snap}:]
-	This will be a snapshot of the \url{dynticks} counter, but
+\item[\co{dynticks_snap}:]
+	This will be a snapshot of the \co{dynticks} counter, but
 	only if the current RCU grace period has extended for too
 	long a duration.
-\item[\url{dynticks_nmi_snap}:]
-	This will be a snapshot of the \url{dynticks_nmi} counter, but
+\item[\co{dynticks_nmi_snap}:]
+	This will be a snapshot of the \co{dynticks_nmi} counter, but
 	again only if the current RCU grace period has extended for too
 	long a duration.
 \end{description}
 
-If both \url{dynticks} and \url{dynticks_nmi} have taken on an even
+If both \co{dynticks} and \co{dynticks_nmi} have taken on an even
 value during a given time interval, then the corresponding CPU has
 passed through a quiescent state during that interval.
 
@@ -1909,7 +1909,7 @@ passed through a quiescent state during that interval.
 	This cannot happen within the confines of a single CPU.
 	The first irq handler cannot complete until the NMI handler
 	returns.
-	Therefore, if each of the \url{dynticks} and \url{dynticks_nmi}
+	Therefore, if each of the \co{dynticks} and \co{dynticks_nmi}
 	variables have taken on an even value during a given time
 	interval, the corresponding CPU really was in a quiescent
 	state at some time during that interval.
@@ -1955,7 +1955,7 @@ passed through a quiescent state during that interval.
 \end{figure}
 
 Figure~\ref{fig:app:formal:Entering and Exiting Dynticks-Idle Mode}
-shows the \url{rcu_enter_nohz()} and \url{rcu_exit_nohz()},
+shows the \co{rcu_enter_nohz()} and \co{rcu_exit_nohz()},
 which enter and exit dynticks-idle mode, also known as ``nohz'' mode.
 These two functions are invoked from process context.
 
@@ -1963,16 +1963,16 @@ Line~6 ensures that any prior memory accesses (which might
 include accesses from RCU read-side critical sections) are seen
 by other CPUs before those marking entry to dynticks-idle mode.
 Lines~7 and 12 disable and reenable irqs.
-Line~8 acquires a pointer to the current CPU's \url{rcu_dynticks}
+Line~8 acquires a pointer to the current CPU's \co{rcu_dynticks}
 structure, and
-line~9 increments the current CPU's \url{dynticks} counter, which
+line~9 increments the current CPU's \co{dynticks} counter, which
 should now be even, given that we are entering dynticks-idle mode
 in process context.
-Finally, line~10 decrements \url{dynticks_nesting}, which should now be zero.
+Finally, line~10 decrements \co{dynticks_nesting}, which should now be zero.
 
-The \url{rcu_exit_nohz()} function is quite similar, but increments
-\url{dynticks_nesting} rather than decrementing it and checks for
-the opposite \url{dynticks} polarity.
+The \co{rcu_exit_nohz()} function is quite similar, but increments
+\co{dynticks_nesting} rather than decrementing it and checks for
+the opposite \co{dynticks} polarity.
 
 \subsection{NMIs From Dynticks-Idle Mode}
 \label{app:formal:NMIs From Dynticks-Idle Mode}
@@ -2011,15 +2011,15 @@ the opposite \url{dynticks} polarity.
 \end{figure}
 
 Figure~\ref{fig:app:formal:NMIs From Dynticks-Idle Mode}
-show the \url{rcu_nmi_enter()} and \url{rcu_nmi_exit()} functions,
+show the \co{rcu_nmi_enter()} and \co{rcu_nmi_exit()} functions,
 which inform RCU of NMI entry and exit, respectively, from dynticks-idle
 mode.
 However, if the NMI arrives during an irq handler, then RCU will already
 be on the lookout for RCU read-side critical sections from this CPU,
-so lines~6 and 7 of \url{rcu_nmi_enter} and lines~19 and 20
-of \url{rcu_nmi_exit} silently return if \url{dynticks} is odd.
-Otherwise, the two functions increment \url{dynticks_nmi}, with
-\url{rcu_nmi_enter()} leaving it with an odd value and \url{rcu_nmi_exit()}
+so lines~6 and 7 of \co{rcu_nmi_enter} and lines~19 and 20
+of \co{rcu_nmi_exit} silently return if \co{dynticks} is odd.
+Otherwise, the two functions increment \co{dynticks_nmi}, with
+\co{rcu_nmi_enter()} leaving it with an odd value and \co{rcu_nmi_exit()}
 leaving it with an even value.
 Both functions execute memory barriers between this increment
 and possible RCU read-side critical sections on lines~11 and 21,
@@ -2064,24 +2064,24 @@ respectively.
 \end{figure}
 
 Figure~\ref{fig:app:formal:Interrupts From Dynticks-Idle Mode}
-shows \url{rcu_irq_enter()} and \url{rcu_irq_exit()}, which
+shows \co{rcu_irq_enter()} and \co{rcu_irq_exit()}, which
 inform RCU of entry to and exit from, respectively, irq context.
-Line~6 of \url{rcu_irq_enter()} increments \url{dynticks_nesting},
+Line~6 of \co{rcu_irq_enter()} increments \co{dynticks_nesting},
 and if this variable was already non-zero, line~7 silently returns.
-Otherwise, line~8 increments \url{dynticks}, which will then have
+Otherwise, line~8 increments \co{dynticks}, which will then have
 an odd value, consistent with the fact that this CPU can now
 execute RCU read-side critical sections.
 Line~10 therefore executes a memory barrier to ensure that
-the increment of \url{dynticks} is seen before any
+the increment of \co{dynticks} is seen before any
 RCU read-side critical sections that the subsequent irq handler
 might execute.
 
-Line~18 of \url{rcu_irq_exit} decrements \url{dynticks_nesting}, and
+Line~18 of \co{rcu_irq_exit} decrements \co{dynticks_nesting}, and
 if the result is non-zero, line~19 silently returns.
 Otherwise, line~20 executes a memory barrier to ensure that the
-increment of \url{dynticks} on line~21 is seen after any RCU
+increment of \co{dynticks} on line~21 is seen after any RCU
 read-side critical sections that the prior irq handler might have executed.
-Line~22 verifies that \url{dynticks} is now even, consistent with
+Line~22 verifies that \co{dynticks} is now even, consistent with
 the fact that no RCU read-side critical sections may appear in
 dynticks-idle mode.
 Lines~23-25 check to see if the prior irq handlers enqueued any
@@ -2118,8 +2118,8 @@ an reschedule IPI if so.
 \end{figure}
 
 Figure~\ref{fig:app:formal:Saving Dyntick Progress Counters}
-shows \url{dyntick_save_progress_counter()}, which takes a snapshot
-of the specified CPU's \url{dynticks} and \url{dynticks_nmi}
+shows \co{dyntick_save_progress_counter()}, which takes a snapshot
+of the specified CPU's \co{dynticks} and \co{dynticks_nmi}
 counters.
 Lines~8 and 9 snapshot these two variables to locals, line~10
 executes a memory barrier to pair with the memory barriers in
@@ -2128,7 +2128,7 @@ Figures~\ref{fig:app:formal:Entering and Exiting Dynticks-Idle Mode},
 \ref{fig:app:formal:NMIs From Dynticks-Idle Mode}, and
 \ref{fig:app:formal:Interrupts From Dynticks-Idle Mode}.
 Lines~11 and 12 record the snapshots for later calls to
-\url{rcu_implicit_dynticks_qs},
+\co{rcu_implicit_dynticks_qs},
 and 13 checks to see if the CPU is in dynticks-idle mode with
 neither irqs nor NMIs in progress (in other words, both snapshots
 have even values), hence in an extended quiescent state.
@@ -2165,13 +2165,13 @@ true if the CPU was in a quiescent state.
 \end{figure}
 
 Figure~\ref{fig:app:formal:Checking Dyntick Progress Counters}
-shows \url{dyntick_save_progress_counter}, which is called to check
+shows \co{dyntick_save_progress_counter}, which is called to check
 whether a CPU has entered dyntick-idle mode subsequent to a call
-to \url{dynticks_save_progress_counter()}.
+to \co{dynticks_save_progress_counter()}.
 Lines~9 and 11 take new snapshots of the corresponding CPU's
-\url{dynticks} and \url{dynticks_nmi} variables, while lines~10 and 12
+\co{dynticks} and \co{dynticks_nmi} variables, while lines~10 and 12
 retrieve the snapshots saved earlier by
-\url{dynticks_save_progress_counter()}.
+\co{dynticks_save_progress_counter()}.
 Line~13 then
 executes a memory barrier to pair with the memory barriers in
 the functions in
@@ -2179,10 +2179,10 @@ Figures~\ref{fig:app:formal:Entering and Exiting Dynticks-Idle Mode},
 \ref{fig:app:formal:NMIs From Dynticks-Idle Mode}, and
 \ref{fig:app:formal:Interrupts From Dynticks-Idle Mode}.
 Lines~14 and 15 then check to see if the CPU is either currently in
-a quiescent state (\url{curr} and \url{curr_nmi} having even values) or
+a quiescent state (\co{curr} and \co{curr_nmi} having even values) or
 has passed through a quiescent state since the last call to
-\url{dynticks_save_progress_counter()} (the values of
-\url{dynticks} and \url{dynticks_nmi} having changed).
+\co{dynticks_save_progress_counter()} (the values of
+\co{dynticks} and \co{dynticks_nmi} having changed).
 If these checks confirm that the CPU has passed through a dyntick-idle
 quiescent state, then line~16 counts that fact and line~16 returns
 an indication of this fact.
@@ -2191,7 +2191,7 @@ waiting for a CPU that is offline.
 
 \QuickQuiz{}
 	This is still pretty complicated.
-	Why not just have a \url{cpumask_t} that has a bit set for
+	Why not just have a \co{cpumask_t} that has a bit set for
 	each CPU that is in dyntick-idle mode, clearing the bit
 	when entering an irq or NMI handler, and setting it upon
 	exit?
@@ -2213,7 +2213,7 @@ of the dynticks interface for RCU.
 The key change leading to this simplification was minimizing of
 sharing between irq and NMI contexts.
 The only sharing in this simplified interface is references from NMI
-context to irq variables (the \url{dynticks} variable).
+context to irq variables (the \co{dynticks} variable).
 This type of sharing is benign, because the NMI functions never update
 this variable, so that its value remains constant through the lifetime
 of the NMI handler.
