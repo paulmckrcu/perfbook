@@ -1,3 +1,5 @@
+#!/bin/sh
+#
 # eps2pdf.sh: Convert all .eps files to .pdf for the benefit of pdflatex.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -19,10 +21,11 @@
 epsfiles=`find . -name '*.eps' -print`
 for i in $epsfiles
 do
-	basename=`echo $i | sed -e 's/\.eps$//'`
-	if test ! -f $basename.pdf -o $basename.eps -nt $basename.pdf
+	basename="${i%.eps}"
+	if test ! -f "$basename.pdf" -o "$basename.eps" -nt "$basename.pdf"
 	then
 		echo "$basename.eps -> $basename.pdf"
-		a2ping --below --hires --bboxfrom=compute-gs $basename.eps $basename.pdf
+		a2ping --below --hires --bboxfrom=compute-gs \
+			"$basename.eps" "$basename.pdf"
 	fi
 done
