@@ -20,17 +20,17 @@
 names=`find . -name '*.fig' -print`
 for i in $names
 do
-	basename=`echo $i | sed -e 's/\.fig$//'`
-	if test -f $basename.eps
+	basename="${i%.fig}"
+	if test -f "$basename.eps"
 	then
-		if grep -q Nimbus $basename.eps
+		if grep -q Nimbus "$basename.eps"
 		then
 			:
 		else
-			mv $basename.eps $basename.eps.badfonts
-			sh utilities/fixfonts.sh < $basename.eps.badfonts \
-						 > $basename.eps
-			rm $basename.eps.badfonts
+			mv "$basename.eps" "$basename.eps.badfonts"
+			sh utilities/fixfonts.sh < "$basename.eps.badfonts" \
+						 > "$basename.eps"
+			rm "$basename.eps.badfonts"
 		fi
 	fi
 done
