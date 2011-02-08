@@ -174,13 +174,6 @@ perfbook.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	pdflatex perfbook || :
 	pdflatex perfbook || :
 
-perfbook.dvi: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
-	latex perfbook || :
-	test -d bib/. && bibtex perfbook || :
-	latex perfbook || :
-	latex perfbook || :
-	latex perfbook || :
-
 perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
 	echo > qqz.tex
 	texexpand perfbook.tex > perfbook_flat.tex
