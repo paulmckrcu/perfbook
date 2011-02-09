@@ -174,6 +174,14 @@ perfbook.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	pdflatex perfbook || :
 	pdflatex perfbook || :
 
+perfbook-1c.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+	sed -e 's/,twocolumn//' < perfbook.tex > perfbook-1c.tex
+	pdflatex perfbook-1c || :
+	test -d bib/. && bibtex perfbook-1c || :
+	pdflatex perfbook-1c || :
+	pdflatex perfbook-1c || :
+	pdflatex perfbook-1c || :
+
 perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
 	echo > qqz.tex
 	texexpand perfbook.tex > perfbook_flat.tex
