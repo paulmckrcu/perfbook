@@ -23,6 +23,7 @@
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
 gawk '
+/^\\newcommand{/ ||
 /^\\renewcommand\\/ ||
 /^\\OriginallyPublished{/ ||
 /^\\RangeOriginallyPublished{/ ||

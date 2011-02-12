@@ -239,7 +239,8 @@ clean:
 	find . -name '*.aux' -o -name '*.blg' \
 		-o -name '*.dvi' -o -name '*.log' -o -name '*.pdf' \
 		-o -name '*.qqz' -o -name '*.toc' | xargs rm
-	rm -f perfbook_flat.tex
+	rm -f perfbook_flat.tex perfbook_html.tex perfbook.out
+	rm -rf perfbook_html
 	rm -f SMPdesign/DiningPhilosopher5.eps \
 	      SMPdesign/DiningPhilosopher5TB.eps \
 	      SMPdesign/DiningPhilosopher4part-b.eps \
