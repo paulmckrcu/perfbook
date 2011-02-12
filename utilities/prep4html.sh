@@ -23,6 +23,16 @@
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
 gawk '
+/%%HTMLSKIP/ {
+	print "%%Skipping due to %%HTMLSKIP"
+	noprint = 1;
+}
+
+/%%HTMLNOSKIP/ {
+	print "%%Done with %%HTMLSKIP"
+	noprint = 0;
+}
+
 /^\\newcommand{/ ||
 /^\\renewcommand\\/ ||
 /^\\OriginallyPublished{/ ||
