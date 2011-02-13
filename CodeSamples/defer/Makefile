@@ -32,7 +32,8 @@ PROGS =	gettimestamp \
 	rcu_rcpl \
 	rcu_rcpls \
 	rcu_sig \
-	rcu_ts
+	rcu_ts \
+	seqlocktorture \
 
 all: $(PROGS)
 
@@ -86,6 +87,9 @@ rcu_sig: rcu_sig.c rcu_sig.h ../api.h rcutorture.h
 
 rcu_ts: rcu_ts.c rcu_ts.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_ts -DTEST rcu_ts.c -lpthread
+
+seqlocktorture: seqlocktorture.c seqlock.h ../api.h
+	cc $(GCC_ARGS) -o seqlocktorture seqlocktorture.c -lpthread
 
 clean:
 	rm -f $(PROGS)
