@@ -49,7 +49,6 @@ long long n_reads = 0LL;
 long long n_updates = 0LL;
 atomic_t nthreadsrunning;
 int nthreadsexpected;
-char argsbuf[64];
 
 #define GOFLAG_INIT 0
 #define GOFLAG_RUN  1
