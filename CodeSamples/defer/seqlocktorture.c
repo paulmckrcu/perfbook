@@ -39,12 +39,10 @@
  */
 
 DEFINE_PER_THREAD(long long, n_reads_pt);
+DEFINE_PER_THREAD(long long, n_read_retries_pt);
 DEFINE_PER_THREAD(long long, n_read_errs_pt);
 DEFINE_PER_THREAD(long long, n_writes_pt);
 
-long long n_reads = 0LL;
-long long n_read_errs = 0LL;
-long long n_writes = 0LL;
 atomic_t nthreadsrunning;
 int nthreadsexpected;
 
@@ -57,7 +55,7 @@ int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
 #define COUNT_READ_RUN   1000
 #define COUNT_UPDATE_RUN 1000
 
-#define TESTARRAY_SIZE 256
+#define TESTARRAY_SIZE (1024*1024)
 unsigned long testarray[TESTARRAY_SIZE];
 seqlock_t test_seqlock;
 int n_elems = TESTARRAY_SIZE;
@@ -73,6 +71,8 @@ void *seqlock_read_test(void *arg)
 	int me = (long)arg;
 	long long n_errs_local = 0LL;
 	long long n_reads_local = 0LL;
+	long long n_retries_local = 0LL;
+	long long n_retries_local_cur = 0LL;
 	unsigned long old;
 	unsigned long seq;
 
@@ -82,21 +82,25 @@ void *seqlock_read_test(void *arg)
 		poll(NULL, 0, 1);
 	while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
 		for (i = COUNT_READ_RUN; i > 0; i--) {
+			n_retries_local_cur = -1;
 			do {
 				seq = read_seqbegin(&test_seqlock);
 				old = testarray[0];
 				n_errs_local = 0;
+				n_retries_local_cur++;
 				for (j = 1; j < n_elems; j++) {
 					if (old + 1 != testarray[j])
 						n_errs_local++;
 					old = testarray[j];
 				}
 			} while (read_seqretry(&test_seqlock, seq));
-			n_reads_local += COUNT_READ_RUN;
+			n_retries_local += n_retries_local_cur;
 			barrier();
 		}
+		n_reads_local += COUNT_READ_RUN;
 	}
 	__get_thread_var(n_reads_pt) += n_reads_local;
+	__get_thread_var(n_read_retries_pt) += n_retries_local;
 	__get_thread_var(n_read_errs_pt) += n_errs_local;
 
 	return (NULL);
@@ -132,6 +136,7 @@ void perftestinit(int nthreads)
 	int i;
 
 	init_per_thread(n_reads_pt, 0LL);
+	init_per_thread(n_read_retries_pt, 0LL);
 	init_per_thread(n_read_errs_pt, 0LL);
 	init_per_thread(n_writes_pt, 0LL);
 	atomic_set(&nthreadsrunning, 0);
@@ -145,6 +150,10 @@ void perftestrun(int nthreads, int nreaders, int nwriters)
 {
 	int t;
 	int duration = 240;
+	long long n_reads = 0LL;
+	long long n_read_retries = 0LL;
+	long long n_read_errs = 0LL;
+	long long n_writes = 0LL;
 
 	smp_mb();
 	while (atomic_read(&nthreadsrunning) < nthreads)
@@ -158,13 +167,14 @@ void perftestrun(int nthreads, int nreaders, int nwriters)
 	wait_all_threads();
 	for_each_thread(t) {
 		n_reads += per_thread(n_reads_pt, t);
+		n_read_retries += per_thread(n_read_retries_pt, t);
 		n_read_errs += per_thread(n_read_errs_pt, t);
 		n_writes += per_thread(n_writes_pt, t);
 	}
 	if (n_read_errs != 0)
 		printf("!!! read-side errors detected: %lld\n", n_read_errs);
-	printf("n_reads: %lld  n_writes: %lld  nreaders: %d  nwriters: %d duration: %d\n",
-	       n_reads, n_writes, nreaders, nwriters, duration);
+	printf("n_reads: %lld n_read_retries: %lld n_writes: %lld nreaders: %d  nwriters: %d n_elems: %d duration: %d\n",
+	       n_reads, n_read_retries, n_writes, nreaders, nwriters, n_elems, duration);
 	printf("ns/read: %g  ns/write: %g\n",
 	       ((duration * 1000*1000.*(double)nreaders) /
 	        (double)n_reads),
@@ -215,13 +225,13 @@ int main(int argc, char *argv[])
 		nreaders = strtoul(argv[1], NULL, 0);
 	if (argc > 2)
 		nwriters = strtoul(argv[2], NULL, 0);
-	if (argc > 3)
-		cpustride = strtoul(argv[3], NULL, 0);
-	if (argc > 4) {
-		nelems_in = strtol(argv[4], NULL, 0);
+	if (argc > 3) {
+		nelems_in = strtol(argv[3], NULL, 0);
 		if (nelems_in > 0 && nelems_in <= TESTARRAY_SIZE)
 			n_elems = nelems_in;
 	}
+	if (argc > 4)
+		cpustride = strtoul(argv[4], NULL, 0);
 	if (argc <= 5)
 		perftest(nreaders, nwriters, cpustride);
 	else
