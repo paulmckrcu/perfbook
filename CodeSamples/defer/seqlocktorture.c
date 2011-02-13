@@ -2,7 +2,7 @@
  * seqlocktorture.c: simple user-level performance/stress test of sequence lock.
  *
  * Usage:
- *	./seqlocktorture <nreaders> [ <nwriters> [ <cpustride> ] ]
+ *	./seqlocktorture nreaders [ nwriters [ nelems [ cpustride ] ] ]
  *		Run a performance test with the specified
  * 		number of readers and writers, running on CPUs spaced
  *		by <cpustride>.  Thus "./seqlocktorture 8 8 2" would
@@ -60,6 +60,7 @@ int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
 #define TESTARRAY_SIZE 256
 unsigned long testarray[TESTARRAY_SIZE];
 seqlock_t test_seqlock;
+int n_elems = TESTARRAY_SIZE;
 
 /*
  * Performance/stress test.
@@ -85,7 +86,7 @@ void *seqlock_read_test(void *arg)
 				seq = read_seqbegin(&test_seqlock);
 				old = testarray[0];
 				n_errs_local = 0;
-				for (j = 1; j < TESTARRAY_SIZE; j++) {
+				for (j = 1; j < n_elems; j++) {
 					if (old + 1 != testarray[j])
 						n_errs_local++;
 					old = testarray[j];
@@ -115,7 +116,7 @@ void *seqlock_write_test(void *arg)
 	while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
 		for (i = COUNT_UPDATE_RUN; i > 0; i--) {
 			write_seqlock(&test_seqlock);
-			for (j = 0; j < TESTARRAY_SIZE; j++)
+			for (j = 0; j < n_elems; j++)
 				testarray[j]++;
 			write_sequnlock(&test_seqlock);
 			barrier();
@@ -196,7 +197,8 @@ void perftest(int nreaders, int nwriters, int cpustride)
 void usage(int argc, char *argv[])
 {
 	fprintf(stderr,
-		"Usage: %s [nreaders [ nwriters [ cpustride ] ] ]\n", argv[0]);
+		"Usage: %s [nreaders [ nwriters [ nelems [ cpustride ] ] ] ]\n",
+		argv[0]);
 	exit(-1);
 }
 
@@ -205,6 +207,7 @@ int main(int argc, char *argv[])
 	int nreaders = 1;
 	int nwriters = 0;
 	int cpustride = 1;
+	int nelems_in;
 
 	smp_init();
 
@@ -213,8 +216,13 @@ int main(int argc, char *argv[])
 	if (argc > 2)
 		nwriters = strtoul(argv[2], NULL, 0);
 	if (argc > 3)
-		cpustride = strtoul(argv[2], NULL, 0);
-	if (argc <= 4)
+		cpustride = strtoul(argv[3], NULL, 0);
+	if (argc > 4) {
+		nelems_in = strtol(argv[4], NULL, 0);
+		if (nelems_in > 0 && nelems_in <= TESTARRAY_SIZE)
+			n_elems = nelems_in;
+	}
+	if (argc <= 5)
 		perftest(nreaders, nwriters, cpustride);
 	else
 		usage(argc, argv);
