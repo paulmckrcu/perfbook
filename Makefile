@@ -35,6 +35,7 @@ LATEXSOURCES = \
 	owned/owned.tex \
 	defer/defer.tex \
 	defer/refcnt.tex \
+	defer/seqlock.tex \
 	defer/rcu.tex \
 	defer/rcuexercises.tex \
 	defer/rcufundamental.tex \
