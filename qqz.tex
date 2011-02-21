@@ -2453,6 +2453,78 @@ ret = ~ret & tmp;
 	a lock.
 
 \QuickQ{}
+	Can you use sequence locks as the only synchronization
+	mechanism protecting a linked list supporting concurrent
+	addition, deletion, and search?
+\QuickA{}
+	One trivial way of accomplishing this is to surround all
+	accesses, including the read-only accesses, with
+	\co{write_seqlock()} and \co{write_sequnlock()}.
+	Of course, this solution also prohibits all read-side
+	parallelism, and furthermore could just as easily be implemented
+	using simple locking.
+
+	If you do come up with a solution that uses \co{read_seqbegin()}
+	and \co{read_seqretry()} to protect read-side accesses, make
+	sure that you correctly handle the following sequence of events:
+
+	\begin{enumerate}
+	\item	CPU~0 is traversing the linked list, and picks up a pointer
+		to list element~A.
+	\item	CPU~1 removes element~A from the list and frees it.
+	\item	CPU~2 allocates an unrelated data structure, and gets
+		the memory formerly occupied by element~A.
+		In this unrelated data structure, the memory previously
+		used for element~A's \co{->next} pointer is now occupied
+		by a floating-point number.
+	\item	CPU~0 picks up what used to be element~A's \co{->next}
+		pointer, gets random bits, and therefore gets a
+		segmentation fault.
+	\end{enumerate}
+
+	One way to protect against this sort of problem requires use
+	of ``type-safe memory'', which will be discussed in
+	Section~\ref{sec:deferRCU is a Way of Providing Type-Safe Memory}.
+	But in that case, you would be using some other synchronization
+	mechanism in addition to sequence locks!
+
+\QuickQ{}
+	Why bother with the check on line~19 of
+	\co{read_seqbegin()} in
+	Figure~\ref{fig:defer:Sequence-Locking Implementation}?
+	Given that a new writer could begin at any time, why not
+	simply incorporate the check into line~31 of
+	\co{read_seqretry()}?
+\QuickA{}
+	That would be a legitimate implementation.
+	However, it would not save anything to move the check down
+	to \co{read_seqretry()}: There would be roughly the same number
+	of instructions.
+	Furthermore, the reader's accesses from its doomed read-side
+	critical section could inflict overhead on the writer in
+	the form of cache misses.
+	We can avoid these cache misses by placing the check in
+	\co{read_seqbegin()} as shown on line~19 of
+	Figure~\ref{fig:defer:Sequence-Locking Implementation}.
+
+\QuickQ{}
+	What prevents sequence-locking updaters from starving readers?
+\QuickA{}
+	Nothing.
+	This is one of the weaknesses of sequence locking, and as a
+	result, you should use sequence locking only in read-mostly
+	situations.
+	Unless of course read-side starvation is acceptable in your
+	situation, in which case, go wild the sequence-locking updates!
+
+\QuickQ{}
+	What if something else serializes writers, so that the lock
+	is not needed?
+\QuickA{}
+	In this case, the \co{->lock} field could be omitted, as it
+	is in \co{seqcount_t} in the Linux kernel.
+
+\QuickQ{}
 	But doesn't seqlock also permit readers and updaters to get
 	work done concurrently?
 \QuickA{}
