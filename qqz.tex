@@ -2525,6 +2525,47 @@ ret = ~ret & tmp;
 	is in \co{seqcount_t} in the Linux kernel.
 
 \QuickQ{}
+	Why isn't \co{seq} on line 2 of
+	Figure~\ref{fig:defer:Sequence-Locking Implementation}
+	\co{unsigned} rather than \co{unsigned long}?
+	After all, if \co{unsigned} is good enough for the Linux
+	kernel, shouldn't it be good enough for everyone?
+\QuickA{}
+	Not at all.
+	The Linux kernel has a number of special attributes that allow
+	it to ignore the following sequence of events:
+	\begin{enumerate}
+	\item	Thread 0 executes \co{read_seqbegin()}, picking up
+		\co{->seq} in line~17, noting that the value is even,
+		and thus returning to the caller.
+	\item	Thread 0 starts executing its read-side critical section,
+		but is then preempted for a long time.
+	\item	Other threads repeatedly invoke \co{write_seqlock()} and
+		\co{write_sequnlock()}, until the value of \co{->seq}
+		overflows back to the value that Thread~0 fetched.
+	\item	Thread 0 resumes execution, completing its read-side
+		critical section with inconsistent data.
+	\item	Thread 0 invokes \co{read_seqretry()}, which incorrectly
+		concludes that Thread~0 has seen a consistent view of
+		the data protected by the sequence lock.
+	\end{enumerate}
+
+	The Linux kernel uses sequence locking for things that are
+	updated rarely, with time-of-day information being a case
+	in point.
+	This information is updated at most once per millisecond,
+	so that seven weeks would be required to overflow the counter.
+	If a kernel thread was preempted for seven weeks, the Linux
+	kernel's soft-lockup code would be emitting warnings every two
+	minutes for that entire time.
+
+	In contrast, with a 64-bit counter, more than five centuries
+	would be required to overflow, even given an update every
+	\emph{nano}second.
+	Therefore, this implementation uses a type for \co{->seq}
+	that is 64 bits on 64-bit systems.
+
+\QuickQ{}
 	But doesn't seqlock also permit readers and updaters to get
 	work done concurrently?
 \QuickA{}
