@@ -43,6 +43,7 @@ LATEXSOURCES = \
 	defer/rcuusage.tex \
 	defer/toyrcu.tex \
 	future/future.tex \
+	future/cpu.tex \
 	future/tm.tex \
 	SMPdesign/SMPdesign.tex \
 	SMPdesign/partexercises.tex \
@@ -124,12 +125,16 @@ EPSSOURCES = \
 	appendix/whymb/cacheSCwrite.eps \
 	appendix/whymb/hostileordering.eps \
 	cartoons/CPU_toon_outoforder_colored.eps \
+	cartoons/CrashDummiesSmall.eps \
 	cartoons/LD,ACQ.eps \
 	cartoons/ManyFighting.eps \
 	cartoons/ManyHappy.eps \
+	cartoons/MoreOfSameSmall.eps \
+	cartoons/MultithreadedManiaSmall.eps \
 	cartoons/OldManAndBrat.eps \
 	cartoons/OneFighting.eps \
 	cartoons/ShavingTheMandelbrotSet.eps \
+	cartoons/UniprocessorUberAllesSmall.eps \
 	cartoons/atomic.eps \
 	cartoons/barrier.eps \
 	cartoons/pipeline.eps \
@@ -158,6 +163,9 @@ EPSSOURCES = \
 	defer/rwlockRCUperfwtPREEMPT.eps \
 	defer/rwlockRCUupdate.eps \
 	easy/Mandel_zoom_00_mandelbrot_set.eps \
+	future/latencytrend.eps \
+	future/be-lb-n4-rf-all.eps \
+	future/be-lw-n4-rf-all.eps \
 	intro/FourTaskCategories.eps \
 	intro/FourTaskOrder.eps \
 	intro/Generality.eps \
