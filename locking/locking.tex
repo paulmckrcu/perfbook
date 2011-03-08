@@ -349,6 +349,53 @@ all threads starve.
 \subsection{Unfairness}
 \label{sec:locking:Unfairness}
 
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{cpu/SystemArch}}
+\end{center}
+\caption{System Architecture and Lock Unfairness}
+\label{fig:lock:System Architecture and Lock Unfairness}
+\end{figure}
+
+Unfairness can be thought of as a less-severe form of starvation,
+where a subset of threads contendin for a given lock are granted
+the lion's share of the acquisitions.
+This can happen on machines with shared caches or NUMA characteristics,
+for example, as shown in
+Figure~\ref{fig:lock:System Architecture and Lock Unfairness}.
+If CPU~0 releases a lock that all the other CPUs are attempting
+to acquire, the interconnect shared between CPUs~0 and 1 means that
+CPU~1 will have an advantage over CPUs~2-7.
+Therefore CPU~1 will likely acquire the lock.
+If CPU~1 hold the lock long enough for CPU~0 to be requesting the
+lock by the time CPU~1 releases it and vice versa, the lock can
+shuttle between CPUs~1 and 2, bypassing CPUs~2-7.
+
+Of course, if the lock contention is so high, you should take it as
+a hint to revisit your locking design.
+Given a more reasonable level of lock contention there would be
+frequent periods when the lock was not held at all, which would
+prevent unfairness altogether.
+
+\QuickQuiz{}
+	Are designs resulting in extreme levels of lock contention
+	ever justified?
+\QuickQuizAnswer{
+	Sometimes.
+	For example, imagine a system that is subject to a rare error
+	condition.
+	It might well be best to have a simple error-handling design
+	that has poor performance and scalability for the duration of
+	the rare error condition, as opposed to a complex and
+	difficult-to-debug design that is helpful only when one of
+	those rare error conditions is in effect.
+
+	That said, it is usually worth putting some effort into
+	attempting to produce a design that both simple as well as
+	efficient during error condsitions, for example by partitioning
+	the problem.
+} \QuickQuizEnd
+
 \subsection{Inefficiency}
 \label{sec:locking:Inefficiency}
 
