@@ -2407,6 +2407,56 @@ ret = ~ret & tmp;
 	the problem.
 
 \QuickQ{}
+	How might the lock holder be interfered with?
+\QuickA{}
+	If the data protected by the lock is in the same cache line
+	as the lock itself, then attempts by other CPUs to acquire
+	the lock will result in expensive cache misses on the part
+	of the CPU holding the lock.
+	In contrast, if the lock is in a different cache line than
+	the data that it protects, the CPU holding the lock will
+	usually suffer a cache miss only on first access to a given
+	variable.
+	This is a special case of false sharing, which can also occur
+	if a pair of variables protected by different locks happen
+	to share a cache line.
+
+\QuickQ{}
+	Is there any other way for the VAX/VMS DLM to emulate
+	a reader-writer lock?
+\QuickA{}
+	There are in fact several.
+	One way would be to use the null, protected-read, and exclusive
+	modes.
+	Another way would be to use the null, protected-read, and
+	concurrent-write modes.
+	A third way would be to use the null, concurrent-read, and
+	exclusive modes.
+
+\QuickQ{}
+	How can relying on implicit existence guarantees result in
+	a bug?
+\QuickA{}
+	Here are some bugs resulting from improper use of implicit
+	existence guarantees:
+	\begin{enumerate}
+	\item	A program writes the address of a global variable to
+		a file, then a later instance of that same program
+		reads that address and attempts to dereference it.
+		This can fail due to address-space randomization,
+		to say nothing of recompilation of the program.
+	\item	A module can record the address of one of its variables
+		in a pointer located in some other module, then attempt
+		to dereference that pointer after the module has
+		been unloaded.
+	\item	A function can record the address of one of its on-stack
+		variables into a global pointer, which some other
+		function might attempt to dereference after that function
+		has returned.
+	\end{enumerate}
+	I am sure that you can come up with additional possibilities.
+
+\QuickQ{}
 	What if the element we need to delete is not the first element
 	of the list on line~8 of
 	Figure~\ref{fig:locking:Per-Element Locking Without Existence Guarantees}?

@@ -29,12 +29,69 @@
 
 A key challenge in parallel programming is to provide
 \emph{existence guarantees}~\cite{Gamsa99},
-so that attempts to delete an object that others are concurrently
-attempting to access are correctly resolved.
-Existence guarantees are extremely helpful in cases where a data
-element is to be protected by a lock or reference count that is
-located within the data element in question.
-Code failing to provide such guarantees is subject to subtle races,
+so that attempts to access a given object can rely on that object
+being in existence throughout throughout a given access attempt.
+In some cases, existence guarantees are implicit:
+
+\begin{enumerate}
+\item	Global variables and static local variables in the base module
+	will exist as long as the application is running.
+\item	Global variables and static local variables in a loaded module
+	will exist as long as that module remains loaded.
+\item	A module will remain loaded as long as at least one of its functions
+	has an active instance.
+\item	A given function instance's on-stack variables will exist until
+	that instance returns.
+\item	If you are executing within a given function or have been
+	called from that function, then the given function has an
+	active instance.
+\end{enumerate}
+
+These implicit existence guarantees are straightforward, though
+bugs involving implicit existence guarantees really can happen.
+
+\QuickQuiz{}
+	How can relying on implicit existence guarantees result in
+	a bug?
+\QuickQuizAnswer{
+	Here are some bugs resulting from improper use of implicit
+	existence guarantees:
+	\begin{enumerate}
+	\item	A program writes the address of a global variable to
+		a file, then a later instance of that same program
+		reads that address and attempts to dereference it.
+		This can fail due to address-space randomization,
+		to say nothing of recompilation of the program.
+	\item	A module can record the address of one of its variables
+		in a pointer located in some other module, then attempt
+		to dereference that pointer after the module has
+		been unloaded.
+	\item	A function can record the address of one of its on-stack
+		variables into a global pointer, which some other
+		function might attempt to dereference after that function
+		has returned.
+	\end{enumerate}
+	I am sure that you can come up with additional possibilities.
+} \QuickQuizEnd
+
+But the more interesting---and troublesome---guarantee involves
+heap memory: A dynamically allocated data structure will exist until it
+is freed.
+The problem to be solved is to synchronize the freeing of the structure
+with concurrent accesses to that same structure.
+One way to do this is with \emph{explicit guarantees}, such as locking.
+If a given structure may only be freed while holding a given lock, then holding
+that lock guarantees that structure's existence.
+
+But this guarantee depends on the existence of the lock itself.
+One straightforward way to guarantee the lock's existence is to
+place the lock in a global variable, but global locking has the disadvantage
+of limiting scalability.
+One way of providing scalability that improves as the size of the
+data structure increases is to place a lock in each element of the
+structure.
+Unfortunately, putting the lock that is to protect a data element
+in the data element itself is subject to subtle race conditions,
 as shown in
 Figure~\ref{fig:locking:Per-Element Locking Without Existence Guarantees}.
 
@@ -118,4 +175,4 @@ of lock-based software transactional memory
 implementations~\cite{Shavit95,DaveDice2006DISC}.
 However,
 Chapter~\ref{chp:Deferred Processing}
-describes simpler ways of providing existence guarantees.
+describes simpler---and faster---ways of providing existence guarantees.

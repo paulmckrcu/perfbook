@@ -40,18 +40,18 @@ more serious sins.
 
 \begin{figure}[tb]
 \begin{center}
-\resizebox{3in}{!}{\includegraphics{locking/LockingTheSlob}}
+\resizebox{3in}{!}{\includegraphics{cartoons/LockingTheSlob}}
 \end{center}
 \caption{Locking: Villain or Slob?}
-\label{fig:locking:Locking: Villain or Slob?}
+\ContributedBy{Figure}{fig:locking:Locking: Villain or Slob?}{Sarah McKenney}
 \end{figure}
 
 \begin{figure}[tb]
 \begin{center}
-\resizebox{3in}{!}{\includegraphics{locking/LockingTheHero}}
+\resizebox{3in}{!}{\includegraphics{cartoons/LockingTheHero}}
 \end{center}
 \caption{Locking: Workhorse or Hero?}
-\label{fig:locking:Locking: Workhorse or Hero?}
+\ContributedBy{Figure}{fig:locking:Locking: Workhorse or Hero?}{Sarah McKenney}
 \end{figure}
 
 \section{Staying Alive}
@@ -243,7 +243,7 @@ locks before invoking the comparison function.
 	Chapter~\ref{chp:Deferred Processing}).
 } \QuickQuizEnd
 
-\subsubsection{Locking Hierarchies and Passing to Locks}
+\subsubsection{Locking Hierarchies and Pointers to Locks}
 
 Althought there are some exceptions, an external API containing a pointer
 to a lock is very often a misdesigned API.
@@ -620,6 +620,45 @@ prevent unfairness altogether.
 \subsection{Inefficiency}
 \label{sec:locking:Inefficiency}
 
+Locks are implemented using atomic instructions and memory barriers,
+and often involve cache misses.
+As we saw in Chapter~\ref{chp:Hardware and its Habits},
+these instructions are quite expensive, roughly two
+orders of magnitude greater overhead than simple instructions.
+This can be a serious problem for locking: If you protect a single
+instruction with a lock, you will increase the overhead by a factor
+of one hundred.
+Even assuming perfect scalability, \emph{one hundred} CPUs would
+be required to keep up with a single CPU executing the same code
+without locking.
+
+This situation underscores the synchronization-granularity
+tradeoff discussed in Section~\ref{sec:SMPdesign:Synchronization Granularity},
+especially Figure~\ref{fig:SMPdesign:Synchronization Efficiency}:
+Too coarse a granularity will limit scalability, while too fine a
+granularity will result in excessive synchronization overhead.
+
+That said, once a lock is held, the data protected by that lock can
+be accessed by the lock holder without interference.
+Acquiring a lock might be expensive, but once held, the CPU's caches
+are an effective performance booster, at least for large critical sections.
+
+\QuickQuiz{}
+	How might the lock holder be interfered with?
+\QuickQuizAnswer{
+	If the data protected by the lock is in the same cache line
+	as the lock itself, then attempts by other CPUs to acquire
+	the lock will result in expensive cache misses on the part
+	of the CPU holding the lock.
+	In contrast, if the lock is in a different cache line than
+	the data that it protects, the CPU holding the lock will
+	usually suffer a cache miss only on first access to a given
+	variable.
+	This is a special case of false sharing, which can also occur
+	if a pair of variables protected by different locks happen
+	to share a cache line.
+} \QuickQuizEnd
+
 \section{Types of Locks}
 \label{sec:locking:Types of Locks}
 
@@ -633,12 +672,186 @@ multi-role locks (Section~\ref{sec:locking:Beyond Reader-Writer Locks}).
 \subsection{Exclusive Locks}
 \label{sec:locking:Exclusive Locks}
 
+Exclusive locks are what they say they are: only one thread may hold
+the lock at a time.
+The holder of such a lock thus has exclusive access to all data protected
+by that lock, hence the name.
+
+Of course, this all assumes that this lock is held across all accesses
+to data purportedly protected by the lock.
+Although there are some tools that can help, the ultimate responsibility
+for ensuring that the lock is acquired in all necessary code paths
+rests with the developer.
+
 \subsection{Reader-Writer Locks}
 \label{sec:locking:Reader-Writer Locks}
+
+Reader-writer locks permit any number of readers to hold the lock
+concurrently on the one hand or a single writer to hold the lock
+on the other.
+In theory, then, reader-writer locks should allow excellent scalability
+for data that is read often and written rarely.
+In practice, the scalability will depend on the reader-writer lock
+implementation.
+
+The classic reader-writer lock implementation involves a set of
+counters and flags that are manipulated atomically.
+This type of implementation suffers from the same problem as does
+exclusive locking for short critical sections: The overhead of acquiring
+and releasing the lock
+is about two orders of magnitude greater than the overhead
+of a simple instruction.
+Of course, if the critical section is long enough, the overhead of
+acquiring and releasing the lock becomes negligible.
+However, because only
+one thread at a time can be manipulating the lock, the required
+critical-section size increases with the number of CPUs.
+
+It is possible to design a reader-writer lock that is much more
+favorable to readers through use of per-thread exclusive
+locks~\cite{WilsonCHsieh92a}.
+To read, a thread acquires only its own lock.
+To write, a thread acquires all locks.
+In the absence of writers, each reader incurs only atomic-instruction
+and memory-barrier overhead, with no cache misses, which is quite
+good for a locking primitive.
+Unfortunately, writers must incur cache misses as well as atomic-instruction
+and memory-barrier overhead---multiplied by the number of threads.
+
+In short, reader-writer locks can be quite useful in a number of
+situations, but each type of implementation does have its drawbacks.
 
 \subsection{Beyond Reader-Writer Locks}
 \label{sec:locking:Beyond Reader-Writer Locks}
 
-VAXCluster six-state locking.
+\begin{table}
+\small
+\begin{center}
+\begin{tabular}{l||c|c|c|c|c|c}
+	~ ~ ~ ~ ~ ~ ~ ~ ~
+	& \begin{picture}(6,70)(0,0)
+		\rotatebox{90}{Null (Not Held)}
+	  \end{picture}
+	& \begin{picture}(6,70)(0,0)
+		\rotatebox{90}{Concurrent Read}
+	  \end{picture}
+	& \begin{picture}(6,70)(0,0)
+		\rotatebox{90}{Concurrent Write}
+	  \end{picture}
+	& \begin{picture}(6,70)(0,0)
+		\rotatebox{90}{Protected Read}
+	  \end{picture}
+	& \begin{picture}(6,70)(0,0)
+		\rotatebox{90}{Protected Write}
+	  \end{picture}
+	& \begin{picture}(6,70)(0,0)
+		\rotatebox{90}{Exclusive}
+	  \end{picture}
+	\\
+	\hline
+%				 NL  CR  CW  PR    PW  EX
+	\hline
+	Null (Not Held)		& ~ & ~ & ~   & ~ & ~ & ~ \\
+	\hline
+	Concurrent Read		& ~ & ~ & ~   & ~ & ~ & X \\
+	\hline
+	Concurrent Write	& ~ & ~ & ~   & X & X & X \\
+	\hline
+	Protected Read		& ~ & ~ & X   & ~ & X & X \\
+	\hline
+	Protected Write		& ~ & ~ & X   & X & X & X \\
+	\hline
+	Exclusive		& ~ & X & X   & X & X & X \\
+\end{tabular}
+\end{center}
+\caption{VAX/VMS Distributed Lock Manager Policy}
+\label{tab:locking:VAX/VMS Distributed Lock Manager Policy}
+\end{table}
+
+Reader-writer locks and exclusive locks differ in their admission
+policy: exclusive locks allow at most one holder, while reader-writer
+locks permit an arbitrary number of read-holders (but only one write-holder).
+There is a very large number of possible admission policies, one of
+the more elaborate being that of the VAX/VMS distributed lock
+manager (DLM)~\cite{Snaman87}, which is shown in
+Table~\ref{tab:locking:VAX/VMS Distributed Lock Manager Policy}.
+Blank cells indicate compatible modes, while cells containing ``X''
+indicate incompatible modes.
+
+The VAX/VMS DLM uses six modes.
+For purposes of comparison, exclusive
+locks use two modes (not held and held), while reader-writer locks
+use three modes (not held, read held, and write held).
+
+The first mode is null, or not held.
+This mode is compatible with all other modes, which is to be expected:
+If a thread is not holding a lock, it should not prevent any
+other thread from acquiring that lock.
+
+The second mode is concurrent read, which is compatible with every other
+mode except for exclusive.
+The concurrent-read mode might be used to accumulate approximate
+statistics on a data structure, while permitting updates to proceed
+concurrently.
+
+The third mode is concurrent write, which is compatible with null,
+concurrent read, and concurrent write.
+The concurrent-write mode might be used to update approximate statistics,
+while still permitting reads and concurrent updates to proceed
+concurrently.
+
+The fourth mode is protected read, which is compatible with null,
+concurrent read, and protected read.
+The protected-read mode might be used to obtain a consistent snapshot
+of the data structure, while permitting reads but not updates to
+proceed concurrently.
+
+The fifth mode is protected write, which is compatible with null and
+protected read.
+The protected-write mode might be used to carry out updates to a data
+structure that could interfere with protected readers but which could
+be tolerated by concurrent readers.
+
+The sixth and final mode is exclusive, which is compatible only with null.
+The exclusive mode is used when it is necessary to exclude all other accesses.
+
+It is interesting to note that exclusive locks and reader-writer locks
+can be emulated by the VAX/VMS DLM.
+Exclusive locks would use only the null and exclusive modes, while
+reader-writer locks might use the null, protected-read, and
+protected-write modes.
+
+\QuickQuiz{}
+	Is there any other way for the VAX/VMS DLM to emulate
+	a reader-writer lock?
+\QuickQuizAnswer{
+	There are in fact several.
+	One way would be to use the null, protected-read, and exclusive
+	modes.
+	Another way would be to use the null, protected-read, and
+	concurrent-write modes.
+	A third way would be to use the null, concurrent-read, and
+	exclusive modes.
+} \QuickQuizEnd
+
+Although the VAX/VMS DLM policy has seen widespread production use
+for distributed databases, it does not appear to be used much in
+shared-memory applications.
+One possible reason for this is that the greater communication overheads
+of distributed databases can hide the greater overhead of the
+VAX/VMS DLM's more-complex admission policy.
+
+Nevertheless, the VAX/VMS DLM is an interesting illustration of just
+how flexible the concepts behind locking can be.
 
 \input{locking/locking-existence}
+
+\section{Locking: Hero or Villain?}
+
+As is often the case in real life, locking can be either hero or villain,
+depending on how it is used and on the problem at hand.
+Locking is perhaps the most widely used and most generally useful tool,
+but it should not be the only tool in your parallel-programming toolbox.
+
+The next few chapters will discuss other tools, and how they can best
+be used in concert with locking and with each other.
