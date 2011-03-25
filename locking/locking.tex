@@ -134,6 +134,8 @@ There are three major approaches,
 locking hierarchies, conditional locking, and
 single-lock-at-a-time designs.
 
+\subsubsection{Locking Hierarchies}
+
 Locking hierarchies order the locks and prohibit acquiring locks out
 of order.
 In Figure~\ref{fig:locking:Deadlock Cycle},
@@ -164,6 +166,216 @@ hierarchy~\cite{JonathanCorbet2006lockdep}.
 \caption{Protocol Layering and Deadlock}
 \label{fig:locking:Protocol Layering and Deadlock}
 \end{figure}
+
+\subsubsection{Local Locking Hierarchies}
+
+However, the global nature of locking hierarchies make them difficult to
+apply to library functions.
+After all, the program using a given library function has not even been
+written yet, so how can the poor library-function implementor possibly
+hope to adhere to the yet-to-be-written program's locking hierarchy?
+
+One special case that is fortunately the common case is when
+the library function does not invoke any of the caller's code.
+In this case, the caller's locks will never be acquired while holding
+any of the library's locks, so that there cannot be a deadlock cycle
+containing locks from both the library and the caller.
+
+\QuickQuiz{}
+	Are there any exceptions to this rule, so that there really could be
+	a deadlock cycle containing locks from both the library and
+	the caller, even given that the library code never invokes
+	any of the caller's functions?
+\QuickQuizAnswer{
+	Indeed there can!
+	Here are a few of them:
+	\begin{enumerate}
+	\item	If one of the library function's arguments is a pointer
+		to a lock that this library function acquires, and if
+		the library function holds one if its locks while
+		acquiring the caller's lock, then we could have a
+		deadlock cycle involving both caller and library locks.
+	\item	If one of the library functions returns a pointer to
+		a lock that is acquired by the caller, and if the
+		caller acquires one if its locks while holding the
+		library's lock, we could again have a deadlock
+		cycle involving both caller and library locks.
+	\item	If one of the library functions acquires a lock and
+		then returns while still holding it, and if the caller
+		acquires one of its locks, we have yet another way
+		to create a deadlock cycle involving both caller
+		and library locks.
+	\item	If the caller has a signal handler that acquires
+		locks, then the deadlock cycle can involve both
+		caller and library locks.
+		In this case, however, the library's locks are
+		innocent bystanders in the deadlock cycle.
+		That said, please note that acquiring a lock from
+		within a signal handler is a no-no in most
+		environments---it is not just a bad idea, it
+		is unsupported.
+	\end{enumerate}
+} \QuickQuizEnd
+
+But suppose that a library function does invoke the caller's code.
+For example, the \co{qsort()} function invokes a caller-provided
+comparison function.
+A concurrent implementation of \co{qsort()} likely uses locking,
+which might result in deadlock in the perhaps-unlikely case where
+the comparison function is a
+complicated function involving locking.
+How can the library function avoid deadlock?
+
+The golden rule in this case is ``release all locks before invoking
+unknown code.''
+To follow this rule, the \co{qsort()} function must release all
+locks before invoking the comparison function.
+
+\QuickQuiz{}
+	But if \co{qsort()} releases all its locks before invoking
+	the comparison function, how can it protect against races
+	with other \co{qsort()} threads?
+\QuickQuizAnswer{
+	By privatizing the data elements being compared
+	(as discussed in Chapter~\ref{chp:Data Ownership})
+	or through use of deferral mechanisms such as
+	reference counting (as discussed in
+	Chapter~\ref{chp:Deferred Processing}).
+} \QuickQuizEnd
+
+\subsubsection{Locking Hierarchies and Passing to Locks}
+
+Althought there are some exceptions, an external API containing a pointer
+to a lock is very often a misdesigned API.
+Handing an internal lock to some other software component is after all
+the antithesis of information hiding, which is in turn a key design
+principle.
+
+\QuickQuiz{}
+	Name one common exception where it is perfectly reasonable
+	to pass a pointer to a lock into a function.
+\QuickQuizAnswer{
+	Locking primitives, of course!
+} \QuickQuizEnd
+
+One exception is functions that hand off some entity,
+where the caller's lock must be held until the handoff is complete,
+but where the lock must be released before the function returns.
+One example of such a function is the POSIX \co{pthread_cond_wait()}
+function, where passing an pointer to a \co{pthread_mutex_t}
+prevents hangs due to lost wakeups.
+
+\QuickQuiz{}
+	Doesn't the fact that \co{pthread_cond_wait()} first releases the
+	mutex and then re-acquires it eliminate the possibility of deadlock?
+\QuickQuizAnswer{
+	Absolutely not!
+
+	Consider the a program that acquires \co{mutex_a}, and then
+	\co{mutex_b}, in that order, and then passes \co{mutex_a}
+	to \co{pthread_cond_wait}.
+	Now, \co{pthread_cond_wait} will release \co{mutex_a}, but
+	will re-acquire it before returning.
+	If some other thread acquires \co{mutex_a} in the meantime
+	and then blocks on \co{mutex_b}, the program will deadlock.
+} \QuickQuizEnd
+
+In short, if you find yourself exporting an API with a pointer to a
+lock as an argument or the return value, do youself a favor and carefully
+reconsider your API design.
+It might well be the right thing to do, but experience indicates that
+this is unlikely.
+
+\subsubsection{Split Locking Hierarchies}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 struct locked_list {
+  2   spinlock_t s;
+  3   struct list_head h;
+  4 };
+  5 
+  6 struct list_head *list_start(struct locked_list *lp)
+  7 {
+  8   spin_lock(&lp->s);
+  9   return list_next(lp, &lp->h);
+ 10 }
+ 11 
+ 12 struct list_head *list_next(struct locked_list *lp,
+ 13                             struct list_head *np)
+ 14 {
+ 15   struct list_head *ret;
+ 16 
+ 17   ret = np->next;
+ 18   if (ret == &lp->h) {
+ 19     spin_unlock(&lp->s);
+ 20     ret = NULL;
+ 21   }
+ 22   return ret;
+ 23 }
+\end{verbatim}
+}
+\caption{Concurrent List Iterator}
+\label{fig:locking:Concurrent List Iterator}
+\end{figure}
+
+However, there are times when dropping all locks before invoking unknown
+code is impractical.
+For example, imagine an interator over a linked list, as shown in
+Figure~\ref{fig:locking:Concurrent List Iterator} (\co{locked_list.c}).
+The \co{list_start()} function acquires a lock on the list and returns
+the first element (if there is one), and
+\co{list_next()} either returns a pointer to the next element in the list
+or releases the lock and returns \co{NULL} if the end of the list has
+been reached.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 struct list_ints {
+  2   struct list_head n;
+  3   int a;
+  4 };
+  5 
+  6 void list_print(struct locked_list *lp)
+  7 {
+  8   struct list_head *np;
+  9   struct list_ints *ip;
+ 10 
+ 11   np = list_start(lp);
+ 12   while (np != NULL) {
+ 13     ip = list_entry(np, struct list_ints, n);
+ 14     printf("\t%d\n", ip->a);
+ 15     np = list_next(lp, np);
+ 16   }
+ 17 }
+\end{verbatim}
+}
+\caption{Concurrent List Iterator Usage}
+\label{fig:locking:Concurrent List Iterator Usage}
+\end{figure}
+
+Figure~\ref{fig:locking:Concurrent List Iterator Usage} shows how
+this list iterator may be used.
+Lines~1-4 define the \co{list_ints} element containing a single integer,
+and lines~6-17 show how to iterate over the list.
+Line~11 locks the list and fetches a pointer to the first element,
+line~13 provides a pointer to our enclosing \co{list_ints} structure,
+line~14 prints the corresponding integer, and
+line~15 moves to the next element.
+This is quite simple, and hides all of the locking.
+
+That is, the locking remains hidden as long as the code processing each
+list element does not itself acquire a lock that is held across some
+other call to \co{list_start()} or \co{list_next()}, which results in
+deadlock.
+One approach is to carefully split the locking hierarchy of the calling
+to take the list-iterator locking into account.
+Solutions requiring less care are presented in
+Chapter~\ref{chp:Deferred Processing}.
+
+\subsubsection{Conditional Locking}
 
 But suppose that there is no reasonable locking hierarchy.
 This can happen in real life, for example, in layered network protocol stacks
@@ -258,15 +470,24 @@ must release the locks and start over.
 	(see Section~\ref{sec:locking:Livelock and Starvation}).
 } \QuickQuizEnd
 
+\subsubsection{Single-Lock-at-a-Time Designs}
+
 In some cases, it is possible to avoid nesting locks, thus avoiding
 deadlock.
+For example, if a problem is perfectly partitionable, a single
+lock may be assigned to each partition.
+Then a thread working on a given partition need only acquire the one
+corresponding lock.
+Because no thread ever holds more than one lock at a time,
+deadlock is impossible.
+
 However, there must be some mechanism to ensure that the needed data
 structures remain in existence during the time that neither lock is
 held.
 One such mechanism is discussed in
 Section~\ref{sec:locking:Lock-Based Existence Guarantees}
 and several others are presented in
-Chapter~\ref{chp:defer:Deferred Processing}.
+Chapter~\ref{chp:Deferred Processing}.
 
 \subsection{Livelock and Starvation}
 \label{sec:locking:Livelock and Starvation}

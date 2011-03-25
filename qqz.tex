@@ -1350,7 +1350,7 @@ ret = ~ret & tmp;
 	scenario.
 
 	Of course, we could instead read-acquire a reader-writer lock,
-	but Chapter~\ref{chp:defer:Deferred Processing} will introduce even
+	but Chapter~\ref{chp:Deferred Processing} will introduce even
 	lighter-weight mechanisms for implementing the required coordination.
 
 \QuickQ{}
@@ -1431,7 +1431,7 @@ ret = ~ret & tmp;
 	however, please note that it does not fit well into the
 	\url{counttorture.h} counter-evaluation scheme.
 	(Why not?)
-	Chapter~\ref{chp:defer:Deferred Processing} will introduce 
+	Chapter~\ref{chp:Deferred Processing} will introduce 
 	synchronization mechanisms that handle this situation in a much
 	more graceful manner.
 
@@ -1853,7 +1853,7 @@ ret = ~ret & tmp;
 	\item	Reader-writer locks do not scale well.
 		One way of avoiding the high read-acquisition costs
 		of reader-writer locks is presented in
-		Chapter~\ref{chp:defer:Deferred Processing}.
+		Chapter~\ref{chp:Deferred Processing}.
 	\end{enumerate}
 
 \QuickQ{}
@@ -2171,11 +2171,11 @@ ret = ~ret & tmp;
 		data structures that RCU readers might still be referencing.
 		RCU is most heavily used for read-mostly data structures,
 		and is discussed at length in
-		Chapter~\ref{chp:defer:Deferred Processing}.
+		Chapter~\ref{chp:Deferred Processing}.
 	\end{enumerate}
 
 	For more on providing existence guarantees, see
-	Chapters~\ref{chp:Locking} and \ref{chp:defer:Deferred Processing}.
+	Chapters~\ref{chp:Locking} and \ref{chp:Deferred Processing}.
 
 \QuickQ{}
 	How can a single-threaded 64-by-64 matrix multiple possibly
@@ -2281,6 +2281,72 @@ ret = ~ret & tmp;
 	be a cycle in the corresponding graph.
 
 \QuickQ{}
+	Are there any exceptions to this rule, so that there really could be
+	a deadlock cycle containing locks from both the library and
+	the caller, even given that the library code never invokes
+	any of the caller's functions?
+\QuickA{}
+	Indeed there can!
+	Here are a few of them:
+	\begin{enumerate}
+	\item	If one of the library function's arguments is a pointer
+		to a lock that this library function acquires, and if
+		the library function holds one if its locks while
+		acquiring the caller's lock, then we could have a
+		deadlock cycle involving both caller and library locks.
+	\item	If one of the library functions returns a pointer to
+		a lock that is acquired by the caller, and if the
+		caller acquires one if its locks while holding the
+		library's lock, we could again have a deadlock
+		cycle involving both caller and library locks.
+	\item	If one of the library functions acquires a lock and
+		then returns while still holding it, and if the caller
+		acquires one of its locks, we have yet another way
+		to create a deadlock cycle involving both caller
+		and library locks.
+	\item	If the caller has a signal handler that acquires
+		locks, then the deadlock cycle can involve both
+		caller and library locks.
+		In this case, however, the library's locks are
+		innocent bystanders in the deadlock cycle.
+		That said, please note that acquiring a lock from
+		within a signal handler is a no-no in most
+		environments---it is not just a bad idea, it
+		is unsupported.
+	\end{enumerate}
+
+\QuickQ{}
+	But if \co{qsort()} releases all its locks before invoking
+	the comparison function, how can it protect against races
+	with other \co{qsort()} threads?
+\QuickA{}
+	By privatizing the data elements being compared
+	(as discussed in Chapter~\ref{chp:Data Ownership})
+	or through use of deferral mechanisms such as
+	reference counting (as discussed in
+	Chapter~\ref{chp:Deferred Processing}).
+
+\QuickQ{}
+	Name one common exception where it is perfectly reasonable
+	to pass a pointer to a lock into a function.
+\QuickA{}
+	Locking primitives, of course!
+
+\QuickQ{}
+	Doesn't the fact that \co{pthread_cond_wait()} first releases the
+	mutex and then re-acquires it eliminate the possibility of deadlock?
+\QuickA{}
+	Absolutely not!
+
+	Consider the a program that acquires \co{mutex_a}, and then
+	\co{mutex_b}, in that order, and then passes \co{mutex_a}
+	to \co{pthread_cond_wait}.
+	Now, \co{pthread_cond_wait} will release \co{mutex_a}, but
+	will re-acquire it before returning.
+	If some other thread acquires \co{mutex_a} in the meantime
+	and then blocks on \co{mutex_b}, the program will deadlock.
+
+\QuickQ{}
 	Can the transformation from
 	Figure~\ref{fig:locking:Protocol Layering and Deadlock} to
 	Figure~\ref{fig:locking:Avoiding Deadlock Via Conditional Locking}
@@ -2375,7 +2441,7 @@ ret = ~ret & tmp;
 	data element can change while a thread is attempting to acquire
 	that element's lock on line~10!
 
-\QuickQAC{chp:defer:Deferred Processing}{Deferred Processing}
+\QuickQAC{chp:Deferred Processing}{Deferred Processing}
 \QuickQ{}
 	Why not implement reference-acquisition using
 	a simple compare-and-swap operation that only
