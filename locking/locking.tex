@@ -243,50 +243,80 @@ locks before invoking the comparison function.
 	Chapter~\ref{chp:Deferred Processing}).
 } \QuickQuizEnd
 
-\subsubsection{Locking Hierarchies and Pointers to Locks}
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{locking/NonLocalLockHierarchy}}
+\end{center}
+\caption{Without Local Locking Hierarchy for qsort()}
+\label{fig:lock:Without Local Locking Hierarchy for qsort()}
+\end{figure}
 
-Althought there are some exceptions, an external API containing a pointer
-to a lock is very often a misdesigned API.
-Handing an internal lock to some other software component is after all
-the antithesis of information hiding, which is in turn a key design
-principle.
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{locking/LocalLockHierarchy}}
+\end{center}
+\caption{Local Locking Hierarchy for qsort()}
+\label{fig:lock:Local Locking Hierarchy for qsort()}
+\end{figure}
 
-\QuickQuiz{}
-	Name one common exception where it is perfectly reasonable
-	to pass a pointer to a lock into a function.
-\QuickQuizAnswer{
-	Locking primitives, of course!
-} \QuickQuizEnd
+To see the benefits of local locking hierarchies, compare
+Figures~\ref{fig:lock:Without Local Locking Hierarchy for qsort()} and
+\ref{fig:lock:Local Locking Hierarchy for qsort()}.
+In both figures, application functions \co{foo()} and \co{bar()}
+invoke \co{qsort()} while holding locks~A and B, respectively.
+Because this is a parallel implementation of \co{qsort()}, it acquires
+lock~C.
+Function \co{foo()} passes function \co{cmp()} to \co{qsort()},
+and \co{cmp()} acquires lock~B.
+Function \co{bar()} passes a simple integer-comparison function (not
+shown) to \co{qsort()}, and this simple function does not acquire any
+locks.
 
-One exception is functions that hand off some entity,
-where the caller's lock must be held until the handoff is complete,
-but where the lock must be released before the function returns.
-One example of such a function is the POSIX \co{pthread_cond_wait()}
-function, where passing an pointer to a \co{pthread_mutex_t}
-prevents hangs due to lost wakeups.
+Now, if \co{qsort()} holds Lock~C while calling \co{cmp()} in violation
+of the golden release-all-locks rule above, as shown in
+Figure~\ref{fig:lock:Without Local Locking Hierarchy for qsort()},
+deadlock can occur.
+To see this, suppose that one thread invokes \co{foo()} while a second
+thread concurrently invokes \co{bar()}.
+The first thread will acquire lock~A and the second thread will acquire
+lock~B.
+If the first thread's call to \co{qsort()} acquires lock~C, then it
+will be unable to acquire lock~B when it calls \co{cmp()}.
+But the first thread holds lock~C, so the second thread's call to
+\co{qsort()} will be unable to acquire it, and thus unable to release
+lock~B, resulting in deadlock.
 
-\QuickQuiz{}
-	Doesn't the fact that \co{pthread_cond_wait()} first releases the
-	mutex and then re-acquires it eliminate the possibility of deadlock?
-\QuickQuizAnswer{
-	Absolutely not!
+In contrast, if \co{qsort()} releases lock~C before invoking the
+comparison function (which is unknown code from \co{qsort()}'s perspective,
+then deadlock is avoided as shown in
+Figure~\ref{fig:lock:Local Locking Hierarchy for qsort()}.
 
-	Consider the a program that acquires \co{mutex_a}, and then
-	\co{mutex_b}, in that order, and then passes \co{mutex_a}
-	to \co{pthread_cond_wait}.
-	Now, \co{pthread_cond_wait} will release \co{mutex_a}, but
-	will re-acquire it before returning.
-	If some other thread acquires \co{mutex_a} in the meantime
-	and then blocks on \co{mutex_b}, the program will deadlock.
-} \QuickQuizEnd
+If each module releases all locks before invoking unknown code, then
+deadlock is avoided if each module separately avoids deadlock.
+This rule therefore greatly simplifies deadlock analysis and greatly
+improves modularity.
 
-In short, if you find yourself exporting an API with a pointer to a
-lock as an argument or the return value, do youself a favor and carefully
-reconsider your API design.
-It might well be the right thing to do, but experience indicates that
-this is unlikely.
+\subsubsection{Layered Locking Hierarchies}
 
-\subsubsection{Split Locking Hierarchies}
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{locking/LayeredLockHierarchy}}
+\end{center}
+\caption{Layered Locking Hierarchy for qsort()}
+\label{fig:lock:Layered Locking Hierarchy for qsort()}
+\end{figure}
+
+Unfortunately, it might not be possible for \co{qsort()} to release
+all of its locks before invoking the comparison function.
+In this case, we cannot construct a local locking hierarchy by
+releasing all locks before invoking unknown code.
+However, we can instead construct a layered locking hierarchy, as shown in
+Figure~\ref{fig:lock:Layered Locking Hierarchy for qsort()}.
+Here, the \co{cmp()} function uses a new lock~D that is acquired after
+all of locks~A, B, and C, avoiding deadlock.
+We therefore have three layers to the global deadlock hierarchy, the
+first containing locks~A and B, the second containing lock~C, and
+the third containing lock~D.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -320,9 +350,8 @@ this is unlikely.
 \label{fig:locking:Concurrent List Iterator}
 \end{figure}
 
-However, there are times when dropping all locks before invoking unknown
-code is impractical.
-For example, imagine an interator over a linked list, as shown in
+For another example where releasing all locks before invoking unknown
+code is impractical, imagine an interator over a linked list, as shown in
 Figure~\ref{fig:locking:Concurrent List Iterator} (\co{locked_list.c}).
 The \co{list_start()} function acquires a lock on the list and returns
 the first element (if there is one), and
@@ -370,10 +399,56 @@ That is, the locking remains hidden as long as the code processing each
 list element does not itself acquire a lock that is held across some
 other call to \co{list_start()} or \co{list_next()}, which results in
 deadlock.
-One approach is to carefully split the locking hierarchy of the calling
+We can avoid the deadlock by layering the locking hierarchy
 to take the list-iterator locking into account.
-Solutions requiring less care are presented in
+
+This layered approach can be extended to an arbitrarily large number of layers,
+but each added layer increases the complexity of the locking design.
+Some alternatives to highly layered locking hierarchies are covered in
 Chapter~\ref{chp:Deferred Processing}.
+
+\subsubsection{Locking Hierarchies and Pointers to Locks}
+
+Althought there are some exceptions, an external API containing a pointer
+to a lock is very often a misdesigned API.
+Handing an internal lock to some other software component is after all
+the antithesis of information hiding, which is in turn a key design
+principle.
+
+\QuickQuiz{}
+	Name one common exception where it is perfectly reasonable
+	to pass a pointer to a lock into a function.
+\QuickQuizAnswer{
+	Locking primitives, of course!
+} \QuickQuizEnd
+
+One exception is functions that hand off some entity,
+where the caller's lock must be held until the handoff is complete,
+but where the lock must be released before the function returns.
+One example of such a function is the POSIX \co{pthread_cond_wait()}
+function, where passing an pointer to a \co{pthread_mutex_t}
+prevents hangs due to lost wakeups.
+
+\QuickQuiz{}
+	Doesn't the fact that \co{pthread_cond_wait()} first releases the
+	mutex and then re-acquires it eliminate the possibility of deadlock?
+\QuickQuizAnswer{
+	Absolutely not!
+
+	Consider the a program that acquires \co{mutex_a}, and then
+	\co{mutex_b}, in that order, and then passes \co{mutex_a}
+	to \co{pthread_cond_wait}.
+	Now, \co{pthread_cond_wait} will release \co{mutex_a}, but
+	will re-acquire it before returning.
+	If some other thread acquires \co{mutex_a} in the meantime
+	and then blocks on \co{mutex_b}, the program will deadlock.
+} \QuickQuizEnd
+
+In short, if you find yourself exporting an API with a pointer to a
+lock as an argument or the return value, do youself a favor and carefully
+reconsider your API design.
+It might well be the right thing to do, but experience indicates that
+this is unlikely.
 
 \subsubsection{Conditional Locking}
 

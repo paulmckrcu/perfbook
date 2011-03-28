@@ -127,6 +127,8 @@ EPSSOURCES = \
 	cartoons/CPU_toon_outoforder_colored.eps \
 	cartoons/CrashDummiesSmall.eps \
 	cartoons/LD,ACQ.eps \
+	cartoons/LockingTheHero.eps \
+	cartoons/LockingTheSlob.eps \
 	cartoons/ManyFighting.eps \
 	cartoons/ManyHappy.eps \
 	cartoons/MoreOfSameSmall.eps \
@@ -171,8 +173,9 @@ EPSSOURCES = \
 	intro/Generality.eps \
 	intro/PPGrelation.eps \
 	locking/DeadlockCycle.eps \
-	locking/LockingTheHero.eps \
-	locking/LockingTheSlob.eps
+	locking/LayeredLockHierarchy.eps \
+	locking/LocalLockHierarchy.eps \
+	locking/NonLocalLockHierarchy.eps
 
 all: perfbook.pdf
 
