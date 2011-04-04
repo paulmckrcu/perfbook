@@ -127,14 +127,35 @@ that can repair an existing deadlock, this approach requires either that
 one of the threads be killed or that a lock be forcibly stolen from one
 of the threads.
 This killing and forcible stealing can be appropriate for transactions,
-but is problematic for kernel and application-level use of locking.
+but is often problematic for kernel and application-level use of locking:
+dealing with the resulting partially updated structures can be extremely
+complex, hazardous, and error-prone.
 
-Kernels and applications therefore work to avoid deadlocks.
-There are three major approaches,
-locking hierarchies, conditional locking, and
-single-lock-at-a-time designs.
+Kernels and applications therefore work to avoid deadlocks rather than to
+recover from them.
+There are a number of deadlock-avoidance strategies,
+including locking hierarchies
+(Section~\ref{sec:locking:Locking Hierarchies}),
+local locking hierarchies
+(Section~\ref{sec:locking:Local Locking Hierarchies}),
+layered locking hierarchies
+(Section~\ref{sec:locking:Layered Locking Hierarchies}),
+strategies for dealing with APIs containing pointers to locks
+(Section~\ref{sec:locking:Locking Hierarchies and Pointers to Locks}),
+conditional locking
+(Section~\ref{sec:locking:Conditional Locking}),
+acquiring all needed locks first
+(Section~\ref{sec:locking:Acquire Needed Locks First}),
+single-lock-at-a-time designs
+(Section~\ref{sec:locking:Single-Lock-at-a-Time Designs}),
+and strategies for signal/interrupt handlers
+(Section~\ref{sec:locking:Signal/Interrupt Handlers}).
+Although there is no deadlock-avoidance strategy that works perfectly
+for all situations, there is a good selection of deadlock-avoidance
+tools to choose from.
 
 \subsubsection{Locking Hierarchies}
+\label{sec:locking:Locking Hierarchies}
 
 Locking hierarchies order the locks and prohibit acquiring locks out
 of order.
@@ -168,6 +189,7 @@ hierarchy~\cite{JonathanCorbet2006lockdep}.
 \end{figure}
 
 \subsubsection{Local Locking Hierarchies}
+\label{sec:locking:Local Locking Hierarchies}
 
 However, the global nature of locking hierarchies make them difficult to
 apply to library functions.
@@ -297,6 +319,7 @@ This rule therefore greatly simplifies deadlock analysis and greatly
 improves modularity.
 
 \subsubsection{Layered Locking Hierarchies}
+\label{sec:locking:Layered Locking Hierarchies}
 
 \begin{figure}[tb]
 \begin{center}
@@ -404,10 +427,18 @@ to take the list-iterator locking into account.
 
 This layered approach can be extended to an arbitrarily large number of layers,
 but each added layer increases the complexity of the locking design.
+Such increases in complexity are particularly inconvenient for some
+types of object-oriented designs, in which control passes back and forth
+among a large group of objects in an undisciplined manner.
+This mismatch between the habits of object-oriented design and the
+need to avoid deadlock is an important reason why parallel programming
+is perceived by some to be so difficult.
+
 Some alternatives to highly layered locking hierarchies are covered in
 Chapter~\ref{chp:Deferred Processing}.
 
 \subsubsection{Locking Hierarchies and Pointers to Locks}
+\label{sec:locking:Locking Hierarchies and Pointers to Locks}
 
 Althought there are some exceptions, an external API containing a pointer
 to a lock is very often a misdesigned API.
@@ -451,6 +482,7 @@ It might well be the right thing to do, but experience indicates that
 this is unlikely.
 
 \subsubsection{Conditional Locking}
+\label{sec:locking:Conditional Locking}
 
 But suppose that there is no reasonable locking hierarchy.
 This can happen in real life, for example, in layered network protocol stacks
@@ -545,7 +577,23 @@ must release the locks and start over.
 	(see Section~\ref{sec:locking:Livelock and Starvation}).
 } \QuickQuizEnd
 
+\subsubsection{Acquire Needed Locks First}
+\label{sec:locking:Acquire Needed Locks First}
+
+In an important special case of conditional locking all needed
+locks are acquired before any processing is carried out.
+In this case, processing need not be idempotent: if it turns out
+to be impossible to acquire a given lock without first releasing
+one that was already acquired, just release all the locks and
+try again.
+Only once all needed locks are held will any processing be carried out.
+
+However, this procedure can result in \emph{livelock}, which will
+be discussed in
+Section~\ref{sec:locking:Livelock and Starvation}.
+
 \subsubsection{Single-Lock-at-a-Time Designs}
+\label{sec:locking:Single-Lock-at-a-Time Designs}
 
 In some cases, it is possible to avoid nesting locks, thus avoiding
 deadlock.
@@ -563,6 +611,112 @@ One such mechanism is discussed in
 Section~\ref{sec:locking:Lock-Based Existence Guarantees}
 and several others are presented in
 Chapter~\ref{chp:Deferred Processing}.
+
+\subsubsection{Signal/Interrupt Handlers}
+\label{sec:locking:Signal/Interrupt Handlers}
+
+Deadlocks involving signal handlers are often quickly dismissed by
+noting that it is not legal to invoke \co{pthread_mutex_lock()} from
+within a signal handler~\cite{OpenGroup1997pthreads}.
+However, it is possible (though almost always unwise) to hand-craft
+locking primitives that can be invoked from signal handlers.
+Besides which, almost all operating-system kernels permit locks to
+be acquired from within interrupt handlers, which are the kernel analog
+to signal handlers.
+
+The trick is to block signals (or disable interrupts, as the case may be)
+when acquiring any lock that might be acquired within an interrupt
+handler.
+Furthermore, if holding such a lock, it is illegal to attempt to
+acquire any lock that is every acquired without block signals
+outside of a signal handler.
+
+If a lock is acquired by the handlers for several signals, then each
+and every one of these signals must be blocked whenever that lock is
+acquired, even when that
+lock is acquired within a signal handler.
+
+\QuickQuiz{}
+	How can you legally block signals within a signal handler?
+\QuickQuizAnswer{
+	One of the simplest and fastest ways to do so is to use
+	the \co{sa_mask} field of the \co{struct sigaction} that
+	you pass to \co{sigaction()} when setting up the signal.
+} \QuickQuizEnd
+
+Unfortunately, blocking and unblocking signals can be expensive in
+some operating systems, notably including Linux, so performance
+concerns often mean that locks acquired in signal handlers are only
+acquired in signal handlers, and that lockless synchronization
+mechanisms are used to communicate between application code and
+signal handlers.
+
+Or that signal handlers are avoided completely except for handling
+fatal errors.
+
+\subsubsection{Discussion}
+\label{sec:locking:Locking Hierarchy Discussion}
+
+There are a large number of deadlock-avoidance strategies available to
+the shared-memory parallel programmer, but there are sequential
+programs for which none of them is a good fit.
+This is one of the reasons that expert programmers have more than
+one tool in their toolbox: locking is a powerful concurrency
+tool, but there are jobs better addressed with other tools.
+
+\QuickQuiz{}
+	Given an object-oriented application that passes control freely
+	among a group of objects such that there is no reasonable
+	locking hierarchy, layered or otherwise, how can this
+	application be parallelized?
+\QuickQuizAnswer{
+	There are a number of approaches:
+	\begin{enumerate}
+	\item	In the case of parametric search via simulation,
+		where a large number of simulations will be run
+		in order to converge on (for example) a good design
+		for a mechanical or electrical device, leave the
+		simulation single-threaded, but run many of them
+		in parallel.
+		This retains the object-oriented design, and
+		gains parallelism at a higher level.
+	\item	Partition the objects into groups such that there
+		is no need for a given to operate on objects in
+		more than one group at a given time.
+		Then associate a lock with each group.
+		This is an example of a single-lock-at-a-time
+		design, which discussed in
+		Section~\ref{sec:locking:Single-Lock-at-a-Time Designs}.
+	\item	Partition the objects into groups such that threads
+		can all operate on objects in the groups in some
+		groupwise ordering.
+		Then associate a lock with each group, and impose a
+		locking hierarchy over the groups.
+	\item	Impose an arbitrarily selected hierarchy on the locks,
+		and then use conditional locking if it is necessary
+		to acquire a lock out of order, as was discussed in
+		Section~\ref{sec:locking:Conditional Locking}.
+	\item	Before carrying out a given group of operations, predict
+		which locks will be acquired, and attempt to acquire them
+		before actually carrying out any updates.
+		This approach was discussed in
+		Section~\ref{sec:locking:Acquire Needed Locks First}.
+	\item	Use transactional memory.
+		This approach has a number of advantages and disadvantages
+		which will be discussed in
+		Section~\ref{sec:future:Transactional Memory}.
+	\item	Refactor the application to be more concurrency-friendly.
+		This would likely also have the side effect of making
+		the application run faster single-threaded, but might
+		also make it more difficult to modify the application
+		when needed to account for changing conditions and
+		requirements.
+	\item	Use techniques from later chapters in addition to locking.
+	\end{enumerate}
+} \QuickQuizEnd
+
+Nevertheless, the strategies described in this section have proven
+quite useful in many settings.
 
 \subsection{Livelock and Starvation}
 \label{sec:locking:Livelock and Starvation}
@@ -639,8 +793,81 @@ To see this, consider the following sequence of events:
 } \QuickQuizEnd
 
 Starvation is very similar to livelock.
-Put another way, a livelock is an extreme form of starvation where
-all threads starve.
+Put another way, livelock is an extreme form of starvation where
+a group of threads starve, rather than just one of them.\footnote{
+	Try not to get too hung up on the exact definitions of terms
+	like livelock, starvation, and unfairness.
+	Anything that causes a group of threads to fail to make good
+	forward progress is a problem that needs to be fixed, regardless
+	of what name you choose for it.}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void thread1(void)
+  2 {
+  3   unsigned int wait = 1;
+  4 retry:
+  5   spin_lock(&lock1);
+  6   do_one_thing();
+  7   if (!spin_trylock(&lock2)) {
+  8     spin_unlock(&lock1);
+  9     sleep(wait);
+ 10     wait = wait << 1;
+ 11     goto retry;
+ 12   }
+ 13   do_another_thing();
+ 14   spin_unlock(&lock2);
+ 15   spin_unlock(&lock1);
+ 16 }
+ 17 
+ 18 void thread2(void)
+ 19 {
+ 20   unsigned int wait = 1;
+ 21 retry:
+ 22   spin_lock(&lock2);
+ 23   do_a_third_thing();
+ 24   if (!spin_trylock(&lock1)) {
+ 25     spin_unlock(&lock2);
+ 26     sleep(wait);
+ 27     wait = wait << 1;
+ 28     goto retry;
+ 29   }
+ 30   do_a_fourth_thing();
+ 31   spin_unlock(&lock1);
+ 32   spin_unlock(&lock2);
+ 33 }
+\end{verbatim}
+}
+\caption{Conditional Locking and Exponential Backoff}
+\label{fig:locking:Conditional Locking and Exponential Backoff}
+\end{figure}
+
+Livelock and starvation are serious issues in software transactional
+memory implementations, and so the concept of \emph{contention
+manager} has been introduced to encapsulate these issues.
+In the case of locking, simple exponential backoff can often address
+livelock and starvation.
+The idea is to introduce exponentially increasing delays before each
+retry, as shown in
+Figure~\ref{fig:locking:Conditional Locking and Exponential Backoff}.
+
+\QuickQuiz{}
+	What problems can you spot in the code in
+	Figure~\ref{fig:locking:Conditional Locking and Exponential Backoff}?
+\QuickQuizAnswer{
+	Here are a couple:
+	\begin{enumerate}
+	\item	A one-second wait is way too long for most uses.
+		Wait intervals should begin with roughly the time
+		required to execute the critical section, which will
+		normally be in the microsecond or millisecond range.
+	\item	The code does not check for overflow.
+		On the other hand, this bug is nullified 
+		by the previous bug: 32 bits worth of seconds is
+		more than 50 years.
+	\end{enumerate}
+} \QuickQuizEnd
 
 \subsection{Unfairness}
 \label{sec:locking:Unfairness}
@@ -654,7 +881,7 @@ all threads starve.
 \end{figure}
 
 Unfairness can be thought of as a less-severe form of starvation,
-where a subset of threads contendin for a given lock are granted
+where a subset of threads contending for a given lock are granted
 the lion's share of the acquisitions.
 This can happen on machines with shared caches or NUMA characteristics,
 for example, as shown in
@@ -669,15 +896,18 @@ shuttle between CPUs~1 and 2, bypassing CPUs~2-7.
 
 Of course, if the lock contention is so high, you should take it as
 a hint to revisit your locking design.
-Given a more reasonable level of lock contention there would be
+Given a more reasonable level of lock contention, there would be
 frequent periods when the lock was not held at all, which would
 prevent unfairness altogether.
 
 \QuickQuiz{}
-	Are designs resulting in extreme levels of lock contention
-	ever justified?
+	Wouldn't it be better just to use a good parallel design
+	so that lock contention was low enough to avoid unfairness?
 \QuickQuizAnswer{
-	Sometimes.
+	It would be better in some sense, but there are situations
+	where it can be appropriate to use
+	designs that sometimes result in high lock contentions.
+
 	For example, imagine a system that is subject to a rare error
 	condition.
 	It might well be best to have a simple error-handling design
@@ -761,7 +991,8 @@ rests with the developer.
 \subsection{Reader-Writer Locks}
 \label{sec:locking:Reader-Writer Locks}
 
-Reader-writer locks permit any number of readers to hold the lock
+Reader-writer locks~\cite{Courtois71}
+permit any number of readers to hold the lock
 concurrently on the one hand or a single writer to hold the lock
 on the other.
 In theory, then, reader-writer locks should allow excellent scalability
