@@ -1146,6 +1146,17 @@ Nevertheless, the VAX/VMS DLM is an interesting illustration of just
 how flexible the concepts behind locking can be.
 
 \section{Locking Implementation Issues}
+\label{sec:locking:Locking Implementation Issues}
+
+Developers are almost always best-served by using whatever locking
+primitives are provided by the system, for example, the POSIX
+pthread mutex locks~\cite{OpenGroup1997pthreads,Butenhof1997pthreads}.
+Nevertheless, studying sample implementations can be helpful,
+as can considering the challenges posed by extreme workloads and
+environments.
+
+\subsection{Sample Implementation Based on Atomic Exchange}
+\label{sec:locking:Sample Implementation Based on Atomic Exchange}
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1171,11 +1182,7 @@ how flexible the concepts behind locking can be.
 \label{fig:locking:Sample Lock Based on Atomic Exchange}
 \end{figure}
 
-Developers are almost always best-served by using whatever locking
-primitives are provided by the system, for example, the POSIX
-pthread mutex locks~\cite{OpenGroup1997pthreads,Butenhof1997pthreads}.
-Nevertheless, studying a sample implementation can be helpful,
-and so this section reviews the implementation shown in
+This section reviews the implementation shown in
 Figure~\ref{fig:locking:Sample Lock Based on Atomic Exchange}.
 The data structure for this lock is just an \co{int}, as shown on
 line~1, but could be any integral type.
@@ -1218,16 +1225,111 @@ the lock, thus marking it as having been released.
 	Why not simply store zero into the lock word on line 14 of
 	Figure~\ref{fig:locking:Sample Lock Based on Atomic Exchange}?
 \QuickQuizAnswer{
-	This would be a legitimate implementation, but only as long as
+	This can be a legitimate implementation, but only if
 	this store is preceded by a memory barrier.
-	Because the \co{xchg()} operation returns a value, it
-	implies a full memory barrier.
+	The memory barrier is not required when the \co{xchg()}
+	operation is used because this operation implies a
+	full memory barrier due to the fact that it returns
+	a value.
 } \QuickQuizEnd
+
+This lock is a simple example of a test-and-set lock~\cite{Segall84},
+but very similar
+mechanisms have been used extensively as pure spinlocks in production.
+
+\subsection{Other Locking Implementations}
+\label{sec:locking:Other Locking Implementations}
 
 There are a great many other possible implementations of locking
 based on atomic instructions, many of which are reviewed
 by Mellor-Crummey and Scott~\cite{MellorCrummey91a}.
-That said, atomic instructions are not strictly needed to
+These implementations represent different points in a multi-dimensional
+design tradeoff~\cite{McKenney96a}.
+For example,
+the atomic-exchange-based test-and-set lock presented in the previous
+section works well when contention is low and has the advantage
+of small memory footprint.
+It avoids giving the lock to threads that cannot use it, but as
+a result can suffer from unfairness or even starvation at high
+contention levels.
+
+In contrast, ticket lock~\cite{MellorCrummey91a}, which is used in the Linux
+kernel, avoids unfairness at high contention levels, but as a
+consequence of its first-in-first-out discipline can grant the
+lock to a thread that is currently unable to use it, for example,
+due to being preempted, interrupted, or otherwise out of action.
+
+All locking implementations where waiters spin on a single memory
+location, including both test-and-set locks and ticket locks,
+suffer from performance problems at high contention levels.
+The problem is that the thread releasing the lock must update the
+value of the corresponding memory location.
+At low contention, this is not a problem: The corresponding cache line
+is very likely still local to and writeable by the thread holding
+the lock.
+In contrast, at high levels of contention, each thread attempting to
+acquire the lock will have a read-only copy of the cache line, and
+the lock holder will need to invalidate all such copies before it
+can carry out the update that releases the lock.
+In general, the more CPUs and threads there are, the greater the
+overhead incurred when releasing the lock under conditions of
+high contention.
+
+This negative scalability has motivated a number of different
+queued-lock
+implementations~\cite{Anderson90,Graunke90,MellorCrummey91a,Wisniewski94,Craig93,Magnusson94,Takada93}
+
+More recent queued-lock implementations also take the system's architecture
+into account, preferentially granting locks locally, while also taking
+steps to avoid
+starvation~\cite{McKenney02e,radovic03hierarchical,radovic02efficient,BenJackson02,McKenney02d}.
+Many of these can be thought of as analogous to the elevator algorithms
+traditionally used in scheduling disk I/O.
+
+Unfortunately, the same scheduling logic that improves the efficiency
+of queued locks at high contention also increases their overhead at
+low contention.
+Beng-hong Lim and Anant Agarwal therefore combined a simple test-and-set
+lock with a queued lock, using the test-and-set lock at low levels of
+contention and switching to the queued lock at high levels of
+contention~\cite{BengHongLim94}, thus getting low overhead at low levels
+of contention and getting fairness and high throughput at high levels
+of contention.
+Browning et al.~took a similar approach, but avoided the use of a separate
+flag, so that the test-and-set fast path uses the same sequence of
+instructions that would be used in a simple test-and-set
+lock~\cite{LukeBrowning2005SimpleLockNUMAAware}.
+This approach as been used in production.
+
+Another issue that arises at high levels of contention is when the
+lock holder is delayed, especially when the delay is due to
+preemption, which can result in \emph{priority inversion},
+where a low-priority thread holds a lock, but is preempted
+by a medium priority CPU-bound thread, which results in
+a high-priority process blocking while attempting to acquire the
+lock.
+The result is that the CPU-bound medium-priority process is preventing the
+high-priority process from running.
+One solution is \emph{priority inheritance}~\cite{Lampson1980Mesa},
+which has been widely used for real-time
+computing~\cite{Sha1990IEEETransComp,JonathanCorbet2006PriorityInheritance},
+despite some lingering controversy over this
+practice~\cite{Yodaiken2004FSM,DougLocke2002a}.
+
+Another way to avoid priority inversion is to prevent preemption
+while a lock is held~\cite{Kontothanassis97a}.
+Most proprietary UNIX kernels offer some form of scheduler-conscious
+synchronization mechanism, largely due to the efforts of a large database
+vendor.
+These mechanisms usually take the form of a hint that preemption
+would be imappropriate.
+These hints frequently take the form of a bit set in a particular
+machine register, which enables extremely low per-lock-acquisition overhead
+for these mechanisms.
+In contrast, Linux avoids these hints, instead getting
+similar results from a mechanism called \emph{futexes} @@@citation@@@.
+
+Interestingly enough, atomic instructions are not strictly needed to
 implement locks~\cite{Dijkstra65a,Lamport74a}.
 An excellent exposition of the issues surrounding locking implementations
 based on simple loads and stores may be found in Herlihy's and
@@ -1235,11 +1337,7 @@ Shavit's textbook~\cite{HerlihyShavit2008Textbook}.
 The main point echoed here is that such implementations currently
 have little practical application, although a careful study of
 them can be both entertaining and enlightening.
-
-@@@ high contention: citations and discussion
-The performance 
-
-@@@ high contention and NUMA architectures: citations and discussion
+Nevertheless, such study is left as an exercise for the reader.
 
 \input{locking/locking-existence}
 
