@@ -1147,9 +1147,97 @@ how flexible the concepts behind locking can be.
 
 \section{Locking Implementation Issues}
 
-@@@ mechanisms without atomic instructions: citations
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 typedef int xchglock_t;
+  2 #define DEFINE_XCHG_LOCK(n) xchglock_t n = 0
+  3 
+  4 void xchg_lock(xchglock_t *xp)
+  5 {
+  6   while (xchg(xp, 1) == 1) {
+  7     while (*xp == 1)
+  8       continue;
+  9   }
+ 10 }
+ 11 
+ 12 void xchg_unlock(xchglock_t *xp)
+ 13 {
+ 14   (void)xchg(xp, 0);
+ 15 }
+\end{verbatim}
+}
+\caption{Sample Lock Based on Atomic Exchange}
+\label{fig:locking:Sample Lock Based on Atomic Exchange}
+\end{figure}
+
+Developers are almost always best-served by using whatever locking
+primitives are provided by the system, for example, the POSIX
+pthread mutex locks~\cite{OpenGroup1997pthreads,Butenhof1997pthreads}.
+Nevertheless, studying a sample implementation can be helpful,
+and so this section reviews the implementation shown in
+Figure~\ref{fig:locking:Sample Lock Based on Atomic Exchange}.
+The data structure for this lock is just an \co{int}, as shown on
+line~1, but could be any integral type.
+The initial value of this lock is zero, meaning ``unlocked'',
+as shown on line~2.
+
+Lock acquisition is carried out by the \co{xchg_lock()} function
+shown on lines~4-9.
+This function uses a nested loop, with the outer loop repeatedly
+atomically exchanging the value of the lock with the value one
+(meaning l``locked'').
+If the old value was already the value one (in other words, someone
+else already holds the lock), then the inner loop (lines~7-8)
+spins until the lock is available, at which point the outer loop
+makes another attempt to acquire the lock.
+
+\QuickQuiz{}
+	Why bother with the inner loop on lines~7-8 of
+	Figure~\ref{fig:locking:Sample Lock Based on Atomic Exchange}?
+	Why not simply repeatedly do the atomic exchange operation
+	on line~6?
+\QuickQuizAnswer{
+	Suppose that the lock is held and that several threads
+	are attempting to acquire the lock.
+	In this situation, if these threads all loop on the atomic
+	exchange operation, they will ping-pong the cache line
+	containing the lock among themselves, imposing load
+	on the interconnect.
+	In contrast, if these threads are spinning in the inner
+	loop on lines~7-8, they will each spin within their own
+	caches, putting negligible load on the interconnect.
+} \QuickQuizEnd
+
+Lock release is carried out by the \co{xchg_unlock()} function
+shown on lines~12-15.
+Line~14 atomically exchanges the value zero (``unlocked'') into
+the lock, thus marking it as having been released.
+
+\QuickQuiz{}
+	Why not simply store zero into the lock word on line 14 of
+	Figure~\ref{fig:locking:Sample Lock Based on Atomic Exchange}?
+\QuickQuizAnswer{
+	This would be a legitimate implementation, but only as long as
+	this store is preceded by a memory barrier.
+	Because the \co{xchg()} operation returns a value, it
+	implies a full memory barrier.
+} \QuickQuizEnd
+
+There are a great many other possible implementations of locking
+based on atomic instructions, many of which are reviewed
+by Mellor-Crummey and Scott~\cite{MellorCrummey91a}.
+That said, atomic instructions are not strictly needed to
+implement locks~\cite{Dijkstra65a,Lamport74a}.
+An excellent exposition of the issues surrounding locking implementations
+based on simple loads and stores may be found in Herlihy's and
+Shavit's textbook~\cite{HerlihyShavit2008Textbook}.
+The main point echoed here is that such implementations currently
+have little practical application, although a careful study of
+them can be both entertaining and enlightening.
 
 @@@ high contention: citations and discussion
+The performance 
 
 @@@ high contention and NUMA architectures: citations and discussion
 
