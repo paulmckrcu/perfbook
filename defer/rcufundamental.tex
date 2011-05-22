@@ -27,8 +27,8 @@ cases (non-preemptible kernels), RCU's read-side primitives have zero
 overhead.
 
 \QuickQuiz{}
-	But doesn't seqlock also permit readers and updaters to get
-	work done concurrently?
+	But doesn't Section~\ref{sec:defer:Sequence Locks}'s seqlock
+	also permit readers and updaters to get work done concurrently?
 \QuickQuizAnswer{
 	Yes and no.
 	Although seqlock readers can run concurrently with
@@ -526,61 +526,13 @@ Lines~16-19 gives RCU (``read-copy update'') its name: while permitting
 concurrent \emph{reads}, line~16 \emph{copies} and lines~17-19
 do an \emph{update}.
 
-The \co{synchronize_rcu()} primitive might seem a bit
-mysterious at first.
-After all, it must wait for all RCU read-side critical sections to
-complete, and, as we saw earlier, the
-\co{rcu_read_lock()} and \co{rcu_read_unlock()} primitives
-that delimit RCU read-side critical sections don't even generate any
-code in non-\co{CONFIG_PREEMPT} kernels!
-
-There is a trick, and the trick is that RCU Classic read-side critical
-sections delimited by \co{rcu_read_lock()} and
-\co{rcu_read_unlock()} are not permitted to block or sleep.
-Therefore, when a given CPU executes a context switch, we are guaranteed
-that any prior RCU read-side critical sections will have completed.
-This means that as soon as each
-CPU has executed at least one context switch, \emph{all}
-prior RCU read-side critical sections are guaranteed to have completed,
-meaning that \co{synchronize_rcu()} can safely return.
-
-Thus, RCU Classic's \co{synchronize_rcu()}
-can conceptually be as simple as the following
-(see Appendix~\ref{defer:``Toy'' RCU Implementations}
-for additional ``toy'' RCU implementations):
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 for_each_online_cpu(cpu)
-  2   run_on(cpu);
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-Here, \co{run_on()} switches the current thread to the
-specified CPU, which forces a context switch on that CPU.
-The \co{for_each_online_cpu()} loop therefore forces a
-context switch on each CPU, thereby guaranteeing that all prior
-RCU read-side critical sections have completed, as required.
-Although this simple approach works for kernels in which preemption
-is disabled across RCU read-side critical sections, in other
-words, for non-\co{CONFIG_PREEMPT} and \co{CONFIG_PREEMPT}
-kernels, it does \emph{not} work for \co{CONFIG_PREEMPT_RT}
-realtime (-rt) kernels.
-Therefore, realtime RCU uses a different approach based loosely on reference
-counters~\cite{PaulEMcKenney2007PreemptibleRCU}.
-
-Of course, the actual implementation in the Linux kernel
-is much more complex, as it is required
-to handle interrupts, NMIs, CPU hotplug, and other hazards of
-production-capable kernels, but while also maintaining good performance and
-scalability.
-Realtime implementations of RCU must additionally help provide good
-realtime response, which rules out implementations (like the simple
-two-liner above) that rely on disabling preemption.
-
+As discussed in Section~\ref{sec:defer:Introduction to RCU},
+the \co{synchronize_rcu()} primitive can be quite simple
+(see Section~\ref{sec:defer:``Toy'' RCU Implementations}
+for additional ``toy'' RCU implementations).
+However, production-quality implementations must deal with
+difficult corner cases and also incorporate
+powerful optimizations, both of which result in significant complexity.
 Although it is good to know that there is a simple conceptual
 implementation of \co{synchronize_rcu()}, other questions remain.
 For example, what exactly do RCU
@@ -601,7 +553,11 @@ and the second example demonstrates replacement of an element.
 \paragraph{Example 1: Maintaining Multiple Versions During Deletion}
 \label{sec:defer:Example 1: Maintaining Multiple Versions During Deletion}
 
-To start the ``deletion'' example,
+We can now revisit the deletion example from
+Section~\ref{sec:defer:Introduction to RCU},
+but now with the benefit of a firm understanding of the fundamental
+concepts underlying RCU.
+To begin this new version of the deletion example,
 we will modify lines~11-21 in
 Figure~\ref{fig:defer:Canonical RCU Replacement Example}
 to read as follows:
