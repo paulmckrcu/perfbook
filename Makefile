@@ -92,6 +92,9 @@ EPSSOURCES = \
 	advsync/SplitCache.eps \
 	advsync/WriteBarrierOrdering.eps \
 	appendix/questions/after.eps \
+	appendix/rcuhist/linux-RCU.eps \
+	appendix/rcuhist/linux-RCUlock.eps \
+	appendix/rcuhist/rcuAPI.eps \
 	appendix/rcuimpl/AdvanceRCUCallbacks.eps \
 	appendix/rcuimpl/BigTreeClassicRCUBHdyntick.eps \
 	appendix/rcuimpl/BigTreeClassicRCUBH.eps \
