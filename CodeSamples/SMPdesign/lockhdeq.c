@@ -44,7 +44,8 @@ struct list_head *deq_pop_l(struct deq *p)
 		e = NULL;
 	else {
 		e = p->chain.prev;
-		list_del_init(e);
+		list_del(e);
+		INIT_LIST_HEAD(e);
 	}
 	spin_unlock(&p->lock);
 	return e;
@@ -66,7 +67,8 @@ struct list_head *deq_pop_r(struct deq *p)
 		e = NULL;
 	else {
 		e = p->chain.next;
-		list_del_init(e);
+		list_del(e);
+		INIT_LIST_HEAD(e);
 	}
 	spin_unlock(&p->lock);
 	return e;

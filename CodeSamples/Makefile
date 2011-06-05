@@ -13,7 +13,15 @@ pthreads:
 	echo "" >> api.h
 	cat api-pthreads/api-pthreads.h >> api.h
 	echo "" >> api.h
-	cat linux/list.h >> api.h
+	if test -d /usr/include/urcu ; \
+	then \
+		echo "#define _LGPL_SOURCE" >> api.h; \
+		echo "#include <urcu/rculist.h>" >> api.h; \
+		echo "#include <urcu/rcuhlist.h>" >> api.h; \
+		echo "#include <urcu-pointer-static.h>" >> api.h; \
+	else \
+		cat linux/list.h >> api.h; \
+	fi
 	echo "# MECHANICALLY GENERATED, DO NOT EDIT!!!" > Makefile.arch
 
 pthreads-x86:
@@ -25,7 +33,15 @@ pthreads-x86:
 	echo "" >> api.h
 	cat api-pthreads/api-pthreads.h >> api.h
 	echo "" >> api.h
-	cat linux/list.h >> api.h
+	if test -d /usr/include/urcu ; \
+	then \
+		echo "#define _LGPL_SOURCE" >> api.h; \
+		echo "#include <urcu/rculist.h>" >> api.h; \
+		echo "#include <urcu/rcuhlist.h>" >> api.h; \
+		echo "#include <urcu-pointer-static.h>" >> api.h; \
+	else \
+		cat linux/list.h >> api.h; \
+	fi
 	echo "# MECHANICALLY GENERATED, DO NOT EDIT!!!" > Makefile.arch
 	echo "" >> Makefile.arch
 	cat arch-x86/Makefile.arch >> Makefile.arch
@@ -39,7 +55,15 @@ pthreads-ppc64:
 	echo "" >> api.h
 	cat api-pthreads/api-pthreads.h >> api.h
 	echo "" >> api.h
-	cat linux/list.h >> api.h
+	if test -d /usr/include/urcu; \
+	then \
+		echo "#define _LGPL_SOURCE" >> api.h; \
+		echo "#include <urcu/rculist.h>" >> api.h; \
+		echo "#include <urcu/rcuhlist.h>" >> api.h; \
+		echo "#include <urcu-pointer-static.h>" >> api.h; \
+	else \
+		cat linux/list.h >> api.h; \
+	fi
 	echo "# MECHANICALLY GENERATED, DO NOT EDIT!!!" > Makefile.arch
 	cat arch-ppc64/Makefile.arch >> Makefile.arch
 
@@ -52,6 +76,14 @@ pthreads-arm:
 	echo "" >> api.h
 	cat api-pthreads/api-pthreads.h >> api.h
 	echo "" >> api.h
-	cat linux/list.h >> api.h
+	if test -d /usr/include/urcu; \
+	then \
+		echo "#define _LGPL_SOURCE" >> api.h; \
+		echo "#include <urcu/rculist.h>" >> api.h; \
+		echo "#include <urcu/rcuhlist.h>" >> api.h; \
+		echo "#include <urcu-pointer-static.h>" >> api.h; \
+	else \
+		cat linux/list.h >> api.h; \
+	fi
 	echo "# MECHANICALLY GENERATED, DO NOT EDIT!!!" > Makefile.arch
 	cat arch-arm/Makefile.arch >> Makefile.arch

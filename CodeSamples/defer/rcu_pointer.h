@@ -18,8 +18,16 @@
  * Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
  */
 
+#ifndef _rcu_assign_pointer
 #define rcu_assign_pointer(p, v) ({ smp_mb(); ACCESS_ONCE(p) = (v); })
+#elif !defined(rcu_assign_pointer)
+#define rcu_assign_pointer _rcu_assign_pointer
+#endif /* !defined(rcu_assign_pointer) */
 
 /* Assume DEC Alpha is dead.  Long live DEC Alpha. */
 
+#ifndef _rcu_dereference
 #define rcu_dereference(p) (*(volatile typeof(p) *)&(p))
+#elif !defined(rcu_dereference)
+#define rcu_dereference _rcu_dereference
+#endif /* !defined(rcu_dereference) */

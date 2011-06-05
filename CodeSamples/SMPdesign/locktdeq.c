@@ -41,7 +41,8 @@ struct list_head *deq_pop_l(struct deq *p)
 		e = NULL;
 	else {
 		e = p->chain.prev;
-		list_del_init(e);
+		list_del(e);
+		INIT_LIST_HEAD(e);
 	}
 	return e;
 }
@@ -59,7 +60,8 @@ struct list_head *deq_pop_r(struct deq *p)
 		e = NULL;
 	else {
 		e = p->chain.next;
-		list_del_init(e);
+		list_del(e);
+		INIT_LIST_HEAD(e);
 	}
 	return e;
 }
@@ -107,7 +109,8 @@ struct list_head *pdeq_pop_l(struct pdeq *d)
 	if (e == NULL) {
 		spin_lock(&d->rlock);
 		e = deq_pop_l(&d->rdeq);
-		list_splice_init(&d->rdeq.chain, &d->ldeq.chain);
+		list_splice(&d->rdeq.chain, &d->ldeq.chain);
+		INIT_LIST_HEAD(&d->rdeq.chain);
 		spin_unlock(&d->rlock);
 	}
 	spin_unlock(&d->llock);
@@ -128,7 +131,8 @@ struct list_head *pdeq_pop_r(struct pdeq *d)
 		e = deq_pop_r(&d->rdeq);
 		if (e == NULL) {
 			e = deq_pop_r(&d->ldeq);
-			list_splice_init(&d->ldeq.chain, &d->rdeq.chain);
+			list_splice(&d->ldeq.chain, &d->rdeq.chain);
+			INIT_LIST_HEAD(&d->ldeq.chain);
 		}
 		spin_unlock(&d->llock);
 	}

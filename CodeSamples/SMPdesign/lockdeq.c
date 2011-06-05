@@ -118,7 +118,8 @@ struct list_head *pdeq_pop_l(struct pdeq *d)
 		e = NULL;
 	else {
 		e = p->chain.prev;
-		list_del_init(e);
+		list_del(e);
+		INIT_LIST_HEAD(e);
 		d->lidx = i;
 	}
 	spin_unlock(&p->lock);
@@ -140,7 +141,8 @@ struct list_head *pdeq_pop_r(struct pdeq *d)
 		e = NULL;
 	else {
 		e = p->chain.next;
-		list_del_init(e);
+		list_del(e);
+		INIT_LIST_HEAD(e);
 		d->ridx = i;
 	}
 	spin_unlock(&p->lock);
