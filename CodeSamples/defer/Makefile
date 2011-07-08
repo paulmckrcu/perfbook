@@ -17,6 +17,7 @@
 include ../Makefile.arch
 
 PROGS =	bug_rcu_dp \
+	bug_srcu_a \
 	gettimestamp \
 	gettimestampmp \
 	rcu \
@@ -37,6 +38,9 @@ PROGS =	bug_rcu_dp \
 	seqlocktorture \
 
 all: $(PROGS)
+
+bug_srcu_a: bug_srcu_a.c srcu.c ../api.h
+	cc $(GCC_ARGS) -o bug_srcu_a -DTEST bug_srcu_a.c -lurcu -lpthread
 
 bug_rcu_dp: bug_rcu_dp.c ../api.h
 	cc $(GCC_ARGS) -o bug_rcu_dp -DTEST bug_rcu_dp.c -lurcu -lpthread

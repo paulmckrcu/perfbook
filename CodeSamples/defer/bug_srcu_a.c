@@ -1,8 +1,8 @@
 /*
- * bug_rcu_dp.c: simple user-level demonstration of early RCU bug.
+ * bug_srcu_a.c: simple user-level demonstration of SRCU usage bug
  *
  * Usage:
- *	./bug_rcu_dp
+ *	./bug_srcu_a
  *		Show existence of the bug.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,7 @@
  */
 
 #include "../api.h"
-#include <urcu.h>
+#include "srcu.c"
 
 #define kmalloc(s, t) malloc(s)
 #define kfree(p) free(p)
@@ -32,31 +32,37 @@ struct foo {
 	struct list_head list;
 	int key;
 	int data;
+	int debug_state;
 };
 
 LIST_HEAD(mylist);
 DEFINE_SPINLOCK(mylock);
-struct foo *cache;
+struct srcu_struct mysrcu;
 
-int search(int key, int *data)
+void do_something_with(struct foo *p)
 {
+}
+
+void malicious_delay(struct foo *p)
+{
+	poll(NULL, 0, 10);
+	if (p->debug_state)
+		printf(&@@@
+}
+
+void process(void)
+{
+	int i1, i2;
 	struct foo *p;
 
-	rcu_read_lock();
-	p = rcu_dereference(cache);
-	if (p != NULL && p->key == key)
-		goto found;
-	list_for_each_entry_rcu(p, &mylist, list)
-		if (p->key == key) {
-			rcu_assign_pointer(cache, p);
-			goto found;
-		}
-	rcu_read_unlock();
-	return -ENOENT;
-found:
-	*data = p->data;
-	rcu_read_unlock();
-	return 0;
+	i1 = srcu_read_lock(&mysrcu);
+	list_for_each_entry_rcu(p, &mylist, list) {
+		do_something_with(p);
+		i2 = srcu_read_lock(&mysrcu);
+		srcu_read_unlock(&mysrcu, i1);
+		i1 = i2;
+	}
+	srcu_read_unlock(&mysrcu, i1);
 }
 
 int insert(int key, int data)
@@ -67,6 +73,7 @@ int insert(int key, int data)
 		return -ENOMEM;
 	p->key = key;
 	p->data = data;
+	p->debug_state = 0;
 	spin_lock(&mylock);
 	list_add_rcu(&p->list, &mylist);
 	spin_unlock(&mylock);
@@ -82,6 +89,7 @@ int delete(int key)
 			list_del_rcu(&p->list);
 			spin_unlock(&mylock);
 			synchronize_rcu();
+			p->debug_state = 1;
 			kfree(p);
 			return 0;
 		}
@@ -89,16 +97,9 @@ int delete(int key)
 	return -ENOENT;
 }
 
-void dumpcache(void)
-{
-	if (cache != NULL)
-		printf("cache: %d:%d\n", cache->key, cache->data);
-	else
-		printf("cache empty\n");
-}
-
 void dumplist(void)
 {
+#if 0
 	int data;
 	int key;
 	int result;
@@ -109,7 +110,7 @@ void dumplist(void)
 		result = search(key, &data);
 		printf("%d:%d(%d) ", key, data, result);
 	}
-	dumpcache();
+#endif /* #if 0 */
 }
 
 int main(int argc, char *argv[])
@@ -125,6 +126,5 @@ int main(int argc, char *argv[])
 	insert(2, 4);
 	dumplist();
 	printf("delete(2) = %d; ", delete(2));
-	dumpcache();
 	dumplist();
 }
