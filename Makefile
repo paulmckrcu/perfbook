@@ -216,7 +216,7 @@ perfbook_html.tex: perfbook_flat.tex qqz_html.tex origpub_html.tex contrib_html.
 	cp perfbook.bbl perfbook_html.bbl
 
 perfbook_html: perfbook_html.tex
-	latex2html -show_section_numbers perfbook_html
+	latex2html -show_section_numbers -local_icons perfbook_html
 
 extraction: perfbook_flat.tex
 	cat perfbook_flat.tex qqz.tex | sh utilities/extractcontrib.sh > contrib.tex
