@@ -1558,20 +1558,20 @@ represent \co{counter} and the low-order 16 bits to represent
   8 #define MAX_COUNTERMAX ((1 << CM_BITS) - 1)
   9 
  10 static void
- 11 split_counterandmax_int(int cami, int *c, int *cm)
+ 11 split_ctrandmax_int(int cami, int *c, int *cm)
  12 {
  13   *c = (cami >> CM_BITS) & MAX_COUNTERMAX;
  14   *cm = cami & MAX_COUNTERMAX;
  15 }
  16 
  17 static void
- 18 split_counterandmax(atomic_t *cam, int *old,
+ 18 split_ctrandmax(atomic_t *cam, int *old,
  19                     int *c, int *cm)
  20 {
  21   unsigned int cami = atomic_read(cam);
  22 
  23   *old = cami;
- 24   split_counterandmax_int(cami, c, cm);
+ 24   split_ctrandmax_int(cami, c, cm);
  25 }
  26 
  27 static int merge_counterandmax(int c, int cm)
@@ -1621,7 +1621,7 @@ gives the maximum value that may be held in either half of
 	standard?  What drawbacks would it have?)
 } \QuickQuizEnd
 
-Lines~10-15 show the \co{split_counterandmax_int()} function, which,
+Lines~10-15 show the \co{split_ctrandmax_int()} function, which,
 when given the underlying \co{int} from the \co{atomic_t
 counterandmax} variable.
 Line~13 isolates the most-significant half of this \co{int},
@@ -1629,10 +1629,10 @@ placing the result as specified by argument \co{c},
 and line~14 isolates the least-significant half of this \co{int},
 placing the result as specified by argument \co{cm}.
 
-Lines~17-25 show the \co{split_counterandmax()} function, which
+Lines~17-25 show the \co{split_ctrandmax()} function, which
 picks up the underlying \co{int} from the specified variable
 on line~21, stores it as specified by the \co{old} argument on
-line~23, and then invokes \co{split_counterandmax_int()} to split
+line~23, and then invokes \co{split_ctrandmax_int()} to split
 it on line~24.
 
 \QuickQuiz{}
@@ -1642,11 +1642,11 @@ it on line~24.
 \QuickQuizAnswer{
 	There is only one \co{counterandmax} variable \emph{per thread}.
 	Later, we will see code that needs to pass other threads'
-	\co{counterandmax} variables to \co{split_counterandmax()}.
+	\co{counterandmax} variables to \co{split_ctrandmax()}.
 } \QuickQuizEnd
 
 Lines~27-33 show the \co{merge_counterandmax()} function, which
-can be thought of as the inverse of \co{split_counterandmax()}.
+can be thought of as the inverse of \co{split_ctrandmax()}.
 Line~31 merges the \co{counter} and \co{countermax}
 values passed in \co{c} and \co{cm}, respectively, and returns
 the result.
@@ -1672,7 +1672,7 @@ the result.
   6   int new;
   7 
   8   do {
-  9     split_counterandmax(&counterandmax, &old, &c, &cm);
+  9     split_ctrandmax(&counterandmax, &old, &c, &cm);
  10     if (delta > MAX_COUNTERMAX || c + delta > cm)
  11       goto slowpath;
  12     new = merge_counterandmax(c + delta, cm);
@@ -1705,7 +1705,7 @@ the result.
  39   int new;
  40 
  41   do {
- 42     split_counterandmax(&counterandmax, &old, &c, &cm);
+ 42     split_ctrandmax(&counterandmax, &old, &c, &cm);
  43     if (delta > c)
  44       goto slowpath;
  45     new = merge_counterandmax(c - delta, cm);
@@ -1829,7 +1829,7 @@ the reader.
  10   sum = globalcount;
  11   for_each_thread(t)
  12     if (counterp[t] != NULL) {
- 13       split_counterandmax(counterp[t], &old, &c, &cm);
+ 13       split_ctrandmax(counterp[t], &old, &c, &cm);
  14       sum += c;
  15     }
  16   spin_unlock(&gblcnt_mutex);
@@ -1846,7 +1846,7 @@ Line~9 acquires \co{gblcnt_mutex} and line~16 releases it.
 Line~10 initializes local variable \co{sum} to the value of
 \co{globalcount}, and the loop spanning lines~11-15 adds the
 per-thread counters to this sum, isolating each per-thread counter
-using \co{split_counterandmax} on line 13.
+using \co{split_ctrandmax} on line 13.
 Finally, line~17 returns the sum.
 
 \begin{figure}[tbp]
@@ -1858,7 +1858,7 @@ Finally, line~17 returns the sum.
   4   int cm;
   5   int old;
   6 
-  7   split_counterandmax(&counterandmax, &old, &c, &cm);
+  7   split_ctrandmax(&counterandmax, &old, &c, &cm);
   8   globalcount += c;
   9   globalreserve -= cm;
  10   old = merge_counterandmax(0, 0);
@@ -1879,7 +1879,7 @@ Finally, line~17 returns the sum.
  25   for_each_thread(t)
  26     if (counterp[t] != NULL) {
  27       old = atomic_xchg(counterp[t], zero);
- 28       split_counterandmax_int(old, &c, &cm);
+ 28       split_ctrandmax_int(old, &c, &cm);
  29       globalcount += c;
  30       globalreserve -= cm;
  31     }
@@ -1987,12 +1987,12 @@ line~30 subtracts this thread's \co{countermax} from \co{globalreserve}.
 	Consider the following three cases:
 	\begin{enumerate}
 	\item	If \co{flush_local_count()}'s \co{atomic_xchg()} executes
-		before the \co{split_counterandmax()} of either fastpath,
+		before the \co{split_ctrandmax()} of either fastpath,
 		then the fastpath will see a zero \co{counter} and
 		\co{countermax}, and will thus transfer to the slowpath
 		(unless of course \co{delta} is zero).
 	\item	If \co{flush_local_count()}'s \co{atomic_xchg()} executes
-		after the \co{split_counterandmax()} of either fastpath,
+		after the \co{split_ctrandmax()} of either fastpath,
 		but before that fastpath's \co{atomic_cmpxchg()},
 		then the \co{atomic_cmpxchg()} will fail, causing the
 		fastpath to restart, which reduces to case~1 above.
