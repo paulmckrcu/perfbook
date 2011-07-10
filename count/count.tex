@@ -1548,7 +1548,7 @@ represent \co{counter} and the low-order 16 bits to represent
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
-  1 atomic_t __thread counterandmax = ATOMIC_INIT(0);
+  1 atomic_t __thread ctrandmax = ATOMIC_INIT(0);
   2 unsigned long globalcountmax = 10000;
   3 unsigned long globalcount = 0;
   4 unsigned long globalreserve = 0;
@@ -1574,7 +1574,7 @@ represent \co{counter} and the low-order 16 bits to represent
  24   split_ctrandmax_int(cami, c, cm);
  25 }
  26 
- 27 static int merge_counterandmax(int c, int cm)
+ 27 static int merge_ctrandmax(int c, int cm)
  28 {
  29   unsigned int cami;
  30 
@@ -1592,7 +1592,7 @@ are shown in
 Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}
 (\url{count_lim_atomic.c}).
 The \co{counter} and \co{countermax} variables in earlier algorithms
-are combined into the single variable \co{counterandmax} shown on
+are combined into the single variable \co{ctrandmax} shown on
 line~1, with \co{counter} in the upper half and \co{countermax} in
 the lower half.
 This variable is of type \co{atomic_t}, which has an underlying
@@ -1603,9 +1603,9 @@ Lines~2-6 show the definitions for \co{globalcountmax}, \co{globalcount},
 take on roles similar to their counterparts in
 Figure~\ref{fig:count:Approximate Limit Counter Variables}.
 Line~7 defines \co{CM_BITS}, which gives the number of bits in each half
-of \co{counterandmax}, and line~8 defines \co{MAX_COUNTERMAX}, which
+of \co{ctrandmax}, and line~8 defines \co{MAX_COUNTERMAX}, which
 gives the maximum value that may be held in either half of
-\co{counterandmax}.
+\co{ctrandmax}.
 
 \QuickQuiz{}
 	In what way does line~7 of
@@ -1623,7 +1623,7 @@ gives the maximum value that may be held in either half of
 
 Lines~10-15 show the \co{split_ctrandmax_int()} function, which,
 when given the underlying \co{int} from the \co{atomic_t
-counterandmax} variable.
+ctrandmax} variable.
 Line~13 isolates the most-significant half of this \co{int},
 placing the result as specified by argument \co{c},
 and line~14 isolates the least-significant half of this \co{int},
@@ -1636,23 +1636,23 @@ line~23, and then invokes \co{split_ctrandmax_int()} to split
 it on line~24.
 
 \QuickQuiz{}
-	Given that there is only one \co{counterandmax} variable,
+	Given that there is only one \co{ctrandmax} variable,
 	why bother passing in a pointer to it on line~18 of
 	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}?
 \QuickQuizAnswer{
-	There is only one \co{counterandmax} variable \emph{per thread}.
+	There is only one \co{ctrandmax} variable \emph{per thread}.
 	Later, we will see code that needs to pass other threads'
-	\co{counterandmax} variables to \co{split_ctrandmax()}.
+	\co{ctrandmax} variables to \co{split_ctrandmax()}.
 } \QuickQuizEnd
 
-Lines~27-33 show the \co{merge_counterandmax()} function, which
+Lines~27-33 show the \co{merge_ctrandmax()} function, which
 can be thought of as the inverse of \co{split_ctrandmax()}.
 Line~31 merges the \co{counter} and \co{countermax}
 values passed in \co{c} and \co{cm}, respectively, and returns
 the result.
 
 \QuickQuiz{}
-	Why does \co{merge_counterandmax()} in
+	Why does \co{merge_ctrandmax()} in
 	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}
 	return an \co{int} rather than storing directly into an
 	\co{atomic_t}?
@@ -1672,11 +1672,11 @@ the result.
   6   int new;
   7 
   8   do {
-  9     split_ctrandmax(&counterandmax, &old, &c, &cm);
+  9     split_ctrandmax(&ctrandmax, &old, &c, &cm);
  10     if (delta > MAX_COUNTERMAX || c + delta > cm)
  11       goto slowpath;
- 12     new = merge_counterandmax(c + delta, cm);
- 13   } while (atomic_cmpxchg(&counterandmax,
+ 12     new = merge_ctrandmax(c + delta, cm);
+ 13   } while (atomic_cmpxchg(&ctrandmax,
  14                           old, new) != old);
  15   return 1;
  16 slowpath:
@@ -1705,11 +1705,11 @@ the result.
  39   int new;
  40 
  41   do {
- 42     split_ctrandmax(&counterandmax, &old, &c, &cm);
+ 42     split_ctrandmax(&ctrandmax, &old, &c, &cm);
  43     if (delta > c)
  44       goto slowpath;
- 45     new = merge_counterandmax(c - delta, cm);
- 46   } while (atomic_cmpxchg(&counterandmax,
+ 45     new = merge_ctrandmax(c - delta, cm);
+ 46   } while (atomic_cmpxchg(&ctrandmax,
  47                           old, new) != old);
  48   return 1;
  49 slowpath:
@@ -1742,7 +1742,7 @@ with the remainder of the function being the slowpath.
 Lines~8-14 of the fastpath form a compare-and-swap (CAS) loop, with
 the \co{atomic_cmpxchg()} primitives on lines~13-14 performing the
 actual CAS.
-Line~9 splits the current thread's \co{counterandmax} variable into its
+Line~9 splits the current thread's \co{ctrandmax} variable into its
 \co{counter} (in \co{c}) and \co{countermax} (in \co{cm}) components,
 while placing the underlying \co{int} into \co{old}.
 Line~10 checks whether the amount \co{delta} can be accommodated
@@ -1751,7 +1751,7 @@ line~11 transfers to the slowpath.
 Otherwise, line~11 combines an updated \co{counter} value with the
 original \co{countermax} value into \co{new}.
 The \co{atomic_cmpxchg()} primitive on lines~13-14 then atomically
-compares this thread's \co{counterandmax} variable to \co{old},
+compares this thread's \co{ctrandmax} variable to \co{old},
 updating its value to \co{new} if the comparison succeeds.
 If the comparison succeeds, line~15 returns success, otherwise,
 execution continues in the loop at line~9.
@@ -1781,7 +1781,7 @@ execution continues in the loop at line~9.
 \QuickQuizAnswer{
 	Later, we will see how the \co{flush_local_count()} function in
 	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
-	might update this thread's \co{counterandmax} variable concurrently
+	might update this thread's \co{ctrandmax} variable concurrently
 	with the execution of the fastpath on lines~8-14 of
 	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}.
 } \QuickQuizEnd
@@ -1858,11 +1858,11 @@ Finally, line~17 returns the sum.
   4   int cm;
   5   int old;
   6 
-  7   split_ctrandmax(&counterandmax, &old, &c, &cm);
+  7   split_ctrandmax(&ctrandmax, &old, &c, &cm);
   8   globalcount += c;
   9   globalreserve -= cm;
- 10   old = merge_counterandmax(0, 0);
- 11   atomic_set(&counterandmax, old);
+ 10   old = merge_ctrandmax(0, 0);
+ 11   atomic_set(&ctrandmax, old);
  12 }
  13 
  14 static void flush_local_count(void)
@@ -1875,7 +1875,7 @@ Finally, line~17 returns the sum.
  21 
  22   if (globalreserve == 0)
  23     return;
- 24   zero = merge_counterandmax(0, 0);
+ 24   zero = merge_ctrandmax(0, 0);
  25   for_each_thread(t)
  26     if (counterp[t] != NULL) {
  27       old = atomic_xchg(counterp[t], zero);
@@ -1903,8 +1903,8 @@ Finally, line~17 returns the sum.
  49   if (c > globalcount)
  50     c = globalcount;
  51   globalcount -= c;
- 52   old = merge_counterandmax(c, cm);
- 53   atomic_set(&counterandmax, old);
+ 52   old = merge_ctrandmax(c, cm);
+ 53   atomic_set(&ctrandmax, old);
  54 }
  55 
  56 void count_register_thread(void)
@@ -1912,7 +1912,7 @@ Finally, line~17 returns the sum.
  58   int idx = smp_thread_id();
  59 
  60   spin_lock(&gblcnt_mutex);
- 61   counterp[idx] = &counterandmax;
+ 61   counterp[idx] = &ctrandmax;
  62   spin_unlock(&gblcnt_mutex);
  63 }
  64 
@@ -1941,7 +1941,7 @@ shows the utility functions
 The code for \co{globalize_count()} is shown on lines~1-12, and
 it is similar to that of previous algorithms, with the addition of
 line~7, which is now required to split out \co{counter} and
-\co{countermax} from \co{counterandmax}.
+\co{countermax} from \co{ctrandmax}.
 
 The code for \co{flush_local_count()}, which moves all threads' local
 counter state to the global counter, is shown on lines~14-32.
@@ -1961,12 +1961,12 @@ line~30 subtracts this thread's \co{countermax} from \co{globalreserve}.
 
 \QuickQuiz{}
 	What stops a thread from simply refilling its
-	\co{counterandmax} variable immediately after
+	\co{ctrandmax} variable immediately after
 	\co{flush_local_count()} on line 14 of
 	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
 	empties it?
 \QuickQuizAnswer{
-	This other thread cannot refill its \co{counterandmax}
+	This other thread cannot refill its \co{ctrandmax}
 	until the caller of \co{flush_local_count()} releases the
 	\co{gblcnt_mutex}.
 	By that time, the caller of \co{flush_local_count()} will have
@@ -1978,7 +1978,7 @@ line~30 subtracts this thread's \co{countermax} from \co{globalreserve}.
 \QuickQuiz{}
 	What prevents concurrent execution of the fastpath of either
 	\co{atomic_add()} or \co{atomic_sub()} from interfering with
-	the \co{counterandmax} variable while
+	the \co{ctrandmax} variable while
 	\co{flush_local_count()} is accessing it on line 27 of
 	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
 	empties it?
@@ -2000,15 +2000,15 @@ line~30 subtracts this thread's \co{countermax} from \co{globalreserve}.
 		after the \co{atomic_cmpxchg()} of either fastpath,
 		then the fastpath will (most likely) complete successfully
 		before \co{flush_local_count()} zeroes the thread's
-		\co{counterandmax} variable.
+		\co{ctrandmax} variable.
 	\end{enumerate}
 	Either way, the race is resolved correctly.
 } \QuickQuizEnd
 
 Lines~34-54 show the code for \co{balance_count()}, which refills
-the calling thread's local \co{counterandmax} variable.
+the calling thread's local \co{ctrandmax} variable.
 This function is quite similar to that of the preceding algorithms,
-with changes required to handle the merged \co{counterandmax} variable.
+with changes required to handle the merged \co{ctrandmax} variable.
 Detailed analysis of the code is left as an exercise for the reader,
 as it is with the \co{count_register_thread()} function starting on
 line~56 and the \co{count_unregister_thread()} function starting on
