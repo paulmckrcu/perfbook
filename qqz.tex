@@ -2613,6 +2613,116 @@ ret = ~ret & tmp;
 	data element can change while a thread is attempting to acquire
 	that element's lock on line~10!
 
+\QuickQAC{chp:Data Ownership}{Data Ownership}
+\QuickQ{}
+	What form of data ownership that is extremely difficult
+	to avoid using when creating shared-memory parallel programs
+	(for example, using pthreads) in C or C++?
+\QuickA{}
+	Use of auto variables in functions.
+	By default, these are private to the thread executing the
+	current function.
+
+\QuickQ{}
+	What synchronization remains in the example shown in
+	Section~\ref{sec:owned:Multiple Processes}?
+\QuickA{}
+	The creation of the threads via the \co{sh} \co{&} operator
+	and the joining of thread via the \co{sh} \co{wait}
+	command.
+
+	Of course, if the processes explicitly share memory, for
+	example, using the \co{shmget()} or \co{mmap()} system
+	calls, explicit synchronization might well be needed when
+	acccessing or updating the shared memory.
+	The processes might also synchronize using any of the following
+	interprocess communications mechanisms:
+	\begin{enumerate}
+	\item	System V semaphores.
+	\item	System V message queues.
+	\item	UNIX-domain sockets.
+	\item	Networking protocols, including TCP/IP, UDP, and a whole
+		host of others.
+	\item	File locking.
+	\item	Use of the \co{open()} system call with the
+		\co{O_CREAT} and \co{O_EXCL} flags.
+	\item	Use of the \co{rename()} system call.
+	\end{enumerate}
+	A complete list of possible synchronization mechanisms is left
+	as an exercise to the reader, who is warned that it will be
+	an extremely long list.
+	A surprising number of unassuming system calls can be pressed
+	into service as synchronization mechanisms.
+
+\QuickQ{}
+	Is there any shared data in the example shown in
+	Section~\ref{sec:owned:Multiple Processes}?
+\QuickA{}
+	That is a philosophical question.
+
+	Those wishing the answer ``no'' might argue that processes by
+	definition do not share memory.
+
+	Those wishing to answer ``yes'' might list a large number of
+	synchronization mechanisms that do not require shared memory,
+	note that the kernel will have some shared state, and perhaps
+	even argue that the assignment of process IDs (PIDs) constitute
+	shared data.
+
+	Such arguments are excellent intellectual exercise, and are
+	also a wonderful way of feeling intelligent, scoring points
+	against hapless classmates or colleagues,
+	and (especially!) avoiding getting anything useful done.
+
+\QuickQ{}
+	Does it ever make sense to have partial data ownership where
+	each thread reads only its own instance of a per-thread variable,
+	but writes to other threads' instances?
+\QuickA{}
+	Amazingly enough, yes.
+	One example is a simple message-passing system where threads post
+	messages to other threads' mailboxes, and where each thread
+	is responsible for removing any message it sent once that message
+	has been acted on.
+	Implementation of such an algorithm is left as an exercise for the
+	reader, as is the task of identifying other algorithms with
+	similar ownership patterns.
+
+\QuickQ{}
+	What mechanisms other than POSIX signals may be used to ship
+	functions?
+\QuickA{}
+	There is a very large number of such mechanisms, including:
+	\begin{enumerate}
+	\item	System V message queues.
+	\item	Shared-memory dequeue (see
+		Section~\ref{sec:SMPdesign:Double-Ended Queue}).
+	\item	Shared-memory mailboxes.
+	\item	UNIX-domain sockets.
+	\item	TCP/IP or UDP, possibly augmented by any number of
+		higher-level protocols, including RPC, HTTP,
+		XML, SOAP, and so on.
+	\end{enumerate}
+	Compilation of a complete list is left as an exercise to
+	sufficiently single-minded readers, who are warned that the
+	list will be extremely long.
+
+\QuickQ{}
+	Is it possible to obtain greater accuracy while still
+	maintaining full privacy of the per-thread data?
+\QuickA{}
+	Yes.
+	One approach is for \co{read_count()} to add the value
+	of its own per-thread variable.
+	This maintains full ownership and performance, but only
+	a slight improvement in accuracy, particulary on systems
+	with very large numbers of threads.
+
+	Another approach is for \co{read_count()} to use function
+	shipping, for example, in the form of per-thread signals.
+	This greatly improves accuracy, but at a significant performance
+	cost for \co{read_count()}.
+
 \QuickQAC{chp:Deferred Processing}{Deferred Processing}
 \QuickQ{}
 	Why not implement reference-acquisition using

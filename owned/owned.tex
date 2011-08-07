@@ -1,9 +1,254 @@
 % owned/owned.tex
 
-\chapter{Data Ownership}
-\label{chp:Data Ownership}
+\QuickQuizChapter{chp:Data Ownership}{Data Ownership}
 
-Per-CPU and per-task/process/thread data.
+One of the simplest ways to avoid the synchronization overhead that
+comes with locking is to parcel the data out among the threads (or,
+in the case of kernels, CPUs)
+so that a given piece of data is accessed and modified by only one
+of the threads.
+This approach is used extremely heavily, in fact, it is one usage
+pattern that even novices use almost instinctively.
+In fact, it is used so heavily that this chapter will not introduce
+any new examples, but will instead recycle examples from previous
+chapters.
+
+\QuickQuiz{}
+	What form of data ownership that is extremely difficult
+	to avoid using when creating shared-memory parallel programs
+	(for example, using pthreads) in C or C++?
+\QuickQuizAnswer{
+	Use of auto variables in functions.
+	By default, these are private to the thread executing the
+	current function.
+} \QuickQuizEnd
+
+@@@ Roadmap
+
+\section{Multiple Processes}
+\label{sec:owned:Multiple Processes}
+
+Section~\ref{sec:toolsoftrade:Scripting Languages}
+introduced the following example:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\scriptsize
+\begin{verbatim}
+  1 compute_it 1 > compute_it.1.out &
+  2 compute_it 2 > compute_it.2.out &
+  3 wait
+  4 cat compute_it.1.out
+  5 cat compute_it.2.out
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+This example runs two instances of the \co{compute_it} program in
+parallel, as separate processes that do not share memory.
+Therefore, all data in a given process is owned by that process,
+so that almost the entirety of data in the above example is owned.
+This approach almost entirely eliminates synchronization overhead.
+The resulting combination of extreme simplicity and optimal performance
+is obviously quite attractive.
+
+\QuickQuiz{}
+	What synchronization remains in the example shown in
+	Section~\ref{sec:owned:Multiple Processes}?
+\QuickQuizAnswer{
+	The creation of the threads via the \co{sh} \co{&} operator
+	and the joining of thread via the \co{sh} \co{wait}
+	command.
+
+	Of course, if the processes explicitly share memory, for
+	example, using the \co{shmget()} or \co{mmap()} system
+	calls, explicit synchronization might well be needed when
+	acccessing or updating the shared memory.
+	The processes might also synchronize using any of the following
+	interprocess communications mechanisms:
+	\begin{enumerate}
+	\item	System V semaphores.
+	\item	System V message queues.
+	\item	UNIX-domain sockets.
+	\item	Networking protocols, including TCP/IP, UDP, and a whole
+		host of others.
+	\item	File locking.
+	\item	Use of the \co{open()} system call with the
+		\co{O_CREAT} and \co{O_EXCL} flags.
+	\item	Use of the \co{rename()} system call.
+	\end{enumerate}
+	A complete list of possible synchronization mechanisms is left
+	as an exercise to the reader, who is warned that it will be
+	an extremely long list.
+	A surprising number of unassuming system calls can be pressed
+	into service as synchronization mechanisms.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Is there any shared data in the example shown in
+	Section~\ref{sec:owned:Multiple Processes}?
+\QuickQuizAnswer{
+	That is a philosophical question.
+
+	Those wishing the answer ``no'' might argue that processes by
+	definition do not share memory.
+
+	Those wishing to answer ``yes'' might list a large number of
+	synchronization mechanisms that do not require shared memory,
+	note that the kernel will have some shared state, and perhaps
+	even argue that the assignment of process IDs (PIDs) constitute
+	shared data.
+
+	Such arguments are excellent intellectual exercise, and are
+	also a wonderful way of feeling intelligent, scoring points
+	against hapless classmates or colleagues,
+	and (especially!) avoiding getting anything useful done.
+} \QuickQuizEnd
+
+This same pattern can be written in C as well as in \co{sh}, as illustrated by
+Figures~\ref{fig:toolsoftrade:Using the fork() Primitive}
+and~\ref{fig:toolsoftrade:Using the wait() Primitive}.
+
+The next section discusses use of data ownership in shared-memory
+parallel programs.
+
+\section{Partial Data Ownership and pthreads}
+\label{sec:owned:Partial Data Ownership and pthreads}
+
+Chapter~\ref{chp:Counting} makes heavy use of data ownership,
+but adds a twist.
+Threads are not allowed to modify data owned by other threads,
+but they are permitted to read it.
+In short, the use of shared memory allows more nuanced notions
+of ownership and access rights.
+
+For example, consider the per-thread statistical counter implementation
+shown in
+Figure~\ref{fig:count:Per-Thread Statistical Counters} on
+page~\ref{fig:count:Per-Thread Statistical Counters}.
+Here, \co{inc_count()} updates only the corresponding thread's
+instance of \co{counter},
+while \co{read_count()} accesses, but does not modify, all
+threads' instances of \co{counter}.
+
+\QuickQuiz{}
+	Does it ever make sense to have partial data ownership where
+	each thread reads only its own instance of a per-thread variable,
+	but writes to other threads' instances?
+\QuickQuizAnswer{
+	Amazingly enough, yes.
+	One example is a simple message-passing system where threads post
+	messages to other threads' mailboxes, and where each thread
+	is responsible for removing any message it sent once that message
+	has been acted on.
+	Implementation of such an algorithm is left as an exercise for the
+	reader, as is the task of identifying other algorithms with
+	similar ownership patterns.
+} \QuickQuizEnd
+
+\section{Function Shipping}
+\label{sec:owned:Function Shipping}
+
+The previous section described a weak form of data ownership where
+threads reached out to other threads' data.
+This can be thought of as bringing the data to the functions that
+need it.
+An alternative approach is to send the functions to the data.
+
+Such an approach is illustrated in
+Section~\ref{sec:count:Signal-Theft Limit Counter Design}
+beginning on
+page~\pageref{sec:count:Signal-Theft Limit Counter Design},
+in particular the \co{flush_local_count_sig()} and
+\co{flush_local_count()} functions in
+Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}
+on
+page~\pageref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}.
+
+The \co{flush_local_count_sig()} function is a signal handler that
+acts as the shipped function.
+The \co{pthread_kill()} function in \co{flush_local_count()}
+sends the signal---shipping the function---and then waits until
+the shipped function executes.
+This shipped function has the not-unusual added complication of
+needing to interact with any concurrently executing \co{add_count()}
+or \co{sub_count()} functions (see
+Figure~\ref{fig:count:Signal-Theft Limit Counter Add and Subtract Functions}
+on
+page~\pageref{fig:count:Signal-Theft Limit Counter Add and Subtract Functions}.
+
+\QuickQuiz{}
+	What mechanisms other than POSIX signals may be used to ship
+	functions?
+\QuickQuizAnswer{
+	There is a very large number of such mechanisms, including:
+	\begin{enumerate}
+	\item	System V message queues.
+	\item	Shared-memory dequeue (see
+		Section~\ref{sec:SMPdesign:Double-Ended Queue}).
+	\item	Shared-memory mailboxes.
+	\item	UNIX-domain sockets.
+	\item	TCP/IP or UDP, possibly augmented by any number of
+		higher-level protocols, including RPC, HTTP,
+		XML, SOAP, and so on.
+	\end{enumerate}
+	Compilation of a complete list is left as an exercise to
+	sufficiently single-minded readers, who are warned that the
+	list will be extremely long.
+} \QuickQuizEnd
+
+\section{Privatization}
+\label{sec:owned:Privatization}
+
+One way of improving the performance and scalability of a shared-memory
+parallel program is to transform it so as to convert shared data to
+private data that is owned by a particular thread.
+
+An excellent example of this is shown in the answer to one of the
+Quick Quizzes in
+Section~\ref{sec:SMPdesign:Dining Philosophers Problem},
+which uses privatization to produce a solution to the
+Dining Philosophers problem with much better performance and scalability
+than that of the standard textbook solution.
+The original problem has five philosophers sitting around the table
+with one fork between each adjacent pair of philosophers, which permits
+at most two philosophers to each concurrently.
+
+We can trivially privatize this problem by providing an additional five
+forks, so that each philosopher has his or her own private pair of forks.
+This allows all five philosophers to eat concurrently, and also offers
+a considerable reduction in the spread of certain types of disease.
+
+In other cases, privatization imposes costs.
+For example, consider the simple limit counter shown in
+Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read} on
+page~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}.
+This is an example of an algorithm were threads can read each others'
+data, but are only permitted to update their own data.
+A quick review of the algorithm shows that the only cross-thread
+accesses are in the summation loop in \co{read_count()}.
+If this loop is eliminated, we move to the more-efficient pure
+data ownership, but at the cost of a less-accurate result
+from \co{read_count()}.
+
+\QuickQuiz{}
+	Is it possible to obtain greater accuracy while still
+	maintaining full privacy of the per-thread data?
+\QuickQuizAnswer{
+	Yes.
+	One approach is for \co{read_count()} to add the value
+	of its own per-thread variable.
+	This maintains full ownership and performance, but only
+	a slight improvement in accuracy, particulary on systems
+	with very large numbers of threads.
+
+	Another approach is for \co{read_count()} to use function
+	shipping, for example, in the form of per-thread signals.
+	This greatly improves accuracy, but at a significant performance
+	cost for \co{read_count()}.
+} \QuickQuizEnd
+
+@@@
 
 Function shipping vs. data shipping.
 
