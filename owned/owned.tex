@@ -23,7 +23,23 @@ chapters.
 	current function.
 } \QuickQuizEnd
 
-@@@ Roadmap
+There are a number of approaches to data ownership.
+Section~\ref{sec:owned:Multiple Processes} presents the logical extreme
+in data ownership, where each thread has its own private address space.
+Section~\ref{sec:owned:Partial Data Ownership and pthreads} looks at
+the opposite extreme, where the data is shared, but different threads
+own different access rights to the data.
+Section~\ref{sec:owned:Function Shipping} describes function shipping,
+which is a way of allowing other threads to have indirect access to
+data owned by a particular thread.
+Section~\ref{sec:owned:Designated Thread} describes how designated
+threads can be assigned ownership of a specified function and the
+related data.
+Section~\ref{sec:owned:Privatization} discusses improving performance
+by transforming algorithms with shared data to instead use data ownership.
+Finally, Section~\ref{sec:owned:Other Uses of Data Ownership} lists
+a few software environments that feature data ownership as a
+first-class citizen.
 
 \section{Multiple Processes}
 \label{sec:owned:Multiple Processes}
@@ -203,6 +219,46 @@ page~\pageref{fig:count:Signal-Theft Limit Counter Add and Subtract Functions}).
 	Compilation of a complete list is left as an exercise to
 	sufficiently single-minded readers, who are warned that the
 	list will be extremely long.
+} \QuickQuizEnd
+
+\section{Designated Thread}
+\label{sec:owned:Designated Thread}
+
+The earlier sections describe ways of allowing each thread to keep its
+own copy or its own portion of the data.
+In contrast, this section describes a functional-decomposition approach,
+where a special designated thread that owns the rights to the data
+that is required to do its job.
+The eventually consistent counter implementation described in
+Section~\ref{sec:count:Eventually Consistent Implementation}.
+This implementation has a designated thread that runs the
+\co{eventual()} function shown on lines~15-32 of
+Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}.
+This \co{eventual()} thread periodically pulls the per-thread counts
+into the global counter, so that accesses to the global counter will,
+as the name says, eventually converge on the actual value.
+
+\QuickQuiz{}
+	But none of the data in the \co{eventual()} function shown on
+	lines~15-32 of
+	Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
+	is actually owned by the \co{eventual()} thread!
+	In just what way is this data ownership???
+\QuickQuizAnswer{
+	The key phrase is ``owns the rights to the data''.
+	In this case, the rights in question are the rights to access
+	the per-thread \co{counter} variable defined on line~1
+	of the figure.
+	This situation is similar to that described in
+	Section~\ref{sec:owned:Partial Data Ownership and pthreads}.
+
+	However, there really is data that is owned by the \co{eventual()}
+	thread, namely the \co{t} and \co{sum} variables defined on
+	lines~17 and~18 of the figure.
+
+	For other examples of designated threads, look at the kernel
+	threads in the Linux kernel, for example, those created by
+	\co{kthread_create()} and \co{kthread_run()}.
 } \QuickQuizEnd
 
 \section{Privatization}
