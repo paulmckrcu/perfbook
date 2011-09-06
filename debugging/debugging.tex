@@ -132,13 +132,45 @@ It helps if you deeply enjoy breaking things.
 	thus failing to generate truly destructive inputs.
 } \QuickQuizEnd
 
+But perhaps you are a super-programmer whose code is always perfect
+the first time every time.
+If so, congratulations!
+Feel free to skip this chapter, but
+I do hope that you will forgive my skepticism.
+You see, I have met far more people who claimed to be able
+to write perfect code the first time every time than I have
+people who were actually capable of carrying out this feat.
+And even if you really are a super-programmer, you just might
+find yourself debugging lesser mortals' work.
 
+This raises the question of why people are so lousy at programming.
+As near as I can tell, the answer is that people evolved to deal mostly
+with each other, animals, and simple inanimate objects.
+As a result, people expect other beings to understand their intent and
+to exhibit some degree of common sense.
+Computers usually fail spectacularly on both counts, particularly for
+those programming them using a general-purpose language.
+In addition, people expect that a fragmentary ``plan'', often
+merely a desire or wish, to nevertheless provide satisfactory results.
+In real life, this expectation is often met, because an intelligent
+being is executing the ``plan'', and can therefore adjust in real time
+to its many shortcomings.
+Besides which, if you are hunting or foraging, it is far better to
+hunt or forage in a random direction than to starve to death while
+planning for all possible situations that might arise.
+In contrast, when producing a program, any situation that is not properly
+planned for will result in a bug.
+
+In short, people's brains are not naturally adapted to program computers.
+This means that the individuals doing the programming must consciously
+adapt themselves to the task.
+One such adaptation is the careful use of validation, and hence this chapter.
 
 \section{Tracing}
 \label{sec:debugging:Tracing}
 
 When all else fails, add a \co{printk()}!
-Or a \co{printf()}, if you are working with user-mode applications.
+Or a \co{printf()}, if you are working with user-mode C-language applications.
 
 The rationale is simple: If you cannot figure out how execution reached
 a given point in the code, sprinkle print statements earlier in the
@@ -168,23 +200,228 @@ the Linux kernel) is LTTng~\cite{MathieuDesnoyers2009LFCollabSummit}.
 Each of these uses per-CPU buffers to allow data to be collected with
 extremely low overhead.
 
-Problems with brute-force debugging.
-The machine knows all, which is almost always more than your head
-can hold.
-Post-processing with scripts.
-But beware -- scripts won't necessarily notice surprising things.
+Tracing can be extremely useful, but it does have shortcomings.
+For example, although the machine really does know all,
+what it knows is almost always way more than your head can hold.
+For this reason, high-quality test suites normally come with sophisticated
+scripts to analyze the voluminous output.
+But beware---scripts won't necessarily notice surprising things.
+My rcutorture scripts are a case in point: Early versions of those
+scripts were quite satisfied with a test run in which RCU grace periods
+stalled indefinitely.
+This of course resulted in the scripts being modified to detect RCU
+grace-period stalls, but this does not change the fact that the scripts
+will only detects problems that I think to make them detect.
+The scripts are useful, but they are no substitute for me occasionally
+scanning the rcutorture output.
+
+Another problem with tracing and especially with \co{printk()} calls
+is that their overhead is often too much for production use.
+In some such cases, assertions can be helpful.
 
 \section{Assertions}
 \label{sec:debugging:Assertions}
 
-straight assertions (improvement over comments), lockdep.
+Assertions are usually implemented in the following manner:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\tt
+\scriptsize
+\begin{verbatim}
+  1 if (something_bad_is_happening())
+  2   complain();
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+This pattern is often encapsulated into C-preprocessor macros or
+language intrinsics, for example, in the Linux kernel, this might
+be represented as \co{WARN_ON(something_bad_is_happening())}.
+Of course, if \co{something_bad_is_happening()} quite frequently,
+the resulting output might obscure reports of other problems,
+in which case
+\co{WARN_ON_ONCE(something_bad_is_happening())} might be more appropriate.
+
+In parallel code, one especially bad something that might happen is that
+a function expecting to be called under a particular lock might be called
+without that lock being held.
+Such functions sometimes have header comments stating something like
+``The caller must hold \co{foo_lock} when calling this function'', but
+such a comment does no good unless someone actually reads it.
+An executable statement like \co{lock_is_held(&foo_lock)} carries far
+more force.
+
+The Linux kernel's lockdep facility~\cite{JonathanCorbet2006lockdep}
+takes this a step farther, reporting potential deadlocks as well as
+allowing functions to verify that the proper locks are held.
+Of course, this additional functionality incurs significant overhead,
+so that lockdep is not necessarily appropriate for production use.
+
+So what can be done in cases where checking is necessary, but where the
+overhead of runtime checking cannot be tolerated?
+One approach is static analysis, which is discussed in the next section.
 
 \section{Static Analysis}
 \label{sec:debugging:Static Analysis}
 
-Compiler warnings.
+Static analysis is a validation technique were one program takes a second
+program as input, reporting errors and vulnerabilities located in this
+second program.
+Interestingly enough, almost all programs are subjected to static analysis
+by their compilers or interpreters.
+These tools are of course far from perfect, but their ability to locate
+errors has improved immensely over the past few decades, in part because
+they now have much more than 64K bytes of memory in which to carry out their
+analysis.
 
 The sparse static analyzer.
+
+\section{Code Review}
+\label{sec:debugging:Code Review}
+
+Various code-review activities are special cases of static analysis, but
+with human beings doing the analysis.
+This section covers inspection, walkthroughs, and self-inspection.
+
+\subsection{Inspection}
+\label{sec:debugging:Inspection}
+
+Traditionally, formal code inspections take place in face-to-face meetings
+with formally defined roles: moderator, developer, and one or two other
+participants.
+The developer reads through the code, explaining what it is doing and
+why it works.
+The one or two other participants ask questions and raise issues, while
+the moderator's job is to resolve any conflicts and to take notes.
+This process can be extremely effective at locating bugs, particularly
+if all of the participants are familiar with the code at hand.
+
+However, this face-to-face formal procedure does not necessarily
+work well in the global Linux kernel community, although it might work
+well via an IRC session.
+Instead, individuals review code separately and provide comments via
+email or IRC.
+The note-taking is provided by email archives or IRC logs, and moderators
+volunteer their services as appropriate.
+Give or take the occasional flamewar, this process also works reasonably
+well, particularly if all of the participants are familiar with the
+code at hand.\footnote{
+	That said, one advantage of the Linux kernel community approach
+	over traditional formal inspections is the greater probability of
+	contributions from people \emph{not} familiar with the code.}
+
+It is quite likely that the Linux kernel community's review process
+is ripe for improvement:
+
+\begin{enumerate}
+\item	There is sometimes a shortage of people with the time and
+	expertise required to carry out an effective review.
+\item	Even though all review discussions are archived, they are
+	often ``lost'' in the sense that insights are forgotten and
+	people often fail to look up the discussions.
+	This can result in re-insertion of the same bugs.
+\item	It is sometimes difficult to resolve flamewars when they do
+	break out, especially when the combatants have disjoint
+	goals, experience, and vocabulary.
+\end{enumerate}
+
+\subsection{Walkthroughs}
+\label{sec:debugging:Walkthroughs}
+
+A traditional code walkthrough is similar to a formal inspection,
+except that the group
+``plays computer'' with the code, driven by specific test cases.
+A typical walkthrough team has a moderator, a secretary (who records
+bugs found), a testing expert (who generates the test cases) and
+perhaps one to two others.
+These can be extremely effective, albeit also extremely time-consuming.
+
+It has been some decades since I have participated in a formal
+walkthrough, and I suspect that a present-day walkthrough would
+use single-stepping debuggers.
+One could imagine a particularly sadistic procedure as follows:
+
+\begin{enumerate}
+\item	The tester presents the test case.
+\item	The moderator starts the code under a debugger, using the
+	specified test case as input.
+\item	Before each statement is executed, the developer is required
+	to predict the outcome of the statement and explain why
+	this outcome is correct.
+\item	If the outcome differs from that predicted by the developer,
+	this is taken as evidence of a potential bug.
+\item	In parallel code, a ``concurrency shark'' asks what code
+	might execute concurrently with this code, and why such
+	concurrency is harmless.
+\end{enumerate}
+
+Sadistic, certainly.
+Effective?
+Who knows?
+
+\subsection{Self-Inspection}
+\label{sec:debugging:Self-Inspection}
+
+Although developers are usually not all that effective at inspecting
+their own code, there are a number of situations where there is no
+reasonable alternative.
+For example, the developer might be the only person authorized to look
+at the code, other qualified developers might all be too busy, or
+the code in question might be sufficiently bizarre that the developer
+is unable to convince anyone else to take is seriously until after
+demonstrating a prototype.
+In these cases, the following procedure can be quite helpful:
+
+\begin{enumerate}
+\item	Write design document with requirements, diagrams for data structures,
+	and rationale for design choices.
+\item	Consult with experts, update the design document as needed.
+\item	Write the code in pen on paper, correct errors as you go.
+	Resist the temptation to refer to pre-existing nearly identical code
+	sequences, instead, copy them.
+\item	If there were errors, copy the code in pen on fresh paper, correcting
+	errors as you go.
+	Repeat until the last two copies are identical.
+\item	Produce proofs of correctness for any non-obvious code.
+\item	Where possible, test the code fragments from the bottom up.
+\item	When all the code is integrated, do full-up functional and
+	stress testing.
+\item	Once the code passes all tests, write code-level documentation,
+	perhaps as an extension to the design document discussed above.
+\end{enumerate}
+
+When I faithfully follow this procedure for new RCU code, there are
+normally only a few bugs left at the end.
+With some prominent exceptions~\cite{PaulEMcKenney2011RCU3.0trainwreck},
+I usually manage to locate these bugs before others do.
+
+\QuickQuiz{}
+	Why would anyone bother copying existing code in pen on paper???
+	Doesn't that just increase the probability of transcription errors?
+\QuickQuizAnswer{
+	If you are worried about transcription errors, please allow me
+	to be the first to introduce you to a really cool tool named
+	\co{diff}.
+	In addition, carrying out the copying can be quite valuable:
+	\begin{enumerate}
+	\item	If you are copying a lot of code, you are probably failing
+		to take advantage of an opportunity for abstraction.
+		The act of copying code can provide great motivation
+		for abstraction.
+	\item	Copying the code gives you an opportunity to think about
+		whether the code really works in its new setting.
+		Is there some non-obvious constraint, such as the need
+		to disable interrupts or to hold some lock?
+	\item	Copying the code also gives you time to consider whether
+		there is some better way to get the job done.
+	\end{enumerate}
+	So, yes, copy the code!
+} \QuickQuizEnd
+
+Although review and inspection by others is probably more efficient and
+effective, the above procedure can be quite helpful in cases where
+for whatever reason it is not feasible to involve others.
 
 \section{Probability and Heisenbugs}
 \label{sec:analysis:Probability and Heisenbugs}
@@ -192,13 +429,15 @@ The sparse static analyzer.
 So your parallel program fails.
 Sometimes.
 
-But you figured out the problem and now have a fix in place!
+But you used techniques from the earlier sections to locate
+the problem and now have a fix in place!
 Congratulations!!!
 
-But now how much testing do you have to do in order to be certain that
+Now the question is just how much testing must you do in order to b
+certain that
 you actually fixed the bug, as opposed to just reducing the probability
 of it occurring on the one hand or having fixed only one of several
-related bugs on the other?
+related bugs on the other.
 
 Unfortunately, the honest answer is that an infinite amount of testing
 is required to attain absolute certainty.
@@ -458,18 +697,18 @@ Measure bug probability as a function of configuration parameters,
 input, intensity of load, number of CPUs, etc.
 Set up experiments.
 
-\section{Profiling}
-\label{sec:analysis:Profiling}
-
-\section{Differential Profiling}
-\label{sec:analysis:Differential Profiling}
-
-{\em @@@ pull in concepts and methods from
-\url{http://www.rdrop.com/users/paulmck/scalability/paper/profiling.2002.06.04.pdf}.
-Also need tools work.}
-
 \section{Performance Estimation}
 \label{sec:analysis:Performance Estimation}
 
 {\em @@@ pull in concepts and methods from
 \url{http://www.rdrop.com/users/paulmck/scalability/paper/lockperf_J_DS.2002.05.22b.pdf}.}
+
+\subsection{Profiling}
+\label{sec:analysis:Profiling}
+
+\subsection{Differential Profiling}
+\label{sec:analysis:Differential Profiling}
+
+{\em @@@ pull in concepts and methods from
+\url{http://www.rdrop.com/users/paulmck/scalability/paper/profiling.2002.06.04.pdf}.
+Also need tools work.}
