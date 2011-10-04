@@ -28,7 +28,20 @@ However, this book is primarily about concurrency, so this chapter
 will necessarily do little more than scratch the surface of this
 critically important topic.
 
-@@@ roadmap
+Section~\ref{sec:debugging:Required Mindset}
+overviews the mindset required when validating software.
+Section~\ref{sec:debugging:Tracing}
+discusses tracing,
+Section~\ref{sec:debugging:Assertions}
+discusses assertions, and
+Section~\ref{sec:debugging:Static Analysis}
+discusses static analysis.
+Section~\ref{sec:debugging:Code Review}
+describes some unconventional approaches to code review that can
+be helpful when the fabled 10,000 eyes are not looking at your code.
+Section~\ref{sec:analysis:Probability and Heisenbugs}
+gives an overview of the use of probability for validating parallel software.
+More sections TBD.
 
 \section{Required Mindset}
 \label{sec:debugging:Required Mindset}
@@ -47,7 +60,8 @@ know about.
 Therefore, any validation effort undertaken on a non-trivial program
 that fails to find any bugs is itself a failure.
 A good validation is therefore an exercise in destruction.
-It helps if you deeply enjoy breaking things.
+This means that if you are the type of person who enjoys breaking things,
+validation is just the right type of job for you.
 
 \QuickQuiz{}
 	Suppose that you are writing a script that processes the
@@ -182,10 +196,13 @@ Much more sophisticated tools exist, with some of the more recent
 offering the ability to rewind backwards in time from the point
 of failure.
 
-These brute-force testing tools are all valuable, and much has been
-written about them, so this chapter will add little more.
+These brute-force testing tools are all valuable, especially now
+that typical systems have more than 64K of memory and CPUs running
+faster than 4MHz.
+Much has been
+written about these tools, so this chapter will add little more.
 
-However, they all have a serious shortcoming when the job at hand
+However, these tools all have a serious shortcoming when the job at hand
 is to convince a the fastpath of a high-performance parallel algorithm
 to tell you what is going wrong, namely, they often have excessive
 overheads.
@@ -242,6 +259,23 @@ Of course, if \co{something_bad_is_happening()} quite frequently,
 the resulting output might obscure reports of other problems,
 in which case
 \co{WARN_ON_ONCE(something_bad_is_happening())} might be more appropriate.
+
+\QuickQuiz{}
+	How can you implement \co{WARN_ON_ONCE()}?
+\QuickQuizAnswer{
+	If you don't mind having a \co{WARN_ON_ONCE()} that
+	will sometimes warn twice or three times, simply maintain
+	a static variable that is initialized to zero.
+	If the condition triggers, check the static variable, and
+	if it is non-zero, return.
+	Otherwise, set it to one, print the message, and return.
+
+	If you really need the message to never appear more than once,
+	perhaps because it is huge, you can use an atomic exchange
+	operation in place of ``set it to one'' above.
+	Print the message only if the atomic exchange operation returns
+	zero.
+} \QuickQuizEnd
 
 In parallel code, one especially bad something that might happen is that
 a function expecting to be called under a particular lock might be called
@@ -358,7 +392,11 @@ One could imagine a particularly sadistic procedure as follows:
 
 Sadistic, certainly.
 Effective?
-Who knows?
+Maybe.
+If the participants have a good understanding of the requirements,
+software tools, data structures, and algorithms, then walkthroughs
+can be extremely effective.
+If not, they are often a waste of time.
 
 \subsection{Self-Inspection}
 \label{sec:debugging:Self-Inspection}
@@ -478,6 +516,37 @@ Although review and inspection by others is probably more efficient and
 effective, the above procedures can be quite helpful in cases where
 for whatever reason it is not feasible to involve others.
 
+At this point, you might be wondering how to write parallel code without
+having to do all this boring paperwork.
+Here are some time-tested ways of accomplishing this:
+
+\begin{enumerate}
+\item	Write a sequential program that scales through use of
+	available parallel library functions.
+\item	Write sequential plug-ins for a parallel framework,
+	such as map-reduce, BOINC, or a web-application server.
+\item	Do such a good job of parallel design that the problem
+	is fully partitioned, then just implement sequential
+	program(s) that run in parallel without communication.
+\item	Stick to one of the application areas (such as linear algebra)
+	where tools exist to automatically decompose and parallelize
+	the problem.
+\item	Make extremely disciplined use of parallel-programming
+	primitives, so that it is easily seen to be correct.
+	But beware: It is always tempting to break the rules
+	``just a little bit'' to gain better performance or
+	scalability.
+	Breaking the rules often results in general breakage.
+	That is, unless you carefully do the paperwork described in this
+	section.
+\end{enumerate}
+
+But the sad fact is that even if you do the paperwork or use one of
+the above ways to more-or-less safely avoid paperwork,
+there will be bugs.
+The next section describes how to handle the probabilistic bugs that
+occur all too commonly when validating parallel software.
+
 \section{Probability and Heisenbugs}
 \label{sec:analysis:Probability and Heisenbugs}
 
@@ -527,6 +596,11 @@ is required to attain absolute certainty.
 	Of course, if your code is small enough, formal validation
 	may be helpful, as discussed in
 	Appendix~\ref{app:formal:Formal Verification}.
+	But beware: formal validation of your code will not find
+	errors in your assumptions, misunderstanding of the
+	requirements, misunderstanding of the software or hardware
+	primitives you use, or errors that you did not think to construct
+	a proof for.
 } \QuickQuizEnd
 
 But suppose that we are willing to give up absolute certainty in favor
