@@ -650,6 +650,19 @@ its write in its store buffer and continue executing.
 When the cache line does finally make its way from CPU 1 to CPU 0,
 the data will be moved from the store buffer to the cache line.
 
+\QuickQuiz{}
+	But if the main purpose of store buffers is to hide acknowledgment
+	latencies in multiprocessor cache-coherence protocols, why
+	do uniprocessors also have store buffers?
+\QuickQuizAnswer{
+	Because the purpose of store buffers is not just to hide
+	acknowledgement latencies in multiprocessor cache-coherence protocols,
+	but to hide memory latencies in general.
+	Because memory is much slower than is cache on uniprocessors,
+	store buffers on uniprocessors can help to hide write-miss
+	latencies.
+} \QuickQuizEnd
+
 \begin{figure}[htb]
 \begin{center}
 \resizebox{3in}{!}{\includegraphics{appendix/whymb/cacheSB}}
@@ -658,8 +671,19 @@ the data will be moved from the store buffer to the cache line.
 \label{fig:app:whymb:Caches With Store Buffers}
 \end{figure}
 
-However, there are complications that must be addressed, which
-are covered in the next two sections.
+These store buffers are local to a given CPU or, on systems with
+hardware multithreading, local to a given core.
+Either way, a given CPU is permitted to access only the store buffer
+assigned to it.
+For example, in
+Figure~\ref{fig:app:whymb:Caches With Store Buffers}, CPU~0 cannot
+access CPU~1's store buffer and vice versa.
+This restriction simplifies the hardware by separating concerns:
+The store buffer improves performance for consecutive writes, while
+the responsibility for communicating among CPUs (or cores, as the
+case may be) is fully shouldered by the cache-coherence protocol.
+However, even given this restriction, there are complications that must
+be addressed, which are covered in the next two sections.
 
 \subsection{Store Forwarding}
 \label{sec:app:whymb:Store Forwarding}
@@ -1212,7 +1236,8 @@ on an ordering-hostile architecture.
 \subsection{Ordering-Hostile Architecture}
 \label{sec:app:whymb:Ordering-Hostile Architecture}
 
-Paul has come across a number of ordering-hostile computer systems,
+A number of ordering-hostile computer systems have been produced over
+the decades,
 but the nature of the hostility has always been extremely subtle,
 and understanding it has required detailed knowledge of the specific
 hardware.
@@ -1273,7 +1298,7 @@ barriers executed by that CPU, however, the relative order of a
 given pair of CPUs' accesses could be severely reordered,
 as we will see.\footnote{
 	Any real hardware architect or designer will no doubt be
-	loudly calling for Ralph on the porcelain intercom,
+	objecting strenuously,
 	as they just might be just a bit upset about the prospect of working
 	out which queue should handle a message involving a cache line
 	that both CPUs accessed, to say nothing of the many races that
@@ -1866,7 +1891,7 @@ For more detail on Alpha, see the reference manual~\cite{ALPHA95}.
 
 \subsection{AMD64}
 
-AMD64 is compatible with x86, and has recently updated its memory
+AMD64 is compatible with x86, and has updated its documented memory
 model~\cite{AMDOpteron:2:2007}
 to enforce the tighter ordering that actual implementations have
 provided for some time.
@@ -2166,7 +2191,7 @@ no ordering guarantees for loads, so
 the {\tt smp\_mb()} and {\tt smp\_rmb()} primitives expand to {\tt lock;addl}.
 This atomic instruction acts as a barrier to both loads and stores.
 
-More recently, Intel has published a memory model for
+Intel has also published a memory model for
 x86~\cite{Intelx86MemoryOrdering2007}.
 It turns out that Intel's actual CPUs enforced tighter ordering than
 was claimed in the previous specifications, so this model is in effect
