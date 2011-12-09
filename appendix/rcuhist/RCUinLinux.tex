@@ -305,9 +305,20 @@ Amerigo Wang removed some dead code from \co{rcu_fixup_free()}.
 In addition, a new \co{rcu_access_index()} was created for use in the
 MCE subsystem.
 
-\subsection{What Comes After 2.6.39?}
+\subsection{3.0 Linux Kernel}
 
-At long last, priority boosting for Tree RCU should appear in 2.6.40.
+What many expected to be the 2.6.40 release became instead the 3.0 release.
+The most important RCU feature was the addition of priority boosting
+for Tree RCU: Important in more ways than
+planned~\cite{PaulEMcKenney2011RCU3.0trainwreck}, resulting in RCU
+fixes after 3.0-rc7.
+Kudos to Shaohua Li, Peter Zijlstra, Steven Rostedt for much help
+dealing with the fallout of the collision between RCU, the scheduler,
+and threaded interrupts.
+In addition, RCU CPU stall warnings are now unconditionally compiled
+into Tree RCU, though they may still be disabled via the
+\co{rcu_cpu_stall_suppress} module parameter, which may be controlled
+from either the kernel boot parameter string or \co{sysfs}.
 
 Mathieu Desnoyers enabled \co{DEBUG_OBJECTS_RCU_HEAD} checking to
 be carried out in non-preemptible RCU implementations.
@@ -318,17 +329,71 @@ and also made \co{TREE_RCU}'s \co{exit_rcu()} invoke
 rather than \co{rcu_read_unlock()} in case of a task exiting while
 in an RCU read-side critical section in order to preserve debugging
 state.
-Eric Dumazet further shrunk \co{TINY_RCU} and applied the new
-\co{kthread_create_on_node()} primitive to ensure that RCU's
-kthreads have memory placed optimally on NUMA systems.
+Eric Dumazet further shrank \co{TINY_RCU} and
 Gleb Natapov added RCU hooks to allow virtualization to call RCU's
 attention to quiescent states that occur when switching context to
 and from a guest OS.
 Peter Zijlstra streamlined RCU kthread blocking and wakeup.
 
-The design for pulling SRCU into the Tree RCU implementation is still
-looking reasonably good, aside from interactions with the soft-lockup code.
-However, it will still likely be a few releases before SRCU is pulled
+\subsection{3.1 Linux Kernel}
+
+The 3.1 version was a quiet time for RCU, with cleanups and minor fixes
+from Arun Sharma, Jiri Kosina, Michal Hocko, Peter Zijlstra,
+and Jan H. Sch\"{o}nherr.
+
+\subsection{What comes after 3.1?}
+
+The 3.2 Linux kernel will contain the first installment of RCU event tracing,
+along with a number of fixes to issues located during the first phase
+of a top-to-bottom inspection of RCU's code.
+One ill-fated fix attempted to continue allowing RCU read-side
+critical sections to overlap with irq-disable code sections,
+but this will likely be backed out due to mutex maintainability issues
+with this fix.
+Therefore, do not code RCU read-side critical sections that partially
+overlap with irq-disable code sections:
+Instead, either fully enclose the irq-disable code sections within a
+given RCU read-side critical section or vice versa.
+Diagnostics will be added to check for this.
+You have been warned!
+
+Eric Dumazet applied the new
+\co{kthread_create_on_node()} primitive to ensure that RCU's
+kthreads have memory placed optimally on NUMA systems.
+He also
+made the \co{rcu_assign_pointer()} unconditionally insert a
+memory barrier because the earlier compiler magic permitting this
+barrier to be omitted under certain circumstances fails in newer
+versions of the compiler.
+Therefore, when assigning \co{NULL} to an RCU-protected pointer,
+use \co{RCU_INIT_POINTER()} rather than \co{rcu_assign_pointer()}.
+
+Shaohua Li eliminated an unnecessary self-wakeup of RCU's per-CPU
+kthreads, and Andi Kleen cleaned up some conflicting variable
+declarations.
+Finally, Mike Galbraith fixed a bug that caused RCU to ignore the
+\co{RCU_BOOST_PRIO} kernel parameter.
+
+The 3.3 Linux kernel will contain additional event tracing,
+energy-efficiency improvements that reduce RCU's need for
+scheduling-clock ticks from otherwise idle CPUs,
+a new \co{srcu_read_lock_raw()} primitive needed by uprobes,
+additional fixes for issues located in the still-ongoing top-to-bottom
+inspection of RCU,
+and improvements to \co{rcutorture} that enable scripted KVM-based
+testing of RCU, independent of the type or presence of userspace layout.
+
+Also included will be some \co{-rt} RCU patches from Thomas Gleixner,
+a number of RCU-infrastructure patches from Frederic Weisbecker
+in support of the long-hoped-for application of dyntick-idle mode
+to usermode execution, and an ill-fated fix from Yong Zhang.
+
+Longer term, the design for pulling SRCU into the Tree RCU implementation
+is still looking reasonably good, aside from interactions with the
+soft-lockup code, need for per-CPU real-time threads, interaction
+with odd corners of RCU priority boosting, and probably a few other
+unanticipated issues.
+Therefore, it will still likely be a few more releases before SRCU is pulled
 into Tree RCU and Tiny RCU.
 
 There has been an initial request for \co{rcu_barrier_expedited()},
