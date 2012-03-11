@@ -1086,6 +1086,79 @@ Furthermore, I have no doubt that the Linux community will continue to
 find interesting new uses for RCU,
 as well as for any of a number of other synchronization primitives.
 
+\begin{figure}[tbh]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{defer/RCUApplicability}}
+\end{center}
+\caption{RCU Areas of Applicability}
+\label{fig:defer:RCU Areas of Applicability}
+\end{figure}
+
+In the meantime,
+Figure~\ref{fig:defer:RCU Areas of Applicability}
+shows some rough rules of thumb on where RCU is most helpful.
+
+As shown in the blue box, RCU works best if you have read-mostly
+data where stale and inconsistent
+data is permissible (but see below for more information on stale and
+inconsistent data).
+The canonical example of this case in the Linux kernel is routing tables.
+Because it may have taken many seconds or even minutes for the
+routing updates to propagate across Internet, the system
+has been sending packets the wrong way for quite some time.
+Having some small probability of continuing to send some of them the wrong
+way for a few more milliseconds is almost never a problem.
+
+If you have a read-mostly workload where consistent data is required,
+RCU works well, as shown by the green box.
+One example of this case is the Linux kernel's mapping from user-level
+System-V semaphore IDs to the corresponding in-kernel data structures.
+Semaphores tend to be used far more frequently than they are created
+and destroyed, so this mapping is read-mostly.
+However, it would be erroneous to perform a semaphore operation on
+a semaphore that has already been deleted.
+This need for consistency is handled by using the lock in the
+in-kernel semaphore data structure, along with a ``deleted''
+flag that is set when deleting a semaphore.
+If a user ID maps to an in-kernel data structure with the
+``deleted'' flag set, the data structure is ignored, so that
+the user ID is flagged as invalid.
+
+Although this requires that the readers acquire a lock for the
+data structure representing the semaphore itself,
+it allows them to dispense with locking for the
+mapping data structure.
+The readers therefore locklessly
+traverse the tree used to map from ID to data structure,
+which in turn greatly improves performance, scalability, and
+real-time response.
+
+As indicated by the yellow box, RCU can also be useful for read-write
+workloads where consistent data is required, although usually in
+conjunction with a number of other synchronization primitives.
+For example, the dentry cache in recent Linux kernels uses RCU in
+conjunction with sequence locks, per-CPU locks, and per-data-structure
+locks to allow lockless traversal of pathnames in the common case.
+Although RCU can be very beneficial in this read-write case, such
+use is often more complex than that of the read-mostly cases.
+
+Finally, as indicated by the red box, update-mostly workloads requiring
+consistent data are rarely good places to use RCU, though there are some
+exceptions~\cite{MathieuDesnoyers2012URCU}.
+In addition, as noted in
+Section~\ref{sec:deferRCU is a Way of Providing Type-Safe Memory},
+within the Linux kernel, the \co{SLAB_DESTROY_BY_RCU}
+slab-allocator flag provides type-safe memory to RCU readers, which can
+greatly simplify non-blocking synchronization and other lockless
+algorithms.
+
+In short, RCU is an API that includes a publish-subscribe mechanism for
+adding new data, a way of waiting for pre-existing RCU readers to finish,
+and a discipline of maintaining multiple versions to allow updates to
+avoid harming or unduly delaying concurrent RCU readers.
+This RCU API is best suited for read-mostly situations, especially if
+stale and inconsistent data can be tolerated by the application.
+
 % <h3>Acknowledgements</h3> @@@
 %
 % We are all indebted to Andy Whitcroft, Jon Walpole, and Gautham Shenoy,
