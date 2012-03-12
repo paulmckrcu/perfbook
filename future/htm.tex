@@ -494,6 +494,8 @@ But if this empty critical section is translated to a transaction,
 the result is a no-op.
 The guarantee that all prior critical sections have terminated is
 lost.
+In other words, transactional lock elision preserves the data-protection
+semantics of locking, but loses locking's messaging semantics.
 
 \QuickQuiz{}
 	But why would \emph{anyone} need an empty lock-based critical
@@ -501,6 +503,169 @@ lost.
 \QuickQuizAnswer{
 	See the answer to the Quick Quiz in
 	Section~\ref{sec:locking:Exclusive Locks}.
+
+	The following expands on the second example in that Quick
+	Quiz answer to produce something that is free of data races.
+	Recall that this example involved
+	a multithreaded user-space application where
+	each thread processes unit of work maintained in a per-thread
+	list, where thread are prohibited from touching each others'
+	lists.
+	There could also be updates that require that all previously
+	scheduled units of work have completed before the update can
+	progress, for example, the application might sometimes need to
+	enter a recovery mode to deal with errors or other exceptional
+	conditions.
+	Each thread would check for recovery mode under a reader-writer
+	lock (call it \co{R}), possibly implemented using a per-thread
+	lock~\cite{WilsonCHsieh92a} for read-side performance and
+	scalability.
+	If the recovery-mode flag was set, the thread would schedule a
+	unit of work designed to operate in recovery mode, otherwise
+	it would schedule a normal (presumably more efficient) unit of
+	work.
+
+	One way to handle a transition to or from recovery mode
+	is to write-acquire \co{R} and then schedule a unit of work on each
+	thread, so that when all of these units of work complete, the
+	recovery-mode processing may proceed.
+
+	In some applications, threads can come and go.
+	For example, each thread might correspond to one user of the
+	application, and thus be removed when that user logs out or
+	otherwise disconnects.
+	In many applications, threads cannot depart atomically: They must
+	instead explicitly unravel themselves from various portions of
+	the application using a specific sequence of actions.
+	One specific action will be refusing to accept further requests
+	from other threads, and another specific action will be disposing
+	of any remaining units of work on its list, for example, by
+	placing these units of work in a global work-item-disposal list
+	to be taken by one of the remaining threads.
+	(Why not just drain the thread's work-item list by executing
+	each item?
+	Because a given work item might generate more work items, so
+	that the list could not be drained in a timely fashion.)
+
+	If the application is to perform and scale well, a good locking
+	design is required.
+	One solution is to have a global lock (call it \co{G})
+	protecting the entire
+	process of departing (and perhaps other things as well),
+	with finer-grained locks protecting the
+	individual unraveling operations.
+	This approach works well when threads come and go relatively
+	infrequently.
+
+	Now, a departing thread must clearly refuse to accept further
+	requests before disposing of the work on its list, because
+	otherwise additional work might arrive after the disposal action,
+	which would render that disposal action ineffective.
+	So simplified pseudocode for a departing thread might be as follows:
+
+	\begin{enumerate}
+	\item	Acquire lock \co{G}.
+	\item	Acquire the lock guarding communications.
+	\item	Refuse further communications from other threads.
+	\item	Release the lock guarding communications.
+	\item	Acquire the lock guarding the global work-item-disposal list.
+	\item	Move all pending work items to the global
+		work-item-disposal list.
+	\item	Release the lock guarding the global work-item-disposal list.
+	\item	Release lock \co{G}.
+	\end{enumerate}
+
+	Of course, a thread that needs to wait for all pre-existing work
+	items will need to take departing threads into account.
+	To see this, suppose that this thread starts waiting for all
+	pre-existing work items just after a departing thread has refused
+	further communications from other threads.
+	How can this thread wait for the departing thread's work items
+	to complete, keeping in mind that threads are not allowed to
+	access each others' lists of work items?
+
+	One straightforward approach is for this thread to acquire \co{G}
+	and then the lock guarding the global work-item-disposal list, then
+	move the work items to its own list.
+	The thread then release both locks,
+	places a work item on the end of it own list,
+	and then wait for all of the work items that it placed on each thread's
+	list (including its own) to complete.
+
+	This approach does work well in many cases, but if special
+	processing is required for each work item as it is pulled in
+	from the global work-item-disposal list, the result could be
+	excessive contention on \co{G}.
+	One way to avoid that contention is to acquire \co{G} and then
+	immediately release it.
+	Then the process of transitioning to recovery mode looks
+	something like the following:
+
+	\begin{enumerate}
+	\item	Write-acquire \co{R}.
+	\item	Set the recovery-mode flag to true.
+	\item	Write-release \co{R}.
+	\item	Set a global counter to one and initialize a condition
+		variable to zero.
+	\item	Send a message to all threads to cause them to atomically
+		increment the global counter, and then to enqueue a
+		work item.
+		The work item will atomically decrement the global
+		counter, and if the result is zero, it will set a
+		condition variable to one.
+	\item	Acquire \co{G}, which will wait on any currently departing
+		thread to finish departing.
+		Because only one thread may depart at a time, all the
+		remaining threads will have already received the message
+		sent in the preceding step.
+	\item	Release \co{G}.
+	\item	Acquire the lock guarding the global work-item-disposal list.
+	\item	Move all work items from the global work-item-disposal list
+		to this thread's list, processing them as needed along the way.
+	\item	Release the lock guarding the global work-item-disposal list.
+	\item	Enqueue an additional work item onto this thread's list.
+		(As before, this work item will atomically decrement
+		the global counter, and if the result is zero, it will
+		set a condition variable to one.)
+	\item	Wait for the condition variable to take on the value one.
+	\item	Recovery-mode processing may now begin.
+	\end{enumerate}
+
+	Once this procedure completes, all pre-existing work items are
+	guaranteed to have completed.
+	The empty critical sections are using locking for messaging as
+	well as for protection of data, and cannot be subjected to
+	transactional lock elision.
+
+	Note also that it is quite possible that programs might rely
+	on messaging semantics for locking even though it has no
+	empty critical sections.
+	The reason for the focus on empty critical sections is that
+	they clearly cannot be relying on anything other than locking's
+	messaging semantics.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Can't transactional lock elision trivially handle locking's
+	messaging semantics
+	by simply choosing not to elide empty lock-based critical sections?
+\QuickQuizAnswer{
+	It could do so, but this would be both unnecessary and
+	insufficient.
+
+	It would be unnecessary in cases where the empty critical section
+	was due to conditional compilation.
+	Here, it might well be that the only purpose of the lock was to
+	protect data, so eliding it completely would be the right thing
+	to do.
+	In fact, leaving the empty lock-based critical section would
+	degrade performance and scalability.
+
+	On the other hand, it is possible for a non-empty lock-based
+	critical section to be relying on both the data-protection
+	and messaging semantics of locking.
+	Using transactional lock elision in such a case would be
+	incorrect, and would result in bugs.
 } \QuickQuizEnd
 
 Given that experience will likely uncover additional subtle semantic
