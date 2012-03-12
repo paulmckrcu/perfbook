@@ -4929,6 +4929,79 @@ srcu_read_unlock(&srcucb, idx);
 	software-engineering viewpoint is left as an exercise for
 	the reader.
 
+\QuickQ{}
+	Why would it matter that oft-written variables shared the cache
+	line with the lock variable?
+\QuickA{}
+	If the lock is in the same cacheline as some of the variables
+	that it is protecting, then writes to those variables by one CPU
+	will invalidate that cache line for all the other CPUs.
+	These invalidations will
+	generate large numbers of conflicts and retries, perhaps even
+	degrading performance and scalability compared to locking.
+
+\QuickQ{}
+	Why are relatively small updates important to HTM performance
+	and scalability?
+\QuickA{}
+	The larger the updates, the greater the probability of conflict,
+	and thus the greater probability of retries, which degrade
+	performance.
+
+\QuickQ{}
+	How could a red-black tree possibly efficiently enumerate all
+	elements of the tree regardless of choice of synchronization
+	mechanism???
+\QuickA{}
+	In many cases, the enumeration need not be exact.
+	In these cases, hazard pointers or RCU may be used to protect
+	readers with low probability of conflict with any given insertion
+	or deletion.
+
+\QuickQ{}
+	But why can't a debugger emulate single stepping by setting
+	breakpoints at successive lines of the transaction, relying
+	on the retry to retrace the steps of the earlier instances
+	of the transaction?
+\QuickA{}
+	This scheme might work with reasonably high probability, but it
+	can fail in ways that would be quite surprising to most users.
+	To see this, consider the following transaction:
+
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\small
+\begin{verbatim}
+  1 begin_trans();
+  2 if (a) {
+  3   do_one_thing();
+  4   do_another_thing();
+  5 } else {
+  6   do_a_third_thing();
+  7   do_a_fourth_thing();
+  8 }
+  9 end_trans();
+\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+
+	Suppose that the user sets a breakpoint at line 3, which triggers,
+	aborting the transaction and entering the debugger.
+	Suppose that between the time that the breakpoint triggers
+	and the debugger gets around to stopping all the threads, some
+	other thread sets the value of \co{a} to zero.
+	When the poor user attempts to single-step the program, surprise!
+	The program is now in the else-clause instead of the then-clause.
+
+	This is \emph{not} what I call an easy-to-use debugger.
+
+\QuickQ{}
+	But why would \emph{anyone} need an empty lock-based critical
+	section???
+\QuickA{}
+	See the answer to the Quick Quiz in
+	Section~\ref{sec:locking:Exclusive Locks}.
+
 \QuickQAC{cha:app:Important Questions}{Important Questions}
 \QuickQ{}
 	What SMP coding errors can you see in these examples?

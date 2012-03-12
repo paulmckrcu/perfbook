@@ -1,0 +1,816 @@
+% future/htm.tex
+
+\section{Hardware Transactional Memory}
+\label{sec:future:Hardware Transactional Memory}
+
+As of early 2012, hardware transactional memory (HTM) is starting to emerge
+into commercially available commodity computer systems.
+This section makes a first attempt to find its place in the parallel
+programmer's toolbox.
+
+From a conceptual viewpoint, HTM uses processor caches and speculative
+execution to make a designated group of statements (a ``transaction'')
+take effect atomically
+from the viewpoint of any other transactions running on other processors.
+This transaction is initiated by a
+begin-transaction machine instruction and completed by a commit-transaction
+machine instruction.
+There is typically also an abort-transaction machine instruction, which
+squashes the speculation (as if the begin-transaction instruction and
+all following instructions had not executed) and commences execution
+at a failure handler.
+The location of the failure handler is typically specified by the
+begin-transaction instruction, either as an explicit failure-handler
+address or via a condition code set by the instruction itself.
+Each transaction executes atomically with respect to all other transactions.
+
+HTM has a number of important benefits, including automatic
+dynamic partitioning of data structures, reducing synchronization-primitive
+cache misses, and supporting a fair number of practical applications.
+
+However, it always pays to read the fine print, and HTM is no exception.
+A major point of this section is determining under what conditions HTM's
+benefits outweigh the complications hidden in its fine print.
+To this end, Section~\ref{sec:future:HTM Benefits WRT to Locking}
+describes HTM's benefits and
+Section~\ref{sec:future:HTM Weaknesses WRT Locking} describes its weaknesses.
+This is the same approach used in earlier
+papers~\cite{McKenney2007PLOSTM,PaulEMcKenney2010OSRGrassGreener},
+but focused on HTM rather than TM as a whole.\footnote{
+	And I gratefully acknowledge many stimulating
+	discussions with the other authors, Maged Michael, Josh Triplett,
+	and Jonathan Walpole, as well as with Andi Kleen.}
+
+Section~\ref{sec:future:HTM Weaknesses WRT to Locking When Augmented} then describes
+HTM's weaknesses with respect to the combination of synchronization
+primitives used in the Linux kernel (and in some user-space applications).
+Section~\ref{sec:future:Where Does HTM Best Fit In?} looks at where HTM
+might best fit into the parallel programmer's toolbox, and
+Section~\ref{sec:future:Potential Game Changers} lists some events that might
+greatly increase HTM's scope and appeal.
+Finally, Section~\ref{sec:future:Conclusions}
+presents concluding remarks.
+
+\subsection{HTM Benefits WRT to Locking}
+\label{sec:future:HTM Benefits WRT to Locking}
+
+The primary benefits of HTM are
+(1)~its avoidance of the cache misses that are often incurred by
+other synchronization primitives,
+(2)~its ability to dynamically partition
+data structures,
+and (3)~the fact that it has
+a fair number of practical applications.
+I break from TM tradition by not listing ease of use separately
+for two reasons.
+First, ease of use should stem from HTM's primary benefits,
+which this paper focuses on.
+Second, there has been considerable controversy surrounding attempts to
+test for raw programming
+talent~\cite{RichardBornat2006SheepGoats,SaeedDehnadi2009SheepGoats}
+and even around the use of small programming exercises in job
+interviews~\cite{RegBraithwaite2007FizzBuzz}.
+This indicates that we really do not have a grasp on what makes
+programming easy or hard.
+Therefore, this paper focuses on the three benefits listed above,
+each in one of the following sections.
+
+\subsubsection{Avoiding Synchronization Cache Misses}
+\label{sec:future:Avoiding Synchronization Cache Misses}
+
+Most synchronization mechanisms are based on data structures that are
+operated on by atomic instructions.
+Because these atomic instructions normally operate by first causing
+the relevant cache line to be owned by the CPU that they are running on,
+a subsequent execution
+of the same instance of that synchronization primitive on some other
+CPU will result in a cache miss.
+These communications cache misses severely degrade both the performance and
+scalability of conventional synchronization
+mechanisms~\cite[Section 4.2.3]{Anderson97}.
+
+In contrast, HTM synchronizes by using the CPU's cache, avoiding the need
+for a synchronization data structure and resultant cache misses.
+HTM's advantage is greatest in cases where a lock data structure is
+placed in a separate cache line, in which case, converting a given
+critical section to an HTM transaction can reduce that critical section's
+overhead by a full cache miss.
+This savings can be quite significant for the common case of short
+critical sections, at least for those situations where the elided lock
+does not share a cache line with a oft-written variable protected by
+that lock.
+
+\QuickQuiz{}
+	Why would it matter that oft-written variables shared the cache
+	line with the lock variable?
+\QuickQuizAnswer{
+	If the lock is in the same cacheline as some of the variables
+	that it is protecting, then writes to those variables by one CPU
+	will invalidate that cache line for all the other CPUs.
+	These invalidations will
+	generate large numbers of conflicts and retries, perhaps even
+	degrading performance and scalability compared to locking.
+} \QuickQuizEnd
+
+\subsubsection{Dynamic Partitioning of Data Structures}
+\label{sec:future:Dynamic Partitioning of Data Structures}
+
+A major obstacle to the use of some conventional synchronization mechanisms
+is the need to statically partition data structures.
+There are a number of data structures that are trivially
+partitionable, with the most prominent example being hash tables,
+where each hash chain constitutes a partition.
+Allocating a lock for each hash chain then trivially parallelizes
+the hash table for operations confined to a given chain.\footnote{
+	And it is also easy to extend this scheme to operations accessing
+	multiple hash chains by having such operations acquire the
+	locks for all relevant chains in hash order.}
+Partitioning is similarly trivial for arrays, radix trees, and a few
+other data structures.
+
+However, partitioning for many types of trees and graphs is quite
+difficult, and the results are often quite complex~\cite{Ellis80}.
+Although it is possible to use two-phased locking and hashed arrays
+of locks to partition general data structures, other techniques
+have proven preferable~\cite{DavidSMiller2006HashedLocking},
+as will be discussed in
+Section~\ref{sec:future:HTM Weaknesses WRT to Locking When Augmented}.
+Given its avoidance of synchronization cache misses,
+HTM is therefore a very real possibility for large non-partitionable
+data structures, at least assuming relatively small updates.
+
+\QuickQuiz{}
+	Why are relatively small updates important to HTM performance
+	and scalability?
+\QuickQuizAnswer{
+	The larger the updates, the greater the probability of conflict,
+	and thus the greater probability of retries, which degrade
+	performance.
+} \QuickQuizEnd
+
+\subsubsection{Practical Value}
+\label{sec:future:Practical Value}
+
+Some evidence of HTM's practical value has been demonstrated in a number
+of hardware platforms, including
+Sun Rock~\cite{DaveDice2009ASPLOSRockHTM} and
+Azul Vega~\cite{CliffClick2009AzulHTM}.
+It is reasonable to assume that practical benefits will flow from the
+more recent IBM Blue Gene/Q, Intel Haswell TSX, and AMD AFS systems.
+
+Expected practical benefits include:
+
+\begin{enumerate}
+\item	Lock elision for in-memory data access and
+	update~\cite{Martinez01a,Rajwar02a}.
+\item	Concurrent access and small random updates to large non-partitionable
+	data structures.
+\end{enumerate}
+
+However, HTM also has some very real shortcomings, which will be discussed
+in the next section.
+
+\subsection{HTM Weaknesses WRT Locking}
+\label{sec:future:HTM Weaknesses WRT Locking}
+
+The concept of HTM is quite simple: A group of accesses and updates to
+memory occur atomically.
+However, as is the case with many simple ideas, complications arise
+when you apply it to real systems in the real world.
+These complications are as follows:
+
+\begin{enumerate}
+\item	Transaction-size limitations.
+\item	Conflict handling.
+\item	Aborts and rollbacks.
+\item	Lack of forward-progress guarantees.
+\item	Non-idempotent operations.
+\item	Semantic differences.
+\end{enumerate}
+
+Each of these complications is covered in the following sections,
+followed by a summary.
+
+\subsubsection{Transaction-Size Limitations}
+\label{sec:future:Transaction-Size Limitations}
+
+The transaction-size limitations of current HTM implementations
+stem from the use of the processor caches to hold the data
+affected by the transaction.
+Although this allows a given CPU to make the transaction appear atomic to
+other CPUs by executing the transaction within the confines of its cache,
+it also means that any transaction that does not fit must be aborted.
+Furthermore, events that change execution context, such as interrupts,
+system calls, exceptions, traps, and context switches either must
+abort any ongoing transaction on the CPU in question or must further
+restrict transaction size due to the cache footprint of the other
+execution context.
+
+Of course, modern CPUs tend to have large caches, and the data required
+for many transactions would fit easily in a one-megabyte cache.
+Unfortunately, with caches, sheer size is not all that matters.
+The problem is that most caches
+can be thought of hash tables implemented in hardware.
+However, hardware caches do not chain their buckets (which are normally
+called \emph{sets}), but rather
+provide a fixed number of cachelines per set.
+The number of elements provided for each set in a given cache
+is termed that cache's \emph{associativity}.
+
+Although cache associativity varies, the eight-way associativity of
+the level-0 cache on the laptop I am typing this on is not unusual.
+What this means is that if a given transaction needed to touch
+nine cache lines, and if all nine cache lines mapped to the same
+set, then that transaction cannot possibly complete, never mind how
+many megabytes of additional space might be available in that cache.
+Yes, given randomly selected data elements in a given data structure,
+the probability of that transaction being able to commit is quite
+high, but there can be no guarantee.
+
+There has been some research work to alleviate this limitation.
+Fully associative \emph{victim caches} would alleviate the associativity
+constraints, but there are currently stringent performance and
+energy-efficiency constraints on the sizes of victim caches.
+\emph{Unbounded transactional memory} (UTM)
+schemes~\cite{CScottAnanian2006,KevinEMoore2006}
+use DRAM as an extremely large victim cache, but integrating such schemes
+into a production-quality cache-coherence mechanism is still an unsolved
+problem.
+In addition, use of DRAM as a victim cache may have unfortunate
+performance and energy-efficiency consequences, particularly
+if the victim cache is to be fully associative.
+Finally, the ``unbounded'' aspect of UTM assumes that all of DRAM
+could be used as a victim cache, while in reality
+the large but still fixed amount of DRAM assigned to a given CPU
+would limit the size of that CPU's transactions.
+Other schemes use a combination of hardware and software transactional
+memory~\cite{SanjeevKumar2006} and one could imagine using STM as a
+fallback mechanism for HTM.
+
+However, to the best of my knowledge, currently available systems do
+not implement any of these research ideas, and perhaps for good reason.
+
+\subsubsection{Conflict Handling}
+\label{sec:future:Conflict Handling}
+
+The first complication is the possibility of \emph{conflicts}.
+For example, suppose that transactions~A and~B are defined as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\begin{verbatim}
+Trasaction A        Transaction B
+
+x = 1;              y = 2;
+y = 3;              x = 4;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+Suppose that each transaction executes concurrently on its own processor.
+If transaction~A stores to \co{x} at the same time that transaction~B
+stores to \co{y}, neither transaction can progress.
+To see this, suppose that transaction~A executes its store to \co{y}.
+Then transaction~A will be interleaved within transaction~B, in violation
+of the requirement that transactions execute atomically with respect to
+each other.
+Allowing transaction~B to execute its store to \co{x} similarly violates
+the atomic-execution requirement.
+This situation is termed a \emph{conflict}, which happens whenever two
+concurrent transactions access the same variable where at least one of
+the accesses is a store.
+The system is therefore obligated to abort one or both of the transactions
+in order to allow execution to progress.
+The choice of exactly which transaction to abort is an interesting topic
+that will very likely retain the ability to generate Ph.D. dissertations for
+some time to come, see for
+example~\cite{EgeAkpinar2011HTM2TLE}.\footnote{
+	Liu's and Spear's paper entitled ``Toxic
+	Transactions''~\cite{YujieLiu2011ToxicTransactions} is
+	particularly instructive in this regard.}
+For the purposes of this section, we can assume that the system makes
+a random choice.
+
+Another complication is conflict detection, which is comparatively
+straightforward, at least in the simplest case.
+When a processor is executing a transaction, it marks every cache line
+touched by that transaction.
+If the processor's cache receives a request involving a cache line that
+has been marked as touched by the current transaction, a potential
+conflict has occurred.
+More sophisticated systems might try to order the current processors'
+transaction to precede that of the processor sending the request,
+and optimization of this process will likely also retain the ability
+to generate Ph.D. dissertations for quite some time.
+However this section assumes a very simple conflict-detection strategy.
+
+However, for HTM to work effectively, the probability of conflict must
+be suitably low, which in turn requires that the data structures
+be organized so as to maintain a sufficiently low probability of conflict.
+For example, a red-black tree with simple insertion, deletion, and search
+operations fits this description, but a red-black
+tree that maintains an accurate count of the number of elements in
+the tree does not.\footnote{
+	The need to update the count would result in additions to and
+	deletions from the tree conflicting with each other, resulting
+	in strong non-commutativity~\cite{HagitAttiya2011LawsOfOrder,PaulEMcKenney2011SNC}.}
+For another example, a red-black tree that enumerates all elements in
+the tree in a single transaction will have high conflict probabilities,
+degrading performance and scalability.
+As a result, many serial programs will require some restructuring before
+HTM can work effectively.
+In some cases, practitioners will prefer to take the extra steps
+(in the red-black-tree case, perhaps switching to a partitionable
+data structure such as a radix tree or a hash table), and just
+use locking, particularly during the time before HTM is readily available
+on all relevant
+architectures~\cite{CliffClick2009AzulHTM}.
+
+\QuickQuiz{}
+	How could a red-black tree possibly efficiently enumerate all
+	elements of the tree regardless of choice of synchronization
+	mechanism???
+\QuickQuizAnswer{
+	In many cases, the enumeration need not be exact.
+	In these cases, hazard pointers or RCU may be used to protect
+	readers with low probability of conflict with any given insertion
+	or deletion.
+} \QuickQuizEnd
+
+Furthermore, the fact that conflicts can occur brings failure handling
+into the picture, as discussed in the next section.
+
+\subsubsection{Aborts and Rollbacks}
+\label{sec:future:Aborts and Rollbacks}
+
+Because any transaction might be aborted at any time, it is important
+that transactions contain no statements that cannot be rolled back.
+This means that transactions cannot do I/O, system calls, or debugging
+breakpoints (no single stepping in the debugger for HTM transactions!!!).
+Instead, transactions must confine themselves to accessing normal
+cached memory.
+Furthermore, on some systems, interrupts, exceptions, traps,
+TLB misses, and other events will also abort transactions.
+Given the number of bugs that have resulted from improper handling
+of error conditions, it is fair to ask what impact aborts and rollbacks
+have on ease of use.
+
+\QuickQuiz{}
+	But why can't a debugger emulate single stepping by setting
+	breakpoints at successive lines of the transaction, relying
+	on the retry to retrace the steps of the earlier instances
+	of the transaction?
+\QuickQuizAnswer{
+	This scheme might work with reasonably high probability, but it
+	can fail in ways that would be quite surprising to most users.
+	To see this, consider the following transaction:
+
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\small
+\begin{verbatim}
+  1 begin_trans();
+  2 if (a) {
+  3   do_one_thing();
+  4   do_another_thing();
+  5 } else {
+  6   do_a_third_thing();
+  7   do_a_fourth_thing();
+  8 }
+  9 end_trans();
+\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+
+	Suppose that the user sets a breakpoint at line 3, which triggers,
+	aborting the transaction and entering the debugger.
+	Suppose that between the time that the breakpoint triggers
+	and the debugger gets around to stopping all the threads, some
+	other thread sets the value of \co{a} to zero.
+	When the poor user attempts to single-step the program, surprise!
+	The program is now in the else-clause instead of the then-clause.
+
+	This is \emph{not} what I call an easy-to-use debugger.
+} \QuickQuizEnd
+
+Of course, aborts and rollbacks raise the question of whether HTM can
+be useful for hard realtime systems.
+Do the performance benefits of HTM outweigh the costs of the aborts
+and rollbacks, and if so under what conditions?
+Can transactions use priority boosting?
+Or should transactions for high-priority threads instead preferentially
+abort those of low-priority threads?
+If so, how is the hardware efficiently informed of priorities?
+The literature on realtime use of HTM is quite sparse, perhaps because
+researchers are finding more than enough problems in getting
+transactions to work well in non-realtime environments.
+
+Because current HTM implementations might deterministically abort a
+given transaction, software must provide fallback code.
+This fallback code must use some other form of synchronization, for
+example, locking.
+If the fallback is used frequently, then all the limitations of locking,
+including the possibility of deadlock, reappear.
+One can of course hope that the fallback isn't used often, which might
+allow simpler and less deadlock-prone locking designs to be used.
+But this raises the question of how the system transitions from using
+the lock-based fallbacks back to transactions.
+One approach is to use a test-and-test-and-set discipline~\cite{Martinez02a},
+so that everyone holds off until the lock is released, allowing the
+system to start from a clean slate in transactional mode at that point.
+However, this could result in quite a bit of spinning, which might not
+be wise if the lock holder has blocked or been preempted.
+Another approach is to allow transactions to proceed in parallel with
+a thread holding a lock~\cite{Martinez02a}, but this raises difficulties
+in maintaining atomicity, especially if the reason that the thread is
+holding the lock is because the corresponding transaction would not fit
+into cache.
+
+Finally, dealing with the possibility of aborts and rollbacks seems to
+put an additional burden on the developer, who must correctly handle
+all combinations of possible error conditions.
+
+It is clear that users of HTM must put considerable validation effort
+into testing both the fallback code paths and transition from fallback
+code back to transactional code.
+
+\subsubsection{Lack of Forward-Progress Guarantees}
+\label{sec:future:Lack of Forward-Progress Guarantees}
+
+Even though transaction size, conflicts, and aborts/rollbacks can all
+cause transactions to abort, one might hope that sufficiently small and
+short-duration transactions could be guaranteed to eventually succeed.
+This would permit a transaction to be unconditionally retried, in the
+same way that compare-and-swap (CAS) and load-linked/store-conditional
+(LL/SC) operations are unconditionally retried in code that uses these
+instructions to implement atomic operation.
+
+Unfortunately, no currently available HTM implementation makes any
+sort of forward-progress guarantee, which means that HTM cannot be
+used to avoid deadlock.\footnote{
+	HTM might well be used to reduce the probability of deadlock,
+	but as long as there is some possibility of the fallback
+	code being executed, there is some possibility of deadlock.}
+Hopefully future implementations of HTM will provide some sort of
+forward-progress guarantees.
+
+\subsubsection{Non-Idempotent Operations}
+\label{sec:future:Non-Idempotent Operations}
+
+Another consequence of aborts and rollbacks is that HTM transactions
+cannot accommodate non-idempotent operations.
+Current HTM implementations typically enforce this limitation by
+requiring that all of the accesses in the transaction be to cacheable
+memory (thus prohibiting MMIO accesses) and aborting transactions on
+interrupts, traps, and exceptions (thus prohibiting system calls).
+
+Note that buffered I/O can be accommodated by HTM transactions as
+long as the buffer fill/flush operations occur extra-transactionally.
+The reason that this works is that adding data to and removing data
+from the buffer is idempotent: Only the actual buffer fill/flush
+operations are non-idempotent.
+Of course, this buffered-I/O approach has the effect of including the I/O
+in the transaction's footprint, increasing the size of the transaction
+and thus increasing the probability of failure.
+
+\subsubsection{Semantic Differences}
+\label{sec:future:Semantic Differences}
+
+Although HTM can in many cases be used as a drop-in replacement for locking
+(hence the name transactional lock
+elision~\cite{DaveDice2008TransactLockElision}),
+there are subtle differences in semantics.
+A particularly nasty example involving coordinated lock-based critical
+sections that results in deadlock or livelock when executed transactionally
+was given by Blundell\cite{Blundell2006TMdeadlock}, but a much simpler
+example is the empty critical section.
+
+In a lock-based program, an empty critical section will guarantee
+that all processes that had previously been holding that lock have
+now released it.
+This idiom was used by the 2.4 Linux kernel's networking stack to
+coordinate changes in configuration.
+But if this empty critical section is translated to a transaction,
+the result is a no-op.
+The guarantee that all prior critical sections have terminated is
+lost.
+
+\QuickQuiz{}
+	But why would \emph{anyone} need an empty lock-based critical
+	section???
+\QuickQuizAnswer{
+	See the answer to the Quick Quiz in
+	Section~\ref{sec:locking:Exclusive Locks}.
+} \QuickQuizEnd
+
+Given that experience will likely uncover additional subtle semantic
+differences, application of HTM-based lock elision to large programs
+should be undertaken with caution.
+
+\subsubsection{Summary}
+\label{sec:future:HTM Weaknesses WRT Locking: Summary}
+
+\input{future/HTMtable}
+
+Although it seems likely that HTM will have compelling use cases,
+current implementations have serious transaction-size limitations,
+conflict-handling complications, abort-and-rollback issues, and
+semantic differences that will require careful handling.
+HTM's current situation relative to locking is summarized in
+Table~\ref{tab:future:Comparison of Locking and HTM}.
+As can be seen, although the current state of HTM alleviates some
+serious shortcomings of locking,\footnote{
+	In fairness, it is important to emphasize that locking's shortcomings
+	do have well-known and heavily used engineering solutions, including
+	deadlock detectors~\cite{JonathanCorbet2006lockdep}, a wealth
+	of data structures that have been adapted to locking, and
+	a long history of augmentation, as discussed in
+	Section~\ref{sec:future:HTM Weaknesses WRT to Locking When Augmented}.
+	In addition, if locking really were as horrible as a quick skim
+	of many academic papers might reasonably lead one to believe,
+	where did all the large lock-based parallel programs (both
+	FOSS and proprietary) come from, anyway?}
+it does so by introducing a significant
+number of shortcomings of its own.
+These shortcomings are acknowledged by leaders in the TM
+community~\cite{AlexanderMatveev2012PessimisticTM}.\footnote{
+	In addition, in early 2011, I was invited to deliver a critique of
+	some of the assumptions underlying transactional
+	memory~\cite{PaulEMcKenney2011Verico}.
+	The audience was surprisingly non-hostile, though perhaps they
+	were taking it easy on me due to the fact that I was heavily
+	jet-lagged while giving the presentation.}
+
+In addition, this is not the whole story.
+Locking is not normally used by itself, but is instead typically
+augmented by other synchronization mechanisms,
+including reference counting, atomic operations, non-blocking data structures,
+hazard pointers~\cite{MagedMichael04a,HerlihyLM02},
+and read-copy update (RCU)~\cite{McKenney98,McKenney01a,ThomasEHart2007a,PaulEMcKenney2012ELCbattery}.
+The next section looks at how such augmentation changes the equation.
+
+\subsection{HTM Weaknesses WRT to Locking When Augmented}
+\label{sec:future:HTM Weaknesses WRT to Locking When Augmented}
+
+\input{future/HTMtableRCU}
+
+Practitioners have long used reference counting, atomic operations,
+non-blocking data structures, hazard pointers, and RCU to avoid some
+of the shortcomings of locking.
+For example, deadlock can be avoided in many cases by using reference
+counts, hazard pointers, or RCU to protect data structures,
+particularly for read-only critical
+sections~\cite{MagedMichael04a,HerlihyLM02,MathieuDesnoyers2012URCU,DinakarGuniguntala2008IBMSysJ,ThomasEHart2007a}.
+These approaches also reduce the need to partition data
+structures~\cite{McKenney2008ParallelProgramming}.
+RCU further provides contention-free wait-free read-side
+primitives~\cite{MathieuDesnoyers2012URCU}.
+Adding these considerations to
+Table~\ref{tab:future:Comparison of Locking and HTM}
+results in the updated comparison between augmented locking and HTM
+shown in
+Table~\ref{tab:future:Comparison of Locking (Augmented by RCU or Hazard Pointers) and HTM}.
+A summary of the differnces between the two tables is as follows:
+
+\begin{enumerate}
+\item	Use of non-blocking read-side mechanisms alleviates deadlock issues.
+\item	Read-side mechanisms such as hazard pointers and RCU can operate
+	efficiently on non-partitionable data.
+\item	Hazard pointers and RCU do not contend with each other or with
+	updaters, allowing excellent performance and scalability for
+	read-mostly workloads.
+\item	Hazard pointers and RCU provide forward-progress guarantees
+	(lock freedom and wait-freedom, respectively).
+\item	Privatization operations for hazard pointers and RCU are
+	straightforward.
+\end{enumerate}
+
+Of course, it is also possible to augment HTM,
+as discussed in the next section.
+
+\subsection{Where Does HTM Best Fit In?}
+\label{sec:future:Where Does HTM Best Fit In?}
+
+Although it will likely be some time before HTM's area of applicability
+can be as crisply delineated as that shown for RCU in
+Figure~\ref{fig:defer:RCU Areas of Applicability} on
+page~\pageref{fig:defer:RCU Areas of Applicability}, that is no reason not to
+start moving in that direction.
+
+HTM seems best suited to update-heavy workloads involving relatively
+small changes to disparate portions of a relatively large in-memory
+data structures running on large multiprocessors,
+as this meets the size restrictions of current HTM implementations while
+minimizing the probability of conflicts and attendant aborts and
+rollbacks.
+This scenario is also one that is relatively difficult to handle given
+current synchronization primitives.
+
+Use of locking in conjunction with HTM seems likely to overcome HTM's
+difficulties with non-idempotent operations, while use of RCU or
+hazard pointers might alleviate HTM's transaction-size limitations
+for read-only operations that traverse large fractions of the data
+structure.
+Current HTM implementations unconditionally abort an update transaction
+that conflicts with an RCU or hazard-pointer reader, but perhaps future
+HTM implementations will interoperate more smoothly with these
+synchronization mechanisms.
+In the meantime, the probability of an update conflicting with a
+large RCU or hazard-pointer read-side critical section should be
+much smaller than the probability of conflicting with the equivalent
+read-only transaction.\footnote{
+	It is quite ironic that strictly transactional mechanisms are
+	appearing in shared-memory systems at just about the time
+	that NoSQL databases are relaxing the traditional
+	database-application reliance on strict transactions.}
+Nevertheless, it is quite possible that a steady stream of RCU or
+hazard-pointer readers might starve updaters due to a corresponding
+steady stream of conflicts.
+This vulnerability could be eliminated (perhaps at significant
+hardware cost and complexity) by giving extra-tranactional
+reads the pre-transaction copy of the memory location being loaded.
+
+The fact that HTM transactions must have fallbacks might in some cases
+force static partitionability of data structures back onto HTM.
+This limitation might be alleviated if future HTM implementations
+provide forward-progress guarantees, which might eliminate the need
+for fallback code in some cases, which in turn might allow HTM to
+be used efficiently in situations with higher conflict probabilities.
+
+In short, although HTM is likely to have important uses and applications,
+it is another tool in the parallel programmer's toolbox, not a replacement
+for the toolbox in its entirety.
+
+\subsection{Potential Game Changers}
+\label{sec:future:Potential Game Changers}
+
+Game changers that could greatly increase the need for HTM include
+the following:
+
+\begin{enumerate}
+\item	Forward-progress guarantees.
+\item	Transaction-size increases.
+\item	Improved debugging support.
+\item	Weak atomicity.
+\end{enumerate}
+
+These are expanded upon in the following sections.
+
+\subsubsection{Forward-Progress Guarantees}
+\label{sec:future:Forward-Progress Guarantees}
+
+As was discussed in
+Section~\ref{sec:future:Lack of Forward-Progress Guarantees},
+current HTM implementations lack forward-progress guarantees, which requires
+that fallback software be available to handle HTM failures.
+Of course, it is easy to demand guarantees, but not always to easy
+to provide them.
+In the case of HTM, obstacles to guarantees can include cache size and
+associativity, TLB size and associativity, transaction duration and
+interrupt frequency, and scheduler implementation.
+
+Cache size and associativity was discussed in
+Section~\ref{sec:future:Transaction-Size Limitations},
+along with some research intended to work around current limitations.
+However, we HTM forward-progress guarantees would
+come with size limits, large though these limits might one day be.
+So why don't current HTM implementations provide forward-progress
+guarantees for small transactions, for example, limited to the
+associativity of the cache?
+One potential reason might be the need to deal with hardware failure.
+For example, a failing cache SRAM cell might be handled by deactivating
+the failing cell, thus reducing the associativity of the cache and
+therefore also the maximum size of transactions that can be guaranteed
+forward progress.
+Given that this would simply decrease the guaranteed transaction size,
+it seems likely that other reasons are at work.
+Perhaps providing forward progress guarantees on production-quality
+hardware is more difficult than one might think, an entirely plausible
+explanation given the difficulty of making forward-progress guarantees
+in software.
+Moving a problem from software to hardware does not necessarily make
+it easier to solve.
+
+Given a physically tagged and indexed cache, it is not enough for the
+transaction to fit in the cache.
+Its address translations must also fit in the TLB.
+Any forward-progress guarantees must therefore also take TLB size
+and associativity into account.
+
+Given that interrupts, traps, and exceptions abort transactions in current
+HTM implementations, it is necessary that the execution duration of
+a given transaction be shorter than the expected interval between
+interrupts.
+No matter how little data a given transaction touches, if it runs too
+long, it will be aborted.
+Therefore, any forward-progress guarantees must be conditioned not only
+on transaction size, but also on transaction duration.
+
+Forward-progress guarantees depend critically on the ability to determine
+which of several conflicting transactions should be aborted.
+It is all too easy to imagine an endless series of transactions, each
+aborting an earlier transaction only to itself be aborted by a later
+transactions, so that none of the transactions actually commit.
+The complexity of conflict handling is
+evidenced by the large number of HTM conflict-resolution policies
+that have been proposed~\cite{EgeAkpinar2011HTM2TLE,YujieLiu2011ToxicTransactions}.
+Additional complications are introduced by extra-transactional accesses,
+as noted by Blundell~\cite{Blundell2006TMdeadlock}.
+It is easy to blame the extra-transactional accesses for all of these
+problems, but the folly of this line of thinking is easily demonstrated
+by placing each of the extra-transactional accesses into its own
+single-access transaction.
+It is the pattern of accesses that is the issue, not whether or not they
+happen to be enclosed in a transaction.
+
+Finally, any forward-progress guarantees for transactions also
+depend on the scheduler, which must let the thread executing the
+transaction run long enough to successfully commit.
+
+So there are significant obstacles to HTM vendors offering forward-progress
+guarantees.
+However, the impact of any of them doing so would be enormous.
+It would mean that HTM transactions would no longer need software
+fallbacks, which would mena that HTM could finally deliver on the
+TM promise of deadlock elimination.
+
+\subsubsection{Transaction-Size Increases}
+\label{sec:future:Transaction-Size Increases}
+
+Forward-progress guarantees are important, but as we saw, they will
+be conditional guarantees based on transaction size and duration.
+It is important to note that even small-sized guarantees will be
+quite useful.
+For example,
+a guarantee of two cache lines is sufficient for a stack, queue, or dequeue.
+However, larger data structures require larger guarantees, for example,
+traversing a tree in order requires a guarantee equal to the number
+of nodes in the tree.
+
+Therefore, increasing the size of the guarantee also increases the
+usefulness of HTM, thereby increasing the need for CPUs to either
+provide it or provide good-and-sufficient workarounds.
+
+\subsubsection{Improved Debugging Support}
+\label{sec:future:Improved Debugging Support}
+
+Another inhibitor to transaction size is the need to debug the transactions.
+The problem with current mechanisms is that a single-step exception
+aborts the enclosing transaction.
+There are a number of workarounds for this issue, including emulating
+the processor (slow!), substituting STM for HTM (slow and slightly
+different semantics!),
+playback techniques using repeated retries to emulate forward
+progress (strange failure modes!), and
+full support of debugging HTM transactions (complex!).
+
+Should one of the HTM vendors produce an HTM system that allows
+straightforward use of classical debugging techniques within
+transactions, including breakpoints, single stepping, and
+print statements, this will make HTM much more compelling.
+
+\subsubsection{Weak Atomicity}
+\label{sec:future:Weak Atomicity}
+
+Given that HTM is likely to face some sort of size limitations for the
+foreseeable future, it will be necessary for HTM to interoperate
+smoothly with other mechanisms.
+HTM's interoperability with read-mostly mechanisms such as hazard pointers
+and RCU would be improved if extra-transactional reads did not
+unconditionally abort transactions with conflicting writes---instead,
+the read could simply be provided with the pre-transaction value.
+In this way, hazard pointers and RCU could be used to allow HTM to handle
+larger data structures and to reduce conflict probabilities.
+
+This is not necessarily simple, however.
+The most straightforward way of implementing this requires an additional
+state in each cache line and on the bus, which is a non-trivial added
+expense.
+The benefit that goes along with this expense is permitting
+large-footprint readers without the risk of starving updaters due
+to continual conflicts.
+
+\subsection{Conclusions}
+\label{sec:future:Conclusions}
+
+Although current HTM implementations appear to be poised to deliver real
+benefits, they also have significant shortcomings.
+The most significant shortcomings appear to be
+limited transaction sizes,
+the need for conflict handling, the need for aborts and rollbacks,
+the lack of forward-progress guarantees,
+the inability to handle non-idempotent operations,
+and subtle semantic differences
+from locking.
+
+Some of these shortcomings might be alleviated in future implementations,
+but it appears that there will continue to be a strong need to make
+HTM work well with the many other types of synchronization mechanisms,
+as noted earlier~\cite{McKenney2007PLOSTM,PaulEMcKenney2010OSRGrassGreener}.
+
+In short, current HTM implementations appear to be welcome and useful
+additions to the parallel programmer's toolbox, and much interesting
+and challenging work is required to make use of them.
+However, they cannot be
+considered to be a magic wand with which to wave away all parallel-programming
+problems.
