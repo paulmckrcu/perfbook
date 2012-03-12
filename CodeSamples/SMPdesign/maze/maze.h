@@ -48,7 +48,7 @@ typedef int cell_t;
 /* Optional padding for cache-line alignment. */
 struct cell {
 	cell_t c;
-	int pad[CELL_PAD_SIZE];
+	char pad[CELL_PAD_SIZE];
 };
 
 /* Segment weights for maze-creation random path choice. */
