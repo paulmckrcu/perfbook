@@ -8,7 +8,7 @@ int nsets;
 /* 
  * Output the maxima computations for one overflow case.
  */
-void output_ovf(int *base, int *lim)
+void output_pattern(int *base, int *lim)
 {
 	int i;
 	int last;
@@ -40,7 +40,7 @@ void output_ovf(int *base, int *lim)
 	}
 	printf("%d!))*(%d!/(", i, m);
 	for (sp = base; sp <= lim; sp++)
-		if (*sp > 0)
+		if (*sp > 1)
 			printf("%d!*", *sp);
 	printf("1))/%d^%d));\n", n, m);
 }
@@ -50,10 +50,11 @@ void output_ovf(int *base, int *lim)
  * Start with all references hitting one set, then incrementally spread
  * into all unique patterns over permutations of the sets.
  */
-void spread_failure(int *base, int *lb, int *next, int *lim, int assoc)
+void spread_failure(void (*report_pattern)(int *base, int *lim),
+		    int *base, int *lb, int *next, int *lim, int assoc)
 {
 	if (*base > assoc)
-		output_ovf(base, lim);
+		report_pattern(base, lim);
 	else
 		return;  /* Further spreading will fit into cache. */
 	for (;;) {
@@ -62,9 +63,10 @@ void spread_failure(int *base, int *lb, int *next, int *lim, int assoc)
 		if (*next > *lb || *base < *(base + 1) || *base <= assoc)
 			break;
 		if (next < lim)
-			spread_failure(base, next, next + 1, lim, assoc);
+			spread_failure(report_pattern,
+				       base, next, next + 1, lim, assoc);
 		else if (*base > assoc)
-			output_ovf(base, lim);
+			report_pattern(base, lim);
 	}
 	*base += *next;
 	*next = 0;
@@ -76,13 +78,14 @@ void spread_failure(int *base, int *lb, int *next, int *lim, int assoc)
  * that number of references can cover, then incrementally spread
  * into all unique patterns over permutations of the sets.
  */
-int spread_success(int *base, int *next, int *lim, int max, int n)
+int spread_success(void (*report_pattern)(int *base, int *lim),
+		   int *base, int *next, int *lim, int max, int n)
 {
 	int i;
 
 	if (n < max) {
 		*next = n;
-		output_ovf(base, lim);
+		report_pattern(base, lim);
 		if (next == lim) {
 			*next = 0;
 			return 1;
@@ -91,13 +94,14 @@ int spread_success(int *base, int *next, int *lim, int max, int n)
 	} else {
 		*next = max;
 		if (n == max)
-			output_ovf(base, lim);
+			report_pattern(base, lim);
 		if (next == lim) {
 			*next = 0;
 			return 1;
 		}
 		if (n > max &&
-		    !spread_success(base, next + 1, lim, max, n - max)) {
+		    !spread_success(report_pattern,
+		    		    base, next + 1, lim, max, n - max)) {
 			*next = 0;
 			return 0;
 		}
@@ -105,7 +109,8 @@ int spread_success(int *base, int *next, int *lim, int max, int n)
 	}
 	for (; i > 0; i--) {
 		*next = i;
-		if (!spread_success(base, next + 1, lim, i, n - i)) {
+		if (!spread_success(report_pattern,
+				    base, next + 1, lim, i, n - i)) {
 			*next = 0;
 			return 1;
 		}
@@ -122,7 +127,7 @@ void compute_failure(int *s)
 	for (i = 1; i < nsets; i++)
 		s[i] = 0;
 	printf("s:0;\n");
-	spread_failure(s, s, &s[1], &s[nsets - 1], assoc);
+	spread_failure(output_pattern, s, s, &s[1], &s[nsets - 1], assoc);
 }
 
 void compute_success(int *s)
@@ -132,7 +137,7 @@ void compute_success(int *s)
 	printf("s:0;\n");
 	for (i = 0; i < nsets; i++)
 		s[i] = 0;
-	spread_success(s, s, &s[nsets - 1], assoc, nrefs);
+	spread_success(output_pattern, s, s, &s[nsets - 1], assoc, nrefs);
 }
 
 int main(int argc, char *argv[])
