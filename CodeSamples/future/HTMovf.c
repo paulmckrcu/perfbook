@@ -161,7 +161,7 @@ void compute_success(int *s)
 
 void usage(char *argv[])
 {
-	fprintf(stderr, "Usage: %s [ c f p s] nsets assoc nrefs\n", argv[0]);
+	fprintf(stderr, "Usage: %s [ c C f p s] nsets assoc nrefs\n", argv[0]);
 	fprintf(stderr, "\tc: Check success vs. failure computation.\n");
 	fprintf(stderr, "\tf: Compute p(failure).\n");
 	fprintf(stderr, "\tp: Compute p(failure) by most efficient means.\n");
@@ -188,6 +188,18 @@ int main(int argc, char *argv[])
 		compute_success(s);
 		printf("bfloat(p:s);\n");
 		printf("print(\"@@@ p = \", bfloat(p), \" q = \", bfloat(q), \"p + q = \", bfloat(p + q));\n");
+	} else if (argv[1][0] == 'C') {
+		int nf;
+		int ns;
+
+		n_ovf = 0;
+		do_failure(count_pattern, s);
+		nf = n_ovf;
+		n_ovf = 0;
+		do_success(count_pattern, s);
+		ns = n_ovf;
+		printf("# non-overflow patterns: %d\n", ns);
+		printf("# overflow patterns: %d\n", nf);
 	} else if (argv[1][0] == 'f') {
 		compute_failure(s);
 		printf("print(\"@@@ p(failure) = \", bfloat(s));\n");
