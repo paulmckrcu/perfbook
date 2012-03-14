@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
 			compute_failure(s);
 			printf("print(\"@@@ p(failure) = \", bfloat(s));\n");
 		} else {
-			compute_failure(s);
+			compute_success(s);
 			printf("print(\"@@@ p(failure) = \", bfloat(1-s));\n");
 		}
 	} else if (argv[1][0] == 's') {
