@@ -1,9 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int assoc;
-int nrefs;
-int nsets;
+int assoc;	/* Cache associativity. */
+int nrefs;	/* Number of references. */
+int nsets;	/* Cache sets.  # cache lines is assoc*nsets. */
+
+/*
+ * Count one overflow case.
+ */
+int n_ovf;
+void count_pattern(int *base, int *lim)
+{
+	n_ovf++;
+}
 
 /* 
  * Output the maxima computations for one overflow case.
@@ -119,44 +128,89 @@ int spread_success(void (*report_pattern)(int *base, int *lim),
 	return 1;
 }
 
-void compute_failure(int *s)
+void do_failure(void (*report_pattern)(int *base, int *lim), int *s)
 {
 	int i;
 
 	s[0] = nrefs;
 	for (i = 1; i < nsets; i++)
 		s[i] = 0;
+	spread_failure(report_pattern, s, s, &s[1], &s[nsets - 1], assoc);
+}
+
+void do_success(void (*report_pattern)(int *base, int *lim), int *s)
+{
+	int i;
+
+	for (i = 0; i < nsets; i++)
+		s[i] = 0;
+	spread_success(report_pattern, s, s, &s[nsets - 1], assoc, nrefs);
+}
+
+void compute_failure(int *s)
+{
 	printf("s:0;\n");
-	spread_failure(output_pattern, s, s, &s[1], &s[nsets - 1], assoc);
+	do_failure(output_pattern, s);
 }
 
 void compute_success(int *s)
 {
-	int i;
-
 	printf("s:0;\n");
-	for (i = 0; i < nsets; i++)
-		s[i] = 0;
-	spread_success(output_pattern, s, s, &s[nsets - 1], assoc, nrefs);
+	do_success(output_pattern, s);
+}
+
+void usage(char *argv[])
+{
+	fprintf(stderr, "Usage: %s [ c f p s] nsets assoc nrefs\n", argv[0]);
+	fprintf(stderr, "\tc: Check success vs. failure computation.\n");
+	fprintf(stderr, "\tf: Compute p(failure).\n");
+	fprintf(stderr, "\tp: Compute p(failure) by most efficient means.\n");
+	fprintf(stderr, "\ts: Compute p(success).\n");
+	exit(-1);
 }
 
 int main(int argc, char *argv[])
 {
 	int *s;
 
-	if (argc != 4) {
-		fprintf(stderr, "Usage: %s nsets assoc nrefs\n", argv[0]);
-		exit(-1);
+	if (argc != 5) {
+		usage(argv);
 	}
-	nsets = atoi(argv[1]);
-	assoc = atoi(argv[2]);
-	nrefs = atoi(argv[3]);
+	nsets = atoi(argv[2]);
+	assoc = atoi(argv[3]);
+	nrefs = atoi(argv[4]);
 	s = malloc(nsets * sizeof(s[0]));
 	if (s == NULL)
 		abort();
-	compute_failure(s);
-	printf("bfloat(q:s);\n");
-	compute_success(s);
-	printf("bfloat(p:s);\n");
-	printf("print(\"@@@ p = \", bfloat(p), \" q = \", bfloat(q), \"p + q = \", bfloat(p + q));\n");
+	if (argv[1][0] == 'c') {
+		compute_failure(s);
+		printf("bfloat(q:s);\n");
+		compute_success(s);
+		printf("bfloat(p:s);\n");
+		printf("print(\"@@@ p = \", bfloat(p), \" q = \", bfloat(q), \"p + q = \", bfloat(p + q));\n");
+	} else if (argv[1][0] == 'f') {
+		compute_failure(s);
+		printf("print(\"@@@ p(failure) = \", bfloat(s));\n");
+	} else if (argv[1][0] == 'p') {
+		int nf;
+		int ns;
+
+		n_ovf = 0;
+		do_failure(count_pattern, s);
+		nf = n_ovf;
+		n_ovf = 0;
+		do_success(count_pattern, s);
+		ns = n_ovf;
+		if (nf < ns) {
+			compute_failure(s);
+			printf("print(\"@@@ p(failure) = \", bfloat(s));\n");
+		} else {
+			compute_failure(s);
+			printf("print(\"@@@ p(failure) = \", bfloat(1-s));\n");
+		}
+	} else if (argv[1][0] == 's') {
+		compute_success(s);
+		printf("print(\"@@@ p(success) = \", bfloat(s));\n");
+	} else
+		usage(argv);
 }
