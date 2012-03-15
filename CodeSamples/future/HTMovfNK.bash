@@ -4,7 +4,11 @@
 #
 # Usage:
 #
-#	HTMovf4K.bash assoc
+#	HTMovf4K.bash cachesize assoc linesize
+#
+# Note that "cachesize" is in kilobytes, but "linesize" is in bytes.
+#
+# Produces gnuplot-consumable output.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,11 +28,14 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
-assoc=$1
+cachesize=$1
+assoc=$2
+linesize=$3
+cachelines=$(($cachesize*1024/$linesize))
 
-for ((i=1;i<64;i++))
+for ((i=1;i<=$cachelines+1;i++))
 do
-	sets=$((64/$assoc))
+	sets=$(($cachelines/$assoc))
 	p=`./HTMovf p $sets $assoc $i | maxima |
 		grep @@@ | sed -e 's/^.*=//' -e 's/b/e/'`
 	echo $i $p
