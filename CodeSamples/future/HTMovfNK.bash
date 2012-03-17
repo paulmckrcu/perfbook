@@ -1,10 +1,11 @@
 #!/bin/bash
 #
-# Compute cache-overflow probabilities for 4K 64-byte-line cache.
+# Compute cache-overflow probabilities for cache with specified size,
+# line size, and associativity.
 #
 # Usage:
 #
-#	HTMovf4K.bash cachesize assoc linesize
+#	HTMovfNK.bash cachesize assoc linesize
 #
 # Note that "cachesize" is in kilobytes, but "linesize" is in bytes.
 #
