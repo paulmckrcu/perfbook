@@ -26,7 +26,7 @@ do
 	mkdir $results/$size > /dev/null 2>&1 || :
 	for ((i=0;i<500;i++))
 	do
-		./mazecmp.bash $size $T/maze $results/$size
+		./mazecmp.bash $size $size $T/maze $results/$size
 	done
 	
 	# Reduce the data

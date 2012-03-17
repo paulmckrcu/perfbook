@@ -1,10 +1,11 @@
 #!/bin/bash
 #
-# Generate a square maze and solve with all solvers
+# Generate a maze and solve with all solvers
 #
-# Usage: bash mazecmp.sh rc prefix [results]
+# Usage: bash mazecmp.bash rows cols prefix [results]
 #
-#	rc: number of rows and columns
+#	rows: number of rows
+#	cols: number of columns
 #	prefix: path prefix for mazes, .fig, .png, -soln.png, and raw
 #		maze binary files created
 #	results: directory in which to accumulate results -- if not specified,
@@ -12,22 +13,23 @@
 
 flavors="_seq _fg _part _2seq _seq_O3 _fg_O3 _part_O3 _2seq_O3 _seqP_O3 _fgP_O3 _partP_O3 _2seqP_O3 _seqC_O3 _fgC_O3 _partC_O3 _2seqC_O3"
 
-rc=$1
-prefix=$2
-results=$3
-if test -z "$rc" -o -z "$prefix"
+rows=$1
+cols=$2
+prefix=$3
+results=$4
+if test -z "$rows" -o -z "$cols" -o -z "$prefix"
 then
-	echo usage ./mazecmp.bash rows-columns [ path-prefix ]
+	echo usage ./mazecmp.bash rows cols path-prefix [ results ]
 	exit 1
 fi
 
 # Generate the maze
-echo ./maze_seq_O3 --generate $rc $rc --start -2 -2 --nofig --nosolve --output $prefix
-time ./maze_seq_O3 --generate $rc $rc --start -2 -2 --nofig --nosolve --output $prefix
+echo ./maze_seq_O3 --generate $rows $cols --start -2 -2 --nofig --nosolve --output $prefix
+time ./maze_seq_O3 --generate $rows $cols --start -2 -2 --nofig --nosolve --output $prefix
 
 # Solve the maze with each solver.  Output .fig only for small mazes.
 nofig=" --nofig"
-if test "$rc" -le 200
+if test "$rows" -le 200 -a "$cols" -le 200
 then
 	nofig=
 fi
