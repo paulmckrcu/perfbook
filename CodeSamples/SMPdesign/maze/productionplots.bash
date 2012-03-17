@@ -88,7 +88,7 @@ plot "$f/pctVms_seq.sct" with dots lw 2, "$f/pctVms_part.sct" with dots lw 2
 set xlabel "CDF of Ratio of Solution Times"
 set ylabel "Probability"
 set logscale x
-set label 1 "SEQ" at 1.4,0.5 right
+set label 1 "PWQ" at 1.4,0.5 right
 set label 2 "PART" at 5,0.5 left
 unset label 3
 set output "|/home/paulmck/bin/gnuplotepsfix > $paperwd/500-ms_seqVfg_part-cdf.eps"
