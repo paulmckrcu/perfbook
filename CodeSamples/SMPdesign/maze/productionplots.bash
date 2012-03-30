@@ -26,7 +26,7 @@ set nokey
 
 # Figure 13: Mean Speedup vs. Number of Threads
 set xlabel "Number of Threads"
-set ylabel "Mean Solution Time Relative to COPART (-O3)"
+set ylabel "Mean Speedup Relative to COPART (-O3)"
 set label 1 "PWQ" at 6.55,0.33 left
 set label 2 "PART" at 1.5,1.2 left
 set output "|/home/paulmck/bin/gnuplotepsfix > $paperwd/1000-ms_2seqO3VfgO3_partO3-mean.eps"
@@ -36,7 +36,7 @@ unset label 2
 
 # Figure 12: Varying Maze Size vs. COPART
 set xlabel "Maze Size"
-set ylabel "Solution Time Relative to SEQ (-O3)"
+set ylabel "Speedup Relative to SEQ (-O3)"
 set logscale x
 set label 1 "PWQ" at 230,1.5 left
 set label 2 "PART" at 40,1.7 right
@@ -45,7 +45,7 @@ plot "$res/ms_seq_O3Vfg_O3.quant" w l, "$res/ms_seq_O3Vpart_O3.quant" w l, "$res
 
 # Figure 11: Varying Maze Size vs. SEQ
 set xlabel "Maze Size"
-set ylabel "Solution Time Relative to COPART (-O3)"
+set ylabel "Speedup Relative to COPART (-O3)"
 set logscale x
 set label 1 "PWQ" at 230,0.46 left
 set label 2 "PART" at 43,0.8 right
@@ -88,8 +88,8 @@ plot "$f/pctVms_seq.sct" with dots lw 2, "$f/pctVms_part.sct" with dots lw 2
 set xlabel "CDF of Ratio of Solution Times"
 set ylabel "Probability"
 set logscale x
-set label 1 "PWQ" at 1.4,0.5 right
-set label 2 "PART" at 5,0.5 left
+set label 1 "SEQ/PWQ" at 1.4,0.5 right
+set label 2 "SEQ/PART" at 5,0.5 left
 unset label 3
 set output "|/home/paulmck/bin/gnuplotepsfix > $paperwd/500-ms_seqVfg_part-cdf.eps"
 plot "$f/ms_seqVfg.cdf" w l, "$f/ms_seqVpart.cdf" w l
