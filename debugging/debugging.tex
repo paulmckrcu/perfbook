@@ -789,7 +789,7 @@ statistics for discrete tests can often be pressed into service
 We therefore start with discrete tests.
 
 \subsection{Statistics for Discrete Testing}
-\label{sec:Statistics for Discrete Testing}
+\label{sec:debugging:Statistics for Discrete Testing}
 
 Suppose that the bug had a 10\% chance of occurring in
 a given run and that we do five runs.
@@ -939,7 +939,7 @@ are essential skills in the development of highly reliable software.
 These skills will be covered in a later section.
 
 \subsection{Abusing Statistics for Discrete Testing}
-\label{sec:Abusing Statistics for Discrete Testing}
+\label{sec:debugging:Abusing Statistics for Discrete Testing}
 
 But suppose that you have a continuous test that fails about three
 times every ten hours, and that you fix the bug that you believe was
@@ -961,9 +961,162 @@ errors inherent in your measurements of your program's failure rates.
 Nevertheless, the next section describes a slightly less dodgy approach.
 
 \subsection{Statistics for Continuous Testing}
-\label{sec:Statistics for Continuous Testing}
+\label{sec:debuggingStatistics for Continuous Testing}
 
-@@@ continuous formulation for time-based tests leads to Poisson distribution.
+This section contains more aggressive mathematics.
+If you are not in the mood for mathematical aggression, feel free to
+use the results of the previous section and to skip this section.
+
+\subsubsection{Derivation of Poisson Distribution}
+\label{sec:debugging:Derivation of Poisson Distribution}
+
+As the number of tests $n$ increases and the probability of per-test
+failure $f$ decreases, it makes sense to move the mathematics to the
+continuous domain.
+It is convenient to define $\lambda$ as $nf$: as we increase $n$ and
+decrease $f$, $\lambda$ will remain fixed.
+
+What then is the probability of all $n$ tests succeeding?
+This is given by:
+
+\begin{equation}
+	(1 - f)^n
+\end{equation}
+
+But because $\lambda$ is equal to $nf$, we can solve for $f$ and obtain
+$f=\frac{\lambda}{n}$.
+Substituting this into the previous equation yields:
+
+\begin{equation}
+	\left(1 - \frac{\lambda}{n} \right)^n
+\end{equation}
+
+Readers who are both alert and mathematically inclined will recognize
+this as approaching $e^\lambda$ as $n$ increases without limit.
+
+The next step is to compute the probability of all but one of $n$ tests
+succeeding, which is:
+
+\begin{equation}
+	\frac{n!}{1!(n-1)!}f(1 - f)^{n-1}
+\end{equation}
+
+The ratio of factorials accounts for the different permutations of test
+results.
+The $n!$ in the numerator allows for all permutations of $n$ tests,
+while the two factors in the denominator allow for the indistinguishability
+of the one failure on the one hand and the $n-1$ successes on the other.
+
+Cancelling the factorials and multiplying top and bottom by $1-f$ yields:
+
+\begin{equation}
+	\frac{nf}{1 - f} (1 - f)^n
+\end{equation}
+
+But because $f$ is assumed to be arbitrarily small, $1-f$ is arbitrarily
+close to the value one, allowing us to dispense with the denominator:
+
+\begin{equation}
+	n f (1 - f)^n
+\end{equation}
+
+Substituting $f=\frac{\lambda}{n}$ as before yields:
+
+\begin{equation}
+	\lambda (1 - \frac{\lambda}{n})^n
+\end{equation}
+
+For large $n$, as before, the latter term is approximated by $e^\lambda$,
+yielding $\lambda e^\lambda$.
+
+The third step is to compute the probability of all but two of the $n$
+test succeeding, which is:
+
+\begin{equation}
+	\frac{n!}{2!(n-2)!}f^2(1 - f)^{n-2}
+\end{equation}
+
+Cancelling the factorials and multiplying top and bottom by
+$(1-f)^2$ yields:
+
+\begin{equation}
+	\frac{n(n-1)f^2}{2(1 - f)^2}(1 - f)^n
+\end{equation}
+
+Once again, because $f$ is assumed to be arbitrarily small,
+$(1-f)^2$ is arbitrarily close to the value one, once again
+allowing us to dispense with the denominator:
+
+\begin{equation}
+	\frac{n(n-1)f^2}{2}(1 - f)^n
+\end{equation}
+
+Substituting $f=\frac{\lambda}{n}$ once again yields:
+
+\begin{equation}
+	\frac{n(n-1)\lambda^2}{2n^2} (1 - \frac{\lambda}{n})^n
+\end{equation}
+
+Because $n$ is assumed large, $n-1$ is arbitrarily close to $n$, allowing
+the $n(n-1)$ in the numerator to be cancelled with the $n^2$ in the
+denominator.
+And again, the final term is approximated by $e^\lambda$, yielding:
+
+\begin{equation}
+	\frac{\lambda^2}{2} e^\lambda
+\end{equation}
+
+We are now ready to try a more general result.
+Assume that there are $m$ failures, where $m$ is extremely small
+compared to $n$.
+Then we have:
+
+\begin{equation}
+	\frac{n!}{m!(n-m)!}f^m(1 - f)^{n-m}
+\end{equation}
+
+Cancelling the factorials and multiplying top and bottom by
+$(1-f)^m$ yields:
+
+\begin{equation}
+	\frac{n(n-1)\dots(n-m+2)(n-m+1)f^m}{m!(1 - f)^m}(1 - f)^n
+\end{equation}
+
+And you guessed it, because $f$ is arbitrarily small, $(1-f)^m$ is
+arbitrarily close to the value one and may therefore be dropped:
+
+\begin{equation}
+	\frac{n(n-1)\dots(n-m+2)(n-m+1)f^m}{m!}(1 - f)^n
+\end{equation}
+
+Substituting $f=\frac{\lambda}{n}$ one more time:
+
+\begin{equation}
+	\frac{n(n-1)\dots(n-m+2)(n-m+1)\lambda^m}{m!n^m}(1 - \frac{\lambda}{n})^n
+\end{equation}
+
+Because $m$ is small compared to $n$, we can cancel the factors in
+the numerator with the $n^m$ in the denominator, resulting in:
+
+\begin{equation}
+	\frac{\lambda^m}{m!}(1 - \frac{\lambda}{n})^n
+\end{equation}
+
+As always, for large $n$, the last term is approximated by $e^\lambda$,
+yielding:
+
+\begin{equation}
+	\frac{\lambda^m}{m!} e^\lambda
+\end{equation}
+
+This is the celebrated Poisson distribution.
+A more rigorous derivation may be found in any advanced probability
+textbook, for example, Feller's classic ``An Introduction to Probability
+Theory and Its Applications''~\cite{Feller58}.
+
+\subsubsection{Use of Poisson Distribution}
+\label{sec:debugging:Use of Poisson Distribution}
+
 This can be handled using maxima with \co{quantile_poisson()} and
 \co{cdf_poisson()}, after a \co{load(distrib)}.
 
