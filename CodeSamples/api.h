@@ -824,4 +824,4 @@ static void smp_init(void)
 #define _LGPL_SOURCE
 #include <urcu/rculist.h>
 #include <urcu/rcuhlist.h>
-#include <urcu-pointer-static.h>
+#include <urcu-pointer.h>
