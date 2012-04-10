@@ -26,7 +26,6 @@ unsigned long counter = 0;
 void inc_count(void)
 {
 	counter++;
-	printf(".");
 }
 
 unsigned long read_count(void)
