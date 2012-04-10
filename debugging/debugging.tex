@@ -1145,7 +1145,7 @@ our fix has improved matters.
 	and solve for $\lambda$, resulting in:
 
 	\begin{equation}
-		\lambda = log 0.001 = 6.9
+		\lambda = \log 0.001 = 6.9
 	\end{equation}
 
 	The average time until failure was one-third of an hour, so we
@@ -1155,20 +1155,69 @@ our fix has improved matters.
 As before, the less frequently the bug occurs and the greater the
 required level of confidence, the longer the required error-free test run.
 
-This can be handled using maxima with \co{quantile_poisson()} and
-\co{cdf_poisson()}, after a \co{load(distrib)}.
+Suppose that a given test fails about once every hour, but after a bug
+fix, a 24-hour test run fails only twice.
+What is the probability of this being due to random chance, in other
+words, what is the probability that the fix had no statistical effect?
+This probability may be calculated by summing
+Equation~\ref{eq:debugging:Poisson Probability} as follows:
 
-@@@ Note that when you subdivide the tests, you must decrease the value
-as well as the probability to maintain the same mean value.
+\begin{equation}
+	\sum_{i=0}^m \frac{\lambda^i}{i!} e^{-\lambda}
+\label{eq:debugging:Possion CDF}
+\end{equation}
+
+Here $m$ is the maximum number of errors in the long test run
+(in this case, two) and $\lambda$ is expected number of errors
+in the long test run (in this case, 24).
+Pluggin $m=2$ and $\lambda=24$ into this expression gives about
+$1.2*10^{-8}$, indicating that the odds are extremely good that
+the fix had a statistically significant effect.
+
+\QuickQuiz{}
+	Doing the summation of all the factorials and exponentials
+	is a real pain.
+	Isn't there an easier way?
+\QuickQuizAnswer{
+	One approach is to use the open-source symbolic manipulation
+	program named ``maxima''.
+	Once you have installed this program, which is a part of many
+	Debian-based Linux distributions, you can run it and give the
+	\co{load(distrib);} command followed by any number of
+	\co{bfloat(cdf_poisson(m,l));} commands, where the \co{m}
+	is replaced by the desired value of $m$ and the \co{l}
+	is replaced by the desired value of $\lambda$.
+
+	In particular, the \co{bfloat(cdf_poisson(2,24));} command
+	results in \co{1.181617112359357b-8}, which matches the value
+	given by Equation~\ref{eq:debugging:Possion CDF}.
+} \QuickQuizEnd
+
+The Poisson distribution is a powerful tool for analyzing test results,
+but the fact is that in this last example there were still two remaining
+test failures in a 24-hour test run.
+Such a low failure rate results in very long test runs.
+The next section discusses ways of handling this situation.
 
 \subsection{Heisenbugs and Creating Anti-Heisenbugs}
 \label{Heisenbugs and Creating Anti-Heisenbugs}
 
-This line of thought also leads to an understanding of heisenbugs:
-adding tracing and assertions can easily \emph{reduce} the probability
+This line of thought also helps explain heisenbugs:
+adding tracing and assertions can easily reduce the probability
 of a bug appearing.
 And this is why extremely lightweight tracing and assertion mechanism are
 so critically important.
+
+However, running this same line of thought in the other direction allows
+us to create anti-heisenbugs.
+To see this, consider the count-lossy code in
+Section~\ref{sec:count:Why Isn't Concurrent Counting Trivial?}.
+Adding \co{printf()} statements will likely greatly reduce or even
+eliminate the lost counts.
+However, converting the load-add-store sequence to a load-add-delay-store
+sequence will likely greatly increase the incidence of lost counts.
+
+@@@
 
 Measure bug probability as a function of configuration parameters,
 input, intensity of load, number of CPUs, etc.
