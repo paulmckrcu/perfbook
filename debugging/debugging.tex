@@ -30,6 +30,11 @@ critically important topic in Section~\ref{sec:debugging:Where Do Bugs Come From
 
 Section~\ref{sec:debugging:Required Mindset}
 overviews the mindset required when validating software.
+Section~\ref{sec:debugging:When Should Validation Start?}
+discusses when you should start validation, and
+Section~\ref{sec:debugging:The Open Source Way} describes the
+surprisingly effective open-source regimen of code review and
+community testing.
 Section~\ref{sec:debugging:Tracing}
 discusses tracing,
 Section~\ref{sec:debugging:Assertions}
@@ -38,10 +43,14 @@ Section~\ref{sec:debugging:Static Analysis}
 discusses static analysis.
 Section~\ref{sec:debugging:Code Review}
 describes some unconventional approaches to code review that can
-be helpful when the fabled 10,000 eyes are not looking at your code.
+be helpful when the fabled 10,000 eyes happen not to be looking at your code.
 Section~\ref{sec:debugging:Probability and Heisenbugs}
 gives an overview of the use of probability for validating parallel software.
-More sections TBD.
+Finally, given that performance and scalability are first-class requirements
+for parallel programming, it is only fitting that the last word is
+given to
+Section~\ref{sec:debugging:Performance Estimation}, which covers these
+topics.
 
 \section{Where Do Bugs Come From?}
 \label{sec:debugging:Where Do Bugs Come From?}
@@ -299,9 +308,151 @@ whereabouts of its bugs.
 This leaves the possibility of multiple people with different frames of
 mind contributing to the project, with varying levels of optimism.
 This can work well, if properly organized.
+However, this leaves open the question of exactly when during the project
+lifetime validation should start, a topic taken up by the next section.
 
-Other validation methodologies and techniques are covered in the following
-sections, all of which are required to offset humanity's natural optimism.
+\section{When Should Validation Start?}
+\label{sec:debugging:When Should Validation Start?}
+
+Validation should start at the same time that the project starts.
+
+To see this, consider that tracking down a bug is much harder in a large
+program than in a small one.
+Therefore, to minimize the time and effort required to track down bugs,
+you should test small units of code.
+Although you won't find all the bugs this way, you will find a substantial
+fraction, and it will be much easier to find and fix the ones you do find.
+Testing at this level can also alert you to larger flaws in your overall
+design, minimizing the time you waste writing code that is quite literally
+broken by design.
+
+But why wait until you have code before validating your design?\footnote{
+	The old saying ``First we must code, then we have incentive to
+	think'' notwithstanding.}
+Hopefully reading Chapters~\ref{chp:Hardware and its Habits}
+and~\ref{chp:Tools of the Trade} provided you with the information
+required to avoid some regrettably common design flaws,
+but discussing your design with a colleague or even simply writing it
+down can help flush out the inevitable flaws.
+
+However, it is all too often the case that waiting to start validation
+until you have a design is waiting too long.
+Mightn't your natural level of optimism caused you to start the design
+before you fully understood the requirements?
+The answer to this question will almost always be ``yes''.
+One good way to avoid flawed requirements is to get to know your users.
+To really serve them well, you will have to live among them.
+
+\QuickQuiz{}
+	You are asking me to do all this validation BS before
+	I even start coding???
+	That sounds like a great way to never get started!!!
+\QuickQuizAnswer{
+	If it is your project, for example, a hobby, do what you like.
+	Any time you waste will be your own, and you have no one else
+	to answer to for it.
+	And there is a good chance that the time will not be completely
+	wasted.
+	For example, if you are embarking on a first-of-a-kind project,
+	the requirements are in some sense unknowable anyway.
+	In this case, the best approach might be to quickly prototype
+	a number of rough solutions, try them out, and see what works
+	best.
+} \QuickQuizEnd
+
+First-of-a-kind projects and projects whose only purpose is learning
+and practice can require different approaches to validation, for example,
+rapid prototyping.
+However, it is important to keep in mind that you should not omitting
+validation, but rather taking a radically different approach to it.
+
+Now that we have established that you should start validation when you
+start the project, the following sections cover a number of validation
+techniques and methods that have proven their worth.
+
+\section{The Open Source Way}
+\label{sec:debugging:The Open Source Way}
+
+The open-source programming methodology has proven quite effective, and
+includes a regimen of intense code review and testing.
+
+I can personally attest to the effectiveness of the open-source community's
+intense code review.
+One of the first patches I prepared for the Linux kernel involved
+a distributed filesystem where a user on one node writes to a given
+file at a location that a user on another node has mapped into memory.
+In this case, it is necessary to invalidate the affected pages from
+the mapping in order to allow the filesystem to maintain coherence
+during the write operation.
+I coded up a first attempt at a patch, and, in keeping with the open-source
+maxim ``post early, post often'', I posted the patch.
+I then considered how I was going to test it.
+
+But before I could even decide on an overall test strategy, I got a
+reply to my posting pointing out a few bugs.
+I fixed the bugs and reposted the patch, and returned to thinking
+out my test strategy.
+However, before I had a chance to write any test code, I received
+a reply to my reposted patch, pointing out more bugs.
+This process repeated itself many times, and I am not sure that I
+ever got a chance to actually test the patch.
+
+This experience brought home the truth of the open-source saying:
+Given enough eyeballs, all bugs are shallow~\cite{EricSRaymond99b}.
+
+However, when you post some code or a given patch, it is worth
+asking a few questions:
+
+\begin{enumerate}
+\item	How many of those eyeballs are actually going to look at your code?
+\item	How many will be experienced and clever enough to actually find
+	your bugs?
+\item	Exactly when are they going to look?
+\end{enumerate}
+
+I was lucky:  There was someone out there who wanted the functionality
+provided by my patch, who had long experience with distributed filesystems,
+and who looked at my patch almost immediately.
+If no one had looked at my patch, there would have been no review, and
+therefore no finding of bugs.
+If the people looking at my patch had lacked experience with distributed
+filesystems, it is unlikely that they would have found the bugs.
+Had they waited months or even years to look, I likely would have forgotten
+how the patch was supposed to work, making it much more difficult to
+fix them.
+
+However, we must not forget the second tenet of the open-source development,
+namely intensive testing.
+For example, a great many people test the Linux kernel.
+Some test patches as they are submitted, perhaps even yours.
+Others test the -next tree, which is helpful, but there is likely to be
+several weeks or even months delay between the time that you write the
+patch and the time that it appears in the -next tree, by which time the
+patch will not be quite as fresh in your mind.
+Still others test maintainer trees, which often have a similar time delay.
+
+Quite a few people don't test code until it is committed to mainline,
+or the master source tree (Linus's tree in the case of the Linux kernel).
+If your maintainer won't accept your patch until it has been tested,
+this presents you with a deadlock situation: your patch won't be accepted
+until it is tested, but it won't be tested until it is accepted.
+Nevertheless, people who test mainline code are still relatively
+aggressive, given that many people and organizations do not test code
+until it has been pulled into a Linux distro.
+
+And even if someone does test your patch, there is no guarantee that they
+will be running the hardware and software configuration and workload
+required to locate your bugs.
+
+Therefore, even when writing code for an open-source project, you need to
+be prepared to develop and run your own test suite.
+Test development is an underappreciated and very valuable skill, so be
+sure to take full advantage of any existing test suites available to
+you.
+Important as test development is, we will leave further discussion of
+to books dedicated to that topic.
+The following sections therefore discuss locating bugs in your code given that
+you already have a good test suite.
 
 \section{Tracing}
 \label{sec:debugging:Tracing}
@@ -341,8 +492,8 @@ Each of these uses per-CPU buffers to allow data to be collected with
 extremely low overhead.
 Even so, enabling tracing can sometimes change timing enough to
 hide bugs, resulting in \emph{heisenbugs}, which are discussed in
-Sections~\ref{sec:debugging:Probability and Heisenbugs}
-and~\ref{sec:debugging:Heisenbugs and Creating Anti-Heisenbugs}.
+Section~\ref{sec:debugging:Probability and Heisenbugs}
+and especially Section~\ref{sec:debugging:Hunting Heisenbugs}.
 
 Even if you avoid heisenbugs, other pitfalls await you.
 For example, although the machine really does know all,
@@ -1203,8 +1354,8 @@ test failures in a 24-hour test run.
 Such a low failure rate results in very long test runs.
 The next section discusses ways of handling this situation.
 
-\subsection{Heisenbugs and Creating Anti-Heisenbugs}
-\label{sec:debugging:Heisenbugs and Creating Anti-Heisenbugs}
+\subsection{Hunting Heisenbugs}
+\label{sec:debugging:Hunting Heisenbugs}
 
 This line of thought also helps explain heisenbugs:
 adding tracing and assertions can easily reduce the probability
@@ -1219,7 +1370,7 @@ This section describes a number of ways to do just that:
 \begin{enumerate}
 \item	Add delay to race-prone regions.
 \item	Increase workload intensity.
-\item	Test suspicious subsystem in isolation.
+\item	Test suspicious subsystems in isolation.
 \item	Simulate abnormal events.
 \end{enumerate}
 
