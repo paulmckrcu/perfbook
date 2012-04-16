@@ -1396,15 +1396,27 @@ of a bug appearing.
 And this is why extremely lightweight tracing and assertion mechanism are
 so critically important.
 
-However, the field of particle physics inspires another thought:
+The name ``heisenbug'' stems from the Heisenberg Uncertainty Principle
+from quantum physics, which states that it is impossible to exactly
+quantify a given particle's position and velocity at any given point
+in time.
+Any attempt to more accurately measure that particle's position will
+result in increased uncertainty of its velocity.
+A similar effect occurs for heisenbugs: attempts to track down the bug
+causes it to radically change its symptoms or even disappear completely.
+
+If the field of physics inspired the name of this problem, it is only
+logical that we should look to the field of physics for the solution.
+Fortunately, particle physics is up to the task:
 Why not create an anti-heisenbug to annihilate the heisenbug?
+
 This section describes a number of ways to do just that:
 
 \begin{enumerate}
 \item	Add delay to race-prone regions.
 \item	Increase workload intensity.
 \item	Test suspicious subsystems in isolation.
-\item	Simulate abnormal events.
+\item	Simulate unusual events.
 \end{enumerate}
 
 Although producing an anti-heisenbug for a given heisenbug is more an
@@ -1425,31 +1437,167 @@ to create an anti-heisenbug by adding delay in this manner.
 
 Of course, this begs the question of how to find the race condition in
 the first place.
-This is a bit of a dark art, but there are @@@
+This is a bit of a dark art, but there are a number of things you can
+do to find them.
 
-Corrupted variables -- check synchronization.
+On approach is to recognize that race conditions often end up corrupting
+some of the data involved in the race.
+It is therefore good practice to double-check the synchronization of
+any corrupted data.
+Even if you cannot immediately recognize the race condition, adding
+delay before and after accesses to the corrupted data might change
+the failure rate.
+By adding and removing the delays in an organized fashion (e.g., binary
+search), you might learn more about the workings of the race condition.
 
-Vary software and hardware configuration and look for statistically
+\QuickQuiz{}
+	How is this approach supposed to help if the corruption affected some
+	unrelated pointer, which then caused the corruption???
+\QuickQuizAnswer{
+	Indeed, that can happen.
+	Many CPUs have hardware-debugging facilities that can help you
+	locate that unrelated pointer.
+	Furthermore, if you have a core dump, you can search the core
+	dump for pointers referencing the corrupted region of memory.
+	You can also look at the data layout of the corruption, and
+	check pointers whose type matches that layout.
+
+	You can also step back and test the modules making up your
+	program more intensively, which will likely confine the corruption
+	to the module responsible for it.
+	If this makes the corruption vanish, consider adding additional
+	argument checking to the functions exported from each module.
+
+	Nevertheless, this is a hard problem, which is why I used the
+	words ``a bit of a dark art''.
+} \QuickQuizEnd
+
+Another important approach is to
+vary the software and hardware configuration and look for statistically
 significant differences in failure rate.
-This can narrow down the problem considerably.
+You can then look more intensively at the code implicated by the
+software or hardware configuration changes that make the greatest
+difference in failure rate.
+It might be helpful to test that code in isolation, for example.
 
-One important software configuration variable is the history of
+One important aspect of software configuration is the history of
 changes, which is why \co{git bisect} is so useful.
+Bisection of the change history can provide very valuable clues as
+to the nature of the heisenbug.
+
+\QuickQuiz{}
+	But I did the bisection, and ended up with a huge commit.
+	What do I do now?
+\QuickQuizAnswer{
+	A huge commit?
+	Shame on you!
+	This is but one reason why you are supposed to keep the commits small.
+
+	And that is your answer: Break up the commit into bite-sized
+	pieces and bisect the pieces.
+	In my experience, the act of breaking up the commit is often
+	sufficient to show me the bug.
+} \QuickQuizEnd
+
+However you locate the suspicious section of code, you can then introduce
+delays to attempt to increase the probability of failure.
+As we have seen, increasing the probability of failure makes it much
+easier to gain high confidence in the corresponding fix.
+
+However, it is sometimes quite difficult to track down the problem using
+normal debugging techniques.
+The following sections present some other alternatives.
 
 \subsubsection{Increase Workload Intensity}
 \label{sec:debugging:Increase Workload Intensity}
 
+It is often the case that a given test suite relatively
+low stress on a given subsystem, so that a small change in timing
+can cause a heisenbug to disappear.
+One way to create an anti-heisenbug for this case is to increase
+the workload intensity, which has a good chance of increasing the
+probability of the bug appearing.
+If the probability is increased sufficiently, it may be possible to
+add lightweight diagnostics such as tracing without causing the
+bug to vanish.
+
+How can you increase the workload intensity?
+This depends on the program, but here are some things to try:
+
+\begin{enumerate}
+\item	Add more CPUs.
+\item	If the program uses networking, add more network adapters
+	and more or faster remote systems.
+\item	If the program is doing heavy I/O when the problem occurs,
+	either (1) add more storage devices, (2) use faster storage
+	devices, for example, substitute SSDs for disks,
+	or (3) use a RAM-based filesystem to substitute main
+	memory for mass storage.
+\item	Change the size of the problem, for example, if doing a parallel
+	matrix multiply, change the size of the matrix.
+	Larger problems may introduce more complexity, but smaller
+	problems often increase the level of contention.
+	If you aren't sure whether you should go large or go small,
+	just try both.
+\end{enumerate}
+
+However, it is often the case that the bug is in a specific subsystem,
+and the structure of the program limits the amount of stress that can
+be applied to that subsystem.
+The next section addresses this situation.
+
 \subsubsection{Isolate Suspicious Subsystems}
 \label{sec:debugging:Isolate Suspicious Subsystems}
 
-\subsubsection{Simulate Abnormal Events}
-\label{sec:debugging:Simulate Abnormal Events}
+If the program is structured such that it is difficult or impossible
+to apply much stress to a subsystem that is under suspicion,
+a useful anti-heisenbug is a stress test that tests that subsystem in
+isolation.
+The Linux kernel's rcutorture module takes exactly this approach with
+RCU: By applying more stress to RCU than is feasible in a production
+environment, the probability that any RCU bugs will be found during
+rcutorture testing rather than during production use is increased.\footnote{
+	Though sadly not increased to probability one.}
 
-@@@
+In fact, when creating a parallel program, it is wise to stress-test
+the components separately.
+Creating such component-level stress tests can seem like a waste of time,
+but a little bit of component-level testing can save a huge amount
+of system-level debugging.
 
-Measure bug probability as a function of configuration parameters,
-input, intensity of load, number of CPUs, etc.
-Set up experiments.
+\subsubsection{Simulate Unusual Events}
+\label{sec:debugging:Simulate Unusual Events}
+
+Heisenbugs are sometimes due to unusual events, such as
+memory-allocation failure, conditional-lock-acquisition failure,
+CPU-hotplug operations, timeouts, packet losses, and so on.
+One way to construct an anti-heisenbug for this class of heisenbug
+is to introduce spurious failures.
+
+For example, instead of invoking \co{malloc()} directly, invoke
+a wrapper function that uses a random number to decide whether
+to return \co{NULL} unconditionally on the one hand, or to actually
+invoke \co{malloc()} and return the resulting pointer on the other.
+Inducing spurious failures is an excellent way to bake robustness into
+sequential programs as well as parallel programs.
+
+\QuickQuiz{}
+	Why don't existing conditional-locking primitives provide this
+	spurious-failure functionality?
+\QuickQuizAnswer{
+	There are locking algorithms that depend on conditional-locking
+	primitives telling them the truth.
+	For example, if conditional-lock failure signals that
+	some other thread is already working on a given job,
+	spurious failure might cause that job to never get done,
+	possibly resulting in a hang.
+} \QuickQuizEnd
+
+Thus far, we have focused solely on bugs in the parallel program's
+functionality.
+However, because performance is a first-class requirement for a
+parallel program (otherwise, why not write a sequential program?),
+the next section looks into finding performance bugs.
 
 \section{Performance Estimation}
 \label{sec:debugging:Performance Estimation}
