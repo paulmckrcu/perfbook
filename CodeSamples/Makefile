@@ -13,13 +13,13 @@ pthreads:
 	echo "" >> api.h
 	cat api-pthreads/api-pthreads.h >> api.h
 	echo "" >> api.h
-	if test -f /usr/include/urcu-call-rcu.h ; \
+	if test -f /usr/include/urcu-call-rcu.h -o -f /usr/local/include/urcu-call-rcu.h ; \
 	then \
 		echo "#define _LGPL_SOURCE" >> api.h; \
 		echo "#include <urcu/rculist.h>" >> api.h; \
 		echo "#include <urcu/rcuhlist.h>" >> api.h; \
 		echo "#include <urcu-pointer.h>" >> api.h; \
-	elif test -d /usr/include/urcu ; \
+	elif test -d /usr/include/urcu -o -d /usr/local/include/urcu ; \
 	then \
 		echo "#define _LGPL_SOURCE" >> api.h; \
 		echo "#include <urcu/rculist.h>" >> api.h; \
@@ -39,13 +39,13 @@ pthreads-x86:
 	echo "" >> api.h
 	cat api-pthreads/api-pthreads.h >> api.h
 	echo "" >> api.h
-	if test -f /usr/include/urcu-call-rcu.h ; \
+	if test -f /usr/include/urcu-call-rcu.h -o -f /usr/local/include/urcu-call-rcu.h ; \
 	then \
 		echo "#define _LGPL_SOURCE" >> api.h; \
 		echo "#include <urcu/rculist.h>" >> api.h; \
 		echo "#include <urcu/rcuhlist.h>" >> api.h; \
 		echo "#include <urcu-pointer.h>" >> api.h; \
-	elif test -d /usr/include/urcu ; \
+	elif test -d /usr/include/urcu -o -d /usr/local/include/urcu ; \
 	then \
 		echo "#define _LGPL_SOURCE" >> api.h; \
 		echo "#include <urcu/rculist.h>" >> api.h; \
@@ -67,13 +67,13 @@ pthreads-ppc64:
 	echo "" >> api.h
 	cat api-pthreads/api-pthreads.h >> api.h
 	echo "" >> api.h
-	if test -f /usr/include/urcu-call-rcu.h ; \
+	if test -f /usr/include/urcu-call-rcu.h -o -f /usr/local/include/urcu-call-rcu.h ; \
 	then \
 		echo "#define _LGPL_SOURCE" >> api.h; \
 		echo "#include <urcu/rculist.h>" >> api.h; \
 		echo "#include <urcu/rcuhlist.h>" >> api.h; \
 		echo "#include <urcu-pointer.h>" >> api.h; \
-	elif test -d /usr/include/urcu ; \
+	elif test -d /usr/include/urcu -o -d /usr/local/include/urcu ; \
 	then \
 		echo "#define _LGPL_SOURCE" >> api.h; \
 		echo "#include <urcu/rculist.h>" >> api.h; \
@@ -94,13 +94,13 @@ pthreads-arm:
 	echo "" >> api.h
 	cat api-pthreads/api-pthreads.h >> api.h
 	echo "" >> api.h
-	if test -f /usr/include/urcu-call-rcu.h ; \
+	if test -f /usr/include/urcu-call-rcu.h -o -f /usr/local/include/urcu-call-rcu.h ; \
 	then \
 		echo "#define _LGPL_SOURCE" >> api.h; \
 		echo "#include <urcu/rculist.h>" >> api.h; \
 		echo "#include <urcu/rcuhlist.h>" >> api.h; \
 		echo "#include <urcu-pointer.h>" >> api.h; \
-	elif test -d /usr/include/urcu ; \
+	elif test -d /usr/include/urcu -o -d /usr/local/include/urcu ; \
 	then \
 		echo "#define _LGPL_SOURCE" >> api.h; \
 		echo "#include <urcu/rculist.h>" >> api.h; \

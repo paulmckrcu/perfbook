@@ -52,7 +52,7 @@
  * This is pretty standard.  The trick is that only the low-order bits
  * of lidx and ridx are used to index into a power-of-two sized hash
  * table.  Each bucket of the hash table is a circular doubly linked
- * list (AKA Linux-kernel list_head structure).  Left-hand operations
+ * list (AKA liburcu cds_list_head structure).  Left-hand operations
  * manipulate the tail of the selected list, while right-hand operations
  * manipulate the head of the selected list.  Each bucket has its own
  * lock, minimizing lock contention.  Each of the two indexes also has
@@ -67,7 +67,7 @@
 
 struct deq_bkt {
 	spinlock_t lock;
-	struct list_head chain;
+	struct cds_list_head chain;
 } ____cacheline_internodealigned_in_smp;
 
 struct pdeq {
@@ -100,13 +100,13 @@ void init_pdeq(struct pdeq *d)
 	spin_lock_init(&d->rlock);
 	for (i = 0; i < DEQ_N_BKTS; i++) {
 		spin_lock_init(&d->bkt[i].lock);
-		INIT_LIST_HEAD(&d->bkt[i].chain);
+		CDS_INIT_LIST_HEAD(&d->bkt[i].chain);
 	}
 }
 
-struct list_head *pdeq_pop_l(struct pdeq *d)
+struct cds_list_head *pdeq_pop_l(struct pdeq *d)
 {
-	struct list_head *e;
+	struct cds_list_head *e;
 	int i;
 	struct deq_bkt *p;
 
@@ -114,12 +114,12 @@ struct list_head *pdeq_pop_l(struct pdeq *d)
 	i = moveright(d->lidx);
 	p = &d->bkt[i];
 	spin_lock(&p->lock);
-	if (list_empty(&p->chain))
+	if (cds_list_empty(&p->chain))
 		e = NULL;
 	else {
 		e = p->chain.prev;
-		list_del(e);
-		INIT_LIST_HEAD(e);
+		cds_list_del(e);
+		CDS_INIT_LIST_HEAD(e);
 		d->lidx = i;
 	}
 	spin_unlock(&p->lock);
@@ -127,9 +127,9 @@ struct list_head *pdeq_pop_l(struct pdeq *d)
 	return e;
 }
 
-struct list_head *pdeq_pop_r(struct pdeq *d)
+struct cds_list_head *pdeq_pop_r(struct pdeq *d)
 {
-	struct list_head *e;
+	struct cds_list_head *e;
 	int i;
 	struct deq_bkt *p;
 
@@ -137,12 +137,12 @@ struct list_head *pdeq_pop_r(struct pdeq *d)
 	i = moveleft(d->ridx);
 	p = &d->bkt[i];
 	spin_lock(&p->lock);
-	if (list_empty(&p->chain))
+	if (cds_list_empty(&p->chain))
 		e = NULL;
 	else {
 		e = p->chain.next;
-		list_del(e);
-		INIT_LIST_HEAD(e);
+		cds_list_del(e);
+		CDS_INIT_LIST_HEAD(e);
 		d->ridx = i;
 	}
 	spin_unlock(&p->lock);
@@ -150,7 +150,7 @@ struct list_head *pdeq_pop_r(struct pdeq *d)
 	return e;
 }
 
-void pdeq_push_l(struct list_head *e, struct pdeq *d)
+void pdeq_push_l(struct cds_list_head *e, struct pdeq *d)
 {
 	int i;
 	struct deq_bkt *p;
@@ -159,13 +159,13 @@ void pdeq_push_l(struct list_head *e, struct pdeq *d)
 	i = d->lidx;
 	p = &d->bkt[i];
 	spin_lock(&p->lock);
-	list_add_tail(e, &p->chain);
+	cds_list_add_tail(e, &p->chain);
 	d->lidx = moveleft(d->lidx);
 	spin_unlock(&p->lock);
 	spin_unlock(&d->llock);
 }
 
-void pdeq_push_r(struct list_head *e, struct pdeq *d)
+void pdeq_push_r(struct cds_list_head *e, struct pdeq *d)
 {
 	int i;
 	struct deq_bkt *p;
@@ -174,7 +174,7 @@ void pdeq_push_r(struct list_head *e, struct pdeq *d)
 	i = d->ridx;
 	p = &d->bkt[i];
 	spin_lock(&p->lock);
-	list_add(e, &p->chain);
+	cds_list_add(e, &p->chain);
 	d->ridx = moveright(d->ridx);
 	spin_unlock(&p->lock);
 	spin_unlock(&d->rlock);

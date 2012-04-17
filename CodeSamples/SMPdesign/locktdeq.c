@@ -25,50 +25,50 @@
 /* First do the underlying single-locked deq implementation. */
 
 struct deq {
-	struct list_head chain;
+	struct cds_list_head chain;
 } ____cacheline_internodealigned_in_smp;
 
 void init_deq(struct deq *p)
 {
-	INIT_LIST_HEAD(&p->chain);
+	CDS_INIT_LIST_HEAD(&p->chain);
 }
 
-struct list_head *deq_pop_l(struct deq *p)
+struct cds_list_head *deq_pop_l(struct deq *p)
 {
-	struct list_head *e;
+	struct cds_list_head *e;
 
-	if (list_empty(&p->chain))
+	if (cds_list_empty(&p->chain))
 		e = NULL;
 	else {
 		e = p->chain.prev;
-		list_del(e);
-		INIT_LIST_HEAD(e);
+		cds_list_del(e);
+		CDS_INIT_LIST_HEAD(e);
 	}
 	return e;
 }
 
-void deq_push_l(struct list_head *e, struct deq *p)
+void deq_push_l(struct cds_list_head *e, struct deq *p)
 {
-	list_add_tail(e, &p->chain);
+	cds_list_add_tail(e, &p->chain);
 }
 
-struct list_head *deq_pop_r(struct deq *p)
+struct cds_list_head *deq_pop_r(struct deq *p)
 {
-	struct list_head *e;
+	struct cds_list_head *e;
 
-	if (list_empty(&p->chain))
+	if (cds_list_empty(&p->chain))
 		e = NULL;
 	else {
 		e = p->chain.next;
-		list_del(e);
-		INIT_LIST_HEAD(e);
+		cds_list_del(e);
+		CDS_INIT_LIST_HEAD(e);
 	}
 	return e;
 }
 
-void deq_push_r(struct list_head *e, struct deq *p)
+void deq_push_r(struct cds_list_head *e, struct deq *p)
 {
-	list_add(e, &p->chain);
+	cds_list_add(e, &p->chain);
 }
 
 /*
@@ -99,9 +99,9 @@ void init_pdeq(struct pdeq *d)
 	init_deq(&d->rdeq);
 }
 
-struct list_head *pdeq_pop_l(struct pdeq *d)
+struct cds_list_head *pdeq_pop_l(struct pdeq *d)
 {
-	struct list_head *e;
+	struct cds_list_head *e;
 	int i;
 
 	spin_lock(&d->llock);
@@ -109,17 +109,17 @@ struct list_head *pdeq_pop_l(struct pdeq *d)
 	if (e == NULL) {
 		spin_lock(&d->rlock);
 		e = deq_pop_l(&d->rdeq);
-		list_splice(&d->rdeq.chain, &d->ldeq.chain);
-		INIT_LIST_HEAD(&d->rdeq.chain);
+		cds_list_splice(&d->rdeq.chain, &d->ldeq.chain);
+		CDS_INIT_LIST_HEAD(&d->rdeq.chain);
 		spin_unlock(&d->rlock);
 	}
 	spin_unlock(&d->llock);
 	return e;
 }
 
-struct list_head *pdeq_pop_r(struct pdeq *d)
+struct cds_list_head *pdeq_pop_r(struct pdeq *d)
 {
-	struct list_head *e;
+	struct cds_list_head *e;
 	int i;
 
 	spin_lock(&d->rlock);
@@ -131,8 +131,8 @@ struct list_head *pdeq_pop_r(struct pdeq *d)
 		e = deq_pop_r(&d->rdeq);
 		if (e == NULL) {
 			e = deq_pop_r(&d->ldeq);
-			list_splice(&d->ldeq.chain, &d->rdeq.chain);
-			INIT_LIST_HEAD(&d->ldeq.chain);
+			cds_list_splice(&d->ldeq.chain, &d->rdeq.chain);
+			CDS_INIT_LIST_HEAD(&d->ldeq.chain);
 		}
 		spin_unlock(&d->llock);
 	}
@@ -140,7 +140,7 @@ struct list_head *pdeq_pop_r(struct pdeq *d)
 	return e;
 }
 
-void pdeq_push_l(struct list_head *e, struct pdeq *d)
+void pdeq_push_l(struct cds_list_head *e, struct pdeq *d)
 {
 	int i;
 
@@ -149,7 +149,7 @@ void pdeq_push_l(struct list_head *e, struct pdeq *d)
 	spin_unlock(&d->llock);
 }
 
-void pdeq_push_r(struct list_head *e, struct pdeq *d)
+void pdeq_push_r(struct cds_list_head *e, struct pdeq *d)
 {
 	int i;
 

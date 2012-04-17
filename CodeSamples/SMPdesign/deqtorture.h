@@ -21,7 +21,7 @@
 #define N_TEST_ELEMS 10
 
 struct deq_elem {
-	struct list_head l;
+	struct cds_list_head l;
 	int data;
 };
 
@@ -30,8 +30,8 @@ struct deq_elem {
 #define GOFLAG_STOP	2
 
 struct deq_test {
-	void (*push)(struct list_head *e, struct pdeq *d);
-	struct list_head *(*pop)(struct pdeq *d);
+	void (*push)(struct cds_list_head *e, struct pdeq *d);
+	struct cds_list_head *(*pop)(struct pdeq *d);
 	struct pdeq *d;
 	struct deq_elem *p;
 	struct deq_elem **q;
@@ -43,13 +43,13 @@ struct deq_test {
 	long long endtime;
 };
 
-void pdeq_push_error(struct list_head *e, struct pdeq *d)
+void pdeq_push_error(struct cds_list_head *e, struct pdeq *d)
 {
 	printf("pdeq_push_error()\n");
 	abort();
 }
 
-struct list_head *pdeq_pop_error(struct pdeq *d)
+struct cds_list_head *pdeq_pop_error(struct pdeq *d)
 {
 	printf("pdeq_pop_error()\n");
 	abort();
@@ -92,7 +92,7 @@ void *concurrent_ppop(void *arg)
 	struct deq_test *t = (struct deq_test *)arg;
 	int i;
 	int me;
-	struct list_head *p0;
+	struct cds_list_head *p0;
 	struct deq_elem *p1;
 
 	me = atomic_add_return(1, t->count) + 1;
@@ -107,7 +107,7 @@ void *concurrent_ppop(void *arg)
 		p0 = t->pop(t->d);
 		if (p0 == NULL)
 			continue;
-		p1 = list_entry(p0, struct deq_elem, l);
+		p1 = cds_list_entry(p0, struct deq_elem, l);
 		t->q[i++] = p1;
 	}
 	t->endtime = get_microseconds();
@@ -356,21 +356,21 @@ struct deq_elem *msgrecvarray[N_PERF_MSGS];
 
 void simple_deq_perf(void)
 {
-	struct list_head d;
+	struct cds_list_head d;
 	int i;
-	struct list_head *p;
+	struct cds_list_head *p;
 	long long starttime;
 	long long stoptime;
 
-	printf("Push %d elements sequentially through a list_head\n",
+	printf("Push %d elements sequentially through a cds_list_head\n",
 	       N_PERF_MSGS);
-	INIT_LIST_HEAD(&d);
+	CDS_INIT_LIST_HEAD(&d);
 	starttime = get_microseconds();
 	for (i = 0; i < N_PERF_MSGS; i++)
-		list_add(&msgxmitarray[i].l, &d);
-	while (!list_empty(&d)) {
+		cds_list_add(&msgxmitarray[i].l, &d);
+	while (!cds_list_empty(&d)) {
 		p = d.prev;
-		list_del(p);
+		cds_list_del(p);
 	}
 	stoptime = get_microseconds();
 	printf("starttime=%lld, endtime=%lld, delta=%lld us\n",
@@ -391,7 +391,7 @@ void *deq_perf_pop(void *arg)
 	struct deq_test_1 *t = (struct deq_test_1 *)arg;
 	int i = 0;
 	int me;
-	struct list_head *p;
+	struct cds_list_head *p;
 
 	me = atomic_add_return(1, t->count) + 1;
 	run_on(me);
@@ -470,11 +470,11 @@ void pdeq_perf(void)
 	       starttime, dt.endtime, dt.endtime - starttime);
 }
 
-int getdata(struct list_head *p)
+int getdata(struct cds_list_head *p)
 {
 	if (p == NULL)
 		return 0;
-	return list_entry(p, struct deq_elem, l)->data;
+	return cds_list_entry(p, struct deq_elem, l)->data;
 }
 
 int main(int argc, char *argv[])
@@ -482,7 +482,7 @@ int main(int argc, char *argv[])
 	int d1, d2, d3, d4;
 	struct deq_elem e1, e2, e3;
 	int i;
-	struct list_head *p;
+	struct cds_list_head *p;
 	struct pdeq deq;
 
 	init_pdeq(&deq);

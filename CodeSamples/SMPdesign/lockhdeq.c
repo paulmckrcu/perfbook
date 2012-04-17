@@ -26,58 +26,58 @@
 
 struct deq {
 	spinlock_t lock;
-	struct list_head chain;
+	struct cds_list_head chain;
 } ____cacheline_internodealigned_in_smp;
 
 void init_deq(struct deq *p)
 {
 	spin_lock_init(&p->lock);
-	INIT_LIST_HEAD(&p->chain);
+	CDS_INIT_LIST_HEAD(&p->chain);
 }
 
-struct list_head *deq_pop_l(struct deq *p)
+struct cds_list_head *deq_pop_l(struct deq *p)
 {
-	struct list_head *e;
+	struct cds_list_head *e;
 
 	spin_lock(&p->lock);
-	if (list_empty(&p->chain))
+	if (cds_list_empty(&p->chain))
 		e = NULL;
 	else {
 		e = p->chain.prev;
-		list_del(e);
-		INIT_LIST_HEAD(e);
+		cds_list_del(e);
+		CDS_INIT_LIST_HEAD(e);
 	}
 	spin_unlock(&p->lock);
 	return e;
 }
 
-void deq_push_l(struct list_head *e, struct deq *p)
+void deq_push_l(struct cds_list_head *e, struct deq *p)
 {
 	spin_lock(&p->lock);
-	list_add_tail(e, &p->chain);
+	cds_list_add_tail(e, &p->chain);
 	spin_unlock(&p->lock);
 }
 
-struct list_head *deq_pop_r(struct deq *p)
+struct cds_list_head *deq_pop_r(struct deq *p)
 {
-	struct list_head *e;
+	struct cds_list_head *e;
 
 	spin_lock(&p->lock);
-	if (list_empty(&p->chain))
+	if (cds_list_empty(&p->chain))
 		e = NULL;
 	else {
 		e = p->chain.next;
-		list_del(e);
-		INIT_LIST_HEAD(e);
+		cds_list_del(e);
+		CDS_INIT_LIST_HEAD(e);
 	}
 	spin_unlock(&p->lock);
 	return e;
 }
 
-void deq_push_r(struct list_head *e, struct deq *p)
+void deq_push_r(struct cds_list_head *e, struct deq *p)
 {
 	spin_lock(&p->lock);
-	list_add(e, &p->chain);
+	cds_list_add(e, &p->chain);
 	spin_unlock(&p->lock);
 }
 
@@ -115,7 +115,7 @@ void deq_push_r(struct list_head *e, struct deq *p)
  * This is pretty standard.  The trick is that only the low-order bits
  * of lidx and ridx are used to index into a power-of-two sized hash
  * table.  Each bucket of the hash table is a circular doubly linked
- * list (AKA Linux-kernel list_head structure).  Left-hand operations
+ * list (AKA liburcu cds_list_head structure).  Left-hand operations
  * manipulate the tail of the selected list, while right-hand operations
  * manipulate the head of the selected list.  Each bucket has its own
  * lock, minimizing lock contention.  Each of the two indexes also has
@@ -161,9 +161,9 @@ void init_pdeq(struct pdeq *d)
 		init_deq(&d->bkt[i]);
 }
 
-struct list_head *pdeq_pop_l(struct pdeq *d)
+struct cds_list_head *pdeq_pop_l(struct pdeq *d)
 {
-	struct list_head *e;
+	struct cds_list_head *e;
 	int i;
 
 	spin_lock(&d->llock);
@@ -175,9 +175,9 @@ struct list_head *pdeq_pop_l(struct pdeq *d)
 	return e;
 }
 
-struct list_head *pdeq_pop_r(struct pdeq *d)
+struct cds_list_head *pdeq_pop_r(struct pdeq *d)
 {
-	struct list_head *e;
+	struct cds_list_head *e;
 	int i;
 
 	spin_lock(&d->rlock);
@@ -189,7 +189,7 @@ struct list_head *pdeq_pop_r(struct pdeq *d)
 	return e;
 }
 
-void pdeq_push_l(struct list_head *e, struct pdeq *d)
+void pdeq_push_l(struct cds_list_head *e, struct pdeq *d)
 {
 	int i;
 
@@ -200,7 +200,7 @@ void pdeq_push_l(struct list_head *e, struct pdeq *d)
 	spin_unlock(&d->llock);
 }
 
-void pdeq_push_r(struct list_head *e, struct pdeq *d)
+void pdeq_push_r(struct cds_list_head *e, struct pdeq *d)
 {
 	int i;
 

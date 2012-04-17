@@ -339,27 +339,27 @@ void melee(void)
 #define N_PERF_MSGS (1000*1000)
 #define N_PERF_HEADSTART (N_PERF_MSGS / 100)
 
-struct list_head listheadxmitarray[N_PERF_MSGS];
+struct cds_list_head listheadxmitarray[N_PERF_MSGS];
 struct el msgxmitarray[N_PERF_MSGS];
 struct el *msgrecvarray[N_PERF_MSGS];
 
 void simple_q_perf(void)
 {
-	struct list_head d;
+	struct cds_list_head d;
 	int i;
-	struct list_head *p;
+	struct cds_list_head *p;
 	long long starttime;
 	long long stoptime;
 
-	printf("Push %d elements sequentially through a list_head\n",
+	printf("Push %d elements sequentially through a cds_list_head\n",
 	       N_PERF_MSGS);
-	INIT_LIST_HEAD(&d);
+	CDS_INIT_LIST_HEAD(&d);
 	starttime = get_microseconds();
 	for (i = 0; i < N_PERF_MSGS; i++)
-		list_add(&listheadxmitarray[i], &d);
-	while (!list_empty(&d)) {
+		cds_list_add(&listheadxmitarray[i], &d);
+	while (!cds_list_empty(&d)) {
 		p = d.prev;
-		list_del(p);
+		cds_list_del(p);
 	}
 	stoptime = get_microseconds();
 	printf("starttime=%lld, endtime=%lld, delta=%lld us\n",
@@ -406,7 +406,7 @@ int main(int argc, char *argv[])
 	int d1, d2, d3, d4;
 	struct el e1, e2, e3;
 	int i;
-	struct list_head *p;
+	struct cds_list_head *p;
 	struct queue q;
 
 	init_q(&q);
