@@ -53,7 +53,7 @@ set output "|/home/paulmck/bin/gnuplotepsfix > $paperwd/500-ms_2seqO3VfgO3_partO
 plot "$res/ms_2seq_O3Vfg_O3.quant" w l, "$res/ms_2seq_O3Vpart_O3.quant" w l, "$res/ms_2seq_O3Vfg_O3.quant" w e, "$res/ms_2seq_O3Vpart_O3.quant" w e
 
 # Figure 10: Partitioned Coroutines
-set xlabel "CDF of Ratio of Solution Times to SEQ (-O3)"
+set xlabel "CDF of Speedup Relative to SEQ (-O3)"
 set ylabel "Probability"
 set logscale x
 set label 1 "PWQ" at 0.95,0.85 right
@@ -63,7 +63,7 @@ set output "|/home/paulmck/bin/gnuplotepsfix > $paperwd/500-ms_seqO3V2seqO3_fgO3
 plot "$f/ms_seq_O3V2seq_O3.cdf" w l, "$f/ms_seq_O3Vfg_O3.cdf" w l, "$f/ms_seq_O3Vpart_O3.cdf" w l
 
 # Figure 9: Effect of Compiler Optimization (-O3)
-set xlabel "CDF of Ratio of Solution Times to SEQ"
+set xlabel "CDF of Speedup Relative to SEQ"
 set ylabel "Probability"
 set logscale x
 set label 1 "PWQ" at 1.5,0.5 right
@@ -78,14 +78,14 @@ set ylabel "Solution Time (ms)"
 unset logscale x
 set label 1 "SEQ" at 70,95 right
 set label 2 "PART" at 53,23 left
-unset label 3
+set label 3 "PWQ" at 75,62 right
 set output "|/home/paulmck/bin/gnuplotepsfix > $paperwd/500-pctVms_seq_part-sct.eps"
-plot "$f/pctVms_seq.sct" with dots lw 2, "$f/pctVms_part.sct" with dots lw 2
+plot "$f/pctVms_seq.sct" with dots lw 2, "$f/pctVms_part.sct" with dots lw 2, "$f/pctVms_fg.sct" with dots lw 2
 
 # Figure 7: Reason for Small Visit Percentages (from xfig)
 
 # Figure 6: CDF of SEQ/PWQ and SEQ/PART Solution-Time Ratios
-set xlabel "CDF of Ratio of Solution Times"
+set xlabel "CDF of Speedup Relative to SEQ"
 set ylabel "Probability"
 set logscale x
 set label 1 "SEQ/PWQ" at 1.4,0.5 right
