@@ -370,7 +370,7 @@ in program order.
 
 \subsubsection{Single-Variable Memory Consistency}
 
-If a group of CPUs all do concurrent stores to a single variable,
+If a group of CPUs all do concurrent non-atomic stores to a single variable,
 the series of values seen by all CPUs will be consistent with at
 least one global ordering.
 For example, in the series of accesses shown in
@@ -381,13 +381,23 @@ CPU~3 sees the sequence {\tt \{3,2\}},
 and
 CPU~4 sees the sequence {\tt \{4,2\}}.
 This is consistent with the global sequence {\tt \{3,1,4,2\}},
-but also with all five of the other sequence of these four numbers that end
+but also with all five of the other sequences of these four numbers that end
 in ``2''.
+Thus, there will be agreement on the sequence of values taken on
+by a single variable, but there might be ambiguity.
 
-Had the CPUs used atomic operations (such as the Linux kernel's
+In contrast, had the CPUs used atomic operations (such as the Linux kernel's
 \co{atomic_inc_return()} primitive) rather than simple stores of
 unique values, their observations would
 be guaranteed to determine a single globally consistent sequence of values.
+One of the \co{atomic_inc_return()} invocations would happen first,
+and would change the value from 0 to 1, the second from 1 to 2, and
+so on.
+The CPUs could compare notes afterwards and come to agreement on the
+exact ordering of the sequence of \co{atomic_inc_return()} invocations.
+This does not work for the non-atomic stores described earlier because
+the non-atomic stores do not return any indication of the earlier value,
+hence the possibility of ambiguity.
 
 Please note well that this section applies \emph{only} when all
 CPUs' accesses are to one single variable.
