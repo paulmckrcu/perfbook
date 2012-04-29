@@ -183,19 +183,11 @@ EPSSOURCES = \
 all: perfbook.pdf
 
 perfbook.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
-	pdflatex perfbook || :
-	test -d bib/. && bibtex perfbook || :
-	pdflatex perfbook || :
-	pdflatex perfbook || :
-	pdflatex perfbook || :
+	sh utilities/runlatex.sh perfbook bib
 
 perfbook-1c.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sed -e 's/,twocolumn//' < perfbook.tex > perfbook-1c.tex
-	pdflatex perfbook-1c || :
-	test -d bib/. && bibtex perfbook-1c || :
-	pdflatex perfbook-1c || :
-	pdflatex perfbook-1c || :
-	pdflatex perfbook-1c || :
+	sh utilities/runlatex.sh perfbook-1c bib
 
 perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
 	echo > qqz.tex
