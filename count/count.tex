@@ -1793,7 +1793,7 @@ execution continues in the loop at line~9.
 	changed it!
 \QuickQuizAnswer{
 	Later, we will see how the \co{flush_local_count()} function in
-	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions 1}
 	might update this thread's \co{ctrandmax} variable concurrently
 	with the execution of the fastpath on lines~8-14 of
 	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}.
@@ -1897,62 +1897,73 @@ Finally, line~17 returns the sum.
  30       globalreserve -= cm;
  31     }
  32 }
- 33 
- 34 static void balance_count(void)
- 35 {
- 36   int c;
- 37   int cm;
- 38   int old;
- 39   unsigned long limit;
- 40 
- 41   limit = globalcountmax - globalcount - globalreserve;
- 42   limit /= num_online_threads();
- 43   if (limit > MAX_COUNTERMAX)
- 44     cm = MAX_COUNTERMAX;
- 45   else
- 46     cm = limit;
- 47   globalreserve += cm;
- 48   c = cm / 2;
- 49   if (c > globalcount)
- 50     c = globalcount;
- 51   globalcount -= c;
- 52   old = merge_ctrandmax(c, cm);
- 53   atomic_set(&ctrandmax, old);
- 54 }
- 55 
- 56 void count_register_thread(void)
- 57 {
- 58   int idx = smp_thread_id();
- 59 
- 60   spin_lock(&gblcnt_mutex);
- 61   counterp[idx] = &ctrandmax;
- 62   spin_unlock(&gblcnt_mutex);
- 63 }
- 64 
- 65 void count_unregister_thread(int nthreadsexpected)
- 66 {
- 67   int idx = smp_thread_id();
- 68 
- 69   spin_lock(&gblcnt_mutex);
- 70   globalize_count();
- 71   counterp[idx] = NULL;
- 72   spin_unlock(&gblcnt_mutex);
- 73 }
 \end{verbatim}
 }
-\caption{Atomic Limit Counter Utility Functions}
-\label{fig:count:Atomic Limit Counter Utility Functions}
+\caption{Atomic Limit Counter Utility Functions 1}
+\label{fig:count:Atomic Limit Counter Utility Functions 1}
 \end{figure}
 
-Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 static void balance_count(void)
+  2 {
+  3   int c;
+  4   int cm;
+  5   int old;
+  6   unsigned long limit;
+  7 
+  8   limit = globalcountmax - globalcount -
+  9           globalreserve;
+ 10   limit /= num_online_threads();
+ 11   if (limit > MAX_COUNTERMAX)
+ 12     cm = MAX_COUNTERMAX;
+ 13   else
+ 14     cm = limit;
+ 15   globalreserve += cm;
+ 16   c = cm / 2;
+ 17   if (c > globalcount)
+ 18     c = globalcount;
+ 19   globalcount -= c;
+ 20   old = merge_ctrandmax(c, cm);
+ 21   atomic_set(&ctrandmax, old);
+ 22 }
+ 23 
+ 24 void count_register_thread(void)
+ 25 {
+ 26   int idx = smp_thread_id();
+ 27 
+ 28   spin_lock(&gblcnt_mutex);
+ 29   counterp[idx] = &ctrandmax;
+ 30   spin_unlock(&gblcnt_mutex);
+ 31 }
+ 32 
+ 33 void count_unregister_thread(int nthreadsexpected)
+ 34 {
+ 35   int idx = smp_thread_id();
+ 36 
+ 37   spin_lock(&gblcnt_mutex);
+ 38   globalize_count();
+ 39   counterp[idx] = NULL;
+ 40   spin_unlock(&gblcnt_mutex);
+ 41 }
+\end{verbatim}
+}
+\caption{Atomic Limit Counter Utility Functions 2}
+\label{fig:count:Atomic Limit Counter Utility Functions 2}
+\end{figure}
+
+Figures~\ref{fig:count:Atomic Limit Counter Utility Functions 1}
+and~\ref{fig:count:Atomic Limit Counter Utility Functions 2}
 shows the utility functions
 \co{globalize_count()},
 \co{flush_local_count()},
 \co{balance_count()},
 \co{count_register_thread()}, and
 \co{count_unregister_thread()}.
-The code for \co{globalize_count()} is shown on lines~1-12, and
-it is similar to that of previous algorithms, with the addition of
+The code for \co{globalize_count()} is shown on lines~1-12,
+of Figure~\ref{fig:count:Atomic Limit Counter Utility Functions 1} and
+is similar to that of previous algorithms, with the addition of
 line~7, which is now required to split out \co{counter} and
 \co{countermax} from \co{ctrandmax}.
 
@@ -1976,7 +1987,7 @@ line~30 subtracts this thread's \co{countermax} from \co{globalreserve}.
 	What stops a thread from simply refilling its
 	\co{ctrandmax} variable immediately after
 	\co{flush_local_count()} on line 14 of
-	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions 1}
 	empties it?
 \QuickQuizAnswer{
 	This other thread cannot refill its \co{ctrandmax}
@@ -1993,7 +2004,7 @@ line~30 subtracts this thread's \co{countermax} from \co{globalreserve}.
 	\co{atomic_add()} or \co{atomic_sub()} from interfering with
 	the \co{ctrandmax} variable while
 	\co{flush_local_count()} is accessing it on line 27 of
-	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions 1}
 	empties it?
 \QuickQuizAnswer{
 	Nothing.
@@ -2018,20 +2029,22 @@ line~30 subtracts this thread's \co{countermax} from \co{globalreserve}.
 	Either way, the race is resolved correctly.
 } \QuickQuizEnd
 
-Lines~34-54 show the code for \co{balance_count()}, which refills
+Lines~1-22 on
+Figure~\ref{fig:count:Atomic Limit Counter Utility Functions 2}
+show the code for \co{balance_count()}, which refills
 the calling thread's local \co{ctrandmax} variable.
 This function is quite similar to that of the preceding algorithms,
 with changes required to handle the merged \co{ctrandmax} variable.
 Detailed analysis of the code is left as an exercise for the reader,
 as it is with the \co{count_register_thread()} function starting on
-line~56 and the \co{count_unregister_thread()} function starting on
-line~65.
+line~24 and the \co{count_unregister_thread()} function starting on
+line~33.
 
 \QuickQuiz{}
 	Given that the \co{atomic_set()} primitive does a simple
-	store to the specified \co{atomic_t}, how can line~53 of
+	store to the specified \co{atomic_t}, how can line~20 of
 	\co{balance_count()} in
-	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions}
+	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions 2}
 	work correctly in face of concurrent \co{flush_local_count()}
 	updates to this variable?
 \QuickQuizAnswer{
