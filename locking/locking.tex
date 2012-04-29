@@ -1825,18 +1825,158 @@ but not as easy as constructing a parallel application.
 \subsection{Locking For Parallelizing Sequential Libraries: Villain!}
 \label{sec:locking:Locking For Parallelizing Sequential Libraries: Villain!}
 
-@@@
-It turns out that designers of parallel libraries must also exercise
-considerable care in designing the library's
+With the advent of readily available low-cost multicore systems,
+a common task is parallelizing an existing library that was designed
+with only single-threaded use in mind.
+This all-to-common disregard for parallelism can result in a library
+API that is severely flawed from a parallel-programming viewpoint.
+Candidate flaws include:
+
+\begin{enumerate}
+\item	Implicit prohibition of partitioning.
+\item	Callback functions requiring locking.
+\item	Object-oriented spaghetti code.
+\end{enumerate}
+
+These flaws and the consequences for locking are discussed in the following
+sections.
+
+\subsection{Partitioning Prohibited}
+\label{sec:locking:Partitioning Prohibited}
+
+Suppose that you were writing a single-threaded hash-table implementation.
+It is easy and fast to maintain an exact count of the total number of items
+in the hash table, and also easy and fast to return this exact count on each
+addition and deletion operation.
+So why not?
+
+One reason is that exact counters do not perform or scale well, as was
+seen in Chapter~\ref{chp:Counting}.
+As a result, the parallelized implementation of the hash table will not
+perform or scale well.
+
+So what can be done about this?
+One approach is to return an approximate count, using one of the algorithms
+from Chapter~\ref{chp:Counting}.
+Another approach is to drop the element count altogether.
+
+Either way, it will be necessary to inspect uses of the hash table to see
+what the addition and deletion operations are using the exact count for.
+Here are a few possibilities:
+
+\begin{enumerate}
+\item	Determining when to resize the hash table.
+	In this case, an approximate count should work quite well.
+	It might also be useful to trigger the resizing operation from
+	the length of the longest chain, which can be computed and
+	maintained in a nicely partitioned per-chain basis.
+\item	Producing an estimate of the time required to traverse the
+	entire hash table.
+	An approximate count works well in this case, also.
+\item	For diagnostic purposes, for example, to check for items being
+	lost when transferring them to and from the hash table.
+	This clearly requires an exact count.
+	However, given that this usage is diagnostic in nature, it might
+	suffice to maintain the lengths of the hash chains, then to
+	infrequently sum them
+	up while locking out addition and deletion operations.
+\end{enumerate}
+
+It turns out that there is now a strong theoretical basis for the
+constraints that performance and scalability place on a parallel library's
 APIs~\cite{HagitAttiya2011LawsOfOrder,PaulEMcKenney2011SNC}.
-To see this, imagine a hash table insertion function that returned
-the exact number of elements in the hash table after the insertion.
+Anyone designing a parallel library needs to pay close attention to
+these constraints.
+
+Although it is all too easy to blame a poor choice of API on locking, it
+is also not particularly useful to do so.
+On the other hand, one has little choice but to sympathize with the
+hapless developer who made this choice in (say) 1985.
+It would have been a rare and courageous developer to anticipate the
+need for parallelism at that time, and it would have required an
+even more rare combination of brilliance and luck to actually arrive
+at a good parallel-ready API.
+
+Times change, and code must change with them.
+That said, there can be a huge number of users of a popular library,
+in which case an incompatible change to the API would be quite foolish.
+Adding a parallel-friendly API to complement the existing heavily used
+sequential-only API is probably the best course of action in this
+situation.
+
+Nevertheless, human nature being what it is, we can expect our hapless
+developer to be more likely to complain about locking than about his
+or her own poor (though understandable) choices.
+
+\subsection{Deadlock-Prone Callbacks}
+\label{sec:locking:Deadlock-Prone Callbacks}
+
+Sections~\ref{sec:locking:Local Locking Hierarchies},
+\ref{sec:locking:Layered Locking Hierarchies},
+and~\ref{sec:locking:Locking For Parallel Libraries: Just Another Tool}
+described how undisciplined use of callbacks can result in locking
+woes.
+These sections also described how to design your library function to
+avoid these problems, but it is unrealistic to expect a 1990s programmer
+with no experience in parallel programming to have followed such a design.
+Therefore, someone attempting to parallelize an existing callback-heavy
+single-threaded library will likely have many opportunities to curse
+locking's villainy.
+
+If there are a very large number of uses of a callback-heavy library,
+it may be wise to again add a parallel-friendly API to the library in
+order to allow existing users to convert their code incrementally.
+Alternatively, some advocate use of transactional memory in these cases.
+While the jury is still out on transactional memory,
+Section~\ref{sec:future:Transactional Memory} discusses its strengths and
+weaknesses.
+It is important to note that hardware transactional memory
+(discussed in
+Section~\ref{sec:future:Hardware Transactional Memory})
+cannot help here unless the hardware transactional memory implementation
+provides forward-progress guarantees, which few do.
+Other alternatives that appear to be quite practical (if less heavily
+hyped) include the methods discussed in
+Sections~\ref{sec:locking:Conditional Locking},
+and~\ref{sec:locking:Acquire Needed Locks First},
+as well as those that will be discussed in
+Chapters~\ref{chp:Data Ownership}
+and~\ref{chp:Deferred Processing}.
+
+\subsection{Object-Oriented Spaghetti Code}
+\label{sec:locking:Object-Oriented Spaghetti Code}
+
+Object-oriented programming went mainstream sometime in the 1980s or
+1990s, and as a result there is a huge amount of object-oriented code
+in production, much of it single-threaded.
+Although object orientation can be a valuable software technique,
+undisciplined use of objects can easily result in object-oriented
+spaghetti code.
+In object-oriented spaghetti code, control flits from object to object
+in an essentially random manner, making the code hard to understand
+and even harder, and perhaps impossible, to design a locking hierarchy.
+
+Although many might argue that such code should be cleaned up in any
+case, such things are much easier to say than to do.
+If you are tasked with parallelizing such a beast, you can reduce the
+number of opportunities to curse locking by using the techniques
+described in
+Sections~\ref{sec:locking:Conditional Locking},
+and~\ref{sec:locking:Acquire Needed Locks First},
+as well as those that will be discussed in
+Chapters~\ref{chp:Data Ownership}
+and~\ref{chp:Deferred Processing}.
+This situation appears to be the use case that inspired transactional
+memory, so it might be worth a try as well.
 
 \section{Summary}
 \label{sec:locking:Summary}
 
 Locking is perhaps the most widely used and most generally useful
-synchronization tool,
-but it should not be the only tool in your parallel-programming toolbox.
+synchronization tool, it works best when designed into an application
+or library from the beginning.
+Given the large quantity of pre-existing single-threaded code that might
+need to one day run in parallel, locking should therefore not be the
+only tool in your parallel-programming toolbox.
 The next few chapters will discuss other tools, and how they can best
 be used in concert with locking and with each other.
