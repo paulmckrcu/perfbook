@@ -1597,46 +1597,230 @@ One complication was discussed in
 Section~\ref{sec:locking:Local Locking Hierarchies}, namely
 when library functions call into application code, with \co{qsort()}'s
 comparison-function argument being a case in point.
-The rule here is again to release all library-function locks before
-calling back into application code.
-
-Signal handlers pose similar difficulties.
+Another complication is the interaction with signal handlers.
 If an application signal handler is invoked from a signal received within
 the library function, deadlock can ensue just as if the library function
 had called the signal handler directly.
-Unfortunately, the library function does not have the option of releasing
-locks when a signal is received.
-Any one of the following rules can prevent problems in this case:
+A final complication occurs for those library functions that can be used
+between a \co{fork()}/\co{exec()} pair, for example, due to use of
+the \co{system()} function.
+In this case, if your library function was holding a lock at the time of
+the \co{fork()}, then the child process will begin life with that lock held.
+Because the thread that will release the lock is running in the parent
+but not the child, if the child calls your library function, deadlock
+will ensue.
+
+The following strategies may be used to avoid deadlock problems in these cases:
 
 \begin{enumerate}
-\item	Don't use signals.
-	Unfortunately, library functions cannot enforce this rule on
-	applications.
-\item	Don't acquire locks from within signal handlers.
-	This is excellent advice, but some systems to permit locks to
-	be acquired from within signal handlers.
-	And even if the normal system-provided locks are prohibited
-	within signal handlers, clever programmers can easily
-	(if unwisely) create locks from readily available atomic
-	operations.
-\item	Explicitly avoid signal-handler deadlocks as follows:
-	\begin{enumerate}
-	\item	If application invokes the library function from
-		within a signal handler, then that signal must be blocked
-		every time that the library function is invoked from outside
-		of a signal handler.
-	\item	If the application invokes the library function
-		while holding a lock acquired within a given signal
-		handler, then that signal must be blocked every time that the
-		library function is called outside of a signal handler.
-	\end{enumerate}
-	These deadlock conditions can be avoided by using tools like
-	the Linux kernel's lockdep lock dependency
-	checker~\cite{JonathanCorbet2006lockdep}.
+\item	Don't use either callbacks or signals.
+\item	Don't acquire locks from within callbacks or signal handlers.
+\item	Let the caller control synchronization.
+\item	Parameterize the library API to delegate locking to caller.
+\item	Explicitly avoid callback deadlocks.
+\item	Explicitly avoid signal-handler deadlocks.
 \end{enumerate}
 
-Constructing parallel libraries using locking is possible, but clearly
-not as easy as constructing a parallel application.
+Each of these strategies is discussed in on of the following sections.
+
+\subsubsection{Use Neither Callbacks Nor Signals}
+\label{sec:locking:Use Neither Callbacks Nor Signals}
+
+If a library function avoids callbacks and the application as a whole
+avoids signals, then any locks acquired by that library function will
+be leaves of the locking-hierarchy tree.
+This arrangement avoids deadlock, as discussed in
+Section~\ref{sec:locking:Locking Hierarchies}.
+Although this strategy works extremely well where it applies,
+there are some applications that must use signal handlers,
+and there are some library functions (such as the \co{qsort()} function
+discussed in
+Section~\ref{sec:locking:Local Locking Hierarchies})
+that require callbacks.
+
+The strategy in the next section can often be used in these cases.
+
+\subsubsection{Avoid Locking in Callbacks and Signal Handlers}
+\label{sec:locking:Avoid Locking in Callbacks and Signal Handlers}
+
+If neither callbacks nor signal handlers acquire locks, then they
+cannot be involved in deadlock cycles, which allows straightforward
+locking hierarchies to once again consider library functions to
+be leaves on the locking-hierarchy tree.
+This strategy works very well for most uses of \co{qsort}, whose
+callbacks usually simply compare the two values passed in to them.
+This strategy also works wonderfully for many signal handlers,
+especially given that acquiring locks from within signal handlers
+is generally frowned upon~\cite{TheOpenGroup1997SUS},\footnote{
+	But the standard's words do not stop clever coders from creating
+	their own home-brew locking primitives from atomic operations.}
+but can fail if the application needs to manipulate complex data structures
+from a signal handler.
+
+Here are some ways to avoid acquiring locks in signal handlers even
+if complex data structures must be manipulated:
+
+\begin{enumerate}
+\item	Use simple data structures based on non-blocking synchronization,
+	as will be discussed in
+	Section~\ref{sec:advsync:Simple NBS}.
+\item	If the data structures are too complex for reasonable use of
+	non-blocking synchronization, create a queue that allows
+	non-blocking enqueue operations.
+	In the signal handler, instead of manipulating the complex
+	data structure, add an element to the queue describing the
+	required change.
+	A separate thread can then remove elements from the queue and
+	carry out the required changes using normal locking.
+\end{enumerate}
+
+This strategy should be enforced with occasional manual or (preferably)
+automated inspections of callbacks and signal handlers.
+When carrying out these inspections, be wary of clever coders who
+might have (unwisely) created home-brew locks from atomic operations.
+
+\subsubsection{Caller Controls Synchronization}
+\label{sec:locking:Caller Controls Synchronization}
+
+Let the caller control synchronization.
+This works extremely well when the library functions are operating
+on independent caller-visible instances of a data structure, each
+of which may be synchronized separately.
+For example, if the library functions operate on a search tree,
+and if the application needs a large number of independent search
+trees, then the application can associate a lock with each tree.
+The application the acquires and releases locks as needed, so
+that the library need not be aware of parallelism at all.
+Instead, the application controls the parallelism, so that locking
+can work very well, as discussed in
+Section~\ref{sec:locking:Locking For Applications: Hero!}.
+
+However, the strategy fails if the
+library implements a data structure that requires internal
+concurrency, for example, a hash table or a parallel sort.
+In this case, the library absolutely must control its own
+synchronization.
+
+\subsubsection{Parameterize Library Synchronization}
+\label{sec:locking:Parameterize Library Synchronization}
+
+The idea here is to add arguments to the library's API to specify
+which locks to acquire, how to acquire and release them, or both.
+This strategy allows the application to take on the global task of
+avoiding deadlock by specifying which locks to acquire (by passing in
+pointers to the locks in question) and how to
+acquire them (by passing in pointers to lock acquisition and release
+functions),
+but also allows a given library function to control its own concurrency
+by deciding where the locks should be acquired and released.
+
+In particular, this strategy allows the lock acquisition and release
+functions to block signals as needed without the library code needing to
+be concerned with of which signals need to be blocked by which locks.
+The separation of concerns used by this strategy can be quite effective,
+but in some cases the strategies laid out in the following sections
+can work better.
+
+That said, passing explicit pointers to locks to external APIs must
+be very carefully considered, as discussed in
+Section~\ref{sec:locking:Locking Hierarchies and Pointers to Locks}.
+This practice is sometimes the right thing to do, but you should do
+yourself a favor by looking into alternative designs first.
+
+\subsubsection{Explicitly Avoid Callback Deadlocks}
+\label{sec:locking:Explicitly Avoid Callback Deadlocks}
+
+The basic rule behind this strategy was discussed in
+Section~\ref{sec:locking:Local Locking Hierarchies}: ``Release all
+locks before invoking unknown code.''
+This is usually the best approach because it allows the application to
+ignore the library's locking hierarchy: the library remains a leaf or
+isolated subtree of the application's overall locking hierarchy.
+
+In cases where it is not possible to release all locks before invoking
+unknown code, the layered locking hierarchies described in
+Section~\ref{sec:locking:Layered Locking Hierarchies} can work well.
+For example, if the unknown code is a signal handler, this implies that
+the library function block signals across all lock acquisitions, which
+can be complex and slow.
+Therefore, in cases where signal handlers (probably unwisely) acquire
+locks, the strategies in the next section may prove helpful.
+
+\subsubsection{Explicitly Avoid Signal-Handler Deadlocks}
+\label{sec:locking:Explicitly Avoid Signal-Handler Deadlocks}
+
+Signal-handler deadlocks can be explicitly avoided as follows:
+
+\begin{enumerate}
+\item	If application invokes the library function from
+	within a signal handler, then that signal must be blocked
+	every time that the library function is invoked from outside
+	of a signal handler.
+\item	If the application invokes the library function
+	while holding a lock acquired within a given signal
+	handler, then that signal must be blocked every time that the
+	library function is called outside of a signal handler.
+\end{enumerate}
+
+These rules can be enforced by using tools such as
+the Linux kernel's lockdep lock dependency
+checker~\cite{JonathanCorbet2006lockdep}.
+
+\QuickQuiz{}
+	If acquiring locks in signal handlers is such a bad idea, why
+	even discuss ways of making it safe?
+\QuickQuizAnswer{
+	Because these same rules apply to interrupt handlers used in
+	operating-system kernels and in some embedded applications.
+} \QuickQuizEnd
+
+\subsubsection{Library Functions Used Between fork() and exec()}
+\label{sec:locking:Library Functions Used Between fork() and exec()}
+
+As noted earlier, if a thread executing a library function is holding
+a lock at the time that some other thread invokes \co{fork()}, the
+fact that the parent's memory is copied to create the child means that
+this lock will be born held in the child's context.
+The thread that will release this lock is running in the parent, but not
+in the child, which means that the child's copy of this lock will never
+be released.
+Therefore, any attempt on the part of the child to invoke that same
+library function will result in deadlock.
+
+One approach to this problem would be to have the library function
+check to see if the owner of the lock is still running, and if not,
+``breaking'' the lock by re-initializing and then acquiring it.
+However, this approach as a number of vulnerabilities:
+
+\begin{enumerate}
+\item	The data structures protected by that lock are likely to
+	be in some intermediate state, so that naively breaking the lock
+	might result in arbitrary memory corruption.
+\item	If the child creates additional threads, two threads might
+	break the lock concurrently, with the result that both
+	threads believe they own the lock.
+	This could again result in arbitrary memory corruption.
+\end{enumerate}
+
+The \co{atfork()} function is provided to help deal with these situations.
+The idea is to register a triplet of functions, one to be called by the
+parent before the \co{fork()}, one to be called by the parent after the
+\co{fork()}, and one to be called by the child after the \co{fork()}.
+Appropriate cleanups can then be carried out at these three points.
+
+Be warned, however, that coding of \co{atfork()} handlers is quite subtle
+in general.
+The cases where \co{atfork()} works best are cases where the data structure
+in question can simply be re-initialized by the child.
+
+\subsubsection{Parallel Libraries: Discussion}
+\label{sec:locking:Parallel Libraries: Discussion}
+
+Regardless of the strategy used, the description of the library's API
+must include a clear description of that strategy and how the caller
+should interact with that strategy.
+In short, constructing parallel libraries using locking is possible,
+but not as easy as constructing a parallel application.
 
 \subsection{Locking For Parallelizing Sequential Libraries: Villain!}
 \label{sec:locking:Locking For Parallelizing Sequential Libraries: Villain!}
