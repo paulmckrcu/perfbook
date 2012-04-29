@@ -31,9 +31,26 @@ There are a number of reasons behind this dichotomy:
 \item	Until quite recently, almost all large shared-memory parallel
 	programs were developed in secret, so that it was difficult for
 	most researchers to learn of these pragmatic solutions.
+\item	Locking works extremely well for some software artifacts
+	and extremely poorly for others.
+	Developers who have worked on artifacts for which locking
+	works well can be expected to have a much more positive
+	opinion of locking than those who have worked on artifacts
+	for which locking works poorly, as will be discussed in
+	Section~\ref{sec:locking:Locking: Hero or Villain?}.
 \item	All good stories need a villain, and locking has a long and
 	honorable history serving as a research-paper whipping boy.
 \end{enumerate}
+
+\QuickQuiz{}
+	Just how can serving as a whipping boy be considered to be
+	in any way honorable???
+\QuickQuizAnswer{
+	The reason locking serves as a research-paper whipping boy is
+	because it is heavily used in practice.
+	In contrast, if no one used or cared about locking, most research
+	papers would not bother even mentioning it.
+} \QuickQuizEnd
 
 This chapter will give an overview of a number of ways to avoid locking's
 more serious sins.
@@ -1521,11 +1538,121 @@ Nevertheless, such study is left as an exercise for the reader.
 \input{locking/locking-existence}
 
 \section{Locking: Hero or Villain?}
+\label{sec:locking:Locking: Hero or Villain?}
 
 As is often the case in real life, locking can be either hero or villain,
 depending on how it is used and on the problem at hand.
-Locking is perhaps the most widely used and most generally useful tool,
-but it should not be the only tool in your parallel-programming toolbox.
+In my experience, those writing whole applications are happy with
+locking, those writing parallel libraries are less happy, and those
+parallelizing existing sequential libraries are extremely unhappy.
+The following sections discuss some reasons for these differences in
+viewpoints.
 
+\subsection{Locking For Applications: Hero!}
+\label{sec:locking:Locking For Applications: Hero!}
+
+When writing an entire application (or entire kernel), developers have
+full control of the design, including the synchronization design.
+Assuming that the design makes good use of partitioning, as discussed in
+Chapter~\ref{cha:Partitioning and Synchronization Design}, locking
+can be an extremely effective synchronization mechanism, as demonstrated
+by the heavy use of locking in production-quality parallel software.
+
+Nevertheless, although such software usually bases most of its
+synchronization design on locking, such software also almost always
+makes use of other synchronization mechanisms, including
+special counting algorithms (Chapter~\ref{chp:Counting}),
+data ownership (Chapter~\ref{chp:Data Ownership}),
+reference counting (Section~\ref{sec:defer:Reference Counting}), 
+sequence locking (Section~\ref{sec:defer:Sequence Locks}), and
+read-copy update (Section~\ref{sec:defer:Read-Copy Update (RCU)}).
+In addition, tools for deadlock detection~\cite{JonathanCorbet2006lockdep},
+lock acquisition/release balancing~\cite{JonathanCorbet2004sparse},
+cache-miss analysis~\cite{ValgrindHomePage},
+hardware-counter-based profiling~\cite{OProfileHomePage}, and
+many more besides.
+
+Given careful design, use of a good combination of synchronization
+mechanisms, and good tooling, locking works quite well for applications
+and kernels.
+
+\subsection{Locking For Parallel Libraries: Just Another Tool}
+\label{sec:locking:Locking For Parallel Libraries: Just Another Tool}
+
+Unlike applications and kernels, the designer of a library cannot
+know the locking design of the code that the library will be interacting
+with.
+In fact, that code might not be written for years to come.
+Library designers therefore have less control and must exercise more
+care when laying out their synchronization design.
+
+Deadlock is of course of particular concern, and the techniques discussed
+in Section~\ref{sec:locking:Deadlock} need to be applied.
+One popular deadlock-avoidance strategy is therefore to ensure that
+the library's locks are leaves in the enclosing program's locking
+hierarchy.
+However, this can be harder than it looks.
+
+One complication was discussed in
+Section~\ref{sec:locking:Local Locking Hierarchies}, namely
+when library functions call into application code, with \co{qsort()}'s
+comparison-function argument being a case in point.
+The rule here is again to release all library-function locks before
+calling back into application code.
+
+Signal handlers pose similar difficulties.
+If an application signal handler is invoked from a signal received within
+the library function, deadlock can ensue just as if the library function
+had called the signal handler directly.
+Unfortunately, the library function does not have the option of releasing
+locks when a signal is received.
+Any one of the following rules can prevent problems in this case:
+
+\begin{enumerate}
+\item	Don't use signals.
+	Unfortunately, library functions cannot enforce this rule on
+	applications.
+\item	Don't acquire locks from within signal handlers.
+	This is excellent advice, but some systems to permit locks to
+	be acquired from within signal handlers.
+	And even if the normal system-provided locks are prohibited
+	within signal handlers, clever programmers can easily
+	(if unwisely) create locks from readily available atomic
+	operations.
+\item	Explicitly avoid signal-handler deadlocks as follows:
+	\begin{enumerate}
+	\item	If application invokes the library function from
+		within a signal handler, then that signal must be blocked
+		every time that the library function is invoked from outside
+		of a signal handler.
+	\item	If the application invokes the library function
+		while holding a lock acquired within a given signal
+		handler, then that signal must be blocked every time that the
+		library function is called outside of a signal handler.
+	\end{enumerate}
+	These deadlock conditions can be avoided by using tools like
+	the Linux kernel's lockdep lock dependency
+	checker~\cite{JonathanCorbet2006lockdep}.
+\end{enumerate}
+
+Constructing parallel libraries using locking is possible, but clearly
+not as easy as constructing a parallel application.
+
+\subsection{Locking For Parallelizing Sequential Libraries: Villain!}
+\label{sec:locking:Locking For Parallelizing Sequential Libraries: Villain!}
+
+@@@
+It turns out that designers of parallel libraries must also exercise
+considerable care in designing the library's
+APIs~\cite{HagitAttiya2011LawsOfOrder,PaulEMcKenney2011SNC}.
+To see this, imagine a hash table insertion function that returned
+the exact number of elements in the hash table after the insertion.
+
+\section{Summary}
+\label{sec:locking:Summary}
+
+Locking is perhaps the most widely used and most generally useful
+synchronization tool,
+but it should not be the only tool in your parallel-programming toolbox.
 The next few chapters will discuss other tools, and how they can best
 be used in concert with locking and with each other.
