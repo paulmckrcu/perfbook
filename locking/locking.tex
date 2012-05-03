@@ -6,8 +6,8 @@ The role of villain in much of the past few decades' concurrency research
 literature is played by locking,
 which stands accused of promoting deadlocks, convoying, starvation,
 unfairness, data races, and all manner of other concurrency sins.
-Interestingly enough, the role of workhorse in shared-memory parallel
-software is played by, you guessed it, locking.
+Interestingly enough, the role of workhorse in production-quality
+shared-memory parallel software is played by, you guessed it, locking.
 
 There are a number of reasons behind this dichotomy:
 
@@ -15,7 +15,7 @@ There are a number of reasons behind this dichotomy:
 \item	Many of locking's sins have pragmatic design solutions that
 	work well in most cases, for example:
 	\begin{enumerate}
-	\item	Lock hierarchies to avoid deadlock.
+	\item	Use of lock hierarchies to avoid deadlock.
 	\item	Deadlock-detection tools, for example, the Linux kernel's
 		lockdep facility~\cite{JonathanCorbet2006lockdep}.
 	\item	Locking-friendly data structures, such as
@@ -85,7 +85,7 @@ unfairness, and inefficiency.
 
 Deadlock occurs when each of a group of threads is holding at least one
 lock while at the same time waiting on a lock held by a member
-of the same group.
+of that same group.
 
 Without some sort of external intervention, deadlock is forever.
 No thread can acquire the lock it is waiting on until that
@@ -95,7 +95,7 @@ it is waiting on.
 
 \begin{figure}[tb]
 \begin{center}
-\resizebox{3in}{!}{\includegraphics{locking/DeadlockCycle}}
+\resizebox{1.5in}{!}{\includegraphics{locking/DeadlockCycle}}
 \end{center}
 \caption{Deadlock Cycle}
 \label{fig:locking:Deadlock Cycle}
@@ -262,7 +262,7 @@ comparison function.
 A concurrent implementation of \co{qsort()} likely uses locking,
 which might result in deadlock in the perhaps-unlikely case where
 the comparison function is a
-complicated function involving locking.
+complicated function involving also locking.
 How can the library function avoid deadlock?
 
 The golden rule in this case is ``release all locks before invoking
@@ -704,6 +704,21 @@ signal handlers.
 
 Or that signal handlers are avoided completely except for handling
 fatal errors.
+
+\QuickQuiz{}
+	If acquiring locks in signal handlers is such a bad idea, why
+	even discuss ways of making it safe?
+\QuickQuizAnswer{
+	Because these same rules apply to the interrupt handlers used in
+	operating-system kernels and in some embedded applications.
+
+	In many application environments, acquiring locks in signal
+	handlers is frowned upon~\cite{OpenGroup1997pthreads}.
+	However, that does not stop clever developers from (usually
+	unwisely) fashioning home-brew locks out of atomic operations.
+	And atomic operations are in many cases perfectly legal in
+	signal handlers.
+} \QuickQuizEnd
 
 \subsubsection{Discussion}
 \label{sec:locking:Locking Hierarchy Discussion}
@@ -1566,7 +1581,8 @@ data ownership (Chapter~\ref{chp:Data Ownership}),
 reference counting (Section~\ref{sec:defer:Reference Counting}), 
 sequence locking (Section~\ref{sec:defer:Sequence Locks}), and
 read-copy update (Section~\ref{sec:defer:Read-Copy Update (RCU)}).
-In addition, tools for deadlock detection~\cite{JonathanCorbet2006lockdep},
+In addition, practitioners use tools for deadlock
+detection~\cite{JonathanCorbet2006lockdep},
 lock acquisition/release balancing~\cite{JonathanCorbet2004sparse},
 cache-miss analysis~\cite{ValgrindHomePage},
 hardware-counter-based profiling~\cite{OProfileHomePage}, and
@@ -1589,8 +1605,8 @@ care when laying out their synchronization design.
 Deadlock is of course of particular concern, and the techniques discussed
 in Section~\ref{sec:locking:Deadlock} need to be applied.
 One popular deadlock-avoidance strategy is therefore to ensure that
-the library's locks are leaves in the enclosing program's locking
-hierarchy.
+the library's locks are independent subtrees of the enclosing program's
+locking hierarchy.
 However, this can be harder than it looks.
 
 One complication was discussed in
@@ -1599,8 +1615,8 @@ when library functions call into application code, with \co{qsort()}'s
 comparison-function argument being a case in point.
 Another complication is the interaction with signal handlers.
 If an application signal handler is invoked from a signal received within
-the library function, deadlock can ensue just as if the library function
-had called the signal handler directly.
+the library function, deadlock can ensue just as surely as
+if the library function had called the signal handler directly.
 A final complication occurs for those library functions that can be used
 between a \co{fork()}/\co{exec()} pair, for example, due to use of
 the \co{system()} function.
@@ -1638,7 +1654,7 @@ discussed in
 Section~\ref{sec:locking:Local Locking Hierarchies})
 that require callbacks.
 
-The strategy in the next section can often be used in these cases.
+The strategy described in the next section can often be used in these cases.
 
 \subsubsection{Avoid Locking in Callbacks and Signal Handlers}
 \label{sec:locking:Avoid Locking in Callbacks and Signal Handlers}
@@ -1692,10 +1708,10 @@ trees, then the application can associate a lock with each tree.
 The application the acquires and releases locks as needed, so
 that the library need not be aware of parallelism at all.
 Instead, the application controls the parallelism, so that locking
-can work very well, as discussed in
+can work very well, as was discussed in
 Section~\ref{sec:locking:Locking For Applications: Hero!}.
 
-However, the strategy fails if the
+However, this strategy fails if the
 library implements a data structure that requires internal
 concurrency, for example, a hash table or a parallel sort.
 In this case, the library absolutely must control its own
@@ -1724,7 +1740,7 @@ can work better.
 That said, passing explicit pointers to locks to external APIs must
 be very carefully considered, as discussed in
 Section~\ref{sec:locking:Locking Hierarchies and Pointers to Locks}.
-This practice is sometimes the right thing to do, but you should do
+Although this practice is sometimes the right thing to do, you should do
 yourself a favor by looking into alternative designs first.
 
 \subsubsection{Explicitly Avoid Callback Deadlocks}
@@ -1752,7 +1768,7 @@ locks, the strategies in the next section may prove helpful.
 Signal-handler deadlocks can be explicitly avoided as follows:
 
 \begin{enumerate}
-\item	If application invokes the library function from
+\item	If the application invokes the library function from
 	within a signal handler, then that signal must be blocked
 	every time that the library function is invoked from outside
 	of a signal handler.
@@ -1765,14 +1781,8 @@ Signal-handler deadlocks can be explicitly avoided as follows:
 These rules can be enforced by using tools such as
 the Linux kernel's lockdep lock dependency
 checker~\cite{JonathanCorbet2006lockdep}.
-
-\QuickQuiz{}
-	If acquiring locks in signal handlers is such a bad idea, why
-	even discuss ways of making it safe?
-\QuickQuizAnswer{
-	Because these same rules apply to interrupt handlers used in
-	operating-system kernels and in some embedded applications.
-} \QuickQuizEnd
+One of the great strengths of lockdep is that it is not fooled by
+human intuition~\cite{StevenRostedt2011locdepCryptic}.
 
 \subsubsection{Library Functions Used Between fork() and exec()}
 \label{sec:locking:Library Functions Used Between fork() and exec()}
@@ -1790,7 +1800,7 @@ library function will result in deadlock.
 One approach to this problem would be to have the library function
 check to see if the owner of the lock is still running, and if not,
 ``breaking'' the lock by re-initializing and then acquiring it.
-However, this approach as a number of vulnerabilities:
+However, this approach has a couple of vulnerabilities:
 
 \begin{enumerate}
 \item	The data structures protected by that lock are likely to
@@ -1850,7 +1860,8 @@ in the hash table, and also easy and fast to return this exact count on each
 addition and deletion operation.
 So why not?
 
-One reason is that exact counters do not perform or scale well, as was
+One reason is that exact counters do not perform or scale well on
+multicore systems, as was
 seen in Chapter~\ref{chp:Counting}.
 As a result, the parallelized implementation of the hash table will not
 perform or scale well.
@@ -1861,7 +1872,7 @@ from Chapter~\ref{chp:Counting}.
 Another approach is to drop the element count altogether.
 
 Either way, it will be necessary to inspect uses of the hash table to see
-what the addition and deletion operations are using the exact count for.
+why the addition and deletion operations need the exact count.
 Here are a few possibilities:
 
 \begin{enumerate}
@@ -1869,7 +1880,7 @@ Here are a few possibilities:
 	In this case, an approximate count should work quite well.
 	It might also be useful to trigger the resizing operation from
 	the length of the longest chain, which can be computed and
-	maintained in a nicely partitioned per-chain basis.
+	maintained in a nicely partitioned per-chain manner.
 \item	Producing an estimate of the time required to traverse the
 	entire hash table.
 	An approximate count works well in this case, also.
@@ -1882,11 +1893,11 @@ Here are a few possibilities:
 	up while locking out addition and deletion operations.
 \end{enumerate}
 
-It turns out that there is now a strong theoretical basis for the
+It turns out that there is now a strong theoretical basis for some of the
 constraints that performance and scalability place on a parallel library's
 APIs~\cite{HagitAttiya2011LawsOfOrder,PaulEMcKenney2011SNC}.
 Anyone designing a parallel library needs to pay close attention to
-these constraints.
+those constraints.
 
 Although it is all too easy to blame a poor choice of API on locking, it
 is also not particularly useful to do so.
@@ -1898,7 +1909,7 @@ even more rare combination of brilliance and luck to actually arrive
 at a good parallel-ready API.
 
 Times change, and code must change with them.
-That said, there can be a huge number of users of a popular library,
+That said, there might be a huge number of users of a popular library,
 in which case an incompatible change to the API would be quite foolish.
 Adding a parallel-friendly API to complement the existing heavily used
 sequential-only API is probably the best course of action in this
@@ -1906,7 +1917,7 @@ situation.
 
 Nevertheless, human nature being what it is, we can expect our hapless
 developer to be more likely to complain about locking than about his
-or her own poor (though understandable) choices.
+or her own poor (though understandable) API design choices.
 
 \subsection{Deadlock-Prone Callbacks}
 \label{sec:locking:Deadlock-Prone Callbacks}
@@ -1954,7 +1965,7 @@ undisciplined use of objects can easily result in object-oriented
 spaghetti code.
 In object-oriented spaghetti code, control flits from object to object
 in an essentially random manner, making the code hard to understand
-and even harder, and perhaps impossible, to design a locking hierarchy.
+and even harder, and perhaps impossible, to accommodate a locking hierarchy.
 
 Although many might argue that such code should be cleaned up in any
 case, such things are much easier to say than to do.
@@ -1969,11 +1980,21 @@ and~\ref{chp:Deferred Processing}.
 This situation appears to be the use case that inspired transactional
 memory, so it might be worth a try as well.
 
+But there is one question well worth asking in these situations:
+Should the code remain sequential?
+For example, perhaps parallelism should be introduced at the process level
+rather than the thread level.
+In general, if a task is proving extremely hard, it is worth some time
+spent thinking about not only alternative ways to accomplish that
+particular task, but also alternative tasks that might better solve
+the problem at hand.
+
 \section{Summary}
 \label{sec:locking:Summary}
 
 Locking is perhaps the most widely used and most generally useful
-synchronization tool, it works best when designed into an application
+synchronization tool.
+However, it works best when designed into an application
 or library from the beginning.
 Given the large quantity of pre-existing single-threaded code that might
 need to one day run in parallel, locking should therefore not be the
