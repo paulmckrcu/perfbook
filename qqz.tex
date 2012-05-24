@@ -5536,6 +5536,46 @@ STORE r0,counter
 \QuickA{}
 	CPUs are free to speculatively execute, which can have the effect
 	of executing the assertion before the \co{while} loop completes.
+	Furthermore, compilers normally assume that only the currently
+	executing thread is updating the variables, and this assumption
+	allows the compiler to hoist the load of \co{a} to precede the
+	loop.
+
+	In fact, some compilers would transform the loop to a branch
+	around an infinite loop as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 void foo(void)
+  2 {
+  3   a = 1;
+  4   smp_mb();
+  5   b = 1;
+  6 }
+  7 
+  8 void bar(void)
+  9 {
+ 10   if (b == 0)
+ 11     for (;;)
+ 12       continue;
+ 13   smp_mb();
+ 14   assert(a == 1);
+ 15 }
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	Given this optimization, the assertion could clearly fire.
+	You should use volatile casts or (where available) C++
+	relaxed atomics to prevent the compiler from optimizing
+	your parallel code into oblivion.
+
+	In short, both compilers and CPUs are quite aggressive about
+	optimizing, so you must clearly communicate your constraints
+	to them, using compiler directives and memory barriers.
+
 
 \QuickQ{}
 	Does the guarantee that each CPU sees its own memory accesses
