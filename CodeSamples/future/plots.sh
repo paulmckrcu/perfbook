@@ -43,3 +43,22 @@ set term png small crop
 set output "HTMovf4K.png"
 replot
 ---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../../fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "|../../utilities/gnuplotepsfix > HTMovf4KMC.eps"
+set xlabel "Transaction Footprint in Cache Lines"
+set ylabel "Probability of Transaction Overflow"
+set logscale xy
+set nokey
+set label 1 "DM" at 3.2,0.1 right
+set label 2 "2-way" at 4.6,0.01 right
+set label 3 "4-way" at 7.8,0.001 right
+set label 4 "8-way" at 11.6,1e-6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "HTMovfNK.bash.4K.1.64.out" w l, "HTMovfNK.bash.4K.2.64.out" w l, "HTMovfNK.bash.4K.4.64.out" w l, "HTMovfNK.bash.4K.8.64.out" w l, "HTMovfMCNK.bash.4K.1.64.out", "HTMovfMCNK.bash.4K.2.64.out", "HTMovfMCNK.bash.4K.4.64.out", "HTMovfMCNK.bash.4K.8.64.out"
+set term png small crop
+set output "HTMovf4KMC.png"
+replot
+---EOF---
