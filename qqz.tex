@@ -5306,6 +5306,135 @@ srcu_read_unlock(&srcucb, idx);
 	Using transactional lock elision in such a case would be
 	incorrect, and would result in bugs.
 
+\QuickQ{}
+	Given modern hardware~\cite{PeterOkech2009InherentRandomness},
+	how can anyone possibly expect parallel software relying
+	on timing to work?
+\QuickA{}
+	The short answer is that on commonplace commodity hardware,
+	synchronization designs based on any sort of fine-grained
+	timing are foolhardy and cannot be expected to operate correctly
+	under all conditions.
+
+	That said, there are systems designed for hard real-time use
+	that are much more deterministic.
+	In the (very unlikely) event that you are using such a system,
+	here is a toy example showing how time-based synchronization can
+	work.
+	Again, do \emph{not} try this on commodity microprocessors,
+	as they have highly nondeterministic performance characteristics.
+
+	This example uses multiple worker threads along with a control
+	thread.
+	Each worker thread corresponds to an outbound data feed, and
+	records the current time (for example, from the
+	\co{clock_gettime()} system call) in a per-thread
+	\co{my_timestamp} variable after executing each unit
+	of work.
+	The real-time nature of this example results in the following
+	set of constraints:
+
+	\begin{enumerate}
+	\item	It is a fatal error for a given worker thread to fail
+		to update its timestamp for a time period of more than
+		\co{MAX_LOOP_TIME}.
+	\item	Locks are used sparingly to access and update global
+		state.
+	item	Locks are granted in strict FIFO order within
+		a given thread priority.
+	\end{enumerate}
+
+	When worker threads complete their feed, they must disentangle
+	themselves from the rest of the application and place a status
+	value in a per-thread \co{my_status} variable that is initialized
+	to -1.
+	Threads do not exit; they instead are placed on a thread pool
+	to accommodate later processing requirements.
+	The control thread assigns (and re-assigns) worker threads as
+	needed, and also maintains a histogram of thread statuses.
+	The control thread runs at a real-time priority no higher than
+	that of the worker threads.
+
+	Worker threads' code is as follows:
+
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\scriptsize
+\begin{verbatim}
+  1   int my_status = -1;  /* Thread local. */
+  2 
+  3   while (continue_working()) {
+  4     enqueue_any_new_work();
+  5     wp = dequeue_work();
+  6     do_work(wp);
+  7     my_timestamp = clock_gettime(...);
+  8   }
+  9 
+ 10   acquire_lock(&departing_thread_lock);
+ 11 
+ 12   /*
+ 13    * Disentangle from application, might
+ 14    * acquire other locks, can take much longer
+ 15    * than MAX_LOOP_TIME, especially if many
+ 16    * threads exit concurrently.
+ 17    */
+ 18   my_status = get_return_status();
+ 19   release_lock(&departing_thread_lock);
+ 20 
+ 21   /* thread awaits repurposing. */
+\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+
+	The control thread's code is as follows:
+
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\scriptsize
+\begin{verbatim}
+  1   for (;;) {
+  2     for_each_thread(t) {
+  3       ct = clock_gettime(...);
+  4       d = ct - per_thread(my_timestamp, t);
+  5       if (d >= MAX_LOOP_TIME) {
+  6         /* thread departing. */
+  7         acquire_lock(&departing_thread_lock);
+  8         release_lock(&departing_thread_lock);
+  9         i = per_thread(my_status, t);
+ 10         status_hist[i]++; /* Bug if TLE! */
+ 11       }
+ 12     }
+ 13     /* Repurpose threads as needed. */
+ 14   }
+\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+
+	Line~5 uses the passage of time to deduce that the thread
+	has exited, executing lines~6-10 if so.
+	The empty lock-based critical section on lines~7 and~8
+	guarantees that any thread in the process of exiting
+	completes (remember that locks are granted in FIFO order!).
+
+	Once again, do not try this sort of thing on commodity
+	microprocessors.
+	After all, it is difficult enough to get right on systems
+	specifically designed for hard real-time use!
+
+\QuickQ{}
+	But the \co{boostee()} function in
+	Figure~\ref{fig:future:Exploiting Priority Boosting}
+	alternatively acquires its locks in reverse order!
+	Won't this result in deadlock?
+\QuickA{}
+	No deadlock will result.
+	To arrive at deadlock, two different threads must each
+	acquire the two locks in oppposite orders, which does not
+	happen in this example.
+	However, deadlock detectors such as
+	lockdep~\ref{JonathanCorbet2006lockdep}
+	will flag this as a false positive.
+
 \QuickQAC{cha:app:Important Questions}{Important Questions}
 \QuickQ{}
 	What SMP coding errors can you see in these examples?

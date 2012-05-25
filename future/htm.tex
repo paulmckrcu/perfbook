@@ -558,7 +558,226 @@ semantics of locking, but loses locking's time-based messaging semantics.
 	incorrect, and would result in bugs.
 } \QuickQuizEnd
 
-% @@@ add http://kernel.org/pub/linux/kernel/people/paulmck/Answers/TransactionalMemoryEverywhere/boost.html
+\QuickQuiz{}
+	Given modern hardware~\cite{PeterOkech2009InherentRandomness},
+	how can anyone possibly expect parallel software relying
+	on timing to work?
+\QuickQuizAnswer{
+	The short answer is that on commonplace commodity hardware,
+	synchronization designs based on any sort of fine-grained
+	timing are foolhardy and cannot be expected to operate correctly
+	under all conditions.
+
+	That said, there are systems designed for hard real-time use
+	that are much more deterministic.
+	In the (very unlikely) event that you are using such a system,
+	here is a toy example showing how time-based synchronization can
+	work.
+	Again, do \emph{not} try this on commodity microprocessors,
+	as they have highly nondeterministic performance characteristics.
+
+	This example uses multiple worker threads along with a control
+	thread.
+	Each worker thread corresponds to an outbound data feed, and
+	records the current time (for example, from the
+	\co{clock_gettime()} system call) in a per-thread
+	\co{my_timestamp} variable after executing each unit
+	of work.
+	The real-time nature of this example results in the following
+	set of constraints:
+
+	\begin{enumerate}
+	\item	It is a fatal error for a given worker thread to fail
+		to update its timestamp for a time period of more than
+		\co{MAX_LOOP_TIME}.
+	\item	Locks are used sparingly to access and update global
+		state.
+	item	Locks are granted in strict FIFO order within
+		a given thread priority.
+	\end{enumerate}
+
+	When worker threads complete their feed, they must disentangle
+	themselves from the rest of the application and place a status
+	value in a per-thread \co{my_status} variable that is initialized
+	to -1.
+	Threads do not exit; they instead are placed on a thread pool
+	to accommodate later processing requirements.
+	The control thread assigns (and re-assigns) worker threads as
+	needed, and also maintains a histogram of thread statuses.
+	The control thread runs at a real-time priority no higher than
+	that of the worker threads.
+
+	Worker threads' code is as follows:
+
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\scriptsize
+\begin{verbatim}
+  1   int my_status = -1;  /* Thread local. */
+  2 
+  3   while (continue_working()) {
+  4     enqueue_any_new_work();
+  5     wp = dequeue_work();
+  6     do_work(wp);
+  7     my_timestamp = clock_gettime(...);
+  8   }
+  9 
+ 10   acquire_lock(&departing_thread_lock);
+ 11 
+ 12   /*
+ 13    * Disentangle from application, might
+ 14    * acquire other locks, can take much longer
+ 15    * than MAX_LOOP_TIME, especially if many
+ 16    * threads exit concurrently.
+ 17    */
+ 18   my_status = get_return_status();
+ 19   release_lock(&departing_thread_lock);
+ 20 
+ 21   /* thread awaits repurposing. */
+\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+
+	The control thread's code is as follows:
+
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\scriptsize
+\begin{verbatim}
+  1   for (;;) {
+  2     for_each_thread(t) {
+  3       ct = clock_gettime(...);
+  4       d = ct - per_thread(my_timestamp, t);
+  5       if (d >= MAX_LOOP_TIME) {
+  6         /* thread departing. */
+  7         acquire_lock(&departing_thread_lock);
+  8         release_lock(&departing_thread_lock);
+  9         i = per_thread(my_status, t);
+ 10         status_hist[i]++; /* Bug if TLE! */
+ 11       }
+ 12     }
+ 13     /* Repurpose threads as needed. */
+ 14   }
+\end{verbatim}
+	\end{minipage}
+	\vspace{5pt}
+
+	Line~5 uses the passage of time to deduce that the thread
+	has exited, executing lines~6-10 if so.
+	The empty lock-based critical section on lines~7 and~8
+	guarantees that any thread in the process of exiting
+	completes (remember that locks are granted in FIFO order!).
+
+	Once again, do not try this sort of thing on commodity
+	microprocessors.
+	After all, it is difficult enough to get right on systems
+	specifically designed for hard real-time use!
+} \QuickQuizEnd
+
+One important semantic difference between locking and transactions
+is the priority boosting that is used to avoid priority inversion
+in lock-based real-time programs.
+One way in which priority inversion can occur is when a
+low-priority thread holding a lock
+is preempted by a medium-priority CPU-bound thread.
+If there is at least one such medium-priority thread per CPU, the
+low-priority thread will never get a chance to run.
+If a high-priority thread now attempts to acquire the lock,
+it will block.
+It cannot acquire the lock until the low-priority thread releases it,
+the low-priority thread cannot release the lock until it gets a chance
+to run, and it cannot get a chance to run until one of the medium-priority
+threads gives up its CPU.
+Therefore, the medium-priority threads are in effect blocking the
+high-priority process, which is the rationale for the name ``priority
+inversion.''
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void boostee(void)
+  2 {
+  3   int i = 0;
+  4 
+  5   acquire_lock(&boost_lock[i]);
+  6   for (;;) {
+  7     acquire_lock(&boost_lock[!i]);
+  8     release_lock(&boost_lock[i]);
+  9     i = i ^ 1;
+ 10     do_something();
+ 11   }
+ 12 }
+ 13 
+ 14 void booster(void)
+ 15 {
+ 16   int i = 0;
+ 17 
+ 18   for (;;) {
+ 19     usleep(1000); /* sleep 1 ms. */
+ 20     acquire_lock(&boost_lock[i]);
+ 21     release_lock(&boost_lock[i]);
+ 22     i = i ^ 1;
+ 23   }
+ 24 }
+\end{verbatim}
+}
+\caption{Exploiting Priority Boosting}
+\label{fig:future:Exploiting Priority Boosting}
+\end{figure}
+
+One way to avoid priority inversion is \emph{priority inheritance},
+in which a high-priority thread blocked on a lock temporarily donates
+its priority to the lock's holder, which is also called \emph{priority
+boosting}.
+However, priority boosting can be used for things other than avoiding
+priority inversion, as shown in
+Figure~\ref{fig:future:Exploiting Priority Boosting}.
+Lines~1-12 of this figure show a low-priority process that must
+nevertheless run every millisecond or so, while lines~14-24 of
+this same figure show a high-priority process that uses priority
+boosting to ensure that \co{boostee()} runs periodically as needed.
+
+The \co{boostee()} function arranges this by always holding one of
+the two \co{boost_lock[]} locks, so that lines~20-21 of
+\co{booster()} can boost priority as needed.
+
+\QuickQuiz{}
+	But the \co{boostee()} function in
+	Figure~\ref{fig:future:Exploiting Priority Boosting}
+	alternatively acquires its locks in reverse order!
+	Won't this result in deadlock?
+\QuickQuizAnswer{
+	No deadlock will result.
+	To arrive at deadlock, two different threads must each
+	acquire the two locks in oppposite orders, which does not
+	happen in this example.
+	However, deadlock detectors such as
+	lockdep~\ref{JonathanCorbet2006lockdep}
+	will flag this as a false positive.
+} \QuickQuizEnd
+
+This arrangement requires that \co{boostee()} acquire its first
+lock on line~5 before the system becomes busy, but this is easily
+arranged, even on modern hardware.
+
+Unfortunately, this arrangement can break down in presence of transactional
+lock elision.
+The \co{boostee()} function's overlapping critical sections become
+one infinite transaction, which will sooner or later abort,
+for example, on the first time that the thread running
+the \co{boostee()} function is preempted.
+At this point, \co{boostee()} will fall back to locking, but given
+its low priority and that the quiet initialization period is now
+complete (which after all is why \co{boostee()} was preempted),
+this thread might never again get a chance to run.
+
+And if the \co{boostee()} thread is not holding the lock, then
+the \co{booster()} thread's empty critical section on lines~20 and~21 of
+Figure~\ref{fig:future:Exploiting Priority Boosting}
+will become an empty transaction that has no effect, so that
+\co{boostee()} never runs.
+This example illustrates some of the subtle consequences of
+transactional memory's rollback-and-retry semantics.
 
 Given that experience will likely uncover additional subtle semantic
 differences, application of HTM-based lock elision to large programs
