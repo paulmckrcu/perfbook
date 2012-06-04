@@ -102,7 +102,6 @@ void init_pdeq(struct pdeq *d)
 struct cds_list_head *pdeq_pop_l(struct pdeq *d)
 {
 	struct cds_list_head *e;
-	int i;
 
 	spin_lock(&d->llock);
 	e = deq_pop_l(&d->ldeq);
@@ -120,7 +119,6 @@ struct cds_list_head *pdeq_pop_l(struct pdeq *d)
 struct cds_list_head *pdeq_pop_r(struct pdeq *d)
 {
 	struct cds_list_head *e;
-	int i;
 
 	spin_lock(&d->rlock);
 	e = deq_pop_r(&d->rdeq);
