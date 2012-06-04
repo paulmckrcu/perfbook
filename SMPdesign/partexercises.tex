@@ -353,53 +353,53 @@ alignment directives to avoid false sharing.
 \begin{figure*}[bp]
 { \scriptsize
 \begin{verbatim}
-  1 struct element *pdeq_dequeue_l(struct pdeq *d)
+  1 struct cds_list_head *pdeq_pop_l(struct pdeq *d)
   2 {
-  3   struct element *e;
+  3   struct cds_list_head *e;
   4   int i;
-  5
+  5 
   6   spin_lock(&d->llock);
   7   i = moveright(d->lidx);
-  8   e = deq_dequeue_l(&d->bkt[i]);
+  8   e = deq_pop_l(&d->bkt[i]);
   9   if (e != NULL)
  10     d->lidx = i;
  11   spin_unlock(&d->llock);
  12   return e;
  13 }
- 14
- 15 void pdeq_enqueue_l(struct element *e, struct pdeq *d)
+ 14 
+ 15 struct cds_list_head *pdeq_pop_r(struct pdeq *d)
  16 {
- 17   int i;
- 18
- 19   spin_lock(&d->llock);
- 20   i = d->lidx;
- 21   deq_enqueue_l(e, &d->bkt[i]);
- 22   d->lidx = moveleft(d->lidx);
- 23   spin_unlock(&d->llock);
- 24 }
- 25
- 26 struct element *pdeq_dequeue_r(struct pdeq *d)
- 27 {
- 28   struct element *e;
- 29   int i;
- 30
- 31   spin_lock(&d->rlock);
- 32   i = moveleft(d->ridx);
- 33   e = deq_dequeue_r(&d->bkt[i]);
- 34   if (e != NULL)
- 35     d->ridx = i;
- 36   spin_unlock(&d->rlock);
- 37   return e;
+ 17   struct cds_list_head *e;
+ 18   int i;
+ 19 
+ 20   spin_lock(&d->rlock);
+ 21   i = moveleft(d->ridx);
+ 22   e = deq_pop_r(&d->bkt[i]);
+ 23   if (e != NULL)
+ 24     d->ridx = i;
+ 25   spin_unlock(&d->rlock);
+ 26   return e;
+ 27 }
+ 28 
+ 29 void pdeq_push_l(struct cds_list_head *e, struct pdeq *d)
+ 30 {
+ 31   int i;
+ 32 
+ 33   spin_lock(&d->llock);
+ 34   i = d->lidx;
+ 35   deq_push_l(e, &d->bkt[i]);
+ 36   d->lidx = moveleft(d->lidx);
+ 37   spin_unlock(&d->llock);
  38 }
- 39
- 40 void pdeq_enqueue_r(struct element *e, struct pdeq *d)
+ 39 
+ 40 void pdeq_push_r(struct cds_list_head *e, struct pdeq *d)
  41 {
  42   int i;
- 43
+ 43 
  44   spin_lock(&d->rlock);
  45   i = d->ridx;
- 46   deq_enqueue_r(e, &d->bkt[i]);
- 47   d->ridx = moveright(d->lidx);
+ 46   deq_push_r(e, &d->bkt[i]);
+ 47   d->ridx = moveright(d->ridx);
  48   spin_unlock(&d->rlock);
  49 }
 \end{verbatim}
@@ -483,60 +483,60 @@ neither locks nor atomic operations.
 \begin{figure*}[bp]
 { \scriptsize
 \begin{verbatim}
-  1 struct list_head *pdeq_dequeue_l(struct pdeq *d)
+  1 struct cds_list_head *pdeq_pop_l(struct pdeq *d)
   2 {
-  3   struct list_head *e;
-  4   int i;
-  5
-  6   spin_lock(&d->llock);
-  7   e = deq_dequeue_l(&d->ldeq);
-  8   if (e == NULL) {
-  9     spin_lock(&d->rlock);
- 10     e = deq_dequeue_l(&d->rdeq);
- 11     list_splice_init(&d->rdeq.chain, &d->ldeq.chain);
+  3   struct cds_list_head *e;
+  4 
+  5   spin_lock(&d->llock);
+  6   e = deq_pop_l(&d->ldeq);
+  7   if (e == NULL) {
+  8     spin_lock(&d->rlock);
+  9     e = deq_pop_l(&d->rdeq);
+ 10     cds_list_splice(&d->rdeq.chain, &d->ldeq.chain);
+ 11     CDS_INIT_LIST_HEAD(&d->rdeq.chain);
  12     spin_unlock(&d->rlock);
  13   }
  14   spin_unlock(&d->llock);
  15   return e;
  16 }
- 17
- 18 struct list_head *pdeq_dequeue_r(struct pdeq *d)
+ 17 
+ 18 struct cds_list_head *pdeq_pop_r(struct pdeq *d)
  19 {
- 20   struct list_head *e;
- 21   int i;
- 22
- 23   spin_lock(&d->rlock);
- 24   e = deq_dequeue_r(&d->rdeq);
- 25   if (e == NULL) {
- 26     spin_unlock(&d->rlock);
- 27     spin_lock(&d->llock);
- 28     spin_lock(&d->rlock);
- 29     e = deq_dequeue_r(&d->rdeq);
- 30     if (e == NULL) {
- 31       e = deq_dequeue_r(&d->ldeq);
- 32       list_splice_init(&d->ldeq.chain, &d->rdeq.chain);
+ 20   struct cds_list_head *e;
+ 21 
+ 22   spin_lock(&d->rlock);
+ 23   e = deq_pop_r(&d->rdeq);
+ 24   if (e == NULL) {
+ 25     spin_unlock(&d->rlock);
+ 26     spin_lock(&d->llock);
+ 27     spin_lock(&d->rlock);
+ 28     e = deq_pop_r(&d->rdeq);
+ 29     if (e == NULL) {
+ 30       e = deq_pop_r(&d->ldeq);
+ 31       cds_list_splice(&d->ldeq.chain, &d->rdeq.chain);
+ 32       CDS_INIT_LIST_HEAD(&d->ldeq.chain);
  33     }
  34     spin_unlock(&d->llock);
  35   }
  36   spin_unlock(&d->rlock);
  37   return e;
  38 }
- 39
- 40 void pdeq_enqueue_l(struct list_head *e, struct pdeq *d)
+ 39 
+ 40 void pdeq_push_l(struct cds_list_head *e, struct pdeq *d)
  41 {
  42   int i;
- 43
+ 43 
  44   spin_lock(&d->llock);
- 45   deq_enqueue_l(e, &d->ldeq);
+ 45   deq_push_l(e, &d->ldeq);
  46   spin_unlock(&d->llock);
  47 }
- 48
- 49 void pdeq_enqueue_r(struct list_head *e, struct pdeq *d)
+ 48 
+ 49 void pdeq_push_r(struct cds_list_head *e, struct pdeq *d)
  50 {
  51   int i;
- 52
+ 52 
  53   spin_lock(&d->rlock);
- 54   deq_enqueue_r(e, &d->rdeq);
+ 54   deq_push_r(e, &d->rdeq);
  55   spin_unlock(&d->rlock);
  56 }
 \end{verbatim}
@@ -548,8 +548,8 @@ neither locks nor atomic operations.
 Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}
 shows the implementation.
 Unlike the hashed implementation, this compound implementation is
-asymmetric, so that we must consider the \co{pdeq_dequeue_l()}
-and \co{pdeq_dequeue_r()} implementations separately.
+asymmetric, so that we must consider the \co{pdeq_pop_l()}
+and \co{pdeq_pop_r()} implementations separately.
 
 \QuickQuiz{}
 	Why can't the compound parallel double-ended queue
@@ -560,38 +560,39 @@ and \co{pdeq_dequeue_r()} implementations separately.
 	solution to the Dining Philosophers Problem.
 } \QuickQuizEnd
 
-The \co{pdeq_dequeue_l()} implementation is shown on lines~1-16
+The \co{pdeq_pop_l()} implementation is shown on lines~1-16
 of the figure.
-Line 6 acquires the left-hand lock, which line~14 releases.
-Line~7 attempts to left-dequeue an element from the left-hand underlying
+Line 5 acquires the left-hand lock, which line~14 releases.
+Line~6 attempts to left-dequeue an element from the left-hand underlying
 double-ended queue, and, if successful, skips lines~8-13 to simply
 return this element.
-Otherwise, line~9 acquires the right-hand lock, line~10
+Otherwise, line~8 acquires the right-hand lock, line~9
 left-dequeues an element from the right-hand queue,
-and line~11 moves any remaining elements on the right-hand
-queue to the left-hand queue, and line~12 releases the right-hand
-lock.
+and line~10 moves any remaining elements on the right-hand
+queue to the left-hand queue, line~11 initializes the right-hand queue,
+and line~12 releases the right-hand lock.
 The element, if any, that was dequeued on line~10 will be returned.
 
-The \co{pdeq_dequeue_r()} implementation is shown on lines~18-38
+The \co{pdeq_pop_r()} implementation is shown on lines~18-38
 of the figure.
-As before, line~23 acquires the right-hand lock (and line~36
-releases it), and line~24 attempts to right-dequeue an element
+As before, line~22 acquires the right-hand lock (and line~36
+releases it), and line~23 attempts to right-dequeue an element
 from the right-hand queue, and, if successful, skips lines~24-35
 to simply return this element.
-However, if line~25 determines that there was no element to dequeue,
-line~26 releases the right-hand lock and lines~27-28 acquire both
+However, if line~24 determines that there was no element to dequeue,
+line~25 releases the right-hand lock and lines~26-27 acquire both
 locks in the proper order.
-Line~29 then attempts to right-dequeue an element from the right-hand
-list again, and if line~30 determines that this second attempt has
-failed, line~31 right-dequeues an element from the left-hand queue
-(if there is one available) and line~32 moves any remaining elements
-from the left-hand queue to the right-hand queue.
+Line~28 then attempts to right-dequeue an element from the right-hand
+list again, and if line~29 determines that this second attempt has
+failed, line~30 right-dequeues an element from the left-hand queue
+(if there is one available), line~31 moves any remaining elements
+from the left-hand queue to the right-hand queue, and line~32
+initializes the left-hand queue.
 Either way, line~34 releases the left-hand lock.
 
 \QuickQuiz{}
 	Why is it necessary to retry the right-dequeue operation
-	on line~29 of
+	on line~28 of
 	Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}?
 \QuickQuizAnswer{
 	This retry is necessary because some other thread might have
@@ -601,7 +602,7 @@ Either way, line~34 releases the left-hand lock.
 
 \QuickQuiz{}
 	Surely the left-hand lock must \emph{sometimes} be available!!!
-	So why is it necessary that line~26 of
+	So why is it necessary that line~25 of
 	Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}
 	unconditionally release the right-hand lock?
 \QuickQuizAnswer{
@@ -613,7 +614,7 @@ Either way, line~34 releases the left-hand lock.
 	it is worthwhile) is left as an exercise for the reader.
 } \QuickQuizEnd
 
-The \co{pdeq_enqueue_l()} implementation is shown on lines~40-47 of
+The \co{pdeq_push_l()} implementation is shown on lines~40-47 of
 Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}.
 Line~44 acquires the left-hand spinlock, line~45 left-enqueues the
 element onto the left-hand queue, and finally line~46 releases
