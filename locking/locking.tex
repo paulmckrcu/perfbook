@@ -1548,7 +1548,104 @@ Shavit's textbook~\cite{HerlihyShavit2008Textbook}.
 The main point echoed here is that such implementations currently
 have little practical application, although a careful study of
 them can be both entertaining and enlightening.
-Nevertheless, such study is left as an exercise for the reader.
+Nevertheless, with one exception described below, such study is left
+as an exercise for the reader.
+
+Gamsa et al.~\cite[Section 5.3]{Gamsa99} describe a token-based
+mechanism in which a token circulates among the CPUs.
+When the token reaches a given CPU, it has exclusive
+access to anything protected by that token.
+There are any number of schemes that may be used to implement
+the token-based mechanism, for example:
+
+\begin{enumerate}
+\item	Maintain a per-CPU flag, which is initially
+	zero for all but one CPU.
+	When a CPU's flag is non-zero, it holds the token.
+	When it finishes with the token, it zeroes its flag and
+	sets the flag of the next CPU to one (or to any other
+	non-zero value).
+\item	Maintain a per-CPU counter, which is initially set
+	to the corresponding CPU's number, which we assume
+	to range from zero to $N-1$, where $N$ is the number
+	of CPUs in the system.
+	When a CPU's counter is greater than that of the next
+	CPU (taking counter wrap into account), the first CPU holds the token.
+	When it is finished with the token, it sets the next
+	CPU's counter to a value one greater than its own counter.
+\end{enumerate}
+
+\QuickQuiz{}
+	How can you tell if one counter is greater than another,
+	while accounting for counter wrap?
+\QuickQuizAnswer{
+	In the C language, the following macro correctly handles this:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+#define ULONG_CMP_LT(a, b) (ULONG_MAX / 2 < (a) - (b))
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	Although it is tempting to simplyn subtract two signed integers,
+	this should be avoided because signed overflow is undefined
+	in the C language.
+	For example, if the compiler knows that one of the values is
+	positive and the other negative, it is within its rights to
+	simply assume that the positive number is greater than the
+	negative number, even though subtracting the negative number
+	from the positive number might well result in overflow and
+	thus a negative number.
+
+	How could the compiler know the signs of the two numbers?
+	It might be able to deduce it based on prior assignments
+	and comparisons.
+	In this case, if the per-CPU counters were signed, the compiler
+	could deduce that they were always increasing in value, and
+	then might assume that they would never go negative.
+	This assumption could well lead the compiler to generate
+	unfortunate code.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Which is better, the counter approach or the flag approach?
+\QuickQuizAnswer{
+	The flag approach will normally suffer fewer cache misses,
+	but a better answer is to try both and see which works best
+	for your particular workload.
+} \QuickQuizEnd
+
+This lock is unusual in that a given CPU cannot necessarily acquire it
+immediately, even if no other CPU is using it at the moment.
+Instead, the CPU must wait until the token comes around to it.
+This is useful in cases where CPUs need periodic access to the critical
+section, but can tolerate variances in token-circulation rate.
+Gamsa et al.~\cite{Gamsa99} used it to implement a variant of
+read-copy update (see Section~\ref{sec:defer:Read-Copy Update (RCU)}),
+but it could also be used to protect periodic per-CPU operations such
+as flushing per-CPU caches used by memory allocators~\cite{McKenney93},
+garbage-collecting per-CPU data structures, or flushing per-CPU
+data to shared storage (or to mass storage, for that matter).
+
+As increasing numbers of people gain familiarity with parallel hardware
+and parallelize increasing amounts of code, we can expect more
+special-purpose locking primitives to appear.
+Nevertheless, you should carefully consider this important safety tip:
+Use the standard synchronization primitives whenever humanly possible.
+The big advantage of the standard synchronization primitives over
+roll-your-own efforts is that the standard primitives are typically
+\emph{much} less bug-prone.\footnote{
+	And yes, I have done at least my share of roll-your-own
+	synchronization primitives.
+	However, you will notice that my hair is much greyer than
+	it was before I started doing that sort of work.
+	Coincidence?
+	Maybe.
+	But are you \emph{really} willing to risk your own hair turning
+	prematurely grey?}
 
 \input{locking/locking-existence}
 

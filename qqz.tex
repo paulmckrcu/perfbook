@@ -2817,6 +2817,47 @@ ret = ~ret & tmp;
 	a value.
 
 \QuickQ{}
+	How can you tell if one counter is greater than another,
+	while accounting for counter wrap?
+\QuickA{}
+	In the C language, the following macro correctly handles this:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+#define ULONG_CMP_LT(a, b) (ULONG_MAX / 2 < (a) - (b))
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	Although it is tempting to simplyn subtract two signed integers,
+	this should be avoided because signed overflow is undefined
+	in the C language.
+	For example, if the compiler knows that one of the values is
+	positive and the other negative, it is within its rights to
+	simply assume that the positive number is greater than the
+	negative number, even though subtracting the negative number
+	from the positive number might well result in overflow and
+	thus a negative number.
+
+	How could the compiler know the signs of the two numbers?
+	It might be able to deduce it based on prior assignments
+	and comparisons.
+	In this case, if the per-CPU counters were signed, the compiler
+	could deduce that they were always increasing in value, and
+	then might assume that they would never go negative.
+	This assumption could well lead the compiler to generate
+	unfortunate code.
+
+\QuickQ{}
+	Which is better, the counter approach or the flag approach?
+\QuickA{}
+	The flag approach will normally suffer fewer cache misses,
+	but a better answer is to try both and see which works best
+	for your particular workload.
+
+\QuickQ{}
 	How can relying on implicit existence guarantees result in
 	a bug?
 \QuickA{}
@@ -3094,7 +3135,7 @@ ret = ~ret & tmp;
 	\co{write_sequnlock()} primitives are used much more heavily
 	in the Linux kernel.
 	More importantly, many more people will understand what you
-	mean if you san ``sequence lock'' than if you say
+	mean if you say ``sequence lock'' than if you say
 	``sequence count''.
 
 	So this section is entitled ``Sequence Locks'' so that people
@@ -4164,7 +4205,7 @@ srcu_read_unlock(&srcucb, idx);
 	This work is left as an exercise for the reader.
 
 \QuickQ{}
-	Is the possibility o readers being preempted in
+	Is the possibility of readers being preempted in
 	line~3 of Figure~\ref{fig:defer:Free-Running Counter Using RCU}
 	a real problem, in other words, is there a real sequence
 	of events that could lead to failure?
