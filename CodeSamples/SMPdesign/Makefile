@@ -14,7 +14,7 @@
 #
 # Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
 
-PROGS = smpalloc lockdeq lockhdeq locktdeq matmul
+PROGS = smpalloc lockdeq lockhdeq locktdeq matmul matmul_block
 
 all: $(PROGS)
 
@@ -39,6 +39,9 @@ locktdeq: locktdeq.c deqtorture.h ../api.h
 
 matmul: matmul.c ../api.h
 	cc $(GCC_ARGS) -g -o matmul -DTEST matmul.c -lpthread
+
+matmul_block: matmul_block.c ../api.h
+	cc $(GCC_ARGS) -g -o matmul_block -DTEST matmul_block.c -lpthread
 
 clean:
 	rm $(PROGS)
