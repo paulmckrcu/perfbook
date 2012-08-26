@@ -572,18 +572,18 @@ eventually consistent.
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
-  1 DEFINE_PER_THREAD(atomic_t, counter);
-  2 atomic_t global_count;
+  1 DEFINE_PER_THREAD(unsigned long, counter);
+  2 unsigned long global_count;
   3 int stopflag;
   4 
   5 void inc_count(void)
   6 {
-  7   atomic_inc(&__get_thread_var(counter));
+  7   ACCESS_ONCE(__get_thread_var(counter))++;
   8 }
   9 
  10 unsigned long read_count(void)
  11 {
- 12   return atomic_read(&global_count);
+ 12   return global_count;
  13 }
  14 
  15 void *eventual(void *arg)
@@ -594,8 +594,8 @@ eventually consistent.
  20   while (stopflag < 3) {
  21     sum = 0;
  22     for_each_thread(t)
- 23       sum += atomic_xchg(&per_thread(counter, t), 0);
- 24     atomic_add(sum, &global_count);
+ 23       sum += per_thread(counter, t);
+ 24     ACCESS_ONCE(global_count) = sum;
  25     poll(NULL, 0, 1);
  26     if (stopflag) {
  27       smp_mb();
@@ -635,7 +635,7 @@ Lines~1-2 show the per-thread variable and the global variable that
 track the counter's value, and line three shows \co{stopflag}
 which is used to coordinate termination (for the case where we want
 to terminate the program with an accurate counter value).
-The \co{inc_count()} function shown on lines~5-8 is identical to its
+The \co{inc_count()} function shown on lines~5-8 is similar to its
 counterpart in
 Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}.
 The \co{read_count()} function shown on lines~10-13 simply returns the
@@ -643,8 +643,8 @@ value of the \co{global_count} variable.
 
 However, the \co{count_init()} function on lines~34-42
 creates the \co{eventual()} thread shown on lines~15-32, which
-cycles through all the threads, using the \co{atomic_xchg()} function
-to remove count from each thread's local \co{counter}, adding the
+cycles through all the threads,
+summing the per-thread local \co{counter} and storing the
 sum to the \co{global_count} variable.
 The \co{eventual()} thread waits an arbitrarily chosen one millisecond
 between passes.
@@ -653,17 +653,25 @@ The \co{count_cleanup()} function on lines~44-50 coordinates termination.
 This approach gives extremely fast counter read-out while still
 supporting linear counter-update performance.
 However, this excellent read-side performance and update-side scalability
-comes at the cost of high update-side overhead, due to both the
-atomic operations and the array indexing hidden in the
-\co{__get_thread_var()} primitive, which can be quite expensive
-on some CPUs with deep pipelines.
+comes at the cost of the additional thread running \co{eventual()}.
 
 \QuickQuiz{}
-	Why does \co{inc_count()} in
+	Why doesn't \co{inc_count()} in
 	Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
 	need to use atomic instructions?
+	After all, we now have multiple threads accessing the per-thread
+	counters!
 \QuickQuizAnswer{
-	If non-atomic instructions were used, counts could be lost.
+	Because one of the two threads only reads, non-atomic instructions
+	suffice.
+	That said, the \co{ACCESS_ONCE()} macro is used to prevent
+	compiler optimizations that might otherwise prevent the
+	counter updates from becoming visible to
+	\co{eventual()}~\cite{JonCorbet2012ACCESS:ONCE}.
+
+	An older version of this algorithm did in fact use atomic
+	instructions, kudos to Ersoy Bayramoglu for pointing out that
+	they are in fact unnecessary.
 } \QuickQuizEnd
 
 \QuickQuiz{}
