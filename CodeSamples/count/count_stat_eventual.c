@@ -21,18 +21,18 @@
 
 #include "../api.h"
 
-DEFINE_PER_THREAD(atomic_t, counter);
-atomic_t global_count;
+DEFINE_PER_THREAD(unsigned long, counter);
+unsigned long global_count;
 int stopflag;
 
 void inc_count(void)
 {
-	atomic_inc(&__get_thread_var(counter));
+	ACCESS_ONCE(__get_thread_var(counter))++;
 }
 
 unsigned long read_count(void)
 {
-	return atomic_read(&global_count);
+	return global_count;
 }
 
 void *eventual(void *arg)
@@ -43,8 +43,8 @@ void *eventual(void *arg)
 	while (stopflag < 3) {
 		sum = 0;
 		for_each_thread(t)
-			sum += atomic_xchg(&per_thread(counter, t), 0);
-		atomic_add(sum, &global_count);
+			sum += per_thread(counter, t);
+		ACCESS_ONCE(global_count) = sum;
 		poll(NULL, 0, 1);
 		if (stopflag) {
 			smp_mb();
