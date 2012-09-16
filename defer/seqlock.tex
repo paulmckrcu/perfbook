@@ -221,6 +221,19 @@ Finally, line~30 checks that the sequence counter has not changed,
 in other words, that there has been no writer, and returns true if so.
 
 \QuickQuiz{}
+	Why is the \co{smp_mb()} on line~29 of
+	Figure~\ref{fig:defer:Sequence-Locking Implementation}
+	needed?
+\QuickQuizAnswer{
+	If it was omitted, both the compiler and the CPU would be
+	within their rights to move the critical section preceding
+	the call to \co{read_seqretry()} down below this function.
+	This would prevent the sequence lock from protecting the
+	critical section.
+	The \co{smp_mb()} primitive prevents such reordering.
+} \QuickQuizEnd
+
+\QuickQuiz{}
 	What prevents sequence-locking updaters from starving readers?
 \QuickQuizAnswer{
 	Nothing.
@@ -228,7 +241,7 @@ in other words, that there has been no writer, and returns true if so.
 	result, you should use sequence locking only in read-mostly
 	situations.
 	Unless of course read-side starvation is acceptable in your
-	situation, in which case, go wild the sequence-locking updates!
+	situation, in which case, go wild with the sequence-locking updates!
 } \QuickQuizEnd
 
 Lines~34-39 show \co{write_seqlock()}, which simply acquires the lock,
@@ -292,6 +305,12 @@ Both the read-side and write-side critical sections of a sequence lock
 can be thought of as transactions, and sequence locking therefore
 can be thought of as a limited form of transactional memory, which
 will be discussed in Section~\ref{sec:future:Transactional Memory}.
+The limitations of sequence locking are: (1)~Sequence locking restricts
+updates and (2)~sequence locking does not permit traversal of pointers
+to objects that might be freed by updaters.
+These limitations are of course overcome by transactional memory, but
+can also be overcome by combining other synchronization primitives
+with sequence locking.
 
 Sequence locks allow writers to defer readers, but not vice versa.
 This can result in unfairness and even starvation

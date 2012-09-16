@@ -3136,27 +3136,30 @@ ret = ~ret & tmp;
 	of Figure~\ref{fig:defer:Linux Kernel kref API}.
 
 \QuickQ{}
-	If the check on line~22 of
-	Figure~\ref{fig:defer:Linux Kernel kref API} fails, how
-	could the check on line~23 possibly succeed?
+	Suppose that just after the \co{atomic_dec_and_test()}
+	on line~22 of
+	Figure~\ref{fig:defer:Linux Kernel kref API} is invoked,
+	that some other CPU invokes \co{kref_get()}.
+	Doesn't this result in that other CPU now having an illegal
+	reference to a released object?
 \QuickA{}
-	Suppose that {\tt kref\_put()} is protected by RCU, so
-	that two CPUs might be executing line~22 concurrently.
-	Both might see the value ``2'', causing both to then
-	execute line~23.
-	One of the two instances of {\tt atomic\_dec\_and\_test()}
-	will decrement the value to zero and thus return 1.
+	This cannot happen if these functions are used correctly.
+	It is illegal to invoke \co{kref_get()} unless you already
+	hold a reference, in which case the \co{kref_sub()} could
+	not possibly have decremented the counter to zero.
 
 \QuickQ{}
-	How can it possibly be safe to non-atomically check for equality
-	with ``1'' on line~22 of
-	Figure~\ref{fig:defer:Linux Kernel kref API}?
+	Suppose that \co{kref_sub()} returns zero, indicating that
+	the \co{release()} function was not invoked.
+	Under what conditions can the caller rely on the continued
+	existence of the enclosing object?
 \QuickA{}
-	Remember that it is not legal to call either {\tt kref\_get()}
-	or {\tt kref\_put()} unless you hold a reference.
-	If the reference count is equal to ``1'', then there
-	can't possibly be another CPU authorized to change the
-	value of the reference count.
+	The caller cannot rely on the continued existence of the
+	object unless it knows that at least one reference will
+	continue to exist.
+	Normally, the caller will have no way of knowing this, and
+	must therefore carefullly avoid referencing the object after
+	the call to \co{kref_sub()}.
 
 \QuickQ{}
 	Why can't the check for a zero reference count be
@@ -3254,6 +3257,18 @@ ret = ~ret & tmp;
 	Figure~\ref{fig:defer:Sequence-Locking Implementation}.
 
 \QuickQ{}
+	Why is the \co{smp_mb()} on line~29 of
+	Figure~\ref{fig:defer:Sequence-Locking Implementation}
+	needed?
+\QuickA{}
+	If it was omitted, both the compiler and the CPU would be
+	within their rights to move the critical section preceding
+	the call to \co{read_seqretry()} down below this function.
+	This would prevent the sequence lock from protecting the
+	critical section.
+	The \co{smp_mb()} primitive prevents such reordering.
+
+\QuickQ{}
 	What prevents sequence-locking updaters from starving readers?
 \QuickA{}
 	Nothing.
@@ -3261,7 +3276,7 @@ ret = ~ret & tmp;
 	result, you should use sequence locking only in read-mostly
 	situations.
 	Unless of course read-side starvation is acceptable in your
-	situation, in which case, go wild the sequence-locking updates!
+	situation, in which case, go wild with the sequence-locking updates!
 
 \QuickQ{}
 	What if something else serializes writers, so that the lock

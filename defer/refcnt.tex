@@ -251,26 +251,26 @@ RCU read-side critical sections.
   1 struct kref {
   2   atomic_t refcount;
   3 };
-  4
+  4 
   5 void kref_init(struct kref *kref)
   6 {
-  7   atomic_set(&kref->refcount,1);
+  7   atomic_set(&kref->refcount, 1);
   8 }
-  9
+  9 
  10 void kref_get(struct kref *kref)
  11 {
  12   WARN_ON(!atomic_read(&kref->refcount));
  13   atomic_inc(&kref->refcount);
  14 }
- 15
- 16 int kref_put(struct kref *kref,
- 17              void (*release)(struct kref *kref))
- 18 {
- 19   WARN_ON(release == NULL);
- 20   WARN_ON(release == (void (*)(struct kref *))kfree);
- 21
- 22   if ((atomic_read(&kref->refcount) == 1) ||
- 23       (atomic_dec_and_test(&kref->refcount))) {
+ 15 
+ 16 static inline int
+ 17 kref_sub(struct kref *kref, unsigned int count,
+ 18          void (*release)(struct kref *kref))
+ 19 {
+ 20   WARN_ON(release == NULL);
+ 21 
+ 22   if (atomic_sub_and_test((int) count,
+ 23                           &kref->refcount)) {
  24     release(kref);
  25     return 1;
  26   }
@@ -301,38 +301,39 @@ optimizations on all platforms, but the fact that the \co{kref}
 primitives are in a separate module and that the Linux kernel build
 process does no cross-module optimizations has the same effect.
 
-The \co{kref_put()} function on lines~16-28 checks for the counter having the
-value ``1'' on line~22
-(in which case no concurrent \co{kref_get()} is permitted),
-or if atomically decrementing the counter results in zero on line~23.
-In either of these two cases, \co{kref_put()} invokes the
-specified \co{release} function and returns ``1'', telling the
-caller that cleanup was performed.
-Otherwise, \co{kref_put()} returns ``0''.
+The \co{kref_put()} function on lines~16-28 atomically decrements the
+counter, and if the result is zero, line~24 invokes the specified
+\co{release()} function and line~24 returns, informing the caller
+that \co{release()} was invoked.
+Otherwise, \co{kref_put()} returns zero, informing the caller that
+\co{release()} was not called.
 
 \QuickQuiz{}
-	If the check on line~22 of
-	Figure~\ref{fig:defer:Linux Kernel kref API} fails, how
-	could the check on line~23 possibly succeed?
+	Suppose that just after the \co{atomic_dec_and_test()}
+	on line~22 of
+	Figure~\ref{fig:defer:Linux Kernel kref API} is invoked,
+	that some other CPU invokes \co{kref_get()}.
+	Doesn't this result in that other CPU now having an illegal
+	reference to a released object?
 \QuickQuizAnswer{
-	Suppose that {\tt kref\_put()} is protected by RCU, so
-	that two CPUs might be executing line~22 concurrently.
-	Both might see the value ``2'', causing both to then
-	execute line~23.
-	One of the two instances of {\tt atomic\_dec\_and\_test()}
-	will decrement the value to zero and thus return 1.
+	This cannot happen if these functions are used correctly.
+	It is illegal to invoke \co{kref_get()} unless you already
+	hold a reference, in which case the \co{kref_sub()} could
+	not possibly have decremented the counter to zero.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	How can it possibly be safe to non-atomically check for equality
-	with ``1'' on line~22 of
-	Figure~\ref{fig:defer:Linux Kernel kref API}?
+	Suppose that \co{kref_sub()} returns zero, indicating that
+	the \co{release()} function was not invoked.
+	Under what conditions can the caller rely on the continued
+	existence of the enclosing object?
 \QuickQuizAnswer{
-	Remember that it is not legal to call either {\tt kref\_get()}
-	or {\tt kref\_put()} unless you hold a reference.
-	If the reference count is equal to ``1'', then there
-	can't possibly be another CPU authorized to change the
-	value of the reference count.
+	The caller cannot rely on the continued existence of the
+	object unless it knows that at least one reference will
+	continue to exist.
+	Normally, the caller will have no way of knowing this, and
+	must therefore carefullly avoid referencing the object after
+	the call to \co{kref_sub()}.
 } \QuickQuizEnd
 
 \subsubsection{Atomic Counting With Release Memory Barrier}
@@ -396,7 +397,9 @@ of the rules for using these two primitives.
 \subsubsection{Atomic Counting With Check and Release Memory Barrier}
 \label{sec:defer:Atomic Counting With Check and Release Memory Barrier}
 
-The fact that reference-count acquisition can run concurrently
+Consider a situation where the caller must be able to acquire a new
+reference to an object to which it does not already hold a reference.
+The fact that initial reference-count acquisition can now run concurrently
 with reference-count release adds further complications.
 Suppose that a reference-count release finds that the new
 value of the reference count is zero, signalling that it is
