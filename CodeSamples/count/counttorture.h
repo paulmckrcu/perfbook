@@ -10,7 +10,7 @@
  * 	./countxxx <nupdaters> uperf [ <cpustride> ]
  * 		Run an update-side performance test with the specified
  * 		number of updaters and specified CPU spacing.
- * 	./countxxx <nreaders> perf [ <cpustride> ]
+ * 	./countxxx <nupdaters> perf [ <cpustride> ]
  * 		Run a combined read/update performance test with the specified
  * 		number of readers and one updater and specified CPU spacing.
  * 		The readers run on the low-numbered CPUs and the updater
@@ -212,7 +212,7 @@ void usage(int argc, char *argv[])
 	fprintf(stderr,
 		"Usage: %s [nreaders [ rperf [ cpustride ] ] ]\n", argv[0]);
 	fprintf(stderr,
-		"Usage: %s [nreaders [ uperf [ cpustride ] ] ]\n", argv[0]);
+		"Usage: %s [nupdaters [ uperf [ cpustride ] ] ]\n", argv[0]);
 	exit(-1);
 }
 
