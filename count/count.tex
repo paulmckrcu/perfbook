@@ -84,7 +84,7 @@ counting.
 	Suppose that you need to maintain a count of the number of
 	structures allocated in order to fail any allocations
 	once the number of structures in use exceeds an exact limit
-	(say, 10,000).
+	(again, say 10,000).
 	Suppose further that these structures are short-lived,
 	and that the limit is rarely exceeded, that there is almost
 	always at least one structure in use, and suppose further
@@ -172,8 +172,8 @@ counts.
 On my dual-core laptop, a short run invoked \co{inc_count()}
 100,014,000 times, but the final value of the counter was only
 52,909,118.
-Although it is true that approximate values have their place in computing,
-it is almost always necessary to do better than this.
+Although approximate values do have their place in computing,
+accuracies far greater than 50\% are almost always necessary.
 
 \QuickQuiz{}
 	But doesn't the \co{++} operator produce an x86 add-to-memory
@@ -182,8 +182,8 @@ it is almost always necessary to do better than this.
 \QuickQuizAnswer{
 	Although the \co{++} operator \emph{could} be atomic, there
 	is no requirement that it be so.
-	Furthermore, the \co{ACCESS_ONCE()} primitive forces most
-	version of {\sf gcc} to load the value to a register, increment
+	And indeed, \co{gcc} often
+	chooses to load the value to a register, increment
 	the register, then store the value to memory, which is
 	decidedly non-atomic.
 } \QuickQuizEnd
@@ -194,13 +194,14 @@ it is almost always necessary to do better than this.
 	Why would it be necessary to test such a trivial program,
 	especially when the bug is easily seen by inspection?
 \QuickQuizAnswer{
-	There are no trivial parallel programs, and most days I am
-	not so sure that there are trivial sequential programs, either.
+	Not only are there very few
+	trivial parallel programs, and most days I am
+	not so sure that there are many trivial sequential programs, either.
 
 	No matter how small or simple the program, if you haven't tested
 	it, it does not work.
-	And even if you have tested it, Murphy says there are at least a
-	few bugs still lurking.
+	And even if you have tested it, Murphy's Law says that there will
+	be at least a few bugs still lurking.
 
 	Furthermore, while proofs of correctness certainly do have their
 	place, they never will replace testing, including the
@@ -304,7 +305,8 @@ decidedly non-ideal, and gets worse as you add CPUs.
 	these sorts of accounting tasks, especially on large
 	multiprocessors.
 
-	In addition, counting provides an excellent view of the
+	In addition, as noted at the beginning of this chapter,
+	counting provides an excellent view of the
 	issues encountered in shared-memory parallel programs.
 } \QuickQuizEnd
 
@@ -346,8 +348,8 @@ avoids the delays inherent in such circulation.
 		to the data, and for an indication that the operation
 		completed to be shipped back.
 	\item	Shipping operations among CPUs will likely require
-		more signals, which will consume more die area and
-		more electrical power.
+		more lines in the system interconnect, which will consume
+		more die area and more electrical power.
 	\end{enumerate}
 	But what if neither of the first two conditions holds?
 	Then you should think carefully about the algorithms discussed
@@ -415,14 +417,15 @@ Section~\ref{sec:SMPdesign:Data Ownership}.
 	No, because modulo addition is still commutative and associative.
 	At least as long as you use unsigned integer.
 	Recall that in the C standard, overflow of signed integers results
-	in undefined behavior (never mind the fact that machines that
+	in undefined behavior, never mind the fact that machines that
 	do anything other than wrap on overflow are quite rare these days.
 
 	That said, one potential source of additional complexity arises
 	when attempting to gather (say) a 64-bit sum from 32-bit
 	per-thread counters.
-	For the moment, dealing with this added complexity is left as
-	an exercise for the reader.
+	Dealing with this added complexity is left as
+	an exercise for the reader, for whom some of the techniques
+	introduced later in this chapter could be quite helpful.
 } \QuickQuizEnd
 
 \subsection{Array-Based Implementation}
@@ -438,8 +441,10 @@ thread (presumably cache aligned and padded to avoid false sharing).
 \QuickQuizAnswer{
 	It can, and in this toy implementation, it does.
 	But it is not that hard to come up with an alternative
-	implementation that permits an arbitrary number of threads.
-	However, this is left as an exercise for the reader.
+	implementation that permits an arbitrary number of threads,
+	for example, using the \co{gcc} \co{__thread} facility,
+	as shown in
+	Section~\ref{sec:count:Per-Thread-Variable-Based Implementation}.
 } \QuickQuizEnd
 
 \begin{figure}[tbp]
@@ -498,6 +503,11 @@ normal loads suffice, and no special atomic instructions are required.
 	which are incapable of atomically loading a \co{long}.
 	An upcoming version of the C standard aims to fill this gap,
 	but until then, we depend on the kindness of the gcc developers.
+
+	Alternatively, use of volatile accesses such as those provided
+	by \co{ACCESS_ONCE()} can help constrain the compiler, at least
+	in cases where the hardware is capable of accessing the value
+	with a single memory-reference instruction.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -509,10 +519,9 @@ normal loads suffice, and no special atomic instructions are required.
 	global variables is zero, unless they are explicitly initialized.
 	So the initial value of all the instances of \co{counter}
 	will be zero.
-
-	That said, one often takes differences of consecutive reads
-	from statistical counters, in which case the initial value
-	is irrelevant.
+	Furthermore, in the common case where the user is interested only
+	in differences between consecutive reads
+	from statistical counters, the initial value is irrelevant.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -711,6 +720,25 @@ comes at the cost of the additional thread running \co{eventual()}.
 	\co{eventual()} threads might be required.
 } \QuickQuizEnd
 
+\QuickQuiz{}
+	Given that in the eventually-consistent algorithm shown in
+	Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
+	both reads and updates have extremely low overhead
+	and are extremely scalable, why would anyone bother with the
+	implementation described in
+	Section~\ref{sec:count:Array-Based Implementation},
+	given its costly read-side code?
+\QuickQuizAnswer{
+	The thread executing \co{eventual()} consumes CPU time.
+	As more of these eventually-consistent counters are added,
+	the resulting \co{eventual()} threads will eventually
+	consume all available CPUs.
+	This implementation therefore suffers a different sort of
+	scalability limitation, with the scalability limit being in
+	terms of the number of eventually consistent counters rather
+	tha in terms of the number of threads or CPUs.
+} \QuickQuizEnd
+
 \subsection{Per-Thread-Variable-Based Implementation}
 \label{sec:count:Per-Thread-Variable-Based Implementation}
 
@@ -805,15 +833,15 @@ value of the counter and exiting threads.
 	corresponding CPU will ever exist.
 
 	A key limitation that the Linux kernel imposes is a compile-time
-	maximum limit on the number of CPUs, namely,
-	\co{CONFIG_NR_CPUS}.
+	maximum bound on the number of CPUs, namely, \co{CONFIG_NR_CPUS},
+	along with a typically tighter boot-time bound of \co{nr_cpu_ids}.
 	In contrast, in user space, there is no hard-coded upper limit
 	on the number of threads.
 
-	Of course, both environments must deal with dynamically loaded
+	Of course, both environments must handle dynamically loaded
 	code (dynamic libraries in user space, kernel modules in the
 	Linux kernel), which increases the complexity of per-thread
-	variables in both environments.
+	variables.
 
 	These complications make it significantly harder for user-space
 	environments to provide access to other threads' per-thread
@@ -952,7 +980,8 @@ variables vanish when that thread exits.
 
 	One workaround is to ensure that each thread sticks around
 	until all threads are finished, as shown in
-	Figure~\ref{fig:count:Per-Thread Statistical Counters With Lockless Summation}.
+	Figure~\ref{fig:count:Per-Thread Statistical Counters With Lockless Summation}
+	(\co{count_tstat.c}).
 	Analysis of this code is left as an exercise to the reader,
 	however, please note that it does not fit well into the
 	\url{counttorture.h} counter-evaluation scheme.
@@ -964,7 +993,7 @@ variables vanish when that thread exits.
 
 \subsection{Discussion}
 
-These two implementations show that it is possible to obtain uniprocessor
+These three implementations show that it is possible to obtain uniprocessor
 performance for statistical counters, despite running on a parallel
 machine.
 
@@ -998,8 +1027,8 @@ machine.
 	consistent with the results obtained.
 
 	If you missed this one, you are not alone.
-	Michael Scott used this question to stump Paul McKenney during Paul's
-	Ph.D. defense.
+	Michael Scott used this question to stump Paul E.~McKenney
+	during Paul's Ph.D. defense.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -1035,8 +1064,11 @@ page~\pageref{chp:Counting},
 suppose that you need to maintain a count of the number of
 structures allocated in order to fail any allocations once the number
 of structures in use exceeds a limit, in this case, 10,000.
-Suppose further that these structures are short-lived, and that this
-limit is rarely exceeded.
+Suppose further that these structures are short-lived, that this
+limit is rarely exceeded, and that this limit is approximate in
+that it is OK to exceed it sometimes by some bounded amount
+(see Section~\ref{sec:count:Exact Limit Counters}
+if you instead need the limit to be exact).
 
 \subsection{Design}
 

@@ -1123,7 +1123,7 @@ ret = ~ret & tmp;
 	Suppose that you need to maintain a count of the number of
 	structures allocated in order to fail any allocations
 	once the number of structures in use exceeds an exact limit
-	(say, 10,000).
+	(again, say 10,000).
 	Suppose further that these structures are short-lived,
 	and that the limit is rarely exceeded, that there is almost
 	always at least one structure in use, and suppose further
@@ -1175,8 +1175,8 @@ ret = ~ret & tmp;
 \QuickA{}
 	Although the \co{++} operator \emph{could} be atomic, there
 	is no requirement that it be so.
-	Furthermore, the \co{ACCESS_ONCE()} primitive forces most
-	version of {\sf gcc} to load the value to a register, increment
+	And indeed, \co{gcc} often
+	chooses to load the value to a register, increment
 	the register, then store the value to memory, which is
 	decidedly non-atomic.
 
@@ -1186,13 +1186,14 @@ ret = ~ret & tmp;
 	Why would it be necessary to test such a trivial program,
 	especially when the bug is easily seen by inspection?
 \QuickA{}
-	There are no trivial parallel programs, and most days I am
-	not so sure that there are trivial sequential programs, either.
+	Not only are there very few
+	trivial parallel programs, and most days I am
+	not so sure that there are many trivial sequential programs, either.
 
 	No matter how small or simple the program, if you haven't tested
 	it, it does not work.
-	And even if you have tested it, Murphy says there are at least a
-	few bugs still lurking.
+	And even if you have tested it, Murphy's Law says that there will
+	be at least a few bugs still lurking.
 
 	Furthermore, while proofs of correctness certainly do have their
 	place, they never will replace testing, including the
@@ -1232,7 +1233,8 @@ ret = ~ret & tmp;
 	these sorts of accounting tasks, especially on large
 	multiprocessors.
 
-	In addition, counting provides an excellent view of the
+	In addition, as noted at the beginning of this chapter,
+	counting provides an excellent view of the
 	issues encountered in shared-memory parallel programs.
 
 \QuickQ{}
@@ -1253,8 +1255,8 @@ ret = ~ret & tmp;
 		to the data, and for an indication that the operation
 		completed to be shipped back.
 	\item	Shipping operations among CPUs will likely require
-		more signals, which will consume more die area and
-		more electrical power.
+		more lines in the system interconnect, which will consume
+		more die area and more electrical power.
 	\end{enumerate}
 	But what if neither of the first two conditions holds?
 	Then you should think carefully about the algorithms discussed
@@ -1300,14 +1302,15 @@ ret = ~ret & tmp;
 	No, because modulo addition is still commutative and associative.
 	At least as long as you use unsigned integer.
 	Recall that in the C standard, overflow of signed integers results
-	in undefined behavior (never mind the fact that machines that
+	in undefined behavior, never mind the fact that machines that
 	do anything other than wrap on overflow are quite rare these days.
 
 	That said, one potential source of additional complexity arises
 	when attempting to gather (say) a 64-bit sum from 32-bit
 	per-thread counters.
-	For the moment, dealing with this added complexity is left as
-	an exercise for the reader.
+	Dealing with this added complexity is left as
+	an exercise for the reader, for whom some of the techniques
+	introduced later in this chapter could be quite helpful.
 
 \QuickQ{}
 	An array???
@@ -1315,8 +1318,10 @@ ret = ~ret & tmp;
 \QuickA{}
 	It can, and in this toy implementation, it does.
 	But it is not that hard to come up with an alternative
-	implementation that permits an arbitrary number of threads.
-	However, this is left as an exercise for the reader.
+	implementation that permits an arbitrary number of threads,
+	for example, using the \co{gcc} \co{__thread} facility,
+	as shown in
+	Section~\ref{sec:count:Per-Thread-Variable-Based Implementation}.
 
 \QuickQ{}
 	What other choice does gcc have, anyway???
@@ -1330,6 +1335,11 @@ ret = ~ret & tmp;
 	An upcoming version of the C standard aims to fill this gap,
 	but until then, we depend on the kindness of the gcc developers.
 
+	Alternatively, use of volatile accesses such as those provided
+	by \co{ACCESS_ONCE()} can help constrain the compiler, at least
+	in cases where the hardware is capable of accessing the value
+	with a single memory-reference instruction.
+
 \QuickQ{}
 	How does the per-thread \co{counter} variable in
 	Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}
@@ -1339,10 +1349,9 @@ ret = ~ret & tmp;
 	global variables is zero, unless they are explicitly initialized.
 	So the initial value of all the instances of \co{counter}
 	will be zero.
-
-	That said, one often takes differences of consecutive reads
-	from statistical counters, in which case the initial value
-	is irrelevant.
+	Furthermore, in the common case where the user is interested only
+	in differences between consecutive reads
+	from statistical counters, the initial value is irrelevant.
 
 \QuickQ{}
 	How is the code in
@@ -1376,7 +1385,7 @@ ret = ~ret & tmp;
 	global \co{global_count}.
 	For example, on a 32-bit system, the per-thread \co{counter} variables
 	might need to be limited to 32 bits in order to sum them accurately,
-	but a 64-bit \co{global_count} variable.
+	but with a 64-bit \co{global_count} variable to avoid overflow.
 	In this case, it is necessary to zero the per-thead
 	\co{counter} variables periodically in order to avoid
 	overflow.
@@ -1407,6 +1416,24 @@ ret = ~ret & tmp;
 	\co{eventual()} threads might be required.
 
 \QuickQ{}
+	Given that in the eventually-consistent algorithm shown in
+	Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
+	both reads and updates have extremely low overhead
+	and are extremely scalable, why would anyone bother with the
+	implementation described in
+	Section~\ref{sec:count:Array-Based Implementation},
+	given its costly read-side code?
+\QuickA{}
+	The thread executing \co{eventual()} consumes CPU time.
+	As more of these eventually-consistent counters are added,
+	the resulting \co{eventual()} threads will eventually
+	consume all available CPUs.
+	This implementation therefore suffers a different sort of
+	scalability limitation, with the scalability limit being in
+	terms of the number of eventually consistent counters rather
+	tha in terms of the number of threads or CPUs.
+
+\QuickQ{}
 	Why do we need an explicit array to find the other threads'
 	counters?
 	Why doesn't gcc provide a \co{per_thread()} interface, similar
@@ -1431,15 +1458,15 @@ ret = ~ret & tmp;
 	corresponding CPU will ever exist.
 
 	A key limitation that the Linux kernel imposes is a compile-time
-	maximum limit on the number of CPUs, namely,
-	\co{CONFIG_NR_CPUS}.
+	maximum bound on the number of CPUs, namely, \co{CONFIG_NR_CPUS},
+	along with a typically tighter boot-time bound of \co{nr_cpu_ids}.
 	In contrast, in user space, there is no hard-coded upper limit
 	on the number of threads.
 
-	Of course, both environments must deal with dynamically loaded
+	Of course, both environments must handle dynamically loaded
 	code (dynamic libraries in user space, kernel modules in the
 	Linux kernel), which increases the complexity of per-thread
-	variables in both environments.
+	variables.
 
 	These complications make it significantly harder for user-space
 	environments to provide access to other threads' per-thread
@@ -1536,7 +1563,8 @@ ret = ~ret & tmp;
 
 	One workaround is to ensure that each thread sticks around
 	until all threads are finished, as shown in
-	Figure~\ref{fig:count:Per-Thread Statistical Counters With Lockless Summation}.
+	Figure~\ref{fig:count:Per-Thread Statistical Counters With Lockless Summation}
+	(\co{count_tstat.c}).
 	Analysis of this code is left as an exercise to the reader,
 	however, please note that it does not fit well into the
 	\url{counttorture.h} counter-evaluation scheme.
@@ -1575,8 +1603,8 @@ ret = ~ret & tmp;
 	consistent with the results obtained.
 
 	If you missed this one, you are not alone.
-	Michael Scott used this question to stump Paul McKenney during Paul's
-	Ph.D. defense.
+	Michael Scott used this question to stump Paul E.~McKenney
+	during Paul's Ph.D. defense.
 
 \QuickQ{}
 	Given that the reader must sum all the threads' counters,
