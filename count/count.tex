@@ -689,8 +689,13 @@ comes at the cost of the additional thread running \co{eventual()}.
 	might need to be limited to 32 bits in order to sum them accurately,
 	but with a 64-bit \co{global_count} variable to avoid overflow.
 	In this case, it is necessary to zero the per-thead
-	\co{counter} variables periodically in order to avoid
-	overflow.
+	\co{counter} variables periodically in order to avoid overflow.
+	It is extremely important to note that this zeroing cannot
+	be delayed too long or overflow of the smaller per-thread
+	variables will result.
+	This approach therefore imposes real-time requirements on the
+	underlying system, and in turn must be used with extreme care.
+
 	In contrast, if all variables are the same size, overflow
 	of any variable is harmless because the eventual sum
 	will be modulo the word size.
@@ -1086,47 +1091,79 @@ of credits that they cannot use.
 On the other hand, if freed structures are credited to the CPU that
 allocated them, it will be necessary for CPUs to manipulate each
 others' counters, which will require lots of expensive atomic instructions.
-Furthermore, because structures come in different sizes, rather than supporting
-\co{inc_count()} and \co{dec_count()} interfaces, we implement
-\co{add_count()} and \co{sub_count()} to allow variable-sized structures
-to be properly accounted for.
 
 In short, for many important workloads, we cannot fully partition the counter.
-However, we \emph{can} partially partition the counter,
-so that in the common case, each thread need only manipulate its own
-private state,
-while still allowing counts to flow between threads as needed.
-The statistical counting scheme discussed in
-Section~\ref{sec:count:Per-Thread-Variable-Based Implementation}
-provides an interesting starting point,
-in that it maintains a global counter as well as per-thread counters,
-with the aggregate value being the sum of all of these counters,
-global along with per-thread.
-The key change is to pull each thread's counter into
-the global sum while that thread is still running, rather than waiting
-for thread exit.
-Clearly, we want threads to pull in their own counts, as cross-thread
-accesses are expensive and scale poorly.
+Given that partitioning the counters was what brought the excellent
+update-side performance for the three schemes discussed in
+Section~\ref{sec:count:Statistical Counters}, this might be grounds
+for some pessimism.
+However, the eventually consistent algorithm presented in
+Section~\ref{sec:count:Eventually Consistent Implementation}
+provides an interesting hint.
+Recall that this algorithm kept two sets of books, a
+per-thread \co{counter} variable for updaters and a \co{global_count}
+variable for readers, with an \co{eventual()} thread that periodically
+updated \co{global_count} to be eventually consistent with the values
+of the per-thread \co{counter}.
+The per-thread \co{counter} perfectly partitioned the counter value, while
+\co{global_count} kept the full value.
 
-This leaves open the question of exactly when a given thread's counter
-should be pulled into the global counter.
-In the initial implementation, we will start by maintaining a limit on
-the value of the per-thread counter.
-When this limit would be exceeded, the thread pulls its counter into the
-global counter.
-Of course, we cannot simply add to the counter when a structure is
-allocated: we must also subtract from the counter when a structure is
-freed.
-We must therefore make use of the global counter when a subtraction would
-otherwise reduce the value of the per-thread counter below zero.
-However, if the limit is reasonably large, almost all of the addition
-and subtraction operations should be handled by the per-thread counter,
-which should give us good performance and scalability.
+For limit counters, we can use a variation on this theme, so that
+we \emph{partially partition} the counter.
+For example, each of four threads could have a per-thread
+\co{counter}, but each could also have a per-thread maximum value
+(call it \co{countermax}).
 
-This design is an example of ``parallel fastpath'', which is an important
+But then what happens if a given thread needs to increment its
+\co{counter}, but where \co{counter} is equal to its \co{countermax}?
+The trick here is to move half of that thread's \co{counter} value
+to a \co{globalcount}, then increment \co{counter}.
+For example, if a given thread's \co{counter} and \co{countermax}
+variables were both equal to 10, we do the following:
+
+\begin{enumerate}
+\item	Acquire a global lock.
+\item	Add five to \co{globalcount}.
+\item	To balance out the addition, subtract five from this
+	thread's \co{counter}.
+\item	Release the global lock.
+\item	Increment this thread's \co{counter}, resulting in a value of six.
+\end{enumerate}
+
+Although this procedure still requires a global lock, that lock need only be
+acquired once for every five increment operations, greatly reducing
+the contention on that lock.
+We can reduce this contention as low as we wish by increasing the
+value of \co{countermax}.
+However, the corresponding penalty for increasing the value of
+\co{countermax} is reduced accuracy of \co{globalcount}.
+To see this, note that on a four-CPU system, if \co{countermax}
+is equal to ten, \co{globalcount} will be in error by at most
+40 counts.
+In contrast, if \co{countermax} is increased to 100, \co{globalcount}
+might be in error by as much as 400 counts.
+
+This raises the question of just how much we care about \co{globalcount}'s
+deviation from the aggregate value of the counter, where this aggregate value
+is the sum of \co{globalcount} and each thread's \co{counter} variable.
+The answer to this question depends on how far the aggregate value is
+from the counter's limit (call it \co{globalcountmax}).
+The larger the difference between these two values, the larger \co{countermax}
+can be without risk of exceeding the \co{globalcountmax} limit.
+This means that the
+value of a given thread's \co{countermax} variable can be set
+based on this difference.
+When far from the limit, the \co{countermax} per-thread variables are
+set to large values to optimize for performance and scalability, while
+when close to the limit, these same variables are set to small values
+to minimize the error in the checks against the \co{globalcountmax} limit.
+
+This design is an example of \emph{parallel fastpath}, which is an important
 design pattern in which the common case executes with no expensive
 instructions and no interactions between threads, but where occasional
 use is also made of a more conservatively designed global algorithm.
+This design pattern is covered in more detail in
+Section~\ref{sec:SMPdesign:Parallel Fastpath}.
 
 \subsection{Simple Limit Counter Implementation}
 \label{sec:count:Simple Limit Counter Implementation}
@@ -1247,6 +1284,20 @@ has acquired \co{gblcnt_mutex}.
 Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}
 shows the \co{add_count()}, \co{sub_count()}, and \co{read_count()}
 functions (\url{count_lim.c}).
+
+
+\QuickQuiz{}
+	Why does
+	Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}
+	provide \co{add_count()} and \co{sub_count()} instead of the
+	\co{inc_count()} and \co{dec_count()} interfaces show in
+	Section~\ref{sec:count:Statistical Counters}?
+\QuickQuizAnswer{
+	Because structures come in different sizes.
+	Of course, a limit counter corresponding to a specific size
+	of structure might still be able to use
+	\co{inc_count()} and \co{dec_count()}.
+} \QuickQuizEnd
 
 Lines~1-18 show \co{add_count()}, which adds the specified value \co{delta}
 to the counter.
