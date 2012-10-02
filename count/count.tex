@@ -1555,6 +1555,76 @@ Finally, in either case, line~18 makes the corresponding adjustment to
 	thanks to the adjustment in line~18.
 } \QuickQuizEnd
 
+\begin{figure*}[tb]
+\begin{center}
+\resizebox{5in}{!}{\includegraphics{count/globbal}}
+\end{center}
+\caption{Schematic of Globalization and Balancing}
+\label{fig:count:Schematic of Globalization and Balancing}
+\end{figure*}
+
+It is helpful to look at a schematic depicting how the relationship
+of the counters changes with the execution of first
+\co{globalize_count()} and then \co{balance_count}, as shown in
+Figure~\ref{fig:count:Schematic of Globalization and Balancing}.
+Time advances from left to right, with the leftmost configuration
+roughly that of
+Figure~\ref{fig:count:Simple Limit Counter Variable Relationships}.
+The center configuration shows the relationship of these same counters
+after \co{globalize_count()} is executed by thread~0.
+As can be seen from the figure, thread~0's \co{counter} (``c~0'' in
+the figure) is added to \co{globalcount}, while the value of
+\co{globalreserve} is reduced by this same amount.
+Both thread~0's \co{counter} and its \co{countermax}
+(``cm~0'' in the figure) are reduced to zero.
+The other three threads' counters are unchanged.
+Note that this change did not affect the overall value of the counter,
+as indicated by the bottommost dotted line connecting the leftmost
+and center configurations.
+In other words, the sum of \co{globalcount} and the four threads'
+\co{counter} variables is the same in both configurations.
+Similarly, this change did not affect the sum of \co{globalcount} and
+\co{globalreserve}, as indicated by the upper dotted line.
+
+The rightmost configuration shows the relationship of these counters
+after \co{balance_count()} is executed, again by thread~0.
+One-quarter of the remaining count, denoted by the vertical line extending
+up from all three configurations, is added to thread~0's
+\co{countermax} and half of that to thread~0's \co{counter}.
+The amount added to thread~0's \co{counter} is also subtracted from
+\co{globalcount} in order to avoid changing the overall value of the
+counter (which is again the sum of \co{globalcount} and the three
+threads' \co{counter} variables), again as indicated by the lowermost
+of the two dotted lines connecting the center and rightmost configurations.
+The \co{globalreserve} variable is also adjusted so that this variable
+remains equal to the sum of the four threads' \co{countermax}
+variables.
+Because thread~0's \co{counter} is less than its \co{countermax},
+thread~0 can once again increment the counter locally.
+
+\QuickQuiz{}
+	In Figure~\ref{fig:count:Schematic of Globalization and Balancing},
+	even though a quarter of the remaining count up to the limit is
+	assigned to thread~0, only an eighth of the remaining count is
+	consumed, as indicated by the uppermost dotted line connecting
+	the center and the rightmost configurations.
+	Why is that?
+\QuickQuizAnswer{
+	The reason this happened is that thread~0's \co{counter} was
+	set to half of its \co{countermax}.
+	Thus, of the quarter assigned to thread~0, half of that quarter
+	(one eighth) came from \co{globalcount}, leaving the other half
+	(again, one eighth) to come from the remaining count.
+
+	There are two purposes for taking this approach:
+	(1)~To allow thread~0 to use the fastpath for decrements as
+	well as increments, and
+	(2)~To reduce the inaccuracies if all threads are monotonically
+	incrementing up towards the limit.
+	To see this last point, step through the algorithm and watch
+	what it does.
+} \QuickQuizEnd
+
 Lines~21-28 show \co{count_register_thread()}, which sets up state for
 newly created threads.
 This function simply installs
