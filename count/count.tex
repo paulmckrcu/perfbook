@@ -2,7 +2,7 @@
 
 \QuickQuizChapter{chp:Counting}{Counting}
 
-Counting is perhaps the simplest and most natural for a computer to do.
+Counting is perhaps the simplest and most natural thing a computer can do.
 However, counting efficiently and scalably on a large
 shared-memory multiprocessor can be quite challenging.
 Furthermore, the simplicity of the underlying concept of counting
@@ -24,8 +24,8 @@ counting.
 	addition, subtraction, and lots more besides, don't they???
 \QuickQuizAnswer{
 	Because the straightforward counting algorithms, for example,
-	atomic operations on a shared counter, are slow and scale
-	badly, as will be seen in
+	atomic operations on a shared counter, either are slow and scale
+	badly, or are inaccurate, as will be seen in
 	Section~\ref{sec:count:Why Isn't Concurrent Counting Trivial?}.
 } \QuickQuizEnd
 
@@ -42,7 +42,7 @@ counting.
 	every five seconds.
 	How would you implement this statistical counter?
 \QuickQuizAnswer{
-	Hint: the act of updating the counter must be blazingly
+	Hint: The act of updating the counter must be blazingly
 	fast, but because the counter is read out only about once
 	in five million updates, the act of reading out the counter can be
 	quite slow.
@@ -69,11 +69,11 @@ counting.
 	that the limit is rarely exceeded, and that a ``sloppy''
 	approximate limit is acceptable.
 \QuickQuizAnswer{
-	Hint: the act of updating the counter must be blazingly
+	Hint: The act of updating the counter must again be blazingly
 	fast, but the counter is read out each time that the
 	counter is increased.
 	However, the value read out need not be accurate
-	\emph{except} that it absolutely must distinguish perfectly
+	\emph{except} that it must distinguish approximately
 	between values below the limit and values greater than or
 	equal to the limit.
 	See Section~\ref{sec:count:Approximate Limit Counters}.
@@ -93,7 +93,7 @@ counting.
 	that is not required unless there is at least one structure
 	in use.
 \QuickQuizAnswer{
-	Hint: the act of updating the counter must be blazingly
+	Hint: The act of updating the counter must once again be blazingly
 	fast, but the counter is read out each time that the
 	counter is increased.
 	However, the value read out need not be accurate
@@ -113,7 +113,7 @@ counting.
 	the user indicates a desire to remove the device, and
 	the system tells the user when it is safe to do so.
 \QuickQuizAnswer{
-	Hint: the act of updating the counter must be blazingly
+	Hint: Yet again, the act of updating the counter must be blazingly
 	fast and scalable in order to avoid slowing down I/O operations,
 	but because the counter is read out only when the
 	user wishes to remove the device, the counter read-out
@@ -123,7 +123,8 @@ counting.
 	a desire to remove the device.
 	In addition, the value read out need not be accurate
 	\emph{except} that it absolutely must distinguish perfectly
-	between non-zero and zero values.
+	between non-zero and zero values, and even then only when
+	the device is in the process of being removed.
 	However, once it has read out a zero value, it must act
 	to keep the value at zero until it has taken some action
 	to prevent subsequent threads from gaining access to the
@@ -132,6 +133,24 @@ counting.
 } \QuickQuizEnd
 
 The remainder of this chapter will develop answers to these questions.
+Section~\ref{sec:count:Why Isn't Concurrent Counting Trivial?}
+asks why counting on multicore systems isn't trivial, and
+Section~\ref{sec:count:Statistical Counters}
+looks into ways of solving the network-packet counting problem.
+Section~\ref{sec:count:Approximate Limit Counters}
+investigates the approximate structure-allocation limit problem, while
+Section~\ref{sec:count:Exact Limit Counters}
+takes on the exact structure-allocation limit problem.
+Section~\ref{sec:count:Applying Specialized Parallel Counters}
+discusses how to use the various specialized parallel counters
+introduced in the preceding sections.
+Finally, Section~\ref{sec:count:Parallel Counting Discussion}
+concludes the chapter with performance measurements.
+
+Sections~\ref{sec:count:Why Isn't Concurrent Counting Trivial?}
+and~\ref{sec:count:Statistical Counters}
+contain introductory material, while the remaining sections
+are more appropriate for advanced students.
 
 \section{Why Isn't Concurrent Counting Trivial?}
 \label{sec:count:Why Isn't Concurrent Counting Trivial?}
@@ -206,7 +225,9 @@ accuracies far greater than 50\% are almost always necessary.
 	Furthermore, while proofs of correctness certainly do have their
 	place, they never will replace testing, including the
 	\url{counttorture.h} test setup used here.
-	After all, proofs can have bugs just as easily as programs can!
+	After all, proofs are only as good as the assumptions that they
+	are based on.
+	Furthermore, proofs can have bugs just as easily as programs can!
 } \QuickQuizEnd
 
 \begin{figure}[tbp]
@@ -331,7 +352,7 @@ The following sections discuss high-performance counting, which
 avoids the delays inherent in such circulation.
 
 \QuickQuiz{}
-	But why can't CPU designers simply ship the operation to the
+	But why can't CPU designers simply ship the addition operation to the
 	data, avoiding the need to circulate the cache line containing
 	the global variable being incremented?
 \QuickQuizAnswer{
@@ -365,7 +386,7 @@ avoids the delays inherent in such circulation.
 \end{figure}
 
 	If either or both of the first two conditions hold, there is
-	\emph{some} hope for improvement.
+	\emph{some} hope for improved hardware.
 	One could imagine the hardware implementing a combining tree,
 	so that the increment requests from multiple CPUs are combined
 	by the hardware into a single addition when the combined request
@@ -383,7 +404,7 @@ avoids the delays inherent in such circulation.
 	of current hardware shown in
 	Figure~\ref{fig:count:Data Flow For Global Atomic Increment},
 	and it is possible that hardware latencies might decrease
-	further if innovations such as three-D fabrication prove
+	further if innovations such as three-dimensional fabrication prove
 	practical.
 	Nevertheless, we will see that in some important special cases,
 	software can do \emph{much} better.
@@ -415,10 +436,14 @@ Section~\ref{sec:SMPdesign:Data Ownership}.
 	complicate things?
 \QuickQuizAnswer{
 	No, because modulo addition is still commutative and associative.
-	At least as long as you use unsigned integer.
+	At least as long as you use unsigned integers.
 	Recall that in the C standard, overflow of signed integers results
 	in undefined behavior, never mind the fact that machines that
 	do anything other than wrap on overflow are quite rare these days.
+	Unfortunately, compilers frequently carry out optimizations that
+	assume that signed integers will not overflow, so if your code
+	allows signed integers to overflow, you can run into trouble
+	even on twos-complement hardware.
 
 	That said, one potential source of additional complexity arises
 	when attempting to gather (say) a 64-bit sum from 32-bit
@@ -505,7 +530,8 @@ normal loads suffice, and no special atomic instructions are required.
 	but until then, we depend on the kindness of the gcc developers.
 
 	Alternatively, use of volatile accesses such as those provided
-	by \co{ACCESS_ONCE()} can help constrain the compiler, at least
+	by \co{ACCESS_ONCE()}~\cite{JonCorbet2012ACCESS:ONCE}
+	can help constrain the compiler, at least
 	in cases where the hardware is capable of accessing the value
 	with a single memory-reference instruction.
 } \QuickQuizEnd
@@ -547,8 +573,89 @@ invoking \co{inc_count()}.
 As is shown by the green arrows in
 Figure~\ref{fig:count:Data Flow For Per-Thread Increment},
 the reason for this is that each CPU can make rapid progress incrementing
-its thread's variable, with no expensive communication required crossing
-the full diameter of the computer system.
+its thread's variable, without any expensive cross-system communication.
+As such, this section solves the network-packet counting problem presented
+at the beginning of this chapter.
+
+\QuickQuiz{}
+	The read operation takes time to sum up the per-thread values,
+	and during that time, the counter could well be changing.
+	This means that the value returned by
+	\co{read_count()} in
+	Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}
+	will not necessarily be exact.
+	Assume that the counter is being incremented at rate
+	$r$ counts per unit time, and that \co{read_count()}'s
+	execution consumes $\Delta$ units of time.
+	What is the expected error in the return value?
+\QuickQuizAnswer{
+	Let's do worst-case analysis first, followed by a less
+	conservative analysis.
+
+	In the worst case, the read operation completes immediately,
+	but is then delayed for $\Delta$ time units before returning,
+	in which case the worst-case error is simply $r \Delta$.
+
+	This worst-case behavior is rather unlikely, so let us instead
+	consider the case where the reads from each of the $N$
+	counters is spaced equally over the time period $\Delta$.
+	There will be $N+1$ intervals of duration $\frac{\Delta}{N+1}$
+	between the $N$ reads.
+	The error due to the delay after the read from the last thread's
+	counter will be given by $\frac{r \Delta}{N \left( N + 1 \right)}$,
+	the second-to-last thread's counter by
+	$\frac{2 r \Delta}{N \left( N + 1 \right)}$,
+	the third-to-last by
+	$\frac{3 r \Delta}{N \left( N + 1 \right)}$,
+	and so on.
+	The total error is given by the sum of the errors due to the
+	reads from each thread's counter, which is:
+
+	\begin{equation}
+		\frac{r \Delta}{N \left( N + 1 \right)}
+			\sum_{i = 1}^N i
+	\end{equation}
+
+	Expressing the summation in closed form yields:
+
+	\begin{equation}
+		\frac{r \Delta}{N \left( N + 1 \right)}
+			\frac{N \left( N + 1 \right)}{2}
+	\end{equation}
+
+	Cancelling yields the intuitively expected result:
+
+	\begin{equation}
+		\frac{r \Delta}{2}
+	\end{equation}
+
+	It is important to remember that error continues accumulating
+	as the caller executes code making use of the count returned
+	by the read operation.
+	For example, if the caller spends time $t$ executing some
+	computation based on the result of the returned count, the
+	worst-case error will have increased to $r \left(t \Delta \right)$.
+
+	The expected error will have similarly increased to:
+
+	\begin{equation}
+		r \left( \frac{\Delta}{2} + t \right)
+	\end{equation}
+
+	Of course, it is sometimes unacceptable for the counter to
+	continue incrementing during the read operation.
+	Section~\ref{sec:count:Applying Specialized Parallel Counters}
+	discusses a way to handle this situation.
+
+	All that aside, in most uses of statistical counters, the
+	error in the value returned by \co{read_count()} is
+	irrelevant.
+	This irrelevance is due to the fact that the time required
+	for \co{read_count()} to execute is normally extremely
+	small compared to the time interval between successive
+	calls to \co{read_count()}.
+} \QuickQuizEnd
+
 However, this excellent update-side scalability comes at great read-side
 expense for large numbers of threads.
 The next section shows one way to reduce read-side expense while
@@ -566,7 +673,7 @@ that near the end of \co{read_count()}'s execution.
 \emph{Eventual consistency}~\cite{WernerVogels:2009:EventuallyConsistent}
 provides a weaker
 guarantee: in absence of calls to \co{inc_count()}, calls to
-\co{read_count()} will eventually return the correct answer.
+\co{read_count()} will eventually return an accurate count.
 
 We exploit eventual consistency by maintaining a global counter.
 However, updaters only manipulate their per-thread counters.
@@ -685,7 +792,8 @@ comes at the cost of the additional thread running \co{eventual()}.
 	That said, atomic instructions would be needed in cases where
 	the per-thread \co{counter} variables were smaller than the
 	global \co{global_count}.
-	For example, on a 32-bit system, the per-thread \co{counter} variables
+	However, note that on a 32-bit system,
+	the per-thread \co{counter} variables
 	might need to be limited to 32 bits in order to sum them accurately,
 	but with a 64-bit \co{global_count} variable to avoid overflow.
 	In this case, it is necessary to zero the per-thead
@@ -707,7 +815,8 @@ comes at the cost of the additional thread running \co{eventual()}.
 	be just as severe a bottleneck as a global lock would be?
 \QuickQuizAnswer{
 	In this case, no.
-	What will happen instead is that the estimate of the counter
+	What will happen instead is that as the number of threads increases,
+	the estimate of the counter
 	value returned by \co{read_count()} will become more inaccurate.
 } \QuickQuizEnd
 
@@ -721,7 +830,7 @@ comes at the cost of the additional thread running \co{eventual()}.
 	If this proves problematic, one fix is to provide multiple
 	\co{eventual()} threads, each covering its own subset of
 	the other threads.
-	In even more extreme cases, a tree-like hierarchy of
+	In more extreme cases, a tree-like hierarchy of
 	\co{eventual()} threads might be required.
 } \QuickQuizEnd
 
@@ -741,7 +850,7 @@ comes at the cost of the additional thread running \co{eventual()}.
 	This implementation therefore suffers a different sort of
 	scalability limitation, with the scalability limit being in
 	terms of the number of eventually consistent counters rather
-	tha in terms of the number of threads or CPUs.
+	than in terms of the number of threads or CPUs.
 } \QuickQuizEnd
 
 \subsection{Per-Thread-Variable-Based Implementation}
@@ -826,7 +935,8 @@ value of the counter and exiting threads.
 	gets to ignore.
 	When a user-level thread exits, its per-thread variables all
 	disappear, which complicates the problem of per-thread-variable
-	access, particularly before the advent of user-level RCU.
+	access, particularly before the advent of user-level RCU
+	(see Section~\ref{sec:defer:Read-Copy Update (RCU)}).
 	In contrast, in the Linux kernel, when a CPU goes offline,
 	that CPU's per-CPU variables remain mapped and accessible.
 
@@ -901,7 +1011,7 @@ array to point to its per-thread \co{counter} variable.
 	thread startup, and is therefore not on any critical path.
 	Now, if we were testing on machines with thousands of CPUs,
 	we might need to omit the lock, but on machines with ``only''
-	a hundred or so CPUs, no need to get fancy.
+	a hundred or so CPUs, there is no need to get fancy.
 } \QuickQuizEnd
 
 Lines~34-42 show the \co{count_unregister_thread()} function, which
@@ -911,7 +1021,7 @@ Line~38 acquires the lock, and line~41 releases it, thus excluding any
 calls to \co{read_count()} as well as other calls to
 \co{count_unregister_thread()}.
 Line~39 adds this thread's \co{counter} to the global \co{finalcount},
-and then \co{NULL}s out its \co{counterp[]} array entry.
+and then line~40 \co{NULL}s out its \co{counterp[]} array entry.
 A subsequent call to \co{read_count()} will see the exiting thread's
 count in the global \co{finalcount}, and will skip the exiting thread
 when sequencing through the \co{counterp[]} array, thus obtaining
@@ -923,7 +1033,7 @@ On the other hand, concurrent reads contend for a single global lock,
 and therefore perform poorly and scale abysmally.
 However, this is not a problem for statistical counters, where incrementing
 happens often and readout happens almost never.
-In addition, this approach is considerably more complex than the
+Of course, this approach is considerably more complex than the
 array-based scheme, due to the fact that a given thread's per-thread
 variables vanish when that thread exits.
 
@@ -983,7 +1093,7 @@ variables vanish when that thread exits.
 \label{fig:count:Per-Thread Statistical Counters With Lockless Summation}
 \end{figure}
 
-	One workaround is to ensure that each thread sticks around
+	One workaround is to ensure that each thread continues to exist
 	until all threads are finished, as shown in
 	Figure~\ref{fig:count:Per-Thread Statistical Counters With Lockless Summation}
 	(\co{count_tstat.c}).
@@ -1090,7 +1200,8 @@ of structures, while the threads doing most of the freeing have lots
 of credits that they cannot use.
 On the other hand, if freed structures are credited to the CPU that
 allocated them, it will be necessary for CPUs to manipulate each
-others' counters, which will require lots of expensive atomic instructions.
+others' counters, which will require expensive atomic instructions
+or other means of communicating between threads.
 
 In short, for many important workloads, we cannot fully partition the counter.
 Given that partitioning the counters was what brought the excellent
@@ -1108,14 +1219,14 @@ of the per-thread \co{counter}.
 The per-thread \co{counter} perfectly partitioned the counter value, while
 \co{global_count} kept the full value.
 
-For limit counters, we can use a variation on this theme, so that
+For limit counters, we can use a variation on this theme, in that
 we \emph{partially partition} the counter.
 For example, each of four threads could have a per-thread
 \co{counter}, but each could also have a per-thread maximum value
 (call it \co{countermax}).
 
 But then what happens if a given thread needs to increment its
-\co{counter}, but where \co{counter} is equal to its \co{countermax}?
+\co{counter}, but \co{counter} is equal to its \co{countermax}?
 The trick here is to move half of that thread's \co{counter} value
 to a \co{globalcount}, then increment \co{counter}.
 For example, if a given thread's \co{counter} and \co{countermax}
@@ -1132,7 +1243,7 @@ variables were both equal to 10, we do the following:
 
 Although this procedure still requires a global lock, that lock need only be
 acquired once for every five increment operations, greatly reducing
-the contention on that lock.
+that lock's level of contention.
 We can reduce this contention as low as we wish by increasing the
 value of \co{countermax}.
 However, the corresponding penalty for increasing the value of
@@ -1161,7 +1272,8 @@ to minimize the error in the checks against the \co{globalcountmax} limit.
 This design is an example of \emph{parallel fastpath}, which is an important
 design pattern in which the common case executes with no expensive
 instructions and no interactions between threads, but where occasional
-use is also made of a more conservatively designed global algorithm.
+use is also made of a more conservatively designed
+(and higher overhead) global algorithm.
 This design pattern is covered in more detail in
 Section~\ref{sec:SMPdesign:Parallel Fastpath}.
 
@@ -1355,13 +1467,14 @@ If the addition of \co{delta} cannot be accommodated, then
 line~11 (as noted earlier) releases \co{gblcnt_mutex} and line~12
 returns indicating failure.
 
-Otherwise, line~14 adds \co{delta} to \co{globalcount},
+Otherwise, we take the slowpath.
+Line~14 adds \co{delta} to \co{globalcount}, and then
 line~15 invokes \co{balance_count()} (shown in
 Figure~\ref{fig:count:Simple Limit Counter Utility Functions})
-in order to update both the global and the per-thread variables
-(hopefully setting this thread's \co{countermax} to re-enable the
-fastpath),
-if appropriate, to re-enable fastpath processing, line~16 release
+in order to update both the global and the per-thread variables.
+This call to \co{balance_count()}
+will usually set this thread's \co{countermax} to re-enable the fastpath.
+Line~16 then releases
 \co{gblcnt_mutex} (again, as noted earlier), and, finally,
 line~17 returns indicating success.
 
@@ -1431,12 +1544,13 @@ Line~28 checks to see if the counter can accommodate subtracting
 } \QuickQuizEnd
 
 If, on the other hand, line~28 finds that the counter \emph{can}
-accommodate subtracting \co{delta}, then line~32 does the subtraction,
+accommodate subtracting \co{delta}, we complete the slowpath.
+Line~32 does the subtraction and then
 line~33 invokes \co{balance_count()} (shown in
 Figure~\ref{fig:count:Simple Limit Counter Utility Functions})
 in order to update both global and per-thread variables
-(hopefully re-enabling the fastpath),
-line~34 releases \co{gblcnt_mutex}, and line~35 returns success.
+(hopefully re-enabling the fastpath).
+Then line~34 releases \co{gblcnt_mutex}, and line~35 returns success.
 
 \QuickQuiz{}
 	Why have both \co{add_count()} and \co{sub_count()} in
@@ -1509,7 +1623,7 @@ Line~49 then returns the sum.
 \end{figure}
 
 Figure~\ref{fig:count:Simple Limit Counter Utility Functions}
-shows a number of utility functions that support the \co{add_count()}
+shows a number of utility functions used by the \co{add_count()}
 \co{sub_count()}, and \co{read_count()} primitives shown in
 Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}.
 
@@ -1762,14 +1876,52 @@ other hand, it would be silly not to at least give them a try.
 \subsection{Atomic Limit Counter Implementation}
 \label{sec:count:Atomic Limit Counter Implementation}
 
-Unfortunately, when causing a given thread to give up its count, it is
-necessary to atomically manipulate both that thread's \co{counter}
-and \co{countermax} variables.
+Unfortunately,
+if one thread is to safely remove counts from another thread,
+both threads will need to atomically manipulate that thread's
+that thread's \co{counter} and \co{countermax} variables.
 The usual way to do this is to combine these two variables into a
 single variable,
 for example, given a 32-bit variable, using the high-order 16 bits to
 represent \co{counter} and the low-order 16 bits to represent
 \co{countermax}.
+
+\QuickQuiz{}
+	Why is it necessary to atomically manipulate the thread's
+	\co{counter} and \co{countermax} variables as a unit?
+	Wouldn't it be good enough to atomically manipulate them
+	individually?
+\QuickQuizAnswer{
+	This might well be possible, but great care is required.
+	Note that removing \co{counter} without first zeroing
+	\co{countermax} could result in the corresponding thread
+	increasing \co{counter} immediately after it was zeroed,
+	completely negating the effect of zeroing the counter.
+
+	The opposite ordering, namely zeroing \co{countermax} and then
+	removing \co{counter}, can also result in a non-zero
+	\co{counter}.
+	To see this, consider the following sequence of events:
+
+	\begin{enumerate}
+	\item	Thread~A fetches its \co{countermax}, and finds that
+		it is non-zero.
+	\item	Thread~B zeroes Thread~A's \co{countermax}.
+	\item	Thread~B removes Thread~A's \co{counter}.
+	\item	Thread~A, having found that its \co{countermax}
+		is non-zero, proceeds to add to its \co{counter},
+		resulting in a non-zero value for \co{counter}.
+	\end{enumerate}
+
+	Again, it might well be possible to atomically manipulate
+	\co{countermax} and \co{counter} as separate variables,
+	but it is clear that great care is required.
+	It is also quite likely that doing so will slow down the
+	fastpath.
+
+	Exploring these possibilities are left as exercises for
+	the reader.
+} \QuickQuizEnd
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1849,7 +2001,8 @@ gives the maximum value that may be held in either half of
 
 Lines~10-15 show the \co{split_ctrandmax_int()} function, which,
 when given the underlying \co{int} from the \co{atomic_t
-ctrandmax} variable.
+ctrandmax} variable, splits it into its \co{counter} (\co{c})
+and \co{countermax} (\co{cm}) components.
 Line~13 isolates the most-significant half of this \co{int},
 placing the result as specified by argument \co{c},
 and line~14 isolates the least-significant half of this \co{int},
@@ -2012,7 +2165,7 @@ execution continues in the loop at line~9.
 	Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}.
 } \QuickQuizEnd
 
-Lines~16-32 of
+Lines~16-31 of
 Figure~\ref{fig:count:Atomic Limit Counter Add and Subtract}
 show \co{add_count()}'s slowpath, which is protected by \co{gblcnt_mutex},
 which is acquired on line~17 and released on lines~24 and 30.
@@ -2266,12 +2419,14 @@ line~33.
 	only one may be executing at a given time.
 } \QuickQuizEnd
 
+The next section qualitatively evaluates this design.
+
 \subsection{Atomic Limit Counter Discussion}
 
 This is the first implementation that actually allows the counter to
 be run all the way to either of its limits, but it does so at the
 expense of adding atomic operations to the fastpaths, which slow down
-the fastpaths significantly.
+the fastpaths significantly on some systems.
 Although some workloads might tolerate this slowdown, it is worthwhile
 looking for algorithms with better read-side performance.
 One such algorithm uses a signal handler to steal counts from other
@@ -2303,8 +2458,11 @@ atomic operations are not necessary, as shown in the next section.
 \label{fig:count:Signal-Theft State Machine}
 \end{figure}
 
-Figure~\ref{fig:count:Signal-Theft State Machine} shows the
-state diagram.
+Even though per-thread state will now be manipulated only by the
+corresponding thread, there will still need to be synchronization
+with the signal handlers.
+This synchronization is provided by the state machine shown in
+Figure~\ref{fig:count:Signal-Theft State Machine}
 The state machine starts out in the IDLE state, and when \co{add_count()}
 or \co{sub_count()} find that the combination of the local thread's count
 and the global count cannot accommodate the request, the corresponding
@@ -2332,17 +2490,19 @@ The slowpath then sets that thread's \co{theft} state to IDLE.
 
 \QuickQuiz{}
 	In Figure~\ref{fig:count:Signal-Theft State Machine}, why is
-	the REQ \co{theft} state colored blue?
+	the REQ \co{theft} state colored red?
 \QuickQuizAnswer{
 	To indicate that only the fastpath is permitted to change the
-	\co{theft} state.
+	\co{theft} state, and that if the thread remains in this
+	state for too long, the thread running the slowpath will
+	resend the POSIX signal.
 } \QuickQuizEnd
 
 \QuickQuiz{}
 	In Figure~\ref{fig:count:Signal-Theft State Machine}, what is
 	the point of having separate REQ and ACK \co{theft} states?
 	Why not simplify the state machine by collapsing
-	them into a single state?
+	them into a single REQACK state?
 	Then whichever of the signal handler or the fastpath gets there
 	first could set the state to READY.
 \QuickQuizAnswer{
@@ -2353,7 +2513,8 @@ The slowpath then sets that thread's \co{theft} state to IDLE.
 		whether the signal should be retransmitted.
 		If the states were collapsed, the slowpath would have
 		no choice but to send redundant signals, which would
-		have the unhelpful effect of slowing down the fastpath.
+		have the unhelpful effect of needlessly slowing down
+		the fastpath.
 	\item	The following race would result:
 		\begin{enumerate}
 		\item	The slowpath sets a given thread's state to REQACK.
@@ -2815,8 +2976,25 @@ The signal-theft implementation would be vastly preferable on Pentium-4
 systems, given their slow atomic instructions, but the old 80386-based
 Sequent Symmetry systems would do much better with the shorter path
 length of the atomic implementation.
+However, this increased update-side performance comes at the
+prices of higher read-side overhead: Those POSIX signals are not free.
 If ultimate performance is of the essence, you will need to measure
 them both on the system that your application is to be deployed on.
+
+\QuickQuiz{}
+	Not only are POSIX signals slow, sending one to each thread
+	simply does not scale.
+	What would you do if you had (say) 10,000 threads and needed
+	the read side to be fast?
+\QuickQuizAnswer{
+	One approach is to use the techniques shown in
+	Section~\ref{sec:count:Eventually Consistent Implementation},
+	summarizing an approximation to the overall counter value in
+	a single variable.
+	Another approach would be to use multiple threads to carry
+	out the reads, with each such thread interacting with a
+	specific subset of the updating threads.
+} \QuickQuizEnd
 
 This is but one reason why high-quality APIs are so important:
 they permit implementations to be changed as required by ever-changing
@@ -2963,7 +3141,10 @@ device removal.
 	\item	Reader-writer locks do not scale well.
 		One way of avoiding the high read-acquisition costs
 		of reader-writer locks is presented in
-		Chapter~\ref{chp:Deferred Processing}.
+		Chapters~\ref{chp:Locking}
+		and~\ref{chp:Deferred Processing}.
+	\item	The polling loops result in poor energy efficiency.
+		An event-driven design is preferable.
 	\end{enumerate}
 } \QuickQuizEnd
 
@@ -3001,7 +3182,7 @@ perform and scale extremely well in certain special cases.
 Table~\ref{tab:count:Statistical Counter Performance on Power-5}
 shows the performance of the three parallel statistical counting
 algorithms.
-All three algorithms provide perfect linear scalability for updates.
+All three algorithms provide near-perfect linear scalability for updates.
 The per-thread-variable implementation is significantly faster on
 updates than the array-based implementation, but is slower at reads,
 and suffers severe lock contention when there are many parallel readers.
@@ -3044,8 +3225,11 @@ Table~\ref{tab:count:Statistical Counter Performance on Power-5}.
 	Table~\ref{tab:count:Statistical Counter Performance on Power-5}
 	do an excellent job of handling update-heavy situations.
 	Of course, if you have a read-mostly situation, you should
-	use something else, for example, a single atomically incremented
-	variable that can be read out using a single load.
+	use something else, for example, an eventually consistent design
+	featuring a single atomically incremented
+	variable that can be read out using a single load,
+	similar to the approach used in
+	Section~\ref{sec:count:Eventually Consistent Implementation}.
 } \QuickQuizEnd
 
 \begin{table*}
@@ -3158,8 +3342,8 @@ so must software design change as the number of CPUs increases.
 
 The examples in this chapter have shown that an important tool permitting
 large numbers of CPUs to be brought to bear is \emph{partitioning}.
-Whether fully partitioned, as in the statistical counters discussed in
-Section~\ref{sec:count:Statistical Counters},
+The counters might be fully partitioned, as in the statistical counters
+discussed in Section~\ref{sec:count:Statistical Counters},
 or partially partitioned as in the limit counters discussed in
 Sections~\ref{sec:count:Approximate Limit Counters} and
 \ref{sec:count:Exact Limit Counters}.

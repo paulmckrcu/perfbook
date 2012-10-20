@@ -1066,8 +1066,8 @@ ret = ~ret & tmp;
 	addition, subtraction, and lots more besides, don't they???
 \QuickA{}
 	Because the straightforward counting algorithms, for example,
-	atomic operations on a shared counter, are slow and scale
-	badly, as will be seen in
+	atomic operations on a shared counter, either are slow and scale
+	badly, or are inaccurate, as will be seen in
 	Section~\ref{sec:count:Why Isn't Concurrent Counting Trivial?}.
 
 \QuickQ{}
@@ -1083,7 +1083,7 @@ ret = ~ret & tmp;
 	every five seconds.
 	How would you implement this statistical counter?
 \QuickA{}
-	Hint: the act of updating the counter must be blazingly
+	Hint: The act of updating the counter must be blazingly
 	fast, but because the counter is read out only about once
 	in five million updates, the act of reading out the counter can be
 	quite slow.
@@ -1109,11 +1109,11 @@ ret = ~ret & tmp;
 	that the limit is rarely exceeded, and that a ``sloppy''
 	approximate limit is acceptable.
 \QuickA{}
-	Hint: the act of updating the counter must be blazingly
+	Hint: The act of updating the counter must again be blazingly
 	fast, but the counter is read out each time that the
 	counter is increased.
 	However, the value read out need not be accurate
-	\emph{except} that it absolutely must distinguish perfectly
+	\emph{except} that it must distinguish approximately
 	between values below the limit and values greater than or
 	equal to the limit.
 	See Section~\ref{sec:count:Approximate Limit Counters}.
@@ -1132,7 +1132,7 @@ ret = ~ret & tmp;
 	that is not required unless there is at least one structure
 	in use.
 \QuickA{}
-	Hint: the act of updating the counter must be blazingly
+	Hint: The act of updating the counter must once again be blazingly
 	fast, but the counter is read out each time that the
 	counter is increased.
 	However, the value read out need not be accurate
@@ -1151,7 +1151,7 @@ ret = ~ret & tmp;
 	the user indicates a desire to remove the device, and
 	the system tells the user when it is safe to do so.
 \QuickA{}
-	Hint: the act of updating the counter must be blazingly
+	Hint: Yet again, the act of updating the counter must be blazingly
 	fast and scalable in order to avoid slowing down I/O operations,
 	but because the counter is read out only when the
 	user wishes to remove the device, the counter read-out
@@ -1161,7 +1161,8 @@ ret = ~ret & tmp;
 	a desire to remove the device.
 	In addition, the value read out need not be accurate
 	\emph{except} that it absolutely must distinguish perfectly
-	between non-zero and zero values.
+	between non-zero and zero values, and even then only when
+	the device is in the process of being removed.
 	However, once it has read out a zero value, it must act
 	to keep the value at zero until it has taken some action
 	to prevent subsequent threads from gaining access to the
@@ -1198,7 +1199,9 @@ ret = ~ret & tmp;
 	Furthermore, while proofs of correctness certainly do have their
 	place, they never will replace testing, including the
 	\url{counttorture.h} test setup used here.
-	After all, proofs can have bugs just as easily as programs can!
+	After all, proofs are only as good as the assumptions that they
+	are based on.
+	Furthermore, proofs can have bugs just as easily as programs can!
 
 \QuickQ{}
 	Why doesn't the dashed line on the x~axis meet the 
@@ -1238,7 +1241,7 @@ ret = ~ret & tmp;
 	issues encountered in shared-memory parallel programs.
 
 \QuickQ{}
-	But why can't CPU designers simply ship the operation to the
+	But why can't CPU designers simply ship the addition operation to the
 	data, avoiding the need to circulate the cache line containing
 	the global variable being incremented?
 \QuickA{}
@@ -1272,7 +1275,7 @@ ret = ~ret & tmp;
 \end{figure}
 
 	If either or both of the first two conditions hold, there is
-	\emph{some} hope for improvement.
+	\emph{some} hope for improved hardware.
 	One could imagine the hardware implementing a combining tree,
 	so that the increment requests from multiple CPUs are combined
 	by the hardware into a single addition when the combined request
@@ -1290,7 +1293,7 @@ ret = ~ret & tmp;
 	of current hardware shown in
 	Figure~\ref{fig:count:Data Flow For Global Atomic Increment},
 	and it is possible that hardware latencies might decrease
-	further if innovations such as three-D fabrication prove
+	further if innovations such as three-dimensional fabrication prove
 	practical.
 	Nevertheless, we will see that in some important special cases,
 	software can do \emph{much} better.
@@ -1300,10 +1303,14 @@ ret = ~ret & tmp;
 	complicate things?
 \QuickA{}
 	No, because modulo addition is still commutative and associative.
-	At least as long as you use unsigned integer.
+	At least as long as you use unsigned integers.
 	Recall that in the C standard, overflow of signed integers results
 	in undefined behavior, never mind the fact that machines that
 	do anything other than wrap on overflow are quite rare these days.
+	Unfortunately, compilers frequently carry out optimizations that
+	assume that signed integers will not overflow, so if your code
+	allows signed integers to overflow, you can run into trouble
+	even on twos-complement hardware.
 
 	That said, one potential source of additional complexity arises
 	when attempting to gather (say) a 64-bit sum from 32-bit
@@ -1336,7 +1343,8 @@ ret = ~ret & tmp;
 	but until then, we depend on the kindness of the gcc developers.
 
 	Alternatively, use of volatile accesses such as those provided
-	by \co{ACCESS_ONCE()} can help constrain the compiler, at least
+	by \co{ACCESS_ONCE()}~\cite{JonCorbet2012ACCESS:ONCE}
+	can help constrain the compiler, at least
 	in cases where the hardware is capable of accessing the value
 	with a single memory-reference instruction.
 
@@ -1363,6 +1371,84 @@ ret = ~ret & tmp;
 	as an exercise to the reader.
 
 \QuickQ{}
+	The read operation takes time to sum up the per-thread values,
+	and during that time, the counter could well be changing.
+	This means that the value returned by
+	\co{read_count()} in
+	Figure~\ref{fig:count:Array-Based Per-Thread Statistical Counters}
+	will not necessarily be exact.
+	Assume that the counter is being incremented at rate
+	$r$ counts per unit time, and that \co{read_count()}'s
+	execution consumes $\Delta$ units of time.
+	What is the expected error in the return value?
+\QuickA{}
+	Let's do worst-case analysis first, followed by a less
+	conservative analysis.
+
+	In the worst case, the read operation completes immediately,
+	but is then delayed for $\Delta$ time units before returning,
+	in which case the worst-case error is simply $r \Delta$.
+
+	This worst-case behavior is rather unlikely, so let us instead
+	consider the case where the reads from each of the $N$
+	counters is spaced equally over the time period $\Delta$.
+	There will be $N+1$ intervals of duration $\frac{\Delta}{N+1}$
+	between the $N$ reads.
+	The error due to the delay after the read from the last thread's
+	counter will be given by $\frac{r \Delta}{N \left( N + 1 \right)}$,
+	the second-to-last thread's counter by
+	$\frac{2 r \Delta}{N \left( N + 1 \right)}$,
+	the third-to-last by
+	$\frac{3 r \Delta}{N \left( N + 1 \right)}$,
+	and so on.
+	The total error is given by the sum of the errors due to the
+	reads from each thread's counter, which is:
+
+	\begin{equation}
+		\frac{r \Delta}{N \left( N + 1 \right)}
+			\sum_{i = 1}^N i
+	\end{equation}
+
+	Expressing the summation in closed form yields:
+
+	\begin{equation}
+		\frac{r \Delta}{N \left( N + 1 \right)}
+			\frac{N \left( N + 1 \right)}{2}
+	\end{equation}
+
+	Cancelling yields the intuitively expected result:
+
+	\begin{equation}
+		\frac{r \Delta}{2}
+	\end{equation}
+
+	It is important to remember that error continues accumulating
+	as the caller executes code making use of the count returned
+	by the read operation.
+	For example, if the caller spends time $t$ executing some
+	computation based on the result of the returned count, the
+	worst-case error will have increased to $r \left(t \Delta \right)$.
+
+	The expected error will have similarly increased to:
+
+	\begin{equation}
+		r \left( \frac{\Delta}{2} + t \right)
+	\end{equation}
+
+	Of course, it is sometimes unacceptable for the counter to
+	continue incrementing during the read operation.
+	Section~\ref{sec:count:Applying Specialized Parallel Counters}
+	discusses a way to handle this situation.
+
+	All that aside, in most uses of statistical counters, the
+	error in the value returned by \co{read_count()} is
+	irrelevant.
+	This irrelevance is due to the fact that the time required
+	for \co{read_count()} to execute is normally extremely
+	small compared to the time interval between successive
+	calls to \co{read_count()}.
+
+\QuickQ{}
 	Why doesn't \co{inc_count()} in
 	Figure~\ref{fig:count:Array-Based Per-Thread Eventually Consistent Counters}
 	need to use atomic instructions?
@@ -1383,7 +1469,8 @@ ret = ~ret & tmp;
 	That said, atomic instructions would be needed in cases where
 	the per-thread \co{counter} variables were smaller than the
 	global \co{global_count}.
-	For example, on a 32-bit system, the per-thread \co{counter} variables
+	However, note that on a 32-bit system,
+	the per-thread \co{counter} variables
 	might need to be limited to 32 bits in order to sum them accurately,
 	but with a 64-bit \co{global_count} variable to avoid overflow.
 	In this case, it is necessary to zero the per-thead
@@ -1404,7 +1491,8 @@ ret = ~ret & tmp;
 	be just as severe a bottleneck as a global lock would be?
 \QuickA{}
 	In this case, no.
-	What will happen instead is that the estimate of the counter
+	What will happen instead is that as the number of threads increases,
+	the estimate of the counter
 	value returned by \co{read_count()} will become more inaccurate.
 
 \QuickQ{}
@@ -1417,7 +1505,7 @@ ret = ~ret & tmp;
 	If this proves problematic, one fix is to provide multiple
 	\co{eventual()} threads, each covering its own subset of
 	the other threads.
-	In even more extreme cases, a tree-like hierarchy of
+	In more extreme cases, a tree-like hierarchy of
 	\co{eventual()} threads might be required.
 
 \QuickQ{}
@@ -1436,7 +1524,7 @@ ret = ~ret & tmp;
 	This implementation therefore suffers a different sort of
 	scalability limitation, with the scalability limit being in
 	terms of the number of eventually consistent counters rather
-	tha in terms of the number of threads or CPUs.
+	than in terms of the number of threads or CPUs.
 
 \QuickQ{}
 	Why do we need an explicit array to find the other threads'
@@ -1451,7 +1539,8 @@ ret = ~ret & tmp;
 	gets to ignore.
 	When a user-level thread exits, its per-thread variables all
 	disappear, which complicates the problem of per-thread-variable
-	access, particularly before the advent of user-level RCU.
+	access, particularly before the advent of user-level RCU
+	(see Section~\ref{sec:defer:Read-Copy Update (RCU)}).
 	In contrast, in the Linux kernel, when a CPU goes offline,
 	that CPU's per-CPU variables remain mapped and accessible.
 
@@ -1508,7 +1597,7 @@ ret = ~ret & tmp;
 	thread startup, and is therefore not on any critical path.
 	Now, if we were testing on machines with thousands of CPUs,
 	we might need to omit the lock, but on machines with ``only''
-	a hundred or so CPUs, no need to get fancy.
+	a hundred or so CPUs, there is no need to get fancy.
 
 \QuickQ{}
 	Fine, but the Linux kernel doesn't have to acquire a lock
@@ -1566,7 +1655,7 @@ ret = ~ret & tmp;
 \label{fig:count:Per-Thread Statistical Counters With Lockless Summation}
 \end{figure}
 
-	One workaround is to ensure that each thread sticks around
+	One workaround is to ensure that each thread continues to exist
 	until all threads are finished, as shown in
 	Figure~\ref{fig:count:Per-Thread Statistical Counters With Lockless Summation}
 	(\co{count_tstat.c}).
@@ -1765,6 +1854,42 @@ ret = ~ret & tmp;
 	what it does.
 
 \QuickQ{}
+	Why is it necessary to atomically manipulate the thread's
+	\co{counter} and \co{countermax} variables as a unit?
+	Wouldn't it be good enough to atomically manipulate them
+	individually?
+\QuickA{}
+	This might well be possible, but great care is required.
+	Note that removing \co{counter} without first zeroing
+	\co{countermax} could result in the corresponding thread
+	increasing \co{counter} immediately after it was zeroed,
+	completely negating the effect of zeroing the counter.
+
+	The opposite ordering, namely zeroing \co{countermax} and then
+	removing \co{counter}, can also result in a non-zero
+	\co{counter}.
+	To see this, consider the following sequence of events:
+
+	\begin{enumerate}
+	\item	Thread~A fetches its \co{countermax}, and finds that
+		it is non-zero.
+	\item	Thread~B zeroes Thread~A's \co{countermax}.
+	\item	Thread~B removes Thread~A's \co{counter}.
+	\item	Thread~A, having found that its \co{countermax}
+		is non-zero, proceeds to add to its \co{counter},
+		resulting in a non-zero value for \co{counter}.
+	\end{enumerate}
+
+	Again, it might well be possible to atomically manipulate
+	\co{countermax} and \co{counter} as separate variables,
+	but it is clear that great care is required.
+	It is also quite likely that doing so will slow down the
+	fastpath.
+
+	Exploring these possibilities are left as exercises for
+	the reader.
+
+\QuickQ{}
 	In what way does line~7 of
 	Figure~\ref{fig:count:Atomic Limit Counter Variables and Access Functions}
 	violate the C standard?
@@ -1893,16 +2018,18 @@ ret = ~ret & tmp;
 
 \QuickQ{}
 	In Figure~\ref{fig:count:Signal-Theft State Machine}, why is
-	the REQ \co{theft} state colored blue?
+	the REQ \co{theft} state colored red?
 \QuickA{}
 	To indicate that only the fastpath is permitted to change the
-	\co{theft} state.
+	\co{theft} state, and that if the thread remains in this
+	state for too long, the thread running the slowpath will
+	resend the POSIX signal.
 
 \QuickQ{}
 	In Figure~\ref{fig:count:Signal-Theft State Machine}, what is
 	the point of having separate REQ and ACK \co{theft} states?
 	Why not simplify the state machine by collapsing
-	them into a single state?
+	them into a single REQACK state?
 	Then whichever of the signal handler or the fastpath gets there
 	first could set the state to READY.
 \QuickA{}
@@ -1913,7 +2040,8 @@ ret = ~ret & tmp;
 		whether the signal should be retransmitted.
 		If the states were collapsed, the slowpath would have
 		no choice but to send redundant signals, which would
-		have the unhelpful effect of slowing down the fastpath.
+		have the unhelpful effect of needlessly slowing down
+		the fastpath.
 	\item	The following race would result:
 		\begin{enumerate}
 		\item	The slowpath sets a given thread's state to REQACK.
@@ -2009,6 +2137,20 @@ ret = ~ret & tmp;
 	\emph{Your} user application hanging!
 
 \QuickQ{}
+	Not only are POSIX signals slow, sending one to each thread
+	simply does not scale.
+	What would you do if you had (say) 10,000 threads and needed
+	the read side to be fast?
+\QuickA{}
+	One approach is to use the techniques shown in
+	Section~\ref{sec:count:Eventually Consistent Implementation},
+	summarizing an approximation to the overall counter value in
+	a single variable.
+	Another approach would be to use multiple threads to carry
+	out the reads, with each such thread interacting with a
+	specific subset of the updating threads.
+
+\QuickQ{}
 	What if you want an exact limit counter to be exact only for
 	its lower limit?
 \QuickA{}
@@ -2060,7 +2202,10 @@ ret = ~ret & tmp;
 	\item	Reader-writer locks do not scale well.
 		One way of avoiding the high read-acquisition costs
 		of reader-writer locks is presented in
-		Chapter~\ref{chp:Deferred Processing}.
+		Chapters~\ref{chp:Locking}
+		and~\ref{chp:Deferred Processing}.
+	\item	The polling loops result in poor energy efficiency.
+		An event-driven design is preferable.
 	\end{enumerate}
 
 \QuickQ{}
@@ -2096,8 +2241,11 @@ ret = ~ret & tmp;
 	Table~\ref{tab:count:Statistical Counter Performance on Power-5}
 	do an excellent job of handling update-heavy situations.
 	Of course, if you have a read-mostly situation, you should
-	use something else, for example, a single atomically incremented
-	variable that can be read out using a single load.
+	use something else, for example, an eventually consistent design
+	featuring a single atomically incremented
+	variable that can be read out using a single load,
+	similar to the approach used in
+	Section~\ref{sec:count:Eventually Consistent Implementation}.
 
 \QuickQ{}
 	Given the performance data shown in
