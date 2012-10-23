@@ -60,7 +60,10 @@ typedef pthread_mutex_t spinlock_t;
 
 static void spin_lock_init(spinlock_t *sp)
 {
+retry:
 	if (pthread_mutex_init(sp, NULL) != 0) {
+		if (errno == EINTR)
+			goto retry;
 		perror("spin_lock_init:pthread_mutex_init");
 		exit(-1);
 	}
