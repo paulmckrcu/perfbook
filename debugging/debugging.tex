@@ -1140,6 +1140,7 @@ failure $f$ decreases, it makes sense to move the mathematics to the
 continuous domain.
 It is convenient to define $\lambda$ as $nf$: as we increase $n$ and
 decrease $f$, $\lambda$ will remain fixed.
+Intuitively, $\lambda$ is the expected number of failures per unit time.
 
 What then is the probability of all $n$ tests succeeding?
 This is given by:
@@ -1158,6 +1159,12 @@ Substituting this into the previous equation yields:
 
 Readers who are both alert and mathematically inclined will recognize
 this as approaching $e^{-\lambda}$ as $n$ increases without limit.
+In other words, if we expect $\lambda$ failures from a test of a given duration,
+the probability $F_0$ of zero failures from the test is given by:
+
+\begin{equation}
+	F_0 = e^{-\lambda}
+\end{equation}
 
 The next step is to compute the probability of all but one of $n$ tests
 succeeding, which is:
@@ -1194,7 +1201,12 @@ Substituting $f=\frac{\lambda}{n}$ as before yields:
 \end{equation}
 
 For large $n$, as before, the latter term is approximated by $e^{-\lambda}$,
-yielding $\lambda e^{-\lambda}$.
+so that the probability of a single failure in a test from which
+$\lambda$ failures were expected is given by:
+
+\begin{equation}
+	F_1 = \lambda e^{-\lambda}
+\end{equation}
 
 The third step is to compute the probability of all but two of the $n$
 tests succeeding, which is:
@@ -1227,10 +1239,12 @@ Substituting $f=\frac{\lambda}{n}$ once again yields:
 Because $n$ is assumed large, $n-1$ is arbitrarily close to $n$, allowing
 the $n(n-1)$ in the numerator to be cancelled with the $n^2$ in the
 denominator.
-And again, the final term is approximated by $e^{-\lambda}$, yielding:
+And again, the final term is approximated by $e^{-\lambda}$, yielding
+the probability of two failures from a test from which $\lambda$
+failures were expected:
 
 \begin{equation}
-	\frac{\lambda^2}{2} e^{-\lambda}
+	F_2 = \frac{\lambda^2}{2} e^{-\lambda}
 \end{equation}
 
 We are now ready to try a more general result.
@@ -1271,10 +1285,11 @@ the numerator with the $n^m$ in the denominator, resulting in:
 \end{equation}
 
 As always, for large $n$, the last term is approximated by $e^{-\lambda}$,
-yielding:
+yielding the probability of $m$ failures from a test from which
+$\lambda$ failures were expected:
 
 \begin{equation}
-	\frac{\lambda^m}{m!} e^{-\lambda}
+	F_m = \frac{\lambda^m}{m!} e^{-\lambda}
 \label{eq:debugging:Poisson Probability}
 \end{equation}
 
@@ -1348,16 +1363,20 @@ This probability may be calculated by summing
 Equation~\ref{eq:debugging:Poisson Probability} as follows:
 
 \begin{equation}
-	\sum_{i=0}^m \frac{\lambda^i}{i!} e^{-\lambda}
+	F_0 + F_1 + \dots + F_{m - 1} + F_m =
+		\sum_{i=0}^m \frac{\lambda^i}{i!} e^{-\lambda}
 \label{eq:debugging:Possion CDF}
 \end{equation}
 
 Here $m$ is the number of errors in the long test run
 (in this case, two) and $\lambda$ is expected number of errors
 in the long test run (in this case, 24).
-Plugging $m=2$ and $\lambda=24$ into this expression gives about
+Plugging $m=2$ and $\lambda=24$ into this expression gives the probability
+of two or fewer failures as about
 $1.2 \times 10^{-8}$, indicating that the odds are extremely good that
-the fix had a statistically significant effect.
+the fix had a statistically significant effect.\footnote{
+	Of course, this result in no way excuses you from finding and
+	fixing the bug(s) resulting in the remaining two failures!}
 
 \QuickQuiz{}
 	Doing the summation of all the factorials and exponentials
@@ -1379,6 +1398,34 @@ the fix had a statistically significant effect.
 
 	Alternatively, you can use the rough-and-ready method described in
 	Section~\ref{sec:debugging:Abusing Statistics for Discrete Testing}.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	But wait!!!
+	Given that there has to be \emph{some} number of failures,
+	shouldn't the summation shown in
+	Equation~\ref{eq:debugging:Possion CDF}
+	approach the value $1$ as $m$ goes to infinity?
+\QuickQuizAnswer{
+	Indeed it should.
+	And it does.
+
+	To see this, note that $e^{-\lambda}$ does not depend on $i$,
+	which means that it can be pulled out of the summation as follows:
+
+	\begin{equation}
+		e^{-\lambda} \sum_{i=0}^\infty \frac{\lambda^i}{i!}
+	\end{equation}
+
+	The remaining summation is exactly the Taylor series for
+	$e^\lambda$, yielding:
+
+	\begin{equation}
+		e^{-\lambda} e^\lambda
+	\end{equation}
+
+	The two exponentials are reciprocals, and therefore cancel,
+	resulting in exactly $1$, as required.
 } \QuickQuizEnd
 
 The Poisson distribution is a powerful tool for analyzing test results,
