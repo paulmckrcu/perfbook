@@ -129,10 +129,9 @@ the acquisition and release algorithms.
 	five forks.
 	All five philosophers may now eat simultaneously, and there
 	is never any need for philosophers to wait on one another.
-	In addition, the improved disease control provided by this
-	approach should not be underestimated.
+	In addition, this approach offers greatly improved disease control.
 
-	This solution can seem like cheating to some, but such
+	This solution might seem like cheating to some, but such
 	``cheating'' is key to finding good solutions to many
 	concurrency problems.
 } \QuickQuizEnd
@@ -244,7 +243,7 @@ which case it is necessary to:
 	be done if the queue has become non-empty while releasing
 	and reacquiring the lock?
 \QuickQuizAnswer{
-	In this case, simply dequeue an item from the now-nonempty
+	In this case, simply dequeue an item from the non-empty
 	queue, release both locks, and return.
 } \QuickQuizEnd
 
@@ -464,7 +463,11 @@ exercise for the reader.
 	% the version covered by a single lock.  Sequential (unlocked
 	% variant is more than an order of magnitude faster!
 
-	The first well-designed performance study will be cited.
+	The first well-designed performance study will be cited.\footnote{
+		The studies by Dalessandro
+		et al.~\cite{LukeDalessandro:2011:ASPLOS:HybridNOrecSTM:deque}
+		and Dice et al.~\cite{DavidDice:2010:SCA:HTM:deque} are
+		good starting points.}
 	Do not forget to compare to a sequential implementation!
 } \QuickQuizEnd
 
@@ -477,16 +480,17 @@ queue to the now-empty queue.
 
 \QuickQuiz{}
 	Move \emph{all} the elements to the queue that became empty?
-	In what possible universe is this braindead solution in any
+	In what possible universe is this brain-dead solution in any
 	way optimal???
 \QuickQuizAnswer{
 	It is optimal in the case where data flow switches direction only
 	rarely.
 	It would of course be an extremely poor choice if the double-ended
 	queue was being emptied from both ends concurrently.
-	This of course raises the question as to what possible universe
-	emptying from both ends concurrently would be a reasonable
-	thing to do...
+	This of course raises another question, namely, in what possible
+	universe emptying from both ends concurrently would be a reasonable
+	thing to do.
+	Work-stealing queues are one possible answer to this question.
 } \QuickQuizEnd
 
 In contrast to the hashed implementation presented in
@@ -571,7 +575,8 @@ and \co{pdeq_pop_r()} implementations separately.
 \QuickQuizAnswer{
 	The need to avoid deadlock by imposing a lock hierarchy
 	forces the asymmetry, just as it does in the fork-numbering
-	solution to the Dining Philosophers Problem.
+	solution to the Dining Philosophers Problem
+	(see Section~\ref{sec:SMPdesign:Dining Philosophers Problem}).
 } \QuickQuizEnd
 
 The \co{pdeq_pop_l()} implementation is shown on lines~1-16
@@ -611,7 +616,8 @@ Either way, line~34 releases the left-hand lock.
 \QuickQuizAnswer{
 	This retry is necessary because some other thread might have
 	enqueued an element between the time that this thread dropped
-	the lock and the time that it reacquired the lock.
+	\co{d->rlock} on line~25 and the time that it reacquired this
+	same lock on line~27.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -728,22 +734,23 @@ larger units of work to obtain a given level of efficiency.
 	Is there a significantly better way of handling concurrency
 	for double-ended queues?
 \QuickQuizAnswer{
-	The best approach is to transform the problem to be solved
+	One approach is to transform the problem to be solved
 	so that multiple double-ended queues can be used in parallel,
 	allowing the simpler single-lock double-ended queue to be used,
 	and perhaps also replace each double-ended queue with a pair of
 	conventional single-ended queues.
 	Without such ``horizontal scaling'', the speedup is limited
 	to 2.0.
-	In contrast, horizontal-scaling designs can enable very large
+	In contrast, horizontal-scaling designs can achieve very large
 	speedups, and are especially attractive if there are multiple threads
 	working either end of the queue, because in this
-	multiple-thread case the deque
+	multiple-thread case the dequeue
 	simply cannot provide strong ordering guarantees.
 	After all, the fact that a given thread removed an item first
-	in no way implies that it will process that item first.
+	in no way implies that it will process that item
+	first~\cite{AndreasHaas2012FIFOisnt}.
 	And if there are no guarantees, we may as well obtain the
-	performance benefits that come with refusing to provide the
+	performance benefits that come with refusing to provide these
 	guarantees.
 	% about twice as fast as hashed version on 4.2GHz Power.
 
@@ -755,6 +762,12 @@ larger units of work to obtain a given level of efficiency.
 	structures, which increases both performance and scalability,
 	as will be seen in
 	Section~\ref{sec:SMPdesign:Synchronization Granularity}.
+	After all, if you must incur high synchronization overheads,
+	be sure you are getting your money's worth.
+
+	Other researchers are working on other ways to take advantage
+	of limited ordering guarantees in
+	queues~\cite{ChristophMKirsch2012FIFOisntTR}.
 } \QuickQuizEnd
 
 These two examples show just how powerful partitioning can be in
