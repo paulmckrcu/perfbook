@@ -3,9 +3,21 @@
 \section{Design Criteria}
 \label{sec:SMPdesign:Design Criteria}
 
-Section~\ref{sec:intro:Parallel Programming Goals}
-called out the three parallel-programming goals of
-performance, productivity, and generality.
+One way to obtain the best performance and scalability is to simply
+hack away until you converge on the best possible parallel program.
+Unfortunately, if your program is other than microscopically tiny,
+the space of possible parallel programs is so huge
+that convergence is not guaranteed in the lifetime of the universe.
+Besides, what exactly is the ``best possible parallel program''?
+After all, Section~\ref{sec:intro:Parallel Programming Goals}
+called out no fewer than three parallel-programming goals of
+performance, productivity, and generality,
+and the best possible performance will likely come at a cost in
+terms of productivity and generality.
+We clearly need to be able to make higher-level choices at design
+time in order to arrive at an acceptably good parallel program
+before that program becomes obsolete.
+
 However, more detailed design criteria are required to
 actually produce a real-world design, a task taken up in this section.
 This being the real world, these criteria often conflict to a
@@ -77,7 +89,11 @@ contention, overhead, read-to-write ratio, and complexity:
 	limit the number and types of modifications made to
 	an existing program, since a given degree of speedup is
 	worth only so much time and trouble.
-	Furthermore, there may be potential sequential optimizations
+	Worse yet, added complexity can actually \emph{reduce}
+	performance and scalability.
+
+	Therefore, beyond a certain point,
+	there may be potential sequential optimizations
 	that are cheaper and more effective than parallelization.
 	As noted in
 	Section~\ref{sec:intro:Performance},
@@ -91,13 +107,17 @@ the remainder of this section analyzes these
 interrelationships.\footnote{
 	A real-world parallel system will be subject to many additional
 	design criteria, such as data-structure layout,
-	memory size, memory-hierarchy latencies, and bandwidth limitations.}
+	memory size, memory-hierarchy latencies, bandwidth limitations,
+	and I/O issues.}
 
 Note that these criteria may also appear as part of the requirements
 specification.
-For example, speedup may act as a desideratum (``the faster, the better'')
-or as an absolute requirement of the workload, or ``context'' (``the system
+For example, speedup may act as a relative desideratum
+(``the faster, the better'')
+or as an absolute requirement of the workload (``the system
 must support at least 1,000,000 web hits per second'').
+Classic design pattern languages describe relative desiderata as forces
+and absolute requirements as context.
 
 An understanding of the relationships between these design criteria can
 be very helpful when identifying appropriate design tradeoffs for a
@@ -108,7 +128,8 @@ parallel program.
 	This is a consequence of Amdahl's Law~\cite{GeneAmdahl1967AmdahlsLaw}
 	and of the fact that only one CPU may execute within a given
 	critical section at a given time.
-\item	The fraction of time that the program spends in
+
+	More specifically, the fraction of time that the program spends in
 	a given exclusive critical section must be much less than
 	the reciprocal of the number of CPUs for the
 	actual speedup to approach the number of CPUs.
@@ -128,19 +149,37 @@ parallel program.
 	that they guard, the best way to improve speedup
 	is to reduce the number of times that the primitives
 	are invoked (perhaps by batching critical sections,
-	using data ownership, using RCU,
+	using data ownership, using asymmetric primitives
+	(see Section~\ref{chp:Deferred Processing}),
 	or by moving toward a more coarse-grained design
 	such as code locking).
 \item	If the critical sections have high overhead compared
 	to the primitives guarding them, the best way
 	to improve speedup is to increase parallelism
-	by moving to reader/writer locking, data locking, RCU,
+	by moving to reader/writer locking, data locking, asymmetric,
 	or data ownership.
 \item	If the critical sections have high overhead compared
 	to the primitives guarding them and the data structure
 	being guarded is read much more often than modified,
 	the best way to increase parallelism is to move
-	to reader/writer locking or RCU.
+	to reader/writer locking or asymmetric primitives.
 \item	Many changes that improve SMP performance, for example,
-	reducing lock contention, also improve response times.
+	reducing lock contention, also improve real-time
+	latencies~\cite{PaulMcKenney2005h}.
 \end{enumerate}
+
+\QuickQuiz{}
+	Don't all these problems with critical sections mean that
+	we should just always use
+	non-blocking synchronization~\cite{MauriceHerlihy90a},
+	which don't have critical sections?
+\QuickQuizAnswer{
+	Although non-blocking synchronization can be very useful
+	in some situations, it is no panacea.
+	Also, non-blocking synchronization really does have
+	critical sections, as noted by Josh Triplett.
+	For example, in a non-blocking algorithm based on
+	compare-and-swap operations, the code starting at the
+	initial load and continuing to the compare-and-swap
+	is in many ways analogous to a lock-based critical section.
+} \QuickQuizEnd

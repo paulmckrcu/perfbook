@@ -45,8 +45,13 @@ one has finished eating, they all starve.
 \end{figure}
 
 Dijkstra's solution used a global semaphore, which works fine assuming
-negligible communications delays, an assumption that has become invalid
-in the ensuing decades.
+negligible communications delays, an assumption that became invalid
+in the late 1980s or early 1990s.\footnote{
+	It is all too easy to denigrate Dijkstra from the viewpoint
+	of the year 2012, more than 40 years after the fact.
+	If you still feel the need to denigrate Dijkstra, my advice
+	is to publish something, wait 40 years, and then see
+	how \emph{your} words stood the test of time.}
 Therefore, recent solutions number the forks as shown in
 Figure~\ref{fig:SMPdesign:Dining Philosophers Problem, Textbook Solution}.
 Each philosopher picks up the lowest-numbered fork next to his or her
@@ -75,6 +80,11 @@ in only one philosopher eating at a time even though all are hungry:
     \item P4 picks up fork~4 and eats.
 \end{enumerate}
 
+In short, this algorithm can result in only one philosopher eating at
+a given time, even when all five philosophers are hungry,
+despite the fact that there are more than enough forks for two
+philosophers to eat concurrently.
+
 Please think about ways of partitioning the Dining Philosophers Problem
 before reading further.
 \cleardoublepage
@@ -95,7 +105,7 @@ partition technique.
 Here the upper and rightmost philosophers share a pair of forks,
 while the lower and leftmost philosophers share another pair of forks.
 If all philosophers are simultaneously hungry, at least two will
-be able to eat concurrently.
+always be able to eat concurrently.
 In addition, as shown in the figure, the forks can now be bundled
 so that the pair are picked up and put down simultaneously, simplifying
 the acquisition and release algorithms.
@@ -129,9 +139,9 @@ the acquisition and release algorithms.
 
 This is an example of ``horizontal parallelism''~\cite{Inman85}
 or ``data parallelism'',
-so named because there is no dependency among the philosophers.
-In a data-processing system, a given item of data
-would pass through only one of a replicated set of software
+so named because there is no dependency among the pairs of philosophers.
+In a horizontally parallel data-processing system, a given item of data
+would be processed by only one of a replicated set of software
 components.
 
 \QuickQuiz{}
@@ -173,7 +183,8 @@ general approaches in the following sections.
 \label{fig:SMPdesign:Double-Ended Queue With Left- and Right-Hand Locks}
 \end{figure}
 
-One seemingly straightforward approach would be to have a left-hand lock
+One seemingly straightforward approach would be to use a doubly
+linked list with a left-hand lock
 for left-hand-end enqueue and dequeue operations along with a right-hand
 lock for right-hand-end operations, as shown in
 Figure~\ref{fig:SMPdesign:Double-Ended Queue With Left- and Right-Hand Locks}.
@@ -294,7 +305,8 @@ right-enqueued, with the right-hand index having been incremented to
 reference hash chain~2.
 The middle portion of this same figure shows the state after
 three more elements have been right-enqueued.
-As you can see, the indexes are back to their initial states, however,
+As you can see, the indexes are back to their initial states
+(see Figure~\ref{fig:SMPdesign:Hashed Double-Ended Queue}), however,
 each hash chain is now non-empty.
 The lower portion of this figure shows the state after three additional
 elements have been left-enqueued and an additional element has been
@@ -307,7 +319,7 @@ the left-hand index referencing hash chain~2, which would then
 contain only a single element (``R2'').
 In this state, a left-enqueue running concurrently with a right-enqueue
 would result in lock contention, but the probability of such contention
-can be arbitrarily reduced by using a larger hash table.
+can be reduced to arbitrarily low levels by using a larger hash table.
 
 \begin{figure}[tb]
 \begin{center}
@@ -658,11 +670,13 @@ This should come as no surprise given the material in
 Chapter~\ref{chp:Hardware and its Habits}, given the strict
 FIFO nature of these queues.
 
-However, these strict FIFO queues are strictly FIFO only with
+Furthermore, these strict FIFO queues are strictly FIFO only with
 respect to
 \emph{linearization points}~\cite{Herlihy:1990:LCC:78969.78972}
-that are not visible to the caller.
-They are not strict FIFO with respect to (say) the times at which
+that are not visible to the caller, in fact, in these examples,
+the linearization points are buried in the lock-based critical
+sections.
+These queues are not strictly FIFO with respect to (say) the times at which
 the individual operations started~\cite{AndreasHaas2012FIFOisnt}.
 This indicates that the strict FIFO property is not all that valuable
 in concurrent programs, and in fact, Kirsch et al.~present less-strict
@@ -671,7 +685,8 @@ scalability~\cite{ChristophMKirsch2012FIFOisntTR}.\footnote{
 	Nir Shavit produced relaxed stacks for roughly the same
 	reasons~\cite{Shavit:2011:DSM:1897852.1897873}.}
 All that said, if you are pushing all the data used by your concurrent
-program through a single queue, you really should rethink your design.
+program through a single queue, you really need to rethink your
+overall design.
 
 \subsection{Partitioning Example Discussion}
 \label{sec:SMPdesign:Partitioning Example Discussion}
@@ -746,5 +761,5 @@ These two examples show just how powerful partitioning can be in
 devising parallel algorithms.
 Section~\ref{sec:SMPdesign:Locking Granularity and Performance}
 looks briefly at a third exmaple, matrix multiply.
-However, these examples beg for more and better design criteria for
-parallel programs, a topic taken up in the next section.
+However, all three of these examples beg for more and better design
+criteria for parallel programs, a topic taken up in the next section.

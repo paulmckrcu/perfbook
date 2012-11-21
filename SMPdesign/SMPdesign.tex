@@ -4,15 +4,34 @@
 
 This chapter describes how to design software to take advantage of
 the multiple CPUs that are increasingly appearing in commodity systems.
-It does this by presenting a number of idioms, or ``design patterns''
+It does this by presenting a number of idioms, or
+``design patterns''~\cite{Alexander79,GOF95,SchmidtStalRohnertBuschmann2000v2Textbook}
 that can help you balance performance, scalability, and response time.
 As noted in earlier chapters, the most important decision you will make
 when creating parallel software is how to carry out the partitioning.
 Correctly partitioned problems lead to simple, scalable, and
 high-performance solutions, while poorly partitioned problems result
 in slow and complex solutions.
+This chapter will help you design partitioning into your code.
+The word ``design'' is very important: You should partition first
+and code second.
+Reversing this order often leads to poor performance and scalability
+along with great frustration.
 
-\emph{@@@ roadmap @@@}
+To this end, Section~\ref{sec:SMPdesign:Partitioning Exercises}
+presents partitioning exercises,
+Section~\ref{sec:SMPdesign:Design Criteria} reviews partitionability
+design criteria,
+Section~\ref{sec:SMPdesign:Synchronization Granularity}
+discusses selecting an appropriate synchronization granularity,
+Section~\ref{sec:SMPdesign:Parallel Fastpath}
+gives an overview of important parallel-fastpath designs
+that provide speed and scalability in the common case with
+a simpler but less-scalable fallback ``slow path'' for unusual
+situations,
+and finally
+Section~\ref{sec:SMPdesign:Beyond Partitioning}
+takes a brief look beyond partitioning.
 
 \input{SMPdesign/partexercises}
 
@@ -45,11 +64,13 @@ remove the synchronization primitives and spare yourself their
 overhead and complexity.
 Some years back, there were those who would argue that Moore's Law
 would eventually force all programs into this category.
-However, given the cessation in
+However,
 % @@@ Intel Trademark
-rate of CPU MIPS and clock-frequency growth in Intel CPUs since the year 2003,
 as can be seen in
-Figure~\ref{fig:SMPdesign:Clock-Frequency Trend for Intel CPUs}
+Figure~\ref{fig:SMPdesign:Clock-Frequency Trend for Intel CPUs},
+the exponential increase in single-threaded performance halted in
+about 2003.
+Therefore,
 increasing performance will increasingly require parallelism.\footnote{
 	This plot shows clock frequencies for newer CPUs theoretically
 	capable of retiring one or more instructions per clock, and MIPS for
@@ -95,6 +116,10 @@ underscores this point.\footnote{
 	The examples in this section are taken from Hart et
 	al.~\cite{ThomasEHart2006a}, adapted for clarity
 	by gathering related code from multiple files.}
+A key point is that speedups due to parallelism are normally
+limited to the number of CPUs.
+In contrast, speedups due to sequential optimizations, for example,
+careful choice of data structure, can be arbitrarily large.
 
 \begin{figure}[htbp]
 { \scriptsize
@@ -142,7 +167,7 @@ On the other hand, if you are not in this happy situation, read on!
 \subsection{Code Locking}
 \label{sec:SMPdesign:Code Locking}
 
-Code locking is the simplest locking design, using only
+Code locking is quite simple due to the fact that is uses only
 global locks.\footnote{
 	If your program instead has locks in data structures,
 	or, in the case of Java, uses classes with synchronized
@@ -214,7 +239,7 @@ lock before returning.
 Unfortunately, code locking is particularly prone to ``lock contention'',
 where multiple CPUs need to acquire the lock concurrently.
 SMP programmers who have taken care of groups of small children
-(or of older people who are acting like children) will immediately
+(or groups of older people who are acting like children) will immediately
 recognize the danger of having only one of something,
 as illustrated in Figure~\ref{fig:SMPdesign:Lock Contention}.
 
@@ -254,15 +279,15 @@ Then the critical sections for each part of the data structure
 can execute in parallel,
 although only one instance of the critical section for a given
 part could be executing at a given time.
-Use data locking when contention must
+You should use data locking when contention must
 be reduced, and where synchronization overhead is not
 limiting speedups.
 Data locking reduces contention by distributing the instances
-of the overly-large critical section into multiple critical sections,
+of the overly-large critical section across multiple data structures,
 for example, maintaining per-hash-bucket critical sections in a
 hash table, as shown in
 Figure~\ref{fig:SMPdesign:Data-Locking Hash Table Search}.
-The increased scalability again results in increased complexity
+The increased scalability again results in a slight increase in complexity
 in the form of an additional data structure, the \co{struct bucket}.
 
 \begin{figure}[htbp]
@@ -484,6 +509,8 @@ Data ownership might seem arcane, but it is used very frequently:
 \item	Parametric simulations are often trivially parallelized
 	by granting each thread ownership of a particular region
 	of the parameter space.
+	There are also computing frameworks designed for this
+	type of problem~\cite{BOINC2008}.
 \end{enumerate}
 
 If there is significant sharing, communication between the threads
@@ -541,22 +568,26 @@ number of synchronization operations per second that the system
 would process if the synchronization were free, in other words,
 $\lambda$ is an inverse measure of the overhead of each non-synchronization
 unit of work.
-For example, if each unit of work was a transaction, if each transaction
-took one millisecond to process, not counting synchronization overhead,
+For example, if each unit of work was a transaction, and if each transaction
+took one millisecond to process, excluding synchronization overhead,
 then $\lambda$ would be 1,000 transactions per second.
 
 The service rate $\mu$ is defined similarly, but for the average
 number of synchronization operations per second that the system
 would process if the overhead of each transaction was zero, and
 ignoring the fact that CPUs must wait on each other to complete
-their increment operations, in other words, $\mu$ can be roughly
+their synchronization operations, in other words, $\mu$ can be roughly
 thought of as the synchronization overhead in absence of contention.
-For example, some recent computer systems are able to do
-an atomic increment every 25 nanoseconds or so if all CPUs are
-doing atomic increments in a tight loop.\footnote{
-	Of course, if there are 8 CPUs, each CPU must wait 175 nanoseconds
+For example, suppose that each synchronization operation involves an atomic
+increment instruction, and that a computer system is able to do
+an atomic increment every 25 nanoseconds on each CPU
+to a private variable.\footnote{
+	Of course, if there are 8 CPUs all incrementing the same
+	shared variable, then each CPU must wait at least 175 nanoseconds
 	for each of the other CPUs to do its increment before consuming
-	an additional 25 nanoseconds doing its own increment.}
+	an additional 25 nanoseconds doing its own increment.
+	In actual fact, the wait will be longer due to the need
+	to move the variable from one CPU to another.}
 The value of $\mu$ is therefore about 40,000,000 atomic increments
 per second.
 
@@ -588,8 +619,8 @@ Substituting the above value of $\lambda$:
 \end{equation}
 
 Now, the efficiency is just the ratio of the time required to process
-a transaction in absence of synchronization to the time required
-including synchronization:
+a transaction in absence of synchronization ($1 / \lambda_0$)
+to the time required including synchronization ($T + 1 / \lambda_0$):
 
 \begin{equation}
 	e = \frac{1 / \lambda_0}{T + 1 / \lambda_0}
@@ -1153,7 +1184,7 @@ the time.
 As can be seen from the figure, the situations where the common-case
 data-ownership applies (run lengths up to six) provide greatly improved
 performance compared to the cases where locks must be acquired.
-Avoiding locking in the common case will be a recurring theme through
+Avoiding synchronization in the common case will be a recurring theme through
 this book.
 
 \QuickQuiz{}
