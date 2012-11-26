@@ -12,6 +12,7 @@ LATEXSOURCES = \
 	appendix/formal/dyntickrcu.tex \
 	appendix/primitives/primitives.tex \
 	appendix/questions/after.tex \
+	appendix/questions/time.tex \
 	appendix/questions/questions.tex \
 	appendix/rcuimpl/rcu.tex \
 	appendix/rcuimpl/srcu.tex \
@@ -50,7 +51,6 @@ LATEXSOURCES = \
 	SMPdesign/criteria.tex \
 	locking/locking.tex \
 	locking/locking-existence.tex \
-	time/time.tex \
 	toolsoftrade/toolsoftrade.tex
 
 EPSSOURCES = \
