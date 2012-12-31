@@ -43,22 +43,12 @@ BEGIN	{
 		if ($2 != "nan") {
 			datasets["" progname ":r"] = 1;
 			key = "" progname ":r:" ncpus;
-			n[key]++;
-			sum[key] += $2;
-			if (min[key] == "" || min[key] > $2)
-				min[key] = $2;
-			if (max[key] == "" || max[key] < $2)
-				max[key] = $2;
+			data[key] = data[key] " " $2;
 		}
 		if ($4 != "nan") {
 			datasets["" progname ":u"] = 1;
 			key = "" progname ":u:" ncpus;
-			n[key]++;
-			sum[key] += $4;
-			if (min[key] == "" || min[key] > $4)
-				min[key] = $4;
-			if (max[key] == "" || max[key] < $4)
-				max[key] = $4;
+			data[key] = data[key] " " $4;
 		}
 		if ($2 != "nan" || $4 != "nan") {
 			if (mincpu == "" || mincpu > ncpus)
@@ -79,9 +69,8 @@ END	{
 		uflag = a[2];
 		for (ncpus = mincpu; ncpus <= maxcpu; ncpus++) {
 			key = i ":" ncpus;
-			if (n[key] != "") {
-				avg = sum[key] / n[key];
-				print(ncpus, avg, min[key], max[key]) > "" i "." tag ".dat"
+			if (data[key] != "") {
+				print(ncpus, data[key]) > "" i "." tag ".raw"
 			}
 		}
 	}
