@@ -1813,10 +1813,469 @@ serve three major purposes:
 \url{http://www.rdrop.com/users/paulmck/scalability/paper/profiling.2002.06.04.pdf}.
 Also need tools work.}
 
+\subsection{Microbenchmarking}
+\label{sec:debugging:Microbenchmarking}
+
+Microbenchmarking can be useful when deciding which algorithms or
+data structures are worth incorporating into a larger body of software
+for deeper evaluation.
+
+One common approach to microbenchmarking is to measure the time,
+run some number of iterations of the code
+under test, then measure the time again.
+The difference between the two times divided by the number of iterations
+gives the measured time required to execute the code under test.
+
+Unfortunately, this approach to measurement allows any number of errors
+to creep in, including:
+
+\begin{enumerate}
+\item	The measurement will include some of the overhead of
+	the time measurement.
+	This source of error can be reduced to an arbitrarily small
+	value by increasing the number of iterations.
+\item	The first few iterations of the test might incur cache misses
+	or (worse yet) page faults that might inflate the measured
+	value.
+	This source of error can also be reduced by increasing the
+	number of iterations, or it can often be eliminated entirely
+	by running a few warm-up iterations before starting the
+	measurement period.
+\item	Some types of interference, for example, random memory errors,
+	are so rare that they can be dealt with by running a number
+	of sets of interations of the test.
+	If the level of interference was statistically significant,
+	any performance outliers could be rejected statistically.
+\item	Any iteration of the test might be interfered with by other
+	activity on the system.
+	Sources of interference include other applications, system
+	utilities and daemons, device interrupts, firmware interrupts
+	(including system management interrupts, or SMIs),
+	virtualization, memory errors, and much else besides.
+	Assuming that these sources of interference occur randomly,
+	their effect can be minimized by reducing the number of
+	iterations.
+\end{enumerate}
+
+The first and third sources of interference provide conflicting advice,
+which is one sign that we are living in the real world.
+The remainder of this section looks at ways of resolving this conflict.
+
+\QuickQuiz{}
+	But what about other sources of error, for example, due to
+	interactions between caches and memory layout?
+\QuickQuizAnswer{
+	Changes in memory layout can indeed result in unrealistic
+	decreases in execution time.
+	For example, suppose that a given microbenchmark almost
+	always overflows the L0 cache's associativity, but with just the right
+	memory layout, it all fits.
+	If this is a real concern, consider running your microbenchmark
+	using huge pages (or within the kernel or on bare metal) in
+	order to completely control the memory layout.
+} \QuickQuizEnd
+
+The following sections discuss ways of dealing with these measurement
+errors, with
+Section~\ref{sec:debugging:Isolation}
+covering isolation techniques that may be used to prevent some forms of
+interference,
+and with
+Section~\ref{sec:debugging:Detecting Interference}
+covering methods for detecting interference so as to reject measurement
+data that might have been corrupted by that interference.
+
+\subsection{Isolation}
+\label{sec:debugging:Isolation}
+
+The Linux kernel provides a number of ways to isolate a group of
+CPUs from outside interference.
+
+First, let's look at interference by other processes, threads, and tasks.
+The POSIX \co{sched_setaffinity()} system call may be used to move
+most tasks off of a given set of CPUs and to confine your tests to
+that same group.
+The Linux-specific user-level \co{taskset} command may be used for
+the same purpose, though both \co{sched_setaffinity()} and
+\co{taskset} require elevated permissions.
+Linux-specific control groups (cgroups) may be used for this same purpose.
+This approach can be quite effective at reducing interference, and
+is sufficient in many cases.
+However, it does have limitations, for example, it cannot do anything
+about the per-CPU kernel threads that are often used for housekeeping
+tasks.
+
+One way to avoid interference from per-CPU kernel threads is to run
+your test at a high real-time priority, for example, by using
+the POSIX \co{sched_setscheduler()} system call.
+However, note that if you do this, you are implicitly taking on
+responsibility for avoiding infinite loops, because otherwise
+your test will prevent part of the kernel from functioning.\footnote{
+	This is an example of the Spiderman Principle: ``With great
+	power comes great responsibility.''}
+
+These approaches can greatly reduce, and perhaps even eliminate,
+interference from processes, threads, and tasks.
+However, it does nothing to prevent interference from device
+interrupts, at least in the absence of threaded interrupts.
+Linux allows some control of threaded interrupts via the
+\co{/proc/irq} directory, which contains numerical directories, one
+per interrupt vector.
+Each numerical directory contains \co{smp_affinity} and
+\co{smp_affinity_list}.
+Given sufficient permissions, you can write a value to these files
+to restrict interrupts to the specified set of CPUs.
+For example, ``\co{sudo echo 3 > /proc/irq/23/smp_affinity}''
+would confine interrupts on vector~23 to CPUs~0 and~1.
+The same results may be obtained via
+``\co{sudo echo 0-1 > /proc/irq/23/smp_affinity_list}''.
+You can use ``cat /proc/interrupts'' to obtain a list of the interrupt
+vectors on your system, how many are handled by each CPU, and what
+devices use each interrupt vector.
+
+Running a similar command for all interrupt vectors on your system
+would confine interrupts to CPUs~0 and~1, leaving the remaining CPUs
+free of interference.
+Or mostly free of interference, anyway.
+It turns out that the scheduling-clock interrupt fires on each CPU
+that is running in user mode.\footnote{
+	Frederic Weisbecker is working on an adaptive-ticks project
+	that will allow the scheduling-clock interrupt to be shut
+	off on any CPU that has only one runnable task, but as of
+	early 2013, this is unfortunately still work in progress.}
+In addition you must take care to ensure that the set of CPUs that you
+confine the interrupts to is capable of handling the load.
+
+But this only handles processes and interrupts running in the same
+operating-system instance as the test.
+Suppose that you are running the test in a guest OS that is itself
+running on a hypervisor, for example, Linux running KVM?
+Although you can in theory apply the same techniques at the hypervisor
+level that you can at the guest-OS level, it is quite common for
+hypervisor-level operations to be restricted to authorized personnel.
+In addition, none of these techniques work against firmware-level
+interference.
+
+\QuickQuiz{}
+	Wouldn't the techniques suggested to isolate the code under
+	test also affect that code's performance, particularly if
+	it is running within a larger application?
+\QuickQuizAnswer{
+	Indeed it might, although in most microbenchmarking efforts
+	you would extract the code under test from the enclosing
+	application.
+	Nevertheless, if for some reason you must keep the code under
+	test within the application, you will very likely need to use
+	the techniques discussed in
+	Section~\ref{sec:debugging:Detecting Interference}.
+} \QuickQuizEnd
+
+If you find yourself in this painful situation, instead of preventing
+the interference, you might need to detect the interference as described
+in the next section.
+
+\subsection{Detecting Interference}
+\label{sec:debugging:Detecting Interference}
+
+If you cannot prevent interference, perhaps you can detect the
+interference after the fact and reject the test runs that were affected
+by that interference.
+Section~\ref{sec:debugging:Detecting Interference Via Measurement}
+describes methods of rejection involving additional measurements,
+while Section~\ref{sec:debugging:Detecting Interference Via Statistics}
+describes statistics-based rejection.
+
+\subsubsection{Detecting Interference Via Measurement}
+\label{sec:debugging:Detecting Interference Via Measurement}
+
+%	Sources of interference include other applications, system
+%	utilities and daemons, device interrupts, firmware interrupts
+%	(including system management interrupts, or SMIs),
+%	virtualization, memory errors, and much else besides.
+
+Many systems, including Linux, provide means for determining after the
+fact whether some forms of interference have occurred.
+For example, if your test encountered process-based interference, a
+a context switch must have occurred during the test.
+On Linux-based systems, this context switch will be visible in
+\co{/proc/<PID>/sched} in the \co{nr_switches} field.
+Similarly, interrupt-based interference can be detected via the
+\co{/proc/interrupts} file.
+
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+  1 #include <sys/time.h>
+  2 #include <sys/resource.h>
+  3 
+  4 /* Return 0 if test results should be rejected. */
+  5 int runtest(void)
+  6 {
+  7   struct rusage ru1;
+  8   struct rusage ru2;
+  9 
+ 10   if (getrusage(RUSAGE_SELF, &ru1) != 0) {
+ 11     perror("getrusage");
+ 12     abort();
+ 13   }
+ 14   /* run test here. */
+ 15   if (getrusage(RUSAGE_SELF, &ru2 != 0) {
+ 16     perror("getrusage");
+ 17     abort();
+ 18   }
+ 19   return (ru1.ru_nvcsw == ru2.ru_nvcsw &&
+ 20     ru1.runivcsw == ru2.runivcsw);
+ 21 }
+\end{verbatim}
+}
+\caption{Using getrusage() to Detect Context Switches}
+\label{fig:count:Using getrusage() to Detect Context Switches}
+\end{figure}
+
+Opening and reading files is not the way to low overhead, and it is
+possible to get the count of context switches for a given thread
+by using the \co{getrusage()} system call, as shown in
+Figure~\ref{fig:count:Using getrusage() to Detect Context Switches}.
+This same system call can be used to detect minor page faults (\co{ru_minflt})
+and major page faults (\co{ru_majflt}).
+
+Unfortunately, detecting memory errors and firmware interference is quite
+system-specific, as is the detection of interference due to virtualization.
+Although avoidance is better than detection, and detection is better than
+statistics, there are times when one must avail oneself of statistics,
+a topic addressed in the next section.
+
+\subsubsection{Detecting Interference Via Statistics}
+\label{sec:debugging:Detecting Interference Via Statistics}
+
+Any statistical analysis will be based on assumptions about the data,
+and performance microbenchmarks often support the following assumptions:
+
+\begin{enumerate}
+\item	Smaller measurements are more likely to be accurate than
+	larger measurements.
+\item	The measurement uncertainty of good data is known.
+\item	A reasonable fraction of the test runs will result in good data.
+\end{enumerate}
+
+The fact that smaller measurements are more likely to be accurate than
+larger measurements suggests that sorting the measurements in increasing
+order is likely to be productive.\footnote{
+	To paraphrase the old saying, ``Sort first and ask questions later.''}
+The fact that the measurement uncertainty is known allows us to accept
+measurements within this uncertainty of each other:  If the effects of
+interference are large compared to this uncertainty, this will ease
+rejection of bad data.
+Finally, the fact that some fraction (for example, one third) can be
+assumed to be good allows us to blindly accept the first portion of the
+sorted list, and this data can then be used to gain an estimate of the
+natural variation of the measured data, over and above the assumed
+measurement error.
+
+The approach is to take the specified number of leading elements from the
+beginning of the sorted list, and use these to estimate a typical
+inter-element delta, which in turn may be multiplied by the number of
+elements in the list to obtain an upper bound on permissible values.
+The algorithm then repeatedly considers the next element of the list.
+If it is falls below the upper bound, and if the distance between
+the next element and the previous element is not too much greater than
+the average inter-element distance for the portion of the list accepted
+thus far, then the next element is accepted and the process repeats.
+Otherwise, the remainder of the list is rejected.
+
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+  1 divisor=3
+  2 relerr=0.01
+  3 trendbreak=10
+  4 while test $# -gt 0
+  5 do
+  6   case "$1" in
+  7   --divisor)
+  8     shift
+  9     divisor=$1
+ 10     ;;
+ 11   --relerr)
+ 12     shift
+ 13     relerr=$1
+ 14     ;;
+ 15   --trendbreak)
+ 16     shift
+ 17     trendbreak=$1
+ 18     ;;
+ 19   esac
+ 20   shift
+ 21 done
+ 22 
+ 23 awk -v divisor=$divisor -v relerr=$relerr \
+ 24     -v trendbreak=$trendbreak '{
+ 25   for (i = 2; i <= NF; i++)
+ 26     d[i - 1] = $i;
+ 27   asort(d);
+ 28   i = int((NF + divisor - 1) / divisor);
+ 29   delta = d[i] - d[1];
+ 30   maxdelta = delta * divisor;
+ 31   maxdelta1 = delta + d[i] * relerr;
+ 32   if (maxdelta1 > maxdelta)
+ 33     maxdelta = maxdelta1;
+ 34   for (j = i + 1; j < NF; j++) {
+ 35     if (j <= 2)
+ 36       maxdiff = d[NF - 1] - d[1];
+ 37     else
+ 38       maxdiff = trendbreak * \
+ 39       (d[j - 1] - d[1]) / (j - 2);
+ 40     if (d[j] - d[1] > maxdelta && \
+ 41         d[j] - d[j - 1] > maxdiff)
+ 42       break;
+ 43   }
+ 44   n = sum = 0;
+ 45   for (k = 1; k < j; k++) {
+ 46     sum += d[k];
+ 47     n++;
+ 48   }
+ 49   min = d[1];
+ 50   max = d[j - 1];
+ 51   avg = sum / n;
+ 52   print $1, avg, min, max, n, NF - 1;
+ 53 }'
+\end{verbatim}
+}
+\caption{Statistical Elimination of Interference}
+\label{fig:count:Statistical Elimination of Interference}
+\end{figure}
+
+Figure~\ref{fig:count:Statistical Elimination of Interference}
+shows a simple \co{sh}/\co{awk} script implementing this notion.
+Input consists of an x-value followed by an arbitrarily long list of y-values,
+and output consists of one line for each input line, with fields as follows:
+
+\begin{enumerate}
+\item	The x-value.
+\item	The average of the selected data.
+\item	The minimum of the selected data.
+\item	The maximum of the selected data.
+\item	The number of selected data items.
+\item	The number of input data items.
+\end{enumerate}
+
+This script takes three optional arguments as follows:
+
+\begin{itemize}
+\item	\co{--divisor}: Number of segments to divide the list into,
+	for example, a divisor of four means that the first quarter
+	of the data elements will be assumed to be good.
+	This defaults to three.
+\item	\co{--relerr}: Relative measurement error.  The script assumes
+	that values that differ by less than this error are for all
+	intents and purposes equal.
+	This defaults to 0.01, which is equivalent to 1\%.
+\item	\co{--trendbreak}: Ratio of inter-element spacing constituting
+	a break in the trend of the data.
+	Fr example, if the average spacing in the data accepted so far
+	is 1.5, then if the trend-break ratio is 2.0, then if the next
+	data value differs from the last one by more than 3.0, this
+	constitutes a break in the trend.
+	(Unless of course, the relative error is greater than 3.0, in
+	which case the ``break'' will be ignored.)
+\end{itemize}
+
+Lines~1-3 of
+Figure~\ref{fig:count:Statistical Elimination of Interference}
+set the default values for the parameters, and lines~4-21 parse
+any command-line overriding of these parameters.
+The \co{awk} invocation on lines~23 and~24 sets the values of the
+\co{divisor}, \co{relerr}, and \co{trendbreak} variables to their
+\co{sh} counterparts.
+In the usual \co{awk} manner, lines~25-52 are executed on each input
+line.
+The loop spanning lines~24 and~26 copies the input y-values to the
+\co{d} array, which line~27 sorts into increasing order.
+Line~28 computes the number of y-values that are to be trusted absolutely
+by applying \co{divisor} and rounding up.
+
+Lines~29-33 compute the \co{maxdelta} value used as a lower bound on
+the upper bound of y-values.
+To this end, lines~29 and~30 multiply the difference in values over
+the trusted region of data by the \co{divisor}, which projects the
+difference in values across the trusted region across the entire
+set of y-values.
+However, this value might well be much smaller than the relative error,
+so line~31 computes the absolute error (\co{d[i] * relerr}) and adds
+that to the difference \co{delta} across the trusted portion of the data.
+Lines~32 and~33 then compute the maximum of these two values.
+
+Each pass through the loop spanning lines~34-43 attempts to add another
+data value to the set of good data.
+Lines 35-39 compute the trend-break delta, with line~36 disabling this
+limit if we don't yet have enough values to compute a trend,
+and with lines~38 and~39 multiplying \co{trendbreak} by the average
+difference between pairs of data values in the good set.
+If line~40 determines that the candidate data value would exceed the
+lower bound on the upper bound (\co{maxdelta}) \emph{and}
+line~41 determines that the difference between the candidate data value
+and its predecessor exceeds the trend-break difference (\co{maxdiff}),
+then line~42 exits the loop: We have the full good set of data.
+
+Lines~44-52 then compute and print the statistics for the data set.
+
+\QuickQuiz{}
+	This approach is just plain weird!
+	Why not use means and standard deviations, like we were taught
+	in our statistics classes?
+\QuickQuizAnswer{
+	Because mean and standard deviation were not designed to do this job.
+	To see this, try applying mean and standard deviation to the
+	following data set, given a 1\% relative error in measurement:
+
+	\begin{quote}
+		49,548.4 49,549.4 49,550.2 49,550.9 49,550.9 49,551.0
+		49,551.5 49,552.1 49,899.0 49,899.3 49,899.7 49,899.8
+		49,900.1 49,900.4 52,244.9 53,333.3 53,333.3 53,706.3
+		53,706.3 54,084.5
+	\end{quote}
+
+	The problem is that mean and standard deviation do not rest on
+	any sort of measurement-error assumption, and they will therefore
+	see the difference between the values near 49,500 and those near
+	49,900 as being statistically significant, when in fact they are
+	well within the bounds of estimated measurement error.
+
+	Of course, it is possible to create a script similar to
+	that in
+	Figure~\ref{fig:count:Statistical Elimination of Interference}
+	that uses standard deviation rather than absolute difference
+	to get a similar effect,
+	and this is left as an exercise for the interested reader.
+	Be careful to avoid divide-by-zero errors arising from strings
+	of identical data values!
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	But what if all the y-values in the trusted group of data
+	are exactly zero?
+	Won't that cause the script to reject any non-zero value?
+\QuickQuizAnswer{
+	Indeed it will!
+	But if your performance measurements often produce a value of
+	exactly zero, perhaps you need to take a closer look at your
+	performance-measurement code.
+
+	Note that many approaches based on mean and standard deviation
+	will have similar problems with this sort of dataset.
+} \QuickQuizEnd
+
+Although statistical interference detection can be quite useful, it should
+be used only as a last resort.
+It is far better to avoid interference in the first place
+(Section~\ref{sec:debugging:Isolation}), or, failing that,
+detecting interference via measurement
+(Section~\ref{sec:debugging:Detecting Interference Via Measurement}).
+
 \section{Summary}
 \label{sec:debugging:Summary}
 
-\begin{figure}[tb]
+\begin{figure}[tbhp]
 \begin{center}
 \resizebox{3in}{!}{\includegraphics{cartoons/UseTheRightCannon}}
 \end{center}

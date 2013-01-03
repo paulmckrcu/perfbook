@@ -5392,6 +5392,76 @@ srcu_read_unlock(&srcucb, idx);
 	In these cases, creating a benchmark that approximates
 	the application can help overcome these obstacles.
 
+\QuickQ{}
+	But what about other sources of error, for example, due to
+	interactions between caches and memory layout?
+\QuickA{}
+	Changes in memory layout can indeed result in unrealistic
+	decreases in execution time.
+	For example, suppose that a given microbenchmark almost
+	always overflows the L0 cache's associativity, but with just the right
+	memory layout, it all fits.
+	If this is a real concern, consider running your microbenchmark
+	using huge pages (or within the kernel or on bare metal) in
+	order to completely control the memory layout.
+
+\QuickQ{}
+	Wouldn't the techniques suggested to isolate the code under
+	test also affect that code's performance, particularly if
+	it is running within a larger application?
+\QuickA{}
+	Indeed it might, although in most microbenchmarking efforts
+	you would extract the code under test from the enclosing
+	application.
+	Nevertheless, if for some reason you must keep the code under
+	test within the application, you will very likely need to use
+	the techniques discussed in
+	Section~\ref{sec:debugging:Detecting Interference}.
+
+\QuickQ{}
+	This approach is just plain weird!
+	Why not use means and standard deviations, like we were taught
+	in our statistics classes?
+\QuickA{}
+	Because mean and standard deviation were not designed to do this job.
+	To see this, try applying mean and standard deviation to the
+	following data set, given a 1\% relative error in measurement:
+
+	\begin{quote}
+		49,548.4 49,549.4 49,550.2 49,550.9 49,550.9 49,551.0
+		49,551.5 49,552.1 49,899.0 49,899.3 49,899.7 49,899.8
+		49,900.1 49,900.4 52,244.9 53,333.3 53,333.3 53,706.3
+		53,706.3 54,084.5
+	\end{quote}
+
+	The problem is that mean and standard deviation do not rest on
+	any sort of measurement-error assumption, and they will therefore
+	see the difference between the values near 49,500 and those near
+	49,900 as being statistically significant, when in fact they are
+	well within the bounds of estimated measurement error.
+
+	Of course, it is possible to create a script similar to
+	that in
+	Figure~\ref{fig:count:Statistical Elimination of Interference}
+	that uses standard deviation rather than absolute difference
+	to get a similar effect,
+	and this is left as an exercise for the interested reader.
+	Be careful to avoid divide-by-zero errors arising from strings
+	of identical data values!
+
+\QuickQ{}
+	But what if all the y-values in the trusted group of data
+	are exactly zero?
+	Won't that cause the script to reject any non-zero value?
+\QuickA{}
+	Indeed it will!
+	But if your performance measurements often produce a value of
+	exactly zero, perhaps you need to take a closer look at your
+	performance-measurement code.
+
+	Note that many approaches based on mean and standard deviation
+	will have similar problems with this sort of dataset.
+
 \QuickQAC{sec:advsync:Advanced Synchronization}{Advanced Synchronization}
 \QuickQ{}
 	How on earth could the assertion on line~21 of the code in
