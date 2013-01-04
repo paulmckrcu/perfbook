@@ -178,7 +178,8 @@ EPSSOURCES = \
 	locking/DeadlockCycle.eps \
 	locking/LayeredLockHierarchy.eps \
 	locking/LocalLockHierarchy.eps \
-	locking/NonLocalLockHierarchy.eps
+	locking/NonLocalLockHierarchy.eps \
+	locking/rnplock.eps
 
 all: perfbook.pdf
 

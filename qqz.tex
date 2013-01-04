@@ -2715,7 +2715,7 @@ ret = ~ret & tmp;
 	we would have a thread that was not waiting on any lock,
 	again violating the definition.
 	(And in this case, the thread would either be running or
-	blocked on something that is not a lock.)
+	be blocked on something that is not a lock.)
 
 	Therefore, given this definition of deadlock, there must
 	be a cycle in the corresponding graph.
@@ -2726,7 +2726,7 @@ ret = ~ret & tmp;
 	the caller, even given that the library code never invokes
 	any of the caller's functions?
 \QuickA{}
-	Indeed there can!
+	Indeed there are!
 	Here are a few of them:
 	\begin{enumerate}
 	\item	If one of the library function's arguments is a pointer
@@ -2816,7 +2816,7 @@ ret = ~ret & tmp;
 	(see Section~\ref{sec:locking:Livelock and Starvation}).
 
 \QuickQ{}
-	In the ``acquire needed locks first'' approach described in
+	When using the ``acquire needed locks first'' approach described in
 	Section~\ref{sec:locking:Acquire Needed Locks First},
 	how can livelock be avoided?
 \QuickA{}
@@ -2868,7 +2868,9 @@ ret = ~ret & tmp;
 \QuickQ{}
 	Given an object-oriented application that passes control freely
 	among a group of objects such that there is no straightforward
-	locking hierarchy, layered or otherwise, how can this
+	locking hierarchy,\footnote{
+		Also known as ``object-oriented spaghetti code.''}
+	layered or otherwise, how can this
 	application be parallelized?
 \QuickA{}
 	There are a number of approaches:
@@ -2880,7 +2882,8 @@ ret = ~ret & tmp;
 		simulation single-threaded, but run many instances
 		of the simulation in parallel.
 		This retains the object-oriented design, and
-		gains parallelism at a higher level.
+		gains parallelism at a higher level, and likely
+		also avoids synchronization overhead.
 	\item	Partition the objects into groups such that there
 		is no need to operate on objects in
 		more than one group at a given time.
@@ -2991,6 +2994,10 @@ ret = ~ret & tmp;
 	the data that it protects, the CPU holding the lock will
 	usually suffer a cache miss only on first access to a given
 	variable.
+
+	Of course, the downside of placing the lock and data into separate
+	cache lines is that the code will incur two cache misses rather
+	than only one in the uncontended case.
 
 \QuickQ{}
 	Does it ever make sense to have an exclusive lock acquisition
@@ -3135,6 +3142,15 @@ ret = ~ret & tmp;
 	exclusive modes.
 
 \QuickQ{}
+	Why not rely on the C language's default initialization of
+	zero instead of using the explicit initializer shown on
+	line~2 of
+	Figure~\ref{fig:locking:Sample Lock Based on Atomic Exchange}?
+\QuickA{}
+	Because this default initialization does not apply to locks
+	allocated as auto variables within the scope of a function.
+
+\QuickQ{}
 	Why bother with the inner loop on lines~7-8 of
 	Figure~\ref{fig:locking:Sample Lock Based on Atomic Exchange}?
 	Why not simply repeatedly do the atomic exchange operation
@@ -3155,7 +3171,8 @@ ret = ~ret & tmp;
 	Figure~\ref{fig:locking:Sample Lock Based on Atomic Exchange}?
 \QuickA{}
 	This can be a legitimate implementation, but only if
-	this store is preceded by a memory barrier.
+	this store is preceded by a memory barrier and makes use
+	of \co{ACCESS_ONCE()}.
 	The memory barrier is not required when the \co{xchg()}
 	operation is used because this operation implies a
 	full memory barrier due to the fact that it returns
@@ -3194,7 +3211,7 @@ ret = ~ret & tmp;
 	could deduce that they were always increasing in value, and
 	then might assume that they would never go negative.
 	This assumption could well lead the compiler to generate
-	unfortunate code.
+	unfortunate code~\cite{PaulEMcKenney2012SignedOverflow,JohnRegehr2010UndefinedBehavior}.
 
 \QuickQ{}
 	Which is better, the counter approach or the flag approach?

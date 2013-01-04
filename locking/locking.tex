@@ -133,7 +133,7 @@ Thread~B, Lock~3, Thread~C, Lock~4, and back to Thread~B.
 	we would have a thread that was not waiting on any lock,
 	again violating the definition.
 	(And in this case, the thread would either be running or
-	blocked on something that is not a lock.)
+	be blocked on something that is not a lock.)
 
 	Therefore, given this definition of deadlock, there must
 	be a cycle in the corresponding graph.
@@ -189,22 +189,6 @@ out-of-order lock acquisition.
 In large program, it is wise to use tools to enforce your locking
 hierarchy~\cite{JonathanCorbet2006lockdep}.
 
-\begin{figure}[tbp]
-{ \scriptsize
-\begin{verbatim}
-  1 spin_lock(&lock2);
-  2 layer_2_processing(pkt);
-  3 nextlayer = layer_1(pkt);
-  4 spin_lock(&nextlayer->lock1);
-  5 layer_1_processing(pkt);
-  6 spin_unlock(&lock2);
-  7 spin_unlock(&nextlayer->lock1);
-\end{verbatim}
-}
-\caption{Protocol Layering and Deadlock}
-\label{fig:locking:Protocol Layering and Deadlock}
-\end{figure}
-
 \subsubsection{Local Locking Hierarchies}
 \label{sec:locking:Local Locking Hierarchies}
 
@@ -226,7 +210,7 @@ containing locks from both the library and the caller.
 	the caller, even given that the library code never invokes
 	any of the caller's functions?
 \QuickQuizAnswer{
-	Indeed there can!
+	Indeed there are!
 	Here are a few of them:
 	\begin{enumerate}
 	\item	If one of the library function's arguments is a pointer
@@ -453,7 +437,8 @@ This layered approach can be extended to an arbitrarily large number of layers,
 but each added layer increases the complexity of the locking design.
 Such increases in complexity are particularly inconvenient for some
 types of object-oriented designs, in which control passes back and forth
-among a large group of objects in an undisciplined manner.
+among a large group of objects in an undisciplined manner.\footnote{
+	One name for this is ``object-oriented spaghetti code.''}
 This mismatch between the habits of object-oriented design and the
 need to avoid deadlock is an important reason why parallel programming
 is perceived by some to be so difficult.
@@ -507,6 +492,22 @@ this is unlikely.
 
 \subsubsection{Conditional Locking}
 \label{sec:locking:Conditional Locking}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 spin_lock(&lock2);
+  2 layer_2_processing(pkt);
+  3 nextlayer = layer_1(pkt);
+  4 spin_lock(&nextlayer->lock1);
+  5 layer_1_processing(pkt);
+  6 spin_unlock(&lock2);
+  7 spin_unlock(&nextlayer->lock1);
+\end{verbatim}
+}
+\caption{Protocol Layering and Deadlock}
+\label{fig:locking:Protocol Layering and Deadlock}
+\end{figure}
 
 But suppose that there is no reasonable locking hierarchy.
 This can happen in real life, for example, in layered network protocol stacks
@@ -617,7 +618,7 @@ be discussed in
 Section~\ref{sec:locking:Livelock and Starvation}.
 
 \QuickQuiz{}
-	In the ``acquire needed locks first'' approach described in
+	When using the ``acquire needed locks first'' approach described in
 	Section~\ref{sec:locking:Acquire Needed Locks First},
 	how can livelock be avoided?
 \QuickQuizAnswer{
@@ -745,7 +746,9 @@ tool, but there are jobs better addressed with other tools.
 \QuickQuiz{}
 	Given an object-oriented application that passes control freely
 	among a group of objects such that there is no straightforward
-	locking hierarchy, layered or otherwise, how can this
+	locking hierarchy,\footnote{
+		Also known as ``object-oriented spaghetti code.''}
+	layered or otherwise, how can this
 	application be parallelized?
 \QuickQuizAnswer{
 	There are a number of approaches:
@@ -757,7 +760,8 @@ tool, but there are jobs better addressed with other tools.
 		simulation single-threaded, but run many instances
 		of the simulation in parallel.
 		This retains the object-oriented design, and
-		gains parallelism at a higher level.
+		gains parallelism at a higher level, and likely
+		also avoids synchronization overhead.
 	\item	Partition the objects into groups such that there
 		is no need to operate on objects in
 		more than one group at a given time.
@@ -848,12 +852,14 @@ To see this, consider the following sequence of events:
 	\co{do_one_thing()}.
 \item	Thread~2 acquires \co{lock2} on line~18, then invokes
 	\co{do_a_third_thing()}.
-\item	Thread~1 attempts to acquire \co{lock2}, but fails because
+\item	Thread~1 attempts to acquire \co{lock2} on line~6, but fails because
 	Thread~2 holds it.
-\item	Thread~2 attempts to acquire \co{lock1}, but fails because
+\item	Thread~2 attempts to acquire \co{lock1} on line~20, but fails because
 	Thread~1 holds it.
-\item	Thread~1 releases \co{lock1}, and jumps to \co{retry}.
-\item	Thread~2 releases \co{lock2}, and jumps to \co{retry}.
+\item	Thread~1 releases \co{lock1} on line~7, then jumps to \co{retry}
+	at line~3.
+\item	Thread~2 releases \co{lock2} on line~21, and jumps to \co{retry}
+	at line~17.
 \item	The livelock dance repeats from the beginning.
 \end{enumerate}
 
@@ -887,7 +893,7 @@ Put another way, livelock is an extreme form of starvation where
 a group of threads starve, rather than just one of them.\footnote{
 	Try not to get too hung up on the exact definitions of terms
 	like livelock, starvation, and unfairness.
-	Anything that causes a group of threads to fail to make good
+	Anything that causes a group of threads to fail to make adequate
 	forward progress is a problem that needs to be fixed, regardless
 	of what name you choose for it.}
 
@@ -937,7 +943,7 @@ Livelock and starvation are serious issues in software transactional
 memory implementations, and so the concept of \emph{contention
 manager} has been introduced to encapsulate these issues.
 In the case of locking, simple exponential backoff can often address
-livelock and starvation.
+livelock and starvationh.
 The idea is to introduce exponentially increasing delays before each
 retry, as shown in
 Figure~\ref{fig:locking:Conditional Locking and Exponential Backoff}.
@@ -958,6 +964,13 @@ Figure~\ref{fig:locking:Conditional Locking and Exponential Backoff}.
 		more than 50 years.
 	\end{enumerate}
 } \QuickQuizEnd
+
+However, for better results, the backoff should be bounded, and
+even better high-contention results have been obtained via queued
+locking~\cite{Anderson90}, which is discussed more in
+Section~\ref{sec:locking:Other Exclusive-Locking Implementations}.
+Of course, best of all is to use a good parallel design so that lock
+contention remains low.
 
 \subsection{Unfairness}
 \label{sec:locking:Unfairness}
@@ -1046,6 +1059,10 @@ are an effective performance booster, at least for large critical sections.
 	the data that it protects, the CPU holding the lock will
 	usually suffer a cache miss only on first access to a given
 	variable.
+
+	Of course, the downside of placing the lock and data into separate
+	cache lines is that the code will incur two cache misses rather
+	than only one in the uncontended case.
 } \QuickQuizEnd
 
 \section{Types of Locks}
@@ -1055,8 +1072,9 @@ There are a surprising number of types of locks, more than this
 short chapter can possibly do justice to.
 The following sections discuss
 exclusive locks (Section~\ref{sec:locking:Exclusive Locks}),
-reader-writer locks (Section~\ref{sec:locking:Reader-Writer Locks}), and
-multi-role locks (Section~\ref{sec:locking:Beyond Reader-Writer Locks}).
+reader-writer locks (Section~\ref{sec:locking:Reader-Writer Locks}),
+multi-role locks (Section~\ref{sec:locking:Beyond Reader-Writer Locks}),
+and scoped locking (Section~\ref{sec:locking:Scoped Locking}).
 
 \subsection{Exclusive Locks}
 \label{sec:locking:Exclusive Locks}
@@ -1241,6 +1259,9 @@ and memory-barrier overhead---multiplied by the number of threads.
 
 In short, reader-writer locks can be quite useful in a number of
 situations, but each type of implementation does have its drawbacks.
+The canonical use case for reader-writer locking involves very long
+read-side critical sections, preferably measured in hundreds of microseconds
+or even milliseconds.
 
 \subsection{Beyond Reader-Writer Locks}
 \label{sec:locking:Beyond Reader-Writer Locks}
@@ -1293,7 +1314,7 @@ Reader-writer locks and exclusive locks differ in their admission
 policy: exclusive locks allow at most one holder, while reader-writer
 locks permit an arbitrary number of read-holders (but only one write-holder).
 There is a very large number of possible admission policies, one of
-the more elaborate being that of the VAX/VMS distributed lock
+which is that of the VAX/VMS distributed lock
 manager (DLM)~\cite{Snaman87}, which is shown in
 Table~\ref{tab:locking:VAX/VMS Distributed Lock Manager Policy}.
 Blank cells indicate compatible modes, while cells containing ``X''
@@ -1364,6 +1385,158 @@ VAX/VMS DLM's more-complex admission policy.
 
 Nevertheless, the VAX/VMS DLM is an interesting illustration of just
 how flexible the concepts behind locking can be.
+It also serves as a very simple introduction to the locking schemes
+used by modern DBMSes, which can have more than thirty locking modes,
+compared to VAX/VMS's six.
+
+\subsection{Scoped Locking}
+\label{sec:locking:Scoped Locking}
+
+The locking primitives discussed thus far require explicit acquisition and
+release primitives, for example, \co{spin_lock()} and \co{spin_unlock()},
+respectively.
+Another approach is to use the object-oriented ``resource allocation
+is initialization'' (RAII) pattern~\cite{MargaretAEllis1990Cplusplus}.\footnote{
+	Though more clearly expressed at
+	\url{http://www.stroustrup.com/bs_faq2.html\#finally}.}
+This pattern is often applied to auto variables in languages like C++,
+where the corresponding \emph{constructor} is invoked upon entry to
+the object's scope, and the corresponding \emph{destructor} is invoked
+upon exit from that scope.
+This can be applied to locking by having the constructor acquire the
+lock and the destructor free it.
+
+This approach can be quite useful, in fact in 1990 I was convinced that it
+was the only type of locking that was needed.\footnote{
+	My later work with parallelism at Sequent Computer Systems very
+	quickly disabused me of this misguided notion.}
+One very nice property of RAII locking is that you don't need to carefully
+release the lock on each and every code path that exits that scope,
+a property that can eliminate a troublesome set of bugs.
+
+However, RAII locking also has a dark side.
+RAII makes it quite difficult to encapsulate lock acquisition and release,
+for example, in iterators.
+In many iterator implementations, you would like to acquire the lock in
+the interator's ``start'' function and release it in the iterator's ``stop''
+function.
+RAII locking instead requires that the lock acquisition and release take
+place in the same level of scoping, making such encapsulation difficult or
+even impossible.
+
+RAII locking also prohibits overlapping critical sections, due to the fact
+that scopes must nest.
+This prohibition makes it difficult or impossible to express a number of
+useful constructs, for example, locking trees
+that mediate between multiple concurrent attempts to assert an event.
+Of an arbitrarily large group of concurrent attempts, only one need succeed,
+and the best strategy for the remaining attempts is for them to fail as
+quickly and painlessly as possible.
+Otherwise, lock contention becomes pathological on large systems
+(where ``large'' is many hundreds of CPUs).
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{locking/rnplock}}
+\end{center}
+\caption{Locking Hierarchy}
+\label{fig:lock:Locking Hierarchy}
+\end{figure}
+
+Example data structures (taken from the Linux kernel's implementation
+of RCU) are shown in
+Figure~\ref{fig:lock:Locking Hierarchy}.
+Here, each CPU is assigned a leaf \co{rcu_node} structure, and each
+\co{rcu_node} structure has a pointer to its parent (named, oddly
+enough, \co{->parent}), up to the root \co{rcu_node} structure,
+which has a \co{NULL} \co{->parent} pointer.
+The number of child \co{rcu_node} structures per parent can vary,
+but is typically 32 or 64.
+Each \co{rcu_node} structure also contains a lock named \co{->fqslock}.
+
+The general approach is a \emph{tournament}, where
+a given CPU conditionally acquires its
+leaf \co{rcu_node} structure's \co{->fqslock}, and, if successful,
+attempt to acquire that of the parent, then release that of the child.
+In addition, at each level, the CPU checks a global \co{gp_flags}
+variable, and if this variable indicates that some other CPU has
+asserted the event, the first CPU drops out of the competition.
+This acquire-then-release sequence continues until either the
+\co{gp_flags} variable indicates that someone else won the tournament,
+one of the attempts to acquire an \co{->fqslock} fails, or
+the root \co{rcu_node} structure's \co{->fqslock} as been acquired.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+  1 void force_quiescent_state(struct rcu_node *rnp_leaf)
+  2 {
+  3   int ret;
+  4   struct rcu_node *rnp = rnp_leaf;
+  5   struct rcu_node *rnp_old = NULL;
+  6 
+  7   for (; rnp != NULL; rnp = rnp->parent) {
+  8     ret = (ACCESS_ONCE(gp_flags)) ||
+  9           !raw_spin_trylock(&rnp->fqslock);
+ 10     if (rnp_old != NULL)
+ 11       raw_spin_unlock(&rnp_old->fqslock);
+ 12     if (ret)
+ 13       return;
+ 14     rnp_old = rnp;
+ 15   }
+ 16   if (ACCESS_ONCE(gp_flags)) {
+ 17     gp_flags = 1;
+ 18     do_force_quiescent_state();
+ 19     gp_flags = 0;
+ 20   }
+ 21   raw_spin_unlock(&rnp_old->fqslock);
+ 22 }
+\end{verbatim}
+}
+\caption{Conditional Locking to Reduce Contention}
+\label{fig:locking:Conditional Locking to Reduce Contention}
+\end{figure}
+
+Simplified code to implement this is shown in
+Figure~\ref{fig:locking:Conditional Locking to Reduce Contention}.
+The purpose of this function is to mediate between CPUs who have concurrently
+detected a need to invoke the \co{do_force_quiescent_state()} function.
+At any given time, it only makes sense for one instance of
+\co{do_force_quiescent_state()} to be active, so if there are multiple
+concurrent callers, we need at most one of them to actually invoke
+\co{do_force_quiescent_state()}, and we need the rest to (as quickly and
+painlessly as possible) give up and leave.
+
+To this end, each pass through the loop spanning lines~7-15 attempts
+to advance up one level in the \co{rcu_node} hierarcy.
+If the \co{gp_flags} variable is already set (line~8) or if the attempt
+to acquire the current \co{rcu_node} structure's \co{->fqslock} is
+unsuccessful (line~9), then local variable \co{ret} is set to 1.
+If line~10 sees that local variable \co{rnp_old} is non-\co{NULL},
+meaning that we hold \co{rnp_old}'s \co{->fqs_lock},
+line~11 releases this lock (but only after the attempt has been made
+to acquire the parent \co{rcu_node} structure's \co{->fqslock}).
+If line~12 sees that either line~8 or~9 saw a reason to give up,
+line~13 returns to the caller.
+Otherwise, we must have acquired the current \co{rcu_node} structure's
+\co{->fqslock}, so line~14 saves a pointer to this structure in local
+variable \co{rnp_old} in preparation for the next pass through the loop.
+
+If control reaches line~16, we won the tournament, and now holds the
+root \co{rcu_node} structure's \co{->fqslock}.
+If line~16 still sees that the global variable \co{gp_flags} is zero,
+line~17 sets \co{gp_flags} to one, line~18 invokes
+\co{do_force_quiescent_state()}, and line~19 resets \co{gp_flags}
+back to zero.
+Either way, line~21 releases the root \co{rcu_node} structure's
+\co{->fqslock}.
+
+This function illustrates the not-uncommon pattern of hierarchical
+locking.
+This pattern is quite difficult to implement using RAII locking,
+just like the interator encapsulation noted earlier,
+and so the lock/unlock primitives will be needed for the foreseeable
+future.
 
 \section{Locking Implementation Issues}
 \label{sec:locking:Locking Implementation Issues}
@@ -1409,6 +1582,16 @@ line~1, but could be any integral type.
 The initial value of this lock is zero, meaning ``unlocked'',
 as shown on line~2.
 
+\QuickQuiz{}
+	Why not rely on the C language's default initialization of
+	zero instead of using the explicit initializer shown on
+	line~2 of
+	Figure~\ref{fig:locking:Sample Lock Based on Atomic Exchange}?
+\QuickQuizAnswer{
+	Because this default initialization does not apply to locks
+	allocated as auto variables within the scope of a function.
+} \QuickQuizEnd
+
 Lock acquisition is carried out by the \co{xchg_lock()} function
 shown on lines~4-9.
 This function uses a nested loop, with the outer loop repeatedly
@@ -1446,7 +1629,8 @@ the lock, thus marking it as having been released.
 	Figure~\ref{fig:locking:Sample Lock Based on Atomic Exchange}?
 \QuickQuizAnswer{
 	This can be a legitimate implementation, but only if
-	this store is preceded by a memory barrier.
+	this store is preceded by a memory barrier and makes use
+	of \co{ACCESS_ONCE()}.
 	The memory barrier is not required when the \co{xchg()}
 	operation is used because this operation implies a
 	full memory barrier due to the fact that it returns
@@ -1478,6 +1662,16 @@ kernel, avoids unfairness at high contention levels, but as a
 consequence of its first-in-first-out discipline can grant the
 lock to a thread that is currently unable to use it, for example,
 due to being preempted, interrupted, or otherwise out of action.
+However, it is important to avoid getting too worried about the
+possibility of preemption and interruption, given that this preemption
+and interruption might just as well happen just after the lock was
+acquired.\footnote{
+	Besides, the best way of handling high lock contention is to avoid
+	it in the first place!
+	However, there are some situation where high lock contention
+	is the lesser of the available evils, and in any case, studying
+	schemes that deal with high levels of contention is good mental
+	exercise.}
 
 All locking implementations where waiters spin on a single memory
 location, including both test-and-set locks and ticket locks,
@@ -1543,7 +1737,7 @@ while a lock is held.
 Because preventing preemption while locks are held also improves throughput,
 most proprietary UNIX kernels offer some form of scheduler-conscious
 synchronization mechanism~\cite{Kontothanassis97a},
-largely due to the efforts of a large database vendor.
+largely due to the efforts of a certain sizable database vendor.
 These mechanisms usually take the form of a hint that preemption
 would be imappropriate.
 These hints frequently take the form of a bit set in a particular
@@ -1551,7 +1745,7 @@ machine register, which enables extremely low per-lock-acquisition overhead
 for these mechanisms.
 In contrast, Linux avoids these hints, instead getting
 similar results from a mechanism called
-\emph{futexes}~\cite{HubertusFrancke2002Futex,IngoMolnar2006RobustFutexes,StevenRostedt2006piFutexes}.
+\emph{futexes}~\cite{HubertusFrancke2002Futex,IngoMolnar2006RobustFutexes,StevenRostedt2006piFutexes,UlrichDrepper2011Futexes}.
 
 Interestingly enough, atomic instructions are not strictly needed to
 implement locks~\cite{Dijkstra65a,Lamport74a}.
@@ -1621,7 +1815,7 @@ the token-based mechanism, for example:
 	could deduce that they were always increasing in value, and
 	then might assume that they would never go negative.
 	This assumption could well lead the compiler to generate
-	unfortunate code.
+	unfortunate code~\cite{PaulEMcKenney2012SignedOverflow,JohnRegehr2010UndefinedBehavior}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -1799,6 +1993,9 @@ if complex data structures must be manipulated:
 	required change.
 	A separate thread can then remove elements from the queue and
 	carry out the required changes using normal locking.
+	There are a number of readily available implementations of
+	concurrent
+	queues~\cite{ChristophMKirsch2012FIFOisntTR,MathieuDesnoyers2009URCU,MichaelScott96}.
 \end{enumerate}
 
 This strategy should be enforced with occasional manual or (preferably)
@@ -1889,7 +2086,7 @@ Signal-handler deadlocks can be explicitly avoided as follows:
 	library function is called outside of a signal handler.
 \end{enumerate}
 
-These rules can be enforced by using tools such as
+These rules can be enforced by using tools similar to
 the Linux kernel's lockdep lock dependency
 checker~\cite{JonathanCorbet2006lockdep}.
 One of the great strengths of lockdep is that it is not fooled by
