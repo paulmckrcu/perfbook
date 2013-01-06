@@ -3,7 +3,8 @@
  *
  * Usage:
  *
- *	@@@
+ *	./hash_xxx --smoketest
+ *		Run a simple single-threaded smoke test.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -110,6 +111,8 @@ void smoketest(void)
 				      testcmp));
 		hashtab_unlock_lookup(htp, i);
 	}
+	hashtab_free(htp);
+	printf("End of smoketest.\n");
 }
 
 /*
