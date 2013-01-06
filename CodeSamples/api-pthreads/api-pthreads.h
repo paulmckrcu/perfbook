@@ -420,7 +420,7 @@ struct notifier_block {
  * Bug checks.
  */
 
-#define BUG_ON(c) do { if (!(c)) abort(); } while (0)
+#define BUG_ON(c) do { if (c) abort(); } while (0)
 
 /*
  * Initialization -- Must be called before calling any primitives.
