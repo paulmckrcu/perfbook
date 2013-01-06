@@ -418,10 +418,14 @@ static unsigned long long get_timestamp(void)
 /*
  * Compiler magic.
  */
+#ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+#endif /* #ifndef offsetof */
+#ifndef container_of
 #define container_of(ptr, type, member) ({			\
 	const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
 	(type *)( (char *)__mptr - offsetof(type,member) );})
+#endif /* #ifndef offsetof */
 #define barrier() __asm__ __volatile__("": : :"memory")
 
 /*
@@ -484,8 +488,12 @@ static void spin_unlock(spinlock_t *sp)
 #define spin_unlock_irqrestore(l, f) do { f = 0; spin_unlock(l); } while (0)
 
 #define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+#ifndef unlikely
 #define unlikely(x) x
+#endif /* #ifndef unlikely */
+#ifndef likely
 #define likely(x) x
+#endif /* #ifndef likely */
 #define prefetch(x) x
 
 /*
