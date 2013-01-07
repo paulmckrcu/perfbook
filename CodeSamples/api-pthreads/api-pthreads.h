@@ -26,7 +26,9 @@
 #include <errno.h>
 #include <limits.h>
 #include <sys/types.h>
+#ifndef __USE_GNU
 #define __USE_GNU
+#endif /* #ifndef __USE_GNU */
 #include <pthread.h>
 #include <sched.h>
 #include <sys/param.h>
