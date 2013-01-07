@@ -19,6 +19,7 @@
  * Copyright (c) 2013 Paul E. McKenney, IBM Corporation.
  */
 
+#define _GNU_SOURCE
 #define _LGPL_SOURCE
 #define RCU_SIGNAL
 #include <urcu.h>
@@ -145,5 +146,8 @@ void hashtab_free(struct hashtab *htp)
 {
 	free(htp);
 }
+
+#define hash_register_thread() rcu_register_thread()
+#define hash_unregister_thread() rcu_unregister_thread()
 
 #include "hashtorture.h"
