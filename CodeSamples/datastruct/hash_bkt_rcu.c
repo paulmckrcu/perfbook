@@ -107,6 +107,7 @@ struct ht_elem *hashtab_lookup(struct hashtab *htp, unsigned long hash,
  */
 void hashtab_add(struct hashtab *htp, unsigned long hash, struct ht_elem *htep)
 {
+	htep->hte_hash = hash;
 	cds_list_add_rcu(&htep->hte_next, &HASH2BKT(htp, hash)->htb_head);
 }
 

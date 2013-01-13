@@ -612,6 +612,8 @@ void perftest_add(struct testhe *thep)
 {
 	BUG_ON(thep->in_table);
 	hashtab_lock_mod(perftest_htp, thep->data);
+	BUG_ON(hashtab_lookup(perftest_htp, thep->data,
+			      (void *)thep->data, testcmp));
 	thep->in_table = 1;
 	hashtab_add(perftest_htp, thep->data, &thep->the_e);
 	hashtab_unlock_mod(perftest_htp, thep->data);
@@ -833,13 +835,15 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t\tNumber of spin-loop passes per update,\n");
 	fprintf(stderr, "\t\tdefaults to 1.  If 0, the updater will not.\n");
 	fprintf(stderr, "\t\tdo any updates, except for initialization.\n");
-	fprintf(stderr, "\t\tIf negative, the updater.\n");
+	fprintf(stderr, "\t\tIf negative, the updater waits for the\n");
+	fprintf(stderr, "\t\tcorresponding number of milliseconds\n");
+	fprintf(stderr, "\t\tbetween updates.\n");
 	fprintf(stderr, "\t--elems/writer\n");
 	fprintf(stderr, "\t\tNumber of hash-table elements per writer,\n");
 	fprintf(stderr, "\t\tdefaults to 128.  Must be greater than zero.\n");
 	fprintf(stderr, "\t--cpustride\n");
 	fprintf(stderr, "\t\tStride when spreading threads across CPUs,\n");
-	fprintf(stderr, "\t\tdefaults to 1\n");
+	fprintf(stderr, "\t\tdefaults to 1.\n");
 	exit(-1);
 }
 
@@ -855,7 +859,7 @@ int main(int argc, char *argv[])
 
 	while (i < argc) {
 		if (strcmp(argv[i], "--smoketest") == 0) {
-			if (i <= argc || i != 1)
+			if (i < argc - 1 || i != 1)
 				usage(argv[0],
 				      "Excess arguments for %s\n", argv[i]);
 			smoketest();

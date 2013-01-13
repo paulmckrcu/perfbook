@@ -154,6 +154,7 @@ EPSSOURCES = \
 	count/count_lim.eps \
 	count/sig-theft.eps \
 	cpu/SystemArch.eps \
+	datastruct/hashdiagram.eps \
 	defer/GracePeriodGood.eps \
 	defer/Linux_hlist.eps \
 	defer/Linux_list_abbr.eps \
