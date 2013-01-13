@@ -95,9 +95,12 @@ struct ht_elem *hashtab_lookup(struct hashtab *htp, unsigned long hash,
 	struct ht_elem *htep;
 
 	cds_list_for_each_entry_rcu(htep, &HASH2BKT(htp, hash)->htb_head,
-				    hte_next)
+				    hte_next) {
+		if (htep->hte_hash != hash)
+			continue;
 		if (cmp(htep, key))
 			return htep;
+	}
 	return NULL;
 }
 

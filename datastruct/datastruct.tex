@@ -317,8 +317,51 @@ including the chain list header on line~14 and the lock on line~15.
 Finally, line~17 returns a pointer to the newly allocated hash table.
 The \co{hashtab_free()} function on lines~20-23 is straightforward.
 
+@@@ more here on performance and scalability @@@
+
 \section{Read-Mostly Data Structures}
 \label{sec:datastruct:Read-Mostly Data Structures}
+
+Although partitioned data structures can offer excellent scalability,
+the need for readers to exclude writers can degrade performance in
+read-mostly situations.
+However, we can achieve both performance and scalability by using
+RCU, which was introduced in
+Section~\ref{sec:defer:Read-Copy Update (RCU)}.
+
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+  1 static void hashtab_lock_lookup(struct hashtab *htp,
+  2                                 unsigned long hash)
+  3 {
+  4   rcu_read_lock();
+  5 }
+  6 
+  7 static void hashtab_unlock_lookup(struct hashtab *htp,
+  8                                   unsigned long hash)
+  9 {
+ 10   rcu_read_unlock();
+ 11 }
+\end{verbatim}
+}
+\caption{RCU-Protected Hash-Table Read-Side Concurrency Control}
+\label{fig:datastruct:RCU-Protected Hash-Table Read-Side Concurrency Control}
+\end{figure}
+
+For an RCU-protected hash table with per-bucket locking,
+updaters use locking exactly as described in
+Section~\ref{sec:datastruct:Partitionable Data Structures},
+but readers use RCU.
+The data structures remain as shown in
+Figure~\ref{fig:datastruct:Hash-Table Data Structures},
+and the \co{HASH2BKT()}, \co{hashtab_lock()}, and \co{hashtab_unlock()}
+functions remain as shown in
+Figure~\ref{fig:datastruct:Hash-Table Mapping and Locking}.
+However, readers use the lighter-weight concurrency-control embodied
+by \co{hashtab_lock_lookup()} and \co{hashtab_unlock_lookup()}
+shown in
+Figure~\ref{fig:datastruct:RCU-Protected Hash-Table Read-Side Concurrency Control}.
 
 \section{Concurrency-Tolerant Data Structures}
 \label{sec:datastruct:Concurrency-Tolerant Data Structures}
