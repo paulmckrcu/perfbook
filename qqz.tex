@@ -5530,6 +5530,21 @@ srcu_read_unlock(&srcucb, idx);
 	keys always fit into unsigned longs is left as an exercise
 	for the reader.
 
+\QuickQ{}
+	But if elements in a hash table can be deleted concurrently
+	with lookups, doesn't that mean that a lookup could return
+	a reference to a data element that was deleted immediately
+	after it was looked up?
+\QuickA{}
+	Yes it can!
+	This is why \co{hashtab_lookup()} must be invoked within an
+	RCU read-side critical section, and it is why
+	\co{hashtab_add()} and \co{hashtab_del()} must also use
+	RCU-aware list-manipulation primitives.
+	Finally, this is why the caller of \co{hashtab_del()} must
+	wait for a grace period (e.g., by calling \co{synchronize_rcu()})
+	before freeing the deleted element.
+
 \QuickQAC{sec:advsync:Advanced Synchronization}{Advanced Synchronization}
 \QuickQ{}
 	How on earth could the assertion on line~21 of the code in

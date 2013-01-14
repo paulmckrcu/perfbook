@@ -86,20 +86,20 @@ offers excellent scalability.
 \begin{figure}[tb]
 { \scriptsize
 \begin{verbatim}
-  1 struct ht_elem {
-  2   struct cds_list_head hte_next;
-  3   unsigned long hte_hash;
-  4 };
-  5 
-  6 struct ht_bucket {
-  7   struct cds_list_head htb_head;
-  8   spinlock_t htb_lock;
-  9 };
- 10 
- 11 struct hashtab {
- 12   unsigned long ht_nbuckets;
- 13   struct ht_bucket ht_bkt[0];
- 14 };
+ 1 struct ht_elem {
+ 2   struct cds_list_head hte_next;
+ 3   unsigned long hte_hash;
+ 4 };
+ 5 
+ 6 struct ht_bucket {
+ 7   struct cds_list_head htb_head;
+ 8   spinlock_t htb_lock;
+ 9 };
+10 
+11 struct hashtab {
+12   unsigned long ht_nbuckets;
+13   struct ht_bucket ht_bkt[0];
+14 };
 \end{verbatim}
 }
 \caption{Hash-Table Data Structures}
@@ -144,20 +144,20 @@ has bucket~0 with two elements and bucket~2 with one.
 \begin{figure}[tb]
 { \scriptsize
 \begin{verbatim}
-  1 #define HASH2BKT(htp, h) \
-  2   (&(htp)->ht_bkt[h % (htp)->ht_nbuckets])
-  3 
-  4 static void hashtab_lock(struct hashtab *htp,
-  5                          unsigned long hash)
-  6 {
-  7   spin_lock(&HASH2BKT(htp, hash)->htb_lock);
-  8 }
-  9 
- 10 static void hashtab_unlock(struct hashtab *htp,
- 11                            unsigned long hash)
- 12 {
- 13   spin_unlock(&HASH2BKT(htp, hash)->htb_lock);
- 14 }
+ 1 #define HASH2BKT(htp, h) \
+ 2   (&(htp)->ht_bkt[h % (htp)->ht_nbuckets])
+ 3 
+ 4 static void hashtab_lock(struct hashtab *htp,
+ 5                          unsigned long hash)
+ 6 {
+ 7   spin_lock(&HASH2BKT(htp, hash)->htb_lock);
+ 8 }
+ 9 
+10 static void hashtab_unlock(struct hashtab *htp,
+11                            unsigned long hash)
+12 {
+13   spin_unlock(&HASH2BKT(htp, hash)->htb_lock);
+14 }
 \end{verbatim}
 }
 \caption{Hash-Table Mapping and Locking}
@@ -176,27 +176,27 @@ corresponding to the specified hash value.
 \begin{figure}[tb]
 { \scriptsize
 \begin{verbatim}
-  1 struct ht_elem *
-  2 hashtab_lookup(struct hashtab *htp,
-  3                unsigned long hash,
-  4                void *key,
-  5                int (*cmp)(struct ht_elem *htep,
-  6                           void *key))
-  7 {
-  8   struct ht_bucket *htb;
-  9   struct ht_elem *htep;
- 10 
- 11   htb = HASH2BKT(htp, hash);
- 12   cds_list_for_each_entry(htep,
- 13                           &htb->htb_head,
- 14                           hte_next) {
- 15     if (htep->hte_hash != hash)
- 16       continue;
- 17     if (cmp(htep, key))
- 18       return htep;
- 19   }
- 20   return NULL;
- 21 }
+ 1 struct ht_elem *
+ 2 hashtab_lookup(struct hashtab *htp,
+ 3                unsigned long hash,
+ 4                void *key,
+ 5                int (*cmp)(struct ht_elem *htep,
+ 6                           void *key))
+ 7 {
+ 8   struct ht_bucket *htb;
+ 9   struct ht_elem *htep;
+10 
+11   htb = HASH2BKT(htp, hash);
+12   cds_list_for_each_entry(htep,
+13                           &htb->htb_head,
+14                           hte_next) {
+15     if (htep->hte_hash != hash)
+16       continue;
+17     if (cmp(htep, key))
+18       return htep;
+19   }
+20   return NULL;
+21 }
 \end{verbatim}
 }
 \caption{Hash-Table Lookup}
@@ -238,20 +238,20 @@ If no element matches, line~20 returns \co{NULL}.
 \begin{figure}[tb]
 { \scriptsize
 \begin{verbatim}
-  1 void
-  2 hashtab_add(struct hashtab *htp,
-  3             unsigned long hash,
-  4             struct ht_elem *htep)
-  5 {
-  6   htep->hte_hash = hash;
-  7   cds_list_add(&htep->hte_next,
-  8                &HASH2BKT(htp, hash)->htb_head);
-  9 }
- 10 
- 11 void hashtab_del(struct ht_elem *htep)
- 12 {
- 13   cds_list_del_init(&htep->hte_next);
- 14 }
+ 1 void
+ 2 hashtab_add(struct hashtab *htp,
+ 3             unsigned long hash,
+ 4             struct ht_elem *htep)
+ 5 {
+ 6   htep->hte_hash = hash;
+ 7   cds_list_add(&htep->hte_next,
+ 8                &HASH2BKT(htp, hash)->htb_head);
+ 9 }
+10 
+11 void hashtab_del(struct ht_elem *htep)
+12 {
+13   cds_list_del_init(&htep->hte_next);
+14 }
 \end{verbatim}
 }
 \caption{Hash-Table Modification}
@@ -276,29 +276,29 @@ or modifying this same bucket, for example, by invoking
 \begin{figure}[tb]
 { \scriptsize
 \begin{verbatim}
-  1 struct hashtab *
-  2 hashtab_alloc(unsigned long nbuckets)
-  3 {
-  4   struct hashtab *htp;
-  5   int i;
-  6 
-  7   htp = malloc(sizeof(*htp) +
-  8                nbuckets *
-  9                sizeof(struct ht_bucket));
- 10   if (htp == NULL)
- 11     return NULL;
- 12   htp->ht_nbuckets = nbuckets;
- 13   for (i = 0; i < nbuckets; i++) {
- 14     CDS_INIT_LIST_HEAD(&htp->ht_bkt[i].htb_head);
- 15     spin_lock_init(&htp->ht_bkt[i].htb_lock);
- 16   }
- 17   return htp;
- 18 }
- 19 
- 20 void hashtab_free(struct hashtab *htp)
- 21 {
- 22   free(htp);
- 23 }
+ 1 struct hashtab *
+ 2 hashtab_alloc(unsigned long nbuckets)
+ 3 {
+ 4   struct hashtab *htp;
+ 5   int i;
+ 6 
+ 7   htp = malloc(sizeof(*htp) +
+ 8                nbuckets *
+ 9                sizeof(struct ht_bucket));
+10   if (htp == NULL)
+11     return NULL;
+12   htp->ht_nbuckets = nbuckets;
+13   for (i = 0; i < nbuckets; i++) {
+14     CDS_INIT_LIST_HEAD(&htp->ht_bkt[i].htb_head);
+15     spin_lock_init(&htp->ht_bkt[i].htb_lock);
+16   }
+17   return htp;
+18 }
+19 
+20 void hashtab_free(struct hashtab *htp)
+21 {
+22   free(htp);
+23 }
 \end{verbatim}
 }
 \caption{Hash-Table Allocation and Free}
@@ -332,17 +332,17 @@ Section~\ref{sec:defer:Read-Copy Update (RCU)}.
 \begin{figure}[tb]
 { \scriptsize
 \begin{verbatim}
-  1 static void hashtab_lock_lookup(struct hashtab *htp,
-  2                                 unsigned long hash)
-  3 {
-  4   rcu_read_lock();
-  5 }
-  6 
-  7 static void hashtab_unlock_lookup(struct hashtab *htp,
-  8                                   unsigned long hash)
-  9 {
- 10   rcu_read_unlock();
- 11 }
+ 1 static void hashtab_lock_lookup(struct hashtab *htp,
+ 2                                 unsigned long hash)
+ 3 {
+ 4   rcu_read_lock();
+ 5 }
+ 6 
+ 7 static void hashtab_unlock_lookup(struct hashtab *htp,
+ 8                                   unsigned long hash)
+ 9 {
+10   rcu_read_unlock();
+11 }
 \end{verbatim}
 }
 \caption{RCU-Protected Hash-Table Read-Side Concurrency Control}
@@ -363,6 +363,116 @@ by \co{hashtab_lock_lookup()} and \co{hashtab_unlock_lookup()}
 shown in
 Figure~\ref{fig:datastruct:RCU-Protected Hash-Table Read-Side Concurrency Control}.
 
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+ 1 struct ht_elem
+ 2 *hashtab_lookup(struct hashtab *htp,
+ 3                 unsigned long hash,
+ 4                 void *key,
+ 5                 int (*cmp)(struct ht_elem *htep,
+ 6                            void *key))
+ 7 {
+ 8   struct ht_bucket *htb;
+ 9   struct ht_elem *htep;
+10 
+11   htb = HASH2BKT(htp, hash);
+12   cds_list_for_each_entry_rcu(htep,
+13                               &htb->htb_head,
+14                               hte_next) {
+15     if (htep->hte_hash != hash)
+16       continue;
+17     if (cmp(htep, key))
+18       return htep;
+19   }
+20   return NULL;
+21 }
+\end{verbatim}
+}
+\caption{RCU-Protected Hash-Table Lookup}
+\label{fig:datastruct:RCU-Protected Hash-Table Lookup}
+\end{figure}
+
+Figure~\ref{fig:datastruct:RCU-Protected Hash-Table Lookup}
+shows \co{hashtab_lookup()} for the RCU-protected per-bucket-locked
+hash table.
+This is identical to that in
+Figure~\ref{fig:datastruct:Hash-Table Lookup}
+except that \co{cds_list_for_each_entry()} is replaced
+by \co{cds_list_for_each_entry_rcu()}.
+Both of these primitives sequence down the hash chain referenced
+by \co{htb->htb_head} but \co{cds_list_for_each_entry_rcu()} also
+correctly enforces memory ordering in case of concurrent insertion.
+This is an important difference between these two hash-table implementations:
+Unlike the pure per-bucket-locked implementation, the RCU protected
+implementation allows lookups to run concurrently with insertions
+and deletions, and RCU-aware primitives like
+\co{cds_list_for_each_entry_rcu()} are required to correctly handle
+this added concurrency.
+Note also that \co{hashtab_lookup()}'s caller must be within an
+RCU read-side critical section, for example, the caller must invoke
+\co{hashtab_lock_lookup()} before invoking \co{hashtab_lookup()}
+(and of course invoke \co{hashtab_unlock_lookup()} some time afterwards).
+
+\QuickQuiz{}
+	But if elements in a hash table can be deleted concurrently
+	with lookups, doesn't that mean that a lookup could return
+	a reference to a data element that was deleted immediately
+	after it was looked up?
+\QuickQuizAnswer{
+	Yes it can!
+	This is why \co{hashtab_lookup()} must be invoked within an
+	RCU read-side critical section, and it is why
+	\co{hashtab_add()} and \co{hashtab_del()} must also use
+	RCU-aware list-manipulation primitives.
+	Finally, this is why the caller of \co{hashtab_del()} must
+	wait for a grace period (e.g., by calling \co{synchronize_rcu()})
+	before freeing the deleted element.
+} \QuickQuizEnd
+
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+ 1 void
+ 2 hashtab_add(struct hashtab *htp,
+ 3             unsigned long hash,
+ 4             struct ht_elem *htep)
+ 5 {
+ 6   htep->hte_hash = hash;
+ 7   cds_list_add_rcu(&htep->hte_next,
+ 8                    &HASH2BKT(htp, hash)->htb_head);
+ 9 }
+10 
+11 void hashtab_del(struct ht_elem *htep)
+12 {
+13   cds_list_del_rcu(&htep->hte_next);
+14 }
+\end{verbatim}
+}
+\caption{RCU-Protected Hash-Table Modification}
+\label{fig:datastruct:RCU-Protected Hash-Table Modification}
+\end{figure}
+
+Figure~\ref{fig:datastruct:RCU-Protected Hash-Table Modification}
+shows \co{hashtab_add()} and \co{hashtab_del()}, both of which
+are quite similar to their counterparts in the non-RCU hash table
+shown in
+Figure~\ref{fig:datastruct:Hash-Table Modification}.
+The \co{hashtab_add()} function uses \co{cds_list_add_rcu()} instead
+of \co{cds_list_add()} in order to ensure proper ordering when
+an element is added to the hash table at the same time that it is
+being looked up.
+The \co{hashtab_del()} function uses \co{cds_list_del_rcu()} instead
+of \co{cds_list_del_init()} to allow for the case where an element is
+looked up just before it is deleted.
+Unlike \co{cds_list_del_init()}, \co{cds_list_del_rcu()} leaves the
+forward pointer intact, so that \co{hashtab_lookup()} can traverse
+to the newly deleted element's successor.
+
+Of course, after invoking \co{hashtab_del()}, the caller must wait for
+an RCU grace period (e.g., by invoking \co{synchronize_rcu()}) before
+freeing or otherwise reusing the memory for the newly deleted element.
+
 \section{Concurrency-Tolerant Data Structures}
 \label{sec:datastruct:Concurrency-Tolerant Data Structures}
 
@@ -378,6 +488,12 @@ levels of concurrency.
 
 \section{Micro-Optimization}
 \label{sec:datastruct:Micro-Optimization}
+
+\subsection{Specialization}
+\label{sec:datastruct:Specialization}
+
+% @@@ hash table that has unsigned long for key.  Compare performance
+% to the RCU-protected hash tables with general keys.
 
 \subsection{Bits and Bytes}
 \label{sec:datastruct:Bits and Bytes}
