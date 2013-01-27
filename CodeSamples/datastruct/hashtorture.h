@@ -29,6 +29,10 @@
 #include <stdarg.h>
 #include <sched.h>
 
+#ifndef hash_register_test
+#define hash_register_test(htp) do { } while (0)
+#endif /* #ifndef hash_register_test */
+
 /*
  * Test variables.
  */
@@ -38,6 +42,14 @@ struct testhe {
 	unsigned long data;
 	int in_table __attribute__((__aligned__(CACHE_LINE_SIZE)));
 };
+
+void *testgk(struct ht_elem *htep)
+{
+	struct testhe *thep;
+
+	thep = container_of(htep, struct testhe, the_e);
+	return (void *)thep->data;
+}
 
 int testcmp(struct ht_elem *htep, void *key)
 {
@@ -58,6 +70,7 @@ void smoketest(void)
 
 	htp = hashtab_alloc(5);
 	BUG_ON(htp == NULL);
+	hash_register_test(htp);
 
 	/* Should be empty. */
 	for (i = 1; i <= 4; i++) {
@@ -770,6 +783,7 @@ void perftest(void)
 	BUG_ON(maxcpus <= 0);
 	perftest_htp = hashtab_alloc(nbuckets);
 	BUG_ON(perftest_htp == NULL);
+	hash_register_test(perftest_htp);
 	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
 	BUG_ON(pap == NULL);
 	atomic_set(&nthreads_running, 0);

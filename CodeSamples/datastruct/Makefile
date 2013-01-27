@@ -16,7 +16,7 @@
 
 include ../Makefile.arch
 
-PROGS =	hash_bkt hash_bkt_rcu hash_global
+PROGS =	hash_bkt hash_bkt_rcu hash_global hash_resize
 
 all: $(PROGS)
 
@@ -28,6 +28,9 @@ hash_bkt_rcu: hash_bkt_rcu.c ../api.h hashtorture.h
 
 hash_global: hash_global.c ../api.h hashtorture.h
 	cc $(GCC_ARGS) -o hash_global hash_global.c -lpthread
+
+hash_resize: hash_resize.c ../api.h hashtorture.h
+	cc $(GCC_ARGS) -o hash_resize hash_resize.c -lpthread -lurcu -lurcu-signal
 
 clean:
 	rm -f $(PROGS)
