@@ -299,5 +299,6 @@ struct hashtab *test_htp;
 #define hashtab_lookup(htp, h, k, cmp) hashtab_lookup((htp), (k))
 #define hashtab_add(htp, h, htep) hashtab_add((htp), (htep))
 #define hashtab_del(htep) hashtab_del(test_htp, (htep))
+#define hash_resize_test(htp, n) hashtab_resize((htp), (n), (void *)1, NULL, NULL, NULL)
 
 #include "hashtorture.h"
