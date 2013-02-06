@@ -33,6 +33,10 @@
 #define hash_register_test(htp) do { } while (0)
 #endif /* #ifndef hash_register_test */
 
+#ifndef hash_resize_test
+#define hash_resize_test(htp, n) do { } while (0)
+#endif /* #ifndef hash_register_test */
+
 /*
  * Test variables.
  */
