@@ -127,6 +127,7 @@ EPSSOURCES = \
 	appendix/whymb/cacheSC.eps \
 	appendix/whymb/cacheSCwrite.eps \
 	appendix/whymb/hostileordering.eps \
+	cartoons/2013_Start-over.eps \
 	cartoons/CPU_toon_outoforder_colored.eps \
 	cartoons/CrashDummiesSmall.eps \
 	cartoons/LD,ACQ.eps \
