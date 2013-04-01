@@ -26,7 +26,7 @@ for count in count_atomic count_end count_end_rcu count_lim count_lim_app count_
 do
 	for ncpu in 1 2 3 4 5 6 7 8 10 12 14 16 20 24 28 32 40 48 56 64
 	do
-		for ((i = 1; i < $nsamples; i++))
+		for ((i = 0; i < $nsamples; i++))
 		do
 			echo $count $ncpu rperf 2
 			./$count $ncpu rperf 2
@@ -35,7 +35,7 @@ do
 	done
 	for ncpu in 1 2 3 4 5 6 7 8 10 12 14 16 20 24 28 32 40 48 56 64
 	do
-		for ((i = 1; i < $nsamples; i++))
+		for ((i = 0; i < $nsamples; i++))
 		do
 			echo $count $ncpu uperf 2
 			./$count $ncpu uperf 2
