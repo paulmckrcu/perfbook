@@ -5,7 +5,7 @@
 # Usage: bash reduce.sh [ tag ] < perf.sh.out
 #
 #	If present, the "tag" will be included in the output filenames,
-#	for example, count_nonatomic.r.<tag>.dat.  The output files are
+#	for example, count_nonatomic:r.<tag>.dat.  The output files are
 #	formatted for use as gnuplot data files.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -28,6 +28,9 @@
 
 tag="$1"
 
+# Gather data from each program into a separate .raw file.
+# Each line has the number of CPUs followed by read data points followed
+# by write data points.
 grep -v '^!!!' | grep -v "^n_reads:" |
 awk '
 BEGIN	{
@@ -75,3 +78,52 @@ END	{
 		}
 	}
 }'
+
+# Extract the read-side data into a .dat file formatted for gnuplot
+# (average then minimum then maximum).
+for i in `ls *.raw | grep '^[a-zA-Z0-9_]*:r'`
+do
+	bn=`echo $i | sed -e 's/\.raw//'`
+	awk < $i > $bn.dat '
+		{
+			cpus = $1;
+			min = $2;
+			max = $2;
+			sum = 0;
+			n = 0;
+			for (i = 2; i <= (NF - 1) / 2 + 1; i++) {
+				sum += $i;
+				n++;
+				if ($i < min)
+					min = $i;
+				if ($i > max)
+					max = $i;
+			}
+			print cpus, sum / n, min, max;
+		}'
+done
+
+# Extract the write-side data into a .dat file formatted for gnuplot
+# (again, average then minimum then maximum).
+for i in `ls *.raw | grep '^[a-zA-Z0-9_]*:u'`
+do
+	bn=`echo $i | sed -e 's/\.raw//'`
+	awk < $i > $bn.dat '
+		{
+			cpus = $1;
+			first = (NF - 1) / 2 + 2;
+			min = $first;
+			max = $first;
+			sum = 0;
+			n = 0;
+			for (i = first; i <= NF; i++) {
+				sum += $i;
+				n++;
+				if ($i < min)
+					min = $i;
+				if ($i > max)
+					max = $i;
+			}
+			print cpus, sum / n, min, max;
+		}'
+done
