@@ -33,7 +33,7 @@
 #include "../api.h"
 
 /* Parameters to the algorithm:
- *  K: Number of hazard pointers per CPU.
+ *  K: Number of hazard pointers per thread.
  *  H: Number of hazard pointers required.
  *  R: Chosen such that R = H + Omega(H).
  */
