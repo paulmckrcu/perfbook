@@ -79,5 +79,7 @@ static inline void hp_clear(hazard_pointer *hp)
 }
 
 #define hazptr_clean_pointer(p) ((typeof(p))((unsigned long)(p) & ~0x1UL))
+
+#define HAZPTR_POISON 0x8
  
 #endif /* #ifndef __HAZPTR_H */
