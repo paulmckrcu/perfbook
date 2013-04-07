@@ -19,6 +19,7 @@ include ../Makefile.arch
 PROGS =	bug_rcu_dp \
 	gettimestamp \
 	gettimestampmp \
+	hazptr \
 	rcu \
 	rcu64 \
 	rcu64_atomicgp \
@@ -50,6 +51,9 @@ gettimestamp: gettimestamp.c ../api.h rcutorture.h
 
 gettimestampmp: gettimestampmp.c ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o gettimestampmp -DTEST gettimestampmp.c -lpthread
+
+hazptr: hazptr.c hazptr.h ../api.h hazptrtorture.h
+	cc $(GCC_ARGS) -o hazptr -DTEST hazptr.c -lpthread
 
 rcu: rcu.c rcu.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu -DTEST rcu.c -lpthread
