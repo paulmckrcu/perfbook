@@ -77,5 +77,7 @@ static inline void hp_clear(hazard_pointer *hp)
 	smp_mb();
 	ACCESS_ONCE(hp->p) = NULL;
 }
+
+#define hazptr_clean_pointer(p) ((typeof(p))((unsigned long)(p) & ~0x1UL))
  
 #endif /* #ifndef __HAZPTR_H */
