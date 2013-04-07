@@ -579,7 +579,7 @@ static __inline__ int atomic_add_unless(atomic_t *v, int a, int u)
  * Generate 64-bit timestamp.
  */
 
-static unsigned long long get_timestamp(void)
+static __inline__ unsigned long long get_timestamp(void)
 {
 	unsigned int __a,__d;
 

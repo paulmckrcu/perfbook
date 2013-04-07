@@ -4,10 +4,12 @@ all:
 	(cd count; make)
 	(cd defer; make)
 	(cd intro; make)
-	(cd tooloftrade; make)
+	(cd toolsoftrade; make)
 
 pthreads:
-	echo "/* MECHANICALLY GENERATED, DO NOT EDIT!!! */" > api.h
+	echo "#ifndef __PERFBOOK_API_H__" > api.h
+	echo "#define __PERFBOOK_API_H__" >> api.h
+	echo "/* MECHANICALLY GENERATED, DO NOT EDIT!!! */" >> api.h
 	echo "" >> api.h
 	cat linux/common.h >> api.h
 	echo "" >> api.h
@@ -28,10 +30,13 @@ pthreads:
 	else \
 		cat linux/list.h >> api.h; \
 	fi
+	echo "#endif /* #ifndef __PERFBOOK_API_H__ */" >> api.h
 	echo "# MECHANICALLY GENERATED, DO NOT EDIT!!!" > Makefile.arch
 
 pthreads-x86:
-	echo "/* MECHANICALLY GENERATED, DO NOT EDIT!!! */" > api.h
+	echo "#ifndef __PERFBOOK_API_H__" > api.h
+	echo "#define __PERFBOOK_API_H__" >> api.h
+	echo "/* MECHANICALLY GENERATED, DO NOT EDIT!!! */" >> api.h
 	echo "" >> api.h
 	cat linux/common.h >> api.h
 	echo "" >> api.h
@@ -54,12 +59,15 @@ pthreads-x86:
 	else \
 		cat linux/list.h >> api.h; \
 	fi
+	echo "#endif /* #ifndef __PERFBOOK_API_H__ */" >> api.h
 	echo "# MECHANICALLY GENERATED, DO NOT EDIT!!!" > Makefile.arch
 	echo "" >> Makefile.arch
 	cat arch-x86/Makefile.arch >> Makefile.arch
 
 pthreads-ppc64:
-	echo "/* MECHANICALLY GENERATED, DO NOT EDIT!!! */" > api.h
+	echo "#ifndef __PERFBOOK_API_H__" >> api.h
+	echo "#define __PERFBOOK_API_H__" >> api.h
+	echo "/* MECHANICALLY GENERATED, DO NOT EDIT!!! */" >> api.h
 	echo "" >> api.h
 	cat linux/common.h >> api.h
 	echo "" >> api.h
@@ -82,11 +90,14 @@ pthreads-ppc64:
 	else \
 		cat linux/list.h >> api.h; \
 	fi
+	echo "#endif /* #ifndef __PERFBOOK_API_H__ */" >> api.h
 	echo "# MECHANICALLY GENERATED, DO NOT EDIT!!!" > Makefile.arch
 	cat arch-ppc64/Makefile.arch >> Makefile.arch
 
 pthreads-arm:
-	echo "/* MECHANICALLY GENERATED, DO NOT EDIT!!! */" > api.h
+	echo "#ifndef __PERFBOOK_API_H__" > api.h
+	echo "#define __PERFBOOK_API_H__" >> api.h
+	echo "/* MECHANICALLY GENERATED, DO NOT EDIT!!! */" >> api.h
 	echo "" >> api.h
 	cat linux/common.h >> api.h
 	echo "" >> api.h
@@ -109,5 +120,6 @@ pthreads-arm:
 	else \
 		cat linux/list.h >> api.h; \
 	fi
+	echo "#endif /* #ifndef __PERFBOOK_API_H__ */" >> api.h
 	echo "# MECHANICALLY GENERATED, DO NOT EDIT!!!" > Makefile.arch
 	cat arch-arm/Makefile.arch >> Makefile.arch

@@ -211,7 +211,7 @@ struct __xchg_dummy {
 };
 #define __xg(x) ((struct __xchg_dummy *)(x))
 
-static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
+static __inline__ unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 				      unsigned long new, int size)
 {
 	unsigned long prev;
@@ -243,12 +243,12 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 			(unsigned long)(o), (unsigned long)(n),		\
 			sizeof(*(ptr))))				\
 
-static inline int atomic_cmpxchg(atomic_t *v, int old, int new)
+static __inline__ int atomic_cmpxchg(atomic_t *v, int old, int new)
 {
 	return cmpxchg(&v->counter, old, new);
 }
 
-static inline unsigned long __xchg(unsigned long x, volatile void *ptr,
+static __inline__ unsigned long __xchg(unsigned long x, volatile void *ptr,
 				   int size)
 {
 	switch (size) {
@@ -329,7 +329,7 @@ __asm__ __volatile__("mfence" : : : "memory")
  * Generate 64-bit timestamp.
  */
 
-static unsigned long long get_timestamp(void)
+static __inline__ long long get_timestamp(void)
 {
 	unsigned int __a,__d;
 

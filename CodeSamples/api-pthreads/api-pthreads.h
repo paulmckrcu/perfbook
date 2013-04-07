@@ -64,7 +64,7 @@ typedef pthread_mutex_t spinlock_t;
 #define DEFINE_SPINLOCK(lock) spinlock_t lock = PTHREAD_MUTEX_INITIALIZER;
 #define __SPIN_LOCK_UNLOCKED(lockp) PTHREAD_MUTEX_INITIALIZER
 
-static void spin_lock_init(spinlock_t *sp)
+static __inline__ void spin_lock_init(spinlock_t *sp)
 {
 retry:
 	if (pthread_mutex_init(sp, NULL) != 0) {
@@ -75,7 +75,7 @@ retry:
 	}
 }
 
-static void spin_lock(spinlock_t *sp)
+static __inline__ void spin_lock(spinlock_t *sp)
 {
 	if (pthread_mutex_lock(sp) != 0) {
 		perror("spin_lock:pthread_mutex_lock");
@@ -83,7 +83,7 @@ static void spin_lock(spinlock_t *sp)
 	}
 }
 
-static int spin_trylock(spinlock_t *sp)
+static __inline__ int spin_trylock(spinlock_t *sp)
 {
 	int retval;
 
@@ -95,7 +95,7 @@ static int spin_trylock(spinlock_t *sp)
 	exit(-1);
 }
 
-static void spin_unlock(spinlock_t *sp)
+static __inline__ void spin_unlock(spinlock_t *sp)
 {
 	if (pthread_mutex_unlock(sp) != 0) {
 		perror("spin_unlock:pthread_mutex_unlock");
@@ -143,7 +143,7 @@ spinlock_t __thread_id_map_mutex;
 
 pthread_key_t thread_id_key;
 
-int num_online_threads(void)
+static __inline__ int num_online_threads(void)
 {
 	int t;
 	int nonline = 0;
@@ -153,7 +153,7 @@ int num_online_threads(void)
 	return nonline;
 }
 
-static int __smp_thread_id(void)
+static __inline__ int __smp_thread_id(void)
 {
 	int i;
 	thread_id_t tid = pthread_self();
@@ -182,7 +182,7 @@ static int __smp_thread_id(void)
 	exit(-1);
 }
 
-static int smp_thread_id(void)
+static __inline__ int smp_thread_id(void)
 {
 	void *id;
 
@@ -192,7 +192,7 @@ static int smp_thread_id(void)
 	return (long)(id - 1);
 }
 
-static thread_id_t create_thread(void *(*func)(void *), void *arg)
+static __inline__ thread_id_t create_thread(void *(*func)(void *), void *arg)
 {
 	thread_id_t tid;
 	int i;
@@ -217,7 +217,7 @@ static thread_id_t create_thread(void *(*func)(void *), void *arg)
 	return tid;
 }
 
-static void *wait_thread(thread_id_t tid)
+static __inline__ void *wait_thread(thread_id_t tid)
 {
 	int i;
 	void *vp;
@@ -239,7 +239,7 @@ static void *wait_thread(thread_id_t tid)
 	return vp;
 }
 
-static void wait_all_threads(void)
+static __inline__ void wait_all_threads(void)
 {
 	int i;
 	thread_id_t tid;
@@ -255,7 +255,7 @@ static void wait_all_threads(void)
 /*
  * Wait on all child processes.
  */
-void waitall(void)
+static __inline__ void waitall(void)
 {
 	int pid;
 	int status;
@@ -272,7 +272,7 @@ void waitall(void)
 	}
 }
 
-static void run_on(int cpu)
+static __inline__ void run_on(int cpu)
 {
 	cpu_set_t mask;
 
@@ -285,7 +285,7 @@ static void run_on(int cpu)
  * timekeeping -- very crude -- should use MONOTONIC...
  */
 
-long long get_microseconds(void)
+static __inline__ long long get_microseconds(void)
 {
 	struct timeval tv;
 
@@ -341,12 +341,12 @@ long long get_microseconds(void)
 
 DEFINE_PER_THREAD(int, smp_processor_id);
 
-static int smp_processor_id(void)
+static __inline__ int smp_processor_id(void)
 {
 	return __get_thread_var(smp_processor_id);
 }
 
-static void set_smp_processor_id(int cpu)
+static __inline__ void set_smp_processor_id(int cpu)
 {
 	__get_thread_var(smp_processor_id) = cpu;
 }
@@ -436,7 +436,7 @@ struct notifier_block {
  * Initialization -- Must be called before calling any primitives.
  */
 
-static void smp_init(void)
+static __inline__ void smp_init(void)
 {
 	int i;
 
