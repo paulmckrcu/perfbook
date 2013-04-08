@@ -91,7 +91,7 @@ void smoketest(void)
 	struct testhe e3 = { .data = 3 };
 	struct testhe e4 = { .data = 4 };
 	struct hashtab *htp;
-	int i;
+	long i;
 
 	htp = hashtab_alloc(5);
 	BUG_ON(htp == NULL);
@@ -599,11 +599,11 @@ unsigned long primes[] ={
 };
 
 /* Parameters for performance test. */
-int nbuckets = 64;
+int nbuckets = 1024;
 int nreaders = 1;
 int nupdaters = 1;
 int updatewait = 1;
-long elperupdater = 128;
+long elperupdater = 2048;
 int cpustride = 1;
 long duration = 10; /* in milliseconds. */
 
@@ -862,7 +862,7 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "Usage: %s --smoketest\n", progname);
 	fprintf(stderr, "Usage: %s --perftest\n", progname);
 	fprintf(stderr, "\t--nbuckets\n");
-	fprintf(stderr, "\t\tNumber of buckets, defaults to 64.\n");
+	fprintf(stderr, "\t\tNumber of buckets, defaults to 1024.\n");
 	fprintf(stderr, "\t--nreaders\n");
 	fprintf(stderr, "\t\tNumber of readers, defaults to 1.\n");
 	fprintf(stderr, "\t--nupdaters\n");
@@ -877,10 +877,12 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t\tbetween updates.\n");
 	fprintf(stderr, "\t--elems/writer\n");
 	fprintf(stderr, "\t\tNumber of hash-table elements per writer,\n");
-	fprintf(stderr, "\t\tdefaults to 128.  Must be greater than zero.\n");
+	fprintf(stderr, "\t\tdefaults to 2048.  Must be greater than zero.\n");
 	fprintf(stderr, "\t--cpustride\n");
 	fprintf(stderr, "\t\tStride when spreading threads across CPUs,\n");
 	fprintf(stderr, "\t\tdefaults to 1.\n");
+	fprintf(stderr, "\t--duration\n");
+	fprintf(stderr, "\t\tDuration of test, in milliseconds.\n");
 	exit(-1);
 }
 
@@ -904,24 +906,35 @@ int main(int argc, char *argv[])
 			exit(0);
 		} else if (strcmp(argv[i], "--perftest") == 0) {
 			do_perftest = 1;
+		} else if (strcmp(argv[i], "--nbuckets") == 0) {
+			nbuckets = strtol(argv[++i], NULL, 0);
+			if (nbuckets < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--nreaders") == 0) {
 			nreaders = strtol(argv[++i], NULL, 0);
 			if (nreaders < 0)
-				usage(argv[0], "%s must be >= 0\n", argv[i]);
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--nupdaters") == 0) {
 			nupdaters = strtol(argv[++i], NULL, 0);
 			if (nupdaters < 1)
-				usage(argv[0], "%s must be >= 1\n", argv[i]);
+				usage(argv[0],
+				      "%s must be >= 1\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--updatewait") == 0) {
 			updatewait = strtol(argv[++i], NULL, 0);
 		} else if (strcmp(argv[i], "--elems/writer") == 0) {
 			elperupdater = strtol(argv[++i], NULL, 0);
 			if (elperupdater < 0)
-				usage(argv[0], "%s must be >= 0\n", argv[i]);
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--cpustride") == 0) {
 			cpustride = strtol(argv[++i], NULL, 0);
 		} else if (strcmp(argv[i], "--duration") == 0) {
 			duration = strtol(argv[++i], NULL, 0);
+			if (duration < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
 		} else {
 			usage(argv[0], "Unrecognized argument: %s\n",
 			      argv[i]);
