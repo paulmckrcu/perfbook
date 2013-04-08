@@ -278,7 +278,7 @@ hashtab_resize(struct hashtab *htp_master,
 /* Test functions. */
 long tgh(void *hash_private, void *key)
 {
-	return (int)key;
+	return (long)key;
 }
 
 int tc(void *hash_private, struct ht_elem *htep, void *key)
