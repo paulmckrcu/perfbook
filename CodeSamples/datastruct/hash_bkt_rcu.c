@@ -162,8 +162,6 @@ void defer_del_rcu(struct rcu_head *rhp)
 	defer_del_done((struct ht_elem *)rhp);
 }
 
-/* #define defer_del(p)	call_rcu(&(p)->rh, defer_del_rcu) */
-
-#define defer_del(p) ({ synchronize_rcu(); defer_del_done(p); })
+#define defer_del(p)	call_rcu(&(p)->rh, defer_del_rcu)
 
 #include "hashtorture.h"
