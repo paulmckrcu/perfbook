@@ -876,7 +876,7 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t\tor greater, or hash table will be empty.\n");
 	fprintf(stderr, "\t--updatewait\n");
 	fprintf(stderr, "\t\tNumber of spin-loop passes per update,\n");
-	fprintf(stderr, "\t\tdefaults to 1.  If 0, the updater will not.\n");
+	fprintf(stderr, "\t\tdefaults to -1.  If 0, the updater will not.\n");
 	fprintf(stderr, "\t\tdo any updates, except for initialization.\n");
 	fprintf(stderr, "\t\tIf negative, the updater waits for the\n");
 	fprintf(stderr, "\t\tcorresponding number of milliseconds\n");
