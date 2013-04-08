@@ -229,11 +229,9 @@ static __inline__ unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 			     : "memory");
 		return prev;
 	case 4:
-		asm volatile(LOCK_PREFIX "cmpxchgl %1,%2"
-			     : "=a"(prev)
-			     : "r"(new), "m"(*__xg(ptr)), "0"(old)
-			     : "memory");
-		return prev;
+		return __sync_val_compare_and_swap((unsigned int *)ptr,
+						   (unsigned int)old,
+						   (unsigned int)new);
 	}
 	return old;
 }
@@ -265,10 +263,8 @@ static __inline__ unsigned long __xchg(unsigned long x, volatile void *ptr,
 			     : "memory");
 		break;
 	case 4:
-		asm volatile("xchgl %0,%1"
-			     : "=r" (x)
-			     : "m" (*__xg(ptr)), "0" (x)
-			     : "memory");
+		return __sync_lock_test_and_set((unsigned int *)ptr,
+						(unsigned int)x);
 		break;
 	}
 	return x;
