@@ -898,7 +898,7 @@ void usage(char *progname, const char *format, ...)
 int main(int argc, char *argv[])
 {
 	int i = 1;
-	int do_perftest = 0;
+	void (*test_to_do)(void) = NULL;
 
 	smp_init();
 	other_init();
@@ -911,7 +911,10 @@ int main(int argc, char *argv[])
 			smoketest();
 			exit(0);
 		} else if (strcmp(argv[i], "--perftest") == 0) {
-			do_perftest = 1;
+			test_to_do = perftest;
+			if (i != 1)
+				usage(argv[0],
+				      "Must be first argument: %s\n", argv[i]);
 		} else if (strcmp(argv[i], "--nbuckets") == 0) {
 			nbuckets = strtol(argv[++i], NULL, 0);
 			if (nbuckets < 0)
@@ -947,7 +950,7 @@ int main(int argc, char *argv[])
 		}
 		i++;
 	}
-	if (!do_perftest)
+	if (!test_to_do)
 		usage(argv[0], "No test specified\n");
-	perftest();
+	test_to_do();
 }
