@@ -216,7 +216,7 @@ void hazptr_free(void *p)
 	defer_del_done((struct ht_elem *)p);
 }
 
-#define defer_del(p)	({ hazptr_free_later(&(p)->hh); hazptr_scan(); })
+#define defer_del(p)	hazptr_free_later(&(p)->hh);
 #define other_init()	hazptr_init()
 
 #include "hashtorture.h"
