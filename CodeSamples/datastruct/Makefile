@@ -25,6 +25,7 @@ hash_bkt: hash_bkt.c ../api.h hashtorture.h
 
 hash_bkt_rcu: hash_bkt_rcu.c ../api.h hashtorture.h
 	cc $(GCC_ARGS) -o hash_bkt_rcu hash_bkt_rcu.c -lpthread -lurcu -lurcu-signal
+	# cc $(GCC_ARGS) -o hash_bkt_rcu hash_bkt_rcu.c -lpthread -lurcu -lurcu-qsbr
 
 hash_bkt_hazptr: hash_bkt_hazptr.c ../defer/hazptr.c ../defer/hazptr.h ../api.h hashtorture.h
 	cc $(GCC_ARGS) -o hash_bkt_hazptr hash_bkt_hazptr.c ../defer/hazptr.c -lpthread

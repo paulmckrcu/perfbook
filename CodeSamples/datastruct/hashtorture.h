@@ -46,6 +46,10 @@
 #define hash_unregister_thread() do ; while (0)
 #endif /* #ifdef hash_register_thread */
 
+#ifndef quiescent_state
+#define quiescent_state() do ; while (0)
+#endif /* #ifndef quiescent_state */
+
 /*
  * Test variables.
  */
@@ -602,7 +606,7 @@ unsigned long primes[] ={
 int nbuckets = 1024;
 int nreaders = 1;
 int nupdaters = 1;
-int updatewait = 1;
+int updatewait = -1;
 long elperupdater = 2048;
 int cpustride = 1;
 long duration = 10; /* in milliseconds. */
@@ -777,6 +781,8 @@ void *perftest_updater(void *arg)
 		}
 		if (++i >= elperupdater)
 			i = 0;
+		if ((i & 0xf) == 0)
+			quiescent_state();
 	}
 
 	/* Test over, so remove all our elements from the hash table. */

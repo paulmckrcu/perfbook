@@ -21,8 +21,14 @@
 
 #define _GNU_SOURCE
 #define _LGPL_SOURCE
+
+// Uncomment to enable signal-based RCU.  (Need corresponding Makefile change!)
 #define RCU_SIGNAL
 #include <urcu.h>
+
+// Uncomment to enable QSBR.  (Need corresponding Makefile change!)
+//#include <urcu-qsbr.h>
+
 #include "../api.h"
 
 /* Hash-table element to be included in structures in a hash table. */
@@ -163,5 +169,7 @@ void defer_del_rcu(struct rcu_head *rhp)
 }
 
 #define defer_del(p)	call_rcu(&(p)->rh, defer_del_rcu)
+
+#define quiescent_state() rcu_quiescent_state()
 
 #include "hashtorture.h"
