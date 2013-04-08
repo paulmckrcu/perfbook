@@ -161,7 +161,7 @@ void hashtab_free(struct hashtab *htp)
 #define hash_register_thread() rcu_register_thread()
 #define hash_unregister_thread() rcu_unregister_thread()
 
-void defer_del_done(struct ht_elem *htep);
+void (*defer_del_done)(struct ht_elem *htep) = NULL;
 
 void defer_del_rcu(struct rcu_head *rhp)
 {

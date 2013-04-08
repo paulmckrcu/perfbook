@@ -209,7 +209,7 @@ void hash_register_thread(void)
 
 #define hash_unregister_thread() hazptr_thread_exit()
 
-extern void defer_del_done(struct ht_elem *htep);
+void (*defer_del_done)(struct ht_elem *) = NULL;
 
 void hazptr_free(void *p)
 {

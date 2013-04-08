@@ -60,8 +60,7 @@ struct testhe {
 	int in_table __attribute__((__aligned__(CACHE_LINE_SIZE)));
 };
 
-
-void defer_del_done(struct ht_elem *htep)
+void defer_del_done_perftest(struct ht_elem *htep)
 {
 	struct testhe *p = container_of(htep, struct testhe, the_e);
 
@@ -69,6 +68,7 @@ void defer_del_done(struct ht_elem *htep)
 }
 
 #ifndef defer_del
+void (*defer_del_done)(struct ht_elem *htep) = NULL;
 #define defer_del(p) do { defer_del_done(p); } while (0)
 #endif /* #ifndef defer_del */
 
@@ -813,6 +813,7 @@ void perftest(void)
 	perftest_htp = hashtab_alloc(nbuckets);
 	BUG_ON(perftest_htp == NULL);
 	hash_register_test(perftest_htp);
+	defer_del_done = defer_del_done_perftest;
 	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
 	BUG_ON(pap == NULL);
 	atomic_set(&nthreads_running, 0);
