@@ -37,6 +37,15 @@
 #define hash_resize_test(htp, n) do { } while (0)
 #endif /* #ifndef hash_register_test */
 
+#ifndef other_init
+#define other_init() do { } while (0)
+#endif /* #ifndef other_init */
+
+#ifndef hash_register_thread
+#define hash_register_thread() do ; while (0)
+#define hash_unregister_thread() do ; while (0)
+#endif /* #ifdef hash_register_thread */
+
 /*
  * Test variables.
  */
@@ -46,6 +55,18 @@ struct testhe {
 	unsigned long data;
 	int in_table __attribute__((__aligned__(CACHE_LINE_SIZE)));
 };
+
+
+void defer_del_done(struct ht_elem *htep)
+{
+	struct testhe *p = container_of(htep, struct testhe, the_e);
+
+	p->in_table = 0;
+}
+
+#ifndef defer_del
+#define defer_del(p) do { defer_del_done(p); } while (0)
+#endif /* #ifndef defer_del */
 
 void *testgk(struct ht_elem *htep)
 {
@@ -75,6 +96,7 @@ void smoketest(void)
 	htp = hashtab_alloc(5);
 	BUG_ON(htp == NULL);
 	hash_register_test(htp);
+	hash_register_thread();
 
 	/* Should be empty. */
 	for (i = 1; i <= 4; i++) {
@@ -136,6 +158,7 @@ void smoketest(void)
 		hashtab_unlock_lookup(htp, i);
 	}
 	hashtab_free(htp);
+	hash_unregister_thread();
 	printf("End of smoketest.\n");
 }
 
@@ -592,11 +615,6 @@ atomic_t nthreads_running;
 
 int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
 
-#ifndef hash_register_thread
-#define hash_register_thread() do ; while (0)
-#define hash_unregister_thread() do ; while (0)
-#endif /* #ifdef hash_register_thread */
-
 /* Per-test-thread attribute/statistics structure. */
 struct perftest_attr {
 	int myid;
@@ -639,11 +657,12 @@ void perftest_add(struct testhe *thep)
 /* Remove an element from the hash table. */
 void perftest_del(struct testhe *thep)
 {
-	BUG_ON(!thep->in_table);
+	BUG_ON(thep->in_table != 1);
 	hashtab_lock_mod(perftest_htp, thep->data);
 	hashtab_del(&thep->the_e);
-	thep->in_table = 0;
+	thep->in_table = 2;
 	hashtab_unlock_mod(perftest_htp, thep->data);
+	defer_del(&thep->the_e);
 }
 
 /* Performance test reader thread. */
@@ -741,10 +760,10 @@ void *perftest_updater(void *arg)
 		}
 		if (updatewait == 0) {
 			poll(NULL, 0, 10);  /* No actual updating wanted. */
-		} else if (thep[i].in_table) {
+		} else if (thep[i].in_table == 1) {
 			perftest_del(&thep[i]);
 			ndels++;
-		} else {
+		} else if (thep[i].in_table == 0) {
 			perftest_add(&thep[i]);
 			nadds++;
 		}
@@ -762,7 +781,7 @@ void *perftest_updater(void *arg)
 
 	/* Test over, so remove all our elements from the hash table. */
 	for (i = 0; i < elperupdater; i++) {
-		if (!thep[i].in_table)
+		if (thep[i].in_table != 1)
 			continue;
 		perftest_del(&thep[i]);
 	}
@@ -874,6 +893,7 @@ int main(int argc, char *argv[])
 	int do_perftest = 0;
 
 	smp_init();
+	other_init();
 
 	while (i < argc) {
 		if (strcmp(argv[i], "--smoketest") == 0) {
