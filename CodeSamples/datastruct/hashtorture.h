@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <sched.h>
+#include <string.h>
 
 #ifndef hash_register_test
 #define hash_register_test(htp) do { } while (0)
@@ -45,6 +46,11 @@
 #define hash_register_thread() do ; while (0)
 #define hash_unregister_thread() do ; while (0)
 #endif /* #ifdef hash_register_thread */
+
+#ifndef defer_del
+void (*defer_del_done)(struct ht_elem *htep) = NULL;
+#define defer_del(p) do { defer_del_done(p); } while (0)
+#endif /* #ifndef defer_del */
 
 #ifndef quiescent_state
 #define quiescent_state() do ; while (0)
@@ -66,11 +72,6 @@ void defer_del_done_perftest(struct ht_elem *htep)
 
 	p->in_table = 0;
 }
-
-#ifndef defer_del
-void (*defer_del_done)(struct ht_elem *htep) = NULL;
-#define defer_del(p) do { defer_del_done(p); } while (0)
-#endif /* #ifndef defer_del */
 
 void *testgk(struct ht_elem *htep)
 {
@@ -605,6 +606,7 @@ unsigned long primes[] ={
 /* Parameters for performance test. */
 int nbuckets = 1024;
 int nreaders = 1;
+int ncats = 1;
 int nupdaters = 1;
 int updatewait = -1;
 long elperupdater = 2048;
@@ -628,6 +630,7 @@ struct perftest_attr {
 	long long ndels;
 	int mycpu;
 	long nelements;
+	int cat;
 };
 
 struct hashtab *perftest_htp = NULL;
@@ -643,7 +646,7 @@ int perftest_lookup(long i)
 	thep = container_of(htep, struct testhe, the_e);
 	BUG_ON(thep && thep->data != i);
 	hashtab_unlock_lookup(perftest_htp, i);
-	return !!thep;
+	return !!htep;
 }
 
 /* Add an element to the hash table. */
@@ -859,6 +862,305 @@ void perftest(void)
 	        (double)(nadds + ndels)));
 }
 
+
+/* Code for Schroedinger's zoo testing. */
+
+#define ZOO_NAMELEN 32
+struct zoo_he {
+	struct ht_elem zhe_e;
+	char name[ZOO_NAMELEN];
+};
+
+void *zoo_gk(struct ht_elem *htep)
+{
+	struct zoo_he *zhep;
+
+	zhep = container_of(htep, struct zoo_he, zhe_e);
+	return (void *)zhep->name;
+}
+
+int zoo_cmp(struct ht_elem *htep, void *key)
+{
+	struct zoo_he *zhep;
+
+	zhep = container_of(htep, struct zoo_he, zhe_e);
+	return strncmp((char *)key, zhep->name, ZOO_NAMELEN) == 0;
+}
+
+unsigned long zoo_hash(char *key)
+{
+	char *cp = (char *)key;
+	int i;
+	unsigned long sum = 0;
+
+	for (i = 0; cp[i]; i++)
+		sum = sum * 29 + cp[i];
+	return sum;
+}
+
+/* Look up a key in the Schroedinger-zoo hash table. */
+int zoo_lookup(char *key)
+{
+	unsigned long hash = zoo_hash(key);
+	struct ht_elem *htep;
+	struct zoo_he *zhep;
+
+	hashtab_lock_lookup(perftest_htp, hash);
+	htep = hashtab_lookup(perftest_htp, hash, key, zoo_cmp);
+	zhep = container_of(htep, struct zoo_he, zhe_e);
+	BUG_ON(htep &&
+	       (htep->hte_hash != hash ||
+	        strncmp(zhep->name, (char *)key, ZOO_NAMELEN) != 0));
+	hashtab_unlock_lookup(perftest_htp, hash);
+	return !!htep;
+}
+
+/* Add an element to the hash table. */
+void zoo_add(struct zoo_he *zhep)
+{
+	unsigned long hash = zoo_hash(zhep->name);
+
+	hashtab_lock_mod(perftest_htp, hash);
+	BUG_ON(hashtab_lookup(perftest_htp, hash,
+			      (void *)zhep->name, zoo_cmp));
+	hashtab_add(perftest_htp, hash, &zhep->zhe_e);
+	hashtab_unlock_mod(perftest_htp, hash);
+}
+
+/* Remove an element from the hash table. */
+void zoo_del(struct zoo_he *zhep)
+{
+	unsigned long hash = zoo_hash(zhep->name);
+
+	hashtab_lock_mod(perftest_htp, hash);
+	hashtab_del(&zhep->zhe_e);
+	hashtab_unlock_mod(perftest_htp, hash);
+	defer_del(&zhep->zhe_e);
+}
+
+char *zoo_names;
+
+/* Schroedinger test reader thread. */
+void *zoo_reader(void *arg)
+{
+	char *cp;
+	int gf;
+	long i;
+	struct perftest_attr *pap = arg;
+	long mydelta = primes[pap->myid]; /* Force different reader paths. */
+	long ne = pap->nelements;
+	int offset = (ne / mydelta) * mydelta == ne;
+	long long nlookups = 0;
+	long long nlookupfails = 0;
+
+	run_on(pap->mycpu);
+	hash_register_thread();
+
+	/* Warm up cache. */
+	for (i = 0; i < ne; i++)
+		zoo_lookup(&zoo_names[ZOO_NAMELEN * i]);
+
+	/* Record our presence. */
+	atomic_inc(&nthreads_running);
+
+	/* Run the test code. */
+	i = 0;
+	for (;;) {
+		gf = ACCESS_ONCE(goflag);
+		if (gf != GOFLAG_RUN) {
+			if (gf == GOFLAG_STOP)
+				break;
+			if (gf == GOFLAG_INIT) {
+				/* Still initializing, kill statistics. */
+				nlookups = 0;
+				nlookupfails = 0;
+			}
+		}
+		if (pap->cat)
+			cp = "cat";
+		else
+			cp = &zoo_names[ZOO_NAMELEN * i];
+		if (!zoo_lookup(cp))
+			nlookupfails++;
+		nlookups++;
+		i += mydelta;
+		if (i >= ne)
+			i = i % ne + offset;
+	}
+	pap->nlookups = nlookups;
+	pap->nlookupfails = nlookupfails;
+	hash_unregister_thread();
+	return NULL;
+}
+
+/* Performance test updater thread. */
+void *zoo_updater(void *arg)
+{
+	long i;
+	long j;
+	int gf;
+	struct perftest_attr *pap = arg;
+	int myid = pap->myid;
+	int mylowkey = myid * elperupdater;
+	struct zoo_he *zhep;
+	struct zoo_he **zheplist;
+	long long nadds = 0;
+	long long ndels = 0;
+
+	zheplist = malloc(sizeof(struct zoo_he *) * elperupdater);
+	BUG_ON(!zheplist);
+	for (i = 0; i < elperupdater; i++)
+		zheplist[i] = NULL;
+	run_on(pap->mycpu);
+	hash_register_thread();
+
+	/* Start with some random half of the elements in the hash table. */
+	for (i = 0; i < elperupdater / 2; i++) {
+		j = random() % elperupdater;
+		while (zheplist[j])
+			if (++j >= elperupdater)
+				j = 0;
+		zhep = malloc(sizeof(*zhep));
+		BUG_ON(!zhep);
+		strcpy(zhep->name, &zoo_names[ZOO_NAMELEN * (j + mylowkey)]);
+		zoo_add(zhep);
+		zheplist[j] = zhep;
+	}
+
+	/* Announce our presence and enter the test loop. */
+	atomic_inc(&nthreads_running);
+	i = 0;
+	for (;;) {
+		gf = ACCESS_ONCE(goflag);
+		if (gf != GOFLAG_RUN) {
+			if (gf == GOFLAG_STOP)
+				break;
+			if (gf == GOFLAG_INIT) {
+				/* Still initializing, kill statistics. */
+				nadds = 0;
+				ndels = 0;
+			}
+		}
+		if (updatewait == 0) {
+			poll(NULL, 0, 10);  /* No actual updating wanted. */
+		} else if (zheplist[i]) {
+			zoo_del(zheplist[i]);
+			zheplist[i] = NULL;
+			ndels++;
+		} else {
+			zhep = malloc(sizeof(*zhep));
+			BUG_ON(!zhep);
+			strcpy(zhep->name,
+			       &zoo_names[ZOO_NAMELEN * (i + mylowkey)]);
+			zoo_add(zhep);
+			zheplist[i] = zhep;
+			nadds++;
+		}
+
+		/* Add requested delay. */
+		if (updatewait < 0) {
+			poll(NULL, 0, -updatewait);
+		} else {
+			for (j = 0; j < updatewait; j++)
+				barrier();
+		}
+		if (++i >= elperupdater)
+			i = 0;
+		if ((i & 0xf) == 0)
+			quiescent_state();
+	}
+
+	/* Test over, so remove all our elements from the hash table. */
+	for (i = 0; i < elperupdater; i++) {
+		if (!zheplist[i])
+			continue;
+		zoo_del(zheplist[i]);
+	}
+	hash_unregister_thread();
+	pap->nadds = nadds;
+	pap->ndels = ndels;
+}
+
+void defer_del_free(struct ht_elem *htep)
+{
+	struct zoo_he *zhep = container_of(htep, struct zoo_he, zhe_e);
+
+	free(zhep);
+}
+
+/* Run a performance test. */
+void zoo_test(void)
+{
+	struct perftest_attr *pap;
+	int maxcpus = sysconf(_SC_NPROCESSORS_CONF);
+	long i;
+	long long nlookups = 0;
+	long long ncatlookups = 0;
+	long long nlookupfails = 0;
+	long long nadds = 0;
+	long long ndels = 0;
+	long long starttime;
+
+	BUG_ON(maxcpus <= 0);
+	perftest_htp = hashtab_alloc(nbuckets);
+	BUG_ON(perftest_htp == NULL);
+	hash_register_test(perftest_htp);
+	defer_del_done = defer_del_free;
+	zoo_names = malloc(ZOO_NAMELEN * nupdaters * elperupdater);
+	BUG_ON(zoo_names == NULL);
+	for (i = 0; i < nupdaters * elperupdater; i++) {
+		sprintf(&zoo_names[ZOO_NAMELEN * i], "a%ld", i);
+	}
+	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
+	BUG_ON(pap == NULL);
+	atomic_set(&nthreads_running, 0);
+	goflag = GOFLAG_INIT;
+
+	for (i = 0; i < nreaders + nupdaters; i++) {
+		pap[i].myid = i < nreaders ? i : i - nreaders;
+		pap[i].cat = i < ncats;
+		pap[i].nlookups = 0;
+		pap[i].nlookupfails = 0;
+		pap[i].nadds = 0;
+		pap[i].ndels = 0;
+		pap[i].mycpu = (i * cpustride) % maxcpus;
+		pap[i].nelements = nupdaters * elperupdater;
+		create_thread(i < nreaders ? zoo_reader : zoo_updater, &pap[i]);
+	}
+
+	/* Wait for all threads to initialize. */
+	while (atomic_read(&nthreads_running) < nreaders + nupdaters)
+		poll(NULL, 0, 1);
+	smp_mb();
+
+	/* Run the test. */
+	starttime = get_microseconds();
+	ACCESS_ONCE(goflag) = GOFLAG_RUN;
+	poll(NULL, 0, duration);
+	ACCESS_ONCE(goflag) = GOFLAG_STOP;
+	starttime = get_microseconds() - starttime;
+	wait_all_threads();
+
+	/* Collect stats and output them. */
+	for (i = 0; i < nreaders + nupdaters; i++) {
+		nlookups += pap[i].nlookups;
+		if (pap[i].cat)
+			ncatlookups += pap[i].nlookups;
+		nlookupfails += pap[i].nlookupfails;
+		nadds += pap[i].nadds;
+		ndels += pap[i].ndels;
+	}
+	printf("nlookups: %lld %lld  ncats: %lld  nadds: %lld  ndels: %lld  duration: %g\n",
+	       nlookups, nlookupfails, ncatlookups, nadds, ndels, starttime / 1000.);
+	printf("ns/read: %g  ns/update: %g\n",
+	       (starttime * 1000. * (double)nreaders) / (double)nlookups,
+	       ((starttime * 1000. * (double)nupdaters) /
+	        (double)(nadds + ndels)));
+}
+
+
+/* Common argument-parsing code. */
+
 void usage(char *progname, const char *format, ...)
 {
 	va_list ap;
@@ -868,8 +1170,12 @@ void usage(char *progname, const char *format, ...)
 	va_end(ap);
 	fprintf(stderr, "Usage: %s --smoketest\n", progname);
 	fprintf(stderr, "Usage: %s --perftest\n", progname);
+	fprintf(stderr, "Usage: %s --schroedinger\n", progname);
 	fprintf(stderr, "\t--nbuckets\n");
 	fprintf(stderr, "\t\tNumber of buckets, defaults to 1024.\n");
+	fprintf(stderr, "\t--ncats\n");
+	fprintf(stderr, "\t\tNumber of cat readers, defaults to 0.\n");
+	fprintf(stderr, "\t\t(Only for --schroedinger.)\n");
 	fprintf(stderr, "\t--nreaders\n");
 	fprintf(stderr, "\t\tNumber of readers, defaults to 1.\n");
 	fprintf(stderr, "\t--nupdaters\n");
@@ -916,6 +1222,11 @@ int main(int argc, char *argv[])
 			if (i != 1)
 				usage(argv[0],
 				      "Must be first argument: %s\n", argv[i]);
+		} else if (strcmp(argv[i], "--schroedinger") == 0) {
+			test_to_do = zoo_test;
+			if (i != 1)
+				usage(argv[0],
+				      "Must be first argument: %s\n", argv[i]);
 		} else if (strcmp(argv[i], "--nbuckets") == 0) {
 			nbuckets = strtol(argv[++i], NULL, 0);
 			if (nbuckets < 0)
@@ -926,6 +1237,12 @@ int main(int argc, char *argv[])
 			if (nreaders < 0)
 				usage(argv[0],
 				      "%s must be >= 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--ncats") == 0) {
+			ncats = strtol(argv[++i], NULL, 0);
+			if (ncats < 0 || ncats > nreaders)
+				usage(argv[0],
+				      "%s must be >= 0 and <= --nreaders\n",
+				      argv[i - 1]);
 		} else if (strcmp(argv[i], "--nupdaters") == 0) {
 			nupdaters = strtol(argv[++i], NULL, 0);
 			if (nupdaters < 1)
