@@ -1100,6 +1100,7 @@ void zoo_test(void)
 	long long nadds = 0;
 	long long ndels = 0;
 	long long starttime;
+	struct zoo_he *zhep;
 
 	BUG_ON(maxcpus <= 0);
 	perftest_htp = hashtab_alloc(nbuckets);
@@ -1111,6 +1112,12 @@ void zoo_test(void)
 	for (i = 0; i < nupdaters * elperupdater; i++) {
 		sprintf(&zoo_names[ZOO_NAMELEN * i], "a%ld", i);
 	}
+
+	zhep = malloc(sizeof(*zhep));
+	BUG_ON(!zhep);
+	strcpy(zhep->name, "cat");
+	zoo_add(zhep);
+
 	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
 	BUG_ON(pap == NULL);
 	atomic_set(&nthreads_running, 0);
