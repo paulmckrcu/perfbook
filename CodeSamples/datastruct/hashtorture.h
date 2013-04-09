@@ -606,7 +606,7 @@ unsigned long primes[] ={
 /* Parameters for performance test. */
 int nbuckets = 1024;
 int nreaders = 1;
-int ncats = 1;
+int ncats = 0;
 int nupdaters = 1;
 int updatewait = -1;
 long elperupdater = 2048;
