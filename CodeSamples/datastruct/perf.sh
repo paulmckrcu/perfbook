@@ -20,7 +20,7 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
-nsamples=7
+nsamples=17
 
 for hash in hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global # hash_resize
 do
