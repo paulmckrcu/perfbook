@@ -53,6 +53,24 @@ plot "perftest.hash_bkt.${tag}.dat" w l, "perftest.hash_bkt_hazptr.${tag}.dat" w
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
+set output "perftestlin.eps"
+set xlabel "Number of CPUs/Threads"
+set ylabel "Lookups per Millisecond"
+# set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+# set label 1 "rcu" at 0.1,10 left
+# set label 2 "spinlock" at 0.5,3.0 left
+# set label 3 "brlock" at 0.4,0.6 left
+# set label 4 "rwlock" at 0.3,1.6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "perftest.hash_bkt.${tag}.dat" w l, "perftest.hash_bkt_hazptr.${tag}.dat" w l, "perftest.hash_bkt_rcu.${tag}.dat" w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
 set output "zoocpu.eps"
 set xlabel "Number of CPUs/Threads"
 set ylabel "Total Lookups per Millisecond"
@@ -66,6 +84,24 @@ set nokey
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, "zoo.cpus.hash_global.${tag}.dat" w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "zoocpulin.eps"
+set xlabel "Number of CPUs/Threads"
+set ylabel "Total Lookups per Millisecond"
+#set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+# set label 1 "rcu" at 0.1,10 left
+# set label 2 "spinlock" at 0.5,3.0 left
+# set label 3 "brlock" at 0.4,0.6 left
+# set label 4 "rwlock" at 0.3,1.6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l
 ---EOF---
 
 gnuplot << ---EOF---
@@ -89,6 +125,24 @@ plot "zoo.catall.hash_bkt.${tag}.dat" w l, "zoo.catall.hash_bkt_hazptr.${tag}.da
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
+set output "zoocatalllin.eps"
+set xlabel "Number of CPUs/Threads Looking Up The Cat"
+set ylabel "Total Lookups per Millisecond"
+#set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+# set label 1 "rcu" at 0.1,10 left
+# set label 2 "spinlock" at 0.5,3.0 left
+# set label 3 "brlock" at 0.4,0.6 left
+# set label 4 "rwlock" at 0.3,1.6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.catall.hash_bkt.${tag}.dat" w l, "zoo.catall.hash_bkt_hazptr.${tag}.dat" w l, "zoo.catall.hash_bkt_rcu.${tag}.dat" w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
 set output "zoocatonly.eps"
 set xlabel "Number of CPUs/Threads Looking Up The Cat"
 set ylabel "Cat Lookups per Millisecond"
@@ -102,4 +156,22 @@ set nokey
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "zoo.cat.hash_bkt.${tag}.dat" w l, "zoo.cat.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cat.hash_bkt_rcu.${tag}.dat" w l, "zoo.cat.hash_global.${tag}.dat" w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "zoocatonlylin.eps"
+set xlabel "Number of CPUs/Threads Looking Up The Cat"
+set ylabel "Cat Lookups per Millisecond"
+#set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+# set label 1 "rcu" at 0.1,10 left
+# set label 2 "spinlock" at 0.5,3.0 left
+# set label 3 "brlock" at 0.4,0.6 left
+# set label 4 "rwlock" at 0.3,1.6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.cat.hash_bkt.${tag}.dat" w l, "zoo.cat.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cat.hash_bkt_rcu.${tag}.dat" w l
 ---EOF---

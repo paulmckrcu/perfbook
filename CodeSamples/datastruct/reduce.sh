@@ -88,8 +88,8 @@ grep -e '--ncats' $T/sum | grep -v -e '--nupdaters' |
 awk -v tag="$tag" \
 	'{
 		dur = $11;
-		print($18, $2 / dur) > "zoo.cat." $13 "." tag ".dat"
-		print($18, $5 / dur) > "zoo.catall." $13 "." tag ".dat"
+		print($18, $2 / dur) > "zoo.catall." $13 "." tag ".dat"
+		print($18, $5 / dur) > "zoo.cat." $13 "." tag ".dat"
 	}'
 
 # Produce .dat files for mixed zoo scenario.
