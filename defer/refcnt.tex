@@ -8,10 +8,9 @@ to a given object in order to prevent that object from being prematurely
 freed.
 Although this is a conceptually simple technique, many devils hide in
 the details.
-After all, if the object was not subject to being prematurely freed,
-there would be no need for the reference counter.
-But if the object \emph{is} subject to being prematurely freed,
-what prevents that object from being freed during
+After all, if the object was not subject to premature disposal,
+there would be no need for the reference counter in the first place.
+But if the object can be disposed of, what prevents disposal during
 the reference-acquisition process itself?
 
 There are a number of possible answers to this question, including:
@@ -19,36 +18,33 @@ There are a number of possible answers to this question, including:
 \begin{enumerate}
 \item	A lock residing outside of the object must be held while
 	manipulating the reference count.
-	Note that there are a wide variety of types of locks,
-	however, pretty much any type will suffice.
 \item	The object is created with a non-zero reference count, and new
 	references may be acquired only when the current value of
 	the reference counter is non-zero.
-	Once acquired, a reference may be handed off to some
-	other entity.
-\item	An existence guarantee is provided for the object, so that
-	it cannot be freed during any time interval when some
+	If a thread does not have a reference to a given object,
+	it may obtain one with the help of another thread that
+	already has a reference.
+\item	An existence guarantee is provided for the object, preventing
+	it from being freed while some other
 	entity might be attempting to acquire a reference.
 	Existence guarantees are often provided by automatic
 	garbage collectors, and, as will be seen in
-	Section~\ref{sec:defer:Read-Copy Update (RCU)}, they can
-	also be provided by RCU.
-\item	A type-safety guarantee is provided for the object, and there
-	is in addition some identity check that can be performed once
+	Section~\ref{sec:defer:Read-Copy Update (RCU)}, by RCU.
+\item	A type-safety guarantee is provided for the object.
+	An additional identity check must be performed once
 	the reference is acquired.
 	Type-safety guarantees can be provided by special-purpose
-	memory allocators, and can also be provided by the
+	memory allocators, for example, by the
 	\co{SLAB_DESTROY_BY_RCU} feature within the Linux kernel,
-	again, as will be seen in
-	Section~\ref{sec:defer:Read-Copy Update (RCU)}.
+	as will be seen in Section~\ref{sec:defer:Read-Copy Update (RCU)}.
 \end{enumerate}
 
 Of course, any mechanism that provides existence guarantees
 by definition also provides type-safety guarantees.
 This section will therefore group the last two answers together under the
 rubric of RCU, leaving us with three general categories of
-reference-acquisition protection, namely, locking, reference counting,
-and RCU.
+reference-acquisition protection: Reference counting, sequence
+locking, and RCU.
 
 \QuickQuiz{}
 	Why not implement reference-acquisition using
