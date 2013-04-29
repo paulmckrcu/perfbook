@@ -28,7 +28,7 @@ T=/tmp/reduce.sh.$$
 trap 'rm -rf $T' 0
 mkdir $T
 
-grep -v '^perf' | grep -v '^ns' | grep -v 'rcu_exit_sig:' > $T/filt
+grep -v '^nohup:' | grep -v '^perf' | grep -v '^ns' | grep -v 'rcu_exit_sig:' > $T/filt
 awk < $T/filt '
 /^nlookups:/ {
 		for (i = 1; i <= NF; i++) {
@@ -93,11 +93,13 @@ awk -v tag="$tag" \
 	}'
 
 # Produce .dat files for mixed zoo scenario.
-grep -e '--ncats' $T/sum | grep -e '--nupdaters' |
+sort -k18n | grep -e '--ncats' $T/sum | grep -e '--nupdaters' |
 awk -v tag="$tag" \
 	'{
 		dur = $11;
-		print("Reads: " $2 / dur " Readfails: " $3 / dur " Catreads: " $5 / dur " Adds: " $7 / dur " Dels: " $9 / dur " (All in ms)") > "zoo.mix" $13 "." tag ".out"
+		print($18, " Reads: " $2 / dur " Readfails: " $3 / dur " Catreads: " $5 / dur " Adds: " $7 / dur " Dels: " $9 / dur " (All in ms)") > "zoo.mix." $13 "." tag ".out"
+		print($18, $2 / dur) > "zoo.reads." $13 "." tag ".dat"
+		print($18, ($7 + $9) / dur) > "zoo.updates." $13 "." tag ".dat"
 	}'
 
 echo "Hit ^C to continue:"
