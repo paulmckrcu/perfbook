@@ -290,7 +290,7 @@ Otherwise, lines~11 and 12 print an error and exit.
 \label{fig:toolsoftrade:Processes Created Via fork() Do Not Share Memory}
 \end{figure}
 
-It is critically important to note that the parent and child do \co{not}
+It is critically important to note that the parent and child do \emph{not}
 share memory.
 This is illustrated by the program shown in
 Figure~\ref{fig:toolsoftrade:Processes Created Via fork() Do Not Share Memory}
@@ -898,6 +898,26 @@ The \co{ACCESS_ONCE()} primitive forces the compiler to fetch \co{goflag}
 on each pass through the loop---the compiler would otherwise be within its
 rights to assume that the value of \co{goflag} would never change.
 
+\QuickQuiz{}
+	Instead of using \co{ACCESS_ONCE()} everywhere, why not just
+	declare \co{goflag} as \co{volatile} on line~10 of
+	Figure~\ref{fig:toolsoftrade:Measuring Reader-Writer Lock Scalability}?
+\QuickQuizAnswer{
+	A \co{volatile} declaration is in fact a reasonable alternative in
+	this particular case.
+	However, use of \co{ACCESS_ONCE()} has the benefit of clearly
+	flagging to the reader that \co{goflag} is subject to concurrent
+	reads and updates.
+	However, \co{ACCESS_ONCE()} is especially useful in cases where
+	most of the accesses are protected by a lock (and thus \emph{not}
+	subject to change), but where a few of the accesses are made outside
+	of the lock.
+	Using a volatile declaration in this case would make it harder
+	for the reader to note the special accesses outside of the lock,
+	and would also make it harder for the compiler to generate good
+	code under the lock.
+} \QuickQuizEnd
+
 The loop spanning lines~22-38 carries out the performance test.
 Lines~23-26 acquire the lock, lines~27-29 hold the lock for the specified
 duration (and the \co{barrier()} directive prevents the compiler from
@@ -1304,6 +1324,17 @@ is too great, then the primitives introduced in
 Chapter~\ref{chp:Deferred Processing} may be required.
 Always remember that inter-process communication and message-passing
 can be good alternatives to shared-memory multithreaded execution.
+
+\QuickQuiz{}
+	Wouldn't the shell normally use \co{vfork()} rather than
+	\co{fork()}?
+\QuickQuizAnswer{
+	It might well do that, however, checking is left as an exercise
+	for the reader.
+	But in the meantime, I hope that we cna agree that \co{vfork()}
+	is a variant of \co{fork()}, so that we can use \co{fork()}
+	as a generic term covering both.
+} \QuickQuizEnd
 
 Of course, the actual overheads will depend not only on your hardware,
 but most critically on the manner in which you use the primitives.

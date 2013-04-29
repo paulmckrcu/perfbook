@@ -370,7 +370,7 @@
 		or if you are skimming through to book to find a
 		solution to a specific problem.
 	\item	If you find the Quick Quizzes distracting but impossible
-		to ignore, you can always clone the latex source for
+		to ignore, you can always clone the \LaTeX{} source for
 		this book from the git archive.
 		Then modify \co{Makefile} and \co{qqz.sty} to eliminate
 		the Quick Quizzes from the PDF output.
@@ -964,6 +964,25 @@ grep $pattern1 | sed -e 's/a/b/' | sort
 	ran next, so it had to re-initialize \co{x}.
 
 \QuickQ{}
+	Instead of using \co{ACCESS_ONCE()} everywhere, why not just
+	declare \co{goflag} as \co{volatile} on line~10 of
+	Figure~\ref{fig:toolsoftrade:Measuring Reader-Writer Lock Scalability}?
+\QuickA{}
+	A \co{volatile} declaration is in fact a reasonable alternative in
+	this particular case.
+	However, use of \co{ACCESS_ONCE()} has the benefit of clearly
+	flagging to the reader that \co{goflag} is subject to concurrent
+	reads and updates.
+	However, \co{ACCESS_ONCE()} is especially useful in cases where
+	most of the accesses are protected by a lock (and thus \emph{not}
+	subject to change), but where a few of the accesses are made outside
+	of the lock.
+	Using a volatile declaration in this case would make it harder
+	for the reader to note the special accesses outside of the lock,
+	and would also make it harder for the compiler to generate good
+	code under the lock.
+
+\QuickQ{}
 	Isn't comparing against single-CPU throughput a bit harsh?
 \QuickA{}
 	Not at all.
@@ -1088,6 +1107,16 @@ ret = ~ret & tmp;
 	at least unless you want to do a huge amount of memory-mapping
 	work by hand.
 
+\QuickQ{}
+	Wouldn't the shell normally use \co{vfork()} rather than
+	\co{fork()}?
+\QuickA{}
+	It might well do that, however, checking is left as an exercise
+	for the reader.
+	But in the meantime, I hope that we cna agree that \co{vfork()}
+	is a variant of \co{fork()}, so that we can use \co{fork()}
+	as a generic term covering both.
+
 \QuickQAC{chp:Counting}{Counting}
 \QuickQ{}
 	Why on earth should efficient and scalable counting be hard?
@@ -1176,7 +1205,7 @@ ret = ~ret & tmp;
 	{ \bfseries Removable I/O device access-count problem. }
 	Suppose that you need to maintain a reference count on a
 	heavily used removable mass-storage device, so that you
-	can tell the user when it is safe to removed the device.
+	can tell the user when it is safe to remove the device.
 	This device follows the usual removal procedure where
 	the user indicates a desire to remove the device, and
 	the system tells the user when it is safe to do so.
@@ -1599,6 +1628,20 @@ ret = ~ret & tmp;
 	that it will someday appear.
 
 \QuickQ{}
+	Doesn't the check for \co{NULL} on line~19 of
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}
+	add extra branch mispredictions?
+	Why not have a variable set permanently to zero, and point
+	unused counter-pointers to that variable rather than setting
+	them to \co{NULL}?
+\QuickA{}
+	This is a reasonable strategy.
+	Checking for the performance difference is left as an exercise
+	for the reader.
+	However, please keep in mind that the fastpath is not
+	\co{read_count()}, but rather \co{inc_count()}.
+
+\QuickQ{}
 	Why on earth do we need something as heavyweight as a \emph{lock}
 	guarding the summation in the function \co{read_count()} in
 	Figure~\ref{fig:count:Per-Thread Statistical Counters}?
@@ -1613,6 +1656,14 @@ ret = ~ret & tmp;
 	Of course, we could instead read-acquire a reader-writer lock,
 	but Chapter~\ref{chp:Deferred Processing} will introduce even
 	lighter-weight mechanisms for implementing the required coordination.
+
+	Another approach would be to use an array instead of a per-thread
+	variable.
+	However, array accesses are often slower than accesses to
+	per-thread variables, and use of an array would imply a
+	fixed upper bound on the number of threads.
+	Also, note that locks are \emph{not} needed on the
+	\co{inc_count()} fastpath.
 
 \QuickQ{}
 	Why on earth do we need to acquire the lock in
@@ -2182,7 +2233,7 @@ ret = ~ret & tmp;
 
 \QuickQ{}
 	What if you want an exact limit counter to be exact only for
-	its lower limit?
+	its lower limit, but to allow the upper limit to be inexact?
 \QuickA{}
 	One simple solution is to overstate the upper limit by the
 	desired amount.
@@ -2673,7 +2724,8 @@ ret = ~ret & tmp;
 	Allocation failures were observed in the two-thread
 	tests at run lengths of 19 and greater.
 	Given the global-pool size of 40 and the per-CPU target
-	pool size of three, what is the smallest allocation run
+	pool size of three, and assuming that the pools are initially
+	empty, what is the smallest allocation run
 	length at which failures can occur?
 \QuickA{}
 	The exact solution to this problem is left as an exercise to

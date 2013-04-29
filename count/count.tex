@@ -108,7 +108,7 @@ counting.
 	{ \bfseries Removable I/O device access-count problem. }
 	Suppose that you need to maintain a reference count on a
 	heavily used removable mass-storage device, so that you
-	can tell the user when it is safe to removed the device.
+	can tell the user when it is safe to remove the device.
 	This device follows the usual removal procedure where
 	the user indicates a desire to remove the device, and
 	the system tells the user when it is safe to do so.
@@ -709,7 +709,7 @@ eventually consistent.
   9 
  10 unsigned long read_count(void)
  11 {
- 12   return global_count;
+ 12   return ACCESS_ONCE(global_count);
  13 }
  14 
  15 void *eventual(void *arg)
@@ -720,7 +720,7 @@ eventually consistent.
  20   while (stopflag < 3) {
  21     sum = 0;
  22     for_each_thread(t)
- 23       sum += per_thread(counter, t);
+ 23       sum += ACCESS_ONCE(per_thread(counter, t));
  24     ACCESS_ONCE(global_count) = sum;
  25     poll(NULL, 0, 1);
  26     if (stopflag) {
@@ -735,7 +735,7 @@ eventually consistent.
  35 {
  36   thread_id_t tid;
  37 
- 38   if (pthread_create(&tid, NULL, eventual, NULL) != 0) {
+ 38   if (pthread_create(&tid, NULL, eventual, NULL)) {
  39     perror("count_init:pthread_create");
  40     exit(-1);
  41   }
@@ -928,7 +928,7 @@ increment.
 
 Lines~1-4 define needed variables: \co{counter} is the per-thread counter
 variable, the \co{counterp[]} array allows threads to access each others'
-counters, finalcount accumulates the total as individual threads exit,
+counters, \co{finalcount} accumulates the total as individual threads exit,
 and \co{final_mutex} coordinates between threads accumulating the total
 value of the counter and exiting threads.
 
@@ -987,6 +987,21 @@ by threads currently running.
 Finally, line~22 returns the sum.
 
 \QuickQuiz{}
+	Doesn't the check for \co{NULL} on line~19 of
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}
+	add extra branch mispredictions?
+	Why not have a variable set permanently to zero, and point
+	unused counter-pointers to that variable rather than setting
+	them to \co{NULL}?
+\QuickQuizAnswer{
+	This is a reasonable strategy.
+	Checking for the performance difference is left as an exercise
+	for the reader.
+	However, please keep in mind that the fastpath is not
+	\co{read_count()}, but rather \co{inc_count()}.
+} \QuickQuizEnd
+
+\QuickQuiz{}
 	Why on earth do we need something as heavyweight as a \emph{lock}
 	guarding the summation in the function \co{read_count()} in
 	Figure~\ref{fig:count:Per-Thread Statistical Counters}?
@@ -1001,6 +1016,14 @@ Finally, line~22 returns the sum.
 	Of course, we could instead read-acquire a reader-writer lock,
 	but Chapter~\ref{chp:Deferred Processing} will introduce even
 	lighter-weight mechanisms for implementing the required coordination.
+
+	Another approach would be to use an array instead of a per-thread
+	variable.
+	However, array accesses are often slower than accesses to
+	per-thread variables, and use of an array would imply a
+	fixed upper bound on the number of threads.
+	Also, note that locks are \emph{not} needed on the
+	\co{inc_count()} fastpath.
 } \QuickQuizEnd
 
 Lines~25-32 show the \co{count_register_thread()} function, which
@@ -1636,7 +1659,7 @@ Line~49 then returns the sum.
 \end{figure}
 
 Figure~\ref{fig:count:Simple Limit Counter Utility Functions}
-shows a number of utility functions used by the \co{add_count()}
+shows a number of utility functions used by the \co{add_count()},
 \co{sub_count()}, and \co{read_count()} primitives shown in
 Figure~\ref{fig:count:Simple Limit Counter Add, Subtract, and Read}.
 
@@ -2667,7 +2690,7 @@ and \co{theft} variables, respectively.
 Figure~\ref{fig:count:Signal-Theft Limit Counter Value-Migration Functions}
 shows the functions responsible for migrating counts between per-thread
 variables and the global variables.
-Lines~1-7 shows \co{global_count()}, which is identical to earlier
+Lines~1-7 shows \co{globalize_count()}, which is identical to earlier
 implementations.
 Lines~9-19 shows \co{flush_local_count_sig()}, which is the signal
 handler used in the theft process.
@@ -3015,7 +3038,7 @@ hardware performance characteristics.
 
 \QuickQuiz{}
 	What if you want an exact limit counter to be exact only for
-	its lower limit?
+	its lower limit, but to allow the upper limit to be inexact?
 \QuickQuizAnswer{
 	One simple solution is to overstate the upper limit by the
 	desired amount.

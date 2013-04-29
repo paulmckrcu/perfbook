@@ -32,7 +32,7 @@ void inc_count(void)
 
 unsigned long read_count(void)
 {
-	return global_count;
+	return ACCESS_ONCE(global_count);
 }
 
 void *eventual(void *arg)
@@ -43,7 +43,7 @@ void *eventual(void *arg)
 	while (stopflag < 3) {
 		sum = 0;
 		for_each_thread(t)
-			sum += per_thread(counter, t);
+			sum += ACCESS_ONCE(per_thread(counter, t));
 		ACCESS_ONCE(global_count) = sum;
 		poll(NULL, 0, 1);
 		if (stopflag) {
