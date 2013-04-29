@@ -29,15 +29,8 @@ However, this book is primarily about concurrency, so this chapter
 will necessarily do little more than scratch the surface of this
 critically important topic.
 
-Section~\ref{sec:debugging:Where Do Bugs Come From?}
-discusses the sources of bugs, and
-Section~\ref{sec:debugging:Required Mindset}
-overviews the mindset required when validating software.
-Section~\ref{sec:debugging:When Should Validation Start?}
-discusses when you should start validation, and
-Section~\ref{sec:debugging:The Open Source Way} describes the
-surprisingly effective open-source regimen of code review and
-community testing.
+Section~\ref{sec:debugging:Introduction}
+introduces the philosophy of debugging.
 Section~\ref{sec:debugging:Tracing}
 discusses tracing,
 Section~\ref{sec:debugging:Assertions}
@@ -49,13 +42,28 @@ describes some unconventional approaches to code review that can
 be helpful when the fabled 10,000 eyes happen not to be looking at your code.
 Section~\ref{sec:debugging:Probability and Heisenbugs}
 gives an overview of the use of probability for validating parallel software.
-Finally, given that performance and scalability are first-class requirements
-for parallel programming, it is only fitting that the last word is
-given to
-Section~\ref{sec:debugging:Performance Estimation}, which covers these
+Because performance and scalability are first-class requirements
+for parallel programming,
+Section~\ref{sec:debugging:Performance Estimation} which covers these
 topics.
+Finally,
+Section~\ref{sec:debugging:Summary}
+gives a fanciful summary and a short list of statistical traps to avoid.
 
-\section{Where Do Bugs Come From?}
+\section{Introduction}
+\label{sec:debugging:Introduction}
+
+Section~\ref{sec:debugging:Where Do Bugs Come From?}
+discusses the sources of bugs, and
+Section~\ref{sec:debugging:Required Mindset}
+overviews the mindset required when validating software.
+Section~\ref{sec:debugging:When Should Validation Start?}
+discusses when you should start validation, and
+Section~\ref{sec:debugging:The Open Source Way} describes the
+surprisingly effective open-source regimen of code review and
+community testing.
+
+\subsection{Where Do Bugs Come From?}
 \label{sec:debugging:Where Do Bugs Come From?}
 
 Bugs come from developers.
@@ -176,7 +184,7 @@ a large project while at the same time injecting enough reality to keep
 the bugs down to a dull roar?''
 The next section examines this conundrum.
 
-\section{Required Mindset}
+\subsection{Required Mindset}
 \label{sec:debugging:Required Mindset}
 
 When carrying out any validation effort, you should keep the following
@@ -349,7 +357,7 @@ doomed to be tortured by it.
 However, this leaves open the question of exactly when during the project
 lifetime validation should start, a topic taken up by the next section.
 
-\section{When Should Validation Start?}
+\subsection{When Should Validation Start?}
 \label{sec:debugging:When Should Validation Start?}
 
 Validation should start at the same time that the project starts.
@@ -411,7 +419,7 @@ Now that we have established that you should start validation when you
 start the project, the following sections cover a number of validation
 techniques and methods that have proven their worth.
 
-\section{The Open Source Way}
+\subsection{The Open Source Way}
 \label{sec:debugging:The Open Source Way}
 
 The open-source programming methodology has proven quite effective, and
@@ -1512,7 +1520,7 @@ so critically important.
 The name ``heisenbug'' stems from the Heisenberg Uncertainty Principle
 from quantum physics, which states that it is impossible to exactly
 quantify a given particle's position and velocity at any given point
-in time.
+in time~\cite{WeinerHeisenberg1927Uncertain}.
 Any attempt to more accurately measure that particle's position will
 result in increased uncertainty of its velocity.
 A similar effect occurs for heisenbugs: attempts to track down the heisenbug
@@ -2300,3 +2308,71 @@ detecting interference via measurement
 \caption{Choose Validation Methods Wisely}
 \ContributedBy{Figure}{fig:debugging:Choose Validation Methods Wisely}{Melissa McKenney}
 \end{figure}
+
+Althoguh validation never will be an exact science, much can be gained
+by taking an organized approach to it, as an organized approach will
+help you choose the right validation tools for your job, avoiding
+situations like the one fancifully depicted in
+Figure~\ref{fig:debugging:Choose Validation Methods Wisely}.
+
+A key choice is that of statistics.
+Although the methods described in this chapter work very well most of
+the time, they do have their limitations.
+These limitations are inherent because we are attempting to do something
+that is in general impossible, courtesy of the
+Halting Problem~\cite{AlanMTuring1937HaltingProblem,GeoffreyKPullum2000HaltingProblem}.
+Fortunately for us, there are a huge number of special cases in which
+we can not only work out whether a given program will halt, but also
+establish estimates for how long it will run before halting, as discussed in
+Section~\ref{sec:debugging:Performance Estimation}.
+Furthermore, in cases where a given program might or might not work
+correctly, we can often establish estimates for what fraction of the
+time it will work correctly, as discussed in
+Section~\ref{sec:debugging:Probability and Heisenbugs}.
+
+Nevertheless, unthinking reliance on these estimates is brave to the
+point of foolhardiness.
+After all, we are summarizing a huge mass of complexity in code and
+data structures down to a single solitary number.
+Even though we can get away with such bravery a surprisingly large
+fraction of the time, it is only reasonable to expect that the
+code and data being abstracted away will occasionally cause severe
+problems.
+
+One possible problem is variability, where repeated runs might give
+wildly different results.
+This is often dealt with by maintaining a standard deviation as well
+as a mean, but the fact is that attempting to summarize the behavior
+of a large and complex program with two numbers is almost as brave as
+summarizing its behavior with only one number.
+In computer programming, the surprising thing is that use of the
+mean or the mean and standard deviation are often sufficient, but
+there are no guarantees.
+
+One cause of variation is confounding factors.
+For example, the CPU time consumed by a linked-list search will depend
+on the length of the list.
+Averaging together runs with wildly different list lengths will
+probably not be useful, and adding a standard deviation to the mean
+will not be much better.
+The right thing to do would be control for list length, either by
+holding the length constant or to measure CPU time as a function of
+list length.
+
+Of course, this advice assumes that you are aware of the confounding
+factors, and Murphy says that you probably will not be.
+I have been involved in projects that had confounding factors as
+diverse as air conditioners (which drew considerable power at startup,
+thus causing the voltage supplied to the computer to momentarily drop
+too low, sometimes resulting in failure), cache state (resulting in
+odd variations in performance), I/O errors (including disk errors,
+packet loss, and duplicate Ethernet MAC addresses), and even
+porpoises (which could not resist playing with an array of transponders,
+which, in the absence of porpoises, could be
+used for high-precision acoustic positioning and navigation).
+
+In short, validation always will require some measure of the behavior of
+the system.
+Because this measure must be a severe summarization of the system,
+it can be misleading.
+So as the saying goes, ``Be careful.  It is a real world out there.''
