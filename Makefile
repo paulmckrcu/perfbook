@@ -49,11 +49,21 @@ LATEXSOURCES = \
 	SMPdesign/SMPdesign.tex \
 	SMPdesign/partexercises.tex \
 	SMPdesign/criteria.tex \
+	SMPdesign/beyond.tex \
 	locking/locking.tex \
 	locking/locking-existence.tex \
 	toolsoftrade/toolsoftrade.tex
 
 EPSSOURCES = \
+	SMPdesign/500-ms_2seqO3VfgO3_partO3-median.eps \
+	SMPdesign/500-ms_seq_fg-cdf.eps \
+	SMPdesign/500-ms_seq_fg_part-cdf.eps \
+	SMPdesign/500-ms_seqO3V2seqO3_fgO3_partO3-cdf.eps \
+	SMPdesign/500-ms_seqO3VfgO3_partO3-median.eps \
+	SMPdesign/500-ms_seqVfg_part-cdf.eps \
+	SMPdesign/500-ms_seqVfg_part_seqO3-cdf.eps \
+	SMPdesign/500-pctVms_seq_part-sct.eps \
+	SMPdesign/1000-ms_2seqO3VfgO3_partO3-mean.eps \
 	SMPdesign/AllocatorPool.eps \
 	SMPdesign/CPUvsEnet.eps \
 	SMPdesign/DiningPhilosopher4.eps \
@@ -61,6 +71,7 @@ EPSSOURCES = \
 	SMPdesign/DiningPhilosopher4PEM.eps \
 	SMPdesign/DiningPhilosopher4TB.eps \
 	SMPdesign/LockGranularity.eps \
+	SMPdesign/MazeNumberPath.eps \
 	SMPdesign/MemoryBarrierPairing.eps \
 	SMPdesign/ParallelFastpath.eps \
 	SMPdesign/allocatorcache.eps \
@@ -70,6 +81,8 @@ EPSSOURCES = \
 	SMPdesign/lockdeqhash1R.eps \
 	SMPdesign/lockdeqpair.eps \
 	SMPdesign/matmuleff.eps \
+	SMPdesign/maze_in_way10a.eps \
+	SMPdesign/maze_PWQ_vs_PART.eps \
 	SMPdesign/mipsperbuck.eps \
 	SMPdesign/smpalloc.eps \
 	SMPdesign/synceff.eps \
