@@ -76,7 +76,6 @@ EPSSOURCES = \
 	SMPdesign/ParallelFastpath.eps \
 	SMPdesign/allocatorcache.eps \
 	SMPdesign/clockfreq.eps \
-	SMPdesign/lockdeq.eps \
 	SMPdesign/lockdeqhash.eps \
 	SMPdesign/lockdeqhash1R.eps \
 	SMPdesign/lockdeqpair.eps \
