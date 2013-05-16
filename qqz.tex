@@ -983,6 +983,29 @@ grep $pattern1 | sed -e 's/a/b/' | sort
 	code under the lock.
 
 \QuickQ{}
+	\co{ACCESS_ONCE()} only affects the compiler, not the CPU.
+	Don't we also need memory barriers to make sure
+	that the change in \co{goflag}'s value propagates to the
+	CPU in a timely fashion in
+	Figure~\ref{fig:toolsoftrade:Measuring Reader-Writer Lock Scalability}?
+\QuickA{}
+	No, memory barriers are not needed and won't help here.
+	Memory barriers only enforce ordering among multiple
+	memory references:  They do absolutely nothing to expedite
+	the propagation of data from one par of the system to
+	another.
+	This leads to a quick rule of thumb:  You do not need
+	memory barriers unless you are using more than one
+	variable to communicate between multiple threads.
+
+	But what about \co{nreadersrunning}?
+	Isn't that a second variable used for communication?
+	Indeed it is, and there really are the needed memory-barrier
+	instructions buried in \co{__sync_fetch_and_add()},
+	which make sure that the thread proclaims its presence
+	before checking to see if it should start.
+
+\QuickQ{}
 	Isn't comparing against single-CPU throughput a bit harsh?
 \QuickA{}
 	Not at all.
