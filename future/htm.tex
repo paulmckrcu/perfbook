@@ -454,9 +454,10 @@ same way that compare-and-swap (CAS) and load-linked/store-conditional
 (LL/SC) operations are unconditionally retried in code that uses these
 instructions to implement atomic operation.
 
-Unfortunately, no currently available HTM implementation makes any
+Unfortunately, most currently available HTM implementation refuse to
+make any
 sort of forward-progress guarantee, which means that HTM cannot be
-used to avoid deadlock.\footnote{
+used to avoid deadlock on those systems.\footnote{
 	HTM might well be used to reduce the probability of deadlock,
 	but as long as there is some possibility of the fallback
 	code being executed, there is some possibility of deadlock.}
@@ -466,6 +467,35 @@ Until that time, HTM must be used with extreme caution in real-time
 applications.\footnote{
 	As of mid-2012, there has been surprisingly little work on
 	transactional memory's real-time characteristics.}
+
+The one exception to this gloomy picture as of 2013 is upcoming versions
+of the IBM mainframe, which provides a separate instruction that may be
+used to start a special
+\emph{constrained transaction}~\cite{ChristianJacobi2012MainframeTM}.
+As you might guess from the name, such transactions must live within
+the following constraints:
+
+\begin{enumerate}
+\item	Each transaction's data footprint must be contained within
+	four 32-byte blocks of memory.
+\item	Each transaction is permitted to execute at most 32 assembler
+	instructions.
+\item	Transactions are not permitted to have backwards branches
+	(e.g., no loops).
+\item	Each transaction's code is limited to 256 bytes of memory.
+\item	If a portion of a given transaction's data footprint resides
+	within a given 4K page, then that 4K page is prohibited from
+	containing any of that transaction's instructions.
+\end{enumerate}
+
+These constraints are severe, but the nevertheless permit a wide variety
+of data-structure updates to be implemented, including stacks, queues,
+hash tables, and so on.
+These operations are guaranteed to eventually complete, and are free of
+deadlock and livelock conditions.
+
+It will be interesting to see how hardware support of forward-progress
+guarantees evolves over time.
 
 \subsubsection{Non-Idempotent Operations}
 \label{sec:future:Non-Idempotent Operations}
