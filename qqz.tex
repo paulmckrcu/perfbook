@@ -7785,6 +7785,10 @@ STORE r0,counter
 		However, please note that we have not actually used such
 		tools myself, courtesy of some large machines that Paul has
 		occasional access to.
+	\item	Wait for memory sizes of affordable systems to expand
+		to fit your problem.
+	\item	Use one of a number of cloud-computing services to rent
+		a large system for a short time period.
 	\end{enumerate}
 
 \QuickQ{}
@@ -7998,4 +8002,58 @@ STORE r0,counter
 	each CPU to touch only per-CPU data on irq and NMI entry/exit,
 	resulting in much lower irq entry/exit overhead, especially
 	on large machines.
+
+\QuickQ{}
+	But x86 has strong memory ordering!  Why would you need to
+	formalize its memory model?
+\QuickA{}
+	Actually, academics consider the x86 memory model to be weak
+	because it can allow prior stores to be reordered with
+	subsequent loads.
+	From an academic viewpoint, a strong memory model is one
+	that allows absolutely no reordering, so that all threads
+	agree on the order of all operations visible to them.
+
+\QuickQ{}
+	Why does line~8
+	of Figure~\ref{fig:app:formal:CPPMEM Litmus Test}
+	initialize the registers?
+	Why not instead initialize them on lines~4 and~5?
+\QuickA{}
+	Either way works.
+	However, in general, it is better to use initialization than
+	explicit instructions.
+	The explicit instructions are used in this example to demonstrate
+	their use.
+	In addition, many of the litmus tests available on the tool's
+	web site (\url{http://www.cl.cam.ac.uk/~pes20/ppcmem/}) were
+	automatically generated, which generates explicit
+	initialization instructions.
+
+\QuickQ{}
+	But whatever happened to line~17 of
+	Figure~\ref{fig:app:formal:CPPMEM Litmus Test},
+	the one that is the \co{Fail:} label?
+\QuickA{}
+	The implementation of powerpc version of \co{atomic_add_return()}
+	loops when the \co{stwcx} instruction fails, which it communicates
+	by setting non-zero status in the condition-code register,
+	which in turn is tested by the bne instruction. Because actually
+	modeling the loop would result in state-space explosion, we
+	instead branch to the Fail: label, terminating the model with
+	the initial value of 2 in thread~1's \co{r3} register, which
+	will not trigger the exists assertion.
+
+	There is some debate about whether this trick is universally
+	applicable, but I have not seen an example where it fails.
+
+\QuickQ{}
+	Does the ARM Linux kernel have a similar bug?
+\QuickA{}
+	ARM does not have this particular bug because that it places
+	\co{smp_mb()} before and after the \co{atomic_add_return()}
+	function's assembly-language implementation.
+	PowerPC no longer has this bug; it has long since been fixed.
+	Finding any other bugs that the Linux kernel might have is left
+	as an exercise for the reader.
 
