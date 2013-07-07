@@ -1047,8 +1047,51 @@ So there are significant obstacles to HTM vendors offering forward-progress
 guarantees.
 However, the impact of any of them doing so would be enormous.
 It would mean that HTM transactions would no longer need software
-fallbacks, which would mena that HTM could finally deliver on the
+fallbacks, which would mean that HTM could finally deliver on the
 TM promise of deadlock elimination.
+
+And as of late 2012, the IBM Mainframe announced an HTM
+implementation that includes \emph{constrained transactions}
+in addition to the usual best-effort HTM
+implementation~\cite{ChristianJacobi2012MainframeTM}.
+A constrained transaction starts with the \co{tbeginc} instruction
+instead of the \co{tbegin} instruction that is used for best-effort
+transactions.
+Constrained transactions are guaranteed to always complete (eventually),
+so if a transaction aborts, rather than branching to a fallback path
+(as is done for best-effort transactions), the hardware instead restarts
+the transaction at the \co{tbeginc} instruction.
+
+The Mainframe architects needed to take extreme measures to deliver on
+this forward-progress guarantee.
+If a given constrained transaction repeatedly fails, the CPU
+might disable branch prediction, force in-order execution, and even
+disable pipelining.
+If the repeated failures are due to high contention, the CPU might
+disable speculative fetches, introduce random delays, and even
+serialize execution of the conflicting CPUs.
+``Interesting'' forward-progress scenarios involve as few as two CPUs
+or as many as one hundred CPUs.
+Perhaps these extreme measures provide some insight as to why other CPUs
+have thus far refrained from offering constrained transactions.
+
+As the name implies, constrained transactions are in fact severely constrained:
+
+\begin{enumerate}
+\item	The maximum data footprint is four blocks of memory,
+	where each block can be no larger than 32 bytes.
+\item	The maximum code footprint is 256 bytes.
+\item	If a given 4K page contains a constrained transaction's code,
+	then that page may not contain that transaction's data.
+\item	The maximum number of assembly instructions that may be executed
+	is 32.
+\item	Backwards branches are forbidden.
+\end{enumerate}
+
+Nevertheless, these constraints support a number of important data structures,
+including linked lists, stacks, queues, and arrays.
+Constrained HTM therefore seems likely to become an important tool in
+the parallel programmer's toolbox.
 
 \subsubsection{Transaction-Size Increases}
 \label{sec:future:Transaction-Size Increases}
