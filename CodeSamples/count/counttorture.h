@@ -146,6 +146,10 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 	for_each_thread(t) {
 		n_reads += per_thread(n_reads_pt, t);
 		n_updates += per_thread(n_updates_pt, t);
+#ifdef CHECK_DISTRIBUTION
+		printf("%d: r: %lld  u: %lld\n", t,
+		       per_thread(n_reads_pt, t), per_thread(n_updates_pt, t));
+#endif /* #ifdef CHECK_DISTRIBUTION */
 	}
 	if (n_updates != read_count())
 		printf("!!! Count mismatch: %lld counted vs. %lu final value\n",
