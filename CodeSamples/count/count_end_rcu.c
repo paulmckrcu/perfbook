@@ -63,7 +63,7 @@ void count_init(void)
 	memset(countarrayp, '\0', sizeof(*countarrayp));
 }
 
-void count_register_thread(void)
+void count_register_thread(unsigned long *p)
 {
 	int idx = smp_thread_id();
 

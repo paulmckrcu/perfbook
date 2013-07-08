@@ -60,7 +60,7 @@ int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
 #define COUNT_UPDATE_RUN 1000
 
 #ifndef NEED_REGISTER_THREAD
-#define count_register_thread()		do ; while (0)
+#define count_register_thread(p)	do ; while (0)
 #define count_unregister_thread(n)	do ; while (0)
 #endif /* #ifndef NEED_REGISTER_THREAD */
 
@@ -74,11 +74,12 @@ void *count_read_perf_test(void *arg)
 {
 	int i;
 	unsigned long j;
+	unsigned long k;
 	int me = (long)arg;
 	long long n_reads_local = 0LL;
 
 	run_on(me);
-	count_register_thread();
+	count_register_thread(&k);
 	atomic_inc(&nthreadsrunning);
 	while (ACCESS_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);
@@ -99,9 +100,10 @@ void *count_read_perf_test(void *arg)
 void *count_update_perf_test(void *arg)
 {
 	int i;
+	unsigned long k;
 	long long n_updates_local = 0LL;
 
-	count_register_thread();
+	count_register_thread(&k);
 	atomic_inc(&nthreadsrunning);
 	while (ACCESS_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);

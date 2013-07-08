@@ -47,7 +47,7 @@ void count_init(void)
 {
 }
 
-void count_register_thread(void)
+void count_register_thread(unsigned long *p)
 {
 	counterp[smp_thread_id()] = &counter;
 }
