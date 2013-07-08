@@ -74,7 +74,7 @@ void *count_read_perf_test(void *arg)
 {
 	int i;
 	unsigned long j;
-	unsigned long k;
+	unsigned long k = 0;
 	int me = (long)arg;
 	long long n_reads_local = 0LL;
 
@@ -100,7 +100,7 @@ void *count_read_perf_test(void *arg)
 void *count_update_perf_test(void *arg)
 {
 	int i;
-	unsigned long k;
+	unsigned long k = 0;
 	long long n_updates_local = 0LL;
 
 	count_register_thread(&k);
