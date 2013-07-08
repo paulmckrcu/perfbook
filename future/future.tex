@@ -17,17 +17,120 @@ But most are bogus.
 Tell which is which and you'll be rich~\cite{KeithRSpitz1977}!
 
 Therefore, the following sections give an overview of transactional
-memory, hardware transactional memory,
-shared-memory parallel functional programming, and
-process-based parallel functional programming.
+memory, hardware transactional memory, and
+parallel functional programming.
 But first, a cautionary tale on prognostication taken from the early 2000s.
 
 \input{future/cpu.tex}
 \input{future/tm.tex}
 \input{future/htm.tex}
 
-\section{Shared-Memory Parallel Functional Programming}
-\label{sec:future:Shared-Memory Parallel Functional Programming}
+\section{Functional Programming for Parallelism}
+\label{sec:future:Functional Programming for Parallelism}
 
-\section{Process-Based Parallel Functional Programming}
-\label{sec:future:Process-Based Parallel Functional Programming}
+When I took my first-ever functional-programming class in the early 1980s,
+the professor asserted that the side-effect-free functional-programming
+style was well-suited to trivial parallelization and analysis.
+Thirty years later, this assertion remains, but mainstream production
+use of parallel functional languages is minimal.
+There is niche use of functional languages such as Erlang, and
+multithreaded support has been added to several other functional languages,
+but mainstream production usage remains the province of procedural
+languages such as C, C++, Java, and FORTRAN (usually augmented with
+OpenMP or MPI).
+
+This situation naturally leads to the question ``If analysis is the goal,
+why not transform the procedural language into a functional language before
+doing the analysis?''
+There are of course a number of objections to this approach, of which
+I list but three:
+
+\begin{enumerate}
+\item	Procedural languages often make heavy use of global variables,
+	which can be updated independently by different
+	functions, or, worse yet, by multiple threads.
+	Note that Haskell's \emph{monads} were invented to deal with
+	single-threaded global state, and that multi-threaded access to
+	global state requires additional violence to the functional model.
+\item	Multithreaded procedural languages often use synchonization
+	primitives such as locks, atomic operations, and transactions,
+	which inflict added violence upon the functional model.
+\item	Procedural languages can \emph{alias} function arguments,
+	for example, by passing a pointer to the same structure via two
+	different arguments to the same invocation of a given function.
+	This can result in the function unknowingly updating that
+	structure via two different (and possibly overlapping) code
+	sequences, which greatly complicates analysis.
+\end{enumerate}
+
+Of course, given the importance of global state, synchronization
+primitives, and aliasing, clever functional-programming experts have
+proposed any number of attempts to reconcile the function programming
+model to them, monads being but one case in point.
+
+Another approach is to compile the parallel procedural program into
+a functional program, the use functional-programming tools to analyze
+the result.
+But it is possible to do much better than this, given that any real
+computation is a large finite-state machine with finite input that
+runs for a finite time interval.
+This means that any real program can be transformed into an expression,
+possibly albeit an impractically large one~\cite{VijayDSilva2012-sas}.
+
+However, a number of the low-level kernels of parallel algorithms transform
+into expressions that are small enough to fit easily into the memories
+of modern computers.
+If such an expression is coupled with an assertion, checking to see if
+the assertion would ever fire becomes a satisfiability problem.
+Even though satisfiability problems are NP-complete, they can often
+be solved in much less time than would be required to generate the
+full state space.
+In addition, the solution time appears to be independent of the underlying
+memory model, so that algorithms running on weakly ordered systems
+can be checked just as quickly as they could on sequentially consistent
+systems~\cite{JadeAlglave2013-cav}.
+
+The general approach is to transform the program into single-static-assignment
+(SSA) form, so that each assignment to a variable creates a separate
+version of that variable.
+This applies to assignments from all the active threads, so that the
+resulting expression embodies all possible executions of the code
+in question.
+The addition of an assertion entails asking whether any combination of
+inputs and initial values can result in the assertion firing, which,
+as noted above, is exactly the satisfiability problem.
+
+One possible objection is that it does not gracefully handle arbitrary
+looping constructs.
+However, in many cases, this can be handled by unrolling the loop a
+finite number of times.
+In addition, perhaps some loops will also prove amenable to collapse
+via inductive mathods.
+
+Another possible objection is that spinlocks involve arbitrarily long
+loops, and any finite unrolling would fail to capture the full behavior
+of the spinlock.
+It turns out that this objection is easily overcome.
+Instead of modeling a full spinlock, model a trylock that attempts to
+obtain the lock, and aborts if it fails to immediately do so.
+The assertion must then be crafted so as to avoid firing in cases
+where a spinlock aborted due to the lock not being immediately available.
+Because the logic expression is independent of time, all possible
+concurrency behaviors will be captured via this approach.
+
+A final objection is that this technique is unlikely to be able to handle
+a full-sized software artifact such as the millions of lines of code making
+up the Linux kernel.
+This is likely the case, but the fact remains that exhaustive validation
+of each of the much smaller parallel primitives within the Linux kernel
+would be quite valuable.
+And in fact the researchers spearheading this approach have applied it
+to non-trivial real-world code, including the RCU implementation in
+the Linux kernel (albeit to verify one of the less-profound properties
+of RCU).
+
+It remains to be seen how widely applicable this technique is, but
+it is one of the more interesting innovations in the field of
+formal verification.
+And it might be more well-received than the traditional advice of
+writing all programs in functional form.
