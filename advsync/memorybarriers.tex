@@ -621,16 +621,19 @@ pairings that portable software may depend on.
 The following pairings from
 Table~\ref{tab:advsync:Memory-Barrier Combinations}
 can be used on modern hardware, but might fail on some systems
-that were produced in the 1990s.
+that were produced in the 1900s.
 However, these \emph{can} safely be used on all mainstream hardware
 introduced since the year 2000.
+So if you think that memory barriers are difficult to deal with, please
+keep in mind that they used to be a \emph{lot} harder on some systems!
 
 \paragraph{Ears to Mouths.}
 	Since the stores cannot see the results of the loads
 	(again, ignoring MMIO registers for the moment),
 	it is not always possible to determine whether the memory-barrier
 	condition has been met.
-	However, recent hardware would guarantee that at least one
+	However, 21\textsuperscript{st}-century
+	hardware \emph{would} guarantee that at least one
 	of the loads saw the value stored by the corresponding store
 	(or some later value for that same variable).
 
@@ -638,6 +641,7 @@ introduced since the year 2000.
 	In the following example, after both CPUs have finished
 	executing their code sequences, it is quite tempting to
 	conclude that the result {\tt \{A==1,B==2\}} cannot happen.
+
 	\vspace{5pt}
 	\begin{minipage}[t]{\columnwidth}
 	\tt
@@ -651,15 +655,16 @@ introduced since the year 2000.
 	\end{minipage}
 	\vspace{5pt}
 
-	Unfortunately, such a conclusion does not necessarily hold
-	on all 20\textsuperscript{th}-century systems.
+	Unfortunately, although this conclusion is correct on
+	21\textsuperscript{st}-century systems, it does not necessarily hold
+	on all antique 20\textsuperscript{th}-century systems.
 	Suppose that the cache line containing A is initially owned
 	by CPU~2, and that containing B is initially owned by CPU~1.
 	Then, in systems that have invalidation queues and store
 	buffers, it is possible for the first assignments to ``pass
 	in the night'', so that the second assignments actually
 	happen first.
-	\IfInBook{This strange (but quite common) effect is explained in
+	\IfInBook{This strange effect is explained in
 	          Appendix~\ref{chp:app:whymb:Why Memory Barriers?}.
 		 }
 		 {}
@@ -669,21 +674,29 @@ introduced since the year 2000.
 	including the ``ears to mouths'' pairing.
 
 	However, 21\textsuperscript{st}-century hardware \emph{does}
-	accommodate ordering intuitions, and do permit this combination
-	to be used safely.
+	accommodate these ordering intuitions, and \emph{do} permit
+	this combination to be used safely.
 
-\subsubsection{Pair-Wise Memory Barriers: Non-Portable Combinations}
+\subsubsection{Pair-Wise Memory Barriers: Dubious Combinations}
 
-In the following pairings from
+In the following combinations from
 Table~\ref{tab:advsync:Memory-Barrier Combinations},
-the memory barriers have no effect that portable code can
-safely depend on.
+the memory barriers have very limited use in portable code, even
+on 21\textsuperscript{st}-century hardware.
+However, ``limited use'' is different than ``no use'', so let's see
+what can be done!
+Avid readers will want to write toy programs that rely on each of
+these combinations in order to fully understand how this works.
 
 \paragraph{Ears to Ears.}
 	Since loads do not change the state of memory
 	(ignoring MMIO registers for the moment),
 	it is not possible for one of the loads to see the
 	results of the other load.
+	However, if we know that CPU~2's load from B returned a
+	newer value than CPU~1's load from B, the we also know
+	that CPU~2's load from A returned either the same value
+	as CPU~1's load from A or some later value.
 
 \paragraph{Mouth to Mouth, Ear to Ear.}
 	One of the variables is only loaded from, and the other
@@ -692,8 +705,14 @@ safely depend on.
 	possible for one load to see the results of the other,
 	it is not possible to detect the conditional ordering
 	provided by the memory barrier.
-	(Yes, it is possible to determine which store happened
-	last, but this does not depend on the memory barrier.)
+
+	However, it is possible to determine which store happened
+	last, but this requires an additional load from B.
+	If this additional load from B is executed after both
+	CPUs~1 and~2 complete, and if it turns out that CPU~2's
+	store to B happened last, then we know
+	that CPU~2's load from A returned either the same value
+	as CPU~1's load from A or some later value.
 
 \paragraph{Only One Store.}
 	Because there is only one store, only one of the variables
@@ -701,9 +720,33 @@ safely depend on.
 	access.
 	Therefore, there is no way to detect the
 	conditional ordering provided by the memory barriers.
-	(Yes, it is possible to determine whether or not the
-	load saw the result of the corresponding store, but this
-	does not depend on the memory barrier.)
+
+	At least not straightforwardly.
+	But suppose that in combination~1 from
+	Table~\ref{tab:advsync:Memory-Barrier Combinations},
+	CPU~1's load from A returns the value that CPU~2 stored
+	to A.  Then we know that CPU~1's load from B returned 
+	either the same value as CPU~2's load from A or some later value.
+
+\QuickQuiz{}
+	How can the other ``Only one store'' entries in
+	Table~\ref{tab:advsync:Memory-Barrier Combinations}
+	be used?
+\QuickQuizAnswer{
+	For combination~2, if CPU~1's load from B sees a value prior
+	to CPU~2's store to B, then we know that CPU~2's load from A
+	will return the same value as CPU~1's load from A, or some later
+	value.
+
+	For combination~4, if CPU~2's load from B sees the value from
+	CPU~1's store to B, then we know that CPU~2's load from A
+	will return the same value as CPU~1's load from A, or some later
+	value.
+
+	For combination~8, if CPU~2's load from A sees CPU~1's store
+	to A, then we know that CPU~1's load from B will return the same
+	value as CPU~2's load from A, or some later value.
+} \QuickQuizEnd
 
 \subsubsection{Semantics Sufficient to Implement Locking}
 
