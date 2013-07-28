@@ -637,6 +637,33 @@ keep in mind that they used to be a \emph{lot} harder on some systems!
 	of the loads saw the value stored by the corresponding store
 	(or some later value for that same variable).
 
+\QuickQuiz{}
+	How do we know that modern hardware guarantees that at least
+	one of the loads will see the value stored by the other thread
+	in the ears-to-mouths scenario?
+\QuickQuizAnswer{
+	The scenario is as follows, with A and B both initially zero:
+
+	CPU~0: A=1; \co{smp_mb()}; r1=B;
+
+	CPU~1: B=1; \co{smp_mb()}; r2=A;
+
+	If neither of the loads see the corresponding store, when both
+	CPUs finish, both \co{r1} and \co{r2} will be equal to zero.
+	Let's suppose that \co{r1} is equal to zero.
+	Then we know that CPU~0's load from B happened before CPU~1's
+	store to B: After all, we would have had \co{r1} equal to one
+	otherwise.
+	But given that CPU~0's load from B happened before CPU~1's store
+	to B, memory-barrier pairing guarantees that CPU~0's store to A
+	happens before CPU~1's load from A, which in turn guarantees that
+	\co{r2} will be equal to one, not zero.
+
+	Therefore, at least one of \co{r1} and \co{r2} must be nonzero,
+	which means that at least one of the loads saw the value from
+	the corresponding store, as claimed.
+} \QuickQuizEnd
+
 \paragraph{Stores ``Pass in the Night''.}
 	In the following example, after both CPUs have finished
 	executing their code sequences, it is quite tempting to

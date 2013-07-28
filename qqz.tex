@@ -5729,6 +5729,32 @@ srcu_read_unlock(&srcucb, idx);
 	and MMIO regions.
 
 \QuickQ{}
+	How do we know that modern hardware guarantees that at least
+	one of the loads will see the value stored by the other thread
+	in the ears-to-mouths scenario?
+\QuickA{}
+	The scenario is as follows, with A and B both initially zero:
+
+	CPU~0: A=1; \co{smp_mb()}; r1=B;
+
+	CPU~1: B=1; \co{smp_mb()}; r2=A;
+
+	If neither of the loads see the corresponding store, when both
+	CPUs finish, both \co{r1} and \co{r2} will be equal to zero.
+	Let's suppose that \co{r1} is equal to zero.
+	Then we know that CPU~0's load from B happened before CPU~1's
+	store to B: After all, we would have had \co{r1} equal to one
+	otherwise.
+	But given that CPU~0's load from B happened before CPU~1's store
+	to B, memory-barrier pairing guarantees that CPU~0's store to A
+	happens before CPU~1's load from A, which in turn guarantees that
+	\co{r2} will be equal to one, not zero.
+
+	Therefore, at least one of \co{r1} and \co{r2} must be nonzero,
+	which means that at least one of the loads saw the value from
+	the corresponding store, as claimed.
+
+\QuickQ{}
 	How can the other ``Only one store'' entries in
 	Table~\ref{tab:advsync:Memory-Barrier Combinations}
 	be used?
