@@ -263,7 +263,7 @@ Tejun Heo improved \co{synchronize_sched_expedited()}'s batching
 capabilities, which in turn improves performance and scalability
 for workloads with many concurrent \co{synchronize_sched_expedited}
 operations.
-Frederic Weisbecker provided a couple of subtle changes to the
+Fr\'ed\'eric Weisbecker provided a couple of subtle changes to the
 RCU core code that make RCU more power-efficient when idle.
 Mariusz Kozlowski fixed an embarrassing syntax error in
 \co{__list_for_each_rcu()}, which was then removed.
@@ -341,22 +341,19 @@ The 3.1 version was a quiet time for RCU, with cleanups and minor fixes
 from Arun Sharma, Jiri Kosina, Michal Hocko, Peter Zijlstra,
 and Jan H. Sch\"{o}nherr.
 
-\subsection{What comes after 3.1?}
+\subsection{3.2 Linux Kernel}
 
-The 3.2 Linux kernel will contain the first installment of RCU event tracing,
-along with a number of fixes to issues located during the first phase
-of a top-to-bottom inspection of RCU's code.
-One ill-fated fix attempted to continue allowing RCU read-side
-critical sections to overlap with irq-disable code sections,
-but this will likely be backed out due to mutex maintainability issues
-with this fix.
+The 3.2 Linux kernel contains a number of fixes to issues located
+during the first phase of a top-to-bottom inspection of RCU's code.
+One outcome of this inspection is that deadlock can occur if
+an irq-disabled section of code overlaps the end but not the beginning
+of a preemptible RCU read-side critical section.
 Therefore, do not code RCU read-side critical sections that partially
-overlap with irq-disable code sections:
+overlap with irq-disabled code sections:
 Instead, either fully enclose the irq-disable code sections within a
 given RCU read-side critical section or vice versa.
-Diagnostics will be added to check for this.
-You have been warned!
 
+This release saw the first RCU event-tracing capabilities.
 Eric Dumazet applied the new
 \co{kthread_create_on_node()} primitive to ensure that RCU's
 kthreads have memory placed optimally on NUMA systems.
@@ -371,10 +368,14 @@ use \co{RCU_INIT_POINTER()} rather than \co{rcu_assign_pointer()}.
 Shaohua Li eliminated an unnecessary self-wakeup of RCU's per-CPU
 kthreads, and Andi Kleen cleaned up some conflicting variable
 declarations.
-Finally, Mike Galbraith fixed a bug that caused RCU to ignore the
-\co{RCU_BOOST_PRIO} kernel parameter.
+Mike Galbraith fixed a bug that caused RCU to ignore the
+\co{RCU_BOOST_PRIO} kernel parameter, and finally,
+rcutorture made some headway in catching up to the ever-expanding
+RCU capabilities.
 
-The 3.3 Linux kernel will contain additional event tracing,
+\subsection{3.3 Linux Kernel}
+
+The 3.3 Linux kernel contains
 energy-efficiency improvements that reduce RCU's need for
 scheduling-clock ticks from otherwise idle CPUs,
 a new \co{srcu_read_lock_raw()} primitive needed by uprobes,
@@ -383,23 +384,188 @@ inspection of RCU,
 and improvements to \co{rcutorture} that enable scripted KVM-based
 testing of RCU, independent of the type or presence of userspace layout.
 
-Also included will be some \co{-rt} RCU patches from Thomas Gleixner,
-a number of RCU-infrastructure patches from Frederic Weisbecker
+Also included were some \co{-rt} RCU patches from Thomas Gleixner,
+as well as
+a number of RCU-infrastructure patches from Fr\'ed\'eric Weisbecker
 in support of the long-hoped-for application of dyntick-idle mode
-to usermode execution, and an ill-fated fix from Yong Zhang.
+to usermode execution.
 
 Although some initial work has gone into permitting RCU-preempt's
 \co{__rcu_read_lock()} and \co{__rcu_read_unlock()} to be inlined,
 much more work is needed to disentangle various include-file issues.
-
-Longer term, the design for pulling SRCU into the Tree RCU implementation
-is still looking reasonably good, aside from interactions with the
-soft-lockup code, need for per-CPU real-time threads, interaction
-with odd corners of RCU priority boosting, and probably a few other
-unanticipated issues.
-Therefore, it will still likely be a few more releases before SRCU is pulled
-into Tree RCU and Tiny RCU.
+Finally, there were miscellaneous fixes from Rusty Russell.
 
 There has been an initial request for \co{rcu_barrier_expedited()},
 but given that the requester found another way to solve this problem,
 this has relatively low priority.
+
+\subsection{3.4 Linux Kernel}
+
+The 3.4 kernel contains yet more energy-efficiency work, reducing their
+downsides to rapid idle entry/exit workloads.
+The tradeoff managed here is increased work on idle entry compared to
+longer idle times, and so the changes in this release do a better job of
+recognizing when additional effort is futile, for example, if the
+CPU is entering and exiting idle rapidly due to the workload, there is
+little point in taking idle-entry actions that would allow the CPU to
+stay asleep longer.
+
+This release also added \co{RCU_NONIDLE()}, which is used to handle
+the increasingly frequent practice of invoking RCU from idle CPUs.
+Because RCU ignores idle CPUs, this practice is quite dangerous.
+The new \co{RCU_NONIDLE()} macro therefore carries out a momentary
+exit from idle so that RCU read-side critical sections can do their job.
+
+RCU's handling of CPU hotplug was improved, rcutorture gained some
+primitive ability to test RCU CPU stalls warnings, and the stall
+warnings themselves were improved by adding more information and
+by adding the ability to control timeouts via sysfs.
+\co{TREE_RCU} no longer may be used in \co{CONFIG_SMP=n} kernels;
+\co{TINY_RCU} is used instead.
+This release also saw the addition of lockdep-RCU checks for sleeping
+in a non-preemptible-RCU read-side critical section, as well as for
+entering the idle loop while in an RCU read-side critical section.
+
+\co{TINY_RCU} inherited the \co{TREE_RCU} fixes for the v3.0-rc7 RCU
+trainwreck~\cite{PaulEMcKenney2011RCU3.0trainwreck}.
+The grace-period initialization process dropped the old single-node
+optimization, and callbacks remaining on offlined CPUs no longer
+need to go through a second full grace period.
+Furthermore, offline CPUs are no longer permitted to invoke RCU
+callbacks.
+
+Yet more tweaks to the energy-efficiency code limited the amount of
+time lazy callbacks could languish on an idle CPU.
+Finally, a number of fixes were supplied by Fr\'ed\'eric Weisbecker,
+Heiko Carstens, Julia Lawall, Hugh Dickins, Jan Beulich, and Paul
+Gortmaker.
+
+\subsection{3.5 Linux Kernel}
+
+The 3.5 Linux kernel included yet more adjustments to the
+\co{CONFIG_RCU_FAST_NO_HZ} energy-efficiency code, including timer
+handling and proper handling of \co{RCU_NONIDLE()} pauses out of
+idle.
+
+It also included work to reduce the disruption due to \co{rcu_barrier()}
+and friends by avoiding enqueuing callbacks on CPUs that have none.
+This work also made the interaction between \co{rcu_barrier()} and
+callbacks orphaned by offlined CPUs more explicit, which was required
+in order to avoid some nasty race conditions.
+An abortive attempt to inline \co{__rcu_read_unlock()} left but one
+commit that consolidated and reduced the overhead of RCU's
+task-exit handling.
+
+This release contains a complete rewrite of SRCU by Lai Jiangshan as
+well as fixes from Jan Engelhardt, Michel Machado, and Dave Jones.
+
+\subsection{3.6 Linux Kernel}
+
+The 3.6 Linux kernel included the first round of changes to reduce
+RCU's scheduling-latency impact on systems with thousands of CPUs,
+namely allowing leaf-level fanout of the \co{rcu_node} tree to be
+controlled by a boot-time parameter.
+This change reduced the amount of memory that needed to be touched
+during grace-period initialization by a factor of four, thus reducing
+the latency impact from about 200 microseconds to 60-70 microseconds.
+This release also increased \co{rcu_barrier()} concurrency.
+
+Following an established tradition, this release also contained
+energy-efficiency changes for the \co{CONFIG_RCU_FAST_NO_HZ}
+facility.
+Finally, the release contained a number of fixes, including
+an uninitialized-string fix from Carsten Emde.
+
+\subsection{3.7 Linux Kernel}
+
+The 3.7 Linux kernel moved grace-period initialization to a separate
+kthread, where it is preemptible, which should eliminate
+grace-period-initialization-latency problems on large systems.
+This release also removed the previous \co{_rcu_barrier()} dependency
+on the much-maligned \co{__stop_machine()}.
+It also contained some of the RCU infrastructure required by
+Fr\'ed\'eric Weisbecker's \co{CONFIG_NO_HZ_FULL} bare-metal
+facility~\cite{JonCorbet2013NO-HZ-FULL}, and much of this RCU
+infrastructure was in fact also written by Fr\'ed\'eric.
+Finally, it contained fixes and optimizations from Tejun Heo,
+Thomas Gleixner, Li Zhong, and Dimiti Sivanich.
+
+\subsection{3.8 Linux Kernel}
+
+The 3.8 Linux kernel added a prototype implementation of RCU callback
+offloading in the form of a new \co{CONFIG_RCU_NOCB_CPU} Kconfig
+parameter~\cite{JonCorbet2012NOCB}, for which Paul Gortmaker provided
+a couple of badly needed fixes.
+This prototype implementation requires that CPU~0 not be offloaded,
+and in fact that all callbacks be handled by CPU~0.
+This is clearly not scalable, so a better implementation will appear later.
+RCU CPU stall-warning messages were once again upgraded, and some
+improvements to RCU's CPU-hotplug code were added.
+
+Lai Jiangshan added static definition capability to SRCU and Michael
+Wang reworked RCU's old debugfs tracing facility.
+Antti P.~Miettinen added a kernel boot parameter that forces all RCU
+synchronous grace-period primitives to execute in expedited mode,
+and Eric Dumazet fixed an RCU callback batch-limit problem.
+
+\subsection{3.9 Linux Kernel}
+
+The 3.9 Linux kernel tags groups of callbacks with the corresponding
+number, which allows RCU to be maximally aggressive about promoting
+callbacks with no need to worry about over-promoting them.
+In addition, this release adds RCU CPU stall warnings for \co{TINY_RCU}.
+
+Lai Jiangshan provided some SRCU updates, allowing SRCU read-side primitives
+to be invoked from idle and offline CPUs, along with some additional
+fixes.
+Additional fixes were provided by Sasha Levin, Steven Rostedt,
+Li Zhong, Cody P. Schafer, and Josh Triplett.
+
+\subsection{3.10 Linux Kernel}
+
+With the 3.10 Linux kernel, RCU finally has an energy-efficiency mechanism
+that delivers energy savings that are measurable at the system
+level~\cite{PaulMcKenney2013AMPenergyHOTPAR}.
+The trick is making \co{CONFIG_RCU_FAST_NO_HZ} use the callback-tagging from
+3.9.
+This means that CPUs going idle need only classify and number their own
+callbacks, which is considerably cheaper than than the prior approach
+of attempting to force the RCU state machine forward.
+In addition, the callback-tagging was enhanced to allow CPUs to indicate
+the need for future grace periods, which allows CPUs to indicate a need
+for a grace period, and to have that grace period complete, despite the
+fact that the requesting CPU was asleep through the whole process.
+
+In addition, the \co{CONFIG_RCU_NOCB_CPU} facility was improved to
+remove its dependency on CPU~0, thus allowing RCU callbacks to be offloaded
+from all CPUs.
+
+This release also included fixes from Steven Rostedt, Eric Dumazet,
+Sasha Levin, Fr\'ed\'eric Weisbecker, Al Viro, Steven Whitehouse,
+Srivatsa S.~Bhat, Jiang Fang, and Akinobu Mita.
+
+\subsection{3.11 Linux Kernel}
+
+The 3.11 Linux kernel added cleanups for the callback-tagging work
+in 3.9 and 3.10 and removed \co{TINY_PREEMPT_RCU} in favor of running
+\co{TREE_PREEMPT_RCU} in uniprocessor mode.
+This release also includes fixes from Paul Gortmaker and Kees Cook.
+
+\subsection{3.12 Linux Kernel}
+
+The 3.12 kernel adds the \co{CONFIG_NO_HZ_FULL_SYSIDLE} Kconfig
+parameter that provides the infrastructure required to allow
+\co{CONFIG_NO_HZ_FULL} to efficiently determine when the entire
+system is idle.
+This is important because unless \co{CONFIG_NO_HZ_FULL} can prove
+that the full system is idle, it must force CPU~0 to keep its
+scheduling-clock interrupt active, which is not so good for battery
+lifetime~\cite{JonathanCorbet2013SYSIDLE}.
+
+This release also improved rcutorture's test coverage by testing
+synchronous, asynchronous, and expedited grace-period primitives
+in parallel.
+It also adds duplicate-callback testing and makes rcutorture give
+more information when a CPU-online operation fails.
+Finally, it includes fixes from Steven Rostedt, Tejun Heo, and Borislav
+Petkov.
