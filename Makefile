@@ -259,7 +259,7 @@ count/sig-theft.eps: count/sig-theft.dot
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
-		-o -name '*.dvi' -o -name '*.log' -o -name '*.pdf' \
+		-o -name '*.dvi' -o -name '*.log' \
 		-o -name '*.qqz' -o -name '*.toc' | xargs rm
 	rm -f perfbook_flat.tex perfbook_html.tex perfbook.out perfbook-1c.out
 	rm -rf perfbook_html
@@ -267,3 +267,10 @@ clean:
 	      SMPdesign/DiningPhilosopher5TB.eps \
 	      SMPdesign/DiningPhilosopher4part-b.eps \
 	      SMPdesign/DiningPhilosopher5PEM.eps
+
+distclean: clean
+	sh utilities/cleanpdf.sh
+
+neatfreak: distclean
+	# Don't forget to regenerate the .pdf from each .svg file
+	find . -name '*.pdf' | xargs rm
