@@ -1,7 +1,7 @@
-% appendix/formal/dyntickrcu.tex
+% formal/dyntickrcu.tex
 
 \section{Promela Parable: dynticks and Preemptible RCU}
-\label{app:formal:Promela Parable: dynticks and Preemptible RCU}
+\label{sec:formal:Promela Parable: dynticks and Preemptible RCU}
 
 In early 2008, a preemptible variant of RCU was accepted into
 mainline Linux in support of real-time workloads,
@@ -53,7 +53,7 @@ illusory.
 Near the end of February, Paul grew tired of this game.
 He therefore decided to enlist the aid of
 Promela and spin~\cite{Holzmann03a}, as described in
-Appendix~\ref{app:formal:Formal Verification}.
+Section~\ref{chp:formal:Formal Verification}.
 The following presents a series of seven increasingly realistic
 Promela models, the last of which passes, consuming about
 40GB of main memory for the state space.
@@ -90,15 +90,15 @@ that has a smaller state space.
 Even better would be an algorithm so simple that its correctness was
 obvious to the casual observer!
 
-Section~\ref{app:formal:Introduction to Preemptible RCU and dynticks}
+Section~\ref{sec:formal:Introduction to Preemptible RCU and dynticks}
 gives an overview of preemptible RCU's dynticks interface,
-Section~\ref{app:formal:Validating Preemptible RCU and dynticks},
+Section~\ref{sec:formal:Validating Preemptible RCU and dynticks},
 and
-Section~\ref{app:formal:Lessons (Re)Learned} lists
+Section~\ref{sec:formal:Lessons (Re)Learned} lists
 lessons (re)learned during this effort.
 
 \subsection{Introduction to Preemptible RCU and dynticks}
-\label{app:formal:Introduction to Preemptible RCU and dynticks}
+\label{sec:formal:Introduction to Preemptible RCU and dynticks}
 
 The per-CPU \co{dynticks_progress_counter} variable is
 central to the interface between dynticks and preemptible RCU.
@@ -123,19 +123,20 @@ the \co{dynticks_progress_counter} variable by the
 grace-period machinery.
 
 \subsubsection{Task Interface}
-\label{app:formal:Task Interface}
+\label{sec:formal:Task Interface}
 
 When a given CPU enters dynticks-idle mode because it has no more
 tasks to run, it invokes \co{rcu_enter_nohz()}:
 
 { \scriptsize
 \begin{verbatim}
-  1 static inline void rcu_enter_nohz(void)
-  2 {
-  3   mb();
-  4   __get_cpu_var(dynticks_progress_counter)++;
-  5   WARN_ON(__get_cpu_var(dynticks_progress_counter) & 0x1);
-  6 }
+ 1  static inline void rcu_enter_nohz(void)
+ 2  {
+ 3    mb();
+ 4    __get_cpu_var(dynticks_progress_counter)++;
+ 5    WARN_ON(__get_cpu_var(dynticks_progress_counter) &
+ 6            0x1);
+ 7  }
 \end{verbatim}
 }
 
@@ -175,7 +176,7 @@ mode due to task execution, but does not handle interrupts, which are
 covered in the following section.
 
 \subsubsection{Interrupt Interface}
-\label{app:formal:Interrupt Interface}
+\label{sec:formal:Interrupt Interface}
 
 The \co{rcu_irq_enter()} and \co{rcu_irq_exit()}
 functions handle interrupt/NMI entry and exit, respectively.
@@ -304,7 +305,7 @@ The following section describes how this variable is used by
 preemptible RCU's grace-period machinery.
 
 \subsubsection{Grace-Period Interface}
-\label{app:formal:Grace-Period Interface}
+\label{sec:formal:Grace-Period Interface}
 
 Of the four preemptible RCU grace-period states shown in
 Figure~\ref{app:rcuimpl:Preemptible RCU State Machine} on
@@ -413,7 +414,7 @@ code.
 } \QuickQuizEnd
 
 \subsection{Validating Preemptible RCU and dynticks}
-\label{app:formal:Validating Preemptible RCU and dynticks}
+\label{sec:formal:Validating Preemptible RCU and dynticks}
 
 This section develops a Promela model for the interface between
 dynticks and RCU step by step, with each of the following sections
@@ -421,7 +422,7 @@ illustrating one step, starting with the process-level code,
 adding assertions, interrupts, and finally NMIs.
 
 \subsubsection{Basic Model}
-\label{app:formal:Basic Model}
+\label{sec:formal:Basic Model}
 
 This section translates the process-level dynticks entry/exit
 code and the grace-period processing into
@@ -610,12 +611,12 @@ it completely lacks the assertions that could find failures.
 The next section therefore adds safety assertions.
 
 \subsubsection{Validating Safety}
-\label{app:formal:Validating Safety}
+\label{sec:formal:Validating Safety}
 
 A safe RCU implementation must never permit a grace period to
 complete before the completion of any RCU readers that started
 before the start of the grace period.
-This is modeled by a \co{grace_period_state} variable that
+This is modeled by a \co{gp_state} variable that
 can take on three states as follows:
 
 \vspace{5pt}
@@ -624,7 +625,7 @@ can take on three states as follows:
   1 #define GP_IDLE    0
   2 #define GP_WAITING  1
   3 #define GP_DONE    2
-  4 byte grace_period_state = GP_DONE;
+  4 byte gp_state = GP_DONE;
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
@@ -639,11 +640,11 @@ progresses through the grace-period phases, as shown below:
   3   byte curr;
   4   byte snap;
   5
-  6   grace_period_state = GP_IDLE;
+  6   gp_state = GP_IDLE;
   7   atomic {
   8     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
   9     snap = dynticks_progress_counter;
- 10     grace_period_state = GP_WAITING;
+ 10     gp_state = GP_WAITING;
  11   }
  12   do
  13   :: 1 ->
@@ -658,11 +659,11 @@ progresses through the grace-period phases, as shown below:
  22       fi;
  23     }
  24   od;
- 25   grace_period_state = GP_DONE;
- 26   grace_period_state = GP_IDLE;
+ 25   gp_state = GP_DONE;
+ 26   gp_state = GP_IDLE;
  27   atomic {
  28     snap = dynticks_progress_counter;
- 29     grace_period_state = GP_WAITING;
+ 29     gp_state = GP_WAITING;
  30   }
  31   do
  32   :: 1 ->
@@ -677,7 +678,7 @@ progresses through the grace-period phases, as shown below:
  41       fi;
  42     }
  43   od;
- 44   grace_period_state = GP_DONE;
+ 44   gp_state = GP_DONE;
  45 }
 \end{verbatim}
 }
@@ -687,13 +688,13 @@ atomically with algorithmic operations where feasible) to
 allow the \co{dyntick_nohz()} process to verify the basic
 RCU safety property.
 The form of this verification is to assert that the value of the
-\co{grace_period_state} variable cannot jump from
+\co{gp_state} variable cannot jump from
 \co{GP_IDLE} to \co{GP_DONE} during a time period
 over which RCU readers could plausibly persist.
 
 \QuickQuiz{}
 	Given there are a pair of back-to-back changes to
-	\co{grace_period_state} on lines~25 and 26,
+	\co{gp_state} on lines~25 and 26,
 	how can we be sure that line~25's changes won't be lost?
 \QuickQuizAnswer{
 	Recall that Promela and spin trace out
@@ -721,13 +722,13 @@ this verification as shown below:
  10     tmp = dynticks_progress_counter;
  11     atomic {
  12       dynticks_progress_counter = tmp + 1;
- 13       old_gp_idle = (grace_period_state == GP_IDLE);
+ 13       old_gp_idle = (gp_state == GP_IDLE);
  14       assert((dynticks_progress_counter & 1) == 1);
  15     }
  16     atomic {
  17       tmp = dynticks_progress_counter;
  18       assert(!old_gp_idle ||
- 19              grace_period_state != GP_DONE);
+ 19              gp_state != GP_DONE);
  20     }
  21     atomic {
  22       dynticks_progress_counter = tmp + 1;
@@ -740,9 +741,9 @@ this verification as shown below:
 }
 
 Line~13 sets a new \co{old_gp_idle} flag if the
-value of the \co{grace_period_state} variable is
+value of the \co{gp_state} variable is
 \co{GP_IDLE} at the beginning of task execution,
-and the assertion at lines~18 and 19 fire if the \co{grace_period_state}
+and the assertion at lines~18 and 19 fire if the \co{gp_state}
 variable has advanced to \co{GP_DONE} during task execution,
 which would be illegal given that a single RCU read-side critical
 section could span the entire intervening time period.
@@ -756,7 +757,7 @@ important to avoid indefinitely stalling grace periods.
 The next section therefore covers verifying liveness.
 
 \subsubsection{Validating Liveness}
-\label{app:formal:Validating Liveness}
+\label{sec:formal:Validating Liveness}
 
 Although liveness can be difficult to prove, there is a simple
 trick that applies here.
@@ -778,13 +779,13 @@ line~27 of the following:
  10     tmp = dynticks_progress_counter;
  11     atomic {
  12       dynticks_progress_counter = tmp + 1;
- 13       old_gp_idle = (grace_period_state == GP_IDLE);
+ 13       old_gp_idle = (gp_state == GP_IDLE);
  14       assert((dynticks_progress_counter & 1) == 1);
  15     }
  16     atomic {
  17       tmp = dynticks_progress_counter;
  18       assert(!old_gp_idle ||
- 19              grace_period_state != GP_DONE);
+ 19              gp_state != GP_DONE);
  20     }
  21     atomic {
  22       dynticks_progress_counter = tmp + 1;
@@ -809,12 +810,12 @@ as follows:
   4   byte snap;
   5   bit shouldexit;
   6
-  7   grace_period_state = GP_IDLE;
+  7   gp_state = GP_IDLE;
   8   atomic {
   9     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
  10     shouldexit = 0;
  11     snap = dynticks_progress_counter;
- 12     grace_period_state = GP_WAITING;
+ 12     gp_state = GP_WAITING;
  13   }
  14   do
  15   :: 1 ->
@@ -831,12 +832,12 @@ as follows:
  26       fi;
  27     }
  28   od;
- 29   grace_period_state = GP_DONE;
- 30   grace_period_state = GP_IDLE;
+ 29   gp_state = GP_DONE;
+ 30   gp_state = GP_IDLE;
  31   atomic {
  32     shouldexit = 0;
  33     snap = dynticks_progress_counter;
- 34     grace_period_state = GP_WAITING;
+ 34     gp_state = GP_WAITING;
  35   }
  36   do
  37   :: 1 ->
@@ -853,7 +854,7 @@ as follows:
  48       fi;
  49     }
  50   od;
- 51   grace_period_state = GP_DONE;
+ 51   gp_state = GP_DONE;
  52 }
 \end{verbatim}
 }
@@ -997,7 +998,7 @@ conditions, but only for processes running and blocking.
 We also need to handle interrupts, a task taken up in the next section.
 
 \subsubsection{Interrupts}
-\label{app:formal:Interrupts}
+\label{sec:formal:Interrupts}
 
 There are a couple of ways to model interrupts in Promela:
 \begin{enumerate}
@@ -1056,7 +1057,7 @@ The overall effect is that mainline execution stalls any time an interrupt
 is active, as required.
 
 \subsubsection{Validating Interrupt Handlers}
-\label{app:formal:Validating Interrupt Handlers}
+\label{sec:formal:Validating Interrupt Handlers}
 
 The first step is to convert \co{dyntick_nohz()} to
 \co{EXECUTE_MAINLINE()} form, as follows:
@@ -1076,12 +1077,12 @@ The first step is to convert \co{dyntick_nohz()} to
  11       tmp = dynticks_progress_counter)
  12     EXECUTE_MAINLINE(stmt2,
  13       dynticks_progress_counter = tmp + 1;
- 14       old_gp_idle = (grace_period_state == GP_IDLE);
+ 14       old_gp_idle = (gp_state == GP_IDLE);
  15       assert((dynticks_progress_counter & 1) == 1))
  16     EXECUTE_MAINLINE(stmt3,
  17       tmp = dynticks_progress_counter;
  18       assert(!old_gp_idle ||
- 19              grace_period_state != GP_DONE))
+ 19              gp_state != GP_DONE))
  20     EXECUTE_MAINLINE(stmt4,
  21       dynticks_progress_counter = tmp + 1;
  22       assert((dynticks_progress_counter & 1) == 0))
@@ -1184,8 +1185,8 @@ to model an interrupt handler:
  25     fi;
  26     tmp = in_interrupt;
  27     in_interrupt = tmp + 1;
- 28     old_gp_idle = (grace_period_state == GP_IDLE);
- 29     assert(!old_gp_idle || grace_period_state != GP_DONE);
+ 28     old_gp_idle = (gp_state == GP_IDLE);
+ 29     assert(!old_gp_idle || gp_state != GP_DONE);
  30     tmp = in_interrupt;
  31     in_interrupt = tmp - 1;
  32     if
@@ -1255,13 +1256,13 @@ The \co{grace_period} process then becomes as follows:
   4   byte snap;
   5   bit shouldexit;
   6
-  7   grace_period_state = GP_IDLE;
+  7   gp_state = GP_IDLE;
   8   atomic {
   9     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
  10     printf("MDLI = %d\n", MAX_DYNTICK_LOOP_IRQ);
  11     shouldexit = 0;
  12     snap = dynticks_progress_counter;
- 13     grace_period_state = GP_WAITING;
+ 13     gp_state = GP_WAITING;
  14   }
  15   do
  16   :: 1 ->
@@ -1276,12 +1277,12 @@ The \co{grace_period} process then becomes as follows:
  25       fi;
  26     }
  27   od;
- 28   grace_period_state = GP_DONE;
- 29   grace_period_state = GP_IDLE;
+ 28   gp_state = GP_DONE;
+ 29   gp_state = GP_IDLE;
  30   atomic {
  31     shouldexit = 0;
  32     snap = dynticks_progress_counter;
- 33     grace_period_state = GP_WAITING;
+ 33     gp_state = GP_WAITING;
  34   }
  35   do
  36   :: 1 ->
@@ -1296,7 +1297,7 @@ The \co{grace_period} process then becomes as follows:
  45       fi;
  46     }
  47   od;
- 48   grace_period_state = GP_DONE;
+ 48   gp_state = GP_DONE;
  49 }
 \end{verbatim}
 }
@@ -1316,7 +1317,7 @@ interrupts.
 This topic is taken up in the nest section.
 
 \subsubsection{Validating Nested Interrupt Handlers}
-\label{app:formal:Validating Nested Interrupt Handlers}
+\label{sec:formal:Validating Nested Interrupt Handlers}
 
 Nested interrupt handlers may be modeled by splitting the body of
 the loop in \co{dyntick_irq()} as follows:
@@ -1359,7 +1360,7 @@ the loop in \co{dyntick_irq()} as follows:
  34     atomic {
  35       if
  36       :: outermost ->
- 37         old_gp_idle = (grace_period_state == GP_IDLE);
+ 37         old_gp_idle = (gp_state == GP_IDLE);
  38       :: else -> skip;
  39       fi;
  40     }
@@ -1369,7 +1370,7 @@ the loop in \co{dyntick_irq()} as follows:
  44       if
  45       :: j + 1 == i ->
  46         assert(!old_gp_idle ||
- 47                grace_period_state != GP_DONE);
+ 47                gp_state != GP_DONE);
  48       :: else -> skip;
  49       fi;
  50     }
@@ -1402,7 +1403,7 @@ It adds a second counter variable \co{j} on line~5, so that
 \co{i} counts entries to interrupt handlers and \co{j}
 counts exits.
 The \co{outermost} variable on line~7 helps determine
-when the \co{grace_period_state} variable needs to be sampled
+when the \co{gp_state} variable needs to be sampled
 for the safety checks.
 The loop-exit check on lines~10 and 11 is updated to require that the
 specified number of interrupt handlers are exited as well as entered,
@@ -1412,7 +1413,7 @@ Lines~13-16 set the \co{outermost} variable to indicate
 whether this is the outermost of a set of nested interrupts and to
 set the \co{in_dyntick_irq} variable that is used by the
 \co{dyntick_nohz()} process.
-Lines~34-40 capture the state of the \co{grace_period_state}
+Lines~34-40 capture the state of the \co{gp_state}
 variable, but only when in the outermost interrupt handler.
 
 Line~42 has the do-loop conditional for interrupt-exit modeling:
@@ -1431,7 +1432,7 @@ However, this version of the model does not handle NMIs,
 which are taken up in the nest section.
 
 \subsubsection{Validating NMI Handlers}
-\label{app:formal:Validating NMI Handlers}
+\label{sec:formal:Validating NMI Handlers}
 
 We take the same general approach for NMIs as we do for interrupts,
 keeping in mind that NMIs do not nest.
@@ -1466,8 +1467,8 @@ This results in a \co{dyntick_nmi()} process as follows:
  25     fi;
  26     tmp = in_interrupt;
  27     in_interrupt = tmp + 1;
- 28     old_gp_idle = (grace_period_state == GP_IDLE);
- 29     assert(!old_gp_idle || grace_period_state != GP_DONE);
+ 28     old_gp_idle = (gp_state == GP_IDLE);
+ 29     assert(!old_gp_idle || gp_state != GP_DONE);
  30     tmp = in_interrupt;
  31     in_interrupt = tmp - 1;
  32     if
@@ -1588,7 +1589,7 @@ to \co{EXECUTE_IRQ()} as follows:
  51       if
  52       :: in_dyntick_nmi -> goto stmt4;
  53       :: !in_dyntick_nmi && outermost ->
- 54         old_gp_idle = (grace_period_state == GP_IDLE);
+ 54         old_gp_idle = (gp_state == GP_IDLE);
  55       :: else -> skip;
  56       fi;
  57     }
@@ -1600,7 +1601,7 @@ to \co{EXECUTE_IRQ()} as follows:
  63       :: in_dyntick_nmi -> goto stmt6;
  64       :: !in_dyntick_nmi && j + 1 == i ->
  65         assert(!old_gp_idle ||
- 66                grace_period_state != GP_DONE);
+ 66                gp_state != GP_DONE);
  67       :: else -> skip;
  68       fi;
  69     }
@@ -1660,14 +1661,14 @@ Finally, \co{grace_period()} requires only a few changes:
   4   byte snap;
   5   bit shouldexit;
   6
-  7   grace_period_state = GP_IDLE;
+  7   gp_state = GP_IDLE;
   8   atomic {
   9     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
  10     printf("MDLI = %d\n", MAX_DYNTICK_LOOP_IRQ);
  11     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NMI);
  12     shouldexit = 0;
  13     snap = dynticks_progress_counter;
- 14     grace_period_state = GP_WAITING;
+ 14     gp_state = GP_WAITING;
  15   }
  16   do
  17   :: 1 ->
@@ -1684,12 +1685,12 @@ Finally, \co{grace_period()} requires only a few changes:
  28       fi;
  29     }
  30   od;
- 31   grace_period_state = GP_DONE;
- 32   grace_period_state = GP_IDLE;
+ 31   gp_state = GP_DONE;
+ 32   gp_state = GP_IDLE;
  33   atomic {
  34     shouldexit = 0;
  35     snap = dynticks_progress_counter;
- 36     grace_period_state = GP_WAITING;
+ 36     gp_state = GP_WAITING;
  37   }
  38   do
  39   :: 1 ->
@@ -1706,7 +1707,7 @@ Finally, \co{grace_period()} requires only a few changes:
  50       fi;
  51     }
  52   od;
- 53   grace_period_state = GP_DONE;
+ 53   gp_state = GP_DONE;
  54 }
 \end{verbatim}
 }
@@ -1752,7 +1753,7 @@ states, passing without errors.
 } \QuickQuizEnd
 
 \subsection{Lessons (Re)Learned}
-\label{app:formal:Lessons (Re)Learned}
+\label{sec:formal:Lessons (Re)Learned}
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1773,7 +1774,7 @@ states, passing without errors.
 \end{verbatim}
 }
 \caption{Memory-Barrier Fix Patch}
-\label{fig:app:formal:Memory-Barrier Fix Patch}
+\label{fig:formal:Memory-Barrier Fix Patch}
 \end{figure}
 
 \begin{figure}[tbp]
@@ -1784,7 +1785,7 @@ states, passing without errors.
 \end{verbatim}
 }
 \caption{Variable-Name-Typo Fix Patch}
-\label{fig:app:formal:Variable-Name-Typo Fix Patch}
+\label{fig:formal:Variable-Name-Typo Fix Patch}
 \end{figure}
 
 This effort provided some lessons (re)learned:
@@ -1797,14 +1798,14 @@ This effort provided some lessons (re)learned:
 	a misplaced memory barrier in
 	\co{rcu_enter_nohz()} and \co{rcu_exit_nohz()},
 	as shown by the patch in
-	Figure~\ref{fig:app:formal:Memory-Barrier Fix Patch}.
+	Figure~\ref{fig:formal:Memory-Barrier Fix Patch}.
 \item	{\bf Validate your code early, often, and up to the point
 	of destruction.}
 	This effort located one subtle bug in
 	\co{rcu_try_flip_waitack_needed()}
 	that would have been quite difficult to test or debug, as
 	shown by the patch in
-	Figure~\ref{fig:app:formal:Variable-Name-Typo Fix Patch}.
+	Figure~\ref{fig:formal:Variable-Name-Typo Fix Patch}.
 \item	{\bf Always verify your verification code.}
 	The usual way to do this is to insert a deliberate bug
 	and verify that the verification code catches it.  Of course,
@@ -1824,7 +1825,7 @@ This effort provided some lessons (re)learned:
 \end{enumerate}
 
 \section{Simplicity Avoids Formal Verification}
-\label{app:formal:Simplicity Avoids Formal Verification}
+\label{sec:formal:Simplicity Avoids Formal Verification}
 
 The complexity of the dynticks interface for preemptible RCU is primarily
 due to the fact that both irqs and NMIs use the same code path and the
@@ -1836,7 +1837,7 @@ as indirectly suggested by
 Manfred Spraul~\cite{ManfredSpraul2008StateMachineRCU}.
 
 \subsection{State Variables for Simplified Dynticks Interface}
-\label{app:formal:State Variables for Simplified Dynticks Interface}
+\label{sec:formal:State Variables for Simplified Dynticks Interface}
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1856,10 +1857,10 @@ Manfred Spraul~\cite{ManfredSpraul2008StateMachineRCU}.
 \end{verbatim}
 }
 \caption{Variables for Simple Dynticks Interface}
-\label{fig:app:formal:Variables for Simple Dynticks Interface}
+\label{fig:formal:Variables for Simple Dynticks Interface}
 \end{figure}
 
-Figure~\ref{fig:app:formal:Variables for Simple Dynticks Interface}
+Figure~\ref{fig:formal:Variables for Simple Dynticks Interface}
 shows the new per-CPU state variables.
 These variables are grouped into structs to allow multiple independent
 RCU implementations (e.g., \co{rcu} and \co{rcu_bh}) to conveniently
@@ -1920,7 +1921,7 @@ passed through a quiescent state during that interval.
 } \QuickQuizEnd
 
 \subsection{Entering and Leaving Dynticks-Idle Mode}
-\label{app:formal:Entering and Leaving Dynticks-Idle Mode}
+\label{sec:formal:Entering and Leaving Dynticks-Idle Mode}
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -1935,7 +1936,7 @@ passed through a quiescent state during that interval.
   8   rdtp = &__get_cpu_var(rcu_dynticks);
   9   rdtp->dynticks++;
  10   rdtp->dynticks_nesting--;
- 11   WARN_ON_RATELIMIT(rdtp->dynticks & 0x1, &rcu_rs);
+ 11   WARN_ON(rdtp->dynticks & 0x1);
  12   local_irq_restore(flags);
  13 }
  14
@@ -1948,17 +1949,17 @@ passed through a quiescent state during that interval.
  21   rdtp = &__get_cpu_var(rcu_dynticks);
  22   rdtp->dynticks++;
  23   rdtp->dynticks_nesting++;
- 24   WARN_ON_RATELIMIT(!(rdtp->dynticks & 0x1), &rcu_rs);
+ 24   WARN_ON(!(rdtp->dynticks & 0x1));
  25   local_irq_restore(flags);
  26   smp_mb();
  27 }
 \end{verbatim}
 }
 \caption{Entering and Exiting Dynticks-Idle Mode}
-\label{fig:app:formal:Entering and Exiting Dynticks-Idle Mode}
+\label{fig:formal:Entering and Exiting Dynticks-Idle Mode}
 \end{figure}
 
-Figure~\ref{fig:app:formal:Entering and Exiting Dynticks-Idle Mode}
+Figure~\ref{fig:formal:Entering and Exiting Dynticks-Idle Mode}
 shows the \co{rcu_enter_nohz()} and \co{rcu_exit_nohz()},
 which enter and exit dynticks-idle mode, also known as ``nohz'' mode.
 These two functions are invoked from process context.
@@ -1979,48 +1980,47 @@ The \co{rcu_exit_nohz()} function is quite similar, but increments
 the opposite \co{dynticks} polarity.
 
 \subsection{NMIs From Dynticks-Idle Mode}
-\label{app:formal:NMIs From Dynticks-Idle Mode}
+\label{sec:formal:NMIs From Dynticks-Idle Mode}
 
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
-  1 void rcu_nmi_enter(void)
-  2 {
-  3   struct rcu_dynticks *rdtp;
-  4
-  5   rdtp = &__get_cpu_var(rcu_dynticks);
-  6   if (rdtp->dynticks & 0x1)
-  7     return;
-  8   rdtp->dynticks_nmi++;
-  9   WARN_ON_RATELIMIT(!(rdtp->dynticks_nmi & 0x1),
- 10                     &rcu_rs);
- 11   smp_mb();
- 12 }
- 13
- 14 void rcu_nmi_exit(void)
- 15 {
- 16   struct rcu_dynticks *rdtp;
- 17
- 18   rdtp = &__get_cpu_var(rcu_dynticks);
- 19   if (rdtp->dynticks & 0x1)
- 20     return;
- 21   smp_mb();
- 22   rdtp->dynticks_nmi++;
- 23   WARN_ON_RATELIMIT(rdtp->dynticks_nmi & 0x1, &rcu_rs);
- 24 }
+ 1  void rcu_nmi_enter(void)
+ 2  {
+ 3    struct rcu_dynticks *rdtp;
+ 4 
+ 5    rdtp = &__get_cpu_var(rcu_dynticks);
+ 6    if (rdtp->dynticks & 0x1)
+ 7      return;
+ 8    rdtp->dynticks_nmi++;
+ 9    WARN_ON(!(rdtp->dynticks_nmi & 0x1));
+10    smp_mb();
+11  }
+12 
+13  void rcu_nmi_exit(void)
+14  {
+15    struct rcu_dynticks *rdtp;
+16 
+17    rdtp = &__get_cpu_var(rcu_dynticks);
+18    if (rdtp->dynticks & 0x1)
+19      return;
+20    smp_mb();
+21    rdtp->dynticks_nmi++;
+22    WARN_ON(rdtp->dynticks_nmi & 0x1);
+23  }
 \end{verbatim}
 }
 \caption{NMIs From Dynticks-Idle Mode}
-\label{fig:app:formal:NMIs From Dynticks-Idle Mode}
+\label{fig:formal:NMIs From Dynticks-Idle Mode}
 \end{figure}
 
-Figure~\ref{fig:app:formal:NMIs From Dynticks-Idle Mode}
+Figure~\ref{fig:formal:NMIs From Dynticks-Idle Mode}
 show the \co{rcu_nmi_enter()} and \co{rcu_nmi_exit()} functions,
 which inform RCU of NMI entry and exit, respectively, from dynticks-idle
 mode.
 However, if the NMI arrives during an irq handler, then RCU will already
 be on the lookout for RCU read-side critical sections from this CPU,
-so lines~6 and 7 of \co{rcu_nmi_enter} and lines~19 and 20
+so lines~6 and 7 of \co{rcu_nmi_enter} and lines~18 and 19
 of \co{rcu_nmi_exit} silently return if \co{dynticks} is odd.
 Otherwise, the two functions increment \co{dynticks_nmi}, with
 \co{rcu_nmi_enter()} leaving it with an odd value and \co{rcu_nmi_exit()}
@@ -2030,7 +2030,7 @@ and possible RCU read-side critical sections on lines~11 and 21,
 respectively.
 
 \subsection{Interrupts From Dynticks-Idle Mode}
-\label{app:formal:Interrupts From Dynticks-Idle Mode}
+\label{sec:formal:Interrupts From Dynticks-Idle Mode}
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -2043,7 +2043,7 @@ respectively.
   6   if (rdtp->dynticks_nesting++)
   7     return;
   8   rdtp->dynticks++;
-  9   WARN_ON_RATELIMIT(!(rdtp->dynticks & 0x1), &rcu_rs);
+  9   WARN_ON(!(rdtp->dynticks & 0x1));
  10   smp_mb();
  11 }
  12
@@ -2056,7 +2056,7 @@ respectively.
  19     return;
  20   smp_mb();
  21   rdtp->dynticks++;
- 22   WARN_ON_RATELIMIT(rdtp->dynticks & 0x1, &rcu_rs);
+ 22   WARN_ON(rdtp->dynticks & 0x1);
  23   if (__get_cpu_var(rcu_data).nxtlist ||
  24       __get_cpu_var(rcu_bh_data).nxtlist)
  25     set_need_resched();
@@ -2064,10 +2064,10 @@ respectively.
 \end{verbatim}
 }
 \caption{Interrupts From Dynticks-Idle Mode}
-\label{fig:app:formal:Interrupts From Dynticks-Idle Mode}
+\label{fig:formal:Interrupts From Dynticks-Idle Mode}
 \end{figure}
 
-Figure~\ref{fig:app:formal:Interrupts From Dynticks-Idle Mode}
+Figure~\ref{fig:formal:Interrupts From Dynticks-Idle Mode}
 shows \co{rcu_irq_enter()} and \co{rcu_irq_exit()}, which
 inform RCU of entry to and exit from, respectively, irq context.
 Line~6 of \co{rcu_irq_enter()} increments \co{dynticks_nesting},
@@ -2093,82 +2093,84 @@ RCU callbacks, forcing this CPU out of dynticks-idle mode via
 an reschedule IPI if so.
 
 \subsection{Checking For Dynticks Quiescent States}
-\label{app:formal:Checking For Dynticks Quiescent States}
+\label{sec:formal:Checking For Dynticks Quiescent States}
 
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
-  1 static int
-  2 dyntick_save_progress_counter(struct rcu_data *rdp)
-  3 {
-  4   int ret;
-  5   int snap;
-  6   int snap_nmi;
-  7
-  8   snap = rdp->dynticks->dynticks;
-  9   snap_nmi = rdp->dynticks->dynticks_nmi;
- 10   smp_mb();
- 11   rdp->dynticks_snap = snap;
- 12   rdp->dynticks_nmi_snap = snap_nmi;
- 13   ret = ((snap & 0x1) == 0) && ((snap_nmi & 0x1) == 0);
- 14   if (ret)
- 15     rdp->dynticks_fqs++;
- 16   return ret;
- 17 }
+ 1  static int
+ 2  dyntick_save_progress_counter(struct rcu_data *rdp)
+ 3  {
+ 4    int ret;
+ 5    int snap;
+ 6    int snap_nmi;
+ 7 
+ 8    snap = rdp->dynticks->dynticks;
+ 9    snap_nmi = rdp->dynticks->dynticks_nmi;
+10    smp_mb();
+11    rdp->dynticks_snap = snap;
+12    rdp->dynticks_nmi_snap = snap_nmi;
+13    ret = ((snap & 0x1) == 0) &&
+14          ((snap_nmi & 0x1) == 0);
+15    if (ret)
+16      rdp->dynticks_fqs++;
+17    return ret;
+18  }
 \end{verbatim}
 }
 \caption{Saving Dyntick Progress Counters}
-\label{fig:app:formal:Saving Dyntick Progress Counters}
+\label{fig:formal:Saving Dyntick Progress Counters}
 \end{figure}
 
-Figure~\ref{fig:app:formal:Saving Dyntick Progress Counters}
+Figure~\ref{fig:formal:Saving Dyntick Progress Counters}
 shows \co{dyntick_save_progress_counter()}, which takes a snapshot
 of the specified CPU's \co{dynticks} and \co{dynticks_nmi}
 counters.
 Lines~8 and 9 snapshot these two variables to locals, line~10
 executes a memory barrier to pair with the memory barriers in
 the functions in
-Figures~\ref{fig:app:formal:Entering and Exiting Dynticks-Idle Mode},
-\ref{fig:app:formal:NMIs From Dynticks-Idle Mode}, and
-\ref{fig:app:formal:Interrupts From Dynticks-Idle Mode}.
+Figures~\ref{fig:formal:Entering and Exiting Dynticks-Idle Mode},
+\ref{fig:formal:NMIs From Dynticks-Idle Mode}, and
+\ref{fig:formal:Interrupts From Dynticks-Idle Mode}.
 Lines~11 and 12 record the snapshots for later calls to
 \co{rcu_implicit_dynticks_qs},
-and 13 checks to see if the CPU is in dynticks-idle mode with
+and lines~13 and~14 checks to see if the CPU is in dynticks-idle mode with
 neither irqs nor NMIs in progress (in other words, both snapshots
 have even values), hence in an extended quiescent state.
-If so, lines~14 and 15 count this event, and line~16 returns
+If so, lines~15 and 16 count this event, and line~17 returns
 true if the CPU was in a quiescent state.
 
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbatim}
-  1 static int
-  2 rcu_implicit_dynticks_qs(struct rcu_data *rdp)
-  3 {
-  4   long curr;
-  5   long curr_nmi;
-  6   long snap;
-  7   long snap_nmi;
-  8
-  9   curr = rdp->dynticks->dynticks;
- 10   snap = rdp->dynticks_snap;
- 11   curr_nmi = rdp->dynticks->dynticks_nmi;
- 12   snap_nmi = rdp->dynticks_nmi_snap;
- 13   smp_mb();
- 14   if ((curr != snap || (curr & 0x1) == 0) &&
- 15       (curr_nmi != snap_nmi || (curr_nmi & 0x1) == 0)) {
- 16     rdp->dynticks_fqs++;
- 17     return 1;
- 18   }
- 19   return rcu_implicit_offline_qs(rdp);
- 20 }
+ 1  static int
+ 2  rcu_implicit_dynticks_qs(struct rcu_data *rdp)
+ 3  {
+ 4    long curr;
+ 5    long curr_nmi;
+ 6    long snap;
+ 7    long snap_nmi;
+ 8 
+ 9    curr = rdp->dynticks->dynticks;
+10    snap = rdp->dynticks_snap;
+11    curr_nmi = rdp->dynticks->dynticks_nmi;
+12    snap_nmi = rdp->dynticks_nmi_snap;
+13    smp_mb();
+14    if ((curr != snap || (curr & 0x1) == 0) &&
+15        (curr_nmi != snap_nmi ||
+16        (curr_nmi & 0x1) == 0)) {
+17      rdp->dynticks_fqs++;
+18      return 1;
+19    }
+20    return rcu_implicit_offline_qs(rdp);
+21  }
 \end{verbatim}
 }
 \caption{Checking Dyntick Progress Counters}
-\label{fig:app:formal:Checking Dyntick Progress Counters}
+\label{fig:formal:Checking Dyntick Progress Counters}
 \end{figure}
 
-Figure~\ref{fig:app:formal:Checking Dyntick Progress Counters}
+Figure~\ref{fig:formal:Checking Dyntick Progress Counters}
 shows \co{dyntick_save_progress_counter}, which is called to check
 whether a CPU has entered dyntick-idle mode subsequent to a call
 to \co{dynticks_save_progress_counter()}.
@@ -2179,18 +2181,18 @@ retrieve the snapshots saved earlier by
 Line~13 then
 executes a memory barrier to pair with the memory barriers in
 the functions in
-Figures~\ref{fig:app:formal:Entering and Exiting Dynticks-Idle Mode},
-\ref{fig:app:formal:NMIs From Dynticks-Idle Mode}, and
-\ref{fig:app:formal:Interrupts From Dynticks-Idle Mode}.
-Lines~14 and 15 then check to see if the CPU is either currently in
+Figures~\ref{fig:formal:Entering and Exiting Dynticks-Idle Mode},
+\ref{fig:formal:NMIs From Dynticks-Idle Mode}, and
+\ref{fig:formal:Interrupts From Dynticks-Idle Mode}.
+Lines~14-16 then check to see if the CPU is either currently in
 a quiescent state (\co{curr} and \co{curr_nmi} having even values) or
 has passed through a quiescent state since the last call to
 \co{dynticks_save_progress_counter()} (the values of
 \co{dynticks} and \co{dynticks_nmi} having changed).
 If these checks confirm that the CPU has passed through a dyntick-idle
-quiescent state, then line~16 counts that fact and line~16 returns
+quiescent state, then line~17 counts that fact and line~18 returns
 an indication of this fact.
-Either way, line~19 checks for race conditions that can result in RCU
+Either way, line~20 checks for race conditions that can result in RCU
 waiting for a CPU that is offline.
 
 \QuickQuiz{}
@@ -2210,7 +2212,7 @@ waiting for a CPU that is offline.
 } \QuickQuizEnd
 
 \subsection{Discussion}
-\label{app:formal:Discussion}
+\label{sec:formal:Discussion}
 
 A slight shift in viewpoint resulted in a substantial simplification
 of the dynticks interface for RCU.
@@ -2224,7 +2226,7 @@ of the NMI handler.
 This limitation of sharing allows the individual functions to be
 understood one at a time, in happy contrast to the situation
 described in
-Section~\ref{app:formal:Promela Parable: dynticks and Preemptible RCU},
+Section~\ref{sec:formal:Promela Parable: dynticks and Preemptible RCU},
 where an NMI might change shared state at any point during execution of
 the irq functions.
 

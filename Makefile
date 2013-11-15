@@ -7,9 +7,6 @@ LATEXSOURCES = \
 	advsync/memorybarriers.tex \
 	appendix/appendix.tex \
 	appendix/ack/ack.tex \
-	appendix/formal/formal.tex \
-	appendix/formal/spinhint.tex \
-	appendix/formal/dyntickrcu.tex \
 	appendix/primitives/primitives.tex \
 	appendix/questions/after.tex \
 	appendix/questions/time.tex \
@@ -43,6 +40,9 @@ LATEXSOURCES = \
 	defer/rcuapi.tex \
 	defer/rcuusage.tex \
 	defer/toyrcu.tex \
+	formal/formal.tex \
+	formal/spinhint.tex \
+	formal/dyntickrcu.tex \
 	future/future.tex \
 	future/cpu.tex \
 	future/tm.tex \
