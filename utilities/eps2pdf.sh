@@ -1,6 +1,7 @@
 #!/bin/sh
 #
 # eps2pdf.sh: Convert all .eps files to .pdf for the benefit of pdflatex.
+#	Also convert any .svg files to .pdf while we are at it.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,5 +28,15 @@ do
 		echo "$basename.eps -> $basename.pdf"
 		a2ping --below --hires --bboxfrom=compute-gs \
 			"$basename.eps" "$basename.pdf"
+	fi
+done
+svgfiles=`find . -name '*.svg' -print`
+for i in $svgfiles
+do
+	basename="${i%.svg}"
+	if test ! -f "$basename.pdf" -o "$basename.svg" -nt "$basename.pdf"
+	then
+		echo "$basename.svg -> $basename.pdf"
+		inkscape --export-pdf=$basename.pdf $basename.svg
 	fi
 done
