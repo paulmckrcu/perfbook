@@ -40,6 +40,7 @@ LATEXSOURCES = \
 	defer/rcuapi.tex \
 	defer/rcuusage.tex \
 	defer/toyrcu.tex \
+	defer/updates.tex \
 	formal/formal.tex \
 	formal/spinhint.tex \
 	formal/dyntickrcu.tex \
