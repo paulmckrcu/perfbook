@@ -27,7 +27,7 @@
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
 tag=$1
-font=${2-../../}
+font=${2-../../../../}
 
 fontsize=10
 plotsize=0.5
@@ -107,6 +107,60 @@ plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
+set output "zoocpubktlin8.eps"
+set xlabel "Number of CPUs/Threads"
+set ylabel "Total Lookups per Millisecond"
+#set logscale xy
+set xrange [1:7]
+#set yrange [100:10000]
+set nokey
+# set label 1 "rcu" at 0.1,10 left
+# set label 2 "spinlock" at 0.5,3.0 left
+# set label 3 "brlock" at 0.4,0.6 left
+# set label 4 "rwlock" at 0.3,1.6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "zoocpubktlin.eps"
+set xlabel "Number of CPUs/Threads"
+set ylabel "Total Lookups per Millisecond"
+#set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+# set label 1 "rcu" at 0.1,10 left
+# set label 2 "spinlock" at 0.5,3.0 left
+# set label 3 "brlock" at 0.4,0.6 left
+# set label 4 "rwlock" at 0.3,1.6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "zoocpubktsizelin.eps"
+set xlabel "Number of CPUs/Threads"
+set ylabel "Total Lookups per Millisecond"
+#set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+# set label 1 "rcu" at 0.1,10 left
+# set label 2 "spinlock" at 0.5,3.0 left
+# set label 3 "brlock" at 0.4,0.6 left
+# set label 4 "rwlock" at 0.3,1.6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt-2048.${tag}.dat" w l, "zoo.cpus.hash_bkt-4096.${tag}.dat" w l, "zoo.cpus.hash_bkt-16384.${tag}.dat" w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
 set output "zoocatall.eps"
 set xlabel "Number of CPUs/Threads Looking Up The Cat"
 set ylabel "Total Lookups per Millisecond"
@@ -174,4 +228,58 @@ set nokey
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "zoo.cat.hash_bkt.${tag}.dat" w l, "zoo.cat.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cat.hash_bkt_rcu.${tag}.dat" w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "zooupdatelu.eps"
+set xlabel "Number of CPUs Doing Updates"
+set ylabel "Lookups per Millisecond"
+set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+# set label 1 "rcu" at 0.1,10 left
+# set label 2 "spinlock" at 0.5,3.0 left
+# set label 3 "brlock" at 0.4,0.6 left
+# set label 4 "rwlock" at 0.3,1.6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.updrd.hash_global.${tag}.dat" w l, "zoo.updrd.hash_bkt.${tag}.dat" w l, "zoo.updrd.hash_bkt_hazptr.${tag}.dat" w l, "zoo.updrd.hash_bkt_rcu.${tag}.dat" w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "zooupdatelulin.eps"
+set xlabel "Number of CPUs Doing Updates"
+set ylabel "Lookups per Millisecond"
+#set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+# set label 1 "rcu" at 0.1,10 left
+# set label 2 "spinlock" at 0.5,3.0 left
+# set label 3 "brlock" at 0.4,0.6 left
+# set label 4 "rwlock" at 0.3,1.6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.updrd.hash_global.${tag}.dat" w l, "zoo.updrd.hash_bkt.${tag}.dat" w l, "zoo.updrd.hash_bkt_hazptr.${tag}.dat" w l, "zoo.updrd.hash_bkt_rcu.${tag}.dat" w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "zooupdate.eps"
+set xlabel "Number of CPUs Doing Updates"
+set ylabel "Updates per Millisecond"
+set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+# set label 1 "rcu" at 0.1,10 left
+# set label 2 "spinlock" at 0.5,3.0 left
+# set label 3 "brlock" at 0.4,0.6 left
+# set label 4 "rwlock" at 0.3,1.6 left
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.upd.hash_global.${tag}.dat" w l, "zoo.upd.hash_bkt.${tag}.dat" w l, "zoo.upd.hash_bkt_hazptr.${tag}.dat" w l, "zoo.upd.hash_bkt_rcu.${tag}.dat" w l
 ---EOF---

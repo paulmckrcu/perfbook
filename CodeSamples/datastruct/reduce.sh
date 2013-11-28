@@ -75,13 +75,23 @@ awk -v tag="$tag" \
 	}'
 
 # Produce .dat files for zoo scenario varying ncpus
-grep -e '--schroedinger' $T/sum |
+grep -e '--schroedinger' $T/sum | grep -v -e '--nbuckets' |
 grep -v -e '--nupdaters' | grep -v -e '--ncats' |
 awk -v tag="$tag" \
 	'{
 		dur = $11;
 		print($16, $2 / dur) > "zoo.cpus." $13 "." tag ".dat"
 	}'
+for i in 2048 4096 8192 16384
+do
+	grep -e '--schroedinger' $T/sum | grep -e "--nbuckets $i" |
+	grep -v -e '--nupdaters' | grep -v -e '--ncats' |
+	awk -v tag="$tag" -v i="$i" \
+		'{
+			dur = $11;
+			print($16, $2 / dur) > "zoo.cpus." $13 "-" i "." tag ".dat"
+		}'
+done
 
 # Produce .dat files for zoo scenario varying ncats.
 grep -e '--ncats' $T/sum | grep -v -e '--nupdaters' |
@@ -92,8 +102,18 @@ awk -v tag="$tag" \
 		print($18, $5 / dur) > "zoo.cat." $13 "." tag ".dat"
 	}'
 
+# Produce .dat files for zoo scenario varying updaters
+grep -v -e '--ncats' $T/sum | grep -e '--nupdaters' |
+awk -v tag="$tag" \
+	'{
+		dur = $11;
+		print($18, " Reads: " $2 / dur " Readfails: " $3 / dur " Adds: " $7 / dur " Dels: " $9 / dur " (All in ms)") > "zoo.mix." $13 "." tag ".out"
+		print($18, $2 / dur) > "zoo.updrd." $13 "." tag ".dat"
+		print($18, ($7 + $9) / dur) > "zoo.upd." $13 "." tag ".dat"
+	}'
+
 # Produce .dat files for mixed zoo scenario.
-sort -k18n | grep -e '--ncats' $T/sum | grep -e '--nupdaters' |
+sort -k18n $T/sum | grep -e '--ncats' | grep -e '--nupdaters' |
 awk -v tag="$tag" \
 	'{
 		dur = $11;

@@ -26,7 +26,7 @@ for hash in hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global # hash_resize
 do
 
 	# Simple hash tables.
-	for ncpu in 1 2 4 6 8 12 16 24 32 40 48 56 63
+	for ncpu in 1 2 4 6 8 12 16 24 32 40 48 56 60
 	do
 		for ((i = 0; i < $nsamples; i++))
 		do
@@ -37,7 +37,7 @@ do
 	done
 
 	# Schroedinger hash tables, read-only.
-	for ncpu in 1 2 4 6 8 12 16 24 32 40 48 56 63
+	for ncpu in 1 2 4 6 8 12 16 24 32 40 48 56 60
 	do
 		for ((i = 0; i < $nsamples; i++))
 		do
@@ -45,23 +45,51 @@ do
 			./$hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0
 			sleep 1
 		done
+		for bkts in 2048 4096 8192 16384
+		do
+			for ((i = 0; i < $nsamples; i++))
+			do
+				echo $hash --schroedinger --nreaders $ncpu --nbuckets $bkts --duration 1000 --updatewait 0
+				./$hash --schroedinger --nreaders $ncpu --nbuckets $bkts --duration 1000 --updatewait 0
+				sleep 1
+			done
+		done
 	done
 
 	# Schroedinger hash tables, read-only, with cats.
-	for ncpu in 1 2 4 6 8 12 16 24 32 40 48 56 63
+	for ncpu in 1 2 4 6 8 12 16 24 32 40 48 56 60
 	do
 		for ((i = 0; i < $nsamples; i++))
 		do
-			echo $hash --schroedinger --nreaders 63 --ncats $ncpu --duration 1000 --updatewait 0
-			./$hash --schroedinger --nreaders 63 --ncats $ncpu --duration 1000 --updatewait 0
+			echo $hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0
+			./$hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0
+			sleep 1
+		done
+	done
+
+	# Schroedinger hash tables, read-write, no cats.
+	nread=60
+	for ((i = 0; i < $nsamples; i++))
+	do
+		echo $hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0
+		./$hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0
+		sleep 1
+	done
+	for nupd in 1 2 4 6 8 12 16 24 32 40 48 56 60
+	do
+		nread=$((60-nupd))
+		for ((i = 0; i < $nsamples; i++))
+		do
+			echo $hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1
+			./$hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1
 			sleep 1
 		done
 	done
 
 	# Schroedinger hash tables, read-write, with cats.
-	ncats=16
-	nupd=16
-	nread=32
+	ncats=15
+	nupd=15
+	nread=30
 	for ((i = 0; i < $nsamples; i++))
 	do
 		echo $hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1
