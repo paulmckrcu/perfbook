@@ -17,7 +17,6 @@ LATEXSOURCES = \
 	appendix/rcuimpl/rcutreewt.tex \
 	appendix/rcuimpl/rcupreempt.tex \
 	appendix/whymb/whymemorybarriers.tex \
-	applyrcu/applyrcu.tex \
 	count/count.tex \
 	cpu/cpu.tex \
 	cpu/overview.tex \
@@ -53,6 +52,8 @@ LATEXSOURCES = \
 	SMPdesign/beyond.tex \
 	locking/locking.tex \
 	locking/locking-existence.tex \
+	together/applyrcu.tex \
+	together/together.tex \
 	toolsoftrade/toolsoftrade.tex
 
 EPSSOURCES = \
