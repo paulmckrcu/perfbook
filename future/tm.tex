@@ -49,8 +49,33 @@ transactions, particularly those containing non-memory operations such
 as I/O and process creation.
 The following sections look at current challenges to the grand vision of
 ``Transactional Memory Everywhere''~\cite{PaulEMcKenney2009TMeverywhere}.
+Section~\ref{sec:future:Outside World} examines the challenges faced
+interacting with the outside world,
+Section~\ref{sec:future:Process Modification} looks at interactions
+with process modification primitives,
+Section~\ref{sec:future:Synchronization} explores interactions with
+other synchronization primitives, and finally
+Section~\ref{sec:future:Discussion} closes with some discussion.
 
-\subsection{I/O Operations}
+\subsection{Outside World}
+\label{sec:future:Outside World}
+
+In the words of Donald Knuth:
+
+\begin{quote}
+	Many computer users feel that input and output are not actually part
+	of ``real programming,'' they are merely things that (unfortunately)
+	must be done in order to get information in and out of the machine.
+\end{quote}
+
+Whether we believe that input and output are ``real programming'' or
+not, the fact is that for most computer systems, interaction with the
+outside world is a first-class requirement.
+This section therefore critiques transactional memory's ability to
+so interact, whether via I/O operations, time delays, or persistent
+storage.
+
+\subsubsection{I/O Operations}
 \label{sec:future:I/O Operations}
 
 One can execute I/O operations within a lock-based critical section,
@@ -66,6 +91,9 @@ the same effect as executing it once.
 Unfortunately, I/O is in general the prototypical non-idempotent
 operation, making it difficult to include general I/O operations in
 transactions.
+In fact, general I/O is not just non-idempotent, it is irrevocable.
+Once you have pushed the button launching the nuclear warheads, there
+is no turning back.
 
 Here are some options for handling of I/O within transactions:
 
@@ -122,7 +150,7 @@ performance and scalability.
 Nevertheless, continued time and attention to this problem will likely
 produce additional progress.
 
-\subsection{RPC Operations}
+\subsubsection{RPC Operations}
 \label{sec:future:RPC Operations}
 
 One can execute RPCs within a lock-based critical section, as well as
@@ -214,57 +242,112 @@ Here are some options available to TM:
 As noted in the prior section, I/O is a known weakness of TM, and RPC
 is simply an especially problematic case of I/O.
 
-\subsection{Memory-Mapping Operations}
-\label{sec:future:Memory-Mapping Operations}
+\subsubsection{Time Delays}
+\label{sec:future:Time Delays}
 
-It is perfectly legal to execute memory-mapping operations (including
-\co{mmap()}, \co{shmat()}, and \co{munmap()}~\cite{TheOpenGroup1997SUS})
-within a lock-based critical section,
-and, at least in principle, from within an RCU read-side critical section.
-What happens when you attempt to execute such an operation from within
-a transaction?
-More to the point, what happens if the memory region being remapped
-contains some variables participating in the current thread's transaction?
-And what if this memory region contains variables participating in some
-other thread's transaction?
+An important special case of interaction with extra-transactional accesses
+involves explicit time delays within a transaction.
+Of course, the idea of a time delay within a transaction flies in the
+face of TM's atomicity property, but one can argue that this sort of
+thing is what weak atomicity is all about.
+Furthermore, correct interaction with memory-mapped I/O sometimes requires
+carefully controlled timing, and applications often use time delays
+for varied purposes.
 
-It should not be necessary to consider cases where the TM system's
-metadata is remapped, given that most locking primitives do not define
-the outcome of remapping their lock variables.
-
-Here are some memory-mapping options available to TM:
+So, what can TM do about time delays within transactions?
 
 \begin{enumerate}
-\item	Memory remapping is illegal within a transaction, and will result
-	in all enclosing transactions being aborted.
-	This does simplify things somewhat, but also requires that TM
-	interoperate with synchronization primitives that do tolerate
-	remapping from within their critical sections.
-\item	Memory remapping is illegal within a transaction, and the
-	compiler is enlisted to enforce this prohibition.
-\item	Memory mapping is legal within a transaction, but aborts all
-	other transactions having variables in the region mapped over.
-\item	Memory mapping is legal within a transaction, but the mapping
-	operation will fail if the region being mapped overlaps with
-	the current transaction's footprint.
-\item	All memory-mapping operations, whether within or outside a
-	transaction, check the region being mapped against the memory
-	footprint of all transactions in the system.
-	If there is overlap, then the memory-mapping operation fails.
-\item	The effect of memory-mapping operations that overlap the memory
-	footprint of any transaction in the system is determined by the
-	TM conflict manager, which might dynamically determine whether
-	to fail the memory-mapping operation or abort any conflicting
-	transactions.
+\item	Ignore time delays within transactions.
+	This has an appearance of elegance, but like too many other
+	``elegant'' solutions, fails to survive first contact with
+	legacy code.
+	Such code, which might well have important time delays in critical
+	sections, would fail upon being transactionalized.
+\item	Abort transactions upon encountering a time-delay operation.
+	This is attractive, but it is unfortunately not always possible
+	to automatically detect a time-delay operation.
+	Is that tight loop computing something important, or is it
+	instead waiting for time to elapse?
+\item	Enlist the compiler to prohibit time delays within transactions.
+\item	Let the time delays execute normally.
+	Unfortunately, some TM implementations publish modifications only
+	at commit time, which would in many cases defeat the purpose of
+	the time delay.
 \end{enumerate}
 
-It is interesting to note that \co{munmap()} leaves the relevant region
-of memory unmapped, which could have additional interesting
-implications.\footnote{
-	This difference between mapping and unmapping was noted by
-	Josh Triplett.}
+It is not clear that there is a single correct answer.
+TM implementations featuring weak atomicity that publish changes
+immediately within the transaction (rolling these changes back upon abort)
+might be reasonably well served by the last alternative.
+Even in this case, the code at the other end of the transaction may
+require a substantial redesign to tolerate aborted transactions.
 
-\subsection{Multithreaded Transactions}
+\subsubsection{Persistence}
+\label{sec:future:Persistence}
+
+There are many different types of locking primitives.
+One interesting distinction is persistence, in other words, whether the
+lock can exist independently of the address space of the process using
+the lock.
+
+Non-persistent locks include \co{pthread_mutex_lock()},
+\co{pthread_rwlock_rdlock()}, and most kernel-level locking primitives.
+If the memory locations instantiating a non-persistent lock's data
+structures disappear, so does the lock.
+For typical use of \co{pthread_mutex_lock()}, this means that when the
+process exits, all of its locks vanish.
+This property can be exploited in order to trivialize lock cleanup
+at program shutdown time, but makes it more difficult for unrelated
+applications to share locks, as such sharing requires the applications
+to share memory.
+
+Persistent locks help avoid the need to share memory among unrelated
+applications.
+Persistent locking APIs include the flock family, \co{lockf()}, System
+V semaphores, or the \co{O_CREAT} flag to \co{open()}.
+These persistent APIs can be used to protect large-scale operations
+spanning runs of multiple applications, and, in the case of \co{O_CREAT}
+even surviving operating-system reboot.
+If need be, locks can span multiple computer systems via distributed
+lock managers.
+
+Persistent locks can be used by any application, including applications
+written using multiple languages and software environments.
+In fact, a persistent lock might well be acquired by an application written
+in C and released by an application written in Python.
+
+How could a similar persistent functionality be provided for TM?
+
+\begin{enumerate}
+\item	Restrict persistent transactions to special-purpose environments
+	designed to support them, for example, SQL.
+	This clearly works, given the decades-long history of database
+	systems, but does not provide the same degree of flexibility
+	provided by persistent locks.
+\item	Use snapshot facilities provided by some storage devices and/or
+	filesystems.
+	Unfortunately, this does not handle network communication,
+	nor does it handle I/O to devices that do not provide snapshot
+	capabilities, for example, memory sticks.
+\item	Build a time machine. 
+\end{enumerate}
+
+Of course, the fact that it is called transactional \emph{memory}
+should give us pause, as the name itself conflicts with the concept of
+a persistent transaction.
+It is nevertheless worthwhile to consider this possibility as an important
+test case probing the inherent limitations of transactional memory.
+
+\subsection{Process Modification}
+\label{sec:future:Process Modification}
+
+Processes are not eternal:
+They are created and destroyed, their memory mappings are modified,
+they are linked to dynamic libraries, and they are debugged.
+These sections look at how transactional memory can handle an
+ever-changing execution environment.
+
+\subsubsection{Multithreaded Transactions}
 \label{sec:future:Multithreaded Transactions}
 
 It is perfectly legal to create processes and threads while holding
@@ -342,391 +425,7 @@ That said, there are rumors that some TM researchers are investigating
 fork/join parallelism within transactions, so perhaps this topic will
 soon be addressed more thoroughly.
 
-\subsection{Extra-Transactional Accesses}
-\label{sec:future:Extra-Transactional Accesses}
-
-Within a lock-based critical section, it is perfectly legal to manipulate
-variables that are concurrently accessed or even modified outside that
-lock's critical section, with one common example being statistical
-counters.
-The same thing is possible within RCU read-side critical
-sections, and is in fact the common case.
-
-Given mechanisms such as the so-called ``dirty reads'' that are
-prevalent in production database systems, it is not surprising
-that extra-transactional accesses have received serious attention
-from the proponents of TM, with the concepts of weak and strong
-atomicity~\cite{Blundell2006TMdeadlock} being but one case in point.
-
-Here are some extra-transactional options available to TM:
-
-\begin{enumerate}
-\item	Conflicts due to extra-transactional accesses always abort
-	transactions.
-	This is strong atomicity.
-\item	Conflicts due to extra-transactional accesses are ignored,
-	so only conflicts among transactions can abort transactions.
-	This is weak atomicity.
-\item	Transactions are permitted to carry out non-transactional
-	operations in special cases, such as when allocating memory or
-	interacting with lock-based critical sections.
-\item	Produce hardware extensions that permit some operations
-	(for example, addition) to be carried out concurrently on a
-	single variable by multiple transactions.
-\end{enumerate}
-
-It appears that transactions were conceived as standing alone, with no
-interaction required with any other synchronization mechanism.
-If so, it is no surprise that much confusion and complexity arises when
-combining transactions with non-transactional accesses.
-But unless transactions are to be confined to small updates to isolated
-data structures, or alternatively to be confined to new programs
-that do not interact with the huge body of existing parallel code,
-then transactions absolutely must be so combined if they are to have
-large-scale practical impact in the near term.
-
-\subsection{Time Delays}
-\label{sec:future:Time Delays}
-
-An important special case of interaction with extra-transactional accesses
-involves explicit time delays within a transaction.
-Of course, the idea of a time delay within a transaction flies in the
-face of TM's atomicity property, but one can argue that this sort of
-thing is what weak atomicity is all about.
-Furthermore, correct interaction with memory-mapped I/O sometimes requires
-carefully controlled timing, and applications often use time delays
-for varied purposes.
-
-So, what can TM do about time delays within transactions?
-
-\begin{enumerate}
-\item	Ignore time delays within transactions.
-	This has an appearance of elegance, but like too many other
-	``elegant'' solutions, fails to survive first contact with
-	legacy code.
-	Such code, which might well have important time delays in critical
-	sections, would fail upon being transactionalized.
-\item	Abort transactions upon encountering a time-delay operation.
-	This is attractive, but it is unfortunately not always possible
-	to automatically detect a time-delay operation.
-	Is that tight loop computing something important, or is it
-	instead waiting for time to elapse?
-\item	Enlist the compiler to prohibit time delays within transactions.
-\item	Let the time delays execute normally.
-	Unfortunately, some TM implementations publish modifications only
-	at commit time, which would in many cases defeat the purpose of
-	the time delay.
-\end{enumerate}
-
-It is not clear that there is a single correct answer.
-TM implementations featuring weak atomicity that publish changes
-immediately within the transaction (rolling these changes back upon abort)
-might be reasonably well served by the last alternative.
-Even in this case, the code at the other end of the transaction may
-require a substantial redesign to tolerate aborted transactions.
-
-\subsection{Locking}
-\label{sec:future:Locking}
-
-It is commonplace to acquire locks while holding other locks, which works
-quite well, at least as long as the usual well-known software-engineering
-techniques are employed to avoid deadlock.
-It is not unusual to acquire locks from within RCU read-side critical
-sections, which eases deadlock concerns because RCU read-side primitives
-cannot participated in lock-based deadlock cycles.
-But happens when you attempt to acquire a lock from within a transaction?
-
-In theory, the answer is trivial: simply manipulate the data structure
-representing the lock as part of the transaction, and everything works
-out perfectly.
-In practice, a number of non-obvious complications~\cite{Volos2008TRANSACT}
-can arise, depending on implementation details of the TM system.
-These complications can be resolved, but at the cost of a 45\% increase in
-overhead for locks acquired outside of transactions and a 300\% increase
-in overhead for locks acquired within transactions.
-Although these overheads might be acceptable for transactional
-programs containing small amounts of locking, they are often completely
-unacceptable for production-quality lock-based programs wishing to use
-the occasional transaction.
-
-\begin{enumerate}
-\item	Use only locking-friendly TM implementations.
-	Unfortunately, the locking-unfriendly implementations have some
-	attractive properties, including low overhead for successful
-	transactions and the ability to accommodate extremely large
-	transactions.
-\item	Use TM only ``in the small'' when introducing TM to lock-based
-	programs, thereby accommodating the limitations of
-	locking-friendly TM implementations.
-\item	Set aside locking-based legacy systems entirely, re-implementing
-	everything in terms of transactions.
-	This approach has no shortage of advocates, but this requires
-	that all the issues described in this series be resolved.
-	During the time it takes to resolve these issues, competing
-	synchronization mechanisms will of course also have the
-	opportunity to improve.
-\item	Use TM strictly as an optimization in lock-based systems, as was
-	done by the TxLinux~\cite{ChistopherJRossbach2007a} group.
-	This approach seems sound, but leaves the locking design
-	constraints (such as the need to avoid deadlock) firmly in place.
-\item	Strive to reduce the overhead imposed on locking primitives. 
-\end{enumerate}
-
-The fact that there could possibly a problem interfacing TM and locking
-came as a surprise to many, which underscores the need to try out new
-mechanisms and primitives in real-world production software.
-Fortunately, the advent of open source means that a huge quantity of
-such software is now freely available to everyone, including researchers.
-
-\subsection{Reader-Writer Locking}
-\label{sec:future:Reader-Writer Locking}
-
-It is commonplace to read-acquire reader-writer locks while holding
-other locks, which just works, at least as long as the usual well-known
-software-engineering techniques are employed to avoid deadlock.
-Read-acquiring reader-writer locks from within RCU read-side critical
-sections also works, and doing so eases deadlock concerns because RCU
-read-side primitives cannot participated in lock-based deadlock cycles.
-But what happens when you attempt to read-acquire a reader-writer lock
-from within a transaction?
-
-Unfortunately, the straightforward approach to read-acquiring the
-traditional counter-based reader-writer lock within a transaction defeats
-the purpose of the reader-writer lock.
-To see this, consider a pair of transactions concurrently attempting to
-read-acquire the same reader-writer lock.
-Because read-acquisition involves modifying the reader-writer lock's
-data structures, a conflict will result, which will roll back one of
-the two transactions.
-This behavior is completely inconsistent with the reader-writer lock's
-goal of allowing concurrent readers.
-
-Here are some options available to TM:
-
-\begin{enumerate}
-\item	Use per-CPU or per-thread reader-writer
-	locking~\cite{WilsonCHsieh92a}, which allows a
-	given CPU (or thread, respectively) to manipulate only local
-	data when read-acquiring the lock.
-	This would avoid the conflict between the two transactions
-	concurrently read-acquiring the lock, permitting both to proceed,
-	as intended.
-	Unfortunately, (1)~the write-acquisition overhead of
-	per-CPU/thread locking can be extremely high, (2)~the memory
-	overhead of per-CPU/thread locking can be prohibitive, and
-	(3)~this transformation is available only when you have access to
-	the source code in question.
-	Other more-recent scalable
-	reader-writer locks~\cite{YossiLev2009SNZIrwlock}
-	might avoid some or all of these problems.
-\item	Use TM only ``in the small'' when introducing TM to lock-based
-	programs, thereby avoiding read-acquiring reader-writer locks
-	from within transactions.
-\item	Set aside locking-based legacy systems entirely, re-implementing
-	everything in terms of transactions.
-	This approach has no shortage of advocates, but this requires
-	that \emph{all} the issues described in this series be resolved.
-	During the time it takes to resolve these issues, competing
-	synchronization mechanisms will of course also have the
-	opportunity to improve.
-\item	Use TM strictly as an optimization in lock-based systems, as was
-	done by the TxLinux~\cite{ChistopherJRossbach2007a} group.
-	This approach seems sound, but leaves the locking design
-	constraints (such as the need to avoid deadlock) firmly in place.
-	Furthermore, this approach can result in unnecessary transaction
-	rollbacks when multiple transactions attempt to read-acquire
-	the same lock.
-\end{enumerate}
-
-Of course, there might well be other non-obvious issues surrounding
-combining TM with reader-writer locking, as there in fact were with
-exclusive locking.
-
-\subsection{Persistence}
-\label{sec:future:Persistence}
-
-There are many different types of locking primitives.
-One interesting distinction is persistence, in other words, whether the
-lock can exist independently of the address space of the process using
-the lock.
-
-Non-persistent locks include \co{pthread_mutex_lock()},
-\co{pthread_rwlock_rdlock()}, and most kernel-level locking primitives.
-If the memory locations instantiating a non-persistent lock's data
-structures disappear, so does the lock.
-For typical use of \co{pthread_mutex_lock()}, this means that when the
-process exits, all of its locks vanish.
-This property can be exploited in order to trivialize lock cleanup
-at program shutdown time, but makes it more difficult for unrelated
-applications to share locks, as such sharing requires the applications
-to share memory.
-
-Persistent locks help avoid the need to share memory among unrelated
-applications.
-Persistent locking APIs include the flock family, \co{lockf()}, System
-V semaphores, or the \co{O_CREAT} flag to \co{open()}.
-These persistent APIs can be used to protect large-scale operations
-spanning runs of multiple applications, and, in the case of \co{O_CREAT}
-even surviving operating-system reboot.
-If need be, locks can span multiple computer systems via distributed
-lock managers.
-
-Persistent locks can be used by any application, including applications
-written using multiple languages and software environments.
-In fact, a persistent lock might well be acquired by an application written
-in C and released by an application written in Python.
-
-How could a similar persistent functionality be provided for TM?
-
-\begin{enumerate}
-\item	Restrict persistent transactions to special-purpose environments
-	designed to support them, for example, SQL.
-	This clearly works, given the decades-long history of database
-	systems, but does not provide the same degree of flexibility
-	provided by persistent locks.
-\item	Use snapshot facilities provided by some storage devices and/or
-	filesystems.
-	Unfortunately, this does not handle network communication,
-	nor does it handle I/O to devices that do not provide snapshot
-	capabilities, for example, memory sticks.
-\item	Build a time machine. 
-\end{enumerate}
-
-Of course, the fact that it is called transactional \emph{memory}
-should give us pause, as the name itself conflicts with the concept of
-a persistent transaction.
-It is nevertheless worthwhile to consider this possibility as an important
-test case probing the inherent limitations of transactional memory.
-
-\subsection{Dynamic Linking and Loading}
-\label{sec:future:Dynamic Linking and Loading}
-
-Both lock-based critical sections and RCU read-side critical sections
-can legitimately contain code that invokes dynamically linked and loaded
-functions, including C/C++ shared libraries and Java class libraries.
-Of course, the code contained in these libraries is by definition
-unknowable at compile time.
-So, what happens if a dynamically loaded function is invoked within
-a transaction?
-
-This question has two parts: (a)~how do you dynamically link and load a
-function within a transaction and (b)~what do you do about the unknowable
-nature of the code within this function?
-To be fair, item (b) poses some challenges for locking and RCU as well,
-at least in theory.
-For example, the dynamically linked function might introduce a deadlock
-for locking or might (erroneously) introduce a quiescent state into an
-RCU read-side critical section.
-The difference is that while the class of operations permitted in locking
-and RCU critical sections is well-understood, there appears to still be
-considerable uncertainty in the case of TM.
-In fact, different implementations of TM seem to have different restrictions.
-
-So what can TM do about dynamically linked and loaded library functions?
-Options for part (a), the actual loading of the code, include the following:
-
-\begin{enumerate}
-\item	Treat the dynamic linking and loading in a manner similar to a
-	page fault, so that the function is loaded and linked, possibly
-	aborting the transaction in the process.
-	If the transaction is aborted, the retry will find the function
-	already present, and the transaction can thus be expected to
-	proceed normally.
-\item	Disallow dynamic linking and loading of functions from within
-	transactions. 
-\end{enumerate}
-
-Options for part (b), the inability to detect TM-unfriendly operations
-in a not-yet-loaded function, possibilities include the following:
-
-\begin{enumerate}
-\item	Just execute the code: if there are any TM-unfriendly operations
-	in the function, simply abort the transaction.
-	Unfortunately, this approach makes it impossible for the compiler
-	to determine whether a given group of transactions may be safely
-	composed.
-	One way to permit composability regardless is irrevocable
-	transactions, however, current implementations permit only a
-	single irrevocable transaction to proceed at any given time,
-	which can severely limit performance and scalability.
-	Irrevocable transactions also seem to rule out use of manual
-	transaction-abort operations.
-	Finally, if there is an irrevocable transaction manipulating
-	a given data item, any other transaction manipulating that
-	same data item cannot have non-blocking semantics.
-\item	Decorate the function declarations indicating which functions
-	are TM-friendly.
-	These decorations can then be enforced by the compiler's type system.
-	Of course, for many languages, this requires language extensions
-	to be proposed, standardized, and implemented, with the
-	corresponding time delays.
-	That said, the standardization effort is already in
-	progress~\cite{Ali-Reza-Adl-Tabatabai2009CppTM}.
-\item	As above, disallow dynamic linking and loading of functions from
-	within transactions. 
-\end{enumerate}
-
-I/O operations are of course a known weakness of TM, and dynamic linking
-and loading can be thought of as yet another special case of I/O.
-Nevertheless, the proponents of TM must either solve this problem, or
-resign themselves to a world where TM is but one tool of several in the
-parallel programmer's toolbox.
-(To be fair, a number of TM proponents have long since resigned themselves
-to a world containing more than just TM.)
-
-\subsection{Debugging}
-\label{sec:future:Debugging}
-
-The usual debugging operations such as breakpoints work normally within
-lock-based critical sections and from RCU read-side critical sections.
-However, in initial transactional-memory hardware
-implementations~\cite{DaveDice2009ASPLOSRockHTM} an exception within
-a transaction will abort that transaction, which in turn means that
-breakpoints abort all enclosing transactions
-
-So how can transactions be debugged?
-
-\begin{enumerate}
-\item	Use software emulation techniques within transactions containing
-	breakpoints.
-	Of course, it might be necessary to emulate all transactions
-	any time a breakpoint is set within the scope of any transaction.
-	If the runtime system is unable to determine whether or not a
-	given breakpoint is within the scope of a transaction, then it
-	might be necessary to emulate all transactions just to be on
-	the safe side.
-	However, this approach might impose significant overhead, which
-	might in turn obscure the bug being pursued.
-\item	Use only hardware TM implementations that are capable of
-	handling breakpoint exceptions.
-	Unfortunately, as of this writing (September 2008), all such
-	implementations are strictly research prototypes.
-\item	Use only software TM implementations, which are
-	(very roughly speaking) more tolerant of exceptions than are
-	the simpler of the hardware TM implementations.
-	Of course, software TM tends to have higher overhead than hardware
-	TM, so this approach may not be acceptable in all situations.
-\item	Program more carefully, so as to avoid having bugs in the
-	transactions in the first place.
-	As soon as you figure out how to do this, please do let everyone
-	know the secret!
-\end{enumerate}
-
-There is some reason to believe that transactional memory will deliver
-productivity improvements compared to other synchronization mechanisms,
-but it does seem quite possible that these improvements could easily
-be lost if traditional debugging techniques cannot be applied to
-transactions.
-This seems especially true if transactional memory is to be used by
-novices on large transactions.
-In contrast, macho ``top-gun'' programmers might be able to dispense with
-such debugging aids, especially for small transactions.
-
-Therefore, if transactional memory is to deliver on its productivity
-promises to novice programmers, the debugging problem does need to
-be solved.
-
-\subsection{The exec() System Call}
+\subsubsection{The exec() System Call}
 \label{sec:future:The exec System Call}
 
 One can execute an \co{exec()} system call while holding a lock, and
@@ -802,7 +501,313 @@ reflection of the perils of interacting with execs in real life.
 That said, the two options prohibiting \co{exec()} within transactions
 are perhaps the most logical of the group.
 
-\subsection{RCU}
+Similar issues surround the \co{exit()} and \co{kill()} system calls.
+
+\subsubsection{Dynamic Linking and Loading}
+\label{sec:future:Dynamic Linking and Loading}
+
+Both lock-based critical sections and RCU read-side critical sections
+can legitimately contain code that invokes dynamically linked and loaded
+functions, including C/C++ shared libraries and Java class libraries.
+Of course, the code contained in these libraries is by definition
+unknowable at compile time.
+So, what happens if a dynamically loaded function is invoked within
+a transaction?
+
+This question has two parts: (a)~how do you dynamically link and load a
+function within a transaction and (b)~what do you do about the unknowable
+nature of the code within this function?
+To be fair, item (b) poses some challenges for locking and RCU as well,
+at least in theory.
+For example, the dynamically linked function might introduce a deadlock
+for locking or might (erroneously) introduce a quiescent state into an
+RCU read-side critical section.
+The difference is that while the class of operations permitted in locking
+and RCU critical sections is well-understood, there appears to still be
+considerable uncertainty in the case of TM.
+In fact, different implementations of TM seem to have different restrictions.
+
+So what can TM do about dynamically linked and loaded library functions?
+Options for part (a), the actual loading of the code, include the following:
+
+\begin{enumerate}
+\item	Treat the dynamic linking and loading in a manner similar to a
+	page fault, so that the function is loaded and linked, possibly
+	aborting the transaction in the process.
+	If the transaction is aborted, the retry will find the function
+	already present, and the transaction can thus be expected to
+	proceed normally.
+\item	Disallow dynamic linking and loading of functions from within
+	transactions. 
+\end{enumerate}
+
+Options for part (b), the inability to detect TM-unfriendly operations
+in a not-yet-loaded function, possibilities include the following:
+
+\begin{enumerate}
+\item	Just execute the code: if there are any TM-unfriendly operations
+	in the function, simply abort the transaction.
+	Unfortunately, this approach makes it impossible for the compiler
+	to determine whether a given group of transactions may be safely
+	composed.
+	One way to permit composability regardless is irrevocable
+	transactions, however, current implementations permit only a
+	single irrevocable transaction to proceed at any given time,
+	which can severely limit performance and scalability.
+	Irrevocable transactions also seem to rule out use of manual
+	transaction-abort operations.
+	Finally, if there is an irrevocable transaction manipulating
+	a given data item, any other transaction manipulating that
+	same data item cannot have non-blocking semantics.
+\item	Decorate the function declarations indicating which functions
+	are TM-friendly.
+	These decorations can then be enforced by the compiler's type system.
+	Of course, for many languages, this requires language extensions
+	to be proposed, standardized, and implemented, with the
+	corresponding time delays.
+	That said, the standardization effort is already in
+	progress~\cite{Ali-Reza-Adl-Tabatabai2009CppTM}.
+\item	As above, disallow dynamic linking and loading of functions from
+	within transactions. 
+\end{enumerate}
+
+I/O operations are of course a known weakness of TM, and dynamic linking
+and loading can be thought of as yet another special case of I/O.
+Nevertheless, the proponents of TM must either solve this problem, or
+resign themselves to a world where TM is but one tool of several in the
+parallel programmer's toolbox.
+(To be fair, a number of TM proponents have long since resigned themselves
+to a world containing more than just TM.)
+
+\subsubsection{Memory-Mapping Operations}
+\label{sec:future:Memory-Mapping Operations}
+
+It is perfectly legal to execute memory-mapping operations (including
+\co{mmap()}, \co{shmat()}, and \co{munmap()}~\cite{TheOpenGroup1997SUS})
+within a lock-based critical section,
+and, at least in principle, from within an RCU read-side critical section.
+What happens when you attempt to execute such an operation from within
+a transaction?
+More to the point, what happens if the memory region being remapped
+contains some variables participating in the current thread's transaction?
+And what if this memory region contains variables participating in some
+other thread's transaction?
+
+It should not be necessary to consider cases where the TM system's
+metadata is remapped, given that most locking primitives do not define
+the outcome of remapping their lock variables.
+
+Here are some memory-mapping options available to TM:
+
+\begin{enumerate}
+\item	Memory remapping is illegal within a transaction, and will result
+	in all enclosing transactions being aborted.
+	This does simplify things somewhat, but also requires that TM
+	interoperate with synchronization primitives that do tolerate
+	remapping from within their critical sections.
+\item	Memory remapping is illegal within a transaction, and the
+	compiler is enlisted to enforce this prohibition.
+\item	Memory mapping is legal within a transaction, but aborts all
+	other transactions having variables in the region mapped over.
+\item	Memory mapping is legal within a transaction, but the mapping
+	operation will fail if the region being mapped overlaps with
+	the current transaction's footprint.
+\item	All memory-mapping operations, whether within or outside a
+	transaction, check the region being mapped against the memory
+	footprint of all transactions in the system.
+	If there is overlap, then the memory-mapping operation fails.
+\item	The effect of memory-mapping operations that overlap the memory
+	footprint of any transaction in the system is determined by the
+	TM conflict manager, which might dynamically determine whether
+	to fail the memory-mapping operation or abort any conflicting
+	transactions.
+\end{enumerate}
+
+It is interesting to note that \co{munmap()} leaves the relevant region
+of memory unmapped, which could have additional interesting
+implications.\footnote{
+	This difference between mapping and unmapping was noted by
+	Josh Triplett.}
+
+\subsubsection{Debugging}
+\label{sec:future:Debugging}
+
+The usual debugging operations such as breakpoints work normally within
+lock-based critical sections and from RCU read-side critical sections.
+However, in initial transactional-memory hardware
+implementations~\cite{DaveDice2009ASPLOSRockHTM} an exception within
+a transaction will abort that transaction, which in turn means that
+breakpoints abort all enclosing transactions
+
+So how can transactions be debugged?
+
+\begin{enumerate}
+\item	Use software emulation techniques within transactions containing
+	breakpoints.
+	Of course, it might be necessary to emulate all transactions
+	any time a breakpoint is set within the scope of any transaction.
+	If the runtime system is unable to determine whether or not a
+	given breakpoint is within the scope of a transaction, then it
+	might be necessary to emulate all transactions just to be on
+	the safe side.
+	However, this approach might impose significant overhead, which
+	might in turn obscure the bug being pursued.
+\item	Use only hardware TM implementations that are capable of
+	handling breakpoint exceptions.
+	Unfortunately, as of this writing (September 2008), all such
+	implementations are strictly research prototypes.
+\item	Use only software TM implementations, which are
+	(very roughly speaking) more tolerant of exceptions than are
+	the simpler of the hardware TM implementations.
+	Of course, software TM tends to have higher overhead than hardware
+	TM, so this approach may not be acceptable in all situations.
+\item	Program more carefully, so as to avoid having bugs in the
+	transactions in the first place.
+	As soon as you figure out how to do this, please do let everyone
+	know the secret!
+\end{enumerate}
+
+There is some reason to believe that transactional memory will deliver
+productivity improvements compared to other synchronization mechanisms,
+but it does seem quite possible that these improvements could easily
+be lost if traditional debugging techniques cannot be applied to
+transactions.
+This seems especially true if transactional memory is to be used by
+novices on large transactions.
+In contrast, macho ``top-gun'' programmers might be able to dispense with
+such debugging aids, especially for small transactions.
+
+Therefore, if transactional memory is to deliver on its productivity
+promises to novice programmers, the debugging problem does need to
+be solved.
+
+\subsection{Synchronization}
+\label{sec:future:Synchronization}
+
+If transactional memory someday proves that it can be everything to everyone,
+it will not need to interact with any other synchronization mechanism.
+Until then, it will need to work with synchronization mechanisms that
+can do what it cannot, or that work more naturally in a given situation.
+The following sections outline the current challenges in this area.
+
+\subsubsection{Locking}
+\label{sec:future:Locking}
+
+It is commonplace to acquire locks while holding other locks, which works
+quite well, at least as long as the usual well-known software-engineering
+techniques are employed to avoid deadlock.
+It is not unusual to acquire locks from within RCU read-side critical
+sections, which eases deadlock concerns because RCU read-side primitives
+cannot participated in lock-based deadlock cycles.
+But happens when you attempt to acquire a lock from within a transaction?
+
+In theory, the answer is trivial: simply manipulate the data structure
+representing the lock as part of the transaction, and everything works
+out perfectly.
+In practice, a number of non-obvious complications~\cite{Volos2008TRANSACT}
+can arise, depending on implementation details of the TM system.
+These complications can be resolved, but at the cost of a 45\% increase in
+overhead for locks acquired outside of transactions and a 300\% increase
+in overhead for locks acquired within transactions.
+Although these overheads might be acceptable for transactional
+programs containing small amounts of locking, they are often completely
+unacceptable for production-quality lock-based programs wishing to use
+the occasional transaction.
+
+\begin{enumerate}
+\item	Use only locking-friendly TM implementations.
+	Unfortunately, the locking-unfriendly implementations have some
+	attractive properties, including low overhead for successful
+	transactions and the ability to accommodate extremely large
+	transactions.
+\item	Use TM only ``in the small'' when introducing TM to lock-based
+	programs, thereby accommodating the limitations of
+	locking-friendly TM implementations.
+\item	Set aside locking-based legacy systems entirely, re-implementing
+	everything in terms of transactions.
+	This approach has no shortage of advocates, but this requires
+	that all the issues described in this series be resolved.
+	During the time it takes to resolve these issues, competing
+	synchronization mechanisms will of course also have the
+	opportunity to improve.
+\item	Use TM strictly as an optimization in lock-based systems, as was
+	done by the TxLinux~\cite{ChistopherJRossbach2007a} group.
+	This approach seems sound, but leaves the locking design
+	constraints (such as the need to avoid deadlock) firmly in place.
+\item	Strive to reduce the overhead imposed on locking primitives. 
+\end{enumerate}
+
+The fact that there could possibly a problem interfacing TM and locking
+came as a surprise to many, which underscores the need to try out new
+mechanisms and primitives in real-world production software.
+Fortunately, the advent of open source means that a huge quantity of
+such software is now freely available to everyone, including researchers.
+
+\subsubsection{Reader-Writer Locking}
+\label{sec:future:Reader-Writer Locking}
+
+It is commonplace to read-acquire reader-writer locks while holding
+other locks, which just works, at least as long as the usual well-known
+software-engineering techniques are employed to avoid deadlock.
+Read-acquiring reader-writer locks from within RCU read-side critical
+sections also works, and doing so eases deadlock concerns because RCU
+read-side primitives cannot participated in lock-based deadlock cycles.
+But what happens when you attempt to read-acquire a reader-writer lock
+from within a transaction?
+
+Unfortunately, the straightforward approach to read-acquiring the
+traditional counter-based reader-writer lock within a transaction defeats
+the purpose of the reader-writer lock.
+To see this, consider a pair of transactions concurrently attempting to
+read-acquire the same reader-writer lock.
+Because read-acquisition involves modifying the reader-writer lock's
+data structures, a conflict will result, which will roll back one of
+the two transactions.
+This behavior is completely inconsistent with the reader-writer lock's
+goal of allowing concurrent readers.
+
+Here are some options available to TM:
+
+\begin{enumerate}
+\item	Use per-CPU or per-thread reader-writer
+	locking~\cite{WilsonCHsieh92a}, which allows a
+	given CPU (or thread, respectively) to manipulate only local
+	data when read-acquiring the lock.
+	This would avoid the conflict between the two transactions
+	concurrently read-acquiring the lock, permitting both to proceed,
+	as intended.
+	Unfortunately, (1)~the write-acquisition overhead of
+	per-CPU/thread locking can be extremely high, (2)~the memory
+	overhead of per-CPU/thread locking can be prohibitive, and
+	(3)~this transformation is available only when you have access to
+	the source code in question.
+	Other more-recent scalable
+	reader-writer locks~\cite{YossiLev2009SNZIrwlock}
+	might avoid some or all of these problems.
+\item	Use TM only ``in the small'' when introducing TM to lock-based
+	programs, thereby avoiding read-acquiring reader-writer locks
+	from within transactions.
+\item	Set aside locking-based legacy systems entirely, re-implementing
+	everything in terms of transactions.
+	This approach has no shortage of advocates, but this requires
+	that \emph{all} the issues described in this series be resolved.
+	During the time it takes to resolve these issues, competing
+	synchronization mechanisms will of course also have the
+	opportunity to improve.
+\item	Use TM strictly as an optimization in lock-based systems, as was
+	done by the TxLinux~\cite{ChistopherJRossbach2007a} group.
+	This approach seems sound, but leaves the locking design
+	constraints (such as the need to avoid deadlock) firmly in place.
+	Furthermore, this approach can result in unnecessary transaction
+	rollbacks when multiple transactions attempt to read-acquire
+	the same lock.
+\end{enumerate}
+
+Of course, there might well be other non-obvious issues surrounding
+combining TM with reader-writer locking, as there in fact were with
+exclusive locking.
+
+\subsubsection{RCU}
 \label{sec:future:RCU}
 
 Because read-copy update (RCU) finds its main use in the Linux kernel,
@@ -896,6 +901,51 @@ It seems likely that additional approaches will be uncovered, especially
 given the advent of user-level RCU implementations.\footnote{
 	Kudos to the TxLinux group, Maged Michael, and Josh Triplett
 	for coming up with a number of the above alternatives.}
+
+\subsubsection{Extra-Transactional Accesses}
+\label{sec:future:Extra-Transactional Accesses}
+
+Within a lock-based critical section, it is perfectly legal to manipulate
+variables that are concurrently accessed or even modified outside that
+lock's critical section, with one common example being statistical
+counters.
+The same thing is possible within RCU read-side critical
+sections, and is in fact the common case.
+
+Given mechanisms such as the so-called ``dirty reads'' that are
+prevalent in production database systems, it is not surprising
+that extra-transactional accesses have received serious attention
+from the proponents of TM, with the concepts of weak and strong
+atomicity~\cite{Blundell2006TMdeadlock} being but one case in point.
+
+Here are some extra-transactional options available to TM:
+
+\begin{enumerate}
+\item	Conflicts due to extra-transactional accesses always abort
+	transactions.
+	This is strong atomicity.
+\item	Conflicts due to extra-transactional accesses are ignored,
+	so only conflicts among transactions can abort transactions.
+	This is weak atomicity.
+\item	Transactions are permitted to carry out non-transactional
+	operations in special cases, such as when allocating memory or
+	interacting with lock-based critical sections.
+\item	Produce hardware extensions that permit some operations
+	(for example, addition) to be carried out concurrently on a
+	single variable by multiple transactions.
+\end{enumerate}
+
+It appears that transactions were conceived as standing alone, with no
+interaction required with any other synchronization mechanism.
+If so, it is no surprise that much confusion and complexity arises when
+combining transactions with non-transactional accesses.
+But unless transactions are to be confined to small updates to isolated
+data structures, or alternatively to be confined to new programs
+that do not interact with the huge body of existing parallel code,
+then transactions absolutely must be so combined if they are to have
+large-scale practical impact in the near term.
+
+% @@@ Huge transactions.  Or perhaps conflict handling.
 
 \subsection{Discussion}
 \label{sec:future:Discussion}
