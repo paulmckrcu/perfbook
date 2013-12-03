@@ -5055,115 +5055,6 @@ srcu_read_unlock(&srcucb, idx);
 	wait for a grace period (e.g., by calling \co{synchronize_rcu()})
 	before freeing the deleted element.
 
-\QuickQAC{chp:together:Putting It All Together}{Putting It All Together}
-\QuickQ{}
-	Why on earth did we need that global lock in the first place?
-\QuickA{}
-	A given thread's \co{__thread} variables vanish when that
-	thread exits.
-	It is therefore necessary to synchronize any operation that
-	accesses other threads' \co{__thread} variables with
-	thread exit.
-	Without such synchronization, accesses to \co{__thread} variable
-	of a just-exited thread will result in segmentation faults.
-
-\QuickQ{}
-	Just what is the accuracy of \co{read_count()}, anyway?
-\QuickA{}
-	Refer to
-	Figure~\ref{fig:count:Per-Thread Statistical Counters} on
-	Page~\pageref{fig:count:Per-Thread Statistical Counters}.
-	Clearly, if there are no concurrent invocations of \co{inc_count()},
-	\co{read_count()} will return an exact result.
-	However, if there \emph{are} concurrent invocations of
-	\co{inc_count()}, then the sum is in fact changing as
-	\co{read_count()} performs its summation.
-	That said, because thread creation and exit are excluded by
-	\co{final_mutex}, the pointers in \co{counterp} remain constant.
-
-	Let's imagine a mythical machine that is able to take an
-	instantaneous snapshot of its memory.
-	Suppose that this machine takes such a snapshot at the
-	beginning of \co{read_count()}'s execution, and another
-	snapshot at the end of \co{read_count()}'s execution.
-	Then \co{read_count()} will access each thread's counter
-	at some time between these two snapshots, and will therefore
-	obtain a result that is bounded by those of the two snapshots,
-	inclusive.
-	The overall sum will therefore be bounded by the pair of sums that
-	would have been obtained from each of the two snapshots (again,
-	inclusive).
-
-	The expected error is therefore half of the difference between
-	the pair of sums that would have been obtained from each of the
-	two snapshots, that is to say, half of the execution time of
-	\co{read_count()} multiplied by the number of expected calls to
-	\co{inc_count()} per unit time.
-
-	Or, for those who prefer equations:
-	\begin{equation}
-	\epsilon = \frac{T_r R_i}{2}
-	\end{equation}
-	where $\epsilon$ is the expected error in \co{read_count()}'s
-	return value,
-	$T_r$ is the time that \co{read_count()} takes to execute,
-	and $R_i$ is the rate of \co{inc_count()} calls per unit time.
-	(And of course, $T_r$ and $R_i$ should use the same units of
-	time: microseconds and calls per microsecond, seconds and calls
-	per second, or whatever, as long as they are the same units.)
-
-\QuickQ{}
-	Hey!!!
-	Line~45 of
-	Figure~\ref{fig:together:RCU and Per-Thread Statistical Counters}
-	modifies a value in a pre-existing \co{countarray} structure!
-	Didn't you say that this structure, once made available to
-	\co{read_count()}, remained constant???
-\QuickA{}
-	Indeed I did say that.
-	And it would be possible to make \co{count_register_thread()}
-	allocate a new structure, much as \co{count_unregister_thread()}
-	currently does.
-
-	But this is unnecessary.
-	Recall the derivation of the error bounds of \co{read_count()}
-	that was based on the snapshots of memory.
-	Because new threads start with initial \co{counter} values of
-	zero, the derivation holds even if we add a new thread partway
-	through \co{read_count()}'s execution.
-	So, interestingly enough, when adding a new thread, this
-	implementation gets the effect of allocating a new structure,
-	but without actually having to do the allocation.
-
-\QuickQ{}
-	Wow!
-	Figure~\ref{fig:together:RCU and Per-Thread Statistical Counters}
-	contains 69 lines of code, compared to only 42 in
-	Figure~\ref{fig:count:Per-Thread Statistical Counters}.
-	Is this extra complexity really worth it?
-\QuickA{}
-	This of course needs to be decided on a case-by-case basis.
-	If you need an implementation of \co{read_count()} that
-	scales linearly, then the lock-based implementation shown in
-	Figure~\ref{fig:count:Per-Thread Statistical Counters}
-	simply will not work for you.
-	On the other hand, if calls to \co{count_read()} are sufficiently
-	rare, then the lock-based version is simpler and might thus be
-	better, although much of the size difference is due
-	to the structure definition, memory allocation, and \co{NULL}
-	return checking.
-
-	Of course, a better question is "why doesn't the language
-	implement cross-thread access to \co{__thread} variables?"
-	After all, such an implementation would make both the locking
-	and the use of RCU unnecessary.
-	This would in turn enable an implementation that
-	was even simpler than the one shown in
-	Figure~\ref{fig:count:Per-Thread Statistical Counters}, but
-	with all the scalability and performance benefits of the
-	implementation shown in
-	Figure~\ref{fig:together:RCU and Per-Thread Statistical Counters}!
-
 \QuickQAC{chp:Validation}{Validation}
 \QuickQ{}
 	When in computing is the willingness to follow a fragmentary
@@ -6020,6 +5911,115 @@ srcu_read_unlock(&srcucb, idx);
 	PowerPC no longer has this bug; it has long since been fixed.
 	Finding any other bugs that the Linux kernel might have is left
 	as an exercise for the reader.
+
+\QuickQAC{chp:together:Putting It All Together}{Putting It All Together}
+\QuickQ{}
+	Why on earth did we need that global lock in the first place?
+\QuickA{}
+	A given thread's \co{__thread} variables vanish when that
+	thread exits.
+	It is therefore necessary to synchronize any operation that
+	accesses other threads' \co{__thread} variables with
+	thread exit.
+	Without such synchronization, accesses to \co{__thread} variable
+	of a just-exited thread will result in segmentation faults.
+
+\QuickQ{}
+	Just what is the accuracy of \co{read_count()}, anyway?
+\QuickA{}
+	Refer to
+	Figure~\ref{fig:count:Per-Thread Statistical Counters} on
+	Page~\pageref{fig:count:Per-Thread Statistical Counters}.
+	Clearly, if there are no concurrent invocations of \co{inc_count()},
+	\co{read_count()} will return an exact result.
+	However, if there \emph{are} concurrent invocations of
+	\co{inc_count()}, then the sum is in fact changing as
+	\co{read_count()} performs its summation.
+	That said, because thread creation and exit are excluded by
+	\co{final_mutex}, the pointers in \co{counterp} remain constant.
+
+	Let's imagine a mythical machine that is able to take an
+	instantaneous snapshot of its memory.
+	Suppose that this machine takes such a snapshot at the
+	beginning of \co{read_count()}'s execution, and another
+	snapshot at the end of \co{read_count()}'s execution.
+	Then \co{read_count()} will access each thread's counter
+	at some time between these two snapshots, and will therefore
+	obtain a result that is bounded by those of the two snapshots,
+	inclusive.
+	The overall sum will therefore be bounded by the pair of sums that
+	would have been obtained from each of the two snapshots (again,
+	inclusive).
+
+	The expected error is therefore half of the difference between
+	the pair of sums that would have been obtained from each of the
+	two snapshots, that is to say, half of the execution time of
+	\co{read_count()} multiplied by the number of expected calls to
+	\co{inc_count()} per unit time.
+
+	Or, for those who prefer equations:
+	\begin{equation}
+	\epsilon = \frac{T_r R_i}{2}
+	\end{equation}
+	where $\epsilon$ is the expected error in \co{read_count()}'s
+	return value,
+	$T_r$ is the time that \co{read_count()} takes to execute,
+	and $R_i$ is the rate of \co{inc_count()} calls per unit time.
+	(And of course, $T_r$ and $R_i$ should use the same units of
+	time: microseconds and calls per microsecond, seconds and calls
+	per second, or whatever, as long as they are the same units.)
+
+\QuickQ{}
+	Hey!!!
+	Line~45 of
+	Figure~\ref{fig:together:RCU and Per-Thread Statistical Counters}
+	modifies a value in a pre-existing \co{countarray} structure!
+	Didn't you say that this structure, once made available to
+	\co{read_count()}, remained constant???
+\QuickA{}
+	Indeed I did say that.
+	And it would be possible to make \co{count_register_thread()}
+	allocate a new structure, much as \co{count_unregister_thread()}
+	currently does.
+
+	But this is unnecessary.
+	Recall the derivation of the error bounds of \co{read_count()}
+	that was based on the snapshots of memory.
+	Because new threads start with initial \co{counter} values of
+	zero, the derivation holds even if we add a new thread partway
+	through \co{read_count()}'s execution.
+	So, interestingly enough, when adding a new thread, this
+	implementation gets the effect of allocating a new structure,
+	but without actually having to do the allocation.
+
+\QuickQ{}
+	Wow!
+	Figure~\ref{fig:together:RCU and Per-Thread Statistical Counters}
+	contains 69 lines of code, compared to only 42 in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}.
+	Is this extra complexity really worth it?
+\QuickA{}
+	This of course needs to be decided on a case-by-case basis.
+	If you need an implementation of \co{read_count()} that
+	scales linearly, then the lock-based implementation shown in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}
+	simply will not work for you.
+	On the other hand, if calls to \co{count_read()} are sufficiently
+	rare, then the lock-based version is simpler and might thus be
+	better, although much of the size difference is due
+	to the structure definition, memory allocation, and \co{NULL}
+	return checking.
+
+	Of course, a better question is "why doesn't the language
+	implement cross-thread access to \co{__thread} variables?"
+	After all, such an implementation would make both the locking
+	and the use of RCU unnecessary.
+	This would in turn enable an implementation that
+	was even simpler than the one shown in
+	Figure~\ref{fig:count:Per-Thread Statistical Counters}, but
+	with all the scalability and performance benefits of the
+	implementation shown in
+	Figure~\ref{fig:together:RCU and Per-Thread Statistical Counters}!
 
 \QuickQAC{sec:advsync:Advanced Synchronization}{Advanced Synchronization}
 \QuickQ{}
