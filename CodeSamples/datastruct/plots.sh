@@ -111,15 +111,15 @@ set output "zoocpubktlin8.eps"
 set xlabel "Number of CPUs/Threads"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
-set xrange [1:7]
+set xrange [1:8]
 #set yrange [100:10000]
 set nokey
-# set label 1 "rcu" at 0.1,10 left
+set label 1 "ideal" at 5,61000 right
 # set label 2 "spinlock" at 0.5,3.0 left
 # set label 3 "brlock" at 0.4,0.6 left
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cpus.hash_bkt.${tag}.dat" w l
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l, 11201*x w l
 ---EOF---
 
 gnuplot << ---EOF---
@@ -150,12 +150,12 @@ set ylabel "Total Lookups per Millisecond"
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-# set label 1 "rcu" at 0.1,10 left
-# set label 2 "spinlock" at 0.5,3.0 left
-# set label 3 "brlock" at 0.4,0.6 left
-# set label 4 "rwlock" at 0.3,1.6 left
-# set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt-2048.${tag}.dat" w l, "zoo.cpus.hash_bkt-4096.${tag}.dat" w l, "zoo.cpus.hash_bkt-16384.${tag}.dat" w l
+set label 1 "1024" at 40,23000 left
+set label 2 "2048" at 40,41800 left
+set label 3 "4096" at 32,46000 left
+set label 4 "8192" at 44,50000 left
+set label 5 "16384" at 40,55000 left
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt-2048.${tag}.dat" w l, "zoo.cpus.hash_bkt-4096.${tag}.dat" w l, "zoo.cpus.hash_bkt-8192.${tag}.dat" w l, "zoo.cpus.hash_bkt-16384.${tag}.dat" w l
 ---EOF---
 
 gnuplot << ---EOF---

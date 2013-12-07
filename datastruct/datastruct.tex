@@ -14,6 +14,10 @@ concurrent data structures must pay at least as much attention to the
 concurrency effects as it does to the classical sequential time
 complexity.
 
+Section~\ref{sec:datastruct:Motivating Application}
+presents a motivating application that will be used to evaluate
+the data structures presented in this chapter.
+
 As discussed in Chapter~\ref{cha:Partitioning and Synchronization Design},
 an excellent way to achieve high scalability is partitioning.
 This points the way to partitionable data structures, a topic taken up by
@@ -22,7 +26,7 @@ Chapter~\ref{chp:Deferred Processing} described how deferring some
 actions can greatly improve both performance and scalability.
 Section~\ref{sec:defer:Read-Copy Update (RCU)} in particular showed
 how to tap the awesome power of procrastination in pursuit of
-performance and scalability, a topic take up by
+performance and scalability, a topic taken up by
 Section~\ref{sec:datastruct:Read-Mostly Data Structures}.
 
 Sometimes scalability is not the goal, for example, when the design
@@ -45,8 +49,37 @@ Section~\ref{sec:datastruct:Micro-Optimization}.
 Finally, Section~\ref{sec:datastruct:Summary}
 presents a summary of this chapter.
 
+\section{Motivating Application}
+\label{sec:datastruct:Motivating Application}
+
+We will use the Schr\"odinger's Zoo application to evaluate
+performance~\cite{McKenney:2013:SDS:2483852.2483867}.
+Schr\"odinger has a zoo containing a large number of animals, and
+he would like to track them using an in-memory database with
+each animal in the zoo represented by a data item in this database.
+Each animal has a unique name that is used as a key, with a variety
+of data tracked for each animal.
+
+Births, captures, and purchases result in insertions, while deaths,
+releases, and sales result in deletions.
+Because Schr\"odinger's zoo contains a large quantity of short-lived
+animals, including mice and insects, the database must be able to
+support a high transaction rate.
+
+Those interested in Schr\"odinger's animals can query them, however,
+Schr\"odinger has noted an extremely high rate of queries for his cat,
+so much so that he suspects that his mice might be using the database
+to check up on their nemesis.
+This means that Sch\"odinger's application must be able to support a
+high rate of queries to a single data element.
+
+Please keep this application in mind as various data structures are presented.
+
 \section{Partitionable Data Structures}
 \label{sec:datastruct:Partitionable Data Structures}
+
+\subsection{Hash-Table Design}
+\label{sec:datastruct:Hash-Table Design}
 
 Chapter~\ref{cha:Partitioning and Synchronization Design}
 emphasized the need to apply partitioning in order to attain
@@ -82,6 +115,9 @@ elements in different buckets of the hash table may be added,
 deleted, and looked up completely independently.
 A large hash table containing a large number of elements therefore
 offers excellent scalability.
+
+\subsection{Hash-Table Implementation}
+\label{sec:datastruct:Hash-Table Implementation}
 
 \begin{figure}[tb]
 { \scriptsize
@@ -317,7 +353,62 @@ including the chain list header on line~14 and the lock on line~15.
 Finally, line~17 returns a pointer to the newly allocated hash table.
 The \co{hashtab_free()} function on lines~20-23 is straightforward.
 
-@@@ more here on performance and scalability @@@
+\subsection{Hash-Table Performance}
+\label{sec:datastruct:Hash-Table Performance}
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{datastruct/zoocpubktlin8}}
+\end{center}
+\caption{Read-Only Hash-Table Performance For Schr\"odinger's Zoo}
+\label{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo}
+\end{figure}
+
+The performance results for an eight-CPU 2GHz
+Intel\textsuperscript\textregistered
+Xeon\textsuperscript\textregistered
+system using a bucket-locked hash table with 1024 buckets are shown in
+Figure~\ref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo}.
+The performance does scale nearly linearly, but is not much more than half
+of the ideal performance level, even at only eight CPUs.
+Part of this shortfall is due to the fact that the lock acquisitions and
+releases incur no cache misses on a single CPU, but do incur misses
+on two or more CPUs.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{datastruct/zoocpubktlin}}
+\end{center}
+\caption{Read-Only Hash-Table Performance For Schr\"odinger's Zoo, 60 CPUs}
+\label{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo, 60 CPUs}
+\end{figure}
+
+And things only get worse with larger number of CPUs, as can be seen in
+Figure~\ref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo, 60 CPUs}.
+We do not need an additional line to show ideal performance: The performance
+for nine CPUs and beyond is worse than abysmal.
+
+Of course, one possible reason for the collapse in performance might be
+that more hash buckets are needed.
+After all, we did not pad each hash bucket to a full cache line, so
+there are a number of hash buckets per cache line.
+It is possible that the resulting cache-thrashing comes into play at
+nine CPUs.
+This is of course easy to test by increasing the number of hash buckets.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{datastruct/zoocpubktsizelin}}
+\end{center}
+\caption{Read-Only Hash-Table Performance For Schr\"odinger's Zoo, Varying Buckets}
+\label{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo, Varying Buckets}
+\end{figure}
+
+However, as can be seen in
+Figure~\ref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo, Varying Buckets},
+although increasing the number of buckets does increase performance somewhat,
+scalability is still abysmal.
+In particular, we still see a sharp dropoff at nine CPUs and beyond.
 
 \begin{table}
 \begin{center}
@@ -340,6 +431,49 @@ The \co{hashtab_free()} function on lines~20-23 is straightforward.
 \caption{NUMA Topology of System Under Test}
 \label{tab:datastruct:NUMA Topology of System Under Test}
 \end{table}
+
+The problem is that this is a multi-socket system, with CPUs~0-7
+and~32-39 mapped to the first socket as shown in
+Table~\ref{tab:datastruct:NUMA Topology of System Under Test}.
+Test runs confined to the first eight CPUs therefore perform quite
+well, but tests that involve socket~0's CPUs~0-7 as well as
+socket~1's CPU~8 incur the overhead of passing data across
+socket boundaries.
+This can severely degrade performance, as was discussed in
+Section~\ref{sec:cpu:Hardware System Architecture}.
+
+\QuickQuiz{}
+	Given the negative scalability of the Schr\"odinger's
+	Zoo application across sockets, why not just run multiple
+	copies of the application, with each copy having a subset
+	of the animals and confined to run on a single socket?
+\QuickQuizAnswer{
+	You can do just that!
+	In fact, you can extend this idea to large clustered systems,
+	running one copy of the application on each node of the cluster.
+	This practice is called ``sharding'', and is heavily used in
+	practice by large web-based
+	retailers~\cite{DeCandia:2007:DAH:1323293.1294281}.
+
+	However, if you are going to shard on a per-socket basis within
+	a multisocket system, why not buy separate smaller and cheaper
+	single-socket systems, and then run one shard of the database
+	on each of those systems?
+} \QuickQuizEnd
+
+One key property of the Schr\"odinger's-zoo runs discussed thus far is that
+they are all read-only.
+This makes the performance degradation due to lock-acquisition-induced
+cache misses all the more painful.
+Even though we are not updating the underlying hash table itself, we are
+still paying the price for writing to memory.
+Of course, if the hash table was never going to be updated, we could dispense
+entirely with mutual exclusion.
+This approach is quite straightforward and is left as an exercise for the
+reader.
+
+The next section examines optimizations that can be carried out in
+read-mostly cases where updates are rare, but could happen at any time.
 
 \section{Read-Mostly Data Structures}
 \label{sec:datastruct:Read-Mostly Data Structures}
