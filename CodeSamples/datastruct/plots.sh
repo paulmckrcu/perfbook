@@ -78,12 +78,12 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-# set label 1 "rcu" at 0.1,10 left
-# set label 2 "spinlock" at 0.5,3.0 left
-# set label 3 "brlock" at 0.4,0.6 left
-# set label 4 "rwlock" at 0.3,1.6 left
+set label 1 "global" at 10,4000 left
+set label 2 "bucket" at 5,30000 left
+set label 3 "RCU,hazptr" at 17,130000 left
+set label 4 "ideal" at 10,200000 right
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, "zoo.cpus.hash_global.${tag}.dat" w l
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, "zoo.cpus.hash_global.${tag}.dat" w l, x*13963.9 w l
 ---EOF---
 
 gnuplot << ---EOF---
@@ -96,12 +96,12 @@ set ylabel "Total Lookups per Millisecond"
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-# set label 1 "rcu" at 0.1,10 left
-# set label 2 "spinlock" at 0.5,3.0 left
-# set label 3 "brlock" at 0.4,0.6 left
-# set label 4 "rwlock" at 0.3,1.6 left
+set label 1 "bucket" at 30,60000 left
+set label 2 "hazptr" at 30,300000 left
+set label 3 "ideal" at 40,600000 right
+set label 4 "RCU" at 50,530000 right
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, x*13963.9 w l
 ---EOF---
 
 gnuplot << ---EOF---
@@ -204,10 +204,10 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-# set label 1 "rcu" at 0.1,10 left
-# set label 2 "spinlock" at 0.5,3.0 left
-# set label 3 "brlock" at 0.4,0.6 left
-# set label 4 "rwlock" at 0.3,1.6 left
+set label 1 "global" at 2,70 left
+set label 2 "bucket" at 3,2000 left
+set label 3 "hazptr" at 10,37000 left
+set label 4 "RCU" at 10,150000 right
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "zoo.cat.hash_bkt.${tag}.dat" w l, "zoo.cat.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cat.hash_bkt_rcu.${tag}.dat" w l, "zoo.cat.hash_global.${tag}.dat" w l
 ---EOF---
@@ -240,10 +240,10 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-# set label 1 "rcu" at 0.1,10 left
-# set label 2 "spinlock" at 0.5,3.0 left
-# set label 3 "brlock" at 0.4,0.6 left
-# set label 4 "rwlock" at 0.3,1.6 left
+set label 1 "global" at 10,300 right
+set label 2 "bucket" at 3,20000 left
+set label 3 "hazptr" at 5,100000 right
+set label 4 "RCU" at 10,200000 left
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "zoo.updrd.hash_global.${tag}.dat" w l, "zoo.updrd.hash_bkt.${tag}.dat" w l, "zoo.updrd.hash_bkt_hazptr.${tag}.dat" w l, "zoo.updrd.hash_bkt_rcu.${tag}.dat" w l
 ---EOF---
@@ -254,7 +254,7 @@ set size square ${plotsize},${plotsize}
 set output "zooupdatelulin.eps"
 set xlabel "Number of CPUs Doing Updates"
 set ylabel "Lookups per Millisecond"
-#set logscale xy
+set logscale y
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
@@ -276,10 +276,10 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-# set label 1 "rcu" at 0.1,10 left
-# set label 2 "spinlock" at 0.5,3.0 left
-# set label 3 "brlock" at 0.4,0.6 left
-# set label 4 "rwlock" at 0.3,1.6 left
+set label 1 "global" at 10,60 left
+set label 2 "bucket" at 60,33000 right
+set label 3 "RCU" at 30,3000 left
+set label 4 "hazptr" at 10,13000 right
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "zoo.upd.hash_global.${tag}.dat" w l, "zoo.upd.hash_bkt.${tag}.dat" w l, "zoo.upd.hash_bkt_hazptr.${tag}.dat" w l, "zoo.upd.hash_bkt_rcu.${tag}.dat" w l
 ---EOF---
