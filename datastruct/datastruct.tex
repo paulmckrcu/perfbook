@@ -786,6 +786,77 @@ usually be reliable enough for benchmarking purposes.
 \subsection{RCU-Protected Hash Table Discussion}
 \label{sec:datastruct:RCU-Protected Hash Table Discussion}
 
+One consequence of the RCU and hazard-pointer implementations is
+that a pair of concurrent readers might disagree on the state of
+the cat.
+For example, one of the readers might have fetched the pointer to
+the cat's data structure just before it was removed, while another
+reader might have fetched this same pointer just afterwards.
+The first reader would then believe that the cat was alive, while
+the second reader would believe that the cat was dead.
+
+Of course, this situation is completely fitting for Schr\"odinger's
+cat, but it turns out that it is quite reasonable for normal
+non-quantum cats as well.
+
+The reason for this is that it is impossible to determine exactly
+when an animal is born or dies.
+
+To see this, let's suppose that we detect a cat's death by heartbeat.
+This raise the question of exactly how long we should wait after the
+last heartbeat before declaring death.
+It is clearly ridiculous to wait only one millisecond, because then
+a healthy living cat would have to be declared dead---and then
+resurrected---more than once every second.
+It is equally ridiculous to wait a full month, because by that time
+the poor cat's death would have made itself very clearly known
+via olfactory means.
+
+\begin{figure}[htb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{cartoons/2013-08-is-it-dead}}
+\end{center}
+\caption{Even Veterinarians Disagree!}
+\ContributedBy{Figure}{fig:datastruct:Even Veterinarians Disagree}{Melissa McKenney}
+\end{figure}
+
+Because an animal's heart can stop for some seconds and then start up
+again, there is a tradeoff between timely recognition of death and
+probability of false alarms.
+It is quite possible that a pair of veterinarians might disagree on
+the time to wait between the last heartbeat and the declaration of
+death.
+For example, one veterinarian might declare death thirty seconds after
+the last heartbeat, while another might insist on waiting a full
+minute.
+In this case, the two veterinarians would disagree on the state of the
+cat for the second period of thirty seconds following the last heartbeat,
+as fancifully depicted in
+Figure~\ref{fig:datastruct:Even Veterinarians Disagree}.
+
+Of course, Heisenberg taught us to live with this sort of
+uncertainty~\cite{WeinerHeisenberg1927Uncertain}, which is a good
+thing because computing hardware and software acts similarly.
+For example, how do you know that a piece of computing hardware
+has failed?
+Often because it does not respond in a timely fashion.
+Just like the cat's heartbeat, this results in a window of
+uncertainty as to whether or not the hardware has failed.
+
+Furthermore, most computing systems are intended to interact with
+the outside world.
+Consistency with the outside world is therefore of paramount importance.
+However, as we saw in
+Figure~\ref{fig:defer:Response Time of RCU vs. Reader-Writer Locking},
+increased internal consistency can come at the expense of external
+consistency.
+Techniques such as RCU and hazard pointers give up some degree of
+internal consistency to attain improved external consistency.
+
+In short, internal consistency is not a natural part of all problem domains,
+and often come at great expense, either in terms of performance
+and scalability or in terms of external consistency.
+
 \section{Concurrency-Tolerant Data Structures}
 \label{sec:datastruct:Concurrency-Tolerant Data Structures}
 
