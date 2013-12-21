@@ -270,6 +270,7 @@ hashtab_resize(struct hashtab *htp_master,
 	}
 	rcu_assign_pointer(htp_master->ht_cur, htp_new);
 	synchronize_rcu();
+	htp->ht_resize_cur = -1;
 	spin_unlock(&htp_master->ht_lock);
 	free(htp);
 	return 0;
