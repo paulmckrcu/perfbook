@@ -888,6 +888,152 @@ and scalability or in terms of external consistency.
 
 @@@ Resizable hash tables.
 
+\subsection{Other Resizable Hash Tables}
+\label{sec:datastruct:Other Resizable Hash Tables}
+
+One shortcoming of the resizable hash table described earlier in this
+section is memory consumption.
+Each data element has two pairs of linked-list pointers rather than just
+one.
+Is it possible to create an RCU-protected resizable hash table that
+makes do with just one pair?
+
+It turns out that the answer is ``yes.''
+Josh Triplett et al.~\cite{Triplett:2011:RPHash}
+produced a \emph{relativistic hash table} that incrementally
+splits and combines corresponding hash chains so that readers always
+see valid hash chains at all points during the resizing operation.
+This incremental splitting and combining relies on the fact that it
+is harmless for a reader to see a data element that should be in some
+other hash chain: When this happens, the reader will simply ignore the
+extraneous data element due to key mismatches.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{datastruct/zipperhashshrink}}
+\end{center}
+\caption{Shrinking a Relativistic Hash Table}
+\label{fig:datastruct:Shrinking a Relativistic Hash Table}
+\end{figure}
+
+The process of shrinking a relativistic hash table by a factor of two
+is shown in
+Figure~\ref{fig:datastruct:Shrinking a Relativistic Hash Table},
+in this case shrinking a two-bucket hash table into a one-bucket
+hash table, otherwise known as a linear list.
+This process works by coalescing pairs of buckets in the old larger hash
+table into single buckets in the new smaller hash table.
+For this process to work correctly, we clearly need to constrain the hash
+functions for the two tables.
+One such constraint is to use the same underlying hash function for
+both table, but to throw out the low-order bit when shrinking from
+large to small.
+For example, the old two-bucket hash table would
+use the two top bits of the value, while the new one-bucket hash table
+could use the top bit of the value.
+In this way, a given pair of adjacent even and odd buckets in the old
+large hash table can be coalesced into a single bucket in the new small
+hash table, while still having a single hash value cover all of the
+elements in that single bucket.
+
+The initial state is shown at the top of the figure, with time advancing
+from top to bottom.
+The shrinking process begins by allocating the new smaller array of
+buckets, and having each bucket of this new smaller array reference
+the first element of one of the buckets of the corresponding pair in
+the old large hash table, resulting in state~(b).
+
+Then the two hash chains are linked together, resulting in state~(c).
+In this state, readers looking up an even-numbered element see no change.
+nor do readers looking up elements~1 and~3.
+However, readers looking up some other odd number will also traverse
+elements~0 and~2.
+This is harmless because any odd number will compare not-equal to these
+two elements.
+There is some performance loss, but on the other hand, this is exactly
+the same performance loss that will be experienced once the new small
+hash table is fully in place.
+
+Next, the new small hash table is made accessible to readers, resulting
+in state~(d).
+Note that older readers might still be traversing the old large hash
+table, so in this state both hash tables are in use.
+
+The next step is to wait for all pre-existing readers to complete,
+resulting in state~(e).
+In this state, all readers are using the new small hash table, so that
+the old large hash table's buckets may be freed, resulting in the final
+state~(f).
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{datastruct/zipperhashgrow}}
+\end{center}
+\caption{Growing a Relativistic Hash Table}
+\label{fig:datastruct:Growing a Relativistic Hash Table}
+\end{figure}
+
+Growing a relativistic hash table reverses the shrinking process,
+but requires more grace-period steps, as show in
+Figure~\ref{fig:datastruct:Growing a Relativistic Hash Table}.
+The initial state~(a) is at the top of this figure, with time advancing
+from top to bottom.
+
+We start by allocating the new large two-bucket hash table, resulting
+in state~(b).
+Note that each of these new buckets references the first element destined
+for that bucket.
+These new buckets are published to readers, resulting in state~(c).
+After a grace-period operation, all readers are using the new large
+hash table, resulting in state~(d).
+In this state, only those readers traversing the even-values hash bucket
+traverse element~0, which is therefore now colored white.
+
+At this point, the old small hash buckets may be freed, although many
+implementations use these old buckets to track progress ``unzipping''
+the list of items into their respective new buckets.
+The last even-numbered element in the first consecutive run of such
+elements now has its pointer-to-next updated to reference the following
+even-numbered element.
+After a subsequent grace-period operation, the result is state~(e).
+The vertical arrow indicates the next element to be unzipped, and
+element~1 is now colored black to indicate that only those readers traversing
+the odd-values hash bucket may reach it.
+
+Next, the last odd-numbered element in the first consecutive run of such
+elements now has its pointer-to-next updated to reference the following
+odd-numbered element.
+After a subsequent grace-period operation, the result is state~(f).
+A final unzipping operation (including a grace-period operation)
+results in the final state~(g).
+
+In short, the relativistic hash table reduces the number of per-element
+list pointers at the expense of additional grace periods incurred during
+resizing.
+These additional grace periods are usually not a problem because
+insertions, deletions, and lookups may proceed concurrently with
+a resize operation.
+
+It turns out that it is possible to reduce the per-element memory overhead
+from a pair of pointers to a single pointer, while still retaining
+$O(1)$ deletions.
+This is accomplished by augmenting split-order
+list~\cite{OriShalev2006SplitOrderListHash}
+with RCU
+protection~\cite{MathieuDesnoyers2009URCU,PaulMcKenney2013LWNURCUhash}.
+The data elements in the hash table are arranged into a single
+sorted linked list, with each hash bucket referencing the first element
+in that bucket.
+Elements are deleted by setting low-order bits in their pointer-to-next
+fields, and these elements are removed from the list by later traversals
+that encounter them.
+
+This RCU-protected split-order list is complex, but offers lock-free
+progress guarantees for all insertion, deletion, and lookup operations.
+Such guarantees can be important in real-time applications.
+An implementation is available from recent versions of the userspace RCU
+library~\cite{MathieuDesnoyers2009URCU}.
+
 \section{Other Data Structures}
 \label{sec:datastruct:Other Data Structures}
 
@@ -900,6 +1046,8 @@ or application of read-mostly techniques to avoid
 non-partitionability
 (Section~\ref{sec:datastruct:Non-Partitionable Data Structures}).
 This section gives a brief review of other data structures.
+
+
 
 @@@
 
