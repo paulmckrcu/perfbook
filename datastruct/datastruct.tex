@@ -1047,9 +1047,61 @@ non-partitionability
 (Section~\ref{sec:datastruct:Non-Partitionable Data Structures}).
 This section gives a brief review of other data structures.
 
+One of the hash table's greatest advantages for parallel use is that it
+is fully partitionable, at least while not being resized.
+One way of preserving the partitionability and the size independence is
+to use a radix tree, which is also called a trie.
+Tries partition the search key, using each successive key partition
+to traverse the next level of the trie.
+As such, a trie can be thought of as a set of nested hash tables,
+thus providing the required partitionability.
+One disadvantage of tries is that a sparse key space can result in
+inefficient use of memory.
+There are a number of compression techniques that may be used to
+work around this disadvantage, including hashing the key value to
+a smaller keyspace before the
+traversal~\cite{RobertOlsson2006a}.
+Radix trees are heavily used in practice, including in the Linux
+kernel~\cite{NickPiggin2006radixtree}.
 
+Self-balancing trees are heavily used in sequential code, with
+AVL trees and red-black trees being perhaps the most well-known
+examples~\cite{ThomasHCorman2001Algorithms}.
+Early attempts to parallelize AVL trees were complex and not necessarily
+all that effective~\cite{Ellis80},
+however, more recent work on red-black trees provides better
+performance and scalability by using RCU for readers and hashed arrays
+of locks\footnote{
+	In the guise of swissTM~\cite{AleksandarDragovejic2011STMnotToy},
+	which is a variant of software transactional memory in which
+	the developer marks non-shared accesses.}
+to protect reads and updates,
+respectively~\cite{PhilHoward2011RCUTMRBTree,PhilipWHoward2013RCUrbtree}.
+It turns out that red-black trees rebalance aggressively, which works
+well for sequential programs, but not necessarily so well for parallel
+use.
+Recent work has therefore made use of RCU-protected ``bonsai trees''
+that rebalance less aggressively~\cite{AustinClements2012RCULinux:mmapsem},
+trading off optimal tree depth to gain more efficient concurrent updates.
 
-@@@
+Concurrent skip lists lend themselves well to RCU readers, and in fact
+represents an early academic use of a technique resembling
+RCU~\cite{Pugh90}.
+
+Concurrent double-ended queues were discussed in
+Section~\ref{sec:SMPdesign:Double-Ended Queue},
+and concurrent stacks and queues have a long history~\cite{Treiber86},
+though not normally the most impressive performance or scalability.
+They are nevertheless a common feature of concurrent
+libraries~\cite{PaulMcKenney2013LWNURCUqueuestack}.
+Researchers have recently proposed relaxing the ordering constraints
+of stacks and queues~\cite{Shavit:2011:DSM:1897852.1897873},
+with some work indicating that relaxed-ordered queues actually have
+better ordering properties than do strict FIFO
+queues~\cite{AndreasHaas2012FIFOisnt,ChristophMKirsch2012FIFOisntTR,AndreasHaas2013CFRelaxedQueues}.
+
+It seems likely that continued work with concurrent data structures will
+produce novel algorithms with surprising properties.
 
 \section{Micro-Optimization}
 \label{sec:datastruct:Micro-Optimization}
