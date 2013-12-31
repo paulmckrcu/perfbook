@@ -122,14 +122,18 @@ ht_get_bucket_single(struct ht *htp, void *key, long *b)
 }
 
 /* Get hash bucket correesponding to key, accounting for resize. */
-static struct ht_bucket *ht_get_bucket(struct ht **htp, void *key, long *b)
+static struct ht_bucket *ht_get_bucket(struct ht **htp, void *key, long *b, int *i)
 {
 	struct ht_bucket *htbp = ht_get_bucket_single(*htp, key, b);
 
 	if (*b <= (*htp)->ht_resize_cur) {
 		*htp = (*htp)->ht_new;
 		htbp = ht_get_bucket_single(*htp, key, b);
+		if (i)
+			*i = (*htp)->ht_idx;
 	}
+	if (i)
+		*i = (*htp)->ht_idx;
 	return htbp;
 }
 
@@ -168,7 +172,7 @@ static void hashtab_unlock_mod(struct hashtab *htp_master, void *key)
 {
 	long b;
 	struct ht *htp = rcu_dereference(htp_master->ht_cur);
-	struct ht_bucket *htbp = ht_get_bucket(&htp, key, &b);
+	struct ht_bucket *htbp = ht_get_bucket(&htp, key, &b, NULL);
 
 	spin_unlock(&htbp->htb_lock);
 	rcu_read_unlock();
@@ -183,10 +187,10 @@ static void hashtab_unlock_mod(struct hashtab *htp_master, void *key)
 struct ht_elem *hashtab_lookup(struct hashtab *htp_master, void *key)
 {
 	long b;
+	int i;
 	struct ht *htp = rcu_dereference(htp_master->ht_cur);
 	struct ht_elem *htep;
-	struct ht_bucket *htbp = ht_get_bucket(&htp, key, &b);
-	int i = htp->ht_idx;
+	struct ht_bucket *htbp = ht_get_bucket(&htp, key, &b, &i);
 
 	cds_list_for_each_entry_rcu(htep, &htbp->htb_head, hte_next[i]) {
 		if (htp->ht_cmp(htp->ht_hash_private, htep, key))
@@ -202,9 +206,10 @@ struct ht_elem *hashtab_lookup(struct hashtab *htp_master, void *key)
 void hashtab_add(struct hashtab *htp_master, struct ht_elem *htep)
 {
 	long b;
+	int i;
 	struct ht *htp = rcu_dereference(htp_master->ht_cur);
-	struct ht_bucket *htbp = ht_get_bucket(&htp, htp->ht_getkey(htep), &b);
-	int i = htp->ht_idx;
+	struct ht_bucket *htbp = ht_get_bucket(&htp, htp->ht_getkey(htep),
+					       &b, &i);
 
 	cds_list_add_rcu(&htep->hte_next[i], &htbp->htb_head);
 }
@@ -216,9 +221,10 @@ void hashtab_add(struct hashtab *htp_master, struct ht_elem *htep)
 void hashtab_del(struct hashtab *htp_master, struct ht_elem *htep)
 {
 	long b;
+	int i;
 	struct ht *htp = rcu_dereference(htp_master->ht_cur);
-	struct ht_bucket *htbp = ht_get_bucket(&htp, htp->ht_getkey(htep), &b);
-	int i = htp->ht_idx;
+	struct ht_bucket *htbp = ht_get_bucket(&htp, htp->ht_getkey(htep),
+					       &b, &i);
 
 	cds_list_del_rcu(&htep->hte_next[i]);
 }
@@ -249,8 +255,10 @@ hashtab_resize(struct hashtab *htp_master,
 			   cmp ? cmp : htp->ht_cmp,
 			   gethash ? gethash : htp->ht_gethash,
 			   getkey ? getkey : htp->ht_getkey);
-	if (htp_new == NULL)
+	if (htp_new == NULL) {
+		spin_unlock(&htp_master->ht_lock);
 		return -ENOMEM;
+	}
 	htp->ht_new = htp_new;
 	idx = htp->ht_idx;
 	htp_new->ht_idx = !idx;
@@ -264,13 +272,14 @@ hashtab_resize(struct hashtab *htp_master,
 						     htp_new->ht_getkey(htep),
 						     &b);
 			spin_lock(&htbp_new->htb_lock);
-			cds_list_add_rcu(&htep->hte_next[idx], &htbp->htb_head);
+			cds_list_add_rcu(&htep->hte_next[!idx],
+					 &htbp_new->htb_head);
 			spin_unlock(&htbp_new->htb_lock);
 		}
+		spin_unlock(&htbp->htb_lock);
 	}
 	rcu_assign_pointer(htp_master->ht_cur, htp_new);
 	synchronize_rcu();
-	htp->ht_resize_cur = -1;
 	spin_unlock(&htp_master->ht_lock);
 	free(htp);
 	return 0;

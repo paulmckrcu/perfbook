@@ -611,6 +611,10 @@ int nupdaters = 1;
 int updatewait = -1;
 long elperupdater = 2048;
 int cpustride = 1;
+int resizediv = 0;
+int resizemult = 0;
+int resizewait = 1;
+long long nresizes = 0;
 long duration = 10; /* in milliseconds. */
 
 atomic_t nthreads_running;
@@ -634,6 +638,30 @@ struct perftest_attr {
 };
 
 struct hashtab *perftest_htp = NULL;
+
+/* Repeatedly resize a hash table. */
+void *perftest_resize(void *arg)
+{
+	long els[2];
+	int i = 0;
+
+	hash_register_thread();
+	run_on(0);
+	els[0]= nbuckets;
+	els[1] = els[0] * resizemult / resizediv;
+	while (goflag == GOFLAG_INIT)
+		poll(NULL, 0, 1);
+	while (goflag == GOFLAG_RUN) {
+		smp_mb();
+		if (resizewait != 0)
+			poll(NULL, 0, resizewait);
+		i++;
+		hash_resize_test(perftest_htp, els[i & 0x1]);
+	}
+	nresizes = i;
+	hash_unregister_thread();
+	return NULL;
+}
 
 /* Look up a key in the hash table. */
 int perftest_lookup(long i)
@@ -792,6 +820,7 @@ void *perftest_updater(void *arg)
 	for (i = 0; i < elperupdater; i++) {
 		if (thep[i].in_table != 1)
 			continue;
+		BUG_ON(!perftest_lookup(thep[i].data));
 		perftest_del(&thep[i]);
 	}
 	hash_unregister_thread();
@@ -1201,6 +1230,15 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t--cpustride\n");
 	fprintf(stderr, "\t\tStride when spreading threads across CPUs,\n");
 	fprintf(stderr, "\t\tdefaults to 1.\n");
+	fprintf(stderr, "\t--resizediv\n");
+	fprintf(stderr, "\t\tDivisor for resized hash table,\n");
+	fprintf(stderr, "\t\tdefaults to zero (don't resize).\n");
+	fprintf(stderr, "\t--resizemult\n");
+	fprintf(stderr, "\t\tMultiplier for resized hash table,\n");
+	fprintf(stderr, "\t\tdefaults to zero (don't resize).\n");
+	fprintf(stderr, "\t--resizewait\n");
+	fprintf(stderr, "\t\tMilliseconds to wait between resizes,\n");
+	fprintf(stderr, "\t\tdefaults to one.\n");
 	fprintf(stderr, "\t--duration\n");
 	fprintf(stderr, "\t\tDuration of test, in milliseconds.\n");
 	exit(-1);
@@ -1264,6 +1302,25 @@ int main(int argc, char *argv[])
 				      "%s must be >= 0\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--cpustride") == 0) {
 			cpustride = strtol(argv[++i], NULL, 0);
+		} else if (strcmp(argv[i], "--resizediv") == 0) {
+			resizediv = strtol(argv[++i], NULL, 0);
+			if (resizediv < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+			if (resizediv != 0 && resizemult == 0)
+				resizemult = 1;
+		} else if (strcmp(argv[i], "--resizemult") == 0) {
+			resizemult = strtol(argv[++i], NULL, 0);
+			if (resizemult < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+			if (resizemult != 0 && resizediv == 0)
+				resizediv = 1;
+		} else if (strcmp(argv[i], "--resizewait") == 0) {
+			resizewait = strtol(argv[++i], NULL, 0);
+			if (resizewait < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--duration") == 0) {
 			duration = strtol(argv[++i], NULL, 0);
 			if (duration < 0)
@@ -1277,5 +1334,9 @@ int main(int argc, char *argv[])
 	}
 	if (!test_to_do)
 		usage(argv[0], "No test specified\n");
+	if (resizediv != 0 && resizemult != 0)
+		create_thread(perftest_resize, NULL);
 	test_to_do();
+	if (resizediv != 0 && resizemult != 0)
+		printf("Resizes: %lld\n", nresizes);
 }
