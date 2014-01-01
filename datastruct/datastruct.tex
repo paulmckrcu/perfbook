@@ -886,6 +886,226 @@ and scalability or in terms of external consistency.
 \section{Non-Partitionable Data Structures}
 \label{sec:datastruct:Non-Partitionable Data Structures}
 
+Hash tables are perfectly partitionable, but only if they are of fixed
+size.
+However, it turns out that it is possible to construct high-performance
+scalable RCU-protected hash tables, as described in the following sections.
+
+\subsection{Resizable Hash Table Design}
+\label{sec:datastruct:Resizable Hash Table Design}
+
+In happy contrast to the situation in the early 2000s, there are now
+no fewer than three different types of scalable RCU-protected hash
+tables.
+The first (and simplest) was developed for the Linux kernel by
+Herbert Xu~\cite{HerbertXu2010RCUResizeHash}, and is described in the
+following sections.
+The other two are covered briefly in
+Section~\ref{sec:datastruct:Other Resizable Hash Tables}.
+
+The key insight behind the first hash-table implementation is that
+each data element can have two sets of list pointers, with one set
+currently being used by RCU readers (as well as by non-RCU updaters)
+and the other being used to construct a new resized hash table.
+This approach allows lookups, insertions, and deletions to run
+concurrently with a resize operation.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{datastruct/hashxu-a}}
+\end{center}
+\caption{Growing a Double-List Hash Table, State (a)}
+\label{fig:datastruct:Growing a Double-List Hash Table, State (a)}
+\end{figure}
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{datastruct/hashxu-b}}
+\end{center}
+\caption{Growing a Double-List Hash Table, State (b)}
+\label{fig:datastruct:Growing a Double-List Hash Table, State (b)}
+\end{figure}
+
+The resize operation proceeds as shown in
+Figures~\ref{fig:datastruct:Growing a Double-List Hash Table, State (a)}-\ref{fig:datastruct:Growing a Double-List Hash Table, State (d)},
+with initial two-bucket state~(a) and with time advancing from top to bottom.
+The initial state uses the zero-index links to chain the elements into
+hash buckets.
+A four-bucket array is allocated, and the one-index links are used to
+chain the elements into these four new hash buckets.
+This results in state~(b) shown in
+Figure~\ref{fig:datastruct:Growing a Double-List Hash Table, State (b)},
+with readers still using the original two-bucket array.
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{datastruct/hashxu-c}}
+\end{center}
+\caption{Growing a Double-List Hash Table, State (c)}
+\label{fig:datastruct:Growing a Double-List Hash Table, State (c)}
+\end{figure}
+
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{datastruct/hashxu-d}}
+\end{center}
+\caption{Growing a Double-List Hash Table, State (d)}
+\label{fig:datastruct:Growing a Double-List Hash Table, State (d)}
+\end{figure}
+
+The new four-bucket array is exposed to readers and then a grace-period
+operation waits for all readers, resulting in state~(c), shown in
+Figure~\ref{fig:datastruct:Growing a Double-List Hash Table, State (c)}.
+In this state, all readers are using the new four-bucket array,
+which means that the old two-bucket array may now be freed, resulting
+in state~(d), shown in
+Figure~\ref{fig:datastruct:Growing a Double-List Hash Table, State (d)}.
+
+This design leads to a relatively straightforward implementation,
+which is the subject of the next section.
+
+\subsection{Resizable Hash Table Implementation}
+\label{sec:datastruct:Resizable Hash Table Implementation}
+
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+ 1 struct ht_elem {
+ 2   struct rcu_head rh;
+ 3   struct cds_list_head hte_next[2];
+ 4   unsigned long hte_hash;
+ 5 };
+ 6 
+ 7 struct ht_bucket {
+ 8   struct cds_list_head htb_head;
+ 9   spinlock_t htb_lock;
+10 };
+11 
+12 struct ht {
+13   long ht_nbuckets;
+14   long ht_resize_cur;
+15   struct ht *ht_new;
+16   int ht_idx;
+17   void *ht_hash_private;
+18   int (*ht_cmp)(void *hash_private,
+19                 struct ht_elem *htep,
+20                 void *key);
+21   long (*ht_gethash)(void *hash_private,
+22                      void *key);
+23   void *(*ht_getkey)(struct ht_elem *htep);
+24   struct ht_bucket ht_bkt[0];
+25 };
+26 
+27 struct hashtab {
+28   struct ht *ht_cur;
+29   spinlock_t ht_lock;
+30 };
+\end{verbatim}
+}
+\caption{Resizable Hash-Table Data Structures}
+\label{fig:datastruct:Resizable Hash-Table Data Structures}
+\end{figure}
+
+Resizing is accomplished by the classic approach of inserting a level
+of indirection, in this case, the \co{ht} structure shown on
+lines~12-25 of
+Figure~\ref{fig:datastruct:Resizable Hash-Table Data Structures}.
+The \co{hashtab} structure shown on lines~27-30 contains only a
+pointer to the current \co{ht} structure along with a spinlock that
+is used to serialize concurrent attempts to resize the hash table.
+
+The \co{ht} structure represents a specific size of the hash table,
+as specified by the \co{->ht_nbuckets} field on line~13.
+The size is stored in the same structure containing the array of
+buckets (\co{->ht_bkt[]} on line~24) in order to avoid mismatches between
+the size and the array.
+The \co{->ht_resize_cur} field on line~14 is equal to -1 unless a resize
+operation
+is in progress, in which case it indicates the index of the bucket whose
+elements are being inserted into the new hash table, which is referenced
+by the \co{->ht_new} field on line~15.
+If there is no resize operation in progress, \co{->ht_new} is \co{NULL}.
+Thus, a resize operation proceeds by allocating a new \co{ht} structure
+and referencing it via the \co{->ht_new} pointer, then advancing
+\co{->ht_resize_cur} through the old table's buckets.
+When all the elements have been added to the new table, the new
+table is linked into the \co{hashtab} structure's \co{->ht_cur} field.
+Once all old readers have completed, the old hash table's \co{ht} structure
+may be freed.
+
+The \co{->ht_idx} field on line~16 indicates which of the two sets of
+list pointers are being used by this instantiation of the hash table,
+and is used to index the \co{->hte_next[]} array in the \co{ht_bucket}
+structure on line~3.
+
+The \co{->ht_hash_private}, \co{->ht_cmp()}, \co{->ht_gethash()},
+and \co{->ht_getkey()} fields collectively define the per-element
+key and the hash function.
+The \co{->ht_hash_private} allows the hash function to be
+perturbed~\cite{McKenney89c,McKenney90,McKenney91}, which can be
+used to avoid denial-of-service attacks based on statistical
+estimation of the parameters used in the hash function.
+The \co{->ht_cmp()} function compares a specified key with that of
+the specified element,
+the \co{->ht_gethash()} calculates the specified key's hash,
+and \co{->ht_getkey()} extracts the key from the enclosing data
+element.
+
+The \co{ht_bucket} structure is the same as before, and the
+\co{ht_elem} structure differs from that of previous implementations
+only in providing a two-element array of list pointer sets in place of
+the prior single set of list pointers.
+
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+ 1 void hashtab_lock_mod(struct hashtab *htp_master,
+ 2                       void *key)
+ 3 {
+ 4   long b;
+ 5   struct ht *htp;
+ 6   struct ht_bucket *htbp;
+ 7   struct ht_bucket *htbp_new;
+ 8 
+ 9   rcu_read_lock();
+10   htp = rcu_dereference(htp_master->ht_cur);
+11   htbp = ht_get_bucket_single(htp, key, &b);
+12   spin_lock(&htbp->htb_lock);
+13   if (b > htp->ht_resize_cur)
+14     return;
+15   htp = htp->ht_new;
+16   htbp_new = ht_get_bucket_single(htp, key, &b);
+17   spin_lock(&htbp_new->htb_lock);
+18   spin_unlock(&htbp->htb_lock);
+19 }
+20 
+21 void hashtab_unlock_mod(struct hashtab *htp_master,
+22                         void *key)
+23 {
+24   long b;
+25   struct ht *htp;
+26   struct ht_bucket *htbp;
+27 
+28   htp = rcu_dereference(htp_master->ht_cur);
+29   htbp = ht_get_bucket(&htp, key, &b, NULL);
+30   spin_unlock(&htbp->htb_lock);
+31   rcu_read_unlock();
+32 }
+\end{verbatim}
+}
+\caption{Resizable Hash-Table Update-Side Concurrency Control}
+\label{fig:datastruct:Resizable Hash-Table Update-Side Concurrency Control}
+\end{figure}
+
+Read-side concurrency control is provided by RCU as was shown in
+Figure~\ref{fig:datastruct:RCU-Protected Hash-Table Read-Side Concurrency Control},
+but update-side concurrency must now deal with the possibility of a
+concurrent resize operation as shown in
+Figure~\ref{fig:datastruct:Resizable Hash-Table Update-Side Concurrency Control}.
+
+\subsection{Resizable Hash Table Discussion}
+\label{sec:datastruct:Resizable Hash Table Discussion}
+
 @@@ Resizable hash tables.
 
 \subsection{Other Resizable Hash Tables}
