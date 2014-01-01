@@ -130,8 +130,6 @@ static struct ht_bucket *ht_get_bucket(struct ht **htp, void *key, long *b, int 
 	if (*b <= (*htp)->ht_resize_cur) {
 		*htp = (*htp)->ht_new;
 		htbp = ht_get_bucket_single(*htp, key, b);
-		if (i)
-			*i = (*htp)->ht_idx;
 	}
 	if (i)
 		*i = (*htp)->ht_idx;
