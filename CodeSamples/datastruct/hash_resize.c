@@ -27,6 +27,7 @@
 
 /* Hash-table element to be included in structures in a hash table. */
 struct ht_elem {
+	struct rcu_head rh;
 	struct cds_list_head hte_next[2];
 	unsigned long hte_hash;
 };
@@ -310,5 +311,16 @@ struct hashtab *test_htp;
 #define hashtab_add(htp, h, htep) hashtab_add((htp), (htep))
 #define hashtab_del(htep) hashtab_del(test_htp, (htep))
 #define hash_resize_test(htp, n) hashtab_resize((htp), (n), (void *)1, NULL, NULL, NULL)
+
+void (*defer_del_done)(struct ht_elem *htep) = NULL;
+
+void defer_del_rcu(struct rcu_head *rhp)
+{
+	defer_del_done((struct ht_elem *)rhp);
+}
+
+#define defer_del(p)	call_rcu(&(p)->rh, defer_del_rcu)
+
+#define quiescent_state() rcu_quiescent_state()
 
 #include "hashtorture.h"
