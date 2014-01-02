@@ -128,6 +128,7 @@ static struct ht_bucket *ht_get_bucket(struct ht **htp, void *key, long *b, int 
 	struct ht_bucket *htbp = ht_get_bucket_single(*htp, key, b);
 
 	if (*b <= (*htp)->ht_resize_cur) {
+		smp_mb(); /* order ->ht_resize_cur before ->ht_new. */
 		*htp = (*htp)->ht_new;
 		htbp = ht_get_bucket_single(*htp, key, b);
 	}
@@ -259,6 +260,7 @@ hashtab_resize(struct hashtab *htp_master,
 		return -ENOMEM;
 	}
 	htp->ht_new = htp_new;
+	synchronize_rcu();
 	idx = htp->ht_idx;
 	htp_new->ht_idx = !idx;
 	for (i = 0; i < htp->ht_nbuckets; i++) {
