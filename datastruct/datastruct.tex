@@ -1056,6 +1056,98 @@ The \co{ht_bucket} structure is the same as before, and the
 only in providing a two-element array of list pointer sets in place of
 the prior single set of list pointers.
 
+In a fixed-sized hash table, bucket selection is quite straightforward:
+Simply transform the hash value to the corresponding bucket index.
+In contrast, when resizing, it is also necessary to determine which
+of the old and new sets of buckets to select from.
+If the bucket that would be selected from the old table has already
+been distributed into the new table, then the bucket should be selected
+from the new table.
+Conversely, if the bucket that would be selected from the old table
+has not yet been distributed, then the bucket should be selected from
+the old table.
+
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+ 1 static struct ht_bucket *
+ 2 ht_get_bucket_single(struct ht *htp,
+ 3                      void *key, long *b)
+ 4 {
+ 5   *b = htp->ht_gethash(htp->ht_hash_private,
+ 6                        key) % htp->ht_nbuckets;
+ 7   return &htp->ht_bkt[*b];
+ 8 }
+ 9 
+10 static struct ht_bucket *
+11 ht_get_bucket(struct ht **htp, void *key,
+12               long *b, int *i)
+13 {
+14   struct ht_bucket *htbp;
+15 
+16   htbp = ht_get_bucket_single(*htp, key, b);
+17   if (*b <= (*htp)->ht_resize_cur) {
+18     *htp = (*htp)->ht_new;
+19     htbp = ht_get_bucket_single(*htp, key, b);
+20   }
+21   if (i)
+22     *i = (*htp)->ht_idx;
+23   return htbp;
+24 }
+\end{verbatim}
+}
+\caption{Resizable Hash-Table Bucket Selection}
+\label{fig:datastruct:Resizable Hash-Table Bucket Selection}
+\end{figure}
+
+Bucket selection is shown in
+Figure~\ref{fig:datastruct:Resizable Hash-Table Bucket Selection},
+which shows \co{ht_get_bucket_single()} on lines~1-8 and
+\co{ht_get_bucket()} on lines~10-25.
+The \co{ht_get_bucket_single()} function returns a reference to the bucket
+corresponding to the specified key in the specified hash table, without
+making any allowances for resizing.
+It also stores the hash value corresponding to the key into the location
+referenced by parameter \co{b} on lines~5 and ~6.
+Line~7 then returns a reference to the corresponding bucket.
+
+The \co{ht_get_bucket()} function handles hash-table selection, using
+\co{ht_get_bucket_single()} to select the bucket within the proper table.
+Line~16 selects the bucket corresponding to the hash in the current
+hash table, storing the hash value through parameter \co{b}.
+If line~17 determines that the table is being resized and that
+line~16's bucket has already been distributed across the new hash
+table, then line~18 selects the new hash table and line~19
+selects the bucket corresponding to the hash in the new hash table,
+again storing the hash value through parameter \co{b}.
+
+\QuickQuiz{}
+	The code in
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Bucket Selection}
+	computes the hash twice!
+	Why this blatant inefficiency?
+\QuickQuizAnswer{
+	The reason is that the old and new hash tables might have
+	completely different hash functions, so that a hash computed
+	for the old table might be completely irrelevant to the
+	new table.
+} \QuickQuizEnd
+
+If line~21 finds that parameter \co{i} is non-\co{NULL}, then
+line~22 stores the pointer-set index for the selected hash table.
+Finally, line~23 returns a reference to the selected bucket.
+
+\QuickQuiz{}
+	How does the code in
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Bucket Selection}
+	protect against the resizing process progressing past the
+	selected bucket?
+\QuickQuizAnswer{
+	It does not provide any such protection.
+	That is instead the job of the update-side concurrency-control
+	functions described next.
+} \QuickQuizEnd
+
 \begin{figure}[tb]
 { \scriptsize
 \begin{verbatim}
@@ -1099,14 +1191,303 @@ the prior single set of list pointers.
 
 Read-side concurrency control is provided by RCU as was shown in
 Figure~\ref{fig:datastruct:RCU-Protected Hash-Table Read-Side Concurrency Control},
-but update-side concurrency must now deal with the possibility of a
+but the update-side concurrency-control functions
+\co{hashtab_lock_mod()} and \co{hashtab_unlock_mod()}
+must now deal with the possibility of a
 concurrent resize operation as shown in
 Figure~\ref{fig:datastruct:Resizable Hash-Table Update-Side Concurrency Control}.
+
+The \co{hashtab_lock_mod()} spans lines~1-19 in the figure.
+Line~9 enters an RCU read-side critical section to prevent
+the data structures from being freed during the traversal, and then
+line~10 obtains a reference to the bucket in the current hash table
+corresponding to the key.
+Line~12 acquires that bucket's lock, which will prevent any concurrent
+resizing operation from distributing that bucket, though of course it
+will have no effect if the resizing operation has already distributed
+this bucket.
+Line~13 then checks to see if a concurrent resize operation has
+already distributed this bucket across the new hash table, and if not,
+line~14 returns with the selected hash bucket's lock held (and also
+within an RCU read-side critical section).
+
+Otherwise, a concurrent resize operation has already distributed this
+bucket, so line~15 proceeds to the new hash table and line~16
+selects the bucket corresponding to the key.
+Finally, line~17 acquires the bucket's lock and line~18 releases the
+lock for the old hash table's bucket.
+Once again, \co{hashtab_lock_mod()} exits within an RCU read-side critical
+section.
+
+\QuickQuiz{}
+	The code in
+	Figures~\ref{fig:datastruct:Resizable Hash-Table Bucket Selection}
+	and~\ref{fig:datastruct:Resizable Hash-Table Update-Side Concurrency Control}
+	compute the hash and execute the bucket-selection logic twice for
+	updates!
+	Why this blatant inefficiency?
+\QuickQuizAnswer{
+	This approach allows the \co{hashtorture.h} testing infrastructure
+	to be reused.
+	That said, a production-quality resizable hash table would likely
+	be optimized to avoid this double computation.
+	Carrying out this optimization is left as an exercise for the reader.
+} \QuickQuizEnd
+
+The \co{hashtab_unlock_mod()} function releases the lock acquired by
+\co{hashtab_lock_mod()}.
+Line~28 picks up the current hash table, and then line~29 invokes
+\co{ht_get_bucket()} in order to gain a reference to the bucket that
+corresponds to the key---and of course this bucket might well in a
+new hash table.
+Line~30 releases the bucket's lock and finally line~31 exits the
+RCU read-side critical section.
+
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+ 1 struct ht_elem *
+ 2 hashtab_lookup(struct hashtab *htp_master,
+ 3                void *key)
+ 4 {
+ 5   long b;
+ 6   int i;
+ 7   struct ht *htp;
+ 8   struct ht_elem *htep;
+ 9   struct ht_bucket *htbp;
+10 
+11   htp = rcu_dereference(htp_master->ht_cur);
+12   htbp = ht_get_bucket(&htp, key, &b, &i);
+13   cds_list_for_each_entry_rcu(htep,
+14                               &htbp->htb_head,
+15                               hte_next[i]) {
+16     if (htp->ht_cmp(htp->ht_hash_private,
+17                     htep, key))
+18       return htep;
+19   }
+20   return NULL;
+21 }
+22 
+23 void
+24 hashtab_add(struct hashtab *htp_master,
+25             struct ht_elem *htep)
+26 {
+27   long b;
+28   int i;
+29   struct ht *htp;
+30   struct ht_bucket *htbp;
+31 
+32   htp = rcu_dereference(htp_master->ht_cur);
+33   htbp = ht_get_bucket(&htp, htp->ht_getkey(htep),
+34                        &b, &i);
+35   cds_list_add_rcu(&htep->hte_next[i],
+36                    &htbp->htb_head);
+37 }
+38 
+39 void
+40 hashtab_del(struct hashtab *htp_master,
+41             struct ht_elem *htep)
+42 {
+43   long b;
+44   int i;
+45   struct ht *htp;
+46   struct ht_bucket *htbp;
+47 
+48   htp = rcu_dereference(htp_master->ht_cur);
+49   htbp = ht_get_bucket(&htp, htp->ht_getkey(htep),
+50                        &b, &i);
+51   cds_list_del_rcu(&htep->hte_next[i]);
+52 }
+\end{verbatim}
+}
+\caption{Resizable Hash-Table Access Functions}
+\label{fig:datastruct:Resizable Hash-Table Access Functions}
+\end{figure}
+
+Now that we have bucket selection and concurrency control in place,
+we are ready to search and update our resizable hash table.
+The \co{hashtab_lookup()}, \co{hashtab_add()}, and \co{hashtab_del()}
+functions shown in
+Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions}.
+
+The \co{hashtab_lookup()} function on lines~1-21 of the figure does
+hash lookups.
+Line~11 fetches the current hash table and line~12 obtains a reference
+to the bucket corresponding to the specified key, which might well be
+located in a new resized hash table.
+Note that line~12 also passes back the index that will be used to
+select the correct set of pointers from the pair in each element.
+The loop spanning lines~13-19 searches the bucket, so that if line~16
+detects a match, line~18 returns a pointer to the enclosing data element.
+Otherwise, if there is no match, line~20 returns \co{NULL} to indicate
+failure.
+
+\QuickQuiz{}
+	In the \co{hashtab_lookup()} function in
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions},
+	the code carefully finds the right bucket in the new hash table
+	if the element to be looked up has already been distributed
+	by a concurrent resize operation.
+	This seems wasteful for RCU-protected lookups.
+	Why not just stick with the old hash table in this case?
+\QuickQuizAnswer{
+	Suppose that a resize operation begins and distributes half of
+	the old table's buckets to the new table.
+	Suppose further that a thread adds a new element that goes into
+	one of the already-distributed buckets, and that this same thread
+	now looks up this newly added element.
+	If lookups unconditionally traversed only the old hash table,
+	this thread would get a lookup failure for the element that it
+	just added, which certainly sounds like a bug to me!
+} \QuickQuizEnd
+
+The \co{hashtab_add()} function on lines~23-37 of the figure adds
+new data elements to the hash table.
+Lines~32-34 obtain a pointer to the hash bucket corresponding to
+the key (and provide the index), as before, and line~35 adds the new
+element to the table.
+The caller is required to handle concurrency, for example, by invoking
+\co{hashtab_lock_mod()} before the call to \co{hashtab_add()} and invoking
+\co{hashtab_unlock_mod()} afterwards.
+
+The \co{hashtab_del()} function on lines~39-52 of the figure removes
+an existing element from the hash table.
+Lines~48-50 provide the bucket and index as before, and line~51 removes
+the specified element.
+As with \co{hashtab_add()}, the caller is responsible for concurrency
+control.
+
+\begin{figure*}[tb]
+{ \scriptsize
+\begin{verbatim}
+ 1 int hashtab_resize(struct hashtab *htp_master,
+ 2                    unsigned long nbuckets, void *hash_private,
+ 3                    int (*cmp)(void *hash_private, struct ht_elem *htep, void *key),
+ 4                    long (*gethash)(void *hash_private, void *key),
+ 5                    void *(*getkey)(struct ht_elem *htep))
+ 6 {
+ 7   struct ht *htp;
+ 8   struct ht *htp_new;
+ 9   int i;
+10   int idx;
+11   struct ht_elem *htep;
+12   struct ht_bucket *htbp;
+13   struct ht_bucket *htbp_new;
+14   unsigned long hash;
+15   long b;
+16 
+17   if (!spin_trylock(&htp_master->ht_lock))
+18     return -EBUSY;
+19   htp = htp_master->ht_cur;
+20   htp_new = ht_alloc(nbuckets,
+21                      hash_private ? hash_private : htp->ht_hash_private,
+22                      cmp ? cmp : htp->ht_cmp,
+23                      gethash ? gethash : htp->ht_gethash,
+24                      getkey ? getkey : htp->ht_getkey);
+25   if (htp_new == NULL) {
+26     spin_unlock(&htp_master->ht_lock);
+27     return -ENOMEM;
+28   }
+29   htp->ht_new = htp_new;
+30   synchronize_rcu();
+31   idx = htp->ht_idx;
+32   htp_new->ht_idx = !idx;
+33   for (i = 0; i < htp->ht_nbuckets; i++) {
+34     htbp = &htp->ht_bkt[i];
+35     spin_lock(&htbp->htb_lock);
+36     htp->ht_resize_cur = i;
+37     cds_list_for_each_entry(htep, &htbp->htb_head, hte_next[idx]) {
+38       htbp_new = ht_get_bucket_single(htp_new, htp_new->ht_getkey(htep), &b);
+39       spin_lock(&htbp_new->htb_lock);
+40       cds_list_add_rcu(&htep->hte_next[!idx], &htbp_new->htb_head);
+41       spin_unlock(&htbp_new->htb_lock);
+42     }
+43     spin_unlock(&htbp->htb_lock);
+44   }
+45   rcu_assign_pointer(htp_master->ht_cur, htp_new);
+46   synchronize_rcu();
+47   spin_unlock(&htp_master->ht_lock);
+48   free(htp);
+49   return 0;
+50 }
+\end{verbatim}
+}
+\caption{Resizable Hash-Table Resizing}
+\label{fig:datastruct:Resizable Hash-Table Resizing}
+\end{figure*}
+
+The actual resizing itself is carried out by \co{hashtab_resize}, shown in
+Figure~\ref{fig:datastruct:Resizable Hash-Table Resizing}.
+Line~17 conditionally acquires the top-level \co{->ht_lock}, and if
+this acquisition fails, line~18 returns \co{-EBUSY} to indicate that
+a resize is already in progress.
+Otherwise, line~19 picks up a reference to the current hash table,
+and lines~21-24 allocate a new hash table of the desired size.
+If a new set of hash/key functions have been specified, these are
+used for the new table, otherwise those of the old table are preserved.
+If line~25 detects memory-allocation failure, lines~26 and~27 return
+a failure indication.
+
+Line~29 starts the bucket-distribution process by installing a reference
+to the new table into the \co{->ht_new} field of the old table.
+Line~30 ensures that all readers who are not aware of the new table
+complete before the resize operation continues.
+Line~31 picks up the current table's index and stores its inverse to
+the new hash table, thus ensuring that the two hash tables avoid overwriting
+each other's linked lists.
+
+Each pass through the loop spanning lines~33-44 distributes the contents
+of one of the old hash table's buckets into the new hash table.
+Line~34 picks up a reference to the old table's current bucket,
+line~35 acquires that bucket's spinlock, and line~36 updates
+\co{->ht_resize_cur} to indicate that this bucket is being distributed.
+
+\QuickQuiz{}
+	In the \co{hashtab_resize()} function in
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions},
+	what guarantees that the update to \co{->ht_new} on line~29
+	will be seen as happening before the update to \co{->ht_resize_cur}
+	on line~36 from the perspective of \co{hashtab_lookup()},
+	\co{hashtab_add()}, and \co{hashtab_del()}?
+\QuickQuizAnswer{
+	The \co{synchronize_rcu()} on line~30 of
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions}
+	ensures that all pre-existing RCU readers have completed between
+	the time that we install the new hash-table reference on
+	line~29 and the time that we update \co{->ht_resize_cur} on
+	line~36.
+	This means that any reader that sees a non-negative value
+	of \co{->ht_resize_cur} cannot have started before the
+	assignment to \co{->ht_new}, and thus must be able to see
+	the reference to the new hash table.
+} \QuickQuizEnd
+
+Each pass through the loop spanning lines~37-42 adds one data element
+from the current old-table bucket to the corresponding new-table bucket,
+holding the new-table bucket's lock during the add operation.
+Finally, line~43 releases the old-table bucket lock.
+
+Execution reaches line~45 once all old-table buckets have been distributed
+across the new table.
+Line~45 installs the newly created table as the current one, and
+line~46 waits for all old readers (who might still be referencing
+the old table) to complete.
+Then line~47 releases the resize-serialization lock, line~48 frees
+the old hash table, and finally line~48 returns success.
 
 \subsection{Resizable Hash Table Discussion}
 \label{sec:datastruct:Resizable Hash Table Discussion}
 
-@@@ Resizable hash tables.
+This RCU-protected resizable hash table performs and scales almost
+as well as does its fixed-size counterpart.
+The performance during an actual resize operation of course suffers
+somewhat due to the cache misses causes by the updates to each element's
+pointers, which indicates that hystersis should be applied to avoid
+over-aggressive resizing.
+Growing the table by large factors can also help reduce resizing overhead.
+
+Of course, the pair of pointer sets does impose some memory overhead,
+which is taken up in the next section.
 
 \subsection{Other Resizable Hash Tables}
 \label{sec:datastruct:Other Resizable Hash Tables}

@@ -5084,6 +5084,78 @@ srcu_read_unlock(&srcucb, idx);
 	That said, other testing has shown that RCU read-side primitives
 	offer consistent performance and scalability up to at least 1024 CPUs.
 
+\QuickQ{}
+	The code in
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Bucket Selection}
+	computes the hash twice!
+	Why this blatant inefficiency?
+\QuickA{}
+	The reason is that the old and new hash tables might have
+	completely different hash functions, so that a hash computed
+	for the old table might be completely irrelevant to the
+	new table.
+
+\QuickQ{}
+	How does the code in
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Bucket Selection}
+	protect against the resizing process progressing past the
+	selected bucket?
+\QuickA{}
+	It does not provide any such protection.
+	That is instead the job of the update-side concurrency-control
+	functions described next.
+
+\QuickQ{}
+	The code in
+	Figures~\ref{fig:datastruct:Resizable Hash-Table Bucket Selection}
+	and~\ref{fig:datastruct:Resizable Hash-Table Update-Side Concurrency Control}
+	compute the hash and execute the bucket-selection logic twice for
+	updates!
+	Why this blatant inefficiency?
+\QuickA{}
+	This approach allows the \co{hashtorture.h} testing infrastructure
+	to be reused.
+	That said, a production-quality resizable hash table would likely
+	be optimized to avoid this double computation.
+	Carrying out this optimization is left as an exercise for the reader.
+
+\QuickQ{}
+	In the \co{hashtab_lookup()} function in
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions},
+	the code carefully finds the right bucket in the new hash table
+	if the element to be looked up has already been distributed
+	by a concurrent resize operation.
+	This seems wasteful for RCU-protected lookups.
+	Why not just stick with the old hash table in this case?
+\QuickA{}
+	Suppose that a resize operation begins and distributes half of
+	the old table's buckets to the new table.
+	Suppose further that a thread adds a new element that goes into
+	one of the already-distributed buckets, and that this same thread
+	now looks up this newly added element.
+	If lookups unconditionally traversed only the old hash table,
+	this thread would get a lookup failure for the element that it
+	just added, which certainly sounds like a bug to me!
+
+\QuickQ{}
+	In the \co{hashtab_resize()} function in
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions},
+	what guarantees that the update to \co{->ht_new} on line~29
+	will be seen as happening before the update to \co{->ht_resize_cur}
+	on line~36 from the perspective of \co{hashtab_lookup()},
+	\co{hashtab_add()}, and \co{hashtab_del()}?
+\QuickA{}
+	The \co{synchronize_rcu()} on line~30 of
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions}
+	ensures that all pre-existing RCU readers have completed between
+	the time that we install the new hash-table reference on
+	line~29 and the time that we update \co{->ht_resize_cur} on
+	line~36.
+	This means that any reader that sees a non-negative value
+	of \co{->ht_resize_cur} cannot have started before the
+	assignment to \co{->ht_new}, and thus must be able to see
+	the reference to the new hash table.
+
 \QuickQAC{chp:Validation}{Validation}
 \QuickQ{}
 	When in computing is the willingness to follow a fragmentary
