@@ -827,6 +827,7 @@ void *perftest_updater(void *arg)
 	free(thep);
 	pap->nadds = nadds;
 	pap->ndels = ndels;
+	return NULL;
 }
 
 /* Run a performance test. */
@@ -1108,6 +1109,7 @@ void *zoo_updater(void *arg)
 	hash_unregister_thread();
 	pap->nadds = nadds;
 	pap->ndels = ndels;
+	return NULL;
 }
 
 void defer_del_free(struct ht_elem *htep)
