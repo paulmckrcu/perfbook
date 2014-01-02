@@ -1341,4 +1341,5 @@ int main(int argc, char *argv[])
 	test_to_do();
 	if (resizediv != 0 && resizemult != 0)
 		printf("Resizes: %lld\n", nresizes);
+	return 0;
 }

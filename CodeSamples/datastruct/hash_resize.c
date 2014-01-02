@@ -67,6 +67,7 @@ ht_alloc(unsigned long nbuckets, void *hash_private,
 	struct ht *htp;
 	int i;
 
+/*&&&&*/printf("sizeof(struct ht_bucket) = %u, malloc size = %lu\n", sizeof(struct ht_bucket), sizeof(*htp) + nbuckets * sizeof(struct ht_bucket));
 	htp = malloc(sizeof(*htp) + nbuckets * sizeof(struct ht_bucket));
 	if (htp == NULL)
 		return NULL;
@@ -223,9 +224,8 @@ void hashtab_del(struct hashtab *htp_master, struct ht_elem *htep)
 	long b;
 	int i;
 	struct ht *htp = rcu_dereference(htp_master->ht_cur);
-	struct ht_bucket *htbp = ht_get_bucket(&htp, htp->ht_getkey(htep),
-					       &b, &i);
 
+	(void)ht_get_bucket(&htp, htp->ht_getkey(htep), &b, &i);
 	cds_list_del_rcu(&htep->hte_next[i]);
 }
 
@@ -244,7 +244,6 @@ hashtab_resize(struct hashtab *htp_master,
 	struct ht_elem *htep;
 	struct ht_bucket *htbp;
 	struct ht_bucket *htbp_new;
-	unsigned long hash;
 	long b;
 
 	if (!spin_trylock(&htp_master->ht_lock))
@@ -291,6 +290,8 @@ long tgh(void *hash_private, void *key)
 {
 	return (long)key;
 }
+
+int testcmp(struct ht_elem *htep, void *key);
 
 int tc(void *hash_private, struct ht_elem *htep, void *key)
 {
