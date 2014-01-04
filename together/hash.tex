@@ -2,3 +2,91 @@
 
 \section{Hashing Hassles}
 \label{sec:together:Hashing Hassles}
+
+This section looks at some issues that can arise when dealing with
+hash tables.
+Please note that these issues also apply to many other search structures.
+
+\subsection{Correlated Data Elements}
+\label{sec:together:Correlated Data Elements}
+
+This situation is analogous to that in
+Section~\ref{sec:together:Correlated Fields}:
+We have a hash table where we need correlated views of two or more of
+the elements.
+These elements are updated together, and we do not want so see an old
+version of the first element along with new versions of the other
+elements.
+
+One approach is to use sequence locks
+(see Section~\ref{sec:defer:Sequence Locks}),
+so that updates to the correlated elements are carried out under the
+protection of \co{write_seqlock()}, while reads are carried out within
+a \co{read_seqbegin()} / \co{read_seqretry()} loop.
+Note that sequence locks are not a replacement for RCU protection:
+Sequence locks protect against concurrent modifications, but RCU
+is still needed to protect against concurrent deletions.
+
+This approach works quite well when the number of correlated elements is
+small, the time to read these elements is short, and the update rate is
+low.
+Otherwise, updates might happen so quickly that readers might never complete.
+One way to avoid this reader-starvation problem is to have the readers
+use the update-side primitives if there have been too many retries,
+but this can degrade both performance and scalability.
+
+If the element groupings are well-defined and persistent, such as
+a group of animals in the same enclosure or a parent-child relationship,
+then one approach is to add pointers to the data elements to link
+together the members of a given group.
+Readers can then traverse these pointers to access all the data elements
+in the same group as the first one located.
+
+Other approaches using version numbering are left as exercises for the
+interested reader.
+
+\subsection{Update-Friendly Hash-Table Traversal}
+\label{sec:together:Update-Friendly Hash-Table Traversal}
+
+Suppose that a statistical scan of all elements in a hash table is
+required.
+For example, Schr\"odinger might wish to compute the average
+length-to-weight ratio over all of his animals.\footnote{	
+	Why would such a quantity be useful?
+	Beats me!
+	But group statistics in general are often useful.}
+Suppose further that Schr\"odinger is willing to ignore slight
+errors due to animals being added to and removed from the hash
+table while this statistical scan is being carried out.
+What should Schr\"odinger do to control concurrency?
+
+One approach is to enclose the statistical scan in an RCU read-side
+critical section.
+This permits updates to proceed concurrently without unduly impeding
+the scan.
+In particular, the scan does not block the updates and vice versa,
+which allows scan of hash tables containing very large numbers of
+elements to be supported gracefully, even in the face of very high
+update rates.
+
+\QuickQuiz{}
+	But how does this scan work while a resizable hash table
+	is being resized?
+	In that case, neither the old nor the new hash table is
+	guaranteed to contain all the elements in the hash table!
+\QuickQuizAnswer{
+	True, resizable hash tables as described in
+	Section~\ref{sec:datastruct:Non-Partitionable Data Structures}
+	cannot be fully scanned while being resized.
+	One simple way around this is to acquire the
+	\co{hashtab} structure's \co{->ht_lock} while scanning,
+	but this prevents more than one scan from proceeding
+	concurrently.
+
+	Another approach is for updates to mutate the old hash
+	table as well as the new one while resizing is in
+	progress.
+	This would allow scans to find all elements in the old
+	hash table.
+	Implementing this is left as an exercise for the reader.
+} \QuickQuizEnd

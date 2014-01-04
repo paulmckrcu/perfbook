@@ -6171,12 +6171,12 @@ srcu_read_unlock(&srcucb, idx);
 13 };
 \end{verbatim}
 }
-\caption{Correlated Measurement Fields}
-\label{fig:together:Correlated Measurement Fields}
+\caption{Localized Correlated Measurement Fields}
+\label{fig:together:Localized Correlated Measurement Fields}
 \end{figure}
 
 	One way to avoid this cache-miss overhead is shown in
-	Figure~\ref{fig:together:Correlated Measurement Fields}:
+	Figure~\ref{fig:together:Localized Correlated Measurement Fields}:
 	Simply embed an instance of a \co{measurement} structure
 	named \co{meas}
 	into the \co{animal} structure, and point the \co{->mp}
@@ -6203,6 +6203,27 @@ srcu_read_unlock(&srcucb, idx);
 	the extra cache miss in the common case.
 	The extra cache miss will be incurred only while an update is
 	actually in progress.
+
+\QuickQ{}
+	But how does this scan work while a resizable hash table
+	is being resized?
+	In that case, neither the old nor the new hash table is
+	guaranteed to contain all the elements in the hash table!
+\QuickA{}
+	True, resizable hash tables as described in
+	Section~\ref{sec:datastruct:Non-Partitionable Data Structures}
+	cannot be fully scanned while being resized.
+	One simple way around this is to acquire the
+	\co{hashtab} structure's \co{->ht_lock} while scanning,
+	but this prevents more than one scan from proceeding
+	concurrently.
+
+	Another approach is for updates to mutate the old hash
+	table as well as the new one while resizing is in
+	progress.
+	This would allow scans to find all elements in the old
+	hash table.
+	Implementing this is left as an exercise for the reader.
 
 \QuickQAC{sec:advsync:Advanced Synchronization}{Advanced Synchronization}
 \QuickQ{}
