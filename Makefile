@@ -53,6 +53,8 @@ LATEXSOURCES = \
 	locking/locking.tex \
 	locking/locking-existence.tex \
 	together/applyrcu.tex \
+	together/count.tex \
+	together/hash.tex \
 	together/together.tex \
 	toolsoftrade/toolsoftrade.tex
 

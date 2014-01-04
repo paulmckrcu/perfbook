@@ -1,9 +1,9 @@
 % together/applyrcu.tex
 
-\section{Applying RCU}
-\label{sec:together:Applying RCU}
+\section{RCU Rescues}
+\label{sec:together:RCU Rescues}
 
-This chapter shows how to apply RCU to some examples discussed earlier
+This section shows how to apply RCU to some examples discussed earlier
 in this book.
 In some cases, RCU provides simpler code, in other cases better
 performance and scalability, and in still other cases, both.
@@ -383,3 +383,228 @@ for.
 Of course, the overhead of \co{synchronize_rcu()} can be large,
 but given that device removal is quite rare, this is usually a good
 tradeoff.
+
+\subsection{Array and Length}
+\label{sec:together:Array and Length}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+ 1 struct foo {
+ 2   int length;
+ 3   char *a;
+ 4 };
+\end{verbatim}
+}
+\caption{RCU-Protected Variable-Length Array}
+\label{fig:together:RCU-Protected Variable-Length Array}
+\end{figure}
+
+Suppose we have an RCU-protected variable-length array, as shown in
+Figure~\ref{fig:together:RCU-Protected Variable-Length Array}.
+The length of the array \co{->a[]} can change dynamically, and at any
+given time, its length is given by the field \co{->length}.
+Of course, this introduces the following race condition:
+
+\begin{enumerate}
+\item	The array is initially 16 characters long, and thus \co{->length}
+	is equal to 16.
+\item	CPU~0 loads the value of \co{->length}, obtaining the value 16.
+\item	CPU~1 shrinks the array to be of length 8, and assigns a pointer
+	to a new 8-character block of memory into \co{->a[]}.
+\item	CPU~0 picks up the new pointer from \co{->a[]}, and stores a
+	new value into element 12.
+	Because the array has only 8 characters, this results in
+	a SEGV or (worse yet) memory corruption.
+\end{enumerate}
+
+How can we prevent this?
+
+One approach is to make careful use of memory barriers, which are
+covered in Section~\ref{sec:advsync:Memory Barriers}.
+This works, but incurs read-side overhead and, perhaps worse, requires
+use of explicit memory barriers.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+ 1 struct foo_a {
+ 2   int length;
+ 3   char a[0];
+ 4 };
+ 5 
+ 6 struct foo {
+ 7   struct foo_a *fa;
+ 8 };
+\end{verbatim}
+}
+\caption{Improved RCU-Protected Variable-Length Array}
+\label{fig:together:Improved RCU-Protected Variable-Length Array}
+\end{figure}
+
+A better approach is to put the value and the array into the same structure,
+as shown in
+Figure~\ref{fig:together:Improved RCU-Protected Variable-Length Array}.
+Allocating a new array (\co{foo_a} structure) then automatically provides
+a new place for the array length.
+This means that if any CPU picks up a reference to \co{->fa}, it is
+guaranteed that the \co{->length} will match the \co{->a[]}
+length~\cite{Arcangeli03}.
+
+\begin{enumerate}
+\item	The array is initially 16 characters long, and thus \co{->length}
+	is equal to 16.
+\item	CPU~0 loads the value of \co{->fa}, obtaining a pointer to
+	the structure containing the value 16 and the 16-byte array.
+\item	CPU~0 loads the value of \co{->fa->length}, obtaining the value 16.
+\item	CPU~1 shrinks the array to be of length 8, and assigns a pointer
+	to a new \co{foo_a} structure containing an 8-character block
+	of memory into \co{->a[]}.
+\item	CPU~0 picks up the new pointer from \co{->a[]}, and stores a
+	new value into element 12.
+	But because CPU~0 is still referencing the old \co{foo_a}
+	structure that contains the 16-byte array, all is well.
+\end{enumerate}
+
+Of course, in both cases, CPU~1 must wait for a grace period before
+freeing the old array.
+
+A more general version of this approach is presented in the next section.
+
+\subsection{Correlated Fields}
+\label{sec:together:Correlated Fields}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+ 1 struct animal {
+ 2   char name[40];
+ 3   double age;
+ 4   double meas_1;
+ 5   double meas_2;
+ 6   double meas_3;
+ 7   char photo[0]; /* large bitmap. */
+ 8 };
+\end{verbatim}
+}
+\caption{Uncorrelated Measurement Fields}
+\label{fig:together:Uncorrelated Measurement Fields}
+\end{figure}
+
+Suppose that each of Sch\"odinger's animals is represented by the
+data element shown in
+Figure~\ref{fig:together:Uncorrelated Measurement Fields}.
+The \co{meas_1}, \co{meas_2}, and \co{meas_3} fields are a set
+of correlated measurements that are updated periodically.
+It is critically important that readers see these three values from
+a single measurement update: If a reader sees an old value of
+\co{meas_1} but new values of \co{meas_2} and \co{meas_3}, that
+reader will become fatally confused.
+How can we guarantee that readers will see coordinated sets of these
+three values?
+
+One approach would be to allocate a new \co{animal} structure,
+copy the old structure into the new structure, update the new
+structure's \co{meas_1}, \co{meas_2}, and \co{meas_3} fields,
+and then replace the old structure with a new one by updating
+the pointer.
+This does guarantee that all readers see coordinated sets of
+measurement values, but it requires copying a large structure due
+to the \co{->photo[]} field.
+This copying might incur unacceptably large overhead.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+ 1 struct measurement {
+ 2   double meas_1;
+ 3   double meas_2;
+ 4   double meas_3;
+ 5 };
+ 6 
+ 7 struct animal {
+ 8   char name[40];
+ 9   double age;
+10   struct measurement *mp;
+11   char photo[0]; /* large bitmap. */
+12 };
+\end{verbatim}
+}
+\caption{Correlated Measurement Fields}
+\label{fig:together:Correlated Measurement Fields}
+\end{figure}
+
+Another approach is to insert a level of indirection, as shown in
+Figure~\ref{fig:together:Correlated Measurement Fields}.
+When a new measurement is taken, a new \co{measurement} structure
+is allocated, filled in with the measurements, and the \co{animal}
+structure's \co{->mp} field is updated to point to this new
+\co{measurement} structure using \co{rcu_assign_pointer()}.
+After a grace period elapses, the old \co{measurement} structure
+can be freed.
+
+\QuickQuiz{}
+	But cant't the approach shown in
+	Figure~\ref{fig:together:Correlated Measurement Fields}
+	result in extra cache misses, in turn resulting in additional
+	read-side overhead?
+\QuickQuizAnswer{
+	Indeed it can.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+ 1 struct measurement {
+ 2   double meas_1;
+ 3   double meas_2;
+ 4   double meas_3;
+ 5 };
+ 6 
+ 7 struct animal {
+ 8   char name[40];
+ 9   double age;
+10   struct measurement *mp;
+11   struct measurement meas;
+12   char photo[0]; /* large bitmap. */
+13 };
+\end{verbatim}
+}
+\caption{Correlated Measurement Fields}
+\label{fig:together:Correlated Measurement Fields}
+\end{figure}
+
+	One way to avoid this cache-miss overhead is shown in
+	Figure~\ref{fig:together:Correlated Measurement Fields}:
+	Simply embed an instance of a \co{measurement} structure
+	named \co{meas}
+	into the \co{animal} structure, and point the \co{->mp}
+	field at this \co{->meas} field.
+
+	Measurement updates can then be carried out as follows:
+
+	\begin{enumerate}
+	\item	Allocate a new \co{measurement} structure and place
+		the new measurements into it.
+	\item	Use \co{rcu_assign_pointer()} to point \co{->mp} to
+		this new structure.
+	\item	Wait for a grace period to elapse, for example using
+		either \co{synchronize_rcu()} or \co{call_rcu()}.
+	\item	Copy the measurements from the new \co{measurement}
+		structure into the embedded \co{->meas} field.
+	\item	Use \co{rcu_assign_pointer()} to point \co{->mp}
+		back to the old embedded \co{->meas} field.
+	\item	After another grace period elapses, free up the
+		new \co{measurement} field.
+	\end{enumerate}
+
+	This approach uses a heavier weight update procedure to eliminate
+	the extra cache miss in the common case.
+	The extra cache miss will be incurred only while an update is
+	actually in progress.
+} \QuickQuizEnd
+
+This approach enables readers to see correlated values for selected
+fields with minimal read-side overhead.
+
+% Birthstone/tombstone for moving records when readers cannot be permitted
+% to see extraneous records.

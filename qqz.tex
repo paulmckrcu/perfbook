@@ -6145,6 +6145,65 @@ srcu_read_unlock(&srcucb, idx);
 	implementation shown in
 	Figure~\ref{fig:together:RCU and Per-Thread Statistical Counters}!
 
+\QuickQ{}
+	But cant't the approach shown in
+	Figure~\ref{fig:together:Correlated Measurement Fields}
+	result in extra cache misses, in turn resulting in additional
+	read-side overhead?
+\QuickA{}
+	Indeed it can.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+ 1 struct measurement {
+ 2   double meas_1;
+ 3   double meas_2;
+ 4   double meas_3;
+ 5 };
+ 6 
+ 7 struct animal {
+ 8   char name[40];
+ 9   double age;
+10   struct measurement *mp;
+11   struct measurement meas;
+12   char photo[0]; /* large bitmap. */
+13 };
+\end{verbatim}
+}
+\caption{Correlated Measurement Fields}
+\label{fig:together:Correlated Measurement Fields}
+\end{figure}
+
+	One way to avoid this cache-miss overhead is shown in
+	Figure~\ref{fig:together:Correlated Measurement Fields}:
+	Simply embed an instance of a \co{measurement} structure
+	named \co{meas}
+	into the \co{animal} structure, and point the \co{->mp}
+	field at this \co{->meas} field.
+
+	Measurement updates can then be carried out as follows:
+
+	\begin{enumerate}
+	\item	Allocate a new \co{measurement} structure and place
+		the new measurements into it.
+	\item	Use \co{rcu_assign_pointer()} to point \co{->mp} to
+		this new structure.
+	\item	Wait for a grace period to elapse, for example using
+		either \co{synchronize_rcu()} or \co{call_rcu()}.
+	\item	Copy the measurements from the new \co{measurement}
+		structure into the embedded \co{->meas} field.
+	\item	Use \co{rcu_assign_pointer()} to point \co{->mp}
+		back to the old embedded \co{->meas} field.
+	\item	After another grace period elapses, free up the
+		new \co{measurement} field.
+	\end{enumerate}
+
+	This approach uses a heavier weight update procedure to eliminate
+	the extra cache miss in the common case.
+	The extra cache miss will be incurred only while an update is
+	actually in progress.
+
 \QuickQAC{sec:advsync:Advanced Synchronization}{Advanced Synchronization}
 \QuickQ{}
 	How on earth could the assertion on line~21 of the code in

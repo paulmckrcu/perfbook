@@ -1,0 +1,66 @@
+% together/count.tex
+
+\section{Counter Conundrums}
+\label{sec:together:Counter Conundrums}
+
+This section outlines possible solutions to some counter conundrums.
+
+\subsection{Counting Updates}
+\label{sec:together:Counting Updates}
+
+Suppose that Sch\"odinger (see
+Section~\ref{sec:datastruct:Motivating Application})
+wants to count the number of updates for each animal,
+and that these updates are synchronized using a per-data-element lock.
+How can this counting best be done?
+
+Of course, any number of counting algorithms from
+Chapter~\ref{chp:Counting}
+might be considered, but the optimal approach is much simpler in this case.
+Just place a counter in each data element, and increment it under the
+protection of that element's lock!
+
+\subsection{Counting Lookups}
+\label{sec:together:Counting Lookups}
+
+Suppose that Sch\"odinger also wants to count the number of lookups for
+each animal, where lookups are protected by RCU.
+How can this counting best be done?
+
+One approach would be to protect a lookup counter with the per-element
+lock, as discussed in
+Section~\ref{sec:together:Counting Updates}.
+Unfortunately, this would require all lookups to acquire this lock,
+which would be a severe bottleneck on large systems.
+
+Another approach is to ``just say no'' to counting, following the example
+of the \co{noatime} mount option.
+If this approach is feasible, it is clearly the best:  After all, nothing
+is faster than doing nothing.
+If the lookup count cannot be dispensed with, read on!
+
+Any of the counters from
+Chapter~\ref{chp:Counting}
+could be pressed into service, with the statistical counters described in
+Section~\ref{sec:count:Statistical Counters}
+being perhaps the most common choice.
+However, this results in a large memory footprint: The number of counters
+required is the number of data elements multiplied by the number of
+threads.
+
+If this memory overhead is excessive, then one approach is to keep
+per-socket counters rather than per-CPU counters,
+with an eye to the hash-table performance results depicted in
+Figure~\ref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo, 60 CPUs}.
+This will require that the counter increments be atomic operations,
+especially for user-mode execution where a given thread could migrate
+to another CPU at any time.
+
+If some elements are looked up very frequently, there are a number
+of approaches that batch updates by maintaining a per-thread log,
+where multiple log entries for a given element can be merged.
+After a given log entry has a sufficiently large increment or after
+sufficient time has passed, the log entries may be applied to the
+corresponding data elements.
+Silas Boyd-Wickizer has done some work formalizing this
+notion~\cite{SilasBoydWickizerPhD}.
