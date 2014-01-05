@@ -5,10 +5,41 @@
 \section{Avoiding Locks}
 \label{sec:advsync:Avoiding Locks}
 
-List the ways: RCU, non-blocking synchronization (notably simpler forms),
-memory barriers, deferred processing.
+Although locking is the workhorse of parallelism in production, in
+many situations performance, scalability, and real-time response can
+all be greatly improved though use of lockless techniques.
+A particularly impressive example of such a lockless technique are
+the statistical counters describe in
+Section~\ref{sec:count:Statistical Counters},
+which avoids not only locks, but also atomic operations, memory barriers,
+and even cache misses for counter increments.
+Other examples we have covered include:
 
-\emph{@@@ Pull deferral stuff back to this section?}
+\begin{enumerate}
+\item	The fastpaths through a number of other counting algorithms
+	in Chapter~\ref{chp:Counting}.
+\item	The fastpath through resource allocator caches in
+	Section~\ref{sec:SMPdesign:Resource Allocator Caches}.
+\item	The maze solver in Section~\ref{sec:SMPdesign:Beyond Partitioning}.
+\item	The data-ownership techniques described in
+	Section~\ref{chp:Data Ownership}.
+\item	The reference-counting and RCU techinques described in
+	Chapter~\ref{chp:Deferred Processing}.
+\item	The lookup code paths described in Chapter~\ref{chp:Data Structures}.
+\item	Many of the techniques described in
+	Chapter~\ref{chp:Putting It All Together}.
+\end{enumerate}
+
+In short, lockless techniques are quite useful and are heavily used.
+
+However, it is best if lockless techniques are hidden behind a
+well-defined API, such as the \co{inc_count()}, \co{memblock_alloc()},
+\co{rcu_read_lock()}, and so on.
+The reason for this is that undisciplined use of lockless techniques
+is a good way to create difficult bugs.
+
+A key component of many lockless techniques is the memory barrier,
+which is described in the following section.
 
 % \input{advsync/rcu} % @@@ need to clean up the files referenced.
 \input{advsync/memorybarriers}
@@ -16,19 +47,202 @@ memory barriers, deferred processing.
 \section{Non-Blocking Synchronization}
 \label{sec:advsync:Non-Blocking Synchronization}
 
+The term \emph{non-blocking synchronization} (NBS) describes six classes of
+linearizable algorithms with differing \emph{forward-progress guarantees}.
+These forward-progress guarantees are orthogonal to those that form the
+basis of real-time programming:
+
+\begin{enumerate}
+\item	Real-time forward-progress guarantees usually have some
+	definite time associated with them, for example,
+	``scheduling latency must be less than 100 microseconds.''
+	In contrast, NBS only
+	that progress will be made in finite time, with no definite
+	bound.
+\item	Real-time forward-progress guarantees are sometimes
+	probabilistic, as in the soft-real-time guarantee that
+	``at least 99.9\% of the time, scheduling latency must
+	be less than 100 microseconds.''
+	In contrast, NBS's forward-progress
+	guarantees have traditionally been unconditional.
+\item	Real-time forward-progress guarantees are often conditioned on
+	environmental constraints, for example, only being honored
+	for the highest-priority tasks, when each CPU spends at least
+	a certain fraction of its time idle, or when I/O rates are
+	below some specified maximum.
+	In contrast, NBS's forward-progress
+	guarantees are usually unconditional.\footnote{	
+		As we will see below, some recent NBS work relaxes
+		this guarantee.}
+\item	Real-time forward-progress guarantees usually apply only
+	in the absence of software bugs.
+	In contrast, most NBS guarantees apply even in the face of
+	fail-stop bugs.\footnote{
+		Again, some recent NBS work relaxes this guarantee.}
+\item	NBS forward-progress guarantee classes imply linearizability.
+	In contrast, real-time forward progress guarantees are often
+	independent of ordering constraints such as linearizability.
+\end{enumerate}
+
+Despite these differences, a number of NBS algorithms are extremely
+useful in real-time programs.
+
+There are currently six levels in the NBS
+hierarchy~\cite{DanAlitarh2013PracticalProgress}, which are roughly
+as follows:
+
+\begin{enumerate}
+\item	\emph{Wait-free synchronization}: Every thread will make progress
+	in finite time~\cite{Herlihy93}.
+\item	\emph{Lock-free synchronization}: At least one thread will
+	make progress in finite time~\cite{Herlihy93}.
+\item	\emph{Obstruction-free synchronization}: Every thread will
+	make progress in finite time in the absence of
+	contention~\cite{HerlihyLM03}.
+\item	\emph{Clash-free synchronization}: At least one thread will
+	make progress in finite time in the absence of
+	contention~\cite{DanAlitarh2013PracticalProgress}.
+\item	\emph{Starvation-free synchronization}: Every thread will
+	make progress in finite time in the absence of
+	failures~\cite{DanAlitarh2013PracticalProgress}.
+\item	\emph{Deadlock-free synchronization}: At least one thread will
+	make progress in finite time in the absence of
+	failures~\cite{DanAlitarh2013PracticalProgress}.
+\end{enumerate}
+
+NBS classes~1 and~2 were first formulated in the early 1990s,
+class~3 was first fomrulated in the early 2000s,
+and class~4 was first formulated in 2013.
+The final two classes have seen informal use for a great many decades,
+but were reformulated in 2013.
+
+In theory, any parallel algorithm can be cast into wait-free form,
+but there are a relatively small subset of NBS algorithms that are
+in common use.
+A few of these are listed in the following section.
+
 \subsection{Simple NBS}
 \label{sec:advsync:Simple NBS}
 
-\subsection{Atomic Data Structures}
-\label{sec:advsync:Atomic Data Structures}
+Perhaps the simplest NBS algorithm is atomic update of an integer
+counter using fetch-and-add (\co{atomic_add_return()}) primitives.
 
-Queues and stacks --- avoiding full-race non-blocking properties
-often yields great simplifications.
+Another simple NBS algorithm implements a set of integers in an array.
+Here the array index indicates a value that might be a member of the set
+and the array element indicates whether or not that value actually is
+a set member.
+The linearizability criterion for NBS algorithms requires that reads from
+and updates to the array either use atomic instructions or be accompanied
+by memory barriers, but in the not-uncommon case where linearizability
+is not important, simple volatile loads and stores suffice, for example,
+using \co{ACCESS_ONCE()}.
 
-\subsection{``Macho'' NBS}
-\label{sec:advsync:``Macho'' NBS}
+An NBS set may also be implemented using a bitmap, where each value that
+might be a member of the set corresponds to one bit.
+Reads and updates must normally be carried out via atomic bit-manipulation
+instructions, although compare-and-swap (\co{cmpxchg()} or CAS)
+instructions can also be used.
 
-Cite Herlihy and his crowd.
+The statistical counters algorithm discussed in
+Section~\ref{sec:count:Statistical Counters}
+can be considered wait-free, but only but using a cute definitional trick
+in which the sum is considered approximate rather than exact.\footnote{
+	Citation needed.
+	I hear of this trick verbally from Mark Moir.}
+Given sufficiently wide error bounds that are a function of the length
+of time that the \co{read_count()} function takes to sum the counters,
+it is not possible to prove that any non-linearizable behavior occurred.
+This definitely (if a bit artificially) classifies the statistical-counters
+algorithm as wait-free.
+This algorithm is probably the most heavily used NBS algorithm in
+the Linux kernel.
 
-Describe constraints (X-freedom, linearizability, ...) and show examples
-breaking them.
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbatim}
+ 1 static inline bool
+ 2 ___cds_wfcq_append(struct cds_wfcq_head *head,
+ 3                    struct cds_wfcq_tail *tail,
+ 4                    struct cds_wfcq_node *new_head,
+ 5                    struct cds_wfcq_node *new_tail)
+ 6 {
+ 7   struct cds_wfcq_node *old_tail;
+ 8 
+ 9   old_tail = uatomic_xchg(&tail->p, new_tail);
+10   CMM_STORE_SHARED(old_tail->next, new_head);
+11   return old_tail != &head->node;
+12 }
+13 
+14 static inline bool
+15 _cds_wfcq_enqueue(struct cds_wfcq_head *head,
+16                   struct cds_wfcq_tail *tail,
+17                   struct cds_wfcq_node *new_tail)
+18 {
+19   return ___cds_wfcq_append(head, tail,
+20                             new_tail, new_tail);
+21 }
+\end{verbatim}
+}
+\caption{NBS Enqueue Algorithm}
+\label{fig:count:NBS Enqueue Algorithm}
+\end{figure}
+
+Another common NBS algorithm is the atomic queue where elements are
+enqueued using an atomic exchange instruction~\cite{MagedMichael1993JPDC},
+followed by a store into the \co{->next} pointer of the new element's
+predecessor, as shown in
+Figure~\ref{fig:count:NBS Enqueue Algorithm},
+which shows the userspace-RCU library
+implementation~\cite{MathieuDesnoyers2009URCU}.
+Line~9 updates the tail pointer to reference the new element while
+returning a reference to its predecessor, which is stored in
+local variable \co{old_tail}.
+Line~10 then updates the predecessor's \co{->next} pointer to
+reference the newly added element, and finally line~11
+returns an indication as to whether or not the queue was initially
+empty.
+
+Although mutual exclusion is required to dequeue a single element
+(so that dequeue is blocking), it is possible to carry out a non-blocking
+removal of the entire contents of the queue.
+What is not possible is to dequeue any given element in a non-blocking
+manner: The enqueuer might have failed between lines~9 and~10 of the
+figure, so that the element in question is only partially enqueued.
+This results in a half-NBS algorithm where enqueues are NBS but
+dequeues are blocking.
+This algorithm is nevertheless used in practice, in part because
+most production software is not required to tolerate arbitrary fail-stop
+errors.
+
+\subsection{NBS Discussion}
+\label{sec:advsync:NBS Discussion}
+
+It is possible to create a fully non-blocking queue~\cite{MichaelScott96},
+but these are more complex than the half-NBS algorithm outlined above.
+The lesson here is to carefully consider what your real requirements are.
+An irrelevant relaxation of requirements can often result in great
+improvements in both simplicity and performance.
+
+The opportunities for relaxation of requirements have increased based on
+recent work indicates that in practice there is little practical
+benefit from wait-free synchronization compared to non-blocking
+synchronization~\cite{DanAlitarh2013PracticalProgress}.
+The key requirement for these two classes of NBS to be equivalent
+in practice is fair scheduling.
+
+Interestingly enough, fair scheduling is but one constraint that is
+often observed in practice.
+Given fair locks that are granted to requesters in FIFO order at
+a given priority level,
+a method of avoiding priority inversion (such as priority
+inheritance or priority ceiling), a bounded number of threads,
+bounded critical sections,
+bounded load,
+and avoidance of fail-stop bugs,,
+lcok-based application can provide deterministic
+response times~\cite{BjoernBrandenbergPhD}.
+% @@@ Check dissertation details once internet is available.
+This approach of course blurs the distinction between blocking and wait-free
+synchronization, which is all to the good.
+Hopefully theoeretical frameworks continue to grow so as to better
+describe how software is actually constructed in practice.
