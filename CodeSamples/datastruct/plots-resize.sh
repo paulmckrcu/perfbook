@@ -27,7 +27,7 @@
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
 tag=$1
-font=${2-../../../../}
+font=${2-../../../../}/
 
 fontsize=10
 plotsize=0.5
@@ -42,10 +42,10 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-# set label 1 "rcu" at 0.1,10 left
-# set label 2 "spinlock" at 0.5,3.0 left
-# set label 3 "brlock" at 0.4,0.6 left
+set label 1 "2048" at 10,5e5 right
+set label 2 "16,384" at 40,150000 left
+set label 3 "131,072" at 10,5000 left
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "perftestS.2048.${tag}.dat" w l, "perftestR.2048.${tag}.dat" w l, "perftestL.2048.${tag}.dat" w l, "perftestS.8192.${tag}.dat" w l, "perftestR.8192.${tag}.dat" w l, "perftestL.8192.${tag}.dat" w l, "perftestS.16384.${tag}.dat" w l, "perftestR.16384.${tag}.dat" w l, "perftestL.16384.${tag}.dat" w l,  "perftestS.65536.${tag}.dat" w l, "perftestR.65536.${tag}.dat" w l, "perftestL.65536.${tag}.dat" w l
+plot "perftestS.2048.${tag}.dat" w l, "perftestR.2048.${tag}.dat" w l, "perftestL.2048.${tag}.dat" w l, "perftestS.16384.${tag}.dat" w l, "perftestR.16384.${tag}.dat" w l, "perftestL.16384.${tag}.dat" w l,  "perftestS.131072.${tag}.dat" w l, "perftestR.131072.${tag}.dat" w l, "perftestL.131072.${tag}.dat" w l
 ---EOF---
