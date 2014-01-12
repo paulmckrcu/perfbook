@@ -1494,20 +1494,68 @@ the old hash table, and finally line~48 returns success.
 \subsection{Resizable Hash Table Discussion}
 \label{sec:datastruct:Resizable Hash Table Discussion}
 
-This RCU-protected resizable hash table performs and scales almost
-as well as does its fixed-size counterpart.
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{datastruct/perftestresize}}
+\end{center}
+\caption{Overhead of Resizing Hash Tables}
+\label{fig:datastruct:Overhead of Resizing Hash Tables}
+\end{figure}
+
+Figure~\ref{fig:datastruct:Overhead of Resizing Hash Tables}
+compares resizing hash tables to their fixed-sized counterparts
+for 2048, 16,384, and 131,072 elements in the hash table.
+The figure shows three traces for each element count, one
+for a fixed-size 1024-bucket hash table, another for a
+fixed-size 2048-bucket hash table, and a third for a resizable
+hash table that shifts back and forth between 1024 and 2048
+buckets, with a one-millisecond pause between each resize operation.
+
+The uppermost three traces are for the 2048-element hash table.
+The upper trace corresponds to the 2048-bucket fixed-size hash
+table, the middle trace to the 1024-bucket fixed-size hash table,
+and the lower trace to the resizable hash table.
+In this case, the short hash chains cause normal lookup overhead
+to be so low that the overhead of resizing dominates.
+
+The middle three traces are for the 16,384-element hash table.
+Again, the upper trace corresponds to the 2048-bucket fixed-size hash
+table, but the middle trace now corresponds to the resizable hash
+table and the lower trace to the 1024-bucket fixed-size hash table.
+However, the performance difference between the resizable and the
+1024-bucket hash table is quite small.
+
+The lower three traces are for the 131,072-element hash table.
+The upper trace corresponds to the 2048-bucket fixed-size hash table,
+the middle trace to the resizable hash table, and the lower trace
+to the 1024-bucket fixed-size hash table.
+In this case, longer hash chains result in higher lookup overhead,
+so that this lookup overhead dominates that of resizing the hash
+table.
+
+The key point from this data is that the RCU-protected resizable hash
+table performs and scales almost as well as does its fixed-size counterpart.
 The performance during an actual resize operation of course suffers
 somewhat due to the cache misses causes by the updates to each element's
-pointers, which indicates that hystersis should be applied to avoid
-over-aggressive resizing.
-Growing the table by large factors can also help reduce resizing overhead.
+pointers, and this effect is most pronounced when the hash-tables
+bucket lists are short.
+This indicates that hash tables should be resized by substantial amounts,
+and that hysteresis should be be applied to prevent performance degradation
+due to too-frequent resize operations.
 
-The key point is that although the \co{hashtab} structure is non-partitionable,
-it will normally be read-mostly, which opens the door to applying RCU
-to avoid this structure being a performance and scalability bottleneck.
+Another key point is that although the \co{hashtab} structure is
+non-partitionable, it will normally be read-mostly, which opens the
+door to applying RCU to avoid this structure being a performance and
+scalability bottleneck.
 Given that the performance and scalability of this resizable hash table is
 very nearly that of RCU-protected fixed-sized hash tables, we must
 conclude that this approach was quite successful.
+
+Finally, it is important to note that insertions, deletions, and
+lookups can proceed concurrently with a resize operation.
+This concurrency is
+critically important when resizing large hash tables, especially
+for applications that must meet severe response-time constraints.
 
 Of course, the pair of pointer sets does impose some memory overhead,
 which is taken up in the next section.
