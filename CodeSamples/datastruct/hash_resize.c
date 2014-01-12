@@ -67,7 +67,6 @@ ht_alloc(unsigned long nbuckets, void *hash_private,
 	struct ht *htp;
 	int i;
 
-/*&&&&*/printf("sizeof(struct ht_bucket) = %u, malloc size = %lu\n", sizeof(struct ht_bucket), sizeof(*htp) + nbuckets * sizeof(struct ht_bucket));
 	htp = malloc(sizeof(*htp) + nbuckets * sizeof(struct ht_bucket));
 	if (htp == NULL)
 		return NULL;
