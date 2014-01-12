@@ -54,6 +54,7 @@ void (*defer_del_done)(struct ht_elem *htep) = NULL;
 
 #ifndef quiescent_state
 #define quiescent_state() do ; while (0)
+#define synchronize_rcu() do ; while (0)
 #endif /* #ifndef quiescent_state */
 
 /*
@@ -823,6 +824,11 @@ void *perftest_updater(void *arg)
 		BUG_ON(!perftest_lookup(thep[i].data));
 		perftest_del(&thep[i]);
 	}
+	/* Really want rcu_barrier(), but missing from old liburcu versions. */
+	synchronize_rcu();
+	poll(NULL, 0, 100);
+	synchronize_rcu();
+
 	hash_unregister_thread();
 	free(thep);
 	pap->nadds = nadds;
@@ -1017,6 +1023,11 @@ void *zoo_reader(void *arg)
 		if (i >= ne)
 			i = i % ne + offset;
 	}
+	/* Really want rcu_barrier(), but missing from old liburcu versions. */
+	synchronize_rcu();
+	poll(NULL, 0, 100);
+	synchronize_rcu();
+
 	pap->nlookups = nlookups;
 	pap->nlookupfails = nlookupfails;
 	hash_unregister_thread();
