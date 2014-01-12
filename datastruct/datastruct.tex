@@ -1163,6 +1163,11 @@ Finally, line~23 returns a reference to the selected bucket.
 	functions described next.
 } \QuickQuizEnd
 
+This implementation of
+\co{ht_get_bucket_single()} and \co{ht_get_bucket()}
+will permit lookups and modifications to run concurrently
+with a resize operation.
+
 \begin{figure}[tb]
 { \scriptsize
 \begin{verbatim}
@@ -1328,8 +1333,10 @@ Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions}.
 The \co{hashtab_lookup()} function on lines~1-21 of the figure does
 hash lookups.
 Line~11 fetches the current hash table and line~12 obtains a reference
-to the bucket corresponding to the specified key, which might well be
-located in a new resized hash table.
+to the bucket corresponding to the specified key.
+This bucket will be located in a new resized hash table when a
+resize operation has progressed past the bucket in the old hash
+table that contained the desired data element.
 Note that line~12 also passes back the index that will be used to
 select the correct set of pointers from the pair in each element.
 The loop spanning lines~13-19 searches the bucket, so that if line~16
@@ -1364,13 +1371,40 @@ element to the table.
 The caller is required to handle concurrency, for example, by invoking
 \co{hashtab_lock_mod()} before the call to \co{hashtab_add()} and invoking
 \co{hashtab_unlock_mod()} afterwards.
+These two concurrency-control functions will correctly synchronize with
+a concurrent resize operation:  If the resize operation has already
+progressed beyond the bucket that this data element would have been added to,
+then the element is added to the new table.
 
 The \co{hashtab_del()} function on lines~39-52 of the figure removes
 an existing element from the hash table.
 Lines~48-50 provide the bucket and index as before, and line~51 removes
 the specified element.
 As with \co{hashtab_add()}, the caller is responsible for concurrency
-control.
+control and this concurrency control suffices for synchronizing with
+a concurrent resize operation.
+
+\QuickQuiz{}
+	The \co{hashtab_del()} function in
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions}
+	does not always remove the element from the old hash table.
+	Doesn't this mean that readers might access this newly removed
+	element after it has been freed?
+\QuickQuizAnswer{
+	No.
+	The \co{hashtab_del()} function omits removing the element
+	from the old hash table only if the resize operation has
+	already progressed beyond the bucket containing the just-deleted
+	element.
+	But this means that new \co{hashtab_lookup()} operations will
+	use the new hash table when looking up that element.
+	Therefore, only old \co{hashtab_lookup()} operations that started
+	before the \co{hashtab_del()} might encounter the newly
+	removed element.
+	This means that \co{hashtab_del()} need only wait for an
+	RCU grace period to avoid inconveniencing
+	\co{hashtab_lookup()} operations.
+} \QuickQuizEnd
 
 \begin{figure*}[tb]
 { \scriptsize

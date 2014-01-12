@@ -5222,6 +5222,27 @@ srcu_read_unlock(&srcucb, idx);
 	just added, which certainly sounds like a bug to me!
 
 \QuickQ{}
+	The \co{hashtab_del()} function in
+	Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions}
+	does not always remove the element from the old hash table.
+	Doesn't this mean that readers might access this newly removed
+	element after it has been freed?
+\QuickA{}
+	No.
+	The \co{hashtab_del()} function omits removing the element
+	from the old hash table only if the resize operation has
+	already progressed beyond the bucket containing the just-deleted
+	element.
+	But this means that new \co{hashtab_lookup()} operations will
+	use the new hash table when looking up that element.
+	Therefore, only old \co{hashtab_lookup()} operations that started
+	before the \co{hashtab_del()} might encounter the newly
+	removed element.
+	This means that \co{hashtab_del()} need only wait for an
+	RCU grace period to avoid inconveniencing
+	\co{hashtab_lookup()} operations.
+
+\QuickQ{}
 	In the \co{hashtab_resize()} function in
 	Figure~\ref{fig:datastruct:Resizable Hash-Table Access Functions},
 	what guarantees that the update to \co{->ht_new} on line~29
