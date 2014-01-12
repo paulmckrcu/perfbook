@@ -16,13 +16,13 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
-nsamples=17
+nsamples=7
 
 
 # Simple hash tables, read-only.
-for ncpu in 1 2 4 6 8 12 16 24 32 40 48 56 60
+for ncpu in 1 4 8 16 24 32 48 60
 do
-	for epw in 2048 8192 16384 65536
+	for epw in 2048 16384 131072
 	do
 		for ((i = 0; i < $nsamples; i++))
 		do
