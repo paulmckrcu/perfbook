@@ -27,13 +27,13 @@ do
 		for ((i = 0; i < $nsamples; i++))
 		do
 			echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets 1024 --elems/writer $epw --duration 1000 --updatewait 0
-			./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets 2048 --elems/writer $epw --duration 1000 --updatewait 0
+			./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets 1024 --elems/writer $epw --duration 1000 --updatewait 0
 			sleep 1
 		done
 		for ((i = 0; i < $nsamples; i++))
 		do
-			echo hash_resize --perftest --nreaders $ncpu --nbuckets 2048 --elems/writer $epw --resizemult 2 --duration 1000 --updatewait 0
-			./hash_resize --perftest --nreaders $ncpu --nbuckets 2048 --elems/writer $epw --resizemult 2 --duration 1000 --updatewait 0
+			echo hash_resize --perftest --nreaders $ncpu --nbuckets 1024 --elems/writer $epw --resizemult 2 --duration 1000 --updatewait 0
+			./hash_resize --perftest --nreaders $ncpu --nbuckets 1024 --elems/writer $epw --resizemult 2 --duration 1000 --updatewait 0
 			sleep 1
 		done
 		for ((i = 0; i < $nsamples; i++))
