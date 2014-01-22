@@ -569,3 +569,34 @@ It also adds duplicate-callback testing and makes rcutorture give
 more information when a CPU-online operation fails.
 Finally, it includes fixes from Steven Rostedt, Tejun Heo, and Borislav
 Petkov.
+
+\subsection{3.12 Linux Kernel}
+
+The 3.13 kernel contains some improvements in \co{CONFIG_RCU_FAST_NO_HZ}
+execution, especially avoiding too-frequent attempts to advance callbacks.
+The rationale is that those events permitting callbacks to advance
+typically occur only every few milliseconds, so attempting to advance callbacks
+more frequently than once per jiffy does nothing but reduce performance and
+waste power.
+The 3.13 kernel therefore does not attempt to advance callbacks if it
+has already done so within the current jiffy.
+
+A new \co{rcu_is_watching()} function allows the caller to determine
+whether or not it is safe to enter an RCU read-side critical section.
+In other words, \co{rcu_is_watching()} returns true unless the CPU is
+either idle or offline.
+In addition, a new \co{smp_mb__after_srcu_read_unlock()}
+interface (provided by Michael S.~Tsirkin)
+guarantees a full memory barrier from \co{srcu_read_unlock()}.
+Note that although \co{srcu_read_unlock()} currently already provides
+a full memory barrier, earlier implementations did not do so and
+future implementations might once again not do so.
+
+RCU's source files have a new home in 3.13, consolidated from the
+\co{kernel} directory into a new \co{kernel/rcu} directory.
+
+Finally, Christoph Lameter provided a patch updating RCU's use of
+per-CPU-variable APIs and Kirill Tkhai provided a fix for a problem
+in which kernels built with \co{CONFIG_RCU_NOCB_CPU_ALL} would
+panic on boot when running
+on systems with sparse CPU numbering.
