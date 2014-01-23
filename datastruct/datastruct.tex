@@ -2,17 +2,15 @@
 
 \QuickQuizChapter{chp:Data Structures}{Data Structures}
 
-Efficient access to data is critically important to performance, and
-therefore discussions of algorithms therefore focus heavily on the
-time complexity of the related
+Efficient access to data is critically important, so that
+discussions of algorithms include time complexity of the related
 data structures~\cite{ThomasHCorman2001Algorithms}.
 However, for parallel programs, measures of time complexity must also
-include the effects of concurrency.
-These concurrency effects can be overwhelmingly large, as discussed in
-Chapter~\ref{chp:Hardware and its Habits}, which means that design of
-concurrent data structures must pay at least as much attention to the
-concurrency effects as it does to the classical sequential time
-complexity.
+include concurrency effects.
+These effects can be overwhelmingly large, as shown in
+Chapter~\ref{chp:Hardware and its Habits}, which means that
+concurrent data structure designs must focus as much on
+concurrency as they do on sequential time complexity.
 
 Section~\ref{sec:datastruct:Motivating Application}
 presents a motivating application that will be used to evaluate
@@ -65,10 +63,10 @@ Births, captures, and purchases result in insertions, while deaths,
 releases, and sales result in deletions.
 Because Schr\"odinger's zoo contains a large quantity of short-lived
 animals, including mice and insects, the database must be able to
-support a high transaction rate.
+support a high update rate.
 
 Those interested in Schr\"odinger's animals can query them, however,
-Schr\"odinger has noted an extremely high rate of queries for his cat,
+Schr\"odinger has noted extremely high rates of queries for his cat,
 so much so that he suspects that his mice might be using the database
 to check up on their nemesis.
 This means that Sch\"odinger's application must be able to support a
@@ -81,16 +79,18 @@ Please keep this application in mind as various data structures are presented.
 
 There are a huge number of data structures in use today, so much so
 that there are multiple textbooks covering them.
-Given that this section is intended to be smaller than a full textbook,
-it will focus on a single data structure, namely the hash table.
-This approach allows a much deeper investigation of how concurrency
+This small section focuses
+on a single data structure, namely the hash table.
+This focused approach allows a much deeper investigation of how concurrency
 interacts with data structures, and also focuses on a data structure
 that is heavily used in practice.
-Section~\ref{sec:datastruct:Non-Partitionable Data Structures}
-touches on non-partitionable data structures in
-the form of a resizable hash table, and
-Section~\ref{sec:datastruct:Other Data Structures}
-gives a brief review of other concurrent data structures.
+Section~\ref{sec:datastruct:Hash-Table Design}
+overviews of the design, and
+Section~\ref{sec:datastruct:Hash-Table Implementation}
+presents the implementation.
+Finally,
+Section~\ref{sec:datastruct:Hash-Table Performance}
+discusses the resulting performance and scalability.
 
 \subsection{Hash-Table Design}
 \label{sec:datastruct:Hash-Table Design}
@@ -172,7 +172,7 @@ Figure~\ref{fig:datastruct:Hash-Table Data-Structure Diagram}
 diagrams how they fit together.
 The \co{hashtab} structure (lines~11-14 in
 Figure~\ref{fig:datastruct:Hash-Table Data Structures})
-contains four \co{ht_bucket} structures (lines~6-9
+contains four \co{ht_bucket} structures (lines~6-9 in
 Figure~\ref{fig:datastruct:Hash-Table Data Structures}),
 with the \co{->bt_nbuckets} field controlling the number of buckets.
 Each such bucket contains a list header \co{->htb_head} and
@@ -361,7 +361,7 @@ which do hash-table allocation and freeing, respectively.
 Allocation begins on lines~7-9 with allocation of the underlying memory.
 If line~10 detects that memory has been exhausted, line~11 returns
 \co{NULL} to the caller.
-Otherwise, line~11 initializes the number of buckets, and the loop
+Otherwise, line~12 initializes the number of buckets, and the loop
 spanning lines~13-16 initializes the buckets themselves,
 including the chain list header on line~14 and the lock on line~15.
 Finally, line~17 returns a pointer to the newly allocated hash table.
@@ -429,28 +429,6 @@ Furthermore, going from 8192 buckets to 16,384 buckets produced almost
 no increase in performance.
 Clearly something else is going on.
 
-\begin{table}
-\begin{center}
-\begin{tabular}{r|r|r|r|r|r|r|r|r}
-	Socket & \multicolumn{8}{|c}{Core} \\
-	\hline
-	0 &  0 &  1 &  2 &  3 &  4 &  5 &  6 &  7 \\
-	  & 32 & 33 & 34 & 35 & 36 & 37 & 38 & 39 \\
-	\hline
-	1 &  8 &  9 & 10 & 11 & 12 & 13 & 14 & 15 \\
-	  & 40 & 41 & 42 & 43 & 44 & 45 & 46 & 47 \\
-	\hline
-	2 & 16 & 17 & 18 & 19 & 20 & 21 & 22 & 23 \\
-	  & 48 & 49 & 50 & 51 & 52 & 53 & 54 & 55 \\
-	\hline
-	3 & 24 & 25 & 26 & 27 & 28 & 29 & 30 & 31 \\
-	  & 56 & 47 & 58 & 59 & 60 & 61 & 62 & 63 \\
-\end{tabular}
-\end{center}
-\caption{NUMA Topology of System Under Test}
-\label{tab:datastruct:NUMA Topology of System Under Test}
-\end{table}
-
 The problem is that this is a multi-socket system, with CPUs~0-7
 and~32-39 mapped to the first socket as shown in
 Table~\ref{tab:datastruct:NUMA Topology of System Under Test}.
@@ -493,6 +471,28 @@ reader.
 
 The next section examines optimizations that can be carried out in
 read-mostly cases where updates are rare, but could happen at any time.
+
+\begin{table}
+\begin{center}
+\begin{tabular}{r|r|r|r|r|r|r|r|r}
+	Socket & \multicolumn{8}{|c}{Core} \\
+	\hline
+	0 &  0 &  1 &  2 &  3 &  4 &  5 &  6 &  7 \\
+	  & 32 & 33 & 34 & 35 & 36 & 37 & 38 & 39 \\
+	\hline
+	1 &  8 &  9 & 10 & 11 & 12 & 13 & 14 & 15 \\
+	  & 40 & 41 & 42 & 43 & 44 & 45 & 46 & 47 \\
+	\hline
+	2 & 16 & 17 & 18 & 19 & 20 & 21 & 22 & 23 \\
+	  & 48 & 49 & 50 & 51 & 52 & 53 & 54 & 55 \\
+	\hline
+	3 & 24 & 25 & 26 & 27 & 28 & 29 & 30 & 31 \\
+	  & 56 & 47 & 58 & 59 & 60 & 61 & 62 & 63 \\
+\end{tabular}
+\end{center}
+\caption{NUMA Topology of System Under Test}
+\label{tab:datastruct:NUMA Topology of System Under Test}
+\end{table}
 
 \section{Read-Mostly Data Structures}
 \label{sec:datastruct:Read-Mostly Data Structures}
@@ -719,9 +719,9 @@ advantage depends on the workload.
 \label{fig:datastruct:Read-Side Cat-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
 \end{figure}
 
-Schr\"odinger is constantly surprised by the popularity of his
+As noted earlier, Schr\"odinger is surprised by the popularity of his
 cat~\cite{ErwinSchroedinger1935Cat}, but recognizes the need to reflect
-this in his design.
+this popularity in his design.
 Figure~\ref{fig:datastruct:Read-Side Cat-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
 shows the results of 60-CPU runs, varying the number of CPUs that are
 doing nothing but looking up the cat.
@@ -752,13 +752,12 @@ quite well.
 Of course, if we were only ever going to read the data, we would not need
 any concurrency control to begin with.
 Figure~\ref{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
-therefore shows the effect on lookups of increasing numbers of updating
-CPUs.
+therefore shows the effect of updates.
 At the extreme left-hand side of this graph, all 60 CPUs are doing lookups,
 while to the right all 60 CPUs are doing updates.
 For all four implementations, the number of lookups per millisecond
 decreases as the number of updating CPUs increases, of course reaching
-zero updates per millisecond when all 60 CPUs are updating.
+zero lookups per millisecond when all 60 CPUs are updating.
 RCU does well relative to hazard pointers due to the fact that hazard
 pointers's read-side memory barriers incur greater overhead in the
 presence of updates.
@@ -773,13 +772,16 @@ execution in the read-only case.
 \label{fig:datastruct:Update-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
 \end{figure}
 
+Where
+Figure~\ref{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
+showed the effect of increasing update rates on lookups,
 Figure~\ref{fig:datastruct:Update-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
-shows how updates vary as more of the 60 CPUs are doing updates.
+shows the effect of increasing update rates on the updates themselves.
 Hazard pointers and RCU start off with a significant advantage because,
 unlike bucket locking, readers do not exclude updaters.
-However, as the number of updating CPUs increases, the increased update-side
-overhead starts to make its presence knowsn, first for RCU and next for
-hazard pointers.
+However, as the number of updating CPUs increases, update-side overhead
+starts to make its presence known, first for RCU and then for hazard
+pointers.
 Of course, all three of these implementations fare much better than does
 global locking.
 
@@ -794,8 +796,9 @@ and RCU.
 However, removing hazard pointers's read-side memory barriers
 (thus resulting in an unsafe implementation of hazard pointers)
 does nearly close the gap between hazard pointers and RCU.
-The resulting unsafe implementation of hazard pointers will nevertheless
-usually be reliable enough for benchmarking purposes.
+Although the resulting unsafe implementation of hazard pointers will
+usually be reliable enough for benchmarking purposes, it is absolutely
+not recommended for production use.
 
 \QuickQuiz{}
 	The dangers of extrapolating from eight CPUs to 60 CPUs was
