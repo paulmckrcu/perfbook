@@ -412,6 +412,20 @@ It is possible that the resulting cache-thrashing comes into play at
 nine CPUs.
 This is of course easy to test by increasing the number of hash buckets.
 
+\QuickQuiz{}
+	Instead of simply increasing the number of hash buckets,
+	wouldn't it be better to cache-align the existing hash buckets?
+\QuickQuizAnswer{
+	The answer depends on a great many things.
+	If the hash table has a large number of elements per bucket, it
+	would clearly be better to increase the number of hash buckets.
+	On the other hand, if the hash table is lightly loaded,
+	the answer depends on the hardware, the effectiveness of the
+	hash function, and the workload.
+	Interested readers are encouraged to experiment.
+} \QuickQuizEnd
+
+
 \begin{figure}[tb]
 \begin{center}
 \resizebox{3in}{!}{\includegraphics{datastruct/zoocpubktsizelin}}
@@ -508,7 +522,8 @@ RCU, which was introduced in
 Section~\ref{sec:defer:Read-Copy Update (RCU)}.
 Similar results can be achieved using hazard pointers
 (\co{hazptr.c})~\cite{MagedMichael04a}, which will be included in
-the performance results shown in this section.
+the performance results shown in this
+section~\cite{McKenney:2013:SDS:2483852.2483867}.
 
 \subsection{RCU-Protected Hash Table Implementation}
 \label{sec:datastruct:RCU-Protected Hash Table Implementation}
@@ -705,8 +720,8 @@ Because RCU is using more than half of each core's resources from a
 single hardware thread, RCU gains relatively litte benefit from the
 second hardware thread in each core.
 The slope of hazard pointers's trace also decreases at 32 CPUs, but
-less dramatically.
-This is because the second hardware thread is able to fill in the time
+less dramatically,
+because the second hardware thread is able to fill in the time
 that the first hardware thread is stalled due to memory-barrier latency.
 As we will see in later sections, hazard pointers's second-hardware-thread
 advantage depends on the workload.
@@ -733,13 +748,16 @@ but looking up the cat, the lock corresponding to the cat's bucket
 is for all intents and purposes a global lock.
 
 This cat-only benchmark illustrates one potential problem with
-sharding approaches that fully partition the database.
-Given these approaches, only the CPUs associated with the cat's
-partition would be able to access the cat, limiting the cat-only
+fully partitioned sharding approaches.
+Only the CPUs associated with the cat's
+partition is able to access the cat, limiting the cat-only
 throughput.
-Nevertheless, a great many applications have better load-spreading
-properties, and for these applications full partitioning works
+Of course, a great many applications have good load-spreading
+properties, and for these applications sharding works
 quite well.
+However, sharding does not handle ``hot spots'' very well, with
+the hot spot exemplified by Schr\"odinger's cat being but one case
+in point.
 
 \begin{figure}[tb]
 \begin{center}
@@ -761,8 +779,8 @@ zero lookups per millisecond when all 60 CPUs are updating.
 RCU does well relative to hazard pointers due to the fact that hazard
 pointers's read-side memory barriers incur greater overhead in the
 presence of updates.
-This situation indicates that hardware heavily optimizes memory-barrier
-execution in the read-only case.
+It therefore seems likely that modern hardware heavily optimizes memory-barrier
+execution, greatly reducing memory-barrier overhead in the read-only case.
 
 \begin{figure}[tb]
 \begin{center}
@@ -785,9 +803,8 @@ pointers.
 Of course, all three of these implementations fare much better than does
 global locking.
 
-However, it is quite possible that the differences in lookup performance
-in the presence of updates is affected by the differences in update
-rates.
+Of course, it is quite possible that the differences in lookup performance
+is affected by the differences in update rates.
 One way to check this is to artificially throttle the update rates of
 per-bucket locking and hazard pointers to match that of RCU.
 Doing so does not significantly improve the lookup performace of
@@ -796,7 +813,7 @@ and RCU.
 However, removing hazard pointers's read-side memory barriers
 (thus resulting in an unsafe implementation of hazard pointers)
 does nearly close the gap between hazard pointers and RCU.
-Although the resulting unsafe implementation of hazard pointers will
+Although this unsafe hazard-pointer implementation will
 usually be reliable enough for benchmarking purposes, it is absolutely
 not recommended for production use.
 
@@ -876,15 +893,17 @@ Furthermore, most computing systems are intended to interact with
 the outside world.
 Consistency with the outside world is therefore of paramount importance.
 However, as we saw in
-Figure~\ref{fig:defer:Response Time of RCU vs. Reader-Writer Locking},
+Figure~\ref{fig:defer:Response Time of RCU vs. Reader-Writer Locking}
+on
+page~\pageref{fig:defer:Response Time of RCU vs. Reader-Writer Locking},
 increased internal consistency can come at the expense of external
 consistency.
 Techniques such as RCU and hazard pointers give up some degree of
 internal consistency to attain improved external consistency.
 
 In short, internal consistency is not a natural part of all problem domains,
-and often come at great expense, either in terms of performance
-and scalability or in terms of external consistency.
+and often incurs great expense in terms of performance,
+scalability, external consistency, or all of the above.
 
 \section{Non-Partitionable Data Structures}
 \label{sec:datastruct:Non-Partitionable Data Structures}
@@ -920,8 +939,8 @@ The key insight behind the first hash-table implementation is that
 each data element can have two sets of list pointers, with one set
 currently being used by RCU readers (as well as by non-RCU updaters)
 and the other being used to construct a new resized hash table.
-This approach allows lookups, insertions, and deletions to run
-concurrently with a resize operation.
+This approach allows lookups, insertions, and deletions to all run
+concurrently with a resize operation (as well as with each other).
 
 \begin{figure}[tb]
 \begin{center}
@@ -941,7 +960,9 @@ concurrently with a resize operation.
 
 The resize operation proceeds as shown in
 Figures~\ref{fig:datastruct:Growing a Double-List Hash Table, State (a)}-\ref{fig:datastruct:Growing a Double-List Hash Table, State (d)},
-with initial two-bucket state~(a) and with time advancing from top to bottom.
+with the initial two-bucket state shown in
+Figure~\ref{fig:datastruct:Growing a Double-List Hash Table, State (a)}
+and with time advancing from figure to figure.
 The initial state uses the zero-index links to chain the elements into
 hash buckets.
 A four-bucket array is allocated, and the one-index links are used to
@@ -1057,8 +1078,8 @@ and is used to index the \co{->hte_next[]} array in the \co{ht_bucket}
 structure on line~3.
 
 The \co{->ht_hash_private}, \co{->ht_cmp()}, \co{->ht_gethash()},
-and \co{->ht_getkey()} fields collectively define the per-element
-key and the hash function.
+and \co{->ht_getkey()} fields on lines~17-23
+collectively define the per-element key and the hash function.
 The \co{->ht_hash_private} allows the hash function to be
 perturbed~\cite{McKenney89c,McKenney90,McKenney91}, which can be
 used to avoid denial-of-service attacks based on statistical
@@ -1121,7 +1142,7 @@ the old table.
 Bucket selection is shown in
 Figure~\ref{fig:datastruct:Resizable Hash-Table Bucket Selection},
 which shows \co{ht_get_bucket_single()} on lines~1-8 and
-\co{ht_get_bucket()} on lines~10-25.
+\co{ht_get_bucket()} on lines~10-24.
 The \co{ht_get_bucket_single()} function returns a reference to the bucket
 corresponding to the specified key in the specified hash table, without
 making any allowances for resizing.
@@ -1129,9 +1150,9 @@ It also stores the hash value corresponding to the key into the location
 referenced by parameter \co{b} on lines~5 and ~6.
 Line~7 then returns a reference to the corresponding bucket.
 
-The \co{ht_get_bucket()} function handles hash-table selection, using
-\co{ht_get_bucket_single()} to select the bucket within the proper table.
-Line~16 selects the bucket corresponding to the hash in the current
+The \co{ht_get_bucket()} function handles hash-table selection, invoking
+\co{ht_get_bucket_single()} on line~16 to select the bucket
+corresponding to the hash in the current
 hash table, storing the hash value through parameter \co{b}.
 If line~17 determines that the table is being resized and that
 line~16's bucket has already been distributed across the new hash
@@ -1153,7 +1174,7 @@ again storing the hash value through parameter \co{b}.
 
 If line~21 finds that parameter \co{i} is non-\co{NULL}, then
 line~22 stores the pointer-set index for the selected hash table.
-Finally, line~23 returns a reference to the selected bucket.
+Finally, line~23 returns a reference to the selected hash bucket.
 
 \QuickQuiz{}
 	How does the code in
@@ -1222,8 +1243,9 @@ Figure~\ref{fig:datastruct:Resizable Hash-Table Update-Side Concurrency Control}
 
 The \co{hashtab_lock_mod()} spans lines~1-19 in the figure.
 Line~9 enters an RCU read-side critical section to prevent
-the data structures from being freed during the traversal, and then
-line~10 obtains a reference to the bucket in the current hash table
+the data structures from being freed during the traversal,
+line~10 acquires a reference to the current hash table, and then
+line~11 obtains a reference to the bucket in this hash table
 corresponding to the key.
 Line~12 acquires that bucket's lock, which will prevent any concurrent
 resizing operation from distributing that bucket, though of course it
@@ -1265,6 +1287,26 @@ corresponds to the key---and of course this bucket might well in a
 new hash table.
 Line~30 releases the bucket's lock and finally line~31 exits the
 RCU read-side critical section.
+
+\QuickQuiz{}
+	Suppose that one thread is inserting an element into the
+	new hash table during a resize operation.
+	What prevents this insertion to be lost due to a subsequent
+	resize operation completing before the insertion does?
+\QuickQuizAnswer{
+	The second resize operation will not be able to move beyond
+	the bucket into which the insertion is taking place due to
+	the insertion holding the lock on one of the hash buckets in
+	the new hash table (the second hash table of three in this
+	example).
+	Furthermore, the insertion operation takes place within an
+	RCU read-side critical section.
+	As we will see when we examine the \co{hashtab_resize()}
+	function, this means that the first resize operation will
+	use 
+	\co{synchronize_rcu()} to wait for the insertion's read-side
+	critical section to complete.
+} \QuickQuizEnd
 
 \begin{figure}[tb]
 { \scriptsize
@@ -1478,8 +1520,8 @@ Otherwise, line~19 picks up a reference to the current hash table,
 and lines~21-24 allocate a new hash table of the desired size.
 If a new set of hash/key functions have been specified, these are
 used for the new table, otherwise those of the old table are preserved.
-If line~25 detects memory-allocation failure, lines~26 and~27 return
-a failure indication.
+If line~25 detects memory-allocation failure, line~26 releases \co{->htlock}
+and line~27 returns a failure indication.
 
 Line~29 starts the bucket-distribution process by installing a reference
 to the new table into the \co{->ht_new} field of the old table.
@@ -1594,9 +1636,8 @@ In memory-rich environments, hash-table sizes should furthermore
 be increased much more aggressively than they are decreased.
 
 Another key point is that although the \co{hashtab} structure is
-non-partitionable, it will normally be read-mostly, which opens the
-door to applying RCU to avoid this structure being a performance and
-scalability bottleneck.
+non-partitionable, it is also read-mostly, which suggests the use
+of RCU.
 Given that the performance and scalability of this resizable hash table is
 very nearly that of RCU-protected fixed-sized hash tables, we must
 conclude that this approach was quite successful.
@@ -1607,7 +1648,8 @@ This concurrency is
 critically important when resizing large hash tables, especially
 for applications that must meet severe response-time constraints.
 
-Of course, the pair of pointer sets does impose some memory overhead,
+Of course, the \co{ht_elem} structure's
+pair of pointer sets does impose some memory overhead,
 which is taken up in the next section.
 
 \subsection{Other Resizable Hash Tables}
@@ -1659,7 +1701,7 @@ hash table, while still having a single hash value cover all of the
 elements in that single bucket.
 
 The initial state is shown at the top of the figure, with time advancing
-from top to bottom.
+from top to bottom, starting with initial state~(a).
 The shrinking process begins by allocating the new smaller array of
 buckets, and having each bucket of this new smaller array reference
 the first element of one of the buckets of the corresponding pair in
@@ -1696,7 +1738,7 @@ state~(f).
 \end{figure}
 
 Growing a relativistic hash table reverses the shrinking process,
-but requires more grace-period steps, as show in
+but requires more grace-period steps, as shown in
 Figure~\ref{fig:datastruct:Growing a Relativistic Hash Table}.
 The initial state~(a) is at the top of this figure, with time advancing
 from top to bottom.
@@ -1915,7 +1957,7 @@ All that aside, one of the great benefits of modern hardware compared
 to that available when I first started learning to program back in
 the early 1970s is that much less specialization is required.
 This allows much greater productivity than was possible back in the
-day of four-kilobyte address spaces.
+days of four-kilobyte address spaces.
 
 \subsection{Bits and Bytes}
 \label{sec:datastruct:Bits and Bytes}
@@ -1930,9 +1972,9 @@ of memory.
 It could be eliminated, for example, by stealing a bit from the
 \co{->ht_resize_key} field.
 This works because the \co{->ht_resize_key} field is large enough to
-address every byte of memory, but because the \co{ht_bucket} structure
-is more than one byte long, the \co{->ht_resize_key} field must have
-several bits to spare.
+address every byte of memory and the \co{ht_bucket} structure
+is more than one byte long, so that
+the \co{->ht_resize_key} field must have several bits to spare.
 
 This sort of bit-packing trick is frequently used in data structures
 that are highly replicated, as is the \co{page} structure in the Linux

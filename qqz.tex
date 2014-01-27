@@ -5125,6 +5125,18 @@ srcu_read_unlock(&srcucb, idx);
 	for the reader.
 
 \QuickQ{}
+	Instead of simply increasing the number of hash buckets,
+	wouldn't it be better to cache-align the existing hash buckets?
+\QuickA{}
+	The answer depends on a great many things.
+	If the hash table has a large number of elements per bucket, it
+	would clearly be better to increase the number of hash buckets.
+	On the other hand, if the hash table is lightly loaded,
+	the answer depends on the hardware, the effectiveness of the
+	hash function, and the workload.
+	Interested readers are encouraged to experiment.
+
+\QuickQ{}
 	Given the negative scalability of the Schr\"odinger's
 	Zoo application across sockets, why not just run multiple
 	copies of the application, with each copy having a subset
@@ -5202,6 +5214,25 @@ srcu_read_unlock(&srcucb, idx);
 	That said, a production-quality resizable hash table would likely
 	be optimized to avoid this double computation.
 	Carrying out this optimization is left as an exercise for the reader.
+
+\QuickQ{}
+	Suppose that one thread is inserting an element into the
+	new hash table during a resize operation.
+	What prevents this insertion to be lost due to a subsequent
+	resize operation completing before the insertion does?
+\QuickA{}
+	The second resize operation will not be able to move beyond
+	the bucket into which the insertion is taking place due to
+	the insertion holding the lock on one of the hash buckets in
+	the new hash table (the second hash table of three in this
+	example).
+	Furthermore, the insertion operation takes place within an
+	RCU read-side critical section.
+	As we will see when we examine the \co{hashtab_resize()}
+	function, this means that the first resize operation will
+	use 
+	\co{synchronize_rcu()} to wait for the insertion's read-side
+	critical section to complete.
 
 \QuickQ{}
 	In the \co{hashtab_lookup()} function in
