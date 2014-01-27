@@ -205,7 +205,7 @@ perfbook.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sh utilities/runlatex.sh perfbook bib
 
 perfbook-1c.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
-	sed -e 's/,twocolumn//' -e '/^\\frontmatter/a \\\\pagestyle{plain}' < perfbook.tex > perfbook-1c.tex
+	sed -e 's/,twocolumn//' -e '/^\\frontmatter/a \\\\pagestyle{plain}' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
 	sh utilities/runlatex.sh perfbook-1c bib
 
 perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
