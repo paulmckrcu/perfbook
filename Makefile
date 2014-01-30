@@ -157,7 +157,6 @@ EPSSOURCES = \
 	cartoons/OneFighting.eps \
 	cartoons/ShavingTheMandelbrotSet.eps \
 	cartoons/UniprocessorUberAllesSmall.eps \
-	cartoons/barrier.eps \
 	cartoons/pipeline.eps \
 	cartoons/ref.eps \
 	cartoons/tollbooth.eps \
