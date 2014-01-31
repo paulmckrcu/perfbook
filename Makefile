@@ -143,7 +143,6 @@ EPSSOURCES = \
 	appendix/whymb/cacheSC.eps \
 	appendix/whymb/cacheSCwrite.eps \
 	appendix/whymb/hostileordering.eps \
-	cartoons/2013_Start-over.eps \
 	cartoons/CrashDummiesSmall.eps \
 	cartoons/LD,ACQ.eps \
 	cartoons/LockingTheHero.eps \
