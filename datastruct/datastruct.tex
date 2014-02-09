@@ -452,6 +452,8 @@ socket~1's CPU~8 incur the overhead of passing data across
 socket boundaries.
 This can severely degrade performance, as was discussed in
 Section~\ref{sec:cpu:Hardware System Architecture}.
+In short, large multi-socket systems require good locality of reference
+in addition to full partitioning.
 
 \QuickQuiz{}
 	Given the negative scalability of the Schr\"odinger's
@@ -482,8 +484,11 @@ Of course, if the hash table was never going to be updated, we could dispense
 entirely with mutual exclusion.
 This approach is quite straightforward and is left as an exercise for the
 reader.
+But even with the occasional update, avoiding writes avoids cache
+misses, and allows the read-mostly data to be replicated across all
+the caches, which in turn promotes locality of reference.
 
-The next section examines optimizations that can be carried out in
+The next section therefore examines optimizations that can be carried out in
 read-mostly cases where updates are rare, but could happen at any time.
 
 \begin{table}
@@ -2151,4 +2156,28 @@ hash tables, which are not fully partitionable.
 Section~\ref{sec:datastruct:Other Data Structures} gave a quick
 overview of a few non-hash-table data structures.
 Nevertheless, this exposition of hash tables is an excellent introduction
-to the many issues surrounding high-performance scalable data access.
+to the many issues surrounding high-performance scalable data access,
+including:
+
+\begin{enumerate}
+\item	Fully partitioned data structures work well on small systems,
+	for example, single-socket systems.
+\item	Larger systems require locality of reference as well as
+	full partitioning.
+\item	Read-mostly techniques, such as hazard pointers and RCU,
+	provide good locality of reference for read-mostly workloads,
+	and thus provide excellent performance and scalability even
+	on larger systems.
+\item	Read-mostly techniques also work well on some types of
+	non-partitionable data structures, such as resizable hash tables.
+\item	Additional performance and scalability can be obtained by
+	specializing the data structure to a specific workload,
+	for example, by replacing a general key with a 32-bit integer.
+\item	Although requirements for portability and for extreme performance
+	often conflict, there are some data-structure-layout techniques
+	that can strike a good balance between these two sets of
+	requirements.
+\end{enumerate}
+
+That said, performance and scalability is of little use without reliability,
+so the next chapter covers validation.
