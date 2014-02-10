@@ -17,11 +17,20 @@ the elements.
 These elements are updated together, and we do not want so see an old
 version of the first element along with new versions of the other
 elements.
+For example, Schr\"odinger decided to add his extended family to his
+in-memory database along with all his animals.
+Although Schr\"odinger understands that marriages and divorces do not
+happen instantaneously, he is also a traditionalist.
+As such, he absolutely does not want his database ever to show that the
+bride is now married, but the groom is not, and vice versa.
+In other words, Schr\"odinger wants to be able to carry out a
+wedlock-consistent tranversal of his database.
 
 One approach is to use sequence locks
 (see Section~\ref{sec:defer:Sequence Locks}),
-so that updates to the correlated elements are carried out under the
-protection of \co{write_seqlock()}, while reads are carried out within
+so that wedlock-related updates are carried out under the
+protection of \co{write_seqlock()}, while reads requiring
+wedlock consistency are carried out within
 a \co{read_seqbegin()} / \co{read_seqretry()} loop.
 Note that sequence locks are not a replacement for RCU protection:
 Sequence locks protect against concurrent modifications, but RCU
@@ -31,12 +40,26 @@ This approach works quite well when the number of correlated elements is
 small, the time to read these elements is short, and the update rate is
 low.
 Otherwise, updates might happen so quickly that readers might never complete.
+Although Schr\"odinger does not expect that even is least-sane relatives
+will marry and divorce quickly enough for this to be a problem,
+he does realize that this problem could well arise in other situations.
 One way to avoid this reader-starvation problem is to have the readers
 use the update-side primitives if there have been too many retries,
 but this can degrade both performance and scalability.
 
-If the element groupings are well-defined and persistent, such as
-a group of animals in the same enclosure or a parent-child relationship,
+In addition, if the update-side primitives are used too frequently,
+poor performance and scalability will result due to lock contention.
+One way to avoid this is to maintain a per-element sequence lock,
+and to hold both spouses' locks when updating their marital status.
+Readers can do their retry looping on either of the spouses' locks
+to gain a stable view of any change in marital status involving both
+members of the pair.
+This avoids contention due to high marriage and divorce rates, but
+complicates gaining a stable view of all marital statuses during a
+single scan of the database.
+
+If the element groupings are well-defined and persistent, which marital
+status is hoped to be,
 then one approach is to add pointers to the data elements to link
 together the members of a given group.
 Readers can then traverse these pointers to access all the data elements
