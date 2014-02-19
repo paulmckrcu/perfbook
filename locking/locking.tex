@@ -533,10 +533,10 @@ can result in deadlock.
   5   if (!spin_trylock(&nextlayer->lock1)) {
   6     spin_unlock(&lock2);
   7     spin_lock(&nextlayer->lock1);
-  8     spin_lock((&lock2);
+  8     spin_lock(&lock2);
   9     if (layer_1(pkt) != nextlayer) {
  10       spin_unlock(&nextlayer->lock1);
- 11       spin_unlock((&lock2);
+ 11       spin_unlock(&lock2);
  12       goto retry;
  13     }
  14   }
@@ -630,7 +630,15 @@ Section~\ref{sec:locking:Livelock and Starvation}.
 } \QuickQuizEnd
 
 A related approach, two-phase locking~\cite{PhilipABernstein1987},
-has seen long production use in database systems.
+has seen long production use in transactional database systems.
+In the first phase of a two-phase locking transaction, locks are
+acquired but not released.
+Once all needed locks have been acquired, the transaction enters the
+second phase, where locks are released, but not acquired.
+This locking approach allows databases to provide serializability
+guarantees for their transactions, in other words, to guarantee
+that all of values see and produced by the transactions are consistent
+with some global ordering of all the transactions.
 Many such systems rely on the ability to abort transactions, although
 this can be simplified by avoiding making any changes to shared data
 until all needed locks are acquired.
@@ -888,8 +896,7 @@ To see this, consider the following sequence of events:
 	assuming that the global lock need not be acquired too often.
 } \QuickQuizEnd
 
-Starvation is very similar to livelock.
-Put another way, livelock is an extreme form of starvation where
+Livelock can be thought of as an extreme form of starvation where
 a group of threads starve, rather than just one of them.\footnote{
 	Try not to get too hung up on the exact definitions of terms
 	like livelock, starvation, and unfairness.
@@ -943,7 +950,7 @@ Livelock and starvation are serious issues in software transactional
 memory implementations, and so the concept of \emph{contention
 manager} has been introduced to encapsulate these issues.
 In the case of locking, simple exponential backoff can often address
-livelock and starvationh.
+livelock and starvation.
 The idea is to introduce exponentially increasing delays before each
 retry, as shown in
 Figure~\ref{fig:locking:Conditional Locking and Exponential Backoff}.
@@ -1100,6 +1107,15 @@ rests with the developer.
 	components: (1)~the familiar data-protection semantic and
 	(2)~a messaging semantic, where releasing a given lock notifies
 	a waiting acquisition of that same lock.
+	An empty critical section uses the messaging component without
+	the data-protection component.
+
+	The rest of this answer provides some example uses of empty
+	critical sections, however, these examples should be considered
+	``gray magic.''\footnote{
+		Thanks to Alexey Roytman for this decription.}
+	As such, empty critical sections are almost never used in practice.
+	Nevertheless, pressing on into this gray area...
 
 	One historical use of empty critical sections appeared in the
 	networking stack of the 2.4 Linux kernel.
@@ -1485,9 +1501,9 @@ the root \co{rcu_node} structure's \co{->fqslock} as been acquired.
  14     rnp_old = rnp;
  15   }
  16   if (ACCESS_ONCE(gp_flags)) {
- 17     gp_flags = 1;
+ 17     ACCESS_ONCE(gp_flags) = 1;
  18     do_force_quiescent_state();
- 19     gp_flags = 0;
+ 19     ACCESS_ONCE(gp_flags) = 0;
  20   }
  21   raw_spin_unlock(&rnp_old->fqslock);
  22 }
@@ -1718,9 +1734,16 @@ high contention.
 
 This negative scalability has motivated a number of different
 queued-lock
-implementations~\cite{Anderson90,Graunke90,MellorCrummey91a,Wisniewski94,Craig93,Magnusson94,Takada93},
-which assign different queue elements to each of the threads attempting
-to acquire the lock, thus reducing the lock's memory contention.
+implementations~\cite{Anderson90,Graunke90,MellorCrummey91a,Wisniewski94,Craig93,Magnusson94,Takada93}.
+Queued locks avoid high cache-invalidation overhead by assigning each
+thread a queue element.
+These queue elements are linked together into a queue that governs the
+order that the lock will be granted to the waiting threads.
+The key point is that each thread spins on its own queue element,
+so that the lock holder need only invalidate the first element from
+the next thread's CPU's cache.
+This arrangement greatly reduces the overhead of lock handoff at high
+levels of contention.
 
 More recent queued-lock implementations also take the system's architecture
 into account, preferentially granting locks locally, while also taking
@@ -1732,7 +1755,7 @@ traditionally used in scheduling disk I/O.
 Unfortunately, the same scheduling logic that improves the efficiency
 of queued locks at high contention also increases their overhead at
 low contention.
-Beng-hong Lim and Anant Agarwal therefore combined a simple test-and-set
+Beng-Hong Lim and Anant Agarwal therefore combined a simple test-and-set
 lock with a queued lock, using the test-and-set lock at low levels of
 contention and switching to the queued lock at high levels of
 contention~\cite{BengHongLim94}, thus getting low overhead at low levels
@@ -1766,7 +1789,7 @@ most proprietary UNIX kernels offer some form of scheduler-conscious
 synchronization mechanism~\cite{Kontothanassis97a},
 largely due to the efforts of a certain sizable database vendor.
 These mechanisms usually take the form of a hint that preemption
-would be imappropriate.
+would be inappropriate.
 These hints frequently take the form of a bit set in a particular
 machine register, which enables extremely low per-lock-acquisition overhead
 for these mechanisms.

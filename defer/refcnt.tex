@@ -305,7 +305,7 @@ Otherwise, \co{kref_put()} returns zero, informing the caller that
 \co{release()} was not called.
 
 \QuickQuiz{}
-	Suppose that just after the \co{atomic_dec_and_test()}
+	Suppose that just after the \co{atomic_sub_and_test()}
 	on line~22 of
 	Figure~\ref{fig:defer:Linux Kernel kref API} is invoked,
 	that some other CPU invokes \co{kref_get()}.
@@ -705,33 +705,38 @@ summarized in the following list.
 	    Section~\ref{sec:defer:Background on RCU}.}
 
 \begin{itemize}
-\item	\co{atomic\_t}
+\item	\co{atomic_t}
 	Type definition for 32-bit quantity to be manipulated atomically.
-\item	\co{void atomic\_dec(atomic\_t *var);}
+\item	\co{void atomic_dec(atomic_t *var);}
 	Atomically decrements the referenced variable without necessarily
 	issuing a memory barrier or disabling compiler optimizations.
-\item	\co{int atomic\_dec\_and\_test(atomic\_t *var);}
+\item	\co{int atomic_dec_and_test(atomic_t *var);}
 	Atomically decrements the referenced variable, returning
-	\co{true} if the result is zero.
+	\co{true} (non-zero) if the result is zero.
 	Issues a memory barrier and disables compiler optimizations that
 	might otherwise move memory references across this primitive.
-\item	\co{void atomic\_inc(atomic\_t *var);}
+\item	\co{void atomic_inc(atomic_t *var);}
 	Atomically increments the referenced variable without necessarily
 	issuing a memory barrier or disabling compiler optimizations.
-\item	\co{int atomic\_inc\_not\_zero(atomic\_t *var);}
+\item	\co{int atomic_inc_not_zero(atomic_t *var);}
 	Atomically increments the referenced variable, but only if the
-	value is non-zero, and returning \co{true} if the increment occurred.
+	value is non-zero, and returning \co{true} (non-zero) if the
+	increment occurred.
 	Issues a memory barrier and disables compiler optimizations that
 	might otherwise move memory references across this primitive.
-\item	\co{int atomic\_read(atomic\_t *var);}
+\item	\co{int atomic_read(atomic_t *var);}
 	Returns the integer value of the referenced variable.
-	This is not an atomic operation, and it neither issues memory
-	barriers nor disables compiler optimizations.
-\item	\co{void atomic\_set(atomic\_t *var, int val);}
+	This is not an atomic operation, and it does not issue any
+	memory-barrier instructions.
+	Instead of thinking of as ``an atomic read,'' think of it as
+	``a normal read from an atomic variable.''
+\item	\co{void atomic_set(atomic_t *var, int val);}
 	Sets the value of the referenced atomic variable to ``val''.
 	This is not an atomic operation, and it neither issues memory
 	barriers nor disables compiler optimizations.
-\item	\co{void call\_rcu(struct rcu\_head *head, void (*func)(struct rcu\_head *head));}
+	Instead of thinking of as ``an atomic set,'' think of it as
+	``a normal set of an atomic variable.''
+\item	\co{void call_rcu(struct rcu_head *head, void (*func)(struct rcu_head *head));}
 	Invokes \co{func(head)} some time after all currently executing RCU
 	read-side critical sections complete, however, the \co{call_rcu()}
 	primitive returns immediately.
@@ -742,24 +747,36 @@ summarized in the following list.
 	the invocation of \co{func} is termed a ``grace period''.
 	Any interval of time containing a grace period is itself a
 	grace period.
-\item	\co{type *container\_of(p, type, f);}
-	Given a pointer ``p'' to a field ``f'' within a structure
+\item	\co{type *container_of(p, type, f);}
+	Given a pointer \co{p} to a field \co{f} within a structure
 	of the specified type, return a pointer to the structure.
-\item	\co{void rcu\_read\_lock(void);}
+\item	\co{void rcu_read_lock(void);}
 	Marks the beginning of an RCU read-side critical section.
-\item	\co{void rcu\_read\_unlock(void);}
+\item	\co{void rcu_read_unlock(void);}
 	Marks the end of an RCU read-side critical section.
 	RCU read-side critical sections may be nested.
-\item	\co{void smp\_mb\_\_before\_atomic\_dec(void);}
+\item	\co{void smp_mb__before_atomic_dec(void);}
 	Issues a memory barrier and disables code-motion compiler
 	optimizations only if the platform's \co{atomic_dec()}
 	primitive does not already do so.
-\item	\co{struct rcu\_head}
+\item	\co{struct rcu_head}
 	A data structure used by the RCU infrastructure to track
 	objects awaiting a grace period.
 	This is normally included as a field within an RCU-protected
 	data structure.
 \end{itemize}
+
+\QuickQuiz{}
+	An \co{atomic_read()} and an \co{atomic_set()} that are
+	non-atomic?
+	Is this some kind of bad joke???
+\QuickQuizAnswer{
+	It might well seem that way, but in situations where no other
+	CPU has access to the atomic variable in question, the overhead
+	of an actual atomic instruction would be wasteful.
+	Two examples where no other CPU has access are
+	during initialization and cleanup.
+} \QuickQuizEnd
 
 \subsection{Counter Optimizations}
 \label{sec:defer:Counter Optimizations}

@@ -338,15 +338,15 @@ Once the update is received, the rwlock writer cannot proceed until the
 last reader completes, and subsequent readers cannot proceed until the
 writer completes.
 However, these subsequent readers are guaranteed to see the new value,
-as indicated by the green background.
+as indicated by the green shading.
 In contrast, RCU readers and updaters do not block each other, which permits
 the RCU readers to see the updated values sooner.
 Of course, because their execution overlaps that of the RCU updater,
 \emph{all} of the RCU readers might well see updated values, including
 the three readers that started before the update.
-Nevertheless only the RCU readers with green backgrounds
+Nevertheless only the RCU readers with green shading
 are \emph{guaranteed} to see the updated values, again, as indicated
-by the green background.
+by the green shading.
 
 Reader-writer locking and RCU simply provide different guarantees.
 With reader-writer locking, any reader that begins after the writer begins
@@ -639,7 +639,8 @@ but in practice, it is not yet clear whether this is a good tradeoff.)
 Of course, SRCU brings restrictions of its own, namely that the
 return value from \co{srcu_read_lock()} be passed into the
 corresponding \co{srcu_read_unlock()}, and that no SRCU primitives
-be invoked from hardware irq handlers or from NMI/SMI handlers.
+be invoked from hardware interrupt handlers or from non-maskable interrupt
+(NMI) handlers.
 The jury is still out as to how much of a problem is presented by
 these restrictions, and as to how they can best be handled.
 
@@ -903,9 +904,8 @@ use explicit tracking.
 In this section, we will show how \co{synchronize_sched()}'s
 read-side counterparts (which include anything that disables preemption,
 along with hardware operations and
-primitives that disable irq) permit you to implement interactions with
-non-maskable interrupt (NMI)
-handlers that would be quite difficult if using locking.
+primitives that disable interrupts) permit you to implement interactions with
+NMI handlers that would be quite difficult if using locking.
 This approach has been called ``Pure RCU''~\cite{PaulEdwardMcKenneyPhD},
 and it is used in a number of places in the Linux kernel.
 
@@ -975,7 +975,7 @@ region of memory.
 Lines~7-16 define the \co{nmi_profile()} function,
 which is called from within an NMI handler.
 As such, it cannot be preempted, nor can it be interrupted by a normal
-irq handler, however, it is still subject to delays due to cache misses,
+interrupts handler, however, it is still subject to delays due to cache misses,
 ECC errors, and cycle stealing by other hardware threads within the same
 core.
 Line~9 gets a local pointer to the profile buffer using the

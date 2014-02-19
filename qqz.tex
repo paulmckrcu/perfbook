@@ -3137,6 +3137,15 @@ ret = ~ret & tmp;
 	components: (1)~the familiar data-protection semantic and
 	(2)~a messaging semantic, where releasing a given lock notifies
 	a waiting acquisition of that same lock.
+	An empty critical section uses the messaging component without
+	the data-protection component.
+
+	The rest of this answer provides some example uses of empty
+	critical sections, however, these examples should be considered
+	``gray magic.''\footnote{
+		Thanks to Alexey Roytman for this decription.}
+	As such, empty critical sections are almost never used in practice.
+	Nevertheless, pressing on into this gray area...
 
 	One historical use of empty critical sections appeared in the
 	networking stack of the 2.4 Linux kernel.
@@ -3507,8 +3516,8 @@ ret = ~ret & tmp;
 	similar ownership patterns.
 
 \QuickQ{}
-	What mechanisms other than POSIX signals may be used to ship
-	functions?
+	What mechanisms other than POSIX signals may be used for function
+	shipping?
 \QuickA{}
 	There is a very large number of such mechanisms, including:
 	\begin{enumerate}
@@ -3599,7 +3608,7 @@ ret = ~ret & tmp;
 	of Figure~\ref{fig:defer:Linux Kernel kref API}.
 
 \QuickQ{}
-	Suppose that just after the \co{atomic_dec_and_test()}
+	Suppose that just after the \co{atomic_sub_and_test()}
 	on line~22 of
 	Figure~\ref{fig:defer:Linux Kernel kref API} is invoked,
 	that some other CPU invokes \co{kref_get()}.
@@ -3712,6 +3721,17 @@ ret = ~ret & tmp;
 	reference acquisition can fail.
 
 \QuickQ{}
+	An \co{atomic_read()} and an \co{atomic_set()} that are
+	non-atomic?
+	Is this some kind of bad joke???
+\QuickA{}
+	It might well seem that way, but in situations where no other
+	CPU has access to the atomic variable in question, the overhead
+	of an actual atomic instruction would be wasteful.
+	Two examples where no other CPU has access are
+	during initialization and cleanup.
+
+\QuickQ{}
 	But hazard pointers don't write to the data structure!
 \QuickA{}
 	Indeed, they do not.
@@ -3814,6 +3834,20 @@ ret = ~ret & tmp;
 	This would prevent the sequence lock from protecting the
 	critical section.
 	The \co{smp_mb()} primitive prevents such reordering.
+
+\QuickQ{}
+	Can't weaker memory barriers be used in the code in
+	Figure~\ref{fig:defer:Sequence-Locking Implementation}?
+\QuickA{}
+	In older versions of the Linux kernel, no.
+
+	In very new versions of the Linux kernel, line~17 could use
+	\co{smp_load_acquire()} instead of \co{ACCESS_ONCE()}, which
+	in turn would allow the \co{smp_mb()} on line~18 to be dropped.
+	Similarly, line~44 could use an \co{smp_store_release()}, for
+	example, as follows: \\
+	\co{smp_store_release(&slp->seq, ACCESS_ONCE(slp->seq) + 1);} \\
+	This would allow the \co{smp_mb()} on line~43 to be dropped.
 
 \QuickQ{}
 	What prevents sequence-locking updaters from starving readers?
