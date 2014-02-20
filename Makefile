@@ -144,15 +144,12 @@ EPSSOURCES = \
 	appendix/whymb/cacheSC.eps \
 	appendix/whymb/cacheSCwrite.eps \
 	appendix/whymb/hostileordering.eps \
-	cartoons/OldManAndBrat.eps \
 	cartoons/ShavingTheMandelbrotSet.eps \
 	cartoons/UniprocessorUberAllesSmall.eps \
 	cartoons/pipeline.eps \
 	cartoons/ref.eps \
 	cartoons/tollbooth.eps \
 	cartoons/trackmeet.eps \
-	cartoons/whippersnapper300.eps \
-	cartoons/whippersnapper600.eps \
 	count/GlobalInc.eps \
 	count/GlobalTreeInc.eps \
 	count/PerThreadInc.eps \
