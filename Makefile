@@ -147,10 +147,7 @@ EPSSOURCES = \
 	cartoons/LD,ACQ.eps \
 	cartoons/LockingTheHero.eps \
 	cartoons/LockingTheSlob.eps \
-	cartoons/ManyFighting.eps \
-	cartoons/ManyHappy.eps \
 	cartoons/OldManAndBrat.eps \
-	cartoons/OneFighting.eps \
 	cartoons/ShavingTheMandelbrotSet.eps \
 	cartoons/UniprocessorUberAllesSmall.eps \
 	cartoons/pipeline.eps \
