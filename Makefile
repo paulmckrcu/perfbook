@@ -144,14 +144,11 @@ EPSSOURCES = \
 	appendix/whymb/cacheSC.eps \
 	appendix/whymb/cacheSCwrite.eps \
 	appendix/whymb/hostileordering.eps \
-	cartoons/CrashDummiesSmall.eps \
 	cartoons/LD,ACQ.eps \
 	cartoons/LockingTheHero.eps \
 	cartoons/LockingTheSlob.eps \
 	cartoons/ManyFighting.eps \
 	cartoons/ManyHappy.eps \
-	cartoons/MoreOfSameSmall.eps \
-	cartoons/MultithreadedManiaSmall.eps \
 	cartoons/OldManAndBrat.eps \
 	cartoons/OneFighting.eps \
 	cartoons/ShavingTheMandelbrotSet.eps \
