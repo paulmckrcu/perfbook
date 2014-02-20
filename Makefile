@@ -144,8 +144,6 @@ EPSSOURCES = \
 	appendix/whymb/cacheSC.eps \
 	appendix/whymb/cacheSCwrite.eps \
 	appendix/whymb/hostileordering.eps \
-	cartoons/LockingTheHero.eps \
-	cartoons/LockingTheSlob.eps \
 	cartoons/OldManAndBrat.eps \
 	cartoons/ShavingTheMandelbrotSet.eps \
 	cartoons/UniprocessorUberAllesSmall.eps \
