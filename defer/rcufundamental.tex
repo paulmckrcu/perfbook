@@ -774,7 +774,7 @@ versions of the list active at a given time.
 \end{figure}
 
 	Note that this means that multiple concurrent deletions might be
-	waiting in {\tt synchronize\_rcu()}.
+	waiting in \co{synchronize_rcu()}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -785,11 +785,45 @@ versions of the list active at a given time.
 	If a semaphore protecting the update is held across the grace period,
 	then there can be at most two versions, the old and the new.
 
-	However, if only the search, the update, and the
-	{\tt list\_replace\_rcu()} were protected by a lock, then
-	there could be an arbitrary number of versions active, limited only
-	by memory and by how many updates could be completed within a
-	grace period.
+	However, suppose that only the search, the update, and the
+	\co{list_replace_rcu()} were protected by a lock, so that
+	the \co{synchronize_rcu()} was outside of that lock, similar
+	to the code shown in
+	Figure~\ref{fig:defer:Concurrent RCU Deletion}.
+	Suppose further that a large number of threads undertook an
+	RCU replacement at about the same time, and that readers
+	are also constantly traversing the data structure.
+
+	Then the following sequence of events could occur, starting from
+	the end state of
+	Figure~\ref{fig:defer:RCU Replacement in Linked List}:
+
+	\begin{enumerate}
+	\item	Thread~A traverses the list, obtaining a reference to
+		the 5,2,3 element.
+	\item	Thread~B replaces the 5,2,3 element with a new
+		5,2,4 element, then waits for its \co{synchronize_rcu()}
+		call to return.
+	\item	Thread~C traverses the list, obtaining a reference to
+		the 5,2,4 element.
+	\item	Thread~D replaces the 5,2,4 element with a new
+		5,2,5 element, then waits for its \co{synchronize_rcu()}
+		call to return.
+	\item	Thread~E traverses the list, obtaining a reference to
+		the 5,2,5 element.
+	\item	Thread~F replaces the 5,2,5 element with a new
+		5,2,6 element, then waits for its \co{synchronize_rcu()}
+		call to return.
+	\item	Thread~G traverses the list, obtaining a reference to
+		the 5,2,6 element.
+	\item	And the previous two steps repeat quickly, so that all
+		of them happen before any of the \co{synchronize_rcu()}
+		calls return.
+	\end{enumerate}
+
+	Thus, there can be an arbitrary number of versions active,
+	limited only by memory and by how many updates could be completed
+	within a grace period.
 	But please note that data structures that are updated so frequently
 	probably are not good candidates for RCU.
 	That said, RCU can handle high update rates when necessary.

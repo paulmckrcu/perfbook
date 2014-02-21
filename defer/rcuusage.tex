@@ -45,13 +45,16 @@ Section~\ref{sec:defer:RCU Usage Summary} provides a summary.
 Perhaps the most common use of RCU within the Linux kernel is as
 a replacement for reader-writer locking in read-intensive situations.
 Nevertheless, this use of RCU was not immediately apparent to me
-at the outset, in fact, I chose to implement something similar to
-\co{brlock} before implementing a general-purpose RCU implementation
+at the outset, in fact, I chose to implement a lightweight reader-writer
+lock~\cite{WilsonCHsieh92a}\footnote{
+	Similar to \co{brlock} in the 2.4 Linux kernel and to
+	\co{lglock} in more recent Linux kernels.}
+before implementing a general-purpose RCU implementation
 back in the early 1990s.
-Each and every one of the uses I envisioned for the proto-brlock
-primitive was instead implemented using RCU.
+Each and every one of the uses I envisioned for the lightweight reader-writer
+lock was instead implemented using RCU.
 In fact, it was more than
-three years before the proto-\co{brlock} primitive saw its first use.
+three years before the lightweight reader-writer lock saw its first use.
 Boy, did I feel foolish!
 
 The key similarity between RCU and reader-writer locking is that
@@ -286,6 +289,15 @@ For example, low-priority RCU readers cannot prevent a high-priority
 RCU updater from acquiring the update-side lock.
 Similarly, a low-priority RCU updater cannot prevent high-priority
 RCU readers from entering an RCU read-side critical section.
+
+\QuickQuiz{}
+	Immunity to both deadlock and priority inversion???
+	Sounds too good to be true.
+	Why should I believe that this is even possible?
+\QuickQuizAnswer{
+	It really does work.
+	After all, if it didn't work, the Linux kernel would not run.
+} \QuickQuizEnd
 
 \paragraph{Realtime Latency}
 
@@ -905,7 +917,8 @@ In this section, we will show how \co{synchronize_sched()}'s
 read-side counterparts (which include anything that disables preemption,
 along with hardware operations and
 primitives that disable interrupts) permit you to implement interactions with
-NMI handlers that would be quite difficult if using locking.
+non-maskable interrupt
+(NMI) handlers that would be quite difficult if using locking.
 This approach has been called ``Pure RCU''~\cite{PaulEdwardMcKenneyPhD},
 and it is used in a number of places in the Linux kernel.
 
@@ -996,7 +1009,7 @@ where the caller is responsible for mutual exclusion (for example,
 holding the correct lock).
 Line~20 fetches a pointer to the profile buffer, and
 lines~22 and 23 exit the function if there is no buffer.
-Otherwise, line~24 NULLs out the profile-buffer pointer
+Otherwise, line~24 \co{NULL}s out the profile-buffer pointer
 (using the \co{rcu_assign_pointer()} primitive to maintain
 memory ordering on weakly ordered machines),
 and line~25 waits for an RCU Sched grace period to elapse,
@@ -1139,7 +1152,7 @@ real-time response.
 As indicated by the yellow box, RCU can also be useful for read-write
 workloads where consistent data is required, although usually in
 conjunction with a number of other synchronization primitives.
-For example, the dentry cache in recent Linux kernels uses RCU in
+For example, the directory-entry cache in recent Linux kernels uses RCU in
 conjunction with sequence locks, per-CPU locks, and per-data-structure
 locks to allow lockless traversal of pathnames in the common case.
 Although RCU can be very beneficial in this read-write case, such

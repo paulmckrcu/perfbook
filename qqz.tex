@@ -3976,7 +3976,7 @@ ret = ~ret & tmp;
 \end{figure}
 
 	Note that this means that multiple concurrent deletions might be
-	waiting in {\tt synchronize\_rcu()}.
+	waiting in \co{synchronize_rcu()}.
 
 \QuickQ{}
 	How many RCU versions of a given list can be
@@ -3986,11 +3986,45 @@ ret = ~ret & tmp;
 	If a semaphore protecting the update is held across the grace period,
 	then there can be at most two versions, the old and the new.
 
-	However, if only the search, the update, and the
-	{\tt list\_replace\_rcu()} were protected by a lock, then
-	there could be an arbitrary number of versions active, limited only
-	by memory and by how many updates could be completed within a
-	grace period.
+	However, suppose that only the search, the update, and the
+	\co{list_replace_rcu()} were protected by a lock, so that
+	the \co{synchronize_rcu()} was outside of that lock, similar
+	to the code shown in
+	Figure~\ref{fig:defer:Concurrent RCU Deletion}.
+	Suppose further that a large number of threads undertook an
+	RCU replacement at about the same time, and that readers
+	are also constantly traversing the data structure.
+
+	Then the following sequence of events could occur, starting from
+	the end state of
+	Figure~\ref{fig:defer:RCU Replacement in Linked List}:
+
+	\begin{enumerate}
+	\item	Thread~A traverses the list, obtaining a reference to
+		the 5,2,3 element.
+	\item	Thread~B replaces the 5,2,3 element with a new
+		5,2,4 element, then waits for its \co{synchronize_rcu()}
+		call to return.
+	\item	Thread~C traverses the list, obtaining a reference to
+		the 5,2,4 element.
+	\item	Thread~D replaces the 5,2,4 element with a new
+		5,2,5 element, then waits for its \co{synchronize_rcu()}
+		call to return.
+	\item	Thread~E traverses the list, obtaining a reference to
+		the 5,2,5 element.
+	\item	Thread~F replaces the 5,2,5 element with a new
+		5,2,6 element, then waits for its \co{synchronize_rcu()}
+		call to return.
+	\item	Thread~G traverses the list, obtaining a reference to
+		the 5,2,6 element.
+	\item	And the previous two steps repeat quickly, so that all
+		of them happen before any of the \co{synchronize_rcu()}
+		calls return.
+	\end{enumerate}
+
+	Thus, there can be an arbitrary number of versions active,
+	limited only by memory and by how many updates could be completed
+	within a grace period.
 	But please note that data structures that are updated so frequently
 	probably are not good candidates for RCU.
 	That said, RCU can handle high update rates when necessary.
@@ -4115,6 +4149,14 @@ srcu_read_unlock(&srcucb, idx);
 
 	In short, do not invoke synchronous RCU update-side primitives
 	from within an RCU read-side critical section.
+
+\QuickQ{}
+	Immunity to both deadlock and priority inversion???
+	Sounds too good to be true.
+	Why should I believe that this is even possible?
+\QuickA{}
+	It really does work.
+	After all, if it didn't work, the Linux kernel would not run.
 
 \QuickQ{}
 	But wait!
@@ -4354,8 +4396,10 @@ srcu_read_unlock(&srcucb, idx);
 	read-side critical section delimited by \co{rcu_read_lock()}
 	and \co{rcu_read_unlock()} is vulnerable to this failure mode.
 
-	This vulnerability disappears in -rt kernels, where
-	RCU Classic and RCU BH both map onto a common implementation.
+	However, the \co{rcu_dereference()} family of functions apply
+	to all flavors of RCU.
+	(There was an attempt to have per-flavor variants of
+	\co{rcu_dereference()}, but it was just too messy.)
 
 \QuickQ{}
 	Hardware interrupt handlers can be thought of as being
@@ -4596,7 +4640,7 @@ srcu_read_unlock(&srcucb, idx);
 	One deadlock is where a lock is
 	held across \co{synchronize_rcu()}, and that same lock is
 	acquired within an RCU read-side critical section.
-	However, this situation will deadlock any correctly designed
+	However, this situation could deadlock any correctly designed
 	RCU implementation.
 	After all, the \co{synchronize_rcu()} primitive must wait for all
 	pre-existing RCU read-side critical sections to complete,
@@ -4821,7 +4865,7 @@ srcu_read_unlock(&srcucb, idx);
 
 \QuickQ{}
 	If any even value is sufficient to tell \co{synchronize_rcu()}
-	to ignore a given task, why doesn't line~10 of
+	to ignore a given task, why don't lines~10 and~11 of
 	Figure~\ref{fig:defer:Free-Running Counter Using RCU}
 	simply assign zero to \co{rcu_reader_gp}?
 \QuickA{}
@@ -4832,11 +4876,11 @@ srcu_read_unlock(&srcucb, idx);
 	thread last exited an RCU read-side critical section.
 
 \QuickQ{}
-	Why are the memory barriers on lines~17 and 29 of
+	Why are the memory barriers on lines~19 and~31 of
 	Figure~\ref{fig:defer:Free-Running Counter Using RCU}
 	needed?
 	Aren't the memory barriers inherent in the locking
-	primitives on lines~18 and 28 sufficient?
+	primitives on lines~20 and~30 sufficient?
 \QuickA{}
 	These memory barriers are required because the locking
 	primitives are only guaranteed to confine the critical
@@ -4848,7 +4892,7 @@ srcu_read_unlock(&srcucb, idx);
 	or by the CPU.
 
 \QuickQ{}
-	Couldn't the update-side optimization described in
+	Couldn't the update-side batching optimization described in
 	Section~\ref{defer:Scalable Counter-Based RCU With Shared Grace Periods}
 	be applied to the implementation shown in
 	Figure~\ref{fig:defer:Free-Running Counter Using RCU}?
@@ -4858,7 +4902,7 @@ srcu_read_unlock(&srcucb, idx);
 
 \QuickQ{}
 	Is the possibility of readers being preempted in
-	line~3 of Figure~\ref{fig:defer:Free-Running Counter Using RCU}
+	lines~3-4 of Figure~\ref{fig:defer:Free-Running Counter Using RCU}
 	a real problem, in other words, is there a real sequence
 	of events that could lead to failure?
 	If not, why not?
@@ -5018,8 +5062,8 @@ srcu_read_unlock(&srcucb, idx);
 	following the call to \co{rcu_thread_offline()}.
 
 \QuickQ{}
-	To be sure, the clock frequencies of ca-2008 Power
-	systems were quite high, but even a 5GHz clock
+	To be sure, the clock frequencies of Power
+	systems in 2008 were quite high, but even a 5GHz clock
 	frequency is insufficient to allow
 	loops to be executed in 50~picoseconds!
 	What is going on here?
