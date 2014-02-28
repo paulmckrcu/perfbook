@@ -33,7 +33,11 @@ basename=`echo $1 | sed -e 's/\.tex$//'`
 
 iter=1
 echo "pdflatex $iter"
-pdflatex $basename > /dev/null 2>&1 || :
+pdflatex $basename > /dev/null 2>&1 < /dev/null || :
+if grep -q '! Emergency stop.' $basename.log
+then
+	echo "----- Fatal latex error, see $basename.log for details. -----"
+fi
 if grep -q 'LaTeX Warning: There were undefined references' $basename.log
 then
 	if test -d "$2"
@@ -47,7 +51,11 @@ while grep -q 'LaTeX Warning: Label(s) may have changed. Rerun to get cross-refe
 do
 	iter=`expr $iter + 1`
 	echo "pdflatex $iter"
-	pdflatex $basename > /dev/null 2>&1 || :
+	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
+	if grep -q '! Emergency stop.' $basename.log
+	then
+		echo "----- Fatal latex error, see $basename.log for details. -----"
+	fi
 	if test "$iter" -eq 4
 	then
 		echo "Iteration limit: $iter passes through pdflatex"
