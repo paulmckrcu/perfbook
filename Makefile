@@ -47,6 +47,7 @@ LATEXSOURCES = \
 	future/future.tex \
 	future/cpu.tex \
 	future/tm.tex \
+	howto/howto.tex \
 	SMPdesign/SMPdesign.tex \
 	SMPdesign/partexercises.tex \
 	SMPdesign/criteria.tex \
