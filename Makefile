@@ -1,7 +1,6 @@
 LATEXSOURCES = \
 	perfbook.tex \
 	legal.tex \
-	preface.tex \
 	qqz.sty origpub.sty \
 	advsync/advsync.tex \
 	advsync/memorybarriers.tex \
