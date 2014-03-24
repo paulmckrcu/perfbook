@@ -1702,17 +1702,25 @@ be expected to be inlined and optimized away, as they are in
 server builds of the Linux kernel.
 This is due to the fact that quiescent-state-based RCU implementations
 \emph{approximate} the extents of RCU read-side critical sections
-using the aforementioned quiescent states, which contains calls to
-\co{rcu_quiescent_state()}, shown from lines~9-15 in the figure.
+using the aforementioned quiescent states.
+Each of these quiescent states contains a call to
+\co{rcu_quiescent_state()}, which is shown from lines~9-15 in the figure.
 Threads entering extended quiescent states (for example, when blocking)
-may instead use the \co{thread_offline()} and \co{thread_online()}
-APIs to mark the beginning and the end, respectively, of such an
-extended quiescent state.
-As such, \co{thread_online()} is analogous to \co{rcu_read_lock()}
-and \co{thread_offline()} is analogous to \co{rcu_read_unlock()}.
-These two functions are shown on lines~17-28 in the figure.
-In either case, it is illegal for a quiescent state to appear within
-an RCU read-side critical section.
+may instead call \co{rcu_thread_offline()} (lines 17-23) when entering
+an extended quiescent state and then call
+\co{rcu_thread_online()} (lines 25-28) when leaving it.
+As such, \co{rcu_thread_online()} is analogous to \co{rcu_read_lock()}
+and \co{rcu_thread_offline()} is analogous to \co{rcu_read_unlock()}.
+In addition, \co{rcu_quiescent_state()} can be thought of as a
+\co{rcu_thread_online()} immediately followed by a
+\co{rcu_thread_offline()}.\footnote{
+	Although the code in the figure is consistent with
+	\co{rcu_quiescent_state()}
+	being the same as \co{rcu_thread_online()} immediately followed by
+	\co{rcu_thread_offline()}, this relationship is obscured by
+	performance optimizations.}
+It is illegal to invoke \co{rcu_quiescent_state()}, \co{rcu_thread_offline()},
+or \co{rcu_thread_online()} from an RCU read-side critical section.
 
 In \co{rcu_quiescent_state()}, line~11 executes a memory barrier
 to prevent any code prior to the quiescent state (including possible
