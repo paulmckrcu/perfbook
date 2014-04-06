@@ -194,6 +194,10 @@ perfbook-1c.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sed -e 's/,twocolumn//' -e '/^\\frontmatter/a \\\\pagestyle{plain}' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
 	sh utilities/runlatex.sh perfbook-1c bib
 
+perfbook-hb.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < perfbook.tex > perfbook-hb.tex
+	sh utilities/runlatex.sh perfbook-hb bib
+
 perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
 	echo > qqz.tex
 	texexpand perfbook.tex > perfbook_flat.tex
