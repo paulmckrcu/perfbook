@@ -23,7 +23,9 @@
 %% and version 1.3c or later is part of all distributions of LaTeX
 %% version 2005/12/01 or later.
 %% 
-%% This file has the LPPL maintenance status "maintained".
+%% This file has been modified by Paul E. McKenney, so is not maintained
+%% by the LaTeX Project.  These modifications allow specifying "hardcover"
+%% in order to generate 10.75x8.25in pages for hardcover books.
 %% 
 %% This file may only be distributed together with a copy of the LaTeX
 %% base system. You may however distribute the LaTeX base system without
@@ -53,7 +55,7 @@
 %%   Right brace   \}     Tilde         \~}
 \NeedsTeXFormat{LaTeX2e}[1995/12/01]
 \ProvidesClass{book}
-              [2007/10/19 v1.4h
+              [2007/10/19 v1.4h-pem
  Standard LaTeX document class]
 \newcommand\@ptsize{}
 \newif\if@restonecol
@@ -74,6 +76,9 @@
 \DeclareOption{letterpaper}
    {\setlength\paperheight {11in}%
     \setlength\paperwidth  {8.5in}}
+\DeclareOption{letterpaperhb}
+   {\setlength\paperheight {10.75in}%
+    \setlength\paperwidth  {8.25in}}
 \DeclareOption{legalpaper}
    {\setlength\paperheight {14in}%
     \setlength\paperwidth  {8.5in}}
