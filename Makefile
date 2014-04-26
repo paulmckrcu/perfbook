@@ -145,7 +145,6 @@ EPSSOURCES = \
 	appendix/whymb/cacheSC.eps \
 	appendix/whymb/cacheSCwrite.eps \
 	appendix/whymb/hostileordering.eps \
-	cartoons/ShavingTheMandelbrotSet.eps \
 	count/GlobalInc.eps \
 	count/GlobalTreeInc.eps \
 	count/PerThreadInc.eps \
