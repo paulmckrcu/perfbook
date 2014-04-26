@@ -147,7 +147,6 @@ EPSSOURCES = \
 	appendix/whymb/hostileordering.eps \
 	cartoons/ShavingTheMandelbrotSet.eps \
 	cartoons/UniprocessorUberAllesSmall.eps \
-	cartoons/ref.eps \
 	count/GlobalInc.eps \
 	count/GlobalTreeInc.eps \
 	count/PerThreadInc.eps \
