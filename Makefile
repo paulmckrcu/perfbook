@@ -148,8 +148,6 @@ EPSSOURCES = \
 	cartoons/ShavingTheMandelbrotSet.eps \
 	cartoons/UniprocessorUberAllesSmall.eps \
 	cartoons/ref.eps \
-	cartoons/tollbooth.eps \
-	cartoons/trackmeet.eps \
 	count/GlobalInc.eps \
 	count/GlobalTreeInc.eps \
 	count/PerThreadInc.eps \
