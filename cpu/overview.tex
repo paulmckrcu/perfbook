@@ -134,12 +134,22 @@ described in the following sections.
 \label{sec:cpu:Atomic Operations}
 
 One such obstacle is atomic operations.
-The whole idea of an atomic operation in some sense conflicts with
+The problem here is that the whole idea of an atomic operation conflicts with
 the piece-at-a-time assembly-line operation of a CPU pipeline.
 To hardware designers' credit, modern CPUs use a number of extremely clever
 tricks to make such operations \emph{look} atomic even though they
-are in fact being executed piece-at-a-time, but even so, there are
-cases where the pipeline must be delayed or even flushed in order to
+are in fact being executed piece-at-a-time,
+with one common trick being to identify all the cachelines containing the
+data to be atomically operated on,
+ensure that these cachelines are owned by the CPU executing the
+atomic operation, and only then proceed with the atomic operation
+while ensuring that these cachelines remained owned by this CPU.
+Because all the data is private to this CPU, other CPUs are unable to
+interfere with the atomic operation despite the piece-at-a-time nature
+of the CPU's pipeline.
+Needless to say, this sort of trick can require that
+the pipeline must be delayed or even flushed in order to
+perform the setup operations that
 permit a given atomic operation to complete correctly.
 
 \begin{figure}[htb]
@@ -150,10 +160,12 @@ permit a given atomic operation to complete correctly.
 \ContributedBy{Figure}{fig:cpu:CPU Meets an Atomic Operation}{Melissa Broussard}
 \end{figure}
 
+In contrast, when executing a non-atomic operation, the CPU can load
+values from cachelines as they appear and place the results in the
+store buffer, without the need to wait for cacheline ownership.
 Fortunately, CPU designers have focused heavily on atomic operations,
-so that as of early 2012 they have greately reduced (but by no
-means eliminated) their overhead.
-Even so, the resulting effect on performance is as depicted in
+so that as of early 2014 they have greatly reduced their overhead.
+Even so, the resulting effect on performance is all too often as depicted in
 Figure~\ref{fig:cpu:CPU Meets an Atomic Operation}.
 
 Unfortunately, atomic operations usually apply only to single elements
