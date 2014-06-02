@@ -62,7 +62,7 @@ void *lock_writer(void *arg)
 	pthread_mutex_t *pmlp = (pthread_mutex_t *)arg;
 
 	if (pthread_mutex_lock(pmlp) != 0) {
-		perror("lock_reader:pthread_mutex_lock");
+		perror("lock_writer:pthread_mutex_lock");
 		exit(-1);
 	}
 	for (i = 0; i < 3; i++) {
@@ -70,7 +70,7 @@ void *lock_writer(void *arg)
 		poll(NULL, 0, 5);
 	}
 	if (pthread_mutex_unlock(pmlp) != 0) {
-		perror("lock_reader:pthread_mutex_unlock");
+		perror("lock_writer:pthread_mutex_unlock");
 		exit(-1);
 	}
 	return NULL;
