@@ -10,11 +10,6 @@ LATEXSOURCES = \
 	appendix/questions/after.tex \
 	appendix/questions/time.tex \
 	appendix/questions/questions.tex \
-	appendix/rcuimpl/rcu.tex \
-	appendix/rcuimpl/srcu.tex \
-	appendix/rcuimpl/rcutree.tex \
-	appendix/rcuimpl/rcutreewt.tex \
-	appendix/rcuimpl/rcupreempt.tex \
 	appendix/whymb/whymemorybarriers.tex \
 	count/count.tex \
 	cpu/cpu.tex \
@@ -110,34 +105,6 @@ EPSSOURCES = \
 	advsync/SplitCache.eps \
 	advsync/WriteBarrierOrdering.eps \
 	appendix/questions/after.eps \
-	appendix/rcuhist/linux-RCU.eps \
-	appendix/rcuhist/linux-RCUlock.eps \
-	appendix/rcuhist/rcuAPI.eps \
-	appendix/rcuimpl/AdvanceRCUCallbacks.eps \
-	appendix/rcuimpl/BigTreeClassicRCUBHdyntick.eps \
-	appendix/rcuimpl/BigTreeClassicRCUBH.eps \
-	appendix/rcuimpl/BigTreeClassicRCU.eps \
-	appendix/rcuimpl/FlatClassicRCU.eps \
-	appendix/rcuimpl/GenericRCUStateMachine.eps \
-	appendix/rcuimpl/GracePeriodBad.eps \
-	appendix/rcuimpl/GracePeriodGood.eps \
-	appendix/rcuimpl/RCUbweBlock.eps \
-	appendix/rcuimpl/RCUpreemptCounterFlip.eps \
-	appendix/rcuimpl/RCUpreemptListsCompare.eps \
-	appendix/rcuimpl/RCUpreemptLists.eps \
-	appendix/rcuimpl/RCUpreemptStates.eps \
-	appendix/rcuimpl/RCUpreemptTimeline.eps \
-	appendix/rcuimpl/RCUpreemptValidation.eps \
-	appendix/rcuimpl/RCUrt-MBnowaste.eps \
-	appendix/rcuimpl/RCUrt-MBwaste.eps \
-	appendix/rcuimpl/RCUTreeInit.eps \
-	appendix/rcuimpl/RCUTreeLeafScan.eps \
-	appendix/rcuimpl/RCUTreeQSScan.eps \
-	appendix/rcuimpl/srcuds.eps \
-	appendix/rcuimpl/TreeClassicRCU.eps \
-	appendix/rcuimpl/TreeClassicRCUGP.eps \
-	appendix/rcuimpl/TreeMapping.eps \
-	appendix/rcuimpl/TreeRCUStateMachine.eps \
 	appendix/whymb/MESI.eps \
 	appendix/whymb/cacheSB.eps \
 	appendix/whymb/cacheSBf.eps \
