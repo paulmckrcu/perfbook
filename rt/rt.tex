@@ -125,19 +125,225 @@ its deadlines on more than a certain number of consecutive operations.
 
 We clearly cannot take a campaign-slogan approach to either hard or soft
 real time.
-The next section therefore takes a real-world approach.
+The next section therefore takes a more real-world approach.
 
 \subsection{Real-World Real Time}
 \label{sec:rt:Real-World Real Time}
 
+Although sentences like ``Hard real time systems \emph{always} meet
+their deadlines!'' can be catchy and are no doubt easy to memorize,
+something else is needed for real-world real-time systems.
+Although the resulting specifications are usually less catchy and
+harder to memorize, they can simplify construction of a real-time
+system by imposing constraints on the environment, the workload, and
+the real-time application itself.
 
+\subsubsection{Environmental Constraints}
+\label{sec:rt:Environmental Constraints}
+
+Constraints on the environment address the objection to open-ended
+promises of response times put forward in
+Figure~\ref{fig:rt:Real-Time Response: Hardware Matters}.
+These constraints might specify permissible operating temperatures,
+air quality, levels and types of electromagnetic radiation, and, to
+Figure~\ref{fig:rt:Real-Time Response: Hardware Matters}'s
+point, levels of shock and vibration.
+
+Of course, so constraints are harder to meet than others.
+Any number of people have learned te hard way that any number of
+commodity computer components will refuse to operate at sub-zero
+tempertures.
+
+An old college friend once had to meet the challenge of operating
+a real-time system in an atmosphere featuring some rather aggressive
+chlorine compounds, a challenge that he wisely handed off to his
+colleagues designing the hardware.
+
+Another old college friend worked on a system controlling a system
+that sputtered ingots of titanium using an industrial-strength arc
+in a vacuum.
+From time to time, the arc would decide that is was bored with its path
+through the ingot of titanium and choose a more entertaining path to
+ground.
+As we all learned in our physics classes, a sudden shift in the flow of
+electrons creates an electromagnetic wave, with larger shifts in larger
+flows creating higher-power electromagnetic waves.
+And in this case, the resulting electromagnetic pulses were sufficient
+to induce a quarter of a volt potential difference in the leads of
+a small ``rubber ducky'' antenna located more than 400 meters away.
+Of course, nearby conductors saw larger voltages, including the conductors
+in the computer controlling the sputtering process.
+In particular, the voltage induced on that computer's reset line was
+sufficient to actually reset the computer, to the consternation of everyone
+involved.
+In this case, the challenge was also met using hardware, including some
+elaborate shielding and a fiber-optic network with the lowest bitrate
+I have ever heard of, namely 9600 baud.
+That said, less spectacular electromagnetic environments can often be
+handled by software, for example, through use of error detection and
+correction codes.
+
+There are of course cases where a minimum level of energy
+is required, for example, through the power leads of the system and
+through the devices through which the system is to communicate with
+that portion of the outside world that is to be monitored or controlled.
+
+\QuickQuiz{}
+	But what about battery-powered systems?
+	They don't require energy flowing into the system as a whole.
+\QuickQuizAnswer{
+	Sooner or later, either the battery much be recharged (requiring
+	energy to flow into the system) or the system will stop operating.
+} \QuickQuizEnd
+
+A number of systems intended to operate in environments with impressive
+levels shock and vibration.
+To begin with, consider the vibration that engine control systems
+must withstand.
+More strenuous requirements may be found when we move away from
+continuous vibrations to intermittent shocks.
+For example, during my undergraduate studies, I encountered an old Athena
+ballistics computer, which was designed to continue operating normally even if
+a hand grenade went off nearby.\footnote{
+	Decades later, the acceptance tests for some types of computer
+	systems still involve large detonations, and some types of
+	communications networks must deal with what is delicately
+	called ``ballistic jamming.''}
+And finally, the ``black boxes'' used in airliners must continue operating
+before, during, and after a crash.
+
+Of course, it is possible to make hardware more robust against these
+environmental shocks and insults.
+Any number of ingenious mechanical shock-absorbing devices can reduce the
+effects of shock and vibration, multiple layers of shielding can reduce
+the effects of low-energy electromagnetic radiation, error-correction
+coding can reduce the effects of high-energy radiation, various potting
+and sealing techniques can reduce the effect of air quality, and any
+number of heating and cooling systems can counter the effects of temperature.
+In extreme cases, triple modulo redundancy can reduce the probability that
+a fault in one part of the system will result in incorrect behavior from
+the overall system.
+However, all of these methods have one thing in common:  Although they
+can reduce the probability of failure, they cannot reduce it to zero.
+
+Many of these environmental conditions are handled by hardware, but the
+workload and application constraints in the next teo sections are often
+handled in software.
+
+\subsubsection{Workload Constraints}
+\label{sec:rt:Workload Constraints}
+
+Just as with people, it is often possible to prevent a real-time system
+from meeting its deadlines by overloading it.
+For example, if the system is being interrupted too frequently, it might
+not have sufficient CPU bandwidth to handle its real-time application.
+A hardware solution to this problem might limit the rate at which
+interrupts were delivered to the system.
+Possible software solutions include disabling interrupts for some time if
+they are being received too frequently,
+reseting the device generating too-frequent interrupts,
+or even avoiding interrupts altogether in favor of polling.
+
+High process loads can also degrade response times due to queueing effects,
+so it is not unusual for real-time systems to overprovision CPU bandwidth,
+so that a running system has (say) 80\% idle time.
+This approach also applies to storage and networking devices.
+In some cases, separate storage and networking hardware might be reserved
+for the sole use of high-priority portions of the real-time application.
+It is of course not unusual for this hardware to be mostly idle, again
+in order to avoid queueing delays.
+
+\QuickQuiz{}
+	But given the results from queueing theory, won't low utilization
+	merely improve the average response time rather than improving
+	the worst-case response time, which is the only response time
+	that many real-time systems care about?
+\QuickQuizAnswer{
+	It depends.
+	One situation where the worst-case response time is improved by
+	lowering utilization is where there is only one real-time thread
+	using the device in question, but where all the threads use
+	the device in question.
+	Restricting use of that device to the single real-time thread
+	eliminates queueing delays, at least assuming that the
+	real-time thread does not overdrive that device.
+} \QuickQuizEnd
+
+Of course, maintaining sufficiently low utilization requires great
+discipline throughout the design and implmeentation.
+There is nothing quite like a little feature creep to destroy deadlines.
+
+\subsubsection{Application Constraints}
+\label{sec:rt:Application Constraints}
+
+It is easier to provide bounded response time for some operations than
+for others.
+For example, it is quite common to see response-time specifications for
+interrupts and for wake-up operations, but quite rare for (say)
+filesystem unmount operations.
+One reason for this is that it is quite difficult to bound the amount
+of work that a filesystem-unmount operation might need to do, given that
+the unmount is required to flush all of that filesystem's in-memory
+data to mass storage.
+
+This means that real-time applications must be confined to operations
+for which bounded latencies can reasonably be provided.
+Other operations must either be pushed out into the non-real-time portions
+of the application or forgone entirely.
+
+There might also be constraints on the non-real-time portions of the
+application.
+For example, is the non-real-time application permitted to use CPUs used
+by the real-time portion?
+Are there time periods during which the real-time portion of the application
+is expected to be unusually busy, and if so, is the non-real-time portion
+of the application permitted to run at all during those times?
+Finally, by what amount is the real-time portion of the application permitted
+to degrade the throughput of the non-real-time portion?
+
+\subsubsection{Real-World Real-Time Specifications}
+\label{sec:rt:Real-World Real-Time Specifications}
+
+As can be seen from the preceding sections, a real-world real-time
+specification needs to include constraints on the environment,
+on the workload, and on the application itself.
+In addition, for the operations that the real-time portion of the
+application is permitted to make use of, there must be constraints
+on the hardware and software implementing those operations.
+
+For each such operations, these constraints might include a maximum
+response time (and possibly also a minimum response time) and a
+probability of meeting that response time.
+A probability of 100\% indicates that the corresponding operation
+must provide hard real-time service.
+
+In some cases, both the response times and the required probabilities of
+meeting them might vary depending on the parameters to the operation in
+question.
+For example, a network operation over a local LAN would be much more likely
+to complete in (say) 100~microseconds than would that same network operation
+over a transcontinental WAN.
+Furthermore, a network operation over a copper LAN might have an extrmely
+high probability of completing without time-consuming retransmissions,
+while that same networking operation over a lossy WiFi network might
+have a much higher probability of waiting for acknowledgment
+timeouts and retransmissions.
+Similarly, a read from a tightly coupled solid-state disk (SSD) could be
+expected to complete much more quickly that that same read to an old-style
+USB-connected rotating-rust disk drive.
 
 \section{Who Needs Real-Time Computing?}
 \label{sec:rt:Who Needs Real-Time Computing?}
 
+Applications:  In search of life, in search of death, in search of
+production, in search of money.
+
+Styles: Event-driven with dedicated CPU, event-driven sharing CPU with
+non-real-time processing, polling.
+
 \section{Who Needs Parallel Real-Time Computing?}
 \label{sec:rt:Who Needs Parallel Real-Time Computing?}
 
-\section{Implementing Parallel Real-Time Computing}
-\label{sec:rt:Implementing Parallel Real-Time Computing}
+\section{Implementing Parallel Real-Time Systems}
+\label{sec:rt:Implementing Parallel Real-Time Systems}
 
