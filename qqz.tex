@@ -1483,6 +1483,7 @@ ret = ~ret & tmp;
 
 	\begin{equation}
 		\frac{r \Delta}{2}
+	\label{eq:count:CounterErrorAverage}
 	\end{equation}
 
 	It is important to remember that error continues accumulating
@@ -1490,7 +1491,7 @@ ret = ~ret & tmp;
 	by the read operation.
 	For example, if the caller spends time $t$ executing some
 	computation based on the result of the returned count, the
-	worst-case error will have increased to $r \left(t \Delta \right)$.
+	worst-case error will have increased to $r \left(\Delta + t\right)$.
 
 	The expected error will have similarly increased to:
 
@@ -1502,6 +1503,43 @@ ret = ~ret & tmp;
 	continue incrementing during the read operation.
 	Section~\ref{sec:count:Applying Specialized Parallel Counters}
 	discusses a way to handle this situation.
+
+	Thus far, we have been considering a counter that is only
+	increased, never decreased.
+	If the counter value is being changed by $r$ counts per unit
+	time, but in either direction, we should expect the error
+	to reduce.
+	However, the worst case is unchanged because although the
+	counter \emph{could} move in either direction, the worst
+	case is whenthe read operation completes immediately,
+	but then is delayed for $\Delta$ time units, during which
+	time all the changes in the counter's value move it in
+	the same direction, again giving us an absolute error
+	of $r \Delta$.
+
+	There are a number of ways to compute the average error,
+	based on a variety of assumptions about the patterns of
+	increments and decrements.
+	For simplicity, let's assume that the $f$ fraction of
+	the operations are decrements, and that the error of interest
+	is the deviation from the counter's long-term trend line.
+	Under this assumption, if $f$ is less than or equal to 0.5,
+	each decrement will be cancelled by an increment, so that
+	$2f$ of the operations will cancel each other, leaving
+	$1-2f$ of the operations being uncancelled increments.
+	On the other hand, if $f$ is greater than 0.5, $1-f$ of
+	the decrements are cancelled by increments, so that the
+	counter moves in the negative direction by $-1+2\left(1-f\right)$,
+	which simplifies to $1-2f$, so that the counter moves an average
+	of $1-2f$ per operation in either case.
+	Therefore, that the long-term
+	movement of the counter is given by $\left( 1-2f \right) r$.
+	Plugging this into
+	Equation~\ref{eq:count:CounterErrorAverage} yields:
+
+	\begin{equation}
+		\frac{\left( 1 - 2 f \right) r \Delta}{2}
+	\end{equation}
 
 	All that aside, in most uses of statistical counters, the
 	error in the value returned by \co{read_count()} is
