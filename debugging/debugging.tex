@@ -1541,6 +1541,7 @@ This section describes a number of ways to do just that:
 \item	Increase workload intensity.
 \item	Test suspicious subsystems in isolation.
 \item	Simulate unusual events.
+\item	Count near misses.
 \end{enumerate}
 
 Although producing an anti-heisenbug for a given heisenbug is more an
@@ -1716,6 +1717,66 @@ sequential programs as well as parallel programs.
 	spurious failure might cause that job to never get done,
 	possibly resulting in a hang.
 } \QuickQuizEnd
+
+\subsubsection{Count Near Misses}
+\label{sec:debugging:Count Near Misses}
+
+Bugs are often an all-or-nothing thing, so that either the bug happens
+or it doesn't, with nothing in between.
+However, it is sometimes possible to define a \emph{near miss} where
+the bug does not result in a failure, but has likely manifested.
+For example, suppose your code is controlling a robot, for example,
+making is walk.
+The robot's falling over might constitute a bug in your program, in
+which case the robot's stumbling and recovering might constitute a
+near miss.
+If the robot falls over only once per hour, but stumbles every few
+minutes, you might be able to speed up your debugging progress by
+counting the number of stumbles in addition to the number of falls.
+
+In concurrent programs, timestamping can sometimes be used to detect
+near misses.
+For example, locking primitives incur significant delays, so if there is
+a too-short time delay between a pair of operations that are supposed
+to be protected by the same lock, this too-short time delay could be
+counted as a near miss.\footnote{
+	Of course, in this case, you would do well to make good use
+	of whatever \co{lock_held()} primitive might be available
+	in your environment.}
+
+For example, a low-probability bug in RCU priority boosting occurred
+roughly once per hundred hours of focused rcutorture testing.
+Because it would take almost 500 hours of failure-free testing to be
+99\% certain that the bug was not present, the \co{git bisect} process
+to find the failure would be painfully slow---or would require an extremely
+large test farm.
+Fortunately, the RCU operation being tested included not only a wait for
+an RCU grace period, but also a second wait for an RCU callback to be
+invoked after completion of the RCU callback.
+Even more fortunately, \co{rcutorture} includes some statistics that
+are sensitive to the wait for grace period without the wait for callback
+invocation.
+These statistics are subject to false positives due to their unsynchronized
+access to RCU's state variables,
+but these false positives turn out to be extremely rare on strongly
+ordered systems such as the IBM mainframe and x86, occurring less than
+once per thousand hours of testing.
+
+These near misses occurred roughly once per hour, about two orders of
+magnitude more frequently than the actual errors.
+Use of these near misses allowed the bug's root cause to be identified
+in less than a week and a high degree of confidence in the fix to be
+built in less than a day.
+In contrast, excluding the near misses in favor of the real errors would
+have required months of debug and validation time.
+
+To sum up near-miss counting, the general approach is to replace counting
+of infrequent failures with more-frequent near misses that are believed
+to be correlated with those failures.
+These near-misses can be considered an anti-heisenbug to the real failure's
+heisenbug because the near-misses, being more frequent, are likely to
+be more robust in the face of changes to your code, for example, the
+changes you make to add debugging code.
 
 Thus far, we have focused solely on bugs in the parallel program's
 functionality.
