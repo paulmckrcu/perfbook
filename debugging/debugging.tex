@@ -1725,11 +1725,9 @@ Bugs are often an all-or-nothing thing, so that either the bug happens
 or it doesn't, with nothing in between.
 However, it is sometimes possible to define a \emph{near miss} where
 the bug does not result in a failure, but has likely manifested.
-For example, suppose your code is controlling a robot, for example,
-making is walk.
-The robot's falling over might constitute a bug in your program, in
-which case the robot's stumbling and recovering might constitute a
-near miss.
+For example, suppose your code is making a robot walk.
+The robot's falling over constitutes a bug in your program, but
+stumbling and recovering might constitute a near miss.
 If the robot falls over only once per hour, but stumbles every few
 minutes, you might be able to speed up your debugging progress by
 counting the number of stumbles in addition to the number of falls.
@@ -1737,27 +1735,61 @@ counting the number of stumbles in addition to the number of falls.
 In concurrent programs, timestamping can sometimes be used to detect
 near misses.
 For example, locking primitives incur significant delays, so if there is
-a too-short time delay between a pair of operations that are supposed
-to be protected by the same lock, this too-short time delay could be
-counted as a near miss.\footnote{
-	Of course, in this case, you would do well to make good use
-	of whatever \co{lock_held()} primitive might be available
-	in your environment.}
+a too-short delay between a pair of operations that are supposed
+to be protected by different acquisitions of the same lock, this too-short
+delay might be counted as a near miss.\footnote{
+	Of course, in this case, you might be better off using
+	whatever \co{lock_held()} primitive is available
+	in your environment.
+	If there isn't a \co{lock_held()} primitive, create one!}
+
+\begin{figure}[tbp]
+\begin{center}
+\resizebox{3in}{!}{\includegraphics{debugging/RCUnearMiss}}
+\end{center}
+\caption{RCU Errors and Near Misses}
+\label{fig:debugging:RCU Errors and Near Misses}
+\end{figure}
 
 For example, a low-probability bug in RCU priority boosting occurred
-roughly once per hundred hours of focused rcutorture testing.
+roughly once every hundred hours of focused rcutorture testing.
 Because it would take almost 500 hours of failure-free testing to be
-99\% certain that the bug was not present, the \co{git bisect} process
+99\% certain that the bug's probability had been significantly reduced,
+the \co{git bisect} process
 to find the failure would be painfully slow---or would require an extremely
 large test farm.
 Fortunately, the RCU operation being tested included not only a wait for
-an RCU grace period, but also a second wait for an RCU callback to be
-invoked after completion of the RCU callback.
-Even more fortunately, \co{rcutorture} includes some statistics that
-are sensitive to the wait for grace period without the wait for callback
-invocation.
-These statistics are subject to false positives due to their unsynchronized
-access to RCU's state variables,
+an RCU grace period, but also a previous wait for the grace period to start
+and a subsequent wait for an RCU callback to be
+invoked after completion of the RCU grace period.
+This distinction between an \co{rcutorture} error and near miss is
+shown in
+Figure~\ref{fig:debugging:RCU Errors and Near Misses}.
+To qualify as a full-fledged error, an RCU read-side critical section
+must extend from the \co{call_rcu()} that initiated a grace period,
+through the remainder of the previous grace period, through the
+entirety of the grace period initiated by the \co{call_rcu()}
+(denoted by the region between the jagged lines), and
+through the delay from the end of that grace period to the callback
+invocation, as indicated by the ``Error'' arrow.
+However, the formal definition of RCU prohibits RCU read-side critical
+sections from extending across a single grace period, as indicated by
+the ``Near Miss'' arrow.
+This suggests using near misses as the error condition, however, this
+can be problematic because different CPUs can have different opinions
+as to exactly where a given
+grace period starts and ends, as indicated by the jagged lines.\footnote{
+	The jaggedness of these lines is seriously understated because
+	idle CPUs might well be completely unaware of the most recent
+	few hundred grace periods.}
+Using the near misses as the error condition could therefore result
+in false positives, which need to be avoided in the automated
+\co{rcutorture} testing.
+
+By sheer dumb luck, \co{rcutorture} happens to include some statistics that
+are sensitive to the near-miss version of the grace period.
+As noted above, these statistics are subject to false positives due to
+their unsynchronized access to RCU's state variables,
 but these false positives turn out to be extremely rare on strongly
 ordered systems such as the IBM mainframe and x86, occurring less than
 once per thousand hours of testing.
