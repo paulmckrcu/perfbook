@@ -1,0 +1,101 @@
+% appendix/questions/concurrentparallel.tex
+
+\section{What is the Difference Between ``Concurrent'' and ``Parallel''?}
+\label{sec:app:questions:What is the Difference Between ``Concurrent'' and ``Parallel''?}
+
+From a classic computing perspective, ``concurrent'' and ``parallel''
+are clearly synonyms.
+However, this has not stopped many people from drawing distinctions
+between the two, and it turns out that these distinctions can be
+understood from a couple of different perspectives.
+
+The first perspective treats ``parallel'' as an abbreviation for
+``data parallel,'' and treats ``concurrent'' as pretty much everything
+else.
+From this perspective, in parallel computing, each partition of the
+overall problem can proceed completely independently, with no
+communication with other partitions.
+In this case, little or no coordination among partitions is required.
+In contrast, concurrent computing might well have tight interdependencies,
+in the form of contended locks, transactions, or other synchronization
+mechanisms.
+
+\QuickQuiz{}
+	Suppose a portion of a program uses RCU read-side primitives
+	as its only synchronization mechanism.
+	Is this parallelism or concurrency?
+\QuickQuizAnswer{
+	Yes.
+} \QuickQuizEnd
+
+This of course begs the question of why such a distinction matters,
+which brings us to the second perspective, that of the underlying scheduler.
+Schedulers come in a wide range of complexities and capabilities, and
+as a rough rule of thumb, the more tightly and irregularly a set of
+parallel processes communicate, the higher the level of sophistication
+is required from the scheduler.
+As such, parallel computing's avoidance of interdependencies means that
+parallel-computing programs run well on the least-capable schedulers.
+In fact, a pure parallel-computing program can run successfully after
+being arbitrarily subdivided and interleaved onto a uniprocessor.\footnote{
+	Yes, this does mean that parallel-computing programs are
+	best-suited for sequential execution.
+	Why did you ask?}
+In contrast, concurrent-computing programs might well require extreme
+subtlety on the part of the scheduler.
+
+One could argue that we should simply demand a reasonable level of
+competence from the scheduler, so that we could simply ignore any
+distinctions between parallelism and concurrency.
+Although this is often a good strategy,
+there are important situations where efficiency,
+performance, and scalability concerns sharply limit the level
+of competence that the scheduler can reasonably offer.
+One important example is when the scheduler is implemented in
+hardware, as it often is SIMD units or GPGPUs.
+Another example is a workload where the units of work are quite
+short, so that even a software-based scheduler must make hard choices
+between subtlety on the one hand and efficiency on the other.
+
+Now, this second perspective can be thought of as making the workload
+match the available scheduler, with parallel workloads able to
+operate on a simple scheduler and concurrent workloads requiring
+more sophisticated schedulers.
+
+Unfortunately, this perspective does not always align with the
+dependency-based distinction put forth by the first perspective.
+For example, a highly interdependent lock-based workload
+with one thread per CPU can make do with a trivial scheduler
+because no scheduler decisions are required.
+In fact, some workloads of this type can even be run one after another
+on a sequential machine.
+Therefore, such a workload would be labeled ``concurrent'' by the first
+perspective and ``parallel'' by many taking the second perspective.
+
+\QuickQuiz{}
+	In what part of the second (scheduler-based) perspective would
+	the lock-based single-thread-per-CPU workload be considered
+	``concurrent''?
+\QuickQuizAnswer{
+	The people who would like to arbitrarily subdivide and interleave
+	the workload.
+	Of course, an arbitrary subdivision might end up separating
+	a lock acquisition from the corresponding lock release, which
+	would prevent any other thread from acquiring that lock.
+	If the locks were pure spinlocks, this could even result in
+	deadlock.
+} \QuickQuizEnd
+
+Which is just fine.
+No rule that humankind writes carries any weight against objective
+reality, including the rule dividing multiprocessor programs into
+categories such as ``concurrent'' and ``parallel.''
+
+This categorization failure does not mean such rules are useless,
+but rather that you should take on a suitably skeptical frame of mind when
+attempting to apply them to new situations.
+As always, use such rules where they apply and ignore them otherwise.
+
+In fact, it is likely that new categories will arise in addition
+to parallel, concurrent, map-reduce, task-based, and so on.
+Some will stand the test of time, but good luck guessing which!

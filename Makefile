@@ -8,6 +8,7 @@ LATEXSOURCES = \
 	appendix/ack/ack.tex \
 	appendix/primitives/primitives.tex \
 	appendix/questions/after.tex \
+	appendix/questions/concurrentparallel.tex \
 	appendix/questions/time.tex \
 	appendix/questions/questions.tex \
 	appendix/whymb/whymemorybarriers.tex \
