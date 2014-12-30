@@ -41,6 +41,7 @@ LATEXSOURCES = \
 	formal/spinhint.tex \
 	formal/dyntickrcu.tex \
 	formal/ppcmem.tex \
+	formal/sat.tex \
 	future/future.tex \
 	future/cpu.tex \
 	future/tm.tex \
