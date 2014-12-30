@@ -36,6 +36,7 @@ LATEXSOURCES = \
 	defer/toyrcu.tex \
 	defer/updates.tex \
 	defer/whichtochoose.tex \
+	formal/axiomatic.tex \
 	formal/formal.tex \
 	formal/spinhint.tex \
 	formal/dyntickrcu.tex \
