@@ -892,7 +892,7 @@ comes great responsibility.
 
 \paragraph{Priority inheritance} is used to handle priority inversion,
 which can be caused by, among other things, locks acquired by
-preemptible interrupt handlers.
+preemptible interrupt handlers~\cite{LuiSha1990PriorityInheritance}.
 Suppose that a low-priority thread holds a lock, but is preempted by
 a group of medium-priority threads, at least one per CPU.
 If an interrupt occurs, a high-priority IRQ thread will preempt one
@@ -911,9 +911,94 @@ interrupts because the low-priority thread would have to disable interrupts
 while holding the lock, which would prevent the medium-priority
 threads from preempting it.
 
-The @@@
+The priority-inheritance solution has the high-priority thread attempting
+to acquire the lock donate its priority to the low-priority thread holding
+the lock until such time as the lock is released, thus preventing long-term
+priority inversion.
 
-\paragraph{Preemptible RCU}
+\begin{figure}[tb]
+\begin{center}
+\resizebox{3.4in}{!}{\includegraphics{cartoons/Priority_Boost_2}}
+\end{center}
+\caption{Priority Inversion and User Input}
+\ContributedBy{figure}{fig:rt:Priority Inversion and User Input}{Melissa Broussard}
+\end{figure}
+
+Of course, priority inheritance does have its limitations.
+One example limitation is that it addresses only lock-based priority
+inversions within the context of a given operating system.
+One priority-inversion scenario that it cannot address is if a high-priority
+thread is waiting on a network socket for a message that is to be written
+by a low-priority process that is preempted by a set of CPU-bound
+medium-priority processes.
+In addition, one potential disadvantage of use of priority inheritance
+for situations involving user input is fancifully depicted in
+Figure~\ref{fig:rt:Priority Inversion and User Input}.
+
+Another limitation involves reader-writer locking.
+Suppose that we have a very large number of low-priority threads, perhaps
+even thousands of them, each
+of which read-holds a particular reader-writer lock.
+Suppose that all of these threads are preempted by a set of medium-priority
+threads, with at least one medium-priority thread per CPU.
+Finally, suppose that a high-priority thread awakens and attempts to
+write-acquire this same reader-writer lock.
+No matter how vigorously we boost the priority of the threads read-holding
+this lock, it could well be a good long time before the high-priority
+thread can complete its write-acquisition.
+
+There are a number of possible solutions to this reader-writer lock
+priority-inversion conundrum:
+
+\begin{enumerate}
+\item	Only allow one read-acquisition of a given reader-writer lock
+	at a time.  (This is the approach traditionally taken by
+	the Linux kernel's -rt patchset.)
+\item	Only allow $N$ read-acquisitions of a given reader-writer lcok
+	at a time, where $N$ is the number of CPUs.
+\item	Only allow $N$ read-acquisitions of a given reader-writer lcok
+	at a time, where $N$ is a number specified somehow by the
+	developer.
+\item	Prohibit high-priority threads from write-acquiring reader-writer
+	locks that are every read-acquired by threads running at lower
+	priorities.
+	(This is a variant of the \emph{priority ceiling}
+	protocol~\cite{LuiSha1990PriorityInheritance}.)
+\end{enumerate}
+
+\QuickQuiz{}
+	But if you only allow one reader at a time to read-acquire
+	a reader-writer lock, isn't that the same as an exclusive
+	lock???
+\QuickQuizAnswer{
+	Indeed it is, other than the API.
+	And the API is important because it allows the Linux kernel
+	to offer real-time capabilities without having the -rt patchset
+	grow to ridiculous sizes.
+
+	However, this approach clearly and severely limits read-side
+	scalability.
+	The Linux kernel's -rt patchset has been able to live with this
+	limitation for several reasons: (1)~Real-time systems have
+	traditionally been relatively small, (2)~Real-time systems
+	have generally focused on process control, thus being unaffected
+	by scalability limitations in the I/O subsystems, and
+	(3)~Many of the Linux kernel's reader-writer locks have been
+	converted to RCU.
+} \QuickQuizEnd
+
+In some cases, reader-writer lock priority inversion can be avoided by
+converting the reader-writer lock to RCU, as briefly discussed in the
+next section.
+
+\paragraph{Preemptible RCU,} introduced in
+Section~\ref{sec:defer:Read-Copy Update (RCU)},
+can sometimes be used as a replacement for reader-writer locking.
+Where it can be used, it permits readers and updaters to run concurrently,
+which prevents low-priority readers from inflicting any sort of
+priority-inversion scenario on high-priority updaters.
+However, for this to be useful, it is necessary to be able to preempt
+long-running RCU read-side critical sections.
 
 \paragraph{Preemptible spinlocks}
 
