@@ -6838,6 +6838,21 @@ srcu_read_unlock(&srcucb, idx);
 	(3)~Many of the Linux kernel's reader-writer locks have been
 	converted to RCU.
 
+\QuickQ{}
+	Suppose that preemption occurs just after the load from
+	\co{t->rcu_read_unlock_special.s} on line~17 of
+	Figure~\ref{fig:rt:Preemptible Linux-Kernel RCU}.
+	Mightn't that result in the task failing to invoke
+	\co{rcu_read_unlock_special()}, thus failing to remove itself
+	from the list of tasks blocking the current grace period,
+	in turn causing that grace period to extend indefinitely?
+\QuickA{}
+	That is a real problem, and it is solved in RCU's scheduler hook.
+	If that scheduler hook sees that the value of
+	\co{t->rcu_read_lock_nesting} is negative, it invokes
+	\co{rcu_read_unlock_special()} if needed before allowing
+	the context switch to complete.
+
 \QuickQAC{chp:Ease of Use}{Ease of Use}
 \QuickQ{}
 	Can a similar algorithm be used when deleting elements?

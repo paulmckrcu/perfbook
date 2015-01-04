@@ -991,16 +991,136 @@ In some cases, reader-writer lock priority inversion can be avoided by
 converting the reader-writer lock to RCU, as briefly discussed in the
 next section.
 
-\paragraph{Preemptible RCU,} introduced in
-Section~\ref{sec:defer:Read-Copy Update (RCU)},
-can sometimes be used as a replacement for reader-writer locking.
+\paragraph{Preemptible RCU}
+can sometimes be used as a replacement for reader-writer
+locking~\cite{PaulEMcKenney2007WhatIsRCUFundamentally,PaulMcKenney2012RCUUsage,PaulEMcKenney2014RCUAPI}.
 Where it can be used, it permits readers and updaters to run concurrently,
 which prevents low-priority readers from inflicting any sort of
 priority-inversion scenario on high-priority updaters.
 However, for this to be useful, it is necessary to be able to preempt
-long-running RCU read-side critical sections.
+long-running RCU read-side critical
+sections~\cite{DinakarGuniguntala2008IBMSysJ}.
+Otherwise, long RCU read-side critical sections would result in
+excessive real-time latencies.
+
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+ 1 void __rcu_read_lock(void)
+ 2 {
+ 3   current->rcu_read_lock_nesting++;
+ 4   barrier();
+ 5 }
+ 6 
+ 7 void __rcu_read_unlock(void)
+ 8 {
+ 9   struct task_struct *t = current;
+10 
+11   if (t->rcu_read_lock_nesting != 1) {
+12     --t->rcu_read_lock_nesting;
+13   } else {
+14     barrier();
+15     t->rcu_read_lock_nesting = INT_MIN;
+16     barrier();
+17     if (ACCESS_ONCE(t->rcu_read_unlock_special.s))
+18       rcu_read_unlock_special(t);
+19     barrier();
+20     t->rcu_read_lock_nesting = 0;
+21   }
+22 }
+\end{verbatim}
+}
+\caption{Preemptible Linux-Kernel RCU}
+\label{fig:rt:Preemptible Linux-Kernel RCU}
+\end{figure}
+
+A preemptible RCU implementation was therefore added to the Linux kernel
+and later updated to a simplified and more efficient implementation.
+This implementation avoids the need to individually track the state of
+each and every task in the kernel by keeping lists of tasks that have
+been preempted within their current RCU read-side critical section.
+A grace period is permitted to end: (1)~Once all CPUs have completed any
+RCU read-side critical sections that were in effect before the start
+of the current grace period and
+(2)~Once all tasks that were preempted
+while in one of those pre-existing critical sections have removed
+themselves from their lists.
+A simplified version of this implementation is shown in
+Figure~\ref{fig:rt:Preemptible Linux-Kernel RCU}.
+The \co{__rcu_read_lock()} function spans lines~1-5 and
+the \co{__rcu_read_unlock()} function spans lines~7-22.
+
+Line~3 of \co{__rcu_read_lock()} increments a per-task count of the
+number of nested \co{rcu_read_lock()} calls, and
+line~4 prevents the compiler from reordering the subsequent code in the
+RCU read-side critical section to precede the \co{rcu_read_lock()}.
+
+Line~11 of \co{__rcu_read_unlock()} checks to see if the nesting level count
+is one, in other words, if this corresponds to the outermost
+\co{rcu_read_unlock()} of a nested set.
+If not, line~12 decrements this count, and control returns to the caller.
+Otherwise, this is the outermost \co{rcu_read_unlock()}, which requires
+the end-of-critical-section handling carried out by lines~14-20.
+
+Line~14 prevents the compiler from reordering the code in the critical
+section with the code comprising the \co{rcu_read_unlock()}.
+Line~15 sets the nesting count to a large negative number in order to prevent
+destructive races with RCU read-side critical sections contained within
+interrupt handlers~\cite{PaulEMcKenney2011RCU3.0trainwreck},
+and line~16 prevents the compiler from reordering this assignment with
+line~17's check for special handling.
+If line~17 determines that special handling is required, line~18
+invokes \co{rcu_read_unlock_special()} to carry out that special handling.
+
+There are several types of special handling that can be required, but
+we will focus on that required when the RCU read-side critical section
+has been preempted.
+In this case, the task must remove itself from the list that it was
+added to when it was first preempted within its
+RCU read-side critical section.
+However, it is important to note that these lists are protected by locks,
+which means that \co{rcu_read_unlock()} is no longer lockless.
+However, the highest-priority threads will not be preempted, and therefore,
+for those highest-priority threads, \co{rcu_read_unlock()} will never
+attempt to acquire any locks.
+
+Whether or not special handling is required, line~19 prevents the compiler
+from reordering the check on line~17 with the zeroing of the nesting
+count on line~20.
+
+\QuickQuiz{}
+	Suppose that preemption occurs just after the load from
+	\co{t->rcu_read_unlock_special.s} on line~17 of
+	Figure~\ref{fig:rt:Preemptible Linux-Kernel RCU}.
+	Mightn't that result in the task failing to invoke
+	\co{rcu_read_unlock_special()}, thus failing to remove itself
+	from the list of tasks blocking the current grace period,
+	in turn causing that grace period to extend indefinitely?
+\QuickQuizAnswer{
+	That is a real problem, and it is solved in RCU's scheduler hook.
+	If that scheduler hook sees that the value of
+	\co{t->rcu_read_lock_nesting} is negative, it invokes
+	\co{rcu_read_unlock_special()} if needed before allowing
+	the context switch to complete.
+} \QuickQuizEnd
+
+This preemptible RCU implementation enables real-time response for
+read-mostly data structures without the delays inherent to priority
+boosting of large numbers of readers.
 
 \paragraph{Preemptible spinlocks}
+are an important part of the -rt patchset due to the long-duration
+spinlock-based critical sections in the Linux kernel.
+This functionality has not yet reached mainline: Although they is a conceptually
+simple substitution of sleeplocks for spinlocks, they has proven relatively
+controversial.
+However, they are quite necessary to the task of achieving real-time
+latencies down in the tens of microseconds.
+
+There are of course any number of other Linux-kernel components that are
+critically important to achieving world-class real-time latencies,
+however, those listed in this section give a good feeling for the workings
+of the Linux kernel augmented by the -rt patchset.
 
 \subsubsection{Polling-Loop Real-Time Support}
 \label{sec:rt:Polling-Loop Real-Time Support}
