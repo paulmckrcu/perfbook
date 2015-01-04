@@ -503,7 +503,8 @@ financial and information-processing applications as ``low latency''
 rather than ``real time.''
 
 Regardless of exactly what we choose to call it, there is substantial
-need for real-time computing.
+need for real-time
+computing~\cite{JeremyWPeters2006NYTDec11,BillInmon2007a}.
 
 \section{Who Needs Parallel Real-Time Computing?}
 \label{sec:rt:Who Needs Parallel Real-Time Computing?}
@@ -1023,7 +1024,17 @@ priority inversion.
 \end{figure}
 
 Of course, priority inheritance does have its limitations.
-One example limitation is that it addresses only lock-based priority
+For example, if you can design your application to avoid priority
+inversion entirely, you will likely obtain somewhat better
+latencies~\cite{VictorYodaiken2004a}.
+This should be no surprise, given that priority inheritance adds
+a pair of context switches to the worst-case latency.
+That said, priority inheritance can convert indefinite postponement
+into a limited increase in latency, and the software-engineering
+benefits of priority inheritance may outweigh its latency costs in
+many applications.
+
+Another example limitation is that it addresses only lock-based priority
 inversions within the context of a given operating system.
 One priority-inversion scenario that it cannot address is if a high-priority
 thread is waiting on a network socket for a message that is to be written
@@ -1033,7 +1044,7 @@ In addition, one potential disadvantage of use of priority inheritance
 for situations involving user input is fancifully depicted in
 Figure~\ref{fig:rt:Priority Inversion and User Input}.
 
-Another limitation involves reader-writer locking.
+A final limitation involves reader-writer locking.
 Suppose that we have a very large number of low-priority threads, perhaps
 even thousands of them, each
 of which read-holds a particular reader-writer lock.
@@ -1181,6 +1192,8 @@ which means that \co{rcu_read_unlock()} is no longer lockless.
 However, the highest-priority threads will not be preempted, and therefore,
 for those highest-priority threads, \co{rcu_read_unlock()} will never
 attempt to acquire any locks.
+In addition, if implemented carefully, locking can be used to synchronize
+real-time software~\cite{BjoernBrandenburgPhD}.
 
 Whether or not special handling is required, line~19 prevents the compiler
 from reordering the check on line~17 with the zeroing of the nesting
@@ -1211,12 +1224,19 @@ are an important part of the -rt patchset due to the long-duration
 spinlock-based critical sections in the Linux kernel.
 This functionality has not yet reached mainline: Although they is a conceptually
 simple substitution of sleeplocks for spinlocks, they has proven relatively
-controversial.
+controversial.\footnote{
+	In addition, development of the -rt patchset has slowed in recent
+	years, perhaps because the real-time functionality that is already
+	in the mainline Linux kernel suffices for a great many use
+	cases~\cite{JakeEdge2013Future-rtLinux,JakeEdge2014Future-rtLinux}.
+	However, OSADL (\url{http://osadl.org/}) is working to raise funds
+	to move the remaining code from the -rt patchset to mainline.}
 However, they are quite necessary to the task of achieving real-time
 latencies down in the tens of microseconds.
 
 There are of course any number of other Linux-kernel components that are
 critically important to achieving world-class real-time latencies,
+most recently deadline scheduling,
 however, those listed in this section give a good feeling for the workings
 of the Linux kernel augmented by the -rt patchset.
 
@@ -1235,7 +1255,116 @@ Kernel threads and daemons.
 
 In-kernel full-system algorithms.
 
+Scheduler throttles real-time tasks.
+
 Hardware as well: Thermal excursions.
 
 \subsection{Implementing Parallel Real-Time Applications}
 \label{sec:rt:Implementing Parallel Real-Time Applications}
+
+Developing real-time applications is a wide-ranging topic, and this
+section can only touch on a few aspects.
+To this end,
+Section~\ref{sec:rt:Real-Time Components}
+looks at a few software components commonly used in real-time applications,
+Section~\ref{sec:rt:Polling-Loop Applications}
+provides a brief overview of how polling-loop-based applications may
+be implemented,
+Section~\ref{sec:rt:Streaming Applications}
+gives a similar overview of streaming applications, and
+Section~\ref{sec:rt:Event-Driven Applications}
+briefly covers event-based applications.
+
+\subsubsection{Real-Time Components}
+\label{sec:rt:Real-Time Components}
+
+As in all areas of engineering, a robust set of components is essential
+to productivity and reliability.
+This section is not a full catalog of real-time software components---such
+a catalog would fill an entire book---but rather a brief overview of the
+types of components available.
+
+A natural place to look for real-time software components would be
+algorithms offering wait-free synchronization, and in fact lockless
+algorithms are very important to real-time computing.
+However, wait-free synchronization only guarantees forward progress in
+finite time, and real-time computing requires algorithms that meet the
+far more stringent guarantee of forward progress in bounded time.
+After all, a century is finite, but unhelpful when your deadlines are
+measured in milliseconds.
+
+Nevertheless, there are some important wait-free algorithms that do
+provide bounded response time, including atomic test and set,
+atomic exchange,
+atomic fetch-and-add,
+single-producer/single-consumer FIFO queues based on circular arrays,
+and numerous per-thread partitioned algorithms.
+In addition, recent research has confirmed the observation that
+algorithms with lock-free guarantees\footnote{
+	Wait-free algorithms guarantee that all threads make progress in
+	finite time, while lock-free algorithms only guarantee that at
+	least one thread will make progress in finite time.}
+provide the same latencies in practice assuming a stochastically
+fair scheduler and freedom from fail-stop
+bugs~\cite{DanAlitarh2013PracticalProgress}.\footnote{
+	This paper also introduces the notion of \emph{bounded minimal
+	progress}, which is a welcome step towards real-time practice.}
+This means that a number of lock-free stacks and queues are appropriate
+for real-time use.
+
+In practice, locking is often used in real-time programs, despite theoretical
+concerns with this practice.
+However, under more severe constraints, lock-based
+algorithms can also provide bounded latencies~\cite{BjoernBrandenburgPhD}.
+These constraints include:
+
+\begin{enumerate}
+\item	Fair scheduler.
+	In the common case of a fixed-priority scheduler, the bounded
+	latencies are provided only to the highest-priority threads.
+\item	FIFO locking primitives with bounded acquisition, handoff,
+	and release latencies.
+	Again, in the common case of a locking primitive that is FIFO
+	within priorities, the bounded latencies are provided only
+	to the highest-priority threads.
+\item	Some way of preventing unbounded priority inversion.
+	The priority-ceiling and priority-inheritance disciplines
+	mentioned earlier in this chapter suffice.
+\item	Bounded nesting of lock acquisitions.
+	We can have an unbounded number of locks, but only as long as a
+	given thread never acquires more than a few of them (ideally only
+	one of them) at a time.
+\item	Bounded number of threads.
+	In combination with the earlier constraints, this constraint means
+	that there will be a bounded number of threads waiting on any
+	given lock.
+\item	Bounded time spent in any given critical section.
+	Given a bounded number of threads waiting on any given lock and
+	a bounded critical-section duration, the wait time will be bounded.
+\end{enumerate}
+
+This result opens a vast cornucopia of algorithms and data structures
+for use in real-time software---and validates common real-time practice.
+
+Of course, a careful and simple application design is also extremely
+important.
+The best real-time components in the world cannot make up for a
+poorly thought-out design.
+For parallel real-time applications, synchronization overheads clearly
+must be a key component of the design.
+
+\subsubsection{Polling-Loop Applications}
+\label{sec:rt:Polling-Loop Applications}
+
+% Use NO_HZ_FULL.
+% Map hardware registers into userspace (but remember Spiderman!)
+
+\subsubsection{Streaming Applications}
+\label{sec:rt:Streaming Applications}
+
+% Mechanical Sympathy talk at LCA
+
+\subsubsection{Event-Driven Applications}
+\label{sec:rt:Event-Driven Applications}
+
+\cite{VictorYodaiken2004a}
