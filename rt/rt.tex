@@ -1415,4 +1415,68 @@ data from their input FIFOs, the advice of the next section applies.
 \subsubsection{Event-Driven Applications}
 \label{sec:rt:Event-Driven Applications}
 
-\cite{VictorYodaiken2004a}
+We will use fuel injection into a mid-sized industrial engine as a
+fanciful example for event-driven applications.
+Under normal operating conditions, this engine requires that the fuel
+be injected within a one-degree interval surrounding top dead center.
+If we assume a 1,500-RPM rotation rate, we have 25 rotations per second,
+or about 9,000 degrees of rotation per second, which translates to
+111 microseconds per degree.
+We therefore need to schedule the fuel injection to within a time
+interval of about 100 microseconds.
+
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+ 1 if (clock_gettime(CLOCK_REALTIME, &timestart) != 0) {
+ 2   perror("clock_gettime 1");
+ 3   exit(-1);
+ 4 }
+ 5 if (nanosleep(&timewait, NULL) != 0) {
+ 6   perror("nanosleep");
+ 7   exit(-1);
+ 8 }
+ 9 if (clock_gettime(CLOCK_REALTIME, &timeend) != 0) {
+10   perror("clock_gettime 2");
+11   exit(-1);
+12 }
+\end{verbatim}
+}
+\caption{Timed-Wait Test Program}
+\label{fig:rt:Timed-Wait Test Program}
+\end{figure}
+
+Suppose that a timed wait was to be used to initiate fuel injection,
+although if you are building an engine, I hope you supply a rotation
+sensor.
+We need to test the timed-wait functionality, perhaps using the test program
+shown in
+Figure~\ref{fig:rt:Timed-Wait Test Program}.
+Unfortunately, if we run this program, we can get unacceptable timer
+jitter, even in a -rt kernel.
+
+One problem is that POSIX \co{CLOCK_REALTIME} is, oddly enough, not intended
+for real-time use.
+Instead, it means ``realtime'' as opposed to the amount of CPU time
+consumed by a process or thread.
+For real-time use, you should instead use \co{CLOCK_MONOTONIC}.
+However, even with this change, results are still unacceptable.
+
+Another problem is that the thread must be raised to a real-time
+priority by using the \co{sched_setscheduler()} system call.
+But even this change is insufficient, because we can still see
+page faults.
+We also need to use the \co{mlockall()} system call to pin the
+application's memory, preventing page faults.
+With all of these changes, results might finally be acceptable.
+
+In other situations, further adjustments might be needed.
+It might be necessary to affinity time-critical threads onto their
+own CPUs, and it might also be necessary to affinity interrupts
+away from those CPUs.
+It might be necessary to carefully select hardware and drivers,
+and it will very likely be necessary to carefully select kernel
+configuration.
+
+As can be seen from this example, real-time computing can be quite
+unforgiving.
