@@ -1356,13 +1356,61 @@ must be a key component of the design.
 \subsubsection{Polling-Loop Applications}
 \label{sec:rt:Polling-Loop Applications}
 
-% Use NO_HZ_FULL.
-% Map hardware registers into userspace (but remember Spiderman!)
+Many real-time applications consist of a single CPU-bound loop that
+reads sensor data, computes a control law, and writes control output.
+If the hardware registers providing sensor data and taking control
+output are mapped into the application's address space, this loop
+might be completely free of system calls.
+But beware of the Spiderman principle: With great power comes great
+responsibility, in this case the responsibility to avoid bricking the
+hardware by making inappropriate references to the hardware registers.
+
+This arrangement is often run on bare metal, without the benefits of
+(or the interference from) an operating system.
+However, increasing hardware capability and increasing levels of
+automation motivates increasing software functionality, for example,
+user interfaces, logging, and reporting, all of which can benefit from
+an operating system.
+
+One way of gaining much of the benefit of running on bare metal while
+still having access to the full features and functions of a
+general-purpose operating system is to use the Linux kernel's
+\co{NO_HZ_FULL} capability, described in
+Section~\ref{sec:rt:Polling-Loop Real-Time Support}.
+This support first became available in version 3.10 of the Linux kernel.
 
 \subsubsection{Streaming Applications}
 \label{sec:rt:Streaming Applications}
 
-% Mechanical Sympathy talk at LCA
+A popular sort of big-data real-time application takes input from numerous
+sources, processes it internally, and outputs alerts and summaries.
+These \emph{streaming applications} are often highly parallel, processing
+different information sources concurrently.
+
+One approach for implementing streaming applications is to use
+dense-array circular FIFOs to connect different processing
+steps~\cite{AdrianSutton2013LCA:Disruptor}.
+Each such FIFO has only a single thread producing into it and a
+(presumably different) single thread consuming from it.
+Fan-in and fan-out points use threads rather than data structures,
+so if the output of several FIFOs needed to be merged, a separate
+thread would input from them and output to another FIFO for which
+this separate thread was the sole producer.
+Similarly, if the output of a given FIFO needed to be split, a separate
+thread would input from this FIFO and output to several FIFOs as needed.
+
+This discipline might seem restrictive, but it allows communication
+among threads with minimal synchronization overhead, and minimal
+synchronization overhead is important when attempting to meet
+tight latency constraints.
+This is especially true when the amount of processing for each step
+is small, so that the synchronization overhead is significant compared
+to the processing overhead.
+
+The individual threads might be CPU-bound, in which case the advice in
+Section~\ref{sec:rt:Polling-Loop Applications} applies.
+On the other hand, if the individual threads block waiting for
+data from their input FIFOs, the advice of the next section applies.
 
 \subsubsection{Event-Driven Applications}
 \label{sec:rt:Event-Driven Applications}
