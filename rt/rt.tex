@@ -757,11 +757,11 @@ this process needs.
 This was implemented in the 3.10 Linux kernel via the \co{CONFIG_NO_HZ_FULL}
 Kconfig parameter.
 It is important to note that this approach requires at least one
-``housekeeping'' CPU to do background processing, for example running
+\emph{housekeeping CPU} to do background processing, for example running
 kernel daemons.
 However, when there is only one runnable task on a given non-housekeeping CPU,
 scheduling-clock interrupts are shut off on that CPU, removing an important
-source of interference and ``OS jitter.''\footnote{
+source of interference and \emph{OS jitter}.\footnote{
 	A once-per-second residual scheduling-clock interrupt remains
 	due to process-accounting concerns.
 	Future work includes addressing these concerns and eliminating
@@ -1252,15 +1252,52 @@ After all, if a given CPU never enters the kernel, the kernel is
 completely out of the picture.
 Unfortunately, the reality is more complex.
 
-Interrupts.
+Interrupts are one good way to introduce large amounts of OS jitter,
+thus spoiling bare-metal performance.
+However, in most cases interrupts are absolutely required in order
+for the system to communicate with the outside world.
+One way of resolving this conflict between OS jitter and maintaining
+contact with the outside world is to reserve a small number of
+housekeeping CPUs, and to force all interrupts to these CPUs.
+The \co{Documentation/IRQ-affinity.txt} file in the Linux source tree
+describes how to direct device interrupts to specified CPU,
+which as of this writing involves something like the following:
 
-Kernel threads and daemons.
+\begin{quote}
+	\scriptsize
+	\co{echo 0f > /proc/irq/44/smp_affinity}
+\end{quote}
+
+This command would confine interrupt \#44 to CPUs~0-3.
+The scheduling-clock interrupts require special handling, and are
+discussed later in this section.
+
+Kernel threads and daemons are also common OS-jitter offenders.
+Individual kernel threads, such as RCU's grace-period kthreads
+(\co{rcu_bh}, \co{rcu_preempt}, and \co{rcu_sched}), may be forced
+onto any desired CPUs using the \co{taskset} command, the
+\co{sched_setaffinity()} system call, or \co{cgroups}.
+
+Per-CPU kthreads are often more challenging, sometimes constraining
+hardware configuration and workload layout.
+Some of these kthreads require either that certain types of hardware
+not be attached to real-time systems, that all interrupts and I/O
+initiation take place on housekeeping CPUs, that special kernel
+Kconfig or boot parameters be selected in order to direct work away from
+the worker CPUs, or that worker CPUs never enter the kernel.
+Specific per-kthread advice may be found in the Linux kernel source
+\co{Documentation} directory at \co{kernel-per-CPU-kthreads.txt}.
+
+Recurring timers.
+
+RCU callback invocation.
 
 In-kernel full-system algorithms.
 
 Scheduler throttles real-time tasks.
 
 Hardware as well: Thermal excursions.
+Also firmware: SMI handlers.
 
 \subsection{Implementing Parallel Real-Time Applications}
 \label{sec:rt:Implementing Parallel Real-Time Applications}
