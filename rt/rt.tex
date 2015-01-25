@@ -1259,13 +1259,18 @@ kernel simply by running a single CPU-bound user-mode thread on a
 given CPU, avoiding all causes of interference.
 Unfortunately, the reality is more complex, however, it is becoming
 possible to do just that, at least on recent versions of the Linux
-kernel~\cite{JonCorbet2013NO-HZ-FULL}.
+kernel, courtesy of the \co{NO_HZ_FULL} implementaion led by
+Frederic Weisbecker~\cite{JonCorbet2013NO-HZ-FULL}.
 Nevertheless, considerable care is required to properly set up such
 an environment, as it is not normally possible to counteract any
 OS jitter that arises.
 It is instead necessary to prevent it at each possible source,
 of which there are many.
-The discussion below covers interrupts, kernel threads and daemons, @@@
+The discussion below covers device interrupts, kernel threads and daemons,
+scheduler real-time throttling (this is a feature, not a bug!),
+timers, non-real-time device drivers, in-kernel global synchronization,
+scheduling-clock interrupts, page faults, and finally, non-real-time
+hardware and firmware.
 
 For example, interrupts are an excellent way to introduce large amounts of
 OS jitter, thus spoiling bare-metal performance.
@@ -1418,25 +1423,31 @@ real-time use.
 OSADL runs long-term tests of systems, so referring to their
 website ((\url{http://osadl.org/}) can be helpful.
 
+\begin{figure}[tb]
+{ \scriptsize
+\begin{verbatim}
+ 1 cd /sys/kernel/debug/tracing
+ 2 echo 1 > max_graph_depth
+ 3 echo function_graph > current_tracer
+ 4 # run workload
+ 5 cat per_cpu/cpuN/trace
+\end{verbatim}
+}
+\caption{Locating Sources of OS Jitter}
+\label{fig:rt:Locating Sources of OS Jitter}
+\end{figure}
+
 Unfortunately, this list of OS-jitter sources can never be complete,
 as it will change with each new version of the kernel.
 This makes it necessary to be able to track down additional sources
 of OS jitter.
-Given a CPU $N$ running a CPU-bound usermode thread, the following
-commands will produce a list of all the times that this CPU entered
-the kernel:
-
-\begin{quote}
-	\scriptsize
-	\co{cd /sys/kernel/debug/tracing}
-	\co{echo 1 > max_graph_depth # Increase the "1" for more detail}
-	\co{echo function_graph > current_tracer}
-	\co{# run workload}
-	\co{cat per_cpu/cpuN/trace}
-\end{quote}
-
-Of course, the \co{N} in the last command must be replaced with the
-number of the CPU in question.
+Given a CPU $N$ running a CPU-bound usermode thread, the
+commands shown in
+Figure~\ref{fig:rt:Locating Sources of OS Jitter}
+will produce a list of all the times that this CPU entered the kernel.
+Of course, the \co{N} on line~5 must be replaced with the
+number of the CPU in question, and the \co{1} on line~2 may be increased
+to show additional levels of function call within the kernel.
 The resulting trace can help track down the source of the OS jitter.
 
 As you can see, obtaining bare-metal performance when running
