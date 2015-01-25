@@ -1250,10 +1250,25 @@ At first glance, use of a polling loop might seem to avoid all possible
 operating-system interference problems.
 After all, if a given CPU never enters the kernel, the kernel is
 completely out of the picture.
-Unfortunately, the reality is more complex.
+And the traditional approach to keeping the kernel out of the way is
+simply not to have a kernel, and many real-time applications have
+indeed run on bare metal, particularly on eight-bit microcontrollers.
 
-Interrupts are one good way to introduce large amounts of OS jitter,
-thus spoiling bare-metal performance.
+One might hope to get bare-metal performance on a modern operating-system
+kernel simply by running a single CPU-bound user-mode thread on a
+given CPU, avoiding all causes of interference.
+Unfortunately, the reality is more complex, however, it is becoming
+possible to do just that, at least on recent versions of the Linux
+kernel~\cite{JonCorbet2013NO-HZ-FULL}.
+Nevertheless, considerable care is required to properly set up such
+an environment, as it is not normally possible to counteract any
+OS jitter that arises.
+It is instead necessary to prevent it at each possible source,
+of which there are many.
+The discussion below covers interrupts, kernel threads and daemons, @@@
+
+For example, interrupts are an excellent way to introduce large amounts of
+OS jitter, thus spoiling bare-metal performance.
 However, in most cases interrupts are absolutely required in order
 for the system to communicate with the outside world.
 One way of resolving this conflict between OS jitter and maintaining
@@ -1272,7 +1287,7 @@ This command would confine interrupt \#44 to CPUs~0-3.
 The scheduling-clock interrupts require special handling, and are
 discussed later in this section.
 
-Kernel threads and daemons are also common OS-jitter offenders.
+A second source of OS jitter is due to kernel threads and daemons.
 Individual kernel threads, such as RCU's grace-period kthreads
 (\co{rcu_bh}, \co{rcu_preempt}, and \co{rcu_sched}), may be forced
 onto any desired CPUs using the \co{taskset} command, the
@@ -1288,16 +1303,151 @@ the worker CPUs, or that worker CPUs never enter the kernel.
 Specific per-kthread advice may be found in the Linux kernel source
 \co{Documentation} directory at \co{kernel-per-CPU-kthreads.txt}.
 
-Recurring timers.
+A third source of OS jitter in the Linux kernel for CPU-bound threads
+running at real-time priority is the scheduler itself.
+This is an intentional debugging feature, designed to ensure that
+important non-realtime work is allotted at least 50 milliseoncds
+out of each second, even if there is an infinite-loop bug in
+your real-time application..
+However, when you are running a polling-loop-style real-time application,
+you will need to disable this debugging feature.
+This can be done as follows:
 
-RCU callback invocation.
+\begin{quote}
+	\scriptsize
+	\co{echo -1 > /proc/sys/kernel/sched_rt_runtime_us}
+\end{quote}
 
-In-kernel full-system algorithms.
+You will of course need to be running as root to execute this command,
+and do not forget the Spiderman principle.
+One way to minimize the risks is to offload interrupts and
+kernel threads/daemons from all CPUs running CPU-bound realtime
+threads, as described in the paragraphs above.
+In addition, you should carefully read the material in the
+\co{Documentation/scheduler} directory.
+The material in the \co{sched-rt-group.txt} file is particularly
+important, especially if you are the \co{cgroups} real-time features
+enabled by the \co{CONFIG_RT_GROUP_SCHED} Kconfig parameter, in which
+case you should also read the material in the
+\co{Documentation/cgroups} directory as well.
 
-Scheduler throttles real-time tasks.
+A fourth source of OS jitter comes from timers.
+In most cases, keeping a given CPU out of the kernel will prevent
+timers from being scheduled on that CPU.
+One important execption are recurring timers, where a given timer
+handler posts a later occurrence of that same timer.
+If such a timer gets started on a given CPU for any reason, that
+timer will continue to run periodically on that CPU, inflicting
+OS jitter indefinitely.
+One crude but effective way to offload recurring timers is to
+use CPU hotplug to offline all worker CPUs that are to run CPU-bound
+real-time application threads, online these same CPUs, then start
+your real-time application.
 
-Hardware as well: Thermal excursions.
-Also firmware: SMI handlers.
+A fifth source of OS jitter is provided by device drivers that were
+not intended for real-time use.
+For an old canonical example, in 2005, the VGA driver would blank
+the screen by zeroing the frame buffer with interrupts disabled,
+which resulted in tens of milliseconds of OS jitter.
+One way of avoiding device-driver-induced OS jitter is to carefully
+select devices that have been used heavily in real-time systems,
+and which have therefore had their real-time bugs fixed.
+Another way is to confine the devices interrupts and all code using
+that device to designated housekeeping CPUs.
+A third way is to test the device's ability to support real-time
+workloads and fix any real-time bugs.\footnote{
+	If you take this approach, please submit your fixes upstream
+	so that others can beeefit.
+	Keep in mind that when you need to port your application to
+	a later version of the Linux kernel, \emph{you} will be one of these
+	``others.''}
+
+A sixth source of OS jitter is provided by some in-kernel
+full-system synchronization algorithms, perhaps most notably
+the global TLB-flush algorithm.
+This can be avoided by avoiding memory-unmapping operations, and expecially
+avoiding unmapping operations within the kernel.
+At the time of this writing (early 2015), the way to avoid in-kernel
+unmapping operations is to avoid unloading kernel modules.
+
+A seventh source of OS jitter is provided by
+scheduling-clock interrrupts and RCU callback invocation.
+These may be avoided by building your kernel with the
+\co{NO_HZ_FULL} Kconfig parameter enabled, and then booting
+with the \co{nohz_full=} parameter specifying the list of
+worker CPUs that are to run real-time threads.
+For example, \co{nohz_full=2-7} would designate CPUs~2, 3, 4, 5, 6, and~7
+as worker CPUs, thus leaving CPUs~1 and~1 as housekeeping CPUs.
+The worker CPUs would not incur scheduling-clock interrupts as long
+as there is no more than one runnable task on each worker CPU,
+and each worker CPU's RCU callbacks would be invoked on one of the
+houwsekeeping CPUs.
+A CPU that has suppressed scheduling-clock interrupts due to there
+only being one runnable task on that CPU is said to be in
+\emph{adaptive ticks mode}.
+
+As an alternative to the \co{nohz_full} boot parameter, you can build
+your kernel with \co{NO_HZ_FULL_ALL}, which will designate CPU 0 as
+a housekeeping CPU and all other CPUs as worker CPUs.
+Either way, it is important to ensure that you have designated enough
+housekeeping CPUs to handle the housekeeping load imposed by the
+rest of the system, which requires careful benchmarking and tuning.
+
+Of course, there is no free lunch, and \co{NO_HZ_FULL} is no exception.
+As noted earlier, 
+\co{NO_HZ_FULL} makes kernel/user transitions more expensive due to the
+need for delta process accounting and the need to inform kernel subsystems
+(such as RCU) of the transitions.
+It also prevents CPUs running processes with POSIX CPU timers enabled
+from entering adaptive-ticks mode.
+Additional limitations, tradeoffs, and configuration advice may be
+found in \co{Documentation/timers/NO_HZ.txt}.
+
+An eighth source of OS jitter is page faults.
+Because most Linux implementations use an MMU for memory protection,
+real-time applications running on these systems can be subject
+to page faults.
+Use the \co{mlock()} and \co{mlockall()} system calls to pin your
+application's pages into memory, thus avoiding major page faults.
+Of course, the Spiderman principle applies, because locking down
+too much memory may prevent the system from getting other work done.
+
+A ninth source of OS jitter is unfortunately the hardware and firmware.
+It is therefore important to use systems that have been designed for
+real-time use.
+OSADL runs long-term tests of systems, so referring to their
+website ((\url{http://osadl.org/}) can be helpful.
+
+Unfortunately, this list of OS-jitter sources can never be complete,
+as it will change with each new version of the kernel.
+This makes it necessary to be able to track down additional sources
+of OS jitter.
+Given a CPU $N$ running a CPU-bound usermode thread, the following
+commands will produce a list of all the times that this CPU entered
+the kernel:
+
+\begin{quote}
+	\scriptsize
+	\co{cd /sys/kernel/debug/tracing}
+	\co{echo 1 > max_graph_depth # Increase the "1" for more detail}
+	\co{echo function_graph > current_tracer}
+	\co{# run workload}
+	\co{cat per_cpu/cpuN/trace}
+\end{quote}
+
+Of course, the \co{N} in the last command must be replaced with the
+number of the CPU in question.
+The resulting trace can help track down the source of the OS jitter.
+
+As you can see, obtaining bare-metal performance when running
+CPU-bound real-time threads on a general-purpose OS such as Linux
+requires painstaking attention to detail.
+Automation would of course help, and some automation has been applied,
+but given the relatively small number of users, automation can be
+expected to appear relatively sloely.
+Nevertheless, the ability to gain near-bare-metal performance whlie
+running a general-purpose operating system promises to ease construction
+of some types of real-time systems.
 
 \subsection{Implementing Parallel Real-Time Applications}
 \label{sec:rt:Implementing Parallel Real-Time Applications}
