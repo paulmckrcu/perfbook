@@ -80,8 +80,6 @@ EPSSOURCES = \
 	SMPdesign/lockdeqhash1R.eps \
 	SMPdesign/lockdeqpair.eps \
 	SMPdesign/matmuleff.eps \
-	SMPdesign/maze_in_way10a.eps \
-	SMPdesign/maze_PWQ_vs_PART.eps \
 	SMPdesign/mipsperbuck.eps \
 	SMPdesign/smpalloc.eps \
 	SMPdesign/synceff.eps \
