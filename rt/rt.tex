@@ -5,13 +5,13 @@
 An important emerging area in computing is that of parallel real-time
 computing.
 Section~\ref{sec:rt:What is Real-Time Computing?}
-looks at a number of definitions of ``real-time computing,'' sorting
-meaning from the usual sound bites.
+looks at a number of definitions of ``real-time computing,'' moving
+beyond the usual sound bites to more meaningful real-time criteria.
 Section~\ref{sec:rt:Who Needs Real-Time Computing?}
 surveys the sorts of applications that need real-time response.
 Section~\ref{sec:rt:Who Needs Parallel Real-Time Computing?}
-notes that parallel real-time computing is upon us, and asks
-who it is that really needs it.
+notes that parallel real-time computing is upon us, and discusses
+when and why parallel real-time computing can be useful.
 Section~\ref{sec:rt:Implementing Parallel Real-Time Systems}
 gives a brief overview of how parallel real-time systems may be implemented,
 and finally,
@@ -64,7 +64,7 @@ to take the same control action as was taken during the preceding time
 period.
 
 In short, it does not make sense to talk about soft real time without
-some measure of exactly how soft it is to be.
+some measure of exactly how soft it is.
 
 \subsection{Hard Real Time}
 \label{sec:Hard Real Time}
@@ -74,7 +74,7 @@ some measure of exactly how soft it is to be.
 \resizebox{3in}{!}{\includegraphics{cartoons/realtime-smash}}
 \end{center}
 \caption{Real-Time Response Guarantee, Meet Hammer}
-\ContributedBy{figure}{fig:rt:Real-Time Response Guarantee, Meet Hammer}{Melissa Broussard}
+\ContributedBy{figure}{fig:rt:Hard Real-Time Response Guarantee, Meet Hammer}{Melissa Broussard}
 \end{figure}
 
 In contrast, the definition of hard real time is quite definite.
@@ -83,7 +83,7 @@ doesn't.
 Unfortunately, a strict application of this definition would mean that
 there can never be any hard real time systems.
 The reason for this is fancifully depicted in
-Figure~\ref{fig:rt:Real-Time Response Guarantee, Meet Hammer}.
+Figure~\ref{fig:rt:Hard Real-Time Response Guarantee, Meet Hammer}.
 It is true that you could construct a more robust system, perhaps even
 with added redundancy.
 But it is also true that I can always get a bigger hammer.
@@ -155,11 +155,10 @@ the real-time application itself.
 \label{sec:rt:Environmental Constraints}
 
 Constraints on the environment address the objection to open-ended
-promises of response times put forward in
-Figure~\ref{fig:rt:Real-Time Response: Hardware Matters}.
+promises of response times implied by ``hard real time.''
 These constraints might specify permissible operating temperatures,
 air quality, levels and types of electromagnetic radiation, and, to
-Figure~\ref{fig:rt:Real-Time Response: Hardware Matters}'s
+Figure~\ref{fig:rt:Hard Real-Time Response Guarantee, Meet Hammer}'s
 point, levels of shock and vibration.
 
 Of course, some constraints are easier to meet than others.
@@ -199,6 +198,10 @@ elaborate shielding and a fiber-optic network with the lowest bitrate
 I have ever heard of, namely 9600 baud.
 That said, less spectacular electromagnetic environments can often be
 handled by software through use of error detection and correction codes.
+That said, it is important to remember that although error detection and
+correction codes can reduce failure rates, they normally cannot reduce
+them all the way down to zero, which can form yet another obstacle
+to achieving hard real-time response.
 
 There are also situations where a minimum level of energy
 is required, for example, through the power leads of the system and
@@ -242,8 +245,9 @@ the overall system.
 However, all of these methods have one thing in common:  Although they
 can reduce the probability of failure, they cannot reduce it to zero.
 
-Many of these environmental conditions are handled by hardware, but the
-workload and application constraints in the next teo sections are often
+Although these severe environmental conditions are often addressed by using
+more robust hardware, the
+workload and application constraints in the next two sections are often
 handled in software.
 
 \subsubsection{Workload Constraints}
@@ -260,14 +264,15 @@ they are being received too frequently,
 reseting the device generating too-frequent interrupts,
 or even avoiding interrupts altogether in favor of polling.
 
-High process loads can also degrade response times due to queueing effects,
+Overloading can also degrade response times due to queueing effects,
 so it is not unusual for real-time systems to overprovision CPU bandwidth,
 so that a running system has (say) 80\% idle time.
 This approach also applies to storage and networking devices.
 In some cases, separate storage and networking hardware might be reserved
 for the sole use of high-priority portions of the real-time application.
-It is of course not unusual for this hardware to be mostly idle, again
-in order to avoid queueing delays.
+It is of course not unusual for this hardware to be mostly idle, given
+that response time is often more important than throughput in
+real-time systems.
 
 \QuickQuiz{}
 	But given the results from queueing theory, won't low utilization
@@ -343,11 +348,14 @@ Furthermore, a network operation over a copper or fiber
 LAN might have an extrmely
 high probability of completing without time-consuming retransmissions,
 while that same networking operation over a lossy WiFi network might
-have a much higher probability of waiting for acknowledgment
-timeouts and retransmissions.
+have a much higher probability of missing tight deadlines.
 Similarly, a read from a tightly coupled solid-state disk (SSD) could be
 expected to complete much more quickly that that same read to an old-style
-USB-connected rotating-rust disk drive.
+USB-connected rotating-rust disk drive.\footnote{
+	Important safety tip:  Worst-case response times from USB devices
+	can have extremely long.
+	Real-time systems should therefore take care to place any USB
+	devices well away from critical paths.}
 
 Some real-time applications pass through different phases of operation.
 For example, a real-time system controlling a plywood lathe that peels
@@ -365,8 +373,8 @@ for example, one would expect phase~4's deadlines to be much more severe
 than those of phase 6, milliseconds instead of seconds.
 One might therefore expect that low-priority work would be performed in
 phase~6 rather than in phase~4.
-That said, choices of hardware, drivers, and software configuration would
-need to support phase~4's more severe requirements.
+That said, careful choices of hardware, drivers, and software configuration
+would be required to support phase~4's more severe requirements.
 
 A key advantage of this phase-by-phase approach is that the latency
 budgets can be broken down, so that the application's various components
@@ -374,7 +382,7 @@ can be developed independently, each with its own latency budget.
 Of course, as with any other kind of budget, there will likely be the
 occasional conflict as to which component gets which fraction of the
 overall budget, and as with any other kind of budget, strong leadership
-and a sense of shared goals are needed to resolve these conflicts in
+and a sense of shared goals can help to resolve these conflicts in
 a timely fashion.
 And, again as with other kinds of technical budget, a strong validation
 effort is required in order to ensure proper focus on latencies and to
@@ -392,7 +400,8 @@ configurations.
 Adding additional hardware and configurations requires additional costly and
 time-consuming testing.
 Perhaps the field of formal verification will advance sufficiently to
-change this situation, but as of early 2015, large advances are required.
+change this situation, but as of early 2015, rather
+large advances are required.
 
 \QuickQuiz{}
 	Formal verification is already quite capable, benefiting from
@@ -515,11 +524,13 @@ computing~\cite{JeremyWPeters2006NYTDec11,BillInmon2007a}.
 It is less clear who really needs parallel real-time computing, but
 the advent of low-cost multicore systems has brought it to the fore
 regardless.
-Unfortunately, the mathematical basis for real-time
+Unfortunately, the traditional mathematical basis for real-time
 computing assumes single-CPU systems, with a few exceptions that
 prove the rule~\cite{BjoernBrandenburgPhD}.
 That said, there are a couple of ways of squaring modern computing
-hardware to fit the real-time mathematical circle.
+hardware to fit the real-time mathematical circle, and a few Linux-kernel
+hackers have been encouraging academics to make this
+transition~\cite{ThomasGleixner2010AcademiaVsReality}.
 
 \begin{figure}[tb]
 \begin{center}
@@ -606,7 +617,7 @@ practice.
 If the required latencies exceed several tens of milliseconds,
 old 2.4 versions of the Linux kernel can be used, not that I necessarily
 recommend this practice, either.
-Special real-time Java implementation can provide real-time response
+Special real-time Java implementations can provide real-time response
 latencies of a few milliseconds, even when the garbage collector is
 used.
 The Linux 2.6.x and 3.x kernels can provide real-time latencies of
@@ -638,7 +649,8 @@ housekeeping tasks, in some cases attempting to cover its tracks by
 reprogramming the victim CPU's hardware clocks.
 Of course, cycle stealing is expected behavior in virtualized
 environment, but people are nevertheless working towards real-time
-response in virtualized environments~\cite{JanKiszka2014virtRT}.
+response in virtualized
+environments~\cite{ThomasGleixner2012KVMrealtime,JanKiszka2014virtRT}.
 It is therefore critically important to evaluate your hardware's and
 firmware's real-time capabilities.
 There are organizations who carry out such evaluations, including
@@ -685,7 +697,7 @@ developers.
 In fact, these problems seem to be what drove the combination of
 RTOSes with Linux, as this approach allowed access to the full real-time
 capabilities of the RTOS, while allowing the application's non-real-time
-code full access the then rich Linux open-source ecosystem.
+code full access Linux's rich and vibrant open-source ecosystem.
 
 \begin{figure*}[p]
 \begin{center}
@@ -697,7 +709,7 @@ code full access the then rich Linux open-source ecosystem.
 
 Although pairing RTOSes with the Linux kernel was a clever and useful
 short-term response during the time that the Linux kernel had essentially
-no real-time capabilities, it also motivates adding real-time capabilities
+no real-time capabilities, it also motivated adding real-time capabilities
 to the Linux kernel.
 Progress towards this goal is shown in
 Figure~\ref{fig:rt:Linux-Kernel Real-Time Implementations}.
@@ -709,6 +721,8 @@ Finally, the bottom row shows a diagram of the Linux kernel with the
 -rt patchset applied, maximizing real-time capabilities.
 Over time, functionality from the -rt patchset is added to mainline,
 hence the increasing capabilities of the mainline Linux kernel over time.
+Neverthless, the most demanding real-time applications continue to use
+the -rt patchset.
 
 The non-preemptible kernel shown at the top of
 Figure~\ref{fig:rt:Linux-Kernel Real-Time Implementations}
@@ -721,7 +735,7 @@ real-time Linux processes shown in the upper right may preempt any of the
 non-real-time Linux processes shown in the upper left anytime the
 non-real-time process is executing in user mode.
 
-The preemptible kernels shown in the middle of
+The preemptible kernels shown in the middle row of
 Figure~\ref{fig:rt:Linux-Kernel Real-Time Implementations}
 are built with \co{CONFIG_PREEMPT=y}, so that most process-level code
 within the Linux kernel can be preempted.
@@ -732,7 +746,7 @@ spinlock critical sections,
 interrupt handlers, 
 interrupt-disabled code regions, and
 preempt-disabled code regions, as indicated by the red boxes in the
-left-most diagram in the middle of the figure.
+left-most diagram in the middle row of the figure.
 The advent of preemptible RCU allowed RCU read-side critical sections
 to be preempted, as shown in the central diagram,
 and the advent of threaded interrupt handlers allowed device-interrupt
@@ -755,7 +769,8 @@ A final approach is simply to get everything out of the way of the
 real-time process, clearing all other processing off of any CPUs that
 this process needs.
 This was implemented in the 3.10 Linux kernel via the \co{CONFIG_NO_HZ_FULL}
-Kconfig parameter.
+Kconfig parameter~\cite{FredericWeisbecker2013nohz}.
+% Need to fweisbec citation's URL. @@@
 It is important to note that this approach requires at least one
 \emph{housekeeping CPU} to do background processing, for example running
 kernel daemons.
@@ -767,10 +782,11 @@ source of interference and \emph{OS jitter}.\footnote{
 	Future work includes addressing these concerns and eliminating
 	this residual interrupt.}
 With a few exceptions, the kernel does not force other processing off of the
-non-housekeeping CPUs, but instead only recognizes when that other
-processing is no longer present.
+non-housekeeping CPUs, but instead simply provides better performance
+when only one runnable task is present on a given CPU.
 If configured properly, a non-trivial undertaking, \co{CONFIG_NO_HZ_FULL}
-offers real-time processes very nearly bare-metal levels of performance.
+offers real-time threads levels of performance nearly rivaling that of
+bare-metal systems.
 
 Some has of course been much debate over which of these approaches
 is best for real-time systems, and this debate has been going on for
@@ -826,8 +842,9 @@ time quantum.
 One straightforward implementation would be to allocate a single array,
 indexed by the low-order bits of the time.
 This works in theory, but in practice systems create large numbers of
-long-duration timeouts (for example, keepalive timeouts for TCP
+long-duration timeouts (for example, 45-minute keepalive timeouts for TCP
 sessions) that are almost always cancelled.
+%@@@ verify duration of keepalive timers.
 These long-duration timeouts cause problems for small arrays because
 much time is wasted skipping timeouts that have not yet expired.
 On the other hand, an array that is large enough to gracefully accommodate
@@ -837,7 +854,7 @@ such array for each and every CPU.
 
 \begin{figure}[tb]
 \begin{center}
-\resizebox{3.0in}{!}{\includegraphics{rt/timerwheel}}
+\resizebox{2.0in}{!}{\includegraphics{rt/timerwheel}}
 \end{center}
 \caption{Timer Wheel}
 \label{fig:rt:Timer Wheel}
@@ -858,6 +875,9 @@ for an unrealistically small eight-bit clock.
 Here, each array has 16 elements, so the low-order four bits of the time
 (currently \co{0xf}) index the low-order (rightmost) array, and the
 next four bits (currently (0x1) index the next level up.
+Thus, we have two arrays each with 16 elements, for a total of 32 elements,
+which is much fewer than the 256 elements that would be required for a
+single array.
 
 This approach works extremely well for throughput-based systems.
 Each timer operation is $O(1)$ with small constant, and each timer
@@ -1071,8 +1091,11 @@ priority-inversion conundrum:
 \item	Only allow $N$ read-acquisitions of a given reader-writer lcok
 	at a time, where $N$ is a number specified somehow by the
 	developer.
+	There is a good chance that the Linux kernel's -rt patchset
+	will someday take this approach.
+%@@@ Check with Steven and Clark on this
 \item	Prohibit high-priority threads from write-acquiring reader-writer
-	locks that are every read-acquired by threads running at lower
+	locks that are ever read-acquired by threads running at lower
 	priorities.
 	(This is a variant of the \emph{priority ceiling}
 	protocol~\cite{LuiSha1990PriorityInheritance}.)
@@ -1105,7 +1128,8 @@ next section.
 
 \paragraph{Preemptible RCU}
 can sometimes be used as a replacement for reader-writer
-locking~\cite{PaulEMcKenney2007WhatIsRCUFundamentally,PaulMcKenney2012RCUUsage,PaulEMcKenney2014RCUAPI}.
+locking~\cite{PaulEMcKenney2007WhatIsRCUFundamentally,PaulMcKenney2012RCUUsage,PaulEMcKenney2014RCUAPI},
+as was discussed in Section~\ref{sec:defer:Read-Copy Update (RCU)}.
 Where it can be used, it permits readers and updaters to run concurrently,
 which prevents low-priority readers from inflicting any sort of
 priority-inversion scenario on high-priority updaters.
@@ -1257,24 +1281,23 @@ indeed run on bare metal, particularly on eight-bit microcontrollers.
 One might hope to get bare-metal performance on a modern operating-system
 kernel simply by running a single CPU-bound user-mode thread on a
 given CPU, avoiding all causes of interference.
-Unfortunately, the reality is more complex, however, it is becoming
-possible to do just that, at least on recent versions of the Linux
-kernel, courtesy of the \co{NO_HZ_FULL} implementaion led by
-Frederic Weisbecker~\cite{JonCorbet2013NO-HZ-FULL}.
+Although the reality is of course more complex, it is becoming
+possible to do just that,
+courtesy of the \co{NO_HZ_FULL} implementaion led by
+Frederic Weisbecker~\cite{JonCorbet2013NO-HZ-FULL} that has been
+accepted into version 3.10 of the Linux kernel.
 Nevertheless, considerable care is required to properly set up such
-an environment, as it is not normally possible to counteract any
-OS jitter that arises.
-It is instead necessary to prevent it at each possible source,
-of which there are many.
-The discussion below covers device interrupts, kernel threads and daemons,
+an environment, as it is necessary to control a number of possible
+sources of OS jitter.
+The discussion below covers the control of several sources of OS
+jitter, including device interrupts, kernel threads and daemons,
 scheduler real-time throttling (this is a feature, not a bug!),
 timers, non-real-time device drivers, in-kernel global synchronization,
 scheduling-clock interrupts, page faults, and finally, non-real-time
 hardware and firmware.
 
-For example, interrupts are an excellent way to introduce large amounts of
-OS jitter, thus spoiling bare-metal performance.
-However, in most cases interrupts are absolutely required in order
+Interrupts are an excellent source of large amounts of OS jitter.
+Unfortunately, in most cases interrupts are absolutely required in order
 for the system to communicate with the outside world.
 One way of resolving this conflict between OS jitter and maintaining
 contact with the outside world is to reserve a small number of
@@ -1289,7 +1312,7 @@ which as of this writing involves something like the following:
 \end{quote}
 
 This command would confine interrupt \#44 to CPUs~0-3.
-The scheduling-clock interrupts require special handling, and are
+Note that scheduling-clock interrupts require special handling, and are
 discussed later in this section.
 
 A second source of OS jitter is due to kernel threads and daemons.
@@ -1318,10 +1341,10 @@ However, when you are running a polling-loop-style real-time application,
 you will need to disable this debugging feature.
 This can be done as follows:
 
-\begin{quote}
+{
 	\scriptsize
 	\co{echo -1 > /proc/sys/kernel/sched_rt_runtime_us}
-\end{quote}
+}
 
 You will of course need to be running as root to execute this command,
 and do not forget the Spiderman principle.
@@ -1331,10 +1354,10 @@ threads, as described in the paragraphs above.
 In addition, you should carefully read the material in the
 \co{Documentation/scheduler} directory.
 The material in the \co{sched-rt-group.txt} file is particularly
-important, especially if you are the \co{cgroups} real-time features
+important, especially if you using are the \co{cgroups} real-time features
 enabled by the \co{CONFIG_RT_GROUP_SCHED} Kconfig parameter, in which
 case you should also read the material in the
-\co{Documentation/cgroups} directory as well.
+\co{Documentation/cgroups} directory.
 
 A fourth source of OS jitter comes from timers.
 In most cases, keeping a given CPU out of the kernel will prevent
@@ -1382,7 +1405,7 @@ These may be avoided by building your kernel with the
 with the \co{nohz_full=} parameter specifying the list of
 worker CPUs that are to run real-time threads.
 For example, \co{nohz_full=2-7} would designate CPUs~2, 3, 4, 5, 6, and~7
-as worker CPUs, thus leaving CPUs~1 and~1 as housekeeping CPUs.
+as worker CPUs, thus leaving CPUs~0 and~1 as housekeeping CPUs.
 The worker CPUs would not incur scheduling-clock interrupts as long
 as there is no more than one runnable task on each worker CPU,
 and each worker CPU's RCU callbacks would be invoked on one of the
@@ -1455,8 +1478,8 @@ CPU-bound real-time threads on a general-purpose OS such as Linux
 requires painstaking attention to detail.
 Automation would of course help, and some automation has been applied,
 but given the relatively small number of users, automation can be
-expected to appear relatively sloely.
-Nevertheless, the ability to gain near-bare-metal performance whlie
+expected to appear relatively slowly.
+Nevertheless, the ability to gain near-bare-metal performance while
 running a general-purpose operating system promises to ease construction
 of some types of real-time systems.
 
@@ -1487,7 +1510,7 @@ types of components available.
 
 A natural place to look for real-time software components would be
 algorithms offering wait-free
-synchronization~/cite{Herlihy91}, and in fact lockless
+synchronization~\cite{Herlihy91}, and in fact lockless
 algorithms are very important to real-time computing.
 However, wait-free synchronization only guarantees forward progress in
 finite time, and real-time computing requires algorithms that meet the
