@@ -70,10 +70,6 @@ EPSSOURCES = \
 	SMPdesign/1000-ms_2seqO3VfgO3_partO3-mean.eps \
 	SMPdesign/AllocatorPool.eps \
 	SMPdesign/CPUvsEnet.eps \
-	SMPdesign/DiningPhilosopher4.eps \
-	SMPdesign/DiningPhilosopher4part.eps \
-	SMPdesign/DiningPhilosopher4PEM.eps \
-	SMPdesign/DiningPhilosopher4TB.eps \
 	SMPdesign/LockGranularity.eps \
 	SMPdesign/MazeNumberPath.eps \
 	SMPdesign/MemoryBarrierPairing.eps \
