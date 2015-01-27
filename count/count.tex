@@ -2207,7 +2207,7 @@ while placing the underlying \co{int} into \co{old}.
 Line~10 checks whether the amount \co{delta} can be accommodated
 locally (taking care to avoid integer overflow), and if not,
 line~11 transfers to the slowpath.
-Otherwise, line~11 combines an updated \co{counter} value with the
+Otherwise, line~12 combines an updated \co{counter} value with the
 original \co{countermax} value into \co{new}.
 The \co{atomic_cmpxchg()} primitive on lines~13-14 then atomically
 compares this thread's \co{ctrandmax} variable to \co{old},
@@ -2447,7 +2447,7 @@ line~30 subtracts this thread's \co{countermax} from \co{globalreserve}.
 
 \QuickQuiz{}
 	What prevents concurrent execution of the fastpath of either
-	\co{atomic_add()} or \co{atomic_sub()} from interfering with
+	\co{add_count()} or \co{sub_count()} from interfering with
 	the \co{ctrandmax} variable while
 	\co{flush_local_count()} is accessing it on line 27 of
 	Figure~\ref{fig:count:Atomic Limit Counter Utility Functions 1}
@@ -3361,20 +3361,20 @@ Figure~\ref{tab:count:Limit Counter Performance on Power-6}
 shows the performance of the parallel limit-counting algorithms.
 Exact enforcement of the limits incurs a substantial performance
 penalty, although on this 4.7GHz Power-6 system that penalty can be reduced
-by substituting read-side signals for update-side atomic operations.
+by substituting signals for atomic operations.
 All of these implementations suffer from read-side lock contention
 in the face of concurrent readers.
 
 \QuickQuiz{}
 	Given the performance data shown in
 	Table~\ref{tab:count:Limit Counter Performance on Power-6},
-	we should always prefer update-side signals over read-side
-	atomic operations, right?
+	we should always prefer signals over atomic operations, right?
 \QuickQuizAnswer{
 	That depends on the workload.
-	Note that you need almost one hundred thousand readers (with roughly
-	a 60-nanosecond performance gain) to make up for even one
-	writer (with almost a 5-\emph{millisecond} performance loss).
+	Note that on a 64-core system, you need more than
+	one hundred non-atomic operations (with roughly
+	a 40-nanosecond performance gain) to make up for even one
+	signal (with almost a 5-\emph{microsecond} performance loss).
 	Although there are no shortage of workloads with far greater
 	read intensity, you will need to consider your particular
 	workload.
