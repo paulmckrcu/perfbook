@@ -1,6 +1,5 @@
 /*
- * hash_bkt_rcu.c: Simple hash table protected by a per-bucket lock for
- *	updates and RCU for lookups.
+ * hash_global.c: Simple hash table protected by a global lock.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,21 +18,11 @@
  * Copyright (c) 2013 Paul E. McKenney, IBM Corporation.
  */
 
-#define _GNU_SOURCE
 #define _LGPL_SOURCE
-
-// Uncomment to enable signal-based RCU.  (Need corresponding Makefile change!)
-#define RCU_SIGNAL
-#include <urcu.h>
-
-// Uncomment to enable QSBR.  (Need corresponding Makefile change!)
-//#include <urcu-qsbr.h>
-
-#include "../api.h"
+#include "../../api.h"
 
 /* Hash-table element to be included in structures in a hash table. */
 struct ht_elem {
-	struct rcu_head rh;
 	struct cds_list_head hte_next;
 	unsigned long hte_hash;
 };
@@ -41,12 +30,12 @@ struct ht_elem {
 /* Hash-table bucket element. */
 struct ht_bucket {
 	struct cds_list_head htb_head;
-	spinlock_t htb_lock;
 };
 
 /* Top-level hash-table data structure, including buckets. */
 struct hashtab {
 	unsigned long ht_nbuckets;
+	spinlock_t ht_lock;
 	struct ht_bucket ht_bkt[0];
 };
 
@@ -56,23 +45,23 @@ struct hashtab {
 /* Underlying lock/unlock functions. */
 static void hashtab_lock(struct hashtab *htp, unsigned long hash)
 {
-	spin_lock(&HASH2BKT(htp, hash)->htb_lock);
+	spin_lock(&htp->ht_lock);
 }
 
 static void hashtab_unlock(struct hashtab *htp, unsigned long hash)
 {
-	spin_unlock(&HASH2BKT(htp, hash)->htb_lock);
+	spin_unlock(&htp->ht_lock);
 }
 
 /* Read-side lock/unlock functions. */
 static void hashtab_lock_lookup(struct hashtab *htp, unsigned long hash)
 {
-	rcu_read_lock();
+	hashtab_lock(htp, hash);
 }
 
 static void hashtab_unlock_lookup(struct hashtab *htp, unsigned long hash)
 {
-	rcu_read_unlock();
+	hashtab_unlock(htp, hash);
 }
 
 /* Update-side lock/unlock functions. */
@@ -101,8 +90,9 @@ struct ht_elem *hashtab_lookup(struct hashtab *htp, unsigned long hash,
 {
 	struct ht_elem *htep;
 
-	cds_list_for_each_entry_rcu(htep, &HASH2BKT(htp, hash)->htb_head,
-				    hte_next) {
+	cds_list_for_each_entry(htep,
+				&HASH2BKT(htp, hash)->htb_head,
+				hte_next) {
 		if (htep->hte_hash != hash)
 			continue;
 		if (cmp(htep, key))
@@ -118,7 +108,7 @@ struct ht_elem *hashtab_lookup(struct hashtab *htp, unsigned long hash,
 void hashtab_add(struct hashtab *htp, unsigned long hash, struct ht_elem *htep)
 {
 	htep->hte_hash = hash;
-	cds_list_add_rcu(&htep->hte_next, &HASH2BKT(htp, hash)->htb_head);
+	cds_list_add(&htep->hte_next, &HASH2BKT(htp, hash)->htb_head);
 }
 
 /*
@@ -127,7 +117,7 @@ void hashtab_add(struct hashtab *htp, unsigned long hash, struct ht_elem *htep)
  */
 void hashtab_del(struct ht_elem *htep)
 {
-	cds_list_del_rcu(&htep->hte_next);
+	cds_list_del_init(&htep->hte_next);
 }
 
 /*
@@ -142,10 +132,9 @@ struct hashtab *hashtab_alloc(unsigned long nbuckets)
 	if (htp == NULL)
 		return NULL;
 	htp->ht_nbuckets = nbuckets;
-	for (i = 0; i < nbuckets; i++) {
+	spin_lock_init(&htp->ht_lock);
+	for (i = 0; i < nbuckets; i++)
 		CDS_INIT_LIST_HEAD(&htp->ht_bkt[i].htb_head);
-		spin_lock_init(&htp->ht_bkt[i].htb_lock);
-	}
 	return htp;
 }
 
@@ -157,19 +146,5 @@ void hashtab_free(struct hashtab *htp)
 {
 	free(htp);
 }
-
-#define hash_register_thread() rcu_register_thread()
-#define hash_unregister_thread() rcu_unregister_thread()
-
-void (*defer_del_done)(struct ht_elem *htep) = NULL;
-
-void defer_del_rcu(struct rcu_head *rhp)
-{
-	defer_del_done((struct ht_elem *)rhp);
-}
-
-#define defer_del(p)	call_rcu(&(p)->rh, defer_del_rcu)
-
-#define quiescent_state() rcu_quiescent_state()
 
 #include "hashtorture.h"

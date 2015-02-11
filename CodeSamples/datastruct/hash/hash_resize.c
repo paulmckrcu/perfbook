@@ -23,7 +23,7 @@
 #define _LGPL_SOURCE
 #define RCU_SIGNAL
 #include <urcu.h>
-#include "../api.h"
+#include "../../api.h"
 
 /* Hash-table element to be included in structures in a hash table. */
 struct ht_elem {
