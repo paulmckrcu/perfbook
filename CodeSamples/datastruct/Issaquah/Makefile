@@ -1,0 +1,40 @@
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+# Copyright (c) 2015 Paul E. McKenney, IBM Corporation.
+
+include ../../Makefile.arch
+
+PROGS = existence_test treetorture
+
+all: $(PROGS)
+
+# NOTE:  For decent scalability on update-side tests as of early 2015,
+#	 use something like jemalloc() instead of glibc malloc().
+#	 If you install jemalloc at /home/paulmck/jemalloc, you will
+#	 need the following additional arguments to cc:
+#		-I/home/paulmck/jemalloc/include
+#		-L/home/paulmck/jemalloc/lib
+#		-Wl,--rpath,/home/paulmck/jemalloc/lib
+#		-DUSE_JEMALLOC
+#	 Verify by using the nm command and searching output for malloc.
+
+existence_test: existence.c existence_test.c
+	cc $(GCC_ARGS) -o existence_test existence.c existence_test.c -lpthread -lurcu -lurcu-signal
+
+treetorture: tree.c existence.c spinlockmult.c random.c ../../api.h treetorture.h treetorturetrace.h random.h existence.h tree.h
+	cc $(GCC_ARGS) -o treetorture tree.c existence.c spinlockmult.c random.c -lpthread -lurcu -lurcu-signal
+
+clean:
+	rm -f $(PROGS)
