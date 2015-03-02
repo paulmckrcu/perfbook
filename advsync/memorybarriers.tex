@@ -13,10 +13,41 @@ and debugging both sequential code and parallel code that makes
 use of standard mutual-exclusion mechanisms, such as locking and
 RCU.
 
+\begin{table}
+\begin{center}
+\begin{tabular}{l|l}
+	Thread 1 & Thread 2 \\
+	\hline
+	\co{x = 1;} & \co{y = 1;} \\
+	\co{r1 = y;} & \co{r2 = x;} \\
+	\hline
+	\multicolumn{2}{l}{\co{assert(r1 == 1 || r2 == 1);}} \\
+\end{tabular}
+\end{center}
+\caption{Memory Misordering: Dekker}
+\label{tab:advsync:Memory Misordering: Dekker}
+\end{table}
+
 Unfortunately, these intuitions break down completely in face of
 code that makes direct use of explicit memory barriers for data structures
-in shared memory (driver writers making use of MMIO registers can
-place greater trust in their intuition, but more on this later).
+in shared memory.
+For example, the litmus test in
+Table~\ref{tab:advsync:Memory Misordering: Dekker}
+appears to guarantee that the assertion never fires.
+After all, if \co{r1 != 1}, we might hope that Thread~1's load from \co{y}
+must have happened before Thread~2's store to \co{y}, which might raise
+further hopes that Thread~2's load from \co{x} must happen after
+Thread 1's store to \co{x}, so that \co{r2 == 1}, as required by the
+assertion.
+The example is symmetric, so similar hopeful reasoning might lead
+us to hope that \co{r2 != 1} guarantees that \co{r1 == 1}.
+Unfortunately, the lack of memory barriers in
+Table~\ref{tab:advsync:Memory Misordering: Dekker}
+dashes these hopes.
+Both the compiler and the CPU are within their rights to reorder
+the statements within both Thread~1 and Thread~2, even on relatively
+strongly ordered systems such as x86.
+
 The following sections show exactly where this intuition breaks down,
 and then puts forward a mental model of memory barriers that can help
 you avoid these pitfalls.
