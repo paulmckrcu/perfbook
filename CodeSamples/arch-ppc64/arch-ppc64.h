@@ -57,6 +57,21 @@ typedef struct { volatile int counter; } atomic_t;
 #  define ISYNC_ON_SMP
 #endif
 
+#define smp_lwsync() __asm__ __volatile__(LWSYNC_ON_SMP: : :"memory")
+
+#define smp_load_acquire(p) \
+({ \
+	typeof(*(p)) ___v = ACCESS_ONCE(*(p)); \
+	smp_lwsync(); \
+	___v; \
+})
+
+#define smp_store_release(p, v) \
+do { \
+	smp_lwsync(); \
+	ACCESS_ONCE(*(p)) = v; \
+} while (0)
+
 
 /*
  * Atomic exchange

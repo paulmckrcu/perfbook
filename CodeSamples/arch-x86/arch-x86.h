@@ -44,6 +44,19 @@ typedef struct { volatile int counter; } atomic_t;
 #define atomic_read(v)		((v)->counter)
 #define atomic_set(v, i)	(((v)->counter) = (i))
 
+#define smp_load_acquire(p) \
+({ \
+	typeof(*(p)) ___v = ACCESS_ONCE(*(p)); \
+	barrier(); \
+	___v; \
+})
+
+#define smp_store_release(p, v) \
+do { \
+	barrier(); \
+	ACCESS_ONCE(*(p)) = v; \
+} while (0)
+
 /*
  * Atomic operations.
  */
