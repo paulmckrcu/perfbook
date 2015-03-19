@@ -119,11 +119,11 @@ void *concurrent_pop(void *arg)
 	struct q_test qtpush1; \
 	struct q_test qtpush2; \
 	struct q_test qtpop1; \
-	struct q_test qtpop2; \
+	struct q_test __maybe_unused qtpop2; \
 	struct el qtelem1[N_TEST_ELEMS]; \
 	struct el qtelem2[N_TEST_ELEMS]; \
 	struct el *qtelempop1[2 * N_TEST_ELEMS]; \
-	struct el *qtelempop2[2 * N_TEST_ELEMS]; \
+	struct el __maybe_unused *qtelempop2[2 * N_TEST_ELEMS]; \
 	int goflag
 
 
@@ -405,8 +405,7 @@ int main(int argc, char *argv[])
 {
 	int d1, d2, d3, d4;
 	struct el e1, e2, e3;
-	int i;
-	struct cds_list_head *p;
+	int __maybe_unused i;
 	struct queue q;
 
 	init_q(&q);
@@ -436,4 +435,5 @@ int main(int argc, char *argv[])
 		queue_perf();
 	}
 #endif /* #ifdef QUEUETORTURE_LIMITED */
+	return 0;
 }
