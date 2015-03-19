@@ -38,8 +38,6 @@ DEFINE_PER_THREAD(struct urcu_state *, urcu_statep);
 
 static void rcu_read_lock(void)
 {
-	int n;
-
 	urcu_state.urcu_nesting++;
 	barrier();
 }

@@ -26,8 +26,6 @@ DEFINE_PER_THREAD(long, rcu_reader_gp_snap);
 
 static void rcu_init(void)
 {
-	int i;
-
 	init_per_thread(rcu_reader_gp, 0);
 	init_per_thread(rcu_reader_gp_snap, 0);
 }

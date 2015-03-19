@@ -20,6 +20,7 @@ PROGS =	bug_rcu_dp \
 	gettimestamp \
 	gettimestampmp \
 	hazptr \
+	ptxroute \
 	rcu \
 	rcu64 \
 	rcu64_atomicgp \
@@ -54,6 +55,9 @@ gettimestampmp: gettimestampmp.c ../api.h rcutorture.h
 
 hazptr: hazptr.c hazptr.h ../api.h hazptrtorture.h
 	cc $(GCC_ARGS) -o hazptr -DTEST hazptr.c -lpthread
+
+ptxroute: ptxroute.c ../api.h
+	cc $(GCC_ARGS) -o ptxroute ptxroute.c -lpthread -lurcu -lurcu-signal
 
 rcu: rcu.c rcu.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu -DTEST rcu.c -lpthread

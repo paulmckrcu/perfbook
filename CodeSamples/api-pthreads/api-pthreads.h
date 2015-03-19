@@ -22,6 +22,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <strings.h>
 #include <errno.h>
 #include <limits.h>
@@ -29,6 +30,7 @@
 #include <sys/wait.h>
 #include <poll.h>
 #include <sys/time.h>
+#include <string.h>
 #ifndef __USE_GNU
 #define __USE_GNU
 #endif /* #ifndef __USE_GNU */

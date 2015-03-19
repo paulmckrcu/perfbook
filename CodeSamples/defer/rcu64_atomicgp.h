@@ -36,8 +36,6 @@ long rcu_gp_ctr = LONG_MAX;
 
 static void rcu_init(void)
 {
-	int i;
-
 	init_per_thread(rcu_reader_gp, 0);
 }
 

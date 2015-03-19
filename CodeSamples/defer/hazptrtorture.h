@@ -231,7 +231,7 @@ struct hazptr_stress {
 	int mbtest;
 };
 
-struct hazptr_stress hazptr_stress_array[HAZPTR_STRESS_PIPE_LEN] = { 0 };
+struct hazptr_stress hazptr_stress_array[HAZPTR_STRESS_PIPE_LEN];
 struct hazptr_stress *hazptr_stress_current;
 int hazptr_stress_idx = 0;
 
@@ -240,8 +240,6 @@ DEFINE_PER_THREAD(long long [HAZPTR_STRESS_PIPE_LEN + 1], hazptr_stress_count);
 
 void *hazptr_read_stress_test(void *arg)
 {
-	int i;
-	int itercnt = 0;
 	int me = (int)(long)arg;
 	int base = me * K;
 	struct hazptr_stress *p;
@@ -403,4 +401,5 @@ int main(int argc, char *argv[])
 		usage(argc, argv);
 	}
 	perftest(nreaders, cpustride);
+	return 0;
 }

@@ -72,6 +72,7 @@ int insert(int key, int data)
 	spin_lock(&mylock);
 	cds_list_add_rcu(&p->list, &mylist);
 	spin_unlock(&mylock);
+	return 0;
 }
 
 int delete(int key)
@@ -129,4 +130,5 @@ int main(int argc, char *argv[])
 	printf("delete(2) = %d; ", delete(2));
 	dumpcache();
 	dumplist();
+	return 0;
 }

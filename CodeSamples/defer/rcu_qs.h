@@ -45,8 +45,6 @@ static inline int rcu_gp_ongoing(int thread)
  */
 static void rcu_init(void)
 {
-	int i;
-
 	init_per_thread(rcu_reader_qs_gp, rcu_gp_ctr);
 }
 
@@ -58,7 +56,7 @@ static void rcu_read_unlock(void)
 {
 }
 
-rcu_quiescent_state(void)
+static void rcu_quiescent_state(void)
 {
 	smp_mb();
 	__get_thread_var(rcu_reader_qs_gp) = ACCESS_ONCE(rcu_gp_ctr) + 1;

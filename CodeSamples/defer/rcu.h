@@ -25,13 +25,13 @@ long rcu_gp_ctr = 0;	/* always even, +=2 at start of each grace period. */
 DEFINE_PER_THREAD(long, rcu_reader_gp);
 DEFINE_PER_THREAD(long, rcu_reader_gp_snap);
 
-static void rcu_init(void)
+static inline void rcu_init(void)
 {
 	init_per_thread(rcu_reader_gp, 0);
 	init_per_thread(rcu_reader_gp_snap, 0);
 }
 
-static void rcu_read_lock(void)
+static inline void rcu_read_lock(void)
 {
 	/*
 	 * Copy the current GP counter to this thread's counter, setting
@@ -45,7 +45,7 @@ static void rcu_read_lock(void)
 	smp_mb();
 }
 
-static void rcu_read_unlock(void)
+static inline void rcu_read_unlock(void)
 {
 	/*
 	 * Copy the current GP counter to this thread's counter, but

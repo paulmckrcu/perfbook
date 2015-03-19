@@ -43,8 +43,6 @@ static inline int rcu_gp_ongoing(int cpu)
 
 static void rcu_init(void)
 {
-	int i;
-
 	init_per_thread(rcu_reader_gp, 0);
 	init_per_thread(rcu_reader_qs_gp, 0);
 }

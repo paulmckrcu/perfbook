@@ -236,4 +236,5 @@ int main(int argc, char *argv[])
 		perftest(nreaders, nwriters, cpustride);
 	else
 		usage(argc, argv);
+	return 0;
 }
