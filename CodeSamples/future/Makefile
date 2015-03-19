@@ -21,7 +21,7 @@ BINS = HTMovf HTMovfMC
 all: $(BINS)
 
 HTMovf: HTMovf.c
-	cc -g -O3 -o HTMovf HTMovf.c
+	cc -g -Wall -O3 -o HTMovf HTMovf.c
 
 HTMovfMC: HTMovfMC.c
-	cc -g -O3 -o HTMovfMC HTMovfMC.c -lrt
+	cc -g -Wall -O3 -o HTMovfMC HTMovfMC.c -lrt

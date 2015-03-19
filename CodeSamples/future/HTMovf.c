@@ -246,4 +246,5 @@ int main(int argc, char *argv[])
 		printf("print(\"@@@ p(success) = \", bfloat(s));\n");
 	} else
 		usage(argv);
+	return 0;
 }
