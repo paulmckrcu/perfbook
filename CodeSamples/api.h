@@ -420,6 +420,9 @@ static __inline__ long long get_timestamp(void)
 #include <errno.h>
 #include <limits.h>
 #include <sys/types.h>
+#include <sys/wait.h>
+#include <poll.h>
+#include <sys/time.h>
 #ifndef __USE_GNU
 #define __USE_GNU
 #endif /* #ifndef __USE_GNU */
