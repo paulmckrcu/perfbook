@@ -12,22 +12,22 @@ all: test_urcu test_urcu_timing test_rwlock_timing test_urcu_yield urcu-asm.S \
 	urcu-asm.o
 
 test_urcu: urcu.o test_urcu.c urcu.h
-	$(CC) ${CFLAGS} $(LDFLAGS) -o $@ $(SRC_DEP)
+	$(CC) ${CFLAGS} -o $@ $(SRC_DEP) $(LDFLAGS)
 
 test_urcu_yield: urcu-yield.o test_urcu.c urcu.h
-	$(CC) -DDEBUG_YIELD ${CFLAGS} $(LDFLAGS) -o $@ $(SRC_DEP)
+	$(CC) -DDEBUG_YIELD ${CFLAGS} -o $@ $(SRC_DEP) $(LDFLAGS)
 
 test_urcu_timing: urcu.o test_urcu_timing.c urcu.h
-	$(CC) ${CFLAGS} $(LDFLAGS) -o $@ $(SRC_DEP)
+	$(CC) ${CFLAGS} -o $@ $(SRC_DEP) $(LDFLAGS)
 
 test_rwlock_timing: urcu.o test_rwlock_timing.c urcu.h
-	$(CC) ${CFLAGS} $(LDFLAGS) -o $@ $(SRC_DEP)
+	$(CC) ${CFLAGS} -o $@ $(SRC_DEP) $(LDFLAGS)
 
 urcu.o: urcu.c urcu.h
-	$(CC) ${CFLAGS} $(LDFLAGS) -c -o $@ $(SRC_DEP)
+	$(CC) ${CFLAGS} -c -o $@ $(SRC_DEP) $(LDFLAGS)
 
 urcu-yield.o: urcu.c urcu.h
-	$(CC) -DDEBUG_YIELD ${CFLAGS} $(LDFLAGS) -c -o $@ $(SRC_DEP)
+	$(CC) -DDEBUG_YIELD ${CFLAGS} -c -o $@ $(SRC_DEP) $(LDFLAGS)
 
 urcu-asm.S: urcu-asm.c urcu.h
 	$(CC) ${CFLAGS} -S -o $@ $(SRC_DEP)
