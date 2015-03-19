@@ -24,6 +24,9 @@
 #ifndef __always_inline
 #define __always_inline inline
 #endif
+#ifndef __maybe_unused
+#define __maybe_unused __attribute__((unused))
+#endif
 
 #define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
 #define BUILD_BUG_ON_ZERO(e) (sizeof(char[1 - 2 * !!(e)]) - 1)

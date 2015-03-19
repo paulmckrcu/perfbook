@@ -139,7 +139,6 @@ void *count_updown_hog(void *arg)
 void hogtest(int nreaders, int cpustride)
 {
 	long arg;
-	int duration = 240;
 	int i;
 	int nthreads = 0;
 	int t;
@@ -203,7 +202,7 @@ void hogtest(int nreaders, int cpustride)
 void *count_read_perf_test(void *arg)
 {
 	int i;
-	unsigned long j;
+	unsigned long j = 0;
 	int me = (long)arg;
 	long long n_reads_local = 0LL;
 
@@ -374,4 +373,5 @@ int main(int argc, char *argv[])
 		usage(argc, argv);
 	}
 	perftest(nreaders, cpustride);
+	return 0;
 }

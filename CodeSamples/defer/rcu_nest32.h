@@ -35,12 +35,12 @@ static inline int rcu_old_gp_ongoing(int t)
 	       ((v ^ rcu_gp_ctr) & ~RCU_GP_CTR_NEST_MASK);
 }
 
-static void rcu_init(void)
+static inline void rcu_init(void)
 {
 	init_per_thread(rcu_reader_gp, 0);
 }
 
-static void rcu_read_lock(void)
+static inline void rcu_read_lock(void)
 {
 	long tmp;
 	long *rrgp;
@@ -60,7 +60,7 @@ static void rcu_read_lock(void)
 	smp_mb();
 }
 
-static void rcu_read_unlock(void)
+static inline void rcu_read_unlock(void)
 {
 	/*
 	 * Decrement the nesting counter held in the low-order bits,
