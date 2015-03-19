@@ -69,6 +69,7 @@ void *test_xchg_lock(void *arg)
 		owner = -1;
 		xchg_unlock(&testlock);
 	}
+	return NULL;
 }
 
 int main(int argc, char *argv[])
@@ -91,4 +92,5 @@ int main(int argc, char *argv[])
 	smp_mb();
 	wait_all_threads();
 	printf("lockacqs = %lu, lockerr = %lu\n", lockacqs, lockerr);
+	return 0;
 }
