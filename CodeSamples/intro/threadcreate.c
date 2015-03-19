@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 
 	wait_all_threads();
 
-	printf("All spawned threads completed.\n", nkids);
+	printf("All spawned threads completed.\n");
 
 	exit(0);
 }
