@@ -428,6 +428,9 @@ static __inline__ long long get_timestamp(void)
 #include <poll.h>
 #include <sys/time.h>
 #include <string.h>
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif /* #ifndef _GNU_SOURCE */
 #ifndef __USE_GNU
 #define __USE_GNU
 #endif /* #ifndef __USE_GNU */

@@ -20,6 +20,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <errno.h>
 
 int main(int argc, char *argv[])
@@ -37,7 +40,7 @@ int main(int argc, char *argv[])
 	printf("%d fork()s\n", nforks);
 	printf("Starting at ");
 	fflush(stdout);
-	system("date");
+	i = system("date");
 	for (i = 0; i < nforks; i++) {
 		pid = fork();
 		if (pid == 0) { /* child */
@@ -59,7 +62,7 @@ int main(int argc, char *argv[])
 	}
 	printf("Finished at ");
 	fflush(stdout);
-	system("date");
+	i = system("date");
 
 	return 0;
 }

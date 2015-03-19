@@ -19,6 +19,7 @@
  * Copyright (c) 2009 Paul E. McKenney, IBM Corporation.
  */
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
