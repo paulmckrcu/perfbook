@@ -23,7 +23,7 @@
 
 static hazptr_head_t __thread *rlist;
 static unsigned long __thread rcount;
-static hazptr_head_t __thread **plist;
+static hazptr_head_t __thread **gplist;
 
 void hazptr_init(void)
 {
@@ -94,7 +94,7 @@ void hazptr_scan()
 	hazptr_head_t *tmplist;
 
 	/* List of hazard pointers, and its size. */
-	hazptr_head_t **plist = plist;
+	hazptr_head_t **plist = gplist;
 	unsigned long psize;
 
 	if (plist == NULL) {
