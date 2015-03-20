@@ -94,6 +94,7 @@ int lookup(int address)
 			return ret;
 		}
 	}
+	rcu_read_unlock();
 	return -1;
 }
 
