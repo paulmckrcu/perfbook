@@ -140,8 +140,6 @@ struct cds_list_head *pdeq_pop_r(struct pdeq *d)
 
 void pdeq_push_l(struct cds_list_head *e, struct pdeq *d)
 {
-	int i;
-
 	spin_lock(&d->llock);
 	deq_push_l(e, &d->ldeq);
 	spin_unlock(&d->llock);
@@ -149,8 +147,6 @@ void pdeq_push_l(struct cds_list_head *e, struct pdeq *d)
 
 void pdeq_push_r(struct cds_list_head *e, struct pdeq *d)
 {
-	int i;
-
 	spin_lock(&d->rlock);
 	deq_push_r(e, &d->rdeq);
 	spin_unlock(&d->rlock);

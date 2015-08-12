@@ -53,11 +53,12 @@ void *matmul_thread(void *me_in)
 		}
 
 	atomic_inc(&ndone);
+	return NULL;
 }
 
 int main(int argc, char *argv[])
 {
-	int i, j, k;
+	int i, j;
 	long long startcreatetime;
 	long long starttime;
 	long long endtime;

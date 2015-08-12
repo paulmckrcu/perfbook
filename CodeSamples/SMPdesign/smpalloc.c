@@ -156,7 +156,6 @@ void usage(char *progname)
 int main(int argc, char *argv[])
 {
 	int i;
-	struct memblock *p[2 * TARGET_POOL_SIZE] = { 0 };
 	long long nc;
 	long long nf;
 	int nkids = 1;

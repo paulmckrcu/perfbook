@@ -58,11 +58,12 @@ void *matmul_thread(void *band_in)
 		}
 
 	atomic_inc(&ndone);
+	return NULL;
 }
 
 int main(int argc, char *argv[])
 {
-	int i, j, k;
+	int i, j;
 	struct band *bands;
 	int bandsize;
 	long long startcreatetime;

@@ -482,7 +482,6 @@ int main(int argc, char *argv[])
 	int d1, d2, d3, d4;
 	struct deq_elem e1, e2, e3;
 	int i;
-	struct cds_list_head *p;
 	struct pdeq deq;
 
 	init_pdeq(&deq);
@@ -546,4 +545,5 @@ int main(int argc, char *argv[])
 	for (i = 0; i < 10; i++) {
 		pdeq_perf();
 	}
+	return 0;
 }
