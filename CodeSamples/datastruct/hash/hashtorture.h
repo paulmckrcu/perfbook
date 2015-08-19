@@ -896,6 +896,9 @@ void perftest(void)
 	       (starttime * 1000. * (double)nreaders) / (double)nlookups,
 	       ((starttime * 1000. * (double)nupdaters) /
 	        (double)(nadds + ndels)));
+
+	free(pap);
+	hashtab_free(perftest_htp);
 }
 
 
