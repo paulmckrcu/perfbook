@@ -381,7 +381,7 @@ int do_delete(struct treeroot *trp, int key, void **p)
 static void do_atomic_move(struct treeroot *trp0, struct treeroot *trp1,
 			   int key, void **data_in, int expected_ret)
 {
-	void *data;
+	void *data = NULL;
 	int ret;
 
 	ret = tree_atomic_move(trp0, trp1, key, &data);
