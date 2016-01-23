@@ -1614,6 +1614,8 @@ but rarely used in practice.
 	\hline
 	IA64		& Y & Y & Y & Y   & Y & Y & ~ & Y \\
 	\hline
+	MIPS		& Y & Y & Y & Y   & Y & Y & ~ & Y \\
+	\hline
 	(PA-RISC)	& Y & Y & Y & Y   & ~ & ~ & ~ & ~ \\
 	\hline
 	PA-RISC CPUs	& ~ & ~ & ~ & ~   & ~ & ~ & ~ & ~ \\
@@ -2067,6 +2069,47 @@ also see that earlier access as having happened.
 Assuming, that is, that all the code fragments involved correctly use
 memory barriers.
 
+\subsection{MIPS}
+
+The MIPS memory model~\cite[Table 6.6]{MIPSvII-A-2015}
+appears to resemble that of ARM, IA64, and Power,
+being weakly ordered by default, but respecting dependencies.
+MIPS has a wide variety of memory-barrier instructions, but ties them
+not to hardware considerations, but rather to the use cases provided
+by the Linux kernel and the C++11 standard~\cite{RichardSmith2015N4527}
+in a manner similar to the ARM64 additions:
+
+\begin{description}
+\item[SYNC]
+	Full barrier for a number of hardware operations in addition
+	to memory references.
+\item[SYNC\_WMB]
+	Write memory barrier, which can be used to implement the
+	\co{smp_wmb()} primitive in the Linux kernel.
+\item[SYNC\_MB]
+	Full memory barrier, but only for memory operations.
+	This may be used to implement the Linux-kernel \co{smp_mb()}
+	and the C++ \co{atomic_thread_fence(memory_order_seq_cst)}.
+\item[SYNC\_ACQUIRE]
+	Acquire memory barrier, which may be used to implement the
+	Linux-kernel \co{smp_load_acquire()} and the C++
+	\co{atomic_load_explicit(..., memory_order_acquire)}.
+\item[SYNC\_RELEASE]
+	Release memory barrier, which may be used to implement the
+	Linux-kernel \co{smp_store_release()} and the C++
+	\co{atomic_store_explicit(..., memory_order_release)}.
+\item[SYNC\_RMB]
+	Read memory barrier, which can be used to implement the
+	\co{smp_rmb()} primitive in the Linux kernel.
+\end{description}
+
+Informal discussions with MIPS architects indicates that MIPS has a
+definition of transitivity or cumulativity similar to that of
+ARM and Power.
+However, it appears that different MIPS implementations can have
+different memory-ordering properties, so it is important to consult
+the documentation for the specific HIPS implementation you are using.
+
 \subsection{PA-RISC}
 
 Although the PA-RISC architecture permits full reordering of loads and
@@ -2093,6 +2136,8 @@ instructions~\cite{PowerPC94,MichaelLyons02a}:
 	Interestingly enough, the {\tt lwsync} instruction enforces
 	the same ordering as does zSeries, and coincidentally,
 	SPARC TSO.
+	The \co{lwsync} instruction may be used to implement
+	load-acquire and store-release operations.
 \item	{\tt eieio} (enforce in-order execution of I/O, in case you
 	were wondering) causes all preceding cacheable stores to appear
 	to have completed before all subsequent stores.
