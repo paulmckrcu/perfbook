@@ -3544,10 +3544,23 @@ Section~\ref{sec:SMPdesign:Data Ownership}
 and discussed in more detail in
 Chapter~\ref{chp:Data Ownership}.
 
+Because integer addition and subtraction are extremely cheap operations
+compared to typical synchronization operations, achieving reasonable
+scalability requires synchronization operations be used sparingly.
+One way of achieving this is to batch the addition and subtraction
+operations, so that a great many of these cheap operations are handled
+by a single synchronization operation.
+Batching optimizations of one sort or another are used by each of
+the counting algorithms listed in
+Tables~\ref{tab:count:Statistical Counter Performance on Power-6}
+and~\ref{tab:count:Limit Counter Performance on Power-6}.
+
 Finally, the eventually consistent statistical counter discussed in
 Section~\ref{sec:count:Eventually Consistent Implementation}
 showed how deferring activity (in that case, updating the global
 counter) can provide substantial performance and scalability benefits.
+This approach allows common case code to use much cheaper synchronization
+operations than would otherwise be possible.
 Chapter~\ref{chp:Deferred Processing} will examine a number of additional
 ways that deferral can improve performance, scalability, and even
 real-time response.
@@ -3566,6 +3579,14 @@ Summarizing the summary:
 	Section~\ref{sec:count:Exact Limit Counters}'s and
 	limit counters running fast when far from
 	the limit, but slowly when close to the limit).
+\item	Partitioning across time often batches updates locally
+	in order to reduce the number of expensive global operations,
+	thereby decreasing synchronization overhead, in turn
+	improving performance and scalability.
+	All the algorithms shown in
+	Tables~\ref{tab:count:Statistical Counter Performance on Power-6}
+	and~\ref{tab:count:Limit Counter Performance on Power-6}?
+	make heavy use of batching.
 \item	Read-only code paths should remain read-only:  Spurious
 	synchronization writes to shared memory kill performance
 	and scalability, as seen in the \co{count_end.c} row of
@@ -3586,6 +3607,14 @@ Summarizing the summary:
 	acceptable for a two-CPU system, but be completely inadequate for an
 	eight-CPU system.
 \end{enumerate}
+
+Summarizing still further, we have the ``big three'' methods of
+increasing performance and scalability, namely
+(1)~\emph{partitioning} over CPUs or threads,
+(2)~\emph{batching} so that more work can be done by each expensive
+synchronization operations, and
+(3)~\emph{weakening} synchronization operations where feasible.
+As a rough rule of thumb, you should apply these methods in this order.
 
 In short, as noted at the beginning of this chapter, the simplicity
 of the concepts underlying counting have allowed us to explore many
