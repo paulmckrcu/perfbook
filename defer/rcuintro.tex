@@ -3,31 +3,23 @@
 \subsection{Introduction to RCU}
 \label{sec:defer:Introduction to RCU}
 
-Suppose that you are writing a parallel real-time program that needs
-to access
-data that is subject to gradual change, perhaps due to changes in
-temperature, humidity, and barometric pressure.
-The real-time response constraints on this program are so severe that
-it is not permissible to spin or block, thus ruling out locking,
-nor is it permissible to use a retry loop, thus ruling out sequence locks.
-Fortunately, the temperature and pressure are normally controlled,
-so that a default hard-coded set of data is usually sufficient.
+The prototypical example of an RCU-protected data structure is a
+networking routing table that maps from destination address to
+the corresponding destination port.
+Normally, this mapping will not change, but it could change at any
+time due to hardware reconfigurations or failures.
+Because network packet transmissions are much more frequent than hardware
+reconfigurations or failures, the overhead of lookups should be minimized
+even if doing so causes updates to become quite expensive.
+In fact, if possible, the overhead of lookups should be the same as
+that of a single-threaded lookup.
+In this limiting case, the parallel lookups would execute the same
+sequence of assembly language instructions as would a single-threaded
+lookup.
 
-However, the temperature, humidity, and pressure occasionally deviate too far
-from the defaults, and in such situations it is necessary to provide
-data that replaces the defaults.
-Because the temperature, humidity, and pressure change gradually,
-providing the updated values is not a matter of urgency, though
-it must happen within a few minutes.
-The program is to use a global pointer imaginatively named \co{gptr}
-that is normally \co{NULL}, which indicates that the default values
-are to be used.
-Otherwise, \co{gptr} points to a structure providing values imaginatively
-named \co{a}, \co{b}, and \co{c} that are to be
-used in the real-time calculations.
-
-How can we safely provide updated values when needed without impeding
-real-time readers?
+Although this is a nice goal, it does raise some serious implementability
+questions.
+Insertion and deletion will be treated separately.
 
 \begin{figure}[tb]
 \begin{center}
@@ -37,7 +29,7 @@ real-time readers?
 \label{fig:defer:Insertion With Concurrent Readers}
 \end{figure}
 
-A classic approach is shown in
+A classic approach for insertion is shown in
 Figure~\ref{fig:defer:Insertion With Concurrent Readers}.
 The first row shows the default state, with \co{gptr} equal to \co{NULL}.
 In the second row, we have allocated a structure which is uninitialized,
@@ -107,9 +99,8 @@ determine when all the old readers are done.
 We clearly need some additional constraints if we are to provide
 a reasonable answer to this question.
 
-One constraint that fits well with some types of real-time operating
-systems (as well as some operating-system kernels) is to consider
-the case where threads are not subject to preemption.
+One constraint that fits well with some operating-system kernels is to
+consider the case where threads are not subject to preemption.
 In such non-preemptible environments, each thread runs until it
 explicitly and voluntarily blocks.
 This means that an infinite loop without blocking will render a CPU
