@@ -100,6 +100,7 @@ EPSSOURCES = \
 	advsync/SpeculativeLoadBarrier.eps \
 	advsync/SpeculativeLoadBarrierCancel.eps \
 	advsync/SplitCache.eps \
+	advsync/store15tred.pdf \
 	advsync/WriteBarrierOrdering.eps \
 	appendix/questions/after.eps \
 	appendix/whymb/MESI.eps \
@@ -205,6 +206,9 @@ SMPdesign/DiningPhilosopher5PEM.eps: SMPdesign/DiningPhilosopher5PEM.tex
 	latex -output-directory=$(shell dirname $<) $<
 	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
 	sh utilities/fixanepsfonts.sh SMPdesign/DiningPhilosopher5PEM.eps
+
+advsync/store15tred.pdf: advsync/store15tred.dot
+	dot -Tpdf -o advsync/store15tred.pdf advsync/store15tred.dot
 
 count/sig-theft.eps: count/sig-theft.dot
 	dot -Tps -o count/sig-theft.eps count/sig-theft.dot
