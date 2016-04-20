@@ -26,6 +26,7 @@ LATEXSOURCES = \
 	memalloc/memalloc.tex \
 	owned/owned.tex \
 	defer/defer.tex \
+	defer/hazptr.tex \
 	defer/refcnt.tex \
 	defer/seqlock.tex \
 	defer/rcu.tex \
