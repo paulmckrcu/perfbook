@@ -1,9 +1,12 @@
 #!/bin/sh
 #
-# Run latex on the specified file and bibliography directory.
+# Run pdflatex on the specified file.
 # Attempt to avoid useless repeats.
+# This version is heavily customized to be used for perfbook.
+# It is assumed to be used together with runfirstlatex.sh
+# and Makefile of perfbook.
 #
-# Usage: runlatex.sh file.tex [ bibdir ]
+# Usage: sh runlatex.sh file[.tex]
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,47 +23,91 @@
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
 # Copyright (C) IBM Corporation, 2012
+# Copyright (C) Akira Yokosawa, 2016
 #
 # Authors: Paul E. McKenney <paulmck@us.ibm.com>
+#          Akira Yokosawa <akiyks@gmail.com>
 
 if test -z "$1"
 then
-	echo No latex file, aborting.
+	echo No latex file specified, aborting.
 	exit 1
 fi
 
 basename=`echo $1 | sed -e 's/\.tex$//'`
 
 iter=1
-echo "pdflatex $iter"
-pdflatex $basename > /dev/null 2>&1 < /dev/null || :
-if grep -q '! Emergency stop.' $basename.log
+if ! test -r $basename-first.log
 then
-	echo "----- Fatal latex error, see $basename.log for details. -----"
-fi
-if grep -q 'LaTeX Warning: There were undefined references' $basename.log
-then
-	if test -d "$2"
-	then
-		bibtex $basename || :
-	else
-		echo "No bibliography directory, skipping bibtex."
-	fi
-fi
-while grep -q 'LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.' $basename.log
-do
-	iter=`expr $iter + 1`
-	echo "pdflatex $iter"
+	echo "pdflatex 1"
 	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
 	if grep -q '! Emergency stop.' $basename.log
 	then
 		echo "----- Fatal latex error, see $basename.log for details. -----"
-	fi
-	if test "$iter" -eq 4
-	then
-		echo "Iteration limit: $iter passes through pdflatex"
 		exit 1
 	fi
+	grep 'LaTex Warning:' $basename.log > $basename-warning.log
+fi
+rm -f $basename-first.log
+while grep -q 'LaTeX Warning: There were undefined references' $basename.log
+do
+	if test -r $basename-warning-prev.log
+	then
+		if test "$iter" -gt 2 && diff -q $basename-warning.log $basename-warning-prev.log >/dev/null
+		then
+			echo "No more improvement is expected, giving up."
+			break
+		else
+			echo "Some improvements are observed, continuing."
+		fi
+	fi
+	iter=`expr $iter + 1`
+	echo "pdflatex $iter # remaining undefined refs"
+	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
+	if grep -q '! Emergency stop.' $basename.log
+	then
+		echo "----- Fatal latex error, see $basename.log for details. -----"
+		exit 1
+	fi
+	if test -r $basename-warning.log
+	then
+		mv -f $basename-warning.log $basename-warning-prev.log
+	fi
+	grep 'LaTex Warning:' $basename.log > $basename-warning.log
 done
-grep "LaTeX Warning:" $basename.log
+while grep -q 'LaTeX Warning: Label(s) may have changed' $basename.log
+do
+	if test -r $basename-warning-prev.log;
+	then
+		if test "$iter" -gt 3 && diff -q $basename-warning.log $basename-warning-prev.log >/dev/null
+		then
+			echo "No more improvement is expected, giving up."
+			break
+		else
+			echo "Some improvements are observed, continuing."
+		fi
+	fi
+	iter=`expr $iter + 1`
+	echo "pdflatex $iter # label(s) may have been changed"
+	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
+	if grep -q '! Emergency stop.' $basename.log
+	then
+		echo "----- Fatal latex error, see $basename.log for details. -----"
+		exit 1
+	fi
+	if test -r $basename-warning.log
+	then
+		mv -f $basename-warning.log $basename-warning-prev.log
+	fi
+	grep 'LaTex Warning:' $basename.log > $basename-warning.log
+done
+if grep "LaTeX Warning:" $basename.log
+then
+	echo "----- You can see $basename-warning.log for the warnings above. -----"
+	echo "----- If you need to, see $basename.log for details. -----"
+	rm -f $basename-warning-prev.log
+	exit 1
+fi
+rm -f $basename-warning.log $basename-warning-prev.log
+echo "No 'LaTeX Warning' found. '$basename.pdf' is ready."
 exit 0
