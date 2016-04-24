@@ -255,8 +255,9 @@ count/sig-theft.eps: count/sig-theft.dot
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
 		-o -name '*.dvi' -o -name '*.log' \
-		-o -name '*.qqz' -o -name '*.toc' | xargs rm -f
+		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook_html.tex perfbook.out perfbook-1c.out
+	rm -f perfbook-hb.out
 	rm -rf perfbook_html
 	rm -f SMPdesign/DiningPhilosopher5.eps \
 	      SMPdesign/DiningPhilosopher5TB.eps \
