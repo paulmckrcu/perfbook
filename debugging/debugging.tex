@@ -1194,191 +1194,38 @@ Nevertheless, the next section describes a slightly less dodgy approach.
 \subsection{Statistics for Continuous Testing}
 \label{sec:debuggingStatistics for Continuous Testing}
 
-This section contains more aggressive mathematics.
-If you are not in the mood for mathematical aggression, feel free to
-use the results of the previous section or to skip
-ahead to
-Section~\ref{sec:debugging:Use of Poisson Distribution},
-possibly noting Equation~\ref{eq:debugging:Possion CDF}
-on page~\pageref{eq:debugging:Possion CDF} for future reference.
-
-\subsubsection{Derivation of Poisson Distribution}
-\label{sec:debugging:Derivation of Poisson Distribution}
-
-As the number of tests $n$ increases and the probability of per-test
-failure $f$ decreases, it makes sense to move the mathematics to the
-continuous domain.
-It is convenient to define $\lambda$ as $nf$: as we increase $n$ and
-decrease $f$, $\lambda$ will remain fixed.
-Intuitively, $\lambda$ is the expected number of failures per unit time.
-
-What then is the probability of all $n$ tests succeeding?
-This is given by:
-
-\begin{equation}
-	(1 - f)^n
-\end{equation}
-
-But because $\lambda$ is equal to $nf$, we can solve for $f$ and obtain
-$f=\frac{\lambda}{n}$.
-Substituting this into the previous equation yields:
-
-\begin{equation}
-	\left(1 - \frac{\lambda}{n} \right)^n
-\end{equation}
-
-Readers who are both alert and mathematically inclined will recognize
-this as approaching $e^{-\lambda}$ as $n$ increases without limit.
-In other words, if we expect $\lambda$ failures from a test of a given duration,
-the probability $F_0$ of zero failures from the test is given by:
-
-\begin{equation}
-	F_0 = e^{-\lambda}
-\end{equation}
-
-The next step is to compute the probability of all but one of $n$ tests
-succeeding, which is:
-
-\begin{equation}
-	\frac{n!}{1!(n-1)!}f(1 - f)^{n-1}
-\end{equation}
-
-The ratio of factorials accounts for the different permutations of test
-results.
-The $f$ is the chance of the single failure, and the
-$(1 - f)^{n-1}$ is the chance that the rest of the tests succeed.
-The $n!$ in the numerator allows for all permutations of $n$ tests,
-while the two factors in the denominator allow for the indistinguishability
-of the one failure on the one hand and the $n-1$ successes on the other.
-
-Cancelling the factorials and multiplying top and bottom by $1-f$ yields:
-
-\begin{equation}
-	\frac{nf}{1 - f} (1 - f)^n
-\end{equation}
-
-But because $f$ is assumed to be arbitrarily small, $1-f$ is arbitrarily
-close to the value one, allowing us to dispense with the denominator:
-
-\begin{equation}
-	n f (1 - f)^n
-\end{equation}
-
-Substituting $f=\frac{\lambda}{n}$ as before yields:
-
-\begin{equation}
-	\lambda (1 - \frac{\lambda}{n})^n
-\end{equation}
-
-For large $n$, as before, the latter term is approximated by $e^{-\lambda}$,
-so that the probability of a single failure in a test from which
-$\lambda$ failures were expected is given by:
-
-\begin{equation}
-	F_1 = \lambda e^{-\lambda}
-\end{equation}
-
-The third step is to compute the probability of all but two of the $n$
-tests succeeding, which is:
-
-\begin{equation}
-	\frac{n!}{2!(n-2)!}f^2(1 - f)^{n-2}
-\end{equation}
-
-Cancelling the factorials and multiplying top and bottom by
-$(1-f)^2$ yields:
-
-\begin{equation}
-	\frac{n(n-1)f^2}{2(1 - f)^2}(1 - f)^n
-\end{equation}
-
-Once again, because $f$ is assumed to be arbitrarily small,
-$(1-f)^2$ is arbitrarily close to the value one, once again
-allowing us to dispense with this portion of the denominator:
-
-\begin{equation}
-	\frac{n(n-1)f^2}{2}(1 - f)^n
-\end{equation}
-
-Substituting $f=\frac{\lambda}{n}$ once again yields:
-
-\begin{equation}
-	\frac{n(n-1)\lambda^2}{2n^2} (1 - \frac{\lambda}{n})^n
-\end{equation}
-
-Because $n$ is assumed large, $n-1$ is arbitrarily close to $n$, allowing
-the $n(n-1)$ in the numerator to be cancelled with the $n^2$ in the
-denominator.
-And again, the final term is approximated by $e^{-\lambda}$, yielding
-the probability of two failures from a test from which $\lambda$
-failures were expected:
-
-\begin{equation}
-	F_2 = \frac{\lambda^2}{2} e^{-\lambda}
-\end{equation}
-
-We are now ready to try a more general result.
-Assume that there are $m$ failures, where $m$ is extremely small
-compared to $n$.
-Then we have:
-
-\begin{equation}
-	\frac{n!}{m!(n-m)!}f^m(1 - f)^{n-m}
-\end{equation}
-
-Cancelling the factorials and multiplying top and bottom by
-$(1-f)^m$ yields:
-
-\begin{equation}
-	\frac{n(n-1)\dots(n-m+2)(n-m+1)f^m}{m!(1 - f)^m}(1 - f)^n
-\end{equation}
-
-And you guessed it, because $f$ is arbitrarily small, $(1-f)^m$ is
-arbitrarily close to the value one and may therefore be dropped:
-
-\begin{equation}
-	\frac{n(n-1)\dots(n-m+2)(n-m+1)f^m}{m!}(1 - f)^n
-\end{equation}
-
-Substituting $f=\frac{\lambda}{n}$ one more time:
-
-\begin{equation}
-	\frac{n(n-1)\dots(n-m+2)(n-m+1)\lambda^m}{m!n^m}(1 - \frac{\lambda}{n})^n
-\end{equation}
-
-Because $m$ is small compared to $n$, we can cancel all but the last of
-the factors in
-the numerator with the $n^m$ in the denominator, resulting in:
-
-\begin{equation}
-	\frac{\lambda^m}{m!}(1 - \frac{\lambda}{n})^n
-\end{equation}
-
-As always, for large $n$, the last term is approximated by $e^{-\lambda}$,
-yielding the probability of $m$ failures from a test from which
-$\lambda$ failures were expected:
+The fundamental formula for failure probabilities is the Poisson
+distribution:
 
 \begin{equation}
 	F_m = \frac{\lambda^m}{m!} e^{-\lambda}
 \label{eq:debugging:Poisson Probability}
 \end{equation}
 
-This is the celebrated Poisson distribution.
-A more rigorous derivation may be found in any advanced probability
+Here $F_m$ is the probability of $m$ failures in the test and
+$\lambda$ is the expected failure rate per unit time.
+A rigorous derivation may be found in any advanced probability
 textbook, for example, Feller's classic ``An Introduction to Probability
-Theory and Its Applications''~\cite{Feller58}.
-
-\subsubsection{Use of Poisson Distribution}
-\label{sec:debugging:Use of Poisson Distribution}
+Theory and Its Applications''~\cite{Feller58}, while a more
+intuitive approach may be found in the first edition of
+this book~\cite{McKenney2014ParallelProgramming-e1}.
 
 Let's try reworking the example from
 Section~\ref{sec:debugging:Abusing Statistics for Discrete Testing}
 using the Poisson distribution.
 Recall that this example involved a test with a 30\% failure rate per
 hour, and that the question was how long the test would need to run
+error-free
 on a alleged fix to be 99\% certain that the fix actually reduced the
 failure rate.
-Solving this requires setting $e^{-\lambda}$
+In this case, $\lambda$ is zero, so that
+Equation~\ref{eq:debugging:Poisson Probability} reduces to:
+
+\begin{equation}
+	F_0 =  e^{-\lambda}
+\end{equation}
+
+Solving this requires setting $F_0$
 to 0.01 and solving for $\lambda$, resulting in:
 
 \begin{equation}
