@@ -145,18 +145,56 @@ EPSSOURCES = \
 	locking/NonLocalLockHierarchy.eps \
 	locking/rnplock.eps
 
+BIBSOURCES = \
+	bib/OSS.bib \
+	bib/RCU.bib \
+	bib/RCUuses.bib \
+	bib/TM.bib \
+	bib/WFS.bib \
+	bib/energy.bib \
+	bib/hw.bib \
+	bib/maze.bib \
+	bib/os.bib \
+	bib/parallelsys.bib \
+	bib/patterns.bib \
+	bib/perfmeas.bib \
+	bib/realtime.bib \
+	bib/refs.bib \
+	bib/search.bib \
+	bib/standards.bib\
+	bib/swtools.bib \
+	bib/syncrefs.bib
+
 all: perfbook.pdf
 
-perfbook.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
-	sh utilities/runlatex.sh perfbook bib
+perfbook.pdf: perfbook.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+	sh utilities/runlatex.sh perfbook
 
-perfbook-1c.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+perfbook.bbl: $(BIBSOURCES) perfbook.aux
+	bibtex perfbook
+
+perfbook.aux: $(LATEXSOURCES) $(EPSSOURCES)
+	sh utilities/runfirstlatex.sh perfbook
+
+perfbook-1c.pdf: perfbook-1c.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sed -e 's/,twocolumn//' -e '/^\\frontmatter/a \\\\pagestyle{plain}' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
-	sh utilities/runlatex.sh perfbook-1c bib
+	sh utilities/runlatex.sh perfbook-1c
 
-perfbook-hb.pdf: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c.aux
+	bibtex perfbook-1c
+
+perfbook-1c.aux: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+	sh utilities/runfirstlatex.sh perfbook-1c
+
+perfbook-hb.pdf: perfbook-hb.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < perfbook.tex > perfbook-hb.tex
-	sh utilities/runlatex.sh perfbook-hb bib
+	sh utilities/runlatex.sh perfbook-hb
+
+perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb.aux
+	bibtex perfbook-hb
+
+perfbook-hb.aux: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+	sh utilities/runfirstlatex.sh perfbook-hb
 
 perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
 	echo > qqz.tex
@@ -217,7 +255,7 @@ count/sig-theft.eps: count/sig-theft.dot
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
 		-o -name '*.dvi' -o -name '*.log' \
-		-o -name '*.qqz' -o -name '*.toc' | xargs rm
+		-o -name '*.qqz' -o -name '*.toc' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook_html.tex perfbook.out perfbook-1c.out
 	rm -rf perfbook_html
 	rm -f SMPdesign/DiningPhilosopher5.eps \
@@ -230,4 +268,4 @@ distclean: clean
 
 neatfreak: distclean
 	# Don't forget to regenerate the .pdf from each .svg file
-	find . -name '*.pdf' | xargs rm
+	find . -name '*.pdf' | xargs rm -f
