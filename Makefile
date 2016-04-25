@@ -173,7 +173,7 @@ perfbook.pdf: perfbook.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 perfbook.bbl: $(BIBSOURCES) perfbook.aux
 	bibtex perfbook
 
-perfbook.aux: $(LATEXSOURCES) $(EPSSOURCES)
+perfbook.aux: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook
 
 perfbook-1c.pdf: perfbook-1c.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
