@@ -176,9 +176,11 @@ perfbook.bbl: $(BIBSOURCES) perfbook.aux
 perfbook.aux: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook
 
-perfbook-1c.pdf: perfbook-1c.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
-	sed -e 's/,twocolumn//' -e '/^\\frontmatter/a \\\\pagestyle{plain}' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
+perfbook-1c.pdf: perfbook-1c.tex perfbook-1c.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sh utilities/runlatex.sh perfbook-1c
+
+perfbook-1c.tex: perfbook.tex
+	sed -e 's/,twocolumn//' -e '/^\\frontmatter/a \\\\pagestyle{plain}' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
 
 perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c.aux
 	bibtex perfbook-1c
@@ -186,9 +188,11 @@ perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c.aux
 perfbook-1c.aux: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook-1c
 
-perfbook-hb.pdf: perfbook-hb.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
-	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < perfbook.tex > perfbook-hb.tex
+perfbook-hb.pdf: perfbook-hb.tex perfbook-hb.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sh utilities/runlatex.sh perfbook-hb
+
+perfbook-hb.tex: perfbook.tex
+	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < perfbook.tex > perfbook-hb.tex
 
 perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb.aux
 	bibtex perfbook-hb
@@ -257,7 +261,7 @@ clean:
 		-o -name '*.dvi' -o -name '*.log' \
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook_html.tex perfbook.out perfbook-1c.out
-	rm -f perfbook-hb.out
+	rm -f perfbook-hb.out perfbook-1c.tex perfbook-hb.tex
 	rm -rf perfbook_html
 	rm -f SMPdesign/DiningPhilosopher5.eps \
 	      SMPdesign/DiningPhilosopher5TB.eps \
