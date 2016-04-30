@@ -93,6 +93,8 @@ EPSSOURCES = \
 	advsync/DataDependencySupplied.eps \
 	advsync/MemoryArchitecture.eps \
 	advsync/MemoryBarrierPairing.eps \
+	advsync/MoreThanOneValue.eps \
+	advsync/MoreThanOneValue-15CPU.eps \
 	advsync/ReadBarrierNeeded.eps \
 	advsync/ReadBarrierSupplied.eps \
 	advsync/ReadBarrierSupplied1.eps \
