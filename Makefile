@@ -167,6 +167,7 @@ BIBSOURCES = \
 	bib/swtools.bib \
 	bib/syncrefs.bib
 
+.PHONY: all extraction embedfonts clean distclean neatfreak
 all: perfbook.pdf
 
 perfbook.pdf: perfbook.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
