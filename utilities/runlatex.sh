@@ -110,6 +110,7 @@ then
 fi
 rm -f $basename-warning.log $basename-warning-prev.log
 echo "No 'LaTeX Warning' found. '$basename.pdf' is ready."
+touch $basename.pdf
 if ! grep -q -i "steel city comic" cartoons/*.pdf
 then
 	echo "#######################################################################"

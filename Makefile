@@ -38,9 +38,9 @@ PDFTARGETS_OF_DOT = \
 EPSTARGETS_OF_DOT = \
 	count/sig-theft.eps
 
-EPSPDF_NOT_IN_REPO = \
+EPS_NOT_IN_REPO = \
 	$(EPSTARGETS_OF_TEX) \
-	$(PDFTARGETS_OF_DOT)
+	$(EPSTARGETS_OF_DOT)
 
 EPSSOURCES = \
 	SMPdesign/*.eps \
@@ -55,8 +55,7 @@ EPSSOURCES = \
 	future/*.eps \
 	intro/*.eps \
 	locking/*.eps \
-	$(EPSTARGETS_OF_TEX) \
-	$(EPSPDF_NOT_IN_REPO)
+	$(EPS_NOT_IN_REPO)
 
 BIBSOURCES = \
 	bib/*.bib
@@ -78,25 +77,26 @@ else
 	targ = $(default)
 endif
 
-.PHONY: all extraction embedfonts touchsvg clean distclean neatfreak 1c 2c hb
+.PHONY: all touchsvg clean distclean neatfreak 1c 2c hb
 all: $(targ)
-
-1c: perfbook-1c.pdf
 
 2c: perfbook.pdf
 
+1c: perfbook-1c.pdf
+
 hb: perfbook-hb.pdf
 
-perfbook.pdf: perfbook.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+perfbook.pdf: perfbook.bbl
 	sh utilities/runlatex.sh perfbook
 
-perfbook.bbl: $(BIBSOURCES) perfbook.aux
+perfbook.bbl: $(BIBSOURCES) perfbook_aux
 	bibtex perfbook
 
-perfbook.aux: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+perfbook_aux: $(LATEXSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook
+	touch perfbook_aux
 
-perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
+perfbook_flat.tex: perfbook.tex $(LATEXSOURCES) $(EPSSOURCES) embedfonts
 	echo > qqz.tex
 	texexpand perfbook.tex > perfbook_flat.tex
 	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
@@ -104,77 +104,66 @@ perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
 extraction: perfbook_flat.tex
 	cat perfbook_flat.tex qqz.tex | sh utilities/extractcontrib.sh > contrib.tex
 	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
+	touch extraction
 
-embedfonts:
+embedfonts: $(EPSSOURCES) $(SVGSOURCES)
 	sh utilities/fixfigfonts.sh
 	sh utilities/fixdotfonts.sh
 	sh utilities/eps2pdf.sh
+	touch embedfonts
 
-perfbook-1c.pdf: perfbook-1c.tex perfbook-1c.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+perfbook-1c.pdf: perfbook-1c.tex perfbook-1c.bbl
 	sh utilities/runlatex.sh perfbook-1c
 
 perfbook-1c.tex: perfbook.tex
 	sed -e 's/,twocolumn//' -e '/^\\frontmatter/a \\\\pagestyle{plain}' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
 
-perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c.aux
+perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c_aux
 	bibtex perfbook-1c
 
-perfbook-1c.aux: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+perfbook-1c_aux: $(LATEXSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook-1c
+	touch perfbook-1c_aux
 
-perfbook-hb.pdf: perfbook-hb.tex perfbook-hb.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+perfbook-hb.pdf: perfbook-hb.tex perfbook-hb.bbl
 	sh utilities/runlatex.sh perfbook-hb
 
 perfbook-hb.tex: perfbook.tex
 	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < perfbook.tex > perfbook-hb.tex
 
-perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb.aux
+perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb_aux
 	bibtex perfbook-hb
 
-perfbook-hb.aux: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
+perfbook-hb_aux: $(LATEXSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook-hb
+	touch perfbook-hb_aux
 
-qqz_html.tex: perfbook_flat.tex
+qqz_html.tex: qqz.tex
 	sh utilities/prep4html.sh < qqz.tex > qqz_html.tex
 
-origpub_html.tex: perfbook_flat.tex
+origpub_html.tex: origpub.tex
 	sh utilities/prep4html.sh < origpub.tex > origpub_html.tex
 
-contrib_html.tex: perfbook_flat.tex
+contrib_html.tex: contrib.tex
 	sh utilities/prep4html.sh < contrib.tex > contrib_html.tex
 
-perfbook_html.tex: perfbook_flat.tex qqz_html.tex origpub_html.tex contrib_html.tex perfbook.pdf
+perfbook_html.tex: perfbook_flat.tex qqz_html.tex origpub_html.tex contrib_html.tex perfbook.bbl
 	sh utilities/prep4html.sh < perfbook_flat.tex > perfbook_html.tex
 	cp perfbook.bbl perfbook_html.bbl
 
 perfbook_html: perfbook_html.tex
 	latex2html -show_section_numbers -local_icons perfbook_html
 
-SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
+$(EPSTARGETS_OF_TEX): %.eps: %.tex
 	latex -output-directory=$(shell dirname $<) $<
 	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
-	sh utilities/fixanepsfonts.sh SMPdesign/DiningPhilosopher5.eps
+	sh utilities/fixanepsfonts.sh $@
 
-SMPdesign/DiningPhilosopher5TB.eps: SMPdesign/DiningPhilosopher5TB.tex
-	latex -output-directory=$(shell dirname $<) $<
-	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
-	sh utilities/fixanepsfonts.sh SMPdesign/DiningPhilosopher5TB.eps
+$(PDFTARGETS_OF_DOT): %.pdf: %.dot
+	dot -Tpdf -o $@ $<
 
-SMPdesign/DiningPhilosopher4part-b.eps: SMPdesign/DiningPhilosopher4part-b.tex
-	latex -output-directory=$(shell dirname $<) $<
-	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
-	sh utilities/fixanepsfonts.sh SMPdesign/DiningPhilosopher4part-b.eps
-
-SMPdesign/DiningPhilosopher5PEM.eps: SMPdesign/DiningPhilosopher5PEM.tex
-	latex -output-directory=$(shell dirname $<) $<
-	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
-	sh utilities/fixanepsfonts.sh SMPdesign/DiningPhilosopher5PEM.eps
-
-advsync/store15tred.pdf: advsync/store15tred.dot
-	dot -Tpdf -o advsync/store15tred.pdf advsync/store15tred.dot
-
-count/sig-theft.eps: count/sig-theft.dot
-	dot -Tps -o count/sig-theft.eps count/sig-theft.dot
+$(EPSTARGETS_OF_DOT): %.eps: %.dot
+	dot -Tps -o $@ $<
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
@@ -182,14 +171,13 @@ clean:
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook_html.tex perfbook.out perfbook-1c.out
 	rm -f perfbook-hb.out perfbook-1c.tex perfbook-hb.tex
+	rm -f perfbook_aux extraction embedfonts
+	rm -f perfbook-1c_aux perfbook-hb_aux
 	rm -rf perfbook_html
-	rm -f SMPdesign/DiningPhilosopher5.eps \
-	      SMPdesign/DiningPhilosopher5TB.eps \
-	      SMPdesign/DiningPhilosopher4part-b.eps \
-	      SMPdesign/DiningPhilosopher5PEM.eps
 
 distclean: clean
 	sh utilities/cleanpdf.sh
+	rm -f $(EPS_NOT_IN_REPO)
 
 touchsvg:
 	find . -name '*.svg' | xargs touch
