@@ -167,7 +167,7 @@ BIBSOURCES = \
 	bib/swtools.bib \
 	bib/syncrefs.bib
 
-.PHONY: all extraction embedfonts clean distclean neatfreak
+.PHONY: all extraction embedfonts touchsvg clean distclean neatfreak
 all: perfbook.pdf
 
 perfbook.pdf: perfbook.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
@@ -273,6 +273,9 @@ clean:
 
 distclean: clean
 	sh utilities/cleanpdf.sh
+
+touchsvg:
+	find . -name '*.svg' | xargs touch
 
 neatfreak: distclean
 	# Don't forget to regenerate the .pdf from each .svg file
