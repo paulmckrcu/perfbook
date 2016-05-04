@@ -167,8 +167,16 @@ BIBSOURCES = \
 	bib/swtools.bib \
 	bib/syncrefs.bib
 
+default = $(PERFBOOK_DEFAULT)
+
+ifeq ($(default),)
+	targ = perfbook.pdf
+else
+	targ = $(default)
+endif
+
 .PHONY: all extraction embedfonts touchsvg clean distclean neatfreak 1c 2c hb
-all: perfbook.pdf
+all: $(targ)
 
 1c: perfbook-1c.pdf
 
