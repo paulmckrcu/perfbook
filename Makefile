@@ -2,170 +2,73 @@ LATEXSOURCES = \
 	perfbook.tex \
 	legal.tex \
 	qqz.sty origpub.sty \
-	advsync/advsync.tex \
-	advsync/memorybarriers.tex \
-	appendix/appendix.tex \
-	appendix/ack/ack.tex \
-	appendix/primitives/primitives.tex \
-	appendix/questions/after.tex \
-	appendix/questions/concurrentparallel.tex \
-	appendix/questions/time.tex \
-	appendix/questions/questions.tex \
-	appendix/whymb/whymemorybarriers.tex \
-	count/count.tex \
-	cpu/cpu.tex \
-	cpu/overview.tex \
-	cpu/overheads.tex \
-	cpu/hwfreelunch.tex \
-	cpu/swdesign.tex \
-	datastruct/datastruct.tex \
-	debugging/debugging.tex \
-	easy/easy.tex \
+	advsync/*.tex \
+	appendix/*.tex \
+	appendix/ack/*.tex \
+	appendix/primitives/*.tex \
+	appendix/questions/*.tex \
+	appendix/whymb/*.tex \
+	count/*.tex \
+	cpu/*.tex \
+	datastruct/*.tex \
+	debugging/*.tex \
+	easy/*.tex \
 	glossary.tex \
-	intro/intro.tex \
-	memalloc/memalloc.tex \
-	owned/owned.tex \
-	defer/defer.tex \
-	defer/hazptr.tex \
-	defer/refcnt.tex \
-	defer/seqlock.tex \
-	defer/rcu.tex \
-	defer/rcuexercises.tex \
-	defer/rcufundamental.tex \
-	defer/rcuapi.tex \
-	defer/rcuusage.tex \
-	defer/toyrcu.tex \
-	defer/updates.tex \
-	defer/whichtochoose.tex \
-	formal/axiomatic.tex \
-	formal/formal.tex \
-	formal/spinhint.tex \
-	formal/dyntickrcu.tex \
-	formal/ppcmem.tex \
-	formal/sat.tex \
-	future/future.tex \
-	future/cpu.tex \
-	future/tm.tex \
-	howto/howto.tex \
-	SMPdesign/SMPdesign.tex \
-	SMPdesign/partexercises.tex \
-	SMPdesign/criteria.tex \
-	SMPdesign/beyond.tex \
-	locking/locking.tex \
-	locking/locking-existence.tex \
-	together/applyrcu.tex \
-	together/count.tex \
-	together/hash.tex \
-	together/together.tex \
-	toolsoftrade/toolsoftrade.tex
+	intro/*.tex \
+	memalloc/*.tex \
+	owned/*.tex \
+	defer/*.tex \
+	formal/*.tex \
+	future/*.tex \
+	howto/*.tex \
+	SMPdesign/*.tex \
+	locking/*.tex \
+	together/*.tex \
+	toolsoftrade/*.tex
 
-EPSSOURCES = \
-	SMPdesign/500-ms_2seqO3VfgO3_partO3-median.eps \
-	SMPdesign/500-ms_seq_fg-cdf.eps \
-	SMPdesign/500-ms_seq_fg_part-cdf.eps \
-	SMPdesign/500-ms_seqO3V2seqO3_fgO3_partO3-cdf.eps \
-	SMPdesign/500-ms_seqO3VfgO3_partO3-median.eps \
-	SMPdesign/500-ms_seqVfg_part-cdf.eps \
-	SMPdesign/500-ms_seqVfg_part_seqO3-cdf.eps \
-	SMPdesign/500-pctVms_seq_part-sct.eps \
-	SMPdesign/1000-ms_2seqO3VfgO3_partO3-mean.eps \
-	SMPdesign/AllocatorPool.eps \
-	SMPdesign/CPUvsEnet.eps \
-	SMPdesign/LockGranularity.eps \
-	SMPdesign/MazeNumberPath.eps \
-	SMPdesign/MemoryBarrierPairing.eps \
-	SMPdesign/ParallelFastpath.eps \
-	SMPdesign/allocatorcache.eps \
-	SMPdesign/clockfreq.eps \
-	SMPdesign/lockdeqhash.eps \
-	SMPdesign/lockdeqhash1R.eps \
-	SMPdesign/lockdeqpair.eps \
-	SMPdesign/matmuleff.eps \
-	SMPdesign/mipsperbuck.eps \
-	SMPdesign/smpalloc.eps \
-	SMPdesign/synceff.eps \
+EPSTARGETS_OF_TEX = \
 	SMPdesign/DiningPhilosopher5.eps \
 	SMPdesign/DiningPhilosopher5TB.eps \
 	SMPdesign/DiningPhilosopher4part-b.eps \
-	SMPdesign/DiningPhilosopher5PEM.eps \
-	advsync/AbstractMemoryAccessModel.eps \
-	advsync/DataDependencyNeeded.eps \
-	advsync/DataDependencySupplied.eps \
-	advsync/MemoryArchitecture.eps \
-	advsync/MemoryBarrierPairing.eps \
-	advsync/MoreThanOneValue.eps \
-	advsync/MoreThanOneValue-15CPU.eps \
-	advsync/ReadBarrierNeeded.eps \
-	advsync/ReadBarrierSupplied.eps \
-	advsync/ReadBarrierSupplied1.eps \
-	advsync/ReadBarrierSupplied2.eps \
-	advsync/SpeculativeLoad.eps \
-	advsync/SpeculativeLoadBarrier.eps \
-	advsync/SpeculativeLoadBarrierCancel.eps \
-	advsync/SplitCache.eps \
-	advsync/store15tred.pdf \
-	advsync/WriteBarrierOrdering.eps \
-	appendix/questions/after.eps \
-	appendix/whymb/MESI.eps \
-	appendix/whymb/cacheSB.eps \
-	appendix/whymb/cacheSBf.eps \
-	appendix/whymb/cacheSBfIQ.eps \
-	appendix/whymb/cacheSC.eps \
-	appendix/whymb/cacheSCwrite.eps \
-	appendix/whymb/hostileordering.eps \
-	count/GlobalInc.eps \
-	count/GlobalTreeInc.eps \
-	count/PerThreadInc.eps \
-	count/count_lim.eps \
-	count/sig-theft.eps \
-	cpu/SystemArch.eps \
-	datastruct/hashdiagram.eps \
-	defer/GracePeriodGood.eps \
-	defer/Linux_hlist.eps \
-	defer/Linux_list_abbr.eps \
-	defer/Linux_list.eps \
-	defer/RCUDeletion.eps \
-	defer/RCUenvAPI.eps \
-	defer/RCUReplacement.eps \
-	defer/refRCUperfPREEMPT.eps \
-	defer/refRCUperfwtPREEMPT.eps \
-	defer/rwlockRCUperf.eps \
-	defer/rwlockRCUperfPREEMPT.eps \
-	defer/rwlockRCUperfwtPREEMPT.eps \
-	defer/rwlockRCUupdate.eps \
-	easy/Mandel_zoom_00_mandelbrot_set.eps \
-	future/latencytrend.eps \
-	future/be-lb-n4-rf-all.eps \
-	future/be-lw-n4-rf-all.eps \
-	intro/FourTaskCategories.eps \
-	intro/FourTaskOrder.eps \
-	intro/Generality.eps \
-	intro/PPGrelation.eps \
-	locking/DeadlockCycle.eps \
-	locking/LayeredLockHierarchy.eps \
-	locking/LocalLockHierarchy.eps \
-	locking/NonLocalLockHierarchy.eps \
-	locking/rnplock.eps
+	SMPdesign/DiningPhilosopher5PEM.eps
+
+PDFTARGETS_OF_DOT = \
+	advsync/store15tred.pdf
+
+EPSTARGETS_OF_DOT = \
+	count/sig-theft.eps
+
+EPSPDF_NOT_IN_REPO = \
+	$(EPSTARGETS_OF_TEX) \
+	$(PDFTARGETS_OF_DOT)
+
+EPSSOURCES = \
+	SMPdesign/*.eps \
+	advsync/*.eps \
+	appendix/questions/*.eps \
+	appendix/whymb/*.eps \
+	count/*.eps \
+	cpu/*.eps \
+	datastruct/*.eps \
+	defer/*.eps \
+	easy/*.eps \
+	future/*.eps \
+	intro/*.eps \
+	locking/*.eps \
+	$(EPSTARGETS_OF_TEX) \
+	$(EPSPDF_NOT_IN_REPO)
 
 BIBSOURCES = \
-	bib/OSS.bib \
-	bib/RCU.bib \
-	bib/RCUuses.bib \
-	bib/TM.bib \
-	bib/WFS.bib \
-	bib/energy.bib \
-	bib/hw.bib \
-	bib/maze.bib \
-	bib/os.bib \
-	bib/parallelsys.bib \
-	bib/patterns.bib \
-	bib/perfmeas.bib \
-	bib/realtime.bib \
-	bib/refs.bib \
-	bib/search.bib \
-	bib/standards.bib\
-	bib/swtools.bib \
-	bib/syncrefs.bib
+	bib/*.bib
+
+SVGSOURCES = \
+	cartoons/*.svg \
+	debugging/*.svg \
+	count/*.svg \
+	SMPdesign/*.svg \
+	defer/*.svg \
+	datastruct/*.svg \
+	rt/*.svg
 
 default = $(PERFBOOK_DEFAULT)
 
