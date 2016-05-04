@@ -55,6 +55,7 @@ EPSSOURCES = \
 	future/*.eps \
 	intro/*.eps \
 	locking/*.eps \
+	$(PDFTARGETS_OF_DOT) \
 	$(EPS_NOT_IN_REPO)
 
 BIBSOURCES = \
