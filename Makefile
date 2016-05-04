@@ -193,6 +193,20 @@ perfbook.bbl: $(BIBSOURCES) perfbook.aux
 perfbook.aux: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook
 
+perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
+	echo > qqz.tex
+	texexpand perfbook.tex > perfbook_flat.tex
+	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
+
+extraction: perfbook_flat.tex
+	cat perfbook_flat.tex qqz.tex | sh utilities/extractcontrib.sh > contrib.tex
+	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
+
+embedfonts:
+	sh utilities/fixfigfonts.sh
+	sh utilities/fixdotfonts.sh
+	sh utilities/eps2pdf.sh
+
 perfbook-1c.pdf: perfbook-1c.tex perfbook-1c.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sh utilities/runlatex.sh perfbook-1c
 
@@ -217,11 +231,6 @@ perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb.aux
 perfbook-hb.aux: $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook-hb
 
-perfbook_flat.tex: $(LATEXSOURCES) $(EPSSOURCES) embedfonts
-	echo > qqz.tex
-	texexpand perfbook.tex > perfbook_flat.tex
-	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
-
 qqz_html.tex: perfbook_flat.tex
 	sh utilities/prep4html.sh < qqz.tex > qqz_html.tex
 
@@ -237,15 +246,6 @@ perfbook_html.tex: perfbook_flat.tex qqz_html.tex origpub_html.tex contrib_html.
 
 perfbook_html: perfbook_html.tex
 	latex2html -show_section_numbers -local_icons perfbook_html
-
-extraction: perfbook_flat.tex
-	cat perfbook_flat.tex qqz.tex | sh utilities/extractcontrib.sh > contrib.tex
-	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
-
-embedfonts:
-	sh utilities/fixfigfonts.sh
-	sh utilities/fixdotfonts.sh
-	sh utilities/eps2pdf.sh
 
 SMPdesign/DiningPhilosopher5.eps: SMPdesign/DiningPhilosopher5.tex
 	latex -output-directory=$(shell dirname $<) $<
