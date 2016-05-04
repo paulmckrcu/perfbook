@@ -167,8 +167,14 @@ BIBSOURCES = \
 	bib/swtools.bib \
 	bib/syncrefs.bib
 
-.PHONY: all extraction embedfonts touchsvg clean distclean neatfreak
+.PHONY: all extraction embedfonts touchsvg clean distclean neatfreak 1c 2c hb
 all: perfbook.pdf
+
+1c: perfbook-1c.pdf
+
+2c: perfbook.pdf
+
+hb: perfbook-hb.pdf
 
 perfbook.pdf: perfbook.bbl $(LATEXSOURCES) $(EPSSOURCES) extraction embedfonts
 	sh utilities/runlatex.sh perfbook
