@@ -1,0 +1,911 @@
+/*
+ * skiplisttorture.h: simple user-level performance/stress test of skiplists.
+ *
+ * Usage:
+ *
+ *	./skiplist --smoketest
+ *		Run a simple single-threaded smoke test.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you can access it online at
+ * http://www.gnu.org/licenses/gpl-2.0.html.
+ *
+ * Copyright (c) 2016 Paul E. McKenney, IBM Corporation.
+ */
+
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <sched.h>
+#include <string.h>
+
+#ifndef quiescent_state
+#define quiescent_state() do ; while (0)
+#define synchronize_rcu() do ; while (0)
+#endif /* #ifndef quiescent_state */
+
+/*
+ * Test variables.
+ */
+
+struct testsl {
+	struct sl_elem sle_e;
+	unsigned long data;
+	int in_table __attribute__((__aligned__(CACHE_LINE_SIZE)));
+};
+
+void defer_del_done_perftest(struct sl_elem *slep)
+{
+	struct testsl *p = container_of(slep, struct testsl, sle_e);
+
+	p->in_table = 0;
+}
+
+void *testgk(struct sl_elem *slep)
+{
+	struct testsl *thep;
+
+	thep = container_of(slep, struct testsl, sle_e);
+	return (void *)thep->data;
+}
+
+int testcmp(struct sl_elem *slep, void *key)
+{
+	struct testsl *thep;
+
+	thep = container_of(slep, struct testsl, sle_e);
+	return ((unsigned long)key) == thep->data;
+}
+
+void smoketest(void)
+{
+	struct testsl e1 = { .data = 1 };
+	struct testsl e2 = { .data = 2 };
+	struct testsl e3 = { .data = 3 };
+	struct testsl e4 = { .data = 4 };
+	struct hashtab *htp;
+	long i;
+
+	htp = hashtab_alloc(5);
+	BUG_ON(htp == NULL);
+	hash_register_test(htp);
+	hash_register_thread();
+
+	/* Should be empty. */
+	for (i = 1; i <= 4; i++) {
+		hashtab_lock_lookup(htp, i);
+		BUG_ON(hashtab_lookup(htp, (unsigned long)i, (void *)i,
+				      testcmp));
+		hashtab_unlock_lookup(htp, i);
+	}
+
+	/* Add one by one and check. */
+	hashtab_lock_mod(htp, 1);
+	hashtab_add(htp, 1, &e1.sle_e);
+	BUG_ON(!hashtab_lookup(htp, 1, (void *)1, testcmp));
+	hashtab_unlock_mod(htp, 1);
+	hashtab_lock_mod(htp, 2);
+	hashtab_add(htp, 2, &e2.sle_e);
+	BUG_ON(!hashtab_lookup(htp, 2, (void *)2, testcmp));
+	hashtab_unlock_mod(htp, 2);
+	hashtab_lock_mod(htp, 3);
+	hashtab_add(htp, 3, &e3.sle_e);
+	BUG_ON(!hashtab_lookup(htp, 3, (void *)3, testcmp));
+	hashtab_unlock_mod(htp, 3);
+	hashtab_lock_mod(htp, 4);
+	hashtab_add(htp, 4, &e4.sle_e);
+	BUG_ON(!hashtab_lookup(htp, 4, (void *)4, testcmp));
+	hashtab_unlock_mod(htp, 4);
+
+	/* Should be full. */
+	for (i = 1; i <= 4; i++) {
+		hashtab_lock_lookup(htp, i);
+		BUG_ON(!hashtab_lookup(htp, (unsigned long)i, (void *)i,
+				       testcmp));
+		hashtab_unlock_lookup(htp, i);
+	}
+
+	/* Delete all and check one by one. */
+	hashtab_lock_mod(htp, 1);
+	hashtab_del(&e1.sle_e);
+	BUG_ON(hashtab_lookup(htp, 1, (void *)1, testcmp));
+	hashtab_unlock_mod(htp, 1);
+	hashtab_lock_mod(htp, 2);
+	hashtab_del(&e2.sle_e);
+	BUG_ON(hashtab_lookup(htp, 2, (void *)2, testcmp));
+	hashtab_unlock_mod(htp, 2);
+	hashtab_lock_mod(htp, 3);
+	hashtab_del(&e3.sle_e);
+	BUG_ON(hashtab_lookup(htp, 3, (void *)3, testcmp));
+	hashtab_unlock_mod(htp, 3);
+	hashtab_lock_mod(htp, 4);
+	hashtab_del(&e4.sle_e);
+	BUG_ON(hashtab_lookup(htp, 4, (void *)4, testcmp));
+	hashtab_unlock_mod(htp, 4);
+
+	/* Should be empty. */
+	for (i = 1; i <= 4; i++) {
+		hashtab_lock_lookup(htp, i);
+		BUG_ON(hashtab_lookup(htp, (unsigned long)i, (void *)i,
+				      testcmp));
+		hashtab_unlock_lookup(htp, i);
+	}
+	hashtab_free(htp);
+	hash_unregister_thread();
+	printf("End of smoketest.\n");
+}
+
+#if 0
+
+/* Parameters for performance test. */
+int nbuckets = 1024;
+int nreaders = 1;
+int ncats = 0;
+int nupdaters = 1;
+int updatewait = -1;
+long elperupdater = 2048;
+int cpustride = 1;
+int resizediv = 0;
+int resizemult = 0;
+int resizewait = 1;
+long long nresizes = 0;
+long duration = 10; /* in milliseconds. */
+
+atomic_t nthreads_running;
+
+#define GOFLAG_INIT 0
+#define GOFLAG_RUN  1
+#define GOFLAG_STOP 2
+
+int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
+
+/* Per-test-thread attribute/statistics structure. */
+struct perftest_attr {
+	int myid;
+	long long nlookups;
+	long long nlookupfails;
+	long long nadds;
+	long long ndels;
+	int mycpu;
+	long nelements;
+	int cat;
+};
+
+struct hashtab *perftest_htp = NULL;
+
+/* Repeatedly resize a hash table. */
+void *perftest_resize(void *arg)
+{
+	long els[2];
+	int i = 0;
+
+	hash_register_thread();
+	run_on(0);
+	els[0]= nbuckets;
+	els[1] = els[0] * resizemult / resizediv;
+	while (goflag == GOFLAG_INIT)
+		poll(NULL, 0, 1);
+	while (goflag == GOFLAG_RUN) {
+		smp_mb();
+		if (resizewait != 0)
+			poll(NULL, 0, resizewait);
+		i++;
+		hash_resize_test(perftest_htp, els[i & 0x1]);
+	}
+	nresizes = i;
+	hash_unregister_thread();
+	return NULL;
+}
+
+/* Look up a key in the hash table. */
+int perftest_lookup(long i)
+{
+	struct sl_elem *slep;
+	struct testsl *thep;
+
+	hashtab_lock_lookup(perftest_htp, i);
+	slep = hashtab_lookup(perftest_htp, i, (void *)i, testcmp);
+	thep = container_of(slep, struct testsl, sle_e);
+	BUG_ON(thep && thep->data != i);
+	hashtab_unlock_lookup(perftest_htp, i);
+	return !!slep;
+}
+
+/* Add an element to the hash table. */
+void perftest_add(struct testsl *thep)
+{
+	BUG_ON(thep->in_table);
+	hashtab_lock_mod(perftest_htp, thep->data);
+	BUG_ON(hashtab_lookup(perftest_htp, thep->data,
+			      (void *)thep->data, testcmp));
+	thep->in_table = 1;
+	hashtab_add(perftest_htp, thep->data, &thep->sle_e);
+	hashtab_unlock_mod(perftest_htp, thep->data);
+}
+
+/* Remove an element from the hash table. */
+void perftest_del(struct testsl *thep)
+{
+	BUG_ON(thep->in_table != 1);
+	hashtab_lock_mod(perftest_htp, thep->data);
+	hashtab_del(&thep->sle_e);
+	thep->in_table = 2;
+	hashtab_unlock_mod(perftest_htp, thep->data);
+	defer_del(&thep->sle_e);
+}
+
+/* Performance test reader thread. */
+void *perftest_reader(void *arg)
+{
+	int gf;
+	long i;
+	struct perftest_attr *pap = arg;
+	long mydelta = primes[pap->myid]; /* Force different reader paths. */
+	long ne = pap->nelements;
+	int offset = (ne / mydelta) * mydelta == ne;
+	long long nlookups = 0;
+	long long nlookupfails = 0;
+
+	run_on(pap->mycpu);
+	hash_register_thread();
+
+	/* Warm up cache. */
+	for (i = 0; i < ne; i++)
+		perftest_lookup(i);
+
+	/* Record our presence. */
+	atomic_inc(&nthreads_running);
+
+	/* Run the test code. */
+	i = 0;
+	for (;;) {
+		gf = ACCESS_ONCE(goflag);
+		if (gf != GOFLAG_RUN) {
+			if (gf == GOFLAG_STOP)
+				break;
+			if (gf == GOFLAG_INIT) {
+				/* Still initializing, kill statistics. */
+				nlookups = 0;
+				nlookupfails = 0;
+			}
+		}
+		if (!perftest_lookup(i))
+			nlookupfails++;
+		nlookups++;
+		i += mydelta;
+		if (i >= ne)
+			i = i % ne + offset;
+	}
+	pap->nlookups = nlookups;
+	pap->nlookupfails = nlookupfails;
+	hash_unregister_thread();
+	return NULL;
+}
+
+/* Performance test updater thread. */
+void *perftest_updater(void *arg)
+{
+	long i;
+	long j;
+	int gf;
+	struct perftest_attr *pap = arg;
+	int myid = pap->myid;
+	int mylowkey = myid * elperupdater;
+	struct testsl *thep;
+	long long nadds = 0;
+	long long ndels = 0;
+
+	thep = malloc(sizeof(*thep) * elperupdater);
+	BUG_ON(thep == NULL);
+	for (i = 0; i < elperupdater; i++) {
+		thep[i].data = i + mylowkey;
+		thep[i].in_table = 0;
+	}
+	run_on(pap->mycpu);
+	hash_register_thread();
+
+	/* Start with some random half of the elements in the hash table. */
+	for (i = 0; i < elperupdater / 2; i++) {
+		j = random() % elperupdater;
+		while (thep[j].in_table)
+			if (++j >= elperupdater)
+				j = 0;
+		perftest_add(&thep[j]);
+	}
+
+	/* Announce our presence and enter the test loop. */
+	atomic_inc(&nthreads_running);
+	i = 0;
+	for (;;) {
+		gf = ACCESS_ONCE(goflag);
+		if (gf != GOFLAG_RUN) {
+			if (gf == GOFLAG_STOP)
+				break;
+			if (gf == GOFLAG_INIT) {
+				/* Still initializing, kill statistics. */
+				nadds = 0;
+				ndels = 0;
+			}
+		}
+		if (updatewait == 0) {
+			poll(NULL, 0, 10);  /* No actual updating wanted. */
+		} else if (thep[i].in_table == 1) {
+			perftest_del(&thep[i]);
+			ndels++;
+		} else if (thep[i].in_table == 0) {
+			perftest_add(&thep[i]);
+			nadds++;
+		}
+
+		/* Add requested delay. */
+		if (updatewait < 0) {
+			poll(NULL, 0, -updatewait);
+		} else {
+			for (j = 0; j < updatewait; j++)
+				barrier();
+		}
+		if (++i >= elperupdater)
+			i = 0;
+		if ((i & 0xf) == 0)
+			quiescent_state();
+	}
+
+	/* Test over, so remove all our elements from the hash table. */
+	for (i = 0; i < elperupdater; i++) {
+		if (thep[i].in_table != 1)
+			continue;
+		BUG_ON(!perftest_lookup(thep[i].data));
+		perftest_del(&thep[i]);
+	}
+	/* Really want rcu_barrier(), but missing from old liburcu versions. */
+	synchronize_rcu();
+	poll(NULL, 0, 100);
+	synchronize_rcu();
+
+	hash_unregister_thread();
+	free(thep);
+	pap->nadds = nadds;
+	pap->ndels = ndels;
+	return NULL;
+}
+
+/* Run a performance test. */
+void perftest(void)
+{
+	struct perftest_attr *pap;
+	int maxcpus = sysconf(_SC_NPROCESSORS_CONF);
+	long i;
+	long long nlookups = 0;
+	long long nlookupfails = 0;
+	long long nadds = 0;
+	long long ndels = 0;
+	long long starttime;
+
+	BUG_ON(maxcpus <= 0);
+	perftest_htp = hashtab_alloc(nbuckets);
+	BUG_ON(perftest_htp == NULL);
+	hash_register_test(perftest_htp);
+	defer_del_done = defer_del_done_perftest;
+	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
+	BUG_ON(pap == NULL);
+	atomic_set(&nthreads_running, 0);
+	goflag = GOFLAG_INIT;
+
+	for (i = 0; i < nreaders + nupdaters; i++) {
+		pap[i].myid = i < nreaders ? i : i - nreaders;
+		pap[i].nlookups = 0;
+		pap[i].nlookupfails = 0;
+		pap[i].nadds = 0;
+		pap[i].ndels = 0;
+		pap[i].mycpu = (i * cpustride) % maxcpus;
+		pap[i].nelements = nupdaters * elperupdater;
+		create_thread(i < nreaders ? perftest_reader : perftest_updater,
+			      &pap[i]);
+	}
+
+	/* Wait for all threads to initialize. */
+	while (atomic_read(&nthreads_running) < nreaders + nupdaters)
+		poll(NULL, 0, 1);
+	smp_mb();
+
+	/* Run the test. */
+	starttime = get_microseconds();
+	ACCESS_ONCE(goflag) = GOFLAG_RUN;
+	poll(NULL, 0, duration);
+	ACCESS_ONCE(goflag) = GOFLAG_STOP;
+	starttime = get_microseconds() - starttime;
+	wait_all_threads();
+
+	/* Collect stats and output them. */
+	for (i = 0; i < nreaders + nupdaters; i++) {
+		nlookups += pap[i].nlookups;
+		nlookupfails += pap[i].nlookupfails;
+		nadds += pap[i].nadds;
+		ndels += pap[i].ndels;
+	}
+	printf("nlookups: %lld %lld  nadds: %lld  ndels: %lld  duration: %g\n",
+	       nlookups, nlookupfails, nadds, ndels, starttime / 1000.);
+	printf("ns/read: %g  ns/update: %g\n",
+	       (starttime * 1000. * (double)nreaders) / (double)nlookups,
+	       ((starttime * 1000. * (double)nupdaters) /
+	        (double)(nadds + ndels)));
+
+	free(pap);
+	hashtab_free(perftest_htp);
+}
+
+
+/* Code for Schroedinger's zoo testing. */
+
+#define ZOO_NAMELEN 32
+struct zoo_he {
+	struct sl_elem zhe_e;
+	char name[ZOO_NAMELEN];
+};
+
+void *zoo_gk(struct sl_elem *slep)
+{
+	struct zoo_he *zhep;
+
+	zhep = container_of(slep, struct zoo_he, zhe_e);
+	return (void *)zhep->name;
+}
+
+int zoo_cmp(struct sl_elem *slep, void *key)
+{
+	struct zoo_he *zhep;
+
+	zhep = container_of(slep, struct zoo_he, zhe_e);
+	return strncmp((char *)key, zhep->name, ZOO_NAMELEN) == 0;
+}
+
+unsigned long zoo_hash(char *key)
+{
+	char *cp = (char *)key;
+	int i;
+	unsigned long sum = 0;
+
+	for (i = 0; cp[i]; i++)
+		sum = sum * 29 + cp[i];
+	return sum;
+}
+
+/* Look up a key in the Schroedinger-zoo hash table. */
+int zoo_lookup(char *key)
+{
+	unsigned long hash = zoo_hash(key);
+	struct sl_elem *slep;
+	struct zoo_he *zhep;
+
+	hashtab_lock_lookup(perftest_htp, hash);
+	slep = hashtab_lookup(perftest_htp, hash, key, zoo_cmp);
+	zhep = container_of(slep, struct zoo_he, zhe_e);
+	BUG_ON(slep &&
+	       (slep->hte_hash != hash ||
+	        strncmp(zhep->name, (char *)key, ZOO_NAMELEN) != 0));
+	hashtab_unlock_lookup(perftest_htp, hash);
+	return !!slep;
+}
+
+/* Add an element to the hash table. */
+void zoo_add(struct zoo_he *zhep)
+{
+	unsigned long hash = zoo_hash(zhep->name);
+
+	hashtab_lock_mod(perftest_htp, hash);
+	BUG_ON(hashtab_lookup(perftest_htp, hash,
+			      (void *)zhep->name, zoo_cmp));
+	hashtab_add(perftest_htp, hash, &zhep->zhe_e);
+	hashtab_unlock_mod(perftest_htp, hash);
+}
+
+/* Remove an element from the hash table. */
+void zoo_del(struct zoo_he *zhep)
+{
+	unsigned long hash = zoo_hash(zhep->name);
+
+	hashtab_lock_mod(perftest_htp, hash);
+	hashtab_del(&zhep->zhe_e);
+	hashtab_unlock_mod(perftest_htp, hash);
+	defer_del(&zhep->zhe_e);
+}
+
+char *zoo_names;
+
+/* Schroedinger test reader thread. */
+void *zoo_reader(void *arg)
+{
+	char *cp;
+	int gf;
+	long i;
+	struct perftest_attr *pap = arg;
+	long mydelta = primes[pap->myid]; /* Force different reader paths. */
+	long ne = pap->nelements;
+	int offset = (ne / mydelta) * mydelta == ne;
+	long long nlookups = 0;
+	long long nlookupfails = 0;
+
+	run_on(pap->mycpu);
+	hash_register_thread();
+
+	/* Warm up cache. */
+	for (i = 0; i < ne; i++)
+		zoo_lookup(&zoo_names[ZOO_NAMELEN * i]);
+
+	/* Record our presence. */
+	atomic_inc(&nthreads_running);
+
+	/* Run the test code. */
+	i = 0;
+	for (;;) {
+		gf = ACCESS_ONCE(goflag);
+		if (gf != GOFLAG_RUN) {
+			if (gf == GOFLAG_STOP)
+				break;
+			if (gf == GOFLAG_INIT) {
+				/* Still initializing, kill statistics. */
+				nlookups = 0;
+				nlookupfails = 0;
+			}
+		}
+		if (pap->cat)
+			cp = "cat";
+		else
+			cp = &zoo_names[ZOO_NAMELEN * i];
+		if (!zoo_lookup(cp))
+			nlookupfails++;
+		nlookups++;
+		i += mydelta;
+		if (i >= ne)
+			i = i % ne + offset;
+	}
+	/* Really want rcu_barrier(), but missing from old liburcu versions. */
+	synchronize_rcu();
+	poll(NULL, 0, 100);
+	synchronize_rcu();
+
+	pap->nlookups = nlookups;
+	pap->nlookupfails = nlookupfails;
+	hash_unregister_thread();
+	return NULL;
+}
+
+/* Performance test updater thread. */
+void *zoo_updater(void *arg)
+{
+	long i;
+	long j;
+	int gf;
+	struct perftest_attr *pap = arg;
+	int myid = pap->myid;
+	int mylowkey = myid * elperupdater;
+	struct zoo_he *zhep;
+	struct zoo_he **zheplist;
+	long long nadds = 0;
+	long long ndels = 0;
+
+	zheplist = malloc(sizeof(struct zoo_he *) * elperupdater);
+	BUG_ON(!zheplist);
+	for (i = 0; i < elperupdater; i++)
+		zheplist[i] = NULL;
+	run_on(pap->mycpu);
+	hash_register_thread();
+
+	/* Start with some random half of the elements in the hash table. */
+	for (i = 0; i < elperupdater / 2; i++) {
+		j = random() % elperupdater;
+		while (zheplist[j])
+			if (++j >= elperupdater)
+				j = 0;
+		zhep = malloc(sizeof(*zhep));
+		BUG_ON(!zhep);
+		strcpy(zhep->name, &zoo_names[ZOO_NAMELEN * (j + mylowkey)]);
+		zoo_add(zhep);
+		zheplist[j] = zhep;
+	}
+
+	/* Announce our presence and enter the test loop. */
+	atomic_inc(&nthreads_running);
+	i = 0;
+	for (;;) {
+		gf = ACCESS_ONCE(goflag);
+		if (gf != GOFLAG_RUN) {
+			if (gf == GOFLAG_STOP)
+				break;
+			if (gf == GOFLAG_INIT) {
+				/* Still initializing, kill statistics. */
+				nadds = 0;
+				ndels = 0;
+			}
+		}
+		if (updatewait == 0) {
+			poll(NULL, 0, 10);  /* No actual updating wanted. */
+		} else if (zheplist[i]) {
+			zoo_del(zheplist[i]);
+			zheplist[i] = NULL;
+			ndels++;
+		} else {
+			zhep = malloc(sizeof(*zhep));
+			BUG_ON(!zhep);
+			strcpy(zhep->name,
+			       &zoo_names[ZOO_NAMELEN * (i + mylowkey)]);
+			zoo_add(zhep);
+			zheplist[i] = zhep;
+			nadds++;
+		}
+
+		/* Add requested delay. */
+		if (updatewait < 0) {
+			poll(NULL, 0, -updatewait);
+		} else {
+			for (j = 0; j < updatewait; j++)
+				barrier();
+		}
+		if (++i >= elperupdater)
+			i = 0;
+		if ((i & 0xf) == 0)
+			quiescent_state();
+	}
+
+	/* Test over, so remove all our elements from the hash table. */
+	for (i = 0; i < elperupdater; i++) {
+		if (!zheplist[i])
+			continue;
+		zoo_del(zheplist[i]);
+	}
+	hash_unregister_thread();
+	pap->nadds = nadds;
+	pap->ndels = ndels;
+	return NULL;
+}
+
+void defer_del_free(struct sl_elem *slep)
+{
+	struct zoo_he *zhep = container_of(slep, struct zoo_he, zhe_e);
+
+	free(zhep);
+}
+
+/* Run a performance test. */
+void zoo_test(void)
+{
+	struct perftest_attr *pap;
+	int maxcpus = sysconf(_SC_NPROCESSORS_CONF);
+	long i;
+	long long nlookups = 0;
+	long long ncatlookups = 0;
+	long long nlookupfails = 0;
+	long long nadds = 0;
+	long long ndels = 0;
+	long long starttime;
+	struct zoo_he *zhep;
+
+	BUG_ON(maxcpus <= 0);
+	perftest_htp = hashtab_alloc(nbuckets);
+	BUG_ON(perftest_htp == NULL);
+	hash_register_test(perftest_htp);
+	defer_del_done = defer_del_free;
+	zoo_names = malloc(ZOO_NAMELEN * nupdaters * elperupdater);
+	BUG_ON(zoo_names == NULL);
+	for (i = 0; i < nupdaters * elperupdater; i++) {
+		sprintf(&zoo_names[ZOO_NAMELEN * i], "a%ld", i);
+	}
+
+	zhep = malloc(sizeof(*zhep));
+	BUG_ON(!zhep);
+	strcpy(zhep->name, "cat");
+	zoo_add(zhep);
+
+	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
+	BUG_ON(pap == NULL);
+	atomic_set(&nthreads_running, 0);
+	goflag = GOFLAG_INIT;
+
+	for (i = 0; i < nreaders + nupdaters; i++) {
+		pap[i].myid = i < nreaders ? i : i - nreaders;
+		pap[i].cat = i < ncats;
+		pap[i].nlookups = 0;
+		pap[i].nlookupfails = 0;
+		pap[i].nadds = 0;
+		pap[i].ndels = 0;
+		pap[i].mycpu = (i * cpustride) % maxcpus;
+		pap[i].nelements = nupdaters * elperupdater;
+		create_thread(i < nreaders ? zoo_reader : zoo_updater, &pap[i]);
+	}
+
+	/* Wait for all threads to initialize. */
+	while (atomic_read(&nthreads_running) < nreaders + nupdaters)
+		poll(NULL, 0, 1);
+	smp_mb();
+
+	/* Run the test. */
+	starttime = get_microseconds();
+	ACCESS_ONCE(goflag) = GOFLAG_RUN;
+	poll(NULL, 0, duration);
+	ACCESS_ONCE(goflag) = GOFLAG_STOP;
+	starttime = get_microseconds() - starttime;
+	wait_all_threads();
+
+	/* Collect stats and output them. */
+	for (i = 0; i < nreaders + nupdaters; i++) {
+		nlookups += pap[i].nlookups;
+		if (pap[i].cat)
+			ncatlookups += pap[i].nlookups;
+		nlookupfails += pap[i].nlookupfails;
+		nadds += pap[i].nadds;
+		ndels += pap[i].ndels;
+	}
+	printf("nlookups: %lld %lld  ncats: %lld  nadds: %lld  ndels: %lld  duration: %g\n",
+	       nlookups, nlookupfails, ncatlookups, nadds, ndels, starttime / 1000.);
+	printf("ns/read: %g  ns/update: %g\n",
+	       (starttime * 1000. * (double)nreaders) / (double)nlookups,
+	       ((starttime * 1000. * (double)nupdaters) /
+	        (double)(nadds + ndels)));
+}
+
+
+/* Common argument-parsing code. */
+
+void usage(char *progname, const char *format, ...)
+{
+	va_list ap;
+
+	va_start(ap, format);
+	vfprintf(stderr, format, ap);
+	va_end(ap);
+	fprintf(stderr, "Usage: %s --smoketest\n", progname);
+	fprintf(stderr, "Usage: %s --perftest\n", progname);
+	fprintf(stderr, "Usage: %s --schroedinger\n", progname);
+	fprintf(stderr, "\t--nbuckets\n");
+	fprintf(stderr, "\t\tNumber of buckets, defaults to 1024.\n");
+	fprintf(stderr, "\t--ncats\n");
+	fprintf(stderr, "\t\tNumber of cat readers, defaults to 0.\n");
+	fprintf(stderr, "\t\t(Only for --schroedinger.)\n");
+	fprintf(stderr, "\t--nreaders\n");
+	fprintf(stderr, "\t\tNumber of readers, defaults to 1.\n");
+	fprintf(stderr, "\t--nupdaters\n");
+	fprintf(stderr, "\t\tNumber of updaters, defaults to 1.  Must be 1\n");
+	fprintf(stderr, "\t\tor greater, or hash table will be empty.\n");
+	fprintf(stderr, "\t--updatewait\n");
+	fprintf(stderr, "\t\tNumber of spin-loop passes per update,\n");
+	fprintf(stderr, "\t\tdefaults to -1.  If 0, the updater will not.\n");
+	fprintf(stderr, "\t\tdo any updates, except for initialization.\n");
+	fprintf(stderr, "\t\tIf negative, the updater waits for the\n");
+	fprintf(stderr, "\t\tcorresponding number of milliseconds\n");
+	fprintf(stderr, "\t\tbetween updates.\n");
+	fprintf(stderr, "\t--elems/writer\n");
+	fprintf(stderr, "\t\tNumber of hash-table elements per writer,\n");
+	fprintf(stderr, "\t\tdefaults to 2048.  Must be greater than zero.\n");
+	fprintf(stderr, "\t--cpustride\n");
+	fprintf(stderr, "\t\tStride when spreading threads across CPUs,\n");
+	fprintf(stderr, "\t\tdefaults to 1.\n");
+	fprintf(stderr, "\t--resizediv\n");
+	fprintf(stderr, "\t\tDivisor for resized hash table,\n");
+	fprintf(stderr, "\t\tdefaults to zero (don't resize).\n");
+	fprintf(stderr, "\t--resizemult\n");
+	fprintf(stderr, "\t\tMultiplier for resized hash table,\n");
+	fprintf(stderr, "\t\tdefaults to zero (don't resize).\n");
+	fprintf(stderr, "\t--resizewait\n");
+	fprintf(stderr, "\t\tMilliseconds to wait between resizes,\n");
+	fprintf(stderr, "\t\tdefaults to one.\n");
+	fprintf(stderr, "\t--duration\n");
+	fprintf(stderr, "\t\tDuration of test, in milliseconds.\n");
+	exit(-1);
+}
+
+/*
+ * Mainprogram.
+ */
+int main(int argc, char *argv[])
+{
+	int i = 1;
+	void (*test_to_do)(void) = NULL;
+
+	smp_init();
+	other_init();
+
+	while (i < argc) {
+		if (strcmp(argv[i], "--smoketest") == 0) {
+			if (i < argc - 1 || i != 1)
+				usage(argv[0],
+				      "Excess arguments for %s\n", argv[i]);
+			smoketest();
+			exit(0);
+		} else if (strcmp(argv[i], "--perftest") == 0) {
+			test_to_do = perftest;
+			if (i != 1)
+				usage(argv[0],
+				      "Must be first argument: %s\n", argv[i]);
+		} else if (strcmp(argv[i], "--schroedinger") == 0) {
+			test_to_do = zoo_test;
+			if (i != 1)
+				usage(argv[0],
+				      "Must be first argument: %s\n", argv[i]);
+		} else if (strcmp(argv[i], "--nbuckets") == 0) {
+			nbuckets = strtol(argv[++i], NULL, 0);
+			if (nbuckets < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--nreaders") == 0) {
+			nreaders = strtol(argv[++i], NULL, 0);
+			if (nreaders < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--ncats") == 0) {
+			ncats = strtol(argv[++i], NULL, 0);
+			if (ncats < 0 || ncats > nreaders)
+				usage(argv[0],
+				      "%s must be >= 0 and <= --nreaders\n",
+				      argv[i - 1]);
+		} else if (strcmp(argv[i], "--nupdaters") == 0) {
+			nupdaters = strtol(argv[++i], NULL, 0);
+			if (nupdaters < 1)
+				usage(argv[0],
+				      "%s must be >= 1\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--updatewait") == 0) {
+			updatewait = strtol(argv[++i], NULL, 0);
+		} else if (strcmp(argv[i], "--elems/writer") == 0) {
+			elperupdater = strtol(argv[++i], NULL, 0);
+			if (elperupdater < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--cpustride") == 0) {
+			cpustride = strtol(argv[++i], NULL, 0);
+		} else if (strcmp(argv[i], "--resizediv") == 0) {
+			resizediv = strtol(argv[++i], NULL, 0);
+			if (resizediv < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+			if (resizediv != 0 && resizemult == 0)
+				resizemult = 1;
+		} else if (strcmp(argv[i], "--resizemult") == 0) {
+			resizemult = strtol(argv[++i], NULL, 0);
+			if (resizemult < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+			if (resizemult != 0 && resizediv == 0)
+				resizediv = 1;
+		} else if (strcmp(argv[i], "--resizewait") == 0) {
+			resizewait = strtol(argv[++i], NULL, 0);
+			if (resizewait < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--duration") == 0) {
+			duration = strtol(argv[++i], NULL, 0);
+			if (duration < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+		} else {
+			usage(argv[0], "Unrecognized argument: %s\n",
+			      argv[i]);
+		}
+		i++;
+	}
+	if (!test_to_do)
+		usage(argv[0], "No test specified\n");
+	if (resizediv != 0 && resizemult != 0)
+		create_thread(perftest_resize, NULL);
+	test_to_do();
+	if (resizediv != 0 && resizemult != 0)
+		printf("Resizes: %lld\n", nresizes);
+	return 0;
+}
+
+#else
+
+int main(int argc, char *argv[])
+{
+	smoketest();
+	return 0;
+}
