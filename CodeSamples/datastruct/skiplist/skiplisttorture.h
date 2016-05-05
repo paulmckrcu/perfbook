@@ -30,58 +30,140 @@
 #include <sched.h>
 #include <string.h>
 
-#ifndef quiescent_state
-#define quiescent_state() do ; while (0)
-#define synchronize_rcu() do ; while (0)
-#endif /* #ifndef quiescent_state */
-
 /*
  * Test variables.
  */
 
 struct testsl {
-	struct sl_elem sle_e;
+	struct skiplist sle_e;
 	unsigned long data;
 	int in_table __attribute__((__aligned__(CACHE_LINE_SIZE)));
 };
 
-void defer_del_done_perftest(struct sl_elem *slep)
+void defer_del_done_perftest(struct skiplist *slep)
 {
 	struct testsl *p = container_of(slep, struct testsl, sle_e);
 
 	p->in_table = 0;
 }
 
-void *testgk(struct sl_elem *slep)
+void *testgk(struct skiplist *slep)
 {
-	struct testsl *thep;
+	struct testsl *tslp;
 
-	thep = container_of(slep, struct testsl, sle_e);
-	return (void *)thep->data;
+	tslp = container_of(slep, struct testsl, sle_e);
+	return (void *)tslp->data;
 }
 
-int testcmp(struct sl_elem *slep, void *key)
+int testcmp(struct skiplist *slp, void *key)
 {
-	struct testsl *thep;
+	struct testsl *tslp;
+	unsigned long a;
+	unsigned long b;
 
-	thep = container_of(slep, struct testsl, sle_e);
-	return ((unsigned long)key) == thep->data;
+	tslp = container_of(slp, struct testsl, sle_e);
+	a = tslp->data;
+	b = (unsigned long)key;
+	return (a != b) - 2 * (a < b);
+}
+
+void sl_print(struct skiplist *slp)
+{
+	int i;
+	struct testsl *tslp;
+
+	if (slp == NULL) {
+		printf("NULL\n");
+		return;
+	}
+	tslp = container_of(slp, struct testsl, sle_e);
+	printf("%p Key: %ld tl: %d %c\n\t",
+	       tslp, (unsigned long)tslp->data, slp->sl_toplevel,
+	       ".D"[!!slp->sl_deleted]);
+	for (i = 0; i < SL_MAX_LEVELS; i++)
+		printf("%p ", slp->sl_next[i]);
+	printf("\n");
+}
+
+void sl_print_next(struct skiplist *slp)
+{
+	int i;
+	struct skiplist *slp_next = slp->sl_next[0];
+	struct testsl *tslp;
+	struct testsl *tslp_next;
+
+	if (slp_next == NULL) {
+		printf("%p -> NULL\n", slp);
+		return;
+	}
+	tslp = container_of(slp, struct testsl, sle_e);
+	tslp_next = container_of(slp_next, struct testsl, sle_e);
+	printf("%p -> %p Key: %ld tl: %d %c\n\t",
+	       tslp, tslp_next, (unsigned long)tslp_next->data,
+	       slp_next->sl_toplevel,
+	       ".D"[!!slp_next->sl_deleted]);
+	for (i = 0; i < SL_MAX_LEVELS; i++)
+		printf("%p ", slp_next->sl_next[i]);
+	printf("\n");
 }
 
 void smoketest(void)
 {
-	struct testsl e1 = { .data = 1 };
-	struct testsl e2 = { .data = 2 };
-	struct testsl e3 = { .data = 3 };
-	struct testsl e4 = { .data = 4 };
-	struct hashtab *htp;
+	static struct testsl e3 = { .sle_e.sl_toplevel = 2,
+		.sle_e.sl_next = {       NULL,       NULL,       NULL, NULL },
+		.data = 7 };
+	static struct testsl e2 = { .sle_e.sl_toplevel = 1,
+		.sle_e.sl_next = {  &e3.sle_e,  &e3.sle_e,       NULL, NULL },
+		.data = 5 };
+	static struct testsl e1 = { .sle_e.sl_toplevel = 1,
+		.sle_e.sl_next = {  &e2.sle_e,  &e2.sle_e,       NULL, NULL },
+		.data = 3 };
+	static struct testsl e0 = { .sle_e.sl_toplevel = 2,
+		.sle_e.sl_next = {  &e1.sle_e,  &e1.sle_e,  &e3.sle_e, NULL },
+		.data = 1 };
+	static struct testsl eh = { .sle_e.sl_toplevel = 3,
+		.sle_e.sl_next = {  &e0.sle_e,  &e0.sle_e,  &e3.sle_e, NULL } };
 	long i;
+	int result;
+	struct skiplist *slp;
+	struct skiplist *slp_prev;
+	/* struct testsl *tslp; */
 
-	htp = hashtab_alloc(5);
-	BUG_ON(htp == NULL);
-	hash_register_test(htp);
-	hash_register_thread();
+	spin_lock_init(&eh.sle_e.sl_lock);
+	spin_lock_init(&e0.sle_e.sl_lock);
+	spin_lock_init(&e1.sle_e.sl_lock);
+	spin_lock_init(&e2.sle_e.sl_lock);
+	spin_lock_init(&e3.sle_e.sl_lock);
 
+	rcu_register_thread();
+
+	rcu_read_lock();
+
+	printf("\nskiplist_lookup_help():\n");
+	for (i = 0; i <= 8; i++) {
+		slp = skiplist_lookup_help(&eh.sle_e, (void *)i, testcmp);
+		printf("%ld: ", i);
+		sl_print_next(slp);
+	}
+
+	printf("\nskiplist_lookup_relaxed():\n");
+	for (i = 0; i <= 8; i++) {
+		slp = skiplist_lookup_relaxed(&eh.sle_e, (void *)i, testcmp);
+		printf("%ld: ", i);
+		sl_print(slp);
+	}
+
+	printf("\nskiplist_lookup_lock_prev():\n");
+	for (i = 0; i <= 8; i++) {
+		slp = skiplist_lookup_lock_prev(&eh.sle_e, (void *)i, testcmp,
+						&slp_prev, &result);
+		printf("%ld%c ", i, "<:>"[result + 1]);
+		sl_print_next(slp_prev);
+		skiplist_unlock(slp_prev);
+	}
+	rcu_read_unlock();
+
+#if 0
 	/* Should be empty. */
 	for (i = 1; i <= 4; i++) {
 		hashtab_lock_lookup(htp, i);
@@ -142,7 +224,8 @@ void smoketest(void)
 		hashtab_unlock_lookup(htp, i);
 	}
 	hashtab_free(htp);
-	hash_unregister_thread();
+#endif
+	rcu_unregister_thread();
 	printf("End of smoketest.\n");
 }
 
@@ -211,38 +294,38 @@ void *perftest_resize(void *arg)
 /* Look up a key in the hash table. */
 int perftest_lookup(long i)
 {
-	struct sl_elem *slep;
-	struct testsl *thep;
+	struct skiplist *slp;
+	struct testsl *tslp;
 
 	hashtab_lock_lookup(perftest_htp, i);
-	slep = hashtab_lookup(perftest_htp, i, (void *)i, testcmp);
-	thep = container_of(slep, struct testsl, sle_e);
-	BUG_ON(thep && thep->data != i);
+	slp = hashtab_lookup(perftest_htp, i, (void *)i, testcmp);
+	tslp = container_of(slp, struct testsl, sle_e);
+	BUG_ON(tslp && tslp->data != i);
 	hashtab_unlock_lookup(perftest_htp, i);
-	return !!slep;
+	return !!slp;
 }
 
 /* Add an element to the hash table. */
-void perftest_add(struct testsl *thep)
+void perftest_add(struct testsl *tslp)
 {
-	BUG_ON(thep->in_table);
-	hashtab_lock_mod(perftest_htp, thep->data);
-	BUG_ON(hashtab_lookup(perftest_htp, thep->data,
-			      (void *)thep->data, testcmp));
-	thep->in_table = 1;
-	hashtab_add(perftest_htp, thep->data, &thep->sle_e);
-	hashtab_unlock_mod(perftest_htp, thep->data);
+	BUG_ON(tslp->in_table);
+	hashtab_lock_mod(perftest_htp, tslp->data);
+	BUG_ON(hashtab_lookup(perftest_htp, tslp->data,
+			      (void *)tslp->data, testcmp));
+	tslp->in_table = 1;
+	hashtab_add(perftest_htp, tslp->data, &tslp->sle_e);
+	hashtab_unlock_mod(perftest_htp, tslp->data);
 }
 
 /* Remove an element from the hash table. */
-void perftest_del(struct testsl *thep)
+void perftest_del(struct testsl *tslp)
 {
-	BUG_ON(thep->in_table != 1);
-	hashtab_lock_mod(perftest_htp, thep->data);
-	hashtab_del(&thep->sle_e);
-	thep->in_table = 2;
-	hashtab_unlock_mod(perftest_htp, thep->data);
-	defer_del(&thep->sle_e);
+	BUG_ON(tslp->in_table != 1);
+	hashtab_lock_mod(perftest_htp, tslp->data);
+	hashtab_del(&tslp->sle_e);
+	tslp->in_table = 2;
+	hashtab_unlock_mod(perftest_htp, tslp->data);
+	defer_del(&tslp->sle_e);
 }
 
 /* Performance test reader thread. */
@@ -302,15 +385,15 @@ void *perftest_updater(void *arg)
 	struct perftest_attr *pap = arg;
 	int myid = pap->myid;
 	int mylowkey = myid * elperupdater;
-	struct testsl *thep;
+	struct testsl *tslp;
 	long long nadds = 0;
 	long long ndels = 0;
 
-	thep = malloc(sizeof(*thep) * elperupdater);
-	BUG_ON(thep == NULL);
+	tslp = malloc(sizeof(*tslp) * elperupdater);
+	BUG_ON(tslp == NULL);
 	for (i = 0; i < elperupdater; i++) {
-		thep[i].data = i + mylowkey;
-		thep[i].in_table = 0;
+		tslp[i].data = i + mylowkey;
+		tslp[i].in_table = 0;
 	}
 	run_on(pap->mycpu);
 	hash_register_thread();
@@ -318,10 +401,10 @@ void *perftest_updater(void *arg)
 	/* Start with some random half of the elements in the hash table. */
 	for (i = 0; i < elperupdater / 2; i++) {
 		j = random() % elperupdater;
-		while (thep[j].in_table)
+		while (tslp[j].in_table)
 			if (++j >= elperupdater)
 				j = 0;
-		perftest_add(&thep[j]);
+		perftest_add(&tslp[j]);
 	}
 
 	/* Announce our presence and enter the test loop. */
@@ -340,11 +423,11 @@ void *perftest_updater(void *arg)
 		}
 		if (updatewait == 0) {
 			poll(NULL, 0, 10);  /* No actual updating wanted. */
-		} else if (thep[i].in_table == 1) {
-			perftest_del(&thep[i]);
+		} else if (tslp[i].in_table == 1) {
+			perftest_del(&tslp[i]);
 			ndels++;
-		} else if (thep[i].in_table == 0) {
-			perftest_add(&thep[i]);
+		} else if (tslp[i].in_table == 0) {
+			perftest_add(&tslp[i]);
 			nadds++;
 		}
 
@@ -363,10 +446,10 @@ void *perftest_updater(void *arg)
 
 	/* Test over, so remove all our elements from the hash table. */
 	for (i = 0; i < elperupdater; i++) {
-		if (thep[i].in_table != 1)
+		if (tslp[i].in_table != 1)
 			continue;
-		BUG_ON(!perftest_lookup(thep[i].data));
-		perftest_del(&thep[i]);
+		BUG_ON(!perftest_lookup(tslp[i].data));
+		perftest_del(&tslp[i]);
 	}
 	/* Really want rcu_barrier(), but missing from old liburcu versions. */
 	synchronize_rcu();
@@ -374,7 +457,7 @@ void *perftest_updater(void *arg)
 	synchronize_rcu();
 
 	hash_unregister_thread();
-	free(thep);
+	free(tslp);
 	pap->nadds = nadds;
 	pap->ndels = ndels;
 	return NULL;
@@ -450,11 +533,11 @@ void perftest(void)
 
 #define ZOO_NAMELEN 32
 struct zoo_he {
-	struct sl_elem zhe_e;
+	struct skiplist zhe_e;
 	char name[ZOO_NAMELEN];
 };
 
-void *zoo_gk(struct sl_elem *slep)
+void *zoo_gk(struct skiplist *slep)
 {
 	struct zoo_he *zhep;
 
@@ -462,7 +545,7 @@ void *zoo_gk(struct sl_elem *slep)
 	return (void *)zhep->name;
 }
 
-int zoo_cmp(struct sl_elem *slep, void *key)
+int zoo_cmp(struct skiplist *slep, void *key)
 {
 	struct zoo_he *zhep;
 
@@ -485,7 +568,7 @@ unsigned long zoo_hash(char *key)
 int zoo_lookup(char *key)
 {
 	unsigned long hash = zoo_hash(key);
-	struct sl_elem *slep;
+	struct skiplist *slep;
 	struct zoo_he *zhep;
 
 	hashtab_lock_lookup(perftest_htp, hash);
@@ -670,7 +753,7 @@ void *zoo_updater(void *arg)
 	return NULL;
 }
 
-void defer_del_free(struct sl_elem *slep)
+void defer_del_free(struct skiplist *slep)
 {
 	struct zoo_he *zhep = container_of(slep, struct zoo_he, zhe_e);
 
@@ -909,3 +992,5 @@ int main(int argc, char *argv[])
 	smoketest();
 	return 0;
 }
+
+#endif

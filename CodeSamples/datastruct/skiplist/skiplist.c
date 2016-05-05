@@ -26,6 +26,13 @@
 #define _LGPL_SOURCE
 #include "../../api.h"
 
+// Uncomment to enable signal-based RCU.  (Need corresponding Makefile change!)
+#define RCU_SIGNAL
+#include <urcu.h>
+
+// Uncomment to enable QSBR.  (Need corresponding Makefile change!)
+//#include <urcu-qsbr.h>
+
 #define SL_MAX_LEVELS 8
 
 struct skiplist {
@@ -57,7 +64,7 @@ static void skiplist_unlock(struct skiplist *slp)
 	spin_unlock(&slp->sl_lock);
 }
 
-static void skiplist_unlock_update(strcut skiplist **update, int toplevel)
+static void skiplist_unlock_update(struct skiplist **update, int toplevel)
 {
 	int level;
 	struct skiplist *slp_last = NULL;
@@ -80,7 +87,7 @@ skiplist_lookup_help(struct skiplist *head_slp, void *key,
 	int level;
 
 	for (level = slp->sl_toplevel; level >= 0; level--) {
-		while (slp->sl_next[level] && cmp(slp->sl_next, key) < 0)
+		while (slp->sl_next[level] && cmp(slp->sl_next[level], key) < 0)
 			slp = rcu_dereference(slp->sl_next[level]);
 	}
 	return slp;
@@ -112,9 +119,11 @@ skiplist_lookup_lock_prev(struct skiplist *head_slp, void *key,
 		if (slp_prev->sl_deleted)
 			goto unlock_retry;
 		slp_cur = slp_prev->sl_next[0];
-		if (!slp_cur)
-			return NULL;
 		*slpp_prev = slp_prev;
+		if (!slp_cur) {
+			*result = 1;
+			return NULL;
+		}
 		*result = cmp(slp_cur, key);
 		if (*result >= 0)
 			return slp_cur;
@@ -190,11 +199,10 @@ retry:
 	return slp_cur;
 }
 
-static struct skiplist *
-skiplist_insert_lock(struct skiplist *new_slp,
-		     struct skiplist *head_slp, void *key,
-		     int (*cmp)(struct skiplist *slp, void *key),
-		     struct skiplist **update)
+static int skiplist_insert_lock(struct skiplist *new_slp,
+				struct skiplist *head_slp, void *key,
+				int (*cmp)(struct skiplist *slp, void *key),
+				struct skiplist **update)
 {
 	int level;
 	struct skiplist *slp;
@@ -202,9 +210,9 @@ skiplist_insert_lock(struct skiplist *new_slp,
 
 retry:
 	slp = head_slp;
-	for (level = slp_cur->sl_toplevel; level >= 0; level--) {
+	for (level = slp->sl_toplevel; level >= 0; level--) {
 		while (slp->sl_next[level] &&
-		       cmp(slp->sl_next[level] < 0))
+		       cmp(slp->sl_next[level], key) < 0)
 			slp = slp->sl_next[level];
 		if (level > toplevel) {
 			update[level] = NULL;
@@ -212,6 +220,7 @@ retry:
 			update[level] = slp;
 			if (level == toplevel ||
 			    update[level] != update[level + 1])
+				skiplist_lock(slp);
 		}
 	}
 	for (level = 0; level <= toplevel; level++)
@@ -240,12 +249,12 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 		return -EEXIST;
 	}
 	new_slp->sl_toplevel = toplevel;
-	init_spin_lock(&new_slp->sl_lock);
-	new_slp->dl_deleted = 0;
+	spin_lock_init(&new_slp->sl_lock);
+	new_slp->sl_deleted = 0;
 	skiplist_lock(new_slp);
 	for (level = 0; level <= toplevel; level++) {
-		new_slp->sl_next[i] = level[i];
-		smp_store_release(&level[i]->sl_next[i], new_slp);
+		new_slp->sl_next[level] = update[level];
+		smp_store_release(&update[level]->sl_next[level], new_slp);
 	}
 	skiplist_unlock_update(update, toplevel);
 	skiplist_unlock(new_slp);
