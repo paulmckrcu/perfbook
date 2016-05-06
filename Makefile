@@ -32,15 +32,9 @@ EPSTARGETS_OF_TEX = \
 	SMPdesign/DiningPhilosopher4part-b.eps \
 	SMPdesign/DiningPhilosopher5PEM.eps
 
-PDFTARGETS_OF_DOT = \
-	advsync/store15tred.pdf
-
 EPSTARGETS_OF_DOT = \
+	advsync/store15tred.eps \
 	count/sig-theft.eps
-
-EPS_NOT_IN_REPO = \
-	$(EPSTARGETS_OF_TEX) \
-	$(EPSTARGETS_OF_DOT)
 
 EPSSOURCES = \
 	SMPdesign/*.eps \
@@ -55,11 +49,9 @@ EPSSOURCES = \
 	future/*.eps \
 	intro/*.eps \
 	locking/*.eps \
-	$(PDFTARGETS_OF_DOT) \
-	$(EPS_NOT_IN_REPO)
+	$(EPSTARGETS_OF_TEX)
 
-BIBSOURCES = \
-	bib/*.bib
+BIBSOURCES = bib/*.bib
 
 SVGSOURCES = \
 	cartoons/*.svg \
@@ -81,23 +73,22 @@ endif
 .PHONY: all touchsvg clean distclean neatfreak 1c 2c hb
 all: $(targ)
 
-2c: perfbook.pdf
-
 1c: perfbook-1c.pdf
+
+2c: perfbook.pdf
 
 hb: perfbook-hb.pdf
 
 perfbook.pdf: perfbook.bbl
 	sh utilities/runlatex.sh perfbook
 
-perfbook.bbl: $(BIBSOURCES) perfbook_aux
+perfbook.bbl: $(BIBSOURCES) perfbook.aux
 	bibtex perfbook
 
-perfbook_aux: $(LATEXSOURCES) extraction embedfonts
+perfbook.aux: $(LATEXSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook
-	touch perfbook_aux
 
-perfbook_flat.tex: perfbook.tex $(LATEXSOURCES) $(EPSSOURCES) embedfonts
+perfbook_flat.tex qqz.tex: perfbook.tex $(LATEXSOURCES) $(EPSSOURCES) embedfonts
 	echo > qqz.tex
 	texexpand perfbook.tex > perfbook_flat.tex
 	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
@@ -119,12 +110,11 @@ perfbook-1c.pdf: perfbook-1c.tex perfbook-1c.bbl
 perfbook-1c.tex: perfbook.tex
 	sed -e 's/,twocolumn//' -e '/^\\frontmatter/a \\\\pagestyle{plain}' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
 
-perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c_aux
+perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c.aux
 	bibtex perfbook-1c
 
-perfbook-1c_aux: $(LATEXSOURCES) extraction embedfonts
+perfbook-1c.aux: $(LATEXSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook-1c
-	touch perfbook-1c_aux
 
 perfbook-hb.pdf: perfbook-hb.tex perfbook-hb.bbl
 	sh utilities/runlatex.sh perfbook-hb
@@ -132,23 +122,22 @@ perfbook-hb.pdf: perfbook-hb.tex perfbook-hb.bbl
 perfbook-hb.tex: perfbook.tex
 	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < perfbook.tex > perfbook-hb.tex
 
-perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb_aux
+perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb.aux
 	bibtex perfbook-hb
 
-perfbook-hb_aux: $(LATEXSOURCES) extraction embedfonts
+perfbook-hb.aux: $(LATEXSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook-hb
-	touch perfbook-hb_aux
 
-qqz_html.tex: qqz.tex
+qqz_html.tex: perfbook_flat.tex
 	sh utilities/prep4html.sh < qqz.tex > qqz_html.tex
 
-origpub_html.tex: origpub.tex
+origpub_html.tex: perfbook_flat.tex
 	sh utilities/prep4html.sh < origpub.tex > origpub_html.tex
 
-contrib_html.tex: contrib.tex
+contrib_html.tex: perfbook_flat.tex
 	sh utilities/prep4html.sh < contrib.tex > contrib_html.tex
 
-perfbook_html.tex: perfbook_flat.tex qqz_html.tex origpub_html.tex contrib_html.tex perfbook.bbl
+perfbook_html.tex: perfbook_flat.tex qqz_html.tex origpub_html.tex contrib_html.tex perfbook.pdf
 	sh utilities/prep4html.sh < perfbook_flat.tex > perfbook_html.tex
 	cp perfbook.bbl perfbook_html.bbl
 
@@ -160,9 +149,6 @@ $(EPSTARGETS_OF_TEX): %.eps: %.tex
 	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
 	sh utilities/fixanepsfonts.sh $@
 
-$(PDFTARGETS_OF_DOT): %.pdf: %.dot
-	dot -Tpdf -o $@ $<
-
 $(EPSTARGETS_OF_DOT): %.eps: %.dot
 	dot -Tps -o $@ $<
 
@@ -172,8 +158,7 @@ clean:
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook_html.tex perfbook.out perfbook-1c.out
 	rm -f perfbook-hb.out perfbook-1c.tex perfbook-hb.tex
-	rm -f perfbook_aux extraction embedfonts
-	rm -f perfbook-1c_aux perfbook-hb_aux
+	rm -f extraction embedfonts
 	rm -rf perfbook_html
 
 distclean: clean
