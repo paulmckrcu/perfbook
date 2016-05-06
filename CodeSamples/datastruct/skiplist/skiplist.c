@@ -268,7 +268,7 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	new_slp->sl_deleted = 0;
 	skiplist_lock(new_slp);
 	for (level = 0; level <= toplevel; level++) {
-		new_slp->sl_next[level] = update[level];
+		new_slp->sl_next[level] = update[level]->sl_next[level];
 		smp_store_release(&update[level]->sl_next[level], new_slp);
 	}
 	skiplist_unlock_update(update, toplevel);
