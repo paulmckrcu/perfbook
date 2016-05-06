@@ -173,31 +173,36 @@ struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 	int level;
 	int result;
 	struct skiplist *slp_cur;
-	struct skiplist *slp_prev;
+	struct skiplist *slp_last = NULL;
+	struct skiplist *slp_prev = head_slp;
 	struct skiplist *update[SL_MAX_LEVELS];
 
 retry:
 	rcu_read_lock();
-	slp_cur = skiplist_lookup_lock_prev(head_slp, key, cmp,
-					    &slp_prev, &result);
-	if (!slp_cur || result) {
-		skiplist_unlock(slp_prev);
+	for (level = slp_prev->sl_toplevel; level >= 0; level--) {
+		slp_cur = rcu_dereference(slp_prev->sl_next[level]);
+		while (slp_cur && (result = cmp(slp_cur, key)) < 0) {
+			slp_prev = slp_cur;
+			slp_cur = rcu_dereference(slp_prev->sl_next[level]);
+		}
+		if (slp_cur && result == 0) {
+			if (slp_prev != slp_last) {
+				skiplist_lock(slp_prev);
+				slp_last = slp_prev;
+			}
+			update[level] = slp_prev;
+		} else {
+			update[level] = NULL;
+		}
+	}
+	if (!slp_cur || result != 0) {
+		skiplist_unlock_update(update, slp_cur->sl_toplevel);
 		rcu_read_unlock();
 		return NULL;
 	}
 	for (level = slp_cur->sl_toplevel; level >= 0; level--) {
-		if (slp_prev->sl_next[level] == slp_cur) {
-			update[level] = slp_prev;
-			continue;
-		}
-		do {
-			slp_prev = rcu_dereference(slp_prev->sl_next[level]);
-		} while (slp_prev->sl_next[level] != slp_cur);
-		skiplist_lock(slp_prev);
-	}
-	for (level = slp_cur->sl_toplevel; level >= 0; level--) {
-		if (slp_prev->sl_deleted ||
-		    slp_prev->sl_next[level] != slp_cur) {
+		if (update[level]->sl_deleted ||
+		    update[level]->sl_next[level] != slp_cur) {
 			skiplist_unlock_update(update, slp_cur->sl_toplevel);
 			rcu_read_unlock();
 			goto retry;
