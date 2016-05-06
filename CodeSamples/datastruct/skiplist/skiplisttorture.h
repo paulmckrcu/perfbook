@@ -261,6 +261,13 @@ void smoketest(void)
 	       i == 0
 	       	? "Successful"
 		: i == -EEXIST ? "Already present" : "Failed");
+	sl_dump(&eh.sle_e);
+	if (i == 0) {
+		printf("\nskiplist_delete()\n");
+		slp = skiplist_delete(&eh.sle_e, (void *)e00.data, testcmp);
+		BUG_ON(slp != &eh.sle_e);
+		sl_dump(&eh.sle_e);
+	}
 
 	printf("\nsl_dump():\n");
 	sl_dump(&eh.sle_e);
