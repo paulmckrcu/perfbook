@@ -265,7 +265,7 @@ void smoketest(void)
 	if (i == 0) {
 		printf("\nskiplist_delete()\n");
 		slp = skiplist_delete(&eh.sle_e, (void *)e00.data, testcmp);
-		BUG_ON(slp != &eh.sle_e);
+		BUG_ON(slp != &e00.sle_e);
 		sl_dump(&eh.sle_e);
 	}
 
