@@ -16,8 +16,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * along with this program; if not, you can access it online at
+ * http://www.gnu.org/licenses/gpl-2.0.html.
  *
  * Copyright (c) 2006 Paul E. McKenney, IBM.
  *
@@ -61,8 +61,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * along with this program; if not, you can access it online at
+ * http://www.gnu.org/licenses/gpl-2.0.html.
  *
  * Copyright (c) 2006 Paul E. McKenney, IBM.
  *
@@ -411,8 +411,8 @@ static __inline__ long long get_timestamp(void)
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * along with this program; if not, you can access it online at
+ * http://www.gnu.org/licenses/gpl-2.0.html.
  *
  * Copyright (c) 2006 Paul E. McKenney, IBM.
  */
@@ -506,6 +506,15 @@ static __inline__ void spin_unlock(spinlock_t *sp)
 		perror("spin_unlock:pthread_mutex_unlock");
 		exit(-1);
 	}
+}
+
+static __inline__ int spin_is_locked(spinlock_t *sp)
+{
+	if (spin_trylock(sp)) {
+		spin_unlock(sp);
+		return 0;
+	}
+	return 1;
 }
 
 #define spin_lock_irqsave(l, f) do { f = 1; spin_lock(l); } while (0)

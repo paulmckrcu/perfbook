@@ -111,6 +111,15 @@ static __inline__ void spin_unlock(spinlock_t *sp)
 	}
 }
 
+static __inline__ int spin_is_locked(spinlock_t *sp)
+{
+	if (spin_trylock(sp)) {
+		spin_unlock(sp);
+		return 0;
+	}
+	return 1;
+}
+
 #define spin_lock_irqsave(l, f) do { f = 1; spin_lock(l); } while (0)
 #define spin_unlock_irqrestore(l, f) do { f = 0; spin_unlock(l); } while (0)
 
