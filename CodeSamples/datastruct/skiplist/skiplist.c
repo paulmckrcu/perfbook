@@ -66,7 +66,7 @@ static int random_level(void)
 		r >>= 1;
 	}
 	if (i >= SL_MAX_LEVELS)
-		return SL_MAX_LEVELS;
+		return SL_MAX_LEVELS - 1;
 	return i;
 }
 
