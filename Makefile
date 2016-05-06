@@ -157,13 +157,13 @@ clean:
 		-o -name '*.dvi' -o -name '*.log' \
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook_html.tex perfbook.out perfbook-1c.out
+	rm -f qqz.tex
 	rm -f perfbook-hb.out perfbook-1c.tex perfbook-hb.tex
 	rm -f extraction embedfonts
 	rm -rf perfbook_html
 
 distclean: clean
 	sh utilities/cleanpdf.sh
-	rm -f $(EPS_NOT_IN_REPO)
 
 touchsvg:
 	find . -name '*.svg' | xargs touch
