@@ -156,3 +156,23 @@ touchsvg:
 neatfreak: distclean
 	# Don't forget to regenerate the .pdf from each .svg file
 	find . -name '*.pdf' | xargs rm -f
+
+# Note on why 'extraction' should be an empty target
+#
+# There are dependency loops around perfbook_flat.tex.
+# perfbook_flat.tex requires an empty qqz.tex and up-to-date
+# contrib.tex and origpub.tex for texexpand to work properly.
+#
+# Both contrib.tex and origpub.tex requires perfbook_flat.tex.
+# contrib.tex also requires up-to-date qqz.tex.
+#
+# So at first glance, rules for contrib.tex and origpub.tex
+# can be defined, but that requires 'extraction' to be a phony
+# target.
+#
+# 'extraction' is prerequisite for perfbook.aux.
+# If you make it a phony target, the rule for perfbook.aux is
+# always executed. That means runfirstlatex.run will run even
+# if no source file is updated.
+# To avoid the redundant run, we need to make 'extraction' an
+# empty target.
