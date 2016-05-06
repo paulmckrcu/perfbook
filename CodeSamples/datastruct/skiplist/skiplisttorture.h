@@ -173,20 +173,20 @@ void sl_print_next(struct skiplist *slp)
 
 void smoketest(void)
 {
-	static struct testsl e3 = { .sle_e.sl_toplevel = 2,
+	static struct testsl e3 = { .sle_e.sl_toplevel = 0,
 		.sle_e.sl_next = {       NULL,       NULL,       NULL, NULL },
 		.data = 7 };
-	static struct testsl e2 = { .sle_e.sl_toplevel = 1,
-		.sle_e.sl_next = {  &e3.sle_e,  &e3.sle_e,       NULL, NULL },
+	static struct testsl e2 = { .sle_e.sl_toplevel = 0,
+		.sle_e.sl_next = {  &e3.sle_e,       NULL,       NULL, NULL },
 		.data = 5 };
-	static struct testsl e1 = { .sle_e.sl_toplevel = 1,
-		.sle_e.sl_next = {  &e2.sle_e,  &e2.sle_e,       NULL, NULL },
+	static struct testsl e1 = { .sle_e.sl_toplevel = 0,
+		.sle_e.sl_next = {  &e2.sle_e,       NULL,       NULL, NULL },
 		.data = 3 };
-	static struct testsl e0 = { .sle_e.sl_toplevel = 2,
-		.sle_e.sl_next = {  &e1.sle_e,  &e1.sle_e,  &e3.sle_e, NULL },
+	static struct testsl e0 = { .sle_e.sl_toplevel = 0,
+		.sle_e.sl_next = {  &e1.sle_e,       NULL,       NULL, NULL },
 		.data = 1 };
 	static struct testsl eh = { .sle_e.sl_toplevel = SL_MAX_LEVELS - 1,
-		.sle_e.sl_next = {  &e0.sle_e,  &e0.sle_e,  &e0.sle_e, NULL } };
+		.sle_e.sl_next = {  &e0.sle_e,       NULL,       NULL, NULL } };
 	static struct testsl e00; /* Initialized at insertion time. */
 	long i;
 	int result;
