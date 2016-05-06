@@ -254,19 +254,23 @@ void smoketest(void)
 		}
 	}
 
-	printf("\nskiplist_insert()\n");
-	e00.data = random() % 9;
-	i = skiplist_insert(&e00.sle_e, &eh.sle_e, (void *)e00.data, testcmp);
-	printf("%lu insertion: %s\n", e00.data,
-	       i == 0
-	       	? "Successful"
-		: i == -EEXIST ? "Already present" : "Failed");
-	sl_dump(&eh.sle_e);
-	if (i == 0) {
-		printf("\nskiplist_delete()\n");
-		slp = skiplist_delete(&eh.sle_e, (void *)e00.data, testcmp);
-		BUG_ON(slp != &e00.sle_e);
+	for (i = 0; i < 10; i++) {
+		e00.data = random() % 9;
+		printf("\nskiplist_insert(%lu)\n", e00.data);
+		result = skiplist_insert(&e00.sle_e, &eh.sle_e,
+					 (void *)e00.data, testcmp);
+		printf("%lu insertion: %s\n", e00.data,
+		       result == 0
+			? "Successful"
+			: result == -EEXIST ? "Already present" : "Failed");
 		sl_dump(&eh.sle_e);
+		if (result == 0) {
+			printf("\nskiplist_delete()\n");
+			slp = skiplist_delete(&eh.sle_e, (void *)e00.data,
+					      testcmp);
+			BUG_ON(slp != &e00.sle_e);
+			sl_dump(&eh.sle_e);
+		}
 	}
 
 	printf("\nsl_dump():\n");
