@@ -51,6 +51,8 @@ static int random_level(void)
 		i++;
 		r >>= 1;
 	}
+	if (i > SL_MAX_LEVELS)
+		return SL_MAX_LEVELS;
 	return i;
 }
 
@@ -199,8 +201,7 @@ retry:
 	return slp_cur;
 }
 
-static int skiplist_insert_lock(struct skiplist *new_slp,
-				struct skiplist *head_slp, void *key,
+static int skiplist_insert_lock(struct skiplist *head_slp, void *key,
 				int (*cmp)(struct skiplist *slp, void *key),
 				struct skiplist **update)
 {
@@ -243,7 +244,7 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	struct skiplist *update[SL_MAX_LEVELS];
 
 	rcu_read_lock();
-	toplevel = skiplist_insert_lock(new_slp, head_slp, key, cmp, update);
+	toplevel = skiplist_insert_lock(head_slp, key, cmp, update);
 	if (toplevel < 0) {
 		rcu_read_unlock();
 		return -EEXIST;
