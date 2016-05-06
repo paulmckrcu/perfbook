@@ -186,7 +186,7 @@ void smoketest(void)
 		.sle_e.sl_next = {  &e1.sle_e,  &e1.sle_e,  &e3.sle_e, NULL },
 		.data = 1 };
 	static struct testsl eh = { .sle_e.sl_toplevel = SL_MAX_LEVELS - 1,
-		.sle_e.sl_next = {  &e0.sle_e,  &e0.sle_e,  &e3.sle_e, NULL } };
+		.sle_e.sl_next = {  &e0.sle_e,  &e0.sle_e,  &e0.sle_e, NULL } };
 	static struct testsl e00; /* Initialized at insertion time. */
 	long i;
 	int result;
