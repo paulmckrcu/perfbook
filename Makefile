@@ -128,21 +128,7 @@ perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb.aux
 perfbook-hb.aux: $(LATEXSOURCES) extraction embedfonts
 	sh utilities/runfirstlatex.sh perfbook-hb
 
-qqz_html.tex: perfbook_flat.tex
-	sh utilities/prep4html.sh < qqz.tex > qqz_html.tex
-
-origpub_html.tex: perfbook_flat.tex
-	sh utilities/prep4html.sh < origpub.tex > origpub_html.tex
-
-contrib_html.tex: perfbook_flat.tex
-	sh utilities/prep4html.sh < contrib.tex > contrib_html.tex
-
-perfbook_html.tex: perfbook_flat.tex qqz_html.tex origpub_html.tex contrib_html.tex perfbook.pdf
-	sh utilities/prep4html.sh < perfbook_flat.tex > perfbook_html.tex
-	cp perfbook.bbl perfbook_html.bbl
-
-perfbook_html: perfbook_html.tex
-	latex2html -show_section_numbers -local_icons perfbook_html
+# Rules related to perfbook_html are removed as of May, 2016
 
 $(EPSTARGETS_OF_TEX): %.eps: %.tex
 	latex -output-directory=$(shell dirname $<) $<
@@ -156,11 +142,10 @@ clean:
 	find . -name '*.aux' -o -name '*.blg' \
 		-o -name '*.dvi' -o -name '*.log' \
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
-	rm -f perfbook_flat.tex perfbook_html.tex perfbook.out perfbook-1c.out
+	rm -f perfbook_flat.tex perfbook.out perfbook-1c.out
 	rm -f qqz.tex
 	rm -f perfbook-hb.out perfbook-1c.tex perfbook-hb.tex
 	rm -f extraction embedfonts
-	rm -rf perfbook_html
 
 distclean: clean
 	sh utilities/cleanpdf.sh
