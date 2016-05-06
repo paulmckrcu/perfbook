@@ -131,7 +131,7 @@ void update_dump(struct skiplist **update, int toplevel)
 	struct testsl *tslp;
 
 	printf("update: tl=%d ", toplevel);
-	for (i = 0; i < toplevel; i++) {
+	for (i = 0; i <= toplevel; i++) {
 		slp = update[i];
 		if (slp == NULL)
 			break;
