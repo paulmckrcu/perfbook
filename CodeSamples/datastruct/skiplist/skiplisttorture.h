@@ -77,11 +77,74 @@ void sl_print(struct skiplist *slp)
 		return;
 	}
 	tslp = container_of(slp, struct testsl, sle_e);
-	printf("%p Key: %ld tl: %d %c\n\t",
+	printf("%p Key: %ld tl: %d %c%c\n\t",
 	       tslp, (unsigned long)tslp->data, slp->sl_toplevel,
-	       ".D"[!!slp->sl_deleted]);
+	       ".D"[!!slp->sl_deleted],
+	       ".L"[!!spin_is_locked(&slp->sl_lock)]);
 	for (i = 0; i < SL_MAX_LEVELS; i++)
 		printf("%p ", slp->sl_next[i]);
+	printf("\n");
+}
+
+void sl_dump(struct skiplist *head_slp)
+{
+	int held;
+	int i;
+	char sep;
+	struct skiplist *slp;
+	struct testsl *tslp;
+
+	if (head_slp == NULL) {
+		printf("NULL\n");
+		return;
+	}
+	for (slp = head_slp; slp != NULL; slp = slp->sl_next[0]) {
+		tslp = container_of(slp, struct testsl, sle_e);
+		printf("Key: %2ld (%p) tl: %c%c %d:",
+		       (unsigned long)tslp->data, tslp,
+		       ".D"[!!slp->sl_deleted],
+		       ".L"[!!spin_is_locked(&slp->sl_lock)],
+		       slp->sl_toplevel);
+		for (i = 0; i < SL_MAX_LEVELS; i++) {
+			if (slp->sl_next[i] == NULL)
+				break;
+			if (i == slp->sl_toplevel + 1)
+				sep = '|';
+			else
+				sep = ' ';
+			tslp = container_of(slp->sl_next[i],
+					    struct testsl, sle_e);
+			printf("%c%2ld", sep, (unsigned long)tslp->data);
+		}
+		for (; i < SL_MAX_LEVELS; i++)
+			if (slp->sl_next[i] != NULL)
+				printf(" !!!%d!!!", i);
+		printf("\n");
+	}
+}
+
+void update_dump(struct skiplist **update, int toplevel)
+{
+	int i;
+	char sep;
+	struct skiplist *slp;
+	struct testsl *tslp;
+
+	printf("update: tl=%d ", toplevel);
+	for (i = 0; i < toplevel; i++) {
+		slp = update[i];
+		if (slp == NULL)
+			break;
+		if (i == slp->sl_toplevel + 1)
+			sep = '|';
+		else
+			sep = ' ';
+		tslp = container_of(slp, struct testsl, sle_e);
+		printf("%c%2ld", sep, (unsigned long)tslp->data);
+	}
+	for (; i < toplevel; i++)
+		if (slp->sl_next[i] != NULL)
+			printf(" !!!%d!!!", i);
 	printf("\n");
 }
 
@@ -98,10 +161,11 @@ void sl_print_next(struct skiplist *slp)
 	}
 	tslp = container_of(slp, struct testsl, sle_e);
 	tslp_next = container_of(slp_next, struct testsl, sle_e);
-	printf("%p -> %p Key: %ld tl: %d %c\n\t",
+	printf("%p -> %p Key: %ld tl: %d %c%c\n\t",
 	       tslp, tslp_next, (unsigned long)tslp_next->data,
 	       slp_next->sl_toplevel,
-	       ".D"[!!slp_next->sl_deleted]);
+	       ".D"[!!slp_next->sl_deleted],
+	       ".L"[!!spin_is_locked(&slp_next->sl_lock)]);
 	for (i = 0; i < SL_MAX_LEVELS; i++)
 		printf("%p ", slp_next->sl_next[i]);
 	printf("\n");
@@ -121,13 +185,14 @@ void smoketest(void)
 	static struct testsl e0 = { .sle_e.sl_toplevel = 2,
 		.sle_e.sl_next = {  &e1.sle_e,  &e1.sle_e,  &e3.sle_e, NULL },
 		.data = 1 };
-	static struct testsl eh = { .sle_e.sl_toplevel = 3,
+	static struct testsl eh = { .sle_e.sl_toplevel = SL_MAX_LEVELS,
 		.sle_e.sl_next = {  &e0.sle_e,  &e0.sle_e,  &e3.sle_e, NULL } };
 	long i;
 	int result;
 	struct skiplist *slp;
 	struct skiplist *slp_prev;
-	/* struct testsl *tslp; */
+	int toplevel;
+	struct skiplist *update[SL_MAX_LEVELS];
 
 	spin_lock_init(&eh.sle_e.sl_lock);
 	spin_lock_init(&e0.sle_e.sl_lock);
@@ -157,10 +222,40 @@ void smoketest(void)
 	for (i = 0; i <= 8; i++) {
 		slp = skiplist_lookup_lock_prev(&eh.sle_e, (void *)i, testcmp,
 						&slp_prev, &result);
+		printf("---\n");
 		printf("%ld%c ", i, "<:>"[result + 1]);
+		sl_print(slp_prev);
+		printf("%ld. ", i);
 		sl_print_next(slp_prev);
 		skiplist_unlock(slp_prev);
 	}
+
+	printf("\nskiplist_lookup_lock():\n");
+	for (i = 0; i <= 8; i++) {
+		slp = skiplist_lookup_lock(&eh.sle_e, (void *)i, testcmp);
+		printf("%ld: ", i);
+		sl_print(slp);
+		if (slp)
+			skiplist_unlock(slp);
+	}
+
+	printf("\n");
+	for (i = 0; i <= 8; i++) {
+		printf("---\nskiplist_insert_lock(%ld):\n", i);
+		toplevel = skiplist_insert_lock(&eh.sle_e, (void *)i, testcmp,
+						update);
+		update_dump(update, toplevel);
+		sl_dump(&eh.sle_e);
+		if (toplevel >= 0) {
+			printf("skiplist_unlock_update():\n");
+			skiplist_unlock_update(update, toplevel);
+			sl_dump(&eh.sle_e);
+		}
+	}
+
+	printf("\nsl_dump():\n");
+	sl_dump(&eh.sle_e);
+
 	rcu_read_unlock();
 
 #if 0
@@ -989,6 +1084,7 @@ int main(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+	srandom(time(NULL));
 	smoketest();
 	return 0;
 }
