@@ -185,8 +185,9 @@ void smoketest(void)
 	static struct testsl e0 = { .sle_e.sl_toplevel = 2,
 		.sle_e.sl_next = {  &e1.sle_e,  &e1.sle_e,  &e3.sle_e, NULL },
 		.data = 1 };
-	static struct testsl eh = { .sle_e.sl_toplevel = SL_MAX_LEVELS,
+	static struct testsl eh = { .sle_e.sl_toplevel = SL_MAX_LEVELS - 1,
 		.sle_e.sl_next = {  &e0.sle_e,  &e0.sle_e,  &e3.sle_e, NULL } };
+	static struct testsl e00; /* Initialized at insertion time. */
 	long i;
 	int result;
 	struct skiplist *slp;
@@ -252,6 +253,14 @@ void smoketest(void)
 			sl_dump(&eh.sle_e);
 		}
 	}
+
+	printf("\nskiplist_insert()\n");
+	e00.data = random() % 9;
+	i = skiplist_insert(&e00.sle_e, &eh.sle_e, (void *)e00.data, testcmp);
+	printf("%lu insertion: %s\n", e00.data,
+	       i == 0
+	       	? "Successful"
+		: i == -EEXIST ? "Already present" : "Failed");
 
 	printf("\nsl_dump():\n");
 	sl_dump(&eh.sle_e);
