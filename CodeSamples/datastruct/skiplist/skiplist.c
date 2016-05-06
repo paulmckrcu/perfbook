@@ -42,6 +42,20 @@ struct skiplist {
 	struct skiplist *sl_next[SL_MAX_LEVELS];
 };
 
+/*
+ * Initialize a skiplist header.
+ */
+void skiplist_init(struct skiplist *slp)
+{
+	int i;
+
+	slp->sl_toplevel = SL_MAX_LEVELS - 1;
+	spin_lock_init(&slp->sl_lock);
+	slp->sl_deleted = 0;
+	for (i = 0; i < SL_MAX_LEVELS; i++)
+		slp->sl_next[i] = NULL;
+}
+
 static int random_level(void)
 {
 	int i = 0;
@@ -51,7 +65,7 @@ static int random_level(void)
 		i++;
 		r >>= 1;
 	}
-	if (i > SL_MAX_LEVELS)
+	if (i >= SL_MAX_LEVELS)
 		return SL_MAX_LEVELS;
 	return i;
 }
