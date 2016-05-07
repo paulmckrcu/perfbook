@@ -282,4 +282,30 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	return 0;
 }
 
+void skiplist_fsck_one(struct skiplist *first_slp,
+		       int (*cmp)(struct skiplist *slp, void *key))
+{
+	int i;
+	struct skiplist *slp;
+
+	slp = first_slp->sl_next[0];
+	for (i = 1; i <= first_slp->sl_toplevel; i++) {
+		while (slp != first_slp->sl_next[i]) {
+			assert(slp);
+			slp = slp->sl_next[0];
+		}
+	}
+	for (; i < SL_MAX_LEVELS; i++)
+		assert(!first_slp->sl_next[i]);
+}
+
+void skiplist_fsck(struct skiplist *head_slp,
+		   int (*cmp)(struct skiplist *slp, void *key))
+{
+	struct skiplist *slp;
+
+	for (slp = head_slp; slp; slp = slp->sl_next[0])
+		skiplist_fsck_one(slp, cmp);
+}
+
 #include "skiplisttorture.h"
