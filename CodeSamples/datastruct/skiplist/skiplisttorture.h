@@ -205,11 +205,14 @@ void smoketest(void)
 
 	rcu_read_lock();
 
+	skiplist_fsck(&eh.sle_e, testcmp);
+
 	printf("\nskiplist_lookup_help():\n");
 	for (i = 0; i <= 8; i++) {
 		slp = skiplist_lookup_help(&eh.sle_e, (void *)i, testcmp);
 		printf("%ld: ", i);
 		sl_print_next(slp);
+		skiplist_fsck(&eh.sle_e, testcmp);
 	}
 
 	printf("\nskiplist_lookup_relaxed():\n");
@@ -217,6 +220,7 @@ void smoketest(void)
 		slp = skiplist_lookup_relaxed(&eh.sle_e, (void *)i, testcmp);
 		printf("%ld: ", i);
 		sl_print(slp);
+		skiplist_fsck(&eh.sle_e, testcmp);
 	}
 
 	printf("\nskiplist_lookup_lock_prev():\n");
@@ -226,9 +230,11 @@ void smoketest(void)
 		printf("---\n");
 		printf("%ld%c ", i, "<:>"[result + 1]);
 		sl_print(slp_prev);
+		skiplist_fsck(&eh.sle_e, testcmp);
 		printf("%ld. ", i);
 		sl_print_next(slp_prev);
 		skiplist_unlock(slp_prev);
+		skiplist_fsck(&eh.sle_e, testcmp);
 	}
 
 	printf("\nskiplist_lookup_lock():\n");
@@ -236,8 +242,11 @@ void smoketest(void)
 		slp = skiplist_lookup_lock(&eh.sle_e, (void *)i, testcmp);
 		printf("%ld: ", i);
 		sl_print(slp);
-		if (slp)
+		skiplist_fsck(&eh.sle_e, testcmp);
+		if (slp) {
 			skiplist_unlock(slp);
+			skiplist_fsck(&eh.sle_e, testcmp);
+		}
 	}
 
 	printf("\n");
@@ -247,10 +256,12 @@ void smoketest(void)
 						update);
 		update_dump(update, toplevel);
 		sl_dump(&eh.sle_e);
+		skiplist_fsck(&eh.sle_e, testcmp);
 		if (toplevel >= 0) {
 			printf("skiplist_unlock_update():\n");
 			skiplist_unlock_update(update, toplevel);
 			sl_dump(&eh.sle_e);
+			skiplist_fsck(&eh.sle_e, testcmp);
 		}
 	}
 
@@ -264,12 +275,14 @@ void smoketest(void)
 			? "Successful"
 			: result == -EEXIST ? "Already present" : "Failed");
 		sl_dump(&eh.sle_e);
+		skiplist_fsck(&eh.sle_e, testcmp);
 		if (result == 0) {
 			printf("\nskiplist_delete()\n");
 			slp = skiplist_delete(&eh.sle_e, (void *)e00.data,
 					      testcmp);
 			BUG_ON(slp != &e00.sle_e);
 			sl_dump(&eh.sle_e);
+			skiplist_fsck(&eh.sle_e, testcmp);
 		}
 	}
 
