@@ -180,7 +180,7 @@ void smoketest(void)
 		.sle_e.sl_next = {  &e3.sle_e,       NULL,       NULL, NULL },
 		.data = 5 };
 	static struct testsl e1 = { .sle_e.sl_toplevel = 1,
-		.sle_e.sl_next = {  &e2.sle_e,  &e3.sle_e,       NULL, NULL },
+		.sle_e.sl_next = {  &e2.sle_e,       NULL,       NULL, NULL },
 		.data = 3 };
 	static struct testsl e0 = { .sle_e.sl_toplevel = 0,
 		.sle_e.sl_next = {  &e1.sle_e,       NULL,       NULL, NULL },
