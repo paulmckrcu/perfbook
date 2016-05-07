@@ -294,6 +294,7 @@ void skiplist_fsck_one(struct skiplist *first_slp,
 			assert(slp);
 			slp = slp->sl_next[0];
 		}
+		assert(!slp || slp->sl_toplevel >= i);
 	}
 	for (; i < SL_MAX_LEVELS; i++)
 		assert(!first_slp->sl_next[i]);
