@@ -1090,10 +1090,44 @@ int main(int argc, char *argv[])
 
 #else
 
+/* Common argument-parsing code. */
+
+void usage(char *progname, const char *format, ...)
+{
+	va_list ap;
+
+	va_start(ap, format);
+	vfprintf(stderr, format, ap);
+	va_end(ap);
+	fprintf(stderr, "Usage: %s --smoketest\n", progname);
+	exit(-1);
+}
+
 int main(int argc, char *argv[])
 {
+	int i = 1;
+	void (*test_to_do)(void) = NULL;
+
+	smp_init();
 	srandom(time(NULL));
-	smoketest();
+
+	while (i < argc) {
+		if (strcmp(argv[i], "--smoketest") == 0) {
+			if (i < argc - 1 || i != 1)
+				usage(argv[0],
+				      "Excess arguments for %s\n", argv[i]);
+			smoketest();
+			exit(0);
+
+		} else {
+			usage(argv[0], "Unrecognized argument: %s\n",
+			      argv[i]);
+		}
+		i++;
+	}
+	if (!test_to_do)
+		usage(argv[0], "No test specified\n");
+	test_to_do();
 	return 0;
 }
 
