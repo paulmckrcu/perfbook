@@ -311,7 +311,7 @@ void smoketest(void)
 	sl_dump(&eh.sle_e);
 
 	printf("\nRandom insertions:\n");
-	for (i = 0; i < 100; i++) {
+	for (i = 0; i < 100000; i++) {
 		skiplist_init(&eh.sle_e);
 		testsl_insert(&e0, &eh);
 		testsl_insert(&e1, &eh);
@@ -328,68 +328,6 @@ void smoketest(void)
 
 	rcu_read_unlock();
 
-#if 0
-	/* Should be empty. */
-	for (i = 1; i <= 4; i++) {
-		hashtab_lock_lookup(htp, i);
-		BUG_ON(hashtab_lookup(htp, (unsigned long)i, (void *)i,
-				      testcmp));
-		hashtab_unlock_lookup(htp, i);
-	}
-
-	/* Add one by one and check. */
-	hashtab_lock_mod(htp, 1);
-	hashtab_add(htp, 1, &e1.sle_e);
-	BUG_ON(!hashtab_lookup(htp, 1, (void *)1, testcmp));
-	hashtab_unlock_mod(htp, 1);
-	hashtab_lock_mod(htp, 2);
-	hashtab_add(htp, 2, &e2.sle_e);
-	BUG_ON(!hashtab_lookup(htp, 2, (void *)2, testcmp));
-	hashtab_unlock_mod(htp, 2);
-	hashtab_lock_mod(htp, 3);
-	hashtab_add(htp, 3, &e3.sle_e);
-	BUG_ON(!hashtab_lookup(htp, 3, (void *)3, testcmp));
-	hashtab_unlock_mod(htp, 3);
-	hashtab_lock_mod(htp, 4);
-	hashtab_add(htp, 4, &e4.sle_e);
-	BUG_ON(!hashtab_lookup(htp, 4, (void *)4, testcmp));
-	hashtab_unlock_mod(htp, 4);
-
-	/* Should be full. */
-	for (i = 1; i <= 4; i++) {
-		hashtab_lock_lookup(htp, i);
-		BUG_ON(!hashtab_lookup(htp, (unsigned long)i, (void *)i,
-				       testcmp));
-		hashtab_unlock_lookup(htp, i);
-	}
-
-	/* Delete all and check one by one. */
-	hashtab_lock_mod(htp, 1);
-	hashtab_del(&e1.sle_e);
-	BUG_ON(hashtab_lookup(htp, 1, (void *)1, testcmp));
-	hashtab_unlock_mod(htp, 1);
-	hashtab_lock_mod(htp, 2);
-	hashtab_del(&e2.sle_e);
-	BUG_ON(hashtab_lookup(htp, 2, (void *)2, testcmp));
-	hashtab_unlock_mod(htp, 2);
-	hashtab_lock_mod(htp, 3);
-	hashtab_del(&e3.sle_e);
-	BUG_ON(hashtab_lookup(htp, 3, (void *)3, testcmp));
-	hashtab_unlock_mod(htp, 3);
-	hashtab_lock_mod(htp, 4);
-	hashtab_del(&e4.sle_e);
-	BUG_ON(hashtab_lookup(htp, 4, (void *)4, testcmp));
-	hashtab_unlock_mod(htp, 4);
-
-	/* Should be empty. */
-	for (i = 1; i <= 4; i++) {
-		hashtab_lock_lookup(htp, i);
-		BUG_ON(hashtab_lookup(htp, (unsigned long)i, (void *)i,
-				      testcmp));
-		hashtab_unlock_lookup(htp, i);
-	}
-	hashtab_free(htp);
-#endif
 	rcu_unregister_thread();
 	printf("End of smoketest.\n");
 }
