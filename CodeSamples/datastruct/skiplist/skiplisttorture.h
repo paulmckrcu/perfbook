@@ -171,6 +171,27 @@ void sl_print_next(struct skiplist *slp)
 	printf("\n");
 }
 
+void testsl_insert(struct testsl *ep, struct testsl *ehp)
+{
+	int result;
+
+	do {
+		ep->data = random() % 9;
+		result = skiplist_insert(&ep->sle_e, &ehp->sle_e,
+					 (void *)ep->data, testcmp);
+	} while (result);
+	skiplist_fsck(&ehp->sle_e, testcmp);
+}
+
+void testsl_delete(struct testsl *ep, struct testsl *ehp)
+{
+	struct skiplist *slp;
+
+	slp = skiplist_delete(&ehp->sle_e, (void *)ep->data, testcmp);
+	BUG_ON(slp != &ep->sle_e);
+	skiplist_fsck(&ehp->sle_e, testcmp);
+}
+
 void smoketest(void)
 {
 	static struct testsl e3 = { .sle_e.sl_toplevel = 0,
@@ -288,6 +309,22 @@ void smoketest(void)
 
 	printf("\nsl_dump():\n");
 	sl_dump(&eh.sle_e);
+
+	printf("\nRandom insertions:\n");
+	for (i = 0; i < 100; i++) {
+		skiplist_init(&eh.sle_e);
+		testsl_insert(&e0, &eh);
+		testsl_insert(&e1, &eh);
+		testsl_insert(&e2, &eh);
+		testsl_insert(&e3, &eh);
+		testsl_insert(&e00, &eh);
+
+		testsl_delete(&e0, &eh);
+		testsl_delete(&e1, &eh);
+		testsl_delete(&e2, &eh);
+		testsl_delete(&e3, &eh);
+		testsl_delete(&e00, &eh);
+	}
 
 	rcu_read_unlock();
 
