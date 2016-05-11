@@ -312,4 +312,10 @@ void skiplist_fsck(struct skiplist *head_slp,
 		skiplist_fsck_one(slp, cmp);
 }
 
+void defer_del_rcu(struct rcu_head *rhp);
+
+#define defer_del(p)	call_rcu(p, defer_del_rcu)
+
+#define quiescent_state() rcu_quiescent_state()
+
 #include "skiplisttorture.h"

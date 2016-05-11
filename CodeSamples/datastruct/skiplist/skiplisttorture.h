@@ -37,13 +37,12 @@
 struct testsl {
 	struct skiplist sle_e;
 	unsigned long data;
+	struct rcu_head rh;
 	int in_table __attribute__((__aligned__(CACHE_LINE_SIZE)));
 };
 
-void defer_del_done_perftest(struct skiplist *slep)
+void defer_del_done_stresstest(struct testsl *p)
 {
-	struct testsl *p = container_of(slep, struct testsl, sle_e);
-
 	p->in_table = 0;
 }
 
@@ -428,7 +427,7 @@ void perftest_del(struct testsl *tslp)
 	hashtab_del(&tslp->sle_e);
 	tslp->in_table = 2;
 	hashtab_unlock_mod(perftest_htp, tslp->data);
-	defer_del(&tslp->sle_e);
+	defer_del(&tslp->rh);
 }
 
 /* Performance test reader thread. */
@@ -1090,8 +1089,290 @@ int main(int argc, char *argv[])
 
 #else
 
-/* Common argument-parsing code. */
+/* Parameters for performance test. */
+int nreaders = 2;
+int nupdaters = 5;
+int updatewait = 1;
+long elperupdater = 2048; /* Allow for them being stuck in grace periods. */
+long valsperupdater = 2;
+int cpustride = 1;
+long duration = 10; /* in milliseconds. */
 
+atomic_t nthreads_running;
+
+#define GOFLAG_INIT 0
+#define GOFLAG_RUN  1
+#define GOFLAG_STOP 2
+
+int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
+
+/* Per-test-thread attribute/statistics structure. */
+struct stresstest_attr {
+	int myid;
+	long long nlookups;
+	long long nlookupfails;
+	long long nadds;
+	long long ndels;
+	int mycpu;
+	long nelements;
+	int cat;
+};
+
+void (*defer_del_done)(struct testsl *) = NULL;
+
+void defer_del_rcu(struct rcu_head *rhp)
+{
+	struct testsl *tslp;
+
+	tslp = container_of(rhp, struct testsl, rh);
+	defer_del_done(tslp);
+}
+
+struct testsl head_sl;
+
+/* Look up a key in the skiplist. */
+int stresstest_lookup(long i)
+{
+	struct skiplist *slp;
+	struct testsl *tslp;
+
+	slp = skiplist_lookup_relaxed(&head_sl.sle_e, (void *)i, testcmp);
+	tslp = container_of(slp, struct testsl, sle_e);
+	BUG_ON(tslp && tslp->data != i);
+	return !!slp;
+}
+
+/* Add an element to the skiplist. */
+int stresstest_add(struct testsl *tslp)
+{
+	int result;
+
+	BUG_ON(tslp->in_table);
+	tslp->in_table = 1;
+	result = skiplist_insert(&tslp->sle_e, &head_sl.sle_e,
+				 (void *)tslp->data, testcmp);
+	if (result)
+		tslp->in_table = 0;
+	return result;
+}
+
+/* Remove an element from the skiplist. */
+int stresstest_del(unsigned long key)
+{
+	struct skiplist *slp;
+	struct testsl *tslp;
+
+	slp = skiplist_delete(&head_sl.sle_e, (void *)key, testcmp);
+	if (!slp)
+		return -ENOENT;
+	tslp = container_of(slp, struct testsl, sle_e);
+	tslp->in_table = 2;
+	defer_del(&tslp->rh);
+}
+
+/* Stress test reader thread. */
+void *stresstest_reader(void *arg)
+{
+	int gf;
+	long i;
+	struct stresstest_attr *pap = arg;
+	long ne = pap->nelements;
+	long long nlookups = 0;
+	long long nlookupfails = 0;
+
+	run_on(pap->mycpu);
+	rcu_register_thread();
+
+	/* Warm up cache. */
+	for (i = 0; i < valsperupdater * nupdaters; i++)
+		stresstest_lookup(i);
+
+	/* Record our presence. */
+	atomic_inc(&nthreads_running);
+
+	/* Run the test code. */
+	i = 0;
+	for (;;) {
+		gf = ACCESS_ONCE(goflag);
+		if (gf != GOFLAG_RUN) {
+			if (gf == GOFLAG_STOP)
+				break;
+			if (gf == GOFLAG_INIT) {
+				/* Still initializing, kill statistics. */
+				nlookups = 0;
+				nlookupfails = 0;
+			}
+		}
+		if (!stresstest_lookup(i))
+			nlookupfails++;
+		nlookups++;
+		i++;
+		if (i >= valsperupdater * nupdaters)
+			i = 0;
+	}
+	pap->nlookups = nlookups;
+	pap->nlookupfails = nlookupfails;
+	rcu_unregister_thread();
+	return NULL;
+}
+
+/* Stress test updater thread. */
+void *stresstest_updater(void *arg)
+{
+	long i;
+	long j;
+	long k;
+	int gf;
+	struct stresstest_attr *pap = arg;
+	int myid = pap->myid;
+	int mylowkey = myid * elperupdater;
+	struct testsl *tslp;
+	long long nadds = 0;
+	long long ndels = 0;
+
+	tslp = malloc(sizeof(*tslp) * elperupdater);
+	BUG_ON(tslp == NULL);
+	for (i = 0; i < elperupdater; i++) {
+		tslp[i].data = i % valsperupdater + mylowkey;
+		tslp[i].in_table = 0;
+	}
+	run_on(pap->mycpu);
+	rcu_register_thread();
+
+	/* Start with some random half of the elements in the hash table. */
+	for (i = 0; i < elperupdater / 2; i++) {
+		j = random() % elperupdater;
+		while (tslp[j].in_table)
+			if (++j >= elperupdater)
+				j = 0;
+		stresstest_add(&tslp[j]);
+	}
+
+	/* Announce our presence and enter the test loop. */
+	atomic_inc(&nthreads_running);
+	i = 0;
+	j = 0;
+	for (;;) {
+		gf = ACCESS_ONCE(goflag);
+		if (gf != GOFLAG_RUN) {
+			if (gf == GOFLAG_STOP)
+				break;
+			if (gf == GOFLAG_INIT) {
+				/* Still initializing, kill statistics. */
+				nadds = 0;
+				ndels = 0;
+			}
+		}
+		if (updatewait == 0) {
+			poll(NULL, 0, 10);  /* No actual updating wanted. */
+		} else if (tslp[i].in_table == 0) {
+			stresstest_add(&tslp[i]);
+			nadds++;
+			if (++i >= elperupdater)
+				i = 0;
+			if ((nadds & 0xff) == 0)
+				quiescent_state();
+		} else {
+			stresstest_del((unsigned long)j);
+			ndels++;
+			if (++j >= valsperupdater * nupdaters)
+				j = 0;
+		}
+
+		/* Add requested delay. */
+		if (updatewait < 0) {
+			poll(NULL, 0, -updatewait);
+		} else {
+			for (k = 0; k < updatewait; k++)
+				barrier();
+		}
+	}
+
+	/* Test over, so remove all our elements from the hash table. */
+	for (i = 0; i < elperupdater; i++) {
+		if (tslp[i].in_table != 1)
+			continue;
+		BUG_ON(!stresstest_lookup(tslp[i].data));
+		stresstest_del((unsigned long)i);
+	}
+	/* Really want rcu_barrier(), but missing from old liburcu versions. */
+	synchronize_rcu();
+	poll(NULL, 0, 100);
+	synchronize_rcu();
+
+	rcu_unregister_thread();
+	free(tslp);
+	pap->nadds = nadds;
+	pap->ndels = ndels;
+	return NULL;
+}
+
+/* Run a performance test. */
+void stresstest(void)
+{
+	struct stresstest_attr *pap;
+	int maxcpus = sysconf(_SC_NPROCESSORS_CONF);
+	long i;
+	long long nlookups = 0;
+	long long nlookupfails = 0;
+	long long nadds = 0;
+	long long ndels = 0;
+	long long starttime;
+
+	BUG_ON(maxcpus <= 0);
+	skiplist_init(&head_sl.sle_e);
+	defer_del_done = defer_del_done_stresstest;
+	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
+	BUG_ON(pap == NULL);
+	atomic_set(&nthreads_running, 0);
+	goflag = GOFLAG_INIT;
+
+	for (i = 0; i < nreaders + nupdaters; i++) {
+		pap[i].myid = i < nreaders ? i : i - nreaders;
+		pap[i].nlookups = 0;
+		pap[i].nlookupfails = 0;
+		pap[i].nadds = 0;
+		pap[i].ndels = 0;
+		pap[i].mycpu = (i * cpustride) % maxcpus;
+		pap[i].nelements = nupdaters * elperupdater;
+		create_thread(i < nreaders
+					? stresstest_reader
+					: stresstest_updater,
+			      &pap[i]);
+	}
+
+	/* Wait for all threads to initialize. */
+	while (atomic_read(&nthreads_running) < nreaders + nupdaters)
+		poll(NULL, 0, 1);
+	smp_mb();
+
+	/* Run the test. */
+	starttime = get_microseconds();
+	ACCESS_ONCE(goflag) = GOFLAG_RUN;
+	poll(NULL, 0, duration);
+	ACCESS_ONCE(goflag) = GOFLAG_STOP;
+	starttime = get_microseconds() - starttime;
+	wait_all_threads();
+
+	/* Collect stats and output them. */
+	for (i = 0; i < nreaders + nupdaters; i++) {
+		nlookups += pap[i].nlookups;
+		nlookupfails += pap[i].nlookupfails;
+		nadds += pap[i].nadds;
+		ndels += pap[i].ndels;
+	}
+	printf("nlookups: %lld %lld  nadds: %lld  ndels: %lld  duration: %g\n",
+	       nlookups, nlookupfails, nadds, ndels, starttime / 1000.);
+	printf("ns/read: %g  ns/update: %g\n",
+	       (starttime * 1000. * (double)nreaders) / (double)nlookups,
+	       ((starttime * 1000. * (double)nupdaters) /
+	        (double)(nadds + ndels)));
+
+	free(pap);
+	skiplist_fsck(&head_sl.sle_e, testcmp);
+}
+
+/* Common argument-parsing code. */
 void usage(char *progname, const char *format, ...)
 {
 	va_list ap;
@@ -1100,6 +1381,7 @@ void usage(char *progname, const char *format, ...)
 	vfprintf(stderr, format, ap);
 	va_end(ap);
 	fprintf(stderr, "Usage: %s --smoketest\n", progname);
+	fprintf(stderr, "Usage: %s --stresstest\n", progname);
 	exit(-1);
 }
 
@@ -1119,6 +1401,11 @@ int main(int argc, char *argv[])
 			smoketest();
 			exit(0);
 
+		} else if (strcmp(argv[i], "--stresstest") == 0) {
+			test_to_do = stresstest;
+			if (i != 1)
+				usage(argv[0],
+				      "Must be first argument: %s\n", argv[i]);
 		} else {
 			usage(argv[0], "Unrecognized argument: %s\n",
 			      argv[i]);
