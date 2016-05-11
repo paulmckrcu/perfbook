@@ -79,6 +79,13 @@ int route_add(unsigned long addr, unsigned long interface)
 	return 0;
 }
 
+static void route_cb(struct rcu_head *rhp)
+{
+	struct route_entry *rep = container_of(rhp, struct route_entry, rh);
+
+	free(rep);
+}
+
 /*
  * Remove the specified element from the route table.
  */
@@ -91,8 +98,7 @@ int route_del(unsigned long addr)
 		if (rep->re_addr == addr) {
 			cds_list_del_rcu(&rep->re_next);
 			spin_unlock(&routelock);
-			synchronize_rcu();
-			free(rep);
+			call_rcu(&rep->rh, route_cb);
 			return 0;
 		}
 	}
