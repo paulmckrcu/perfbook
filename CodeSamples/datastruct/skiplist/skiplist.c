@@ -250,7 +250,9 @@ retry:
 		}
 	}
 	for (level = 0; level <= toplevel; level++)
-		if (update[level]->sl_deleted) {
+		if (update[level]->sl_deleted ||
+		    (update[level]->sl_next[level] &&
+		     cmp(update[level]->sl_next[level], key) < 0)) {
 			skiplist_unlock_update(update, toplevel);
 			goto retry;
 		}
