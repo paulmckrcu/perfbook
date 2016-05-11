@@ -99,12 +99,16 @@ static struct skiplist *
 skiplist_lookup_help(struct skiplist *head_slp, void *key,
 		     int (*cmp)(struct skiplist *slp, void *key))
 {
-	struct skiplist *slp = head_slp;
 	int level;
+	struct skiplist *slp = head_slp;
+	struct skiplist *next_slp;
 
 	for (level = slp->sl_toplevel; level >= 0; level--) {
-		while (slp->sl_next[level] && cmp(slp->sl_next[level], key) < 0)
-			slp = rcu_dereference(slp->sl_next[level]);
+		next_slp = rcu_dereference(slp->sl_next[level]);
+		while (next_slp && cmp(next_slp, key) < 0) {
+			slp = next_slp;
+			next_slp = rcu_dereference(slp->sl_next[level]);
+		}
 	}
 	return slp;
 }
