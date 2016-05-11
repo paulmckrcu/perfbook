@@ -87,7 +87,7 @@ static void skiplist_unlock_update(struct skiplist **update, int toplevel)
 
 	for (level = 0; level <= toplevel; level++) {
 		if (!update[level])
-			return;
+			continue;
 		if (update[level] != slp_last) {
 			slp_last = update[level];
 			skiplist_unlock(slp_last);
