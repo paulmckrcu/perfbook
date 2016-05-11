@@ -175,10 +175,12 @@ struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 	struct skiplist *slp_cur;
 	struct skiplist *slp_last = NULL;
 	struct skiplist *slp_prev = head_slp;
+	int toplevel;
 	struct skiplist *update[SL_MAX_LEVELS];
 
 retry:
 	rcu_read_lock();
+	toplevel = slp_prev->sl_toplevel;
 	for (level = slp_prev->sl_toplevel; level >= 0; level--) {
 		slp_cur = rcu_dereference(slp_prev->sl_next[level]);
 		while (slp_cur && (result = cmp(slp_cur, key)) < 0) {
@@ -196,7 +198,7 @@ retry:
 		}
 	}
 	if (!slp_cur || result != 0) {
-		skiplist_unlock_update(update, slp_cur->sl_toplevel);
+		skiplist_unlock_update(update, toplevel);
 		rcu_read_unlock();
 		return NULL;
 	}
