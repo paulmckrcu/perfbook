@@ -209,8 +209,9 @@ retry:
 		return NULL;
 	}
 	for (level = slp_cur->sl_toplevel; level >= 0; level--) {
-		if (update[level]->sl_deleted ||
-		    update[level]->sl_next[level] != slp_cur) {
+		if (update[level] &&
+		    (update[level]->sl_deleted ||
+		     update[level]->sl_next[level] != slp_cur)) {
 			skiplist_unlock_update(update, slp_cur->sl_toplevel);
 			rcu_read_unlock();
 			goto retry;
