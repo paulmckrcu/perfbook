@@ -279,6 +279,8 @@ void smoketest(void)
 		printf("---\nskiplist_insert_lock(%ld):\n", i);
 		toplevel = skiplist_insert_lock(&eh.sle_e, (void *)i, testcmp,
 						update);
+		if (toplevel < 0)
+			break;
 		update_dump(update, toplevel);
 		sl_dump(&eh.sle_e);
 		skiplist_fsck(&eh.sle_e, testcmp);
@@ -317,10 +319,15 @@ void smoketest(void)
 	printf("\nRandom insertions:\n");
 	for (i = 0; i < 100000; i++) {
 		skiplist_init(&eh.sle_e);
+		e0.data = random() % 9;
 		testsl_insert(&e0, &eh);
+		e1.data = random() % 9;
 		testsl_insert(&e1, &eh);
+		e2.data = random() % 9;
 		testsl_insert(&e2, &eh);
+		e3.data = random() % 9;
 		testsl_insert(&e3, &eh);
+		e00.data = random() % 9;
 		testsl_insert(&e00, &eh);
 
 		testsl_delete(&e0, &eh);
