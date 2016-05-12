@@ -1150,7 +1150,10 @@ int stresstest_lookup(long i)
 
 	slp = skiplist_lookup_relaxed(&head_sl.sle_e, (void *)i, testcmp);
 	tslp = container_of(slp, struct testsl, sle_e);
-	BUG_ON(tslp && tslp->data != i);
+/*&&&&*/skiplist_lock(&head_sl.sle_e);
+	BUG_ON(slp && tslp->data != i);
+	BUG_ON(slp && !tslp->in_table);
+/*&&&&*/skiplist_unlock(&head_sl.sle_e);
 	return !!slp;
 }
 
@@ -1337,6 +1340,7 @@ void stresstest(void)
 	long long starttime;
 
 	BUG_ON(maxcpus <= 0);
+	rcu_register_thread();
 	skiplist_init(&head_sl.sle_e);
 	defer_del_done = defer_del_done_stresstest;
 	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
@@ -1387,6 +1391,7 @@ void stresstest(void)
 
 	free(pap);
 	skiplist_fsck(&head_sl.sle_e, testcmp);
+	rcu_unregister_thread();
 }
 
 /* Common argument-parsing code. */
