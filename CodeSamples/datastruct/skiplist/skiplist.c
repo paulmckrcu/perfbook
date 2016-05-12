@@ -53,6 +53,7 @@ void skiplist_init(struct skiplist *slp)
 	slp->sl_toplevel = SL_MAX_LEVELS - 1;
 	spin_lock_init(&slp->sl_lock);
 	slp->sl_deleted = 0;
+	slp->sl_head = slp;
 	for (i = 0; i < SL_MAX_LEVELS; i++)
 		slp->sl_next[i] = NULL;
 }
