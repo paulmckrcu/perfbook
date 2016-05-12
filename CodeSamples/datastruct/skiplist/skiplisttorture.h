@@ -1184,8 +1184,9 @@ void *stresstest_reader(void *arg)
 	rcu_register_thread();
 
 	/* Warm up cache. */
-	for (i = 0; i < valsperupdater * nupdaters; i++)
+	for (i = 0; i < valsperupdater * nupdaters; i++) {
 		stresstest_lookup(i);
+	}
 
 	/* Record our presence. */
 	atomic_inc(&nthreads_running);
@@ -1203,8 +1204,10 @@ void *stresstest_reader(void *arg)
 				nlookupfails = 0;
 			}
 		}
+		rcu_read_lock();
 		if (!stresstest_lookup(i))
 			nlookupfails++;
+		rcu_read_unlock();
 		nlookups++;
 		i++;
 		if (i >= valsperupdater * nupdaters)
@@ -1292,7 +1295,9 @@ void *stresstest_updater(void *arg)
 	for (i = 0; i < elperupdater; i++) {
 		if (tslp[i].in_table != 1)
 			continue;
+		rcu_read_lock();
 		BUG_ON(!stresstest_lookup(tslp[i].data));
+		rcu_read_unlock();
 		stresstest_del((unsigned long)i);
 	}
 	/* Really want rcu_barrier(), but missing from old liburcu versions. */
