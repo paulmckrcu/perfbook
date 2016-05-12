@@ -121,7 +121,7 @@ skiplist_lookup_relaxed(struct skiplist *head_slp, void *key,
 	struct skiplist *slp = skiplist_lookup_help(head_slp, key, cmp);
 
 	slp = slp->sl_next[0];
-	if (slp && !slp->sl_deleted && cmp(slp, key) == 0)
+	if (slp != head_slp && slp && !slp->sl_deleted && cmp(slp, key) == 0)
 		return slp;
 	return NULL;
 }
@@ -233,14 +233,17 @@ static int skiplist_insert_lock(struct skiplist *head_slp, void *key,
 {
 	int level;
 	struct skiplist *slp;
+	struct skiplist *slp_next;
 	int toplevel = random_level();
 
 retry:
 	slp = head_slp;
 	for (level = slp->sl_toplevel; level >= 0; level--) {
-		while (slp->sl_next[level] &&
-		       cmp(slp->sl_next[level], key) < 0)
-			slp = slp->sl_next[level];
+		slp_next = rcu_dereference(slp->sl_next[level]);
+		while (slp_next && cmp(slp_next, key) < 0) {
+			slp = slp_next;
+			slp_next = rcu_dereference(slp->sl_next[level]);
+		}
 		if (level > toplevel) {
 			update[level] = NULL;
 		} else {
