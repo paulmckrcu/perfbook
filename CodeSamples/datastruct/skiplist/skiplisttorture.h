@@ -1313,6 +1313,11 @@ void *stresstest_updater(void *arg)
 		rcu_read_unlock();
 		stresstest_del((unsigned long)i);
 	}
+
+	skiplist_lock(&head_sl.sle_e);
+	skiplist_fsck(&head_sl.sle_e, testcmp);
+	skiplist_unlock(&head_sl.sle_e);
+
 	/* Really want rcu_barrier(), but missing from old liburcu versions. */
 	synchronize_rcu();
 	poll(NULL, 0, 100);
@@ -1388,7 +1393,6 @@ void stresstest(void)
 	        (double)(nadds + ndels)));
 
 	free(pap);
-	skiplist_fsck(&head_sl.sle_e, testcmp);
 	rcu_unregister_thread();
 }
 
