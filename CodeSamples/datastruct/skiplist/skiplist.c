@@ -39,6 +39,7 @@ struct skiplist {
 	int sl_toplevel;
 	spinlock_t sl_lock;
 	int sl_deleted;
+	struct skiplist *sl_head;
 	struct skiplist *sl_next[SL_MAX_LEVELS];
 };
 
@@ -279,6 +280,7 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	new_slp->sl_toplevel = toplevel;
 	spin_lock_init(&new_slp->sl_lock);
 	new_slp->sl_deleted = 0;
+	new_slp->sl_head = head_slp;
 	skiplist_lock(new_slp);
 	for (level = 0; level <= toplevel; level++) {
 		new_slp->sl_next[level] = update[level]->sl_next[level];

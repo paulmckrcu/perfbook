@@ -220,6 +220,11 @@ void smoketest(void)
 	spin_lock_init(&e1.sle_e.sl_lock);
 	spin_lock_init(&e2.sle_e.sl_lock);
 	spin_lock_init(&e3.sle_e.sl_lock);
+	eh.sle_e.sl_head = &eh.sle_e;
+	e0.sle_e.sl_head = &eh.sle_e;
+	e1.sle_e.sl_head = &eh.sle_e;
+	e2.sle_e.sl_head = &eh.sle_e;
+	e3.sle_e.sl_head = &eh.sle_e;
 
 	rcu_register_thread();
 
