@@ -318,8 +318,10 @@ void skiplist_fsck(struct skiplist *head_slp,
 {
 	struct skiplist *slp;
 
-	for (slp = head_slp; slp; slp = slp->sl_next[0])
+	for (slp = head_slp; slp; slp = slp->sl_next[0]) {
 		skiplist_fsck_one(slp, cmp);
+		BUG_ON(slp->sl_head != head_slp);
+	}
 }
 
 void defer_del_rcu(struct rcu_head *rhp);
