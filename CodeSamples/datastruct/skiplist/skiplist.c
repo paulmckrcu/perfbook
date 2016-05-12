@@ -287,13 +287,13 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	new_slp->sl_deleted = 0;
 	new_slp->sl_head = head_slp;
 	skiplist_lock(new_slp);
+	for (level = toplevel + 1; level < SL_MAX_LEVELS; level++)
+		new_slp->sl_next[level] = NULL;
 	for (level = 0; level <= toplevel; level++) {
 		new_slp->sl_next[level] = update[level]->sl_next[level];
 		assert(update[level]->sl_toplevel >= level);
 		smp_store_release(&update[level]->sl_next[level], new_slp);
 	}
-	for (; level < SL_MAX_LEVELS; level++)
-		new_slp->sl_next[level] = NULL;
 	skiplist_unlock_update(update, toplevel);
 	skiplist_unlock(new_slp);
 	rcu_read_unlock();
