@@ -1406,6 +1406,8 @@ void usage(char *progname, const char *format, ...)
 	va_end(ap);
 	fprintf(stderr, "Usage: %s --smoketest\n", progname);
 	fprintf(stderr, "Usage: %s --stresstest\n", progname);
+	fprintf(stderr, "\t--duration\n");
+	fprintf(stderr, "\t\tDuration of test, in milliseconds.\n");
 	exit(-1);
 }
 
@@ -1430,6 +1432,11 @@ int main(int argc, char *argv[])
 			if (i != 1)
 				usage(argv[0],
 				      "Must be first argument: %s\n", argv[i]);
+		} else if (strcmp(argv[i], "--duration") == 0) {
+			duration = strtol(argv[++i], NULL, 0);
+			if (duration < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
 		} else {
 			usage(argv[0], "Unrecognized argument: %s\n",
 			      argv[i]);
