@@ -1308,10 +1308,7 @@ void *stresstest_updater(void *arg)
 	for (i = 0; i < elperupdater; i++) {
 		if (tslp[i].in_table != 1)
 			continue;
-		rcu_read_lock();
-		BUG_ON(!stresstest_lookup(tslp[i].data));
-		rcu_read_unlock();
-		stresstest_del((unsigned long)i);
+		(void)stresstest_del((unsigned long)i);
 	}
 
 	skiplist_lock(&head_sl.sle_e);
