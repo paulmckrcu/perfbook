@@ -1150,10 +1150,8 @@ int stresstest_lookup(long i)
 
 	slp = skiplist_lookup_relaxed(&head_sl.sle_e, (void *)i, testcmp);
 	tslp = container_of(slp, struct testsl, sle_e);
-/*&&&&*/skiplist_lock(&head_sl.sle_e);
 	BUG_ON(slp && tslp->data != i);
 	BUG_ON(slp && !tslp->in_table);
-/*&&&&*/skiplist_unlock(&head_sl.sle_e);
 	return !!slp;
 }
 
