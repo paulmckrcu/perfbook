@@ -1339,6 +1339,7 @@ void stresstest(void)
 	long long nadds = 0;
 	long long ndels = 0;
 	long long starttime;
+	long long endtime;
 
 	BUG_ON(maxcpus <= 0);
 	rcu_register_thread();
@@ -1371,9 +1372,12 @@ void stresstest(void)
 	/* Run the test. */
 	starttime = get_microseconds();
 	ACCESS_ONCE(goflag) = GOFLAG_RUN;
-	poll(NULL, 0, duration);
+	do {
+		poll(NULL, 0, duration);
+		endtime = get_microseconds();
+	} while (endtime - starttime < duration * 1000);
+	starttime = endtime - starttime;
 	ACCESS_ONCE(goflag) = GOFLAG_STOP;
-	starttime = get_microseconds() - starttime;
 	wait_all_threads();
 
 	/* Collect stats and output them. */
