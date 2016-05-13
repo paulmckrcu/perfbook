@@ -224,7 +224,7 @@ retry:
 		if (update[level])
 			rcu_assign_pointer(update[level]->sl_next[level],
 					   slp_cur->sl_next[level]);
-	slp_cur->sl_deleted = 1;
+	smp_store_release(&slp_cur->sl_deleted, 1);
 	skiplist_unlock_update(update, slp_cur->sl_toplevel);
 	skiplist_unlock(slp_cur);
 	rcu_read_unlock();
