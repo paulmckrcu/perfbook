@@ -1109,6 +1109,7 @@ long elperupdater = 2048; /* Allow for them being stuck in grace periods. */
 long valsperupdater = 2;
 int cpustride = 1;
 long duration = 10; /* in milliseconds. */
+static int debug = 0;
 
 atomic_t nthreads_running;
 
@@ -1403,6 +1404,8 @@ void usage(char *progname, const char *format, ...)
 	va_end(ap);
 	fprintf(stderr, "Usage: %s --smoketest\n", progname);
 	fprintf(stderr, "Usage: %s --stresstest\n", progname);
+	fprintf(stderr, "\t--debug\n");
+	fprintf(stderr, "\t\tEnable additional debug checks..\n");
 	fprintf(stderr, "\t--duration\n");
 	fprintf(stderr, "\t\tDuration of test, in milliseconds.\n");
 	exit(-1);
@@ -1429,6 +1432,8 @@ int main(int argc, char *argv[])
 			if (i != 1)
 				usage(argv[0],
 				      "Must be first argument: %s\n", argv[i]);
+		} else if (strcmp(argv[i], "--debug") == 0) {
+			debug = 1;
 		} else if (strcmp(argv[i], "--duration") == 0) {
 			duration = strtol(argv[++i], NULL, 0);
 			if (duration < 0)

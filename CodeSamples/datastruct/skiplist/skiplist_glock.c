@@ -44,6 +44,8 @@ struct skiplist {
 	struct skiplist *sl_next[SL_MAX_LEVELS];
 };
 
+static int debug;
+
 /*
  * Initialize a skiplist header.
  */
@@ -224,6 +226,8 @@ struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 			rcu_assign_pointer(update[level]->sl_next[level],
 					   slp->sl_next[level]);
 	slp->sl_deleted = 1;
+	if (debug)
+		skiplist_fsck(head_slp, cmp);
 	skiplist_unlock(head_slp);
 	return slp;
 }
@@ -277,6 +281,8 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	}
 	for (; level < SL_MAX_LEVELS; level++)
 		new_slp->sl_next[level] = NULL;
+	if (debug)
+		skiplist_fsck(head_slp, cmp);
 	skiplist_unlock(head_slp);
 	return 0;
 }
