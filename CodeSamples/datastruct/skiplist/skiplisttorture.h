@@ -1288,14 +1288,19 @@ void *stresstest_updater(void *arg)
 		}
 		if (updatewait == 0) {
 			poll(NULL, 0, 10);  /* No actual updating wanted. */
-		} else if (tslp[i].in_table == 0) {
-			stresstest_add(&tslp[i]);
-			nadds++;
-			if (++i >= elperupdater)
-				i = 0;
-			if ((nadds & 0xff) == 0)
-				quiescent_state();
 		} else {
+			while (tslp[i].in_table) {
+				if (++i >= elperupdater) {
+					i = 0;
+					break;
+				}
+			}
+			if (tslp[i].in_table == 0) {
+				stresstest_add(&tslp[i]);
+				nadds++;
+				if ((nadds & 0xff) == 0)
+					quiescent_state();
+			}
 			ndels++;
 			if (stresstest_del((unsigned long)j))
 				ndelfails++;
