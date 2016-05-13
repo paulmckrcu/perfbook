@@ -672,10 +672,32 @@ void usage(char *progname, const char *format, ...)
 	va_end(ap);
 	fprintf(stderr, "Usage: %s --smoketest\n", progname);
 	fprintf(stderr, "Usage: %s --stresstest\n", progname);
+	fprintf(stderr, "\t--cpustride\n");
+	fprintf(stderr, "\t\tCPU stride, defaults to 1.\n");
 	fprintf(stderr, "\t--debug\n");
 	fprintf(stderr, "\t\tEnable additional debug checks..\n");
 	fprintf(stderr, "\t--duration\n");
-	fprintf(stderr, "\t\tDuration of test, in milliseconds.\n");
+	fprintf(stderr, "\t\tDuration of test, in milliseconds, defaults.\n");
+	fprintf(stderr, "\t\tto 10.\n");
+	fprintf(stderr, "\t--elperupdater\n");
+	fprintf(stderr, "\t\tSkiplist elements per updater.  A largish\n");
+	fprintf(stderr, "\t\tnumber is required to allow for grace-period\n");
+	fprintf(stderr, "\t\tlatency.  Defaults to 2048.\n");
+	fprintf(stderr, "\t--nreaders\n");
+	fprintf(stderr, "\t\tNumber of reader threads.\n");
+	fprintf(stderr, "\t--nupdaters\n");
+	fprintf(stderr, "\t\tNumber of updater threads.\n");
+	fprintf(stderr, "\t--updatewait\n");
+	fprintf(stderr, "\t\tNumber of spin-loop passes per update,\n");
+	fprintf(stderr, "\t\tdefaults to -1.  If 0, the updater will not.\n");
+	fprintf(stderr, "\t\tdo any updates, except for initialization.\n");
+	fprintf(stderr, "\t\tIf negative, the updater waits for the\n");
+	fprintf(stderr, "\t\tcorresponding number of milliseconds\n");
+	fprintf(stderr, "\t\tbetween updates.\n");
+	fprintf(stderr, "\t--valsperupdater\n");
+	fprintf(stderr, "\t\tSkiplist key values per updater.  This should\n");
+	fprintf(stderr, "\t\tbe about two orders of magnitude less than the\n");
+	fprintf(stderr, "\t\tvalue for elsperupdater, defaults to 2048.\n");
 	exit(-1);
 }
 
@@ -700,6 +722,11 @@ int main(int argc, char *argv[])
 			if (i != 1)
 				usage(argv[0],
 				      "Must be first argument: %s\n", argv[i]);
+		} else if (strcmp(argv[i], "--cpustride") == 0) {
+			cpustride = strtol(argv[++i], NULL, 0);
+			if (cpustride <= 0)
+				usage(argv[0],
+				      "%s must be > 0\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--debug") == 0) {
 			debug = 1;
 		} else if (strcmp(argv[i], "--duration") == 0) {
@@ -707,6 +734,28 @@ int main(int argc, char *argv[])
 			if (duration < 0)
 				usage(argv[0],
 				      "%s must be >= 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--elperupdater") == 0) {
+			elperupdater = strtol(argv[++i], NULL, 0);
+			if (elperupdater <= 0)
+				usage(argv[0],
+				      "%s must be > 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--nreaders") == 0) {
+			nreaders = strtol(argv[++i], NULL, 0);
+			if (nreaders < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--nupdaters") == 0) {
+			nupdaters = strtol(argv[++i], NULL, 0);
+			if (nupdaters < 0)
+				usage(argv[0],
+				      "%s must be >= 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--updatewait") == 0) {
+			updatewait = strtol(argv[++i], NULL, 0);
+		} else if (strcmp(argv[i], "--valsperupdater") == 0) {
+			valsperupdater = strtol(argv[++i], NULL, 0);
+			if (valsperupdater <= 0)
+				usage(argv[0],
+				      "%s must be > 0\n", argv[i - 1]);
 		} else {
 			usage(argv[0], "Unrecognized argument: %s\n",
 			      argv[i]);
