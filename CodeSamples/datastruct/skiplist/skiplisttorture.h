@@ -374,6 +374,7 @@ struct perftest_attr {
 	long long nlookupfails;
 	long long nadds;
 	long long ndels;
+	long long ndelfails;
 	int mycpu;
 	long nelements;
 	int cat;
@@ -502,6 +503,7 @@ void *perftest_updater(void *arg)
 	struct testsl *tslp;
 	long long nadds = 0;
 	long long ndels = 0;
+	long long ndelfails = 0;
 
 	tslp = malloc(sizeof(*tslp) * elperupdater);
 	BUG_ON(tslp == NULL);
@@ -533,6 +535,7 @@ void *perftest_updater(void *arg)
 				/* Still initializing, kill statistics. */
 				nadds = 0;
 				ndels = 0;
+				ndelfails = 0;
 			}
 		}
 		if (updatewait == 0) {
@@ -1126,6 +1129,7 @@ struct stresstest_attr {
 	long long nlookupfails;
 	long long nadds;
 	long long ndels;
+	long long ndelfails;
 	int mycpu;
 	long nelements;
 	int cat;
@@ -1246,6 +1250,7 @@ void *stresstest_updater(void *arg)
 	struct testsl *tslp;
 	long long nadds = 0;
 	long long ndels = 0;
+	long long ndelfails = 0;
 
 	tslp = malloc(sizeof(*tslp) * elperupdater);
 	BUG_ON(tslp == NULL);
@@ -1278,6 +1283,7 @@ void *stresstest_updater(void *arg)
 				/* Still initializing, kill statistics. */
 				nadds = 0;
 				ndels = 0;
+				ndelfails = 0;
 			}
 		}
 		if (updatewait == 0) {
@@ -1290,8 +1296,9 @@ void *stresstest_updater(void *arg)
 			if ((nadds & 0xff) == 0)
 				quiescent_state();
 		} else {
-			stresstest_del((unsigned long)j);
 			ndels++;
+			if (stresstest_del((unsigned long)j))
+				ndelfails++;
 			if (++j >= valsperupdater * nupdaters)
 				j = 0;
 		}
@@ -1325,6 +1332,7 @@ void *stresstest_updater(void *arg)
 	free(tslp);
 	pap->nadds = nadds;
 	pap->ndels = ndels;
+	pap->ndelfails = ndelfails;
 	return NULL;
 }
 
@@ -1338,6 +1346,7 @@ void stresstest(void)
 	long long nlookupfails = 0;
 	long long nadds = 0;
 	long long ndels = 0;
+	long long ndelfails = 0;
 	long long starttime;
 	long long endtime;
 
@@ -1356,6 +1365,7 @@ void stresstest(void)
 		pap[i].nlookupfails = 0;
 		pap[i].nadds = 0;
 		pap[i].ndels = 0;
+		pap[i].ndelfails = 0;
 		pap[i].mycpu = (i * cpustride) % maxcpus;
 		pap[i].nelements = nupdaters * elperupdater;
 		create_thread(i < nreaders
@@ -1386,9 +1396,10 @@ void stresstest(void)
 		nlookupfails += pap[i].nlookupfails;
 		nadds += pap[i].nadds;
 		ndels += pap[i].ndels;
+		ndelfails += pap[i].ndelfails;
 	}
-	printf("nlookups: %lld %lld  nadds: %lld  ndels: %lld  duration: %g\n",
-	       nlookups, nlookupfails, nadds, ndels, starttime / 1000.);
+	printf("nlookups: %lld %lld  nadds: %lld  ndels: %lld %lld  duration: %g\n",
+	       nlookups, nlookupfails, nadds, ndels, ndelfails, starttime / 1000.);
 	printf("ns/read: %g  ns/update: %g\n",
 	       (starttime * 1000. * (double)nreaders) / (double)nlookups,
 	       ((starttime * 1000. * (double)nupdaters) /
