@@ -368,6 +368,7 @@ struct stresstest_attr {
 	long long nlookups;
 	long long nlookupfails;
 	long long nadds;
+	long long naddfails;
 	long long ndels;
 	long long ndelfails;
 	int mycpu;
@@ -489,6 +490,7 @@ void *stresstest_updater(void *arg)
 	int mylowkey = myid * elperupdater;
 	struct testsl *tslp;
 	long long nadds = 0;
+	long long naddfails = 0;
 	long long ndels = 0;
 	long long ndelfails = 0;
 
@@ -522,6 +524,7 @@ void *stresstest_updater(void *arg)
 			if (gf == GOFLAG_INIT) {
 				/* Still initializing, kill statistics. */
 				nadds = 0;
+				naddfails = 0;
 				ndels = 0;
 				ndelfails = 0;
 			}
@@ -536,8 +539,9 @@ void *stresstest_updater(void *arg)
 				}
 			}
 			if (tslp[i].in_table == 0) {
-				stresstest_add(&tslp[i]);
 				nadds++;
+				if (stresstest_add(&tslp[i]))
+					naddfails++;
 				if ((nadds & 0xff) == 0)
 					quiescent_state();
 			}
@@ -576,6 +580,7 @@ void *stresstest_updater(void *arg)
 	rcu_unregister_thread();
 	free(tslp);
 	pap->nadds = nadds;
+	pap->naddfails = naddfails;
 	pap->ndels = ndels;
 	pap->ndelfails = ndelfails;
 	return NULL;
@@ -590,6 +595,7 @@ void stresstest(void)
 	long long nlookups = 0;
 	long long nlookupfails = 0;
 	long long nadds = 0;
+	long long naddfails = 0;
 	long long ndels = 0;
 	long long ndelfails = 0;
 	long long starttime;
@@ -609,6 +615,7 @@ void stresstest(void)
 		pap[i].nlookups = 0;
 		pap[i].nlookupfails = 0;
 		pap[i].nadds = 0;
+		pap[i].naddfails = 0;
 		pap[i].ndels = 0;
 		pap[i].ndelfails = 0;
 		pap[i].mycpu = (i * cpustride) % maxcpus;
@@ -640,11 +647,12 @@ void stresstest(void)
 		nlookups += pap[i].nlookups;
 		nlookupfails += pap[i].nlookupfails;
 		nadds += pap[i].nadds;
+		naddfails += pap[i].naddfails;
 		ndels += pap[i].ndels;
 		ndelfails += pap[i].ndelfails;
 	}
-	printf("nlookups: %lld %lld  nadds: %lld  ndels: %lld %lld  duration: %g\n",
-	       nlookups, nlookupfails, nadds, ndels, ndelfails, starttime / 1000.);
+	printf("nlookups: %lld %lld  nadds: %lld %lld  ndels: %lld %lld  duration: %g\n",
+	       nlookups, nlookupfails, nadds, naddfails, ndels, ndelfails, starttime / 1000.);
 	printf("ns/read: %g  ns/update: %g\n",
 	       (starttime * 1000. * (double)nreaders) / (double)nlookups,
 	       ((starttime * 1000. * (double)nupdaters) /
