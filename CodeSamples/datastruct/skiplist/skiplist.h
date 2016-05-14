@@ -55,6 +55,12 @@ void skiplist_init(struct skiplist *slp)
 		slp->sl_next[i] = NULL;
 }
 
+/*
+ * Pick a random level for a new element.  Exponential power-of-two decrease
+ * in probability for higher levels.  Top level gets double expected
+ * probability due to truncation, which is in turn due to a finite number
+ * of levels.
+ */
 static int random_level(void)
 {
 	int i = 0;
@@ -69,6 +75,11 @@ static int random_level(void)
 	return i;
 }
 
+/*
+ * Consistency check for specified element against downstream elements.
+ * Make sure lower-level list is connected to each downstream element,
+ * and that the downstream element is tall enough.
+ */
 void skiplist_fsck_one(struct skiplist *first_slp,
 		       int (*cmp)(struct skiplist *slp, void *key))
 {
@@ -87,6 +98,9 @@ void skiplist_fsck_one(struct skiplist *first_slp,
 		assert(!first_slp->sl_next[i]);
 }
 
+/*
+ * Consistency check specified skiplist.
+ */
 void skiplist_fsck(struct skiplist *head_slp,
 		   int (*cmp)(struct skiplist *slp, void *key))
 {
