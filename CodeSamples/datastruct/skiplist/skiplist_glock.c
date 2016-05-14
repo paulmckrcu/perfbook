@@ -199,6 +199,7 @@ struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 	/* Locate the element to be deleted, and check its identity. */
 	slp = slp->sl_next[0];
 	if (!slp || cmp(slp, key) != 0) {
+
 		/* No element or wrong element. */
 		skiplist_unlock(head_slp);
 		return NULL;
@@ -211,10 +212,13 @@ struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 					   slp->sl_next[level]);
 		else
 			BUG_ON(level < slp->sl_toplevel && update[level + 1]);
+
+	/* Mark deleted and check skiplist if debugging enabled. */
 	BUG_ON(slp->sl_deleted);
 	slp->sl_deleted = 1;
 	if (debug)
 		skiplist_fsck(head_slp, cmp);
+
 	skiplist_unlock(head_slp);
 	return slp;
 }
@@ -229,6 +233,10 @@ static int skiplist_insert_lock(struct skiplist *head_slp, void *key,
 	return -1;
 }
 
+/*
+ * Insert the specified element, returning zero if successful.  Return
+ * -EEXIST if element with the specified key is already in the list.
+ */
 int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 		    void *key, int (*cmp)(struct skiplist *slp, void *key))
 {
@@ -240,6 +248,8 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	struct skiplist *update[SL_MAX_LEVELS];
 
 	skiplist_lock(head_slp);
+
+	/* Locate predecessors for position in list. */
 	slp = head_slp;
 	for (level = slp->sl_toplevel; level >= 0; level--) {
 		slp_next = slp->sl_next[level];
@@ -252,15 +262,23 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 		else
 			update[level] = slp;
 	}
+
+	/* Check for pre-existing element with desired key. */
 	slp = slp->sl_next[0];
 	if (slp && cmp(slp, key) == 0) {
+
+		/* Element exists, unlock and indicate failure. */
 		skiplist_unlock(head_slp);
 		return -EEXIST;
 	}
+
+	/* Initialize node to be inserted.  Caller is responsible for key. */
 	new_slp->sl_toplevel = toplevel;
 	spin_lock_init(&new_slp->sl_lock);
 	new_slp->sl_deleted = 0;
 	new_slp->sl_head = head_slp;
+
+	/* Link the new node into the list. */
 	for (level = 0; level <= toplevel; level++) {
 		new_slp->sl_next[level] = update[level]->sl_next[level];
 		BUG_ON(update[level]->sl_toplevel < level);
