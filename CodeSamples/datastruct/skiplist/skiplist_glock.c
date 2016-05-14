@@ -278,7 +278,7 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	new_slp->sl_deleted = 0;
 	new_slp->sl_head = head_slp;
 
-	/* Link the new node into the list. */
+	/* Link the new node into the list.  Check skiplist if debug enabled. */
 	for (level = toplevel + 1; level < SL_MAX_LEVELS; level++)
 		new_slp->sl_next[level] = NULL;
 	for (level = 0; level <= toplevel; level++) {
@@ -288,6 +288,7 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	}
 	if (debug)
 		skiplist_fsck(head_slp, cmp);
+
 	skiplist_unlock(head_slp);
 	return 0;
 }
