@@ -106,6 +106,7 @@ skiplist_lookup_lock_prev(struct skiplist *head_slp, void *key,
 	slp = slp_prev->sl_next[0];
 	if (slp && !slp->sl_deleted && (*result = cmp(slp, key)) == 0)
 		return slp;
+	*result = 1;
 	skiplist_unlock(head_slp);
 	return NULL;
 }
