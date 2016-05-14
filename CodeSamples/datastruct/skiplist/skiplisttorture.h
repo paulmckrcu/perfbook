@@ -258,8 +258,10 @@ void smoketest(void)
 		skiplist_fsck(&eh.sle_e, testcmp);
 		printf("%ld. ", i);
 		sl_print_next(slp_prev);
-		skiplist_unlock(slp_prev);
-		skiplist_fsck(&eh.sle_e, testcmp);
+		if (slp) {
+			skiplist_unlock(slp_prev);
+			skiplist_fsck(&eh.sle_e, testcmp);
+		}
 	}
 
 	printf("\nskiplist_lookup_lock():\n");
