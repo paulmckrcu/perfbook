@@ -23,64 +23,7 @@
  * Copyright (c) 2016 Paul E. McKenney, IBM Corporation.
  */
 
-#define _LGPL_SOURCE
-#include "../../api.h"
-
-// Uncomment to enable signal-based RCU.  (Need corresponding Makefile change!)
-#define RCU_SIGNAL
-#include <urcu.h>
-
-// Uncomment to enable QSBR.  (Need corresponding Makefile change!)
-//#include <urcu-qsbr.h>
-
-#define SL_MAX_LEVELS 8
-
-struct skiplist {
-	int sl_toplevel;
-	spinlock_t sl_lock;
-	int sl_deleted;
-	struct skiplist *sl_head;
-	struct skiplist *sl_next[SL_MAX_LEVELS];
-};
-
-/*
- * Initialize a skiplist header.
- */
-void skiplist_init(struct skiplist *slp)
-{
-	int i;
-
-	slp->sl_toplevel = SL_MAX_LEVELS - 1;
-	spin_lock_init(&slp->sl_lock);
-	slp->sl_deleted = 0;
-	slp->sl_head = slp;
-	for (i = 0; i < SL_MAX_LEVELS; i++)
-		slp->sl_next[i] = NULL;
-}
-
-static int random_level(void)
-{
-	int i = 0;
-	unsigned long r = random();
-
-	while (r & 0x1) {
-		i++;
-		r >>= 1;
-	}
-	if (i >= SL_MAX_LEVELS)
-		return SL_MAX_LEVELS - 1;
-	return i;
-}
-
-static void skiplist_lock(struct skiplist *slp)
-{
-	spin_lock(&slp->sl_lock);
-}
-
-static void skiplist_unlock(struct skiplist *slp)
-{
-	spin_unlock(&slp->sl_lock);
-}
+#include "skiplist.h"
 
 static void skiplist_unlock_update(struct skiplist **update, int toplevel)
 {
@@ -300,35 +243,6 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	skiplist_unlock(new_slp);
 	rcu_read_unlock();
 	return 0;
-}
-
-void skiplist_fsck_one(struct skiplist *first_slp,
-		       int (*cmp)(struct skiplist *slp, void *key))
-{
-	int i;
-	struct skiplist *slp;
-
-	slp = first_slp->sl_next[0];
-	for (i = 1; i <= first_slp->sl_toplevel; i++) {
-		while (slp != first_slp->sl_next[i]) {
-			assert(slp);
-			slp = slp->sl_next[0];
-		}
-		assert(!slp || slp->sl_toplevel >= i);
-	}
-	for (; i < SL_MAX_LEVELS; i++)
-		assert(!first_slp->sl_next[i]);
-}
-
-void skiplist_fsck(struct skiplist *head_slp,
-		   int (*cmp)(struct skiplist *slp, void *key))
-{
-	struct skiplist *slp;
-
-	for (slp = head_slp; slp; slp = slp->sl_next[0]) {
-		skiplist_fsck_one(slp, cmp);
-		BUG_ON(slp->sl_head != head_slp);
-	}
 }
 
 void defer_del_rcu(struct rcu_head *rhp);
