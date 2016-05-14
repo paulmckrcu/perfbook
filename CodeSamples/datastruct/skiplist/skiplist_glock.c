@@ -166,6 +166,90 @@ skiplist_lookup_lock(struct skiplist *head_slp, void *key,
 }
 
 /*
+ * Return a pointer to the first element in the list, or NULL if the
+ * list is empty.
+ *
+ * The caller must be in an RCU read-side critical section, or must hold
+ * the update-side lock.
+ */
+struct skiplist *skiplist_valiter_first(struct skiplist *head_slp)
+{
+	return head_slp->sl_next[0];
+}
+
+/*
+ * Return a pointer to the last element in the list, or NULL if the
+ * list is empty.
+ *
+ * The caller must be in an RCU read-side critical section, or must hold
+ * the update-side lock.
+ */
+struct skiplist *skiplist_valiter_last(struct skiplist *head_slp)
+{
+	int level;
+	struct skiplist *slp = head_slp;
+	struct skiplist *slp_next;
+
+	for (level = head_slp->sl_toplevel; level >= 0; level--) {
+		slp_next = rcu_dereference(slp->sl_next[level]);
+		while (slp_next != NULL) {
+			slp = slp_next;
+			slp_next = rcu_dereference(slp->sl_next[level]);
+		}
+	}
+	return slp == head_slp ? NULL : slp;
+}
+
+/*
+ * Return a pointer to the first element in the list with a key larger than
+ * specified, or NULL if there is no such element.
+ *
+ * The caller must be in an RCU read-side critical section, or must hold
+ * the update-side lock.
+ */
+struct skiplist *
+skiplist_valiter_next(struct skiplist *head_slp, void *key,
+		      int (*cmp)(struct skiplist *slp, void *key))
+{
+	int level;
+	struct skiplist *slp = head_slp;
+	struct skiplist *next_slp;
+
+	/* Find the element preceding the desired next element. */
+	for (level = slp->sl_toplevel; level >= 0; level--) {
+		next_slp = rcu_dereference(slp->sl_next[level]);
+		while (next_slp && cmp(next_slp, key) <= 0) {
+			slp = next_slp;
+			next_slp = rcu_dereference(slp->sl_next[level]);
+		}
+	}
+
+	/* Find the desired next element.  Insertions can happen! */
+	next_slp = rcu_dereference(slp->sl_next[0]);
+	while (next_slp && cmp(next_slp, key) <= 0) {
+		slp = next_slp;
+		next_slp = rcu_dereference(slp->sl_next[0]);
+	}
+	return next_slp;
+}
+
+/*
+ * Return a pointer to the last element in the list with a key smaller than
+ * specified, or NULL if there is no such element.
+ *
+ * The caller must be in an RCU read-side critical section, or must hold
+ * the update-side lock.
+ */
+struct skiplist *
+skiplist_valiter_prev(struct skiplist *head_slp, void *key,
+		      int (*cmp)(struct skiplist *slp, void *key))
+{
+	struct skiplist *slp = skiplist_lookup_help(head_slp, key, cmp);
+
+	return slp == head_slp ? NULL : slp;
+}
+
+/*
  * Remove the specified element from the skiplist and return a pointer
  * to it.  The caller is responsible for disposing of the element, but
  * must ensure that a grace period elapses before doing so.  If there is
