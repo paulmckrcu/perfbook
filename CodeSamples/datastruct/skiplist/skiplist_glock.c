@@ -1,7 +1,7 @@
 /*
  * skiplist_glock.c: Simple RCU-protected concurrent skiplists with
  *	updates protected by single global lock.  This global lock
- *	is the skiplist head node's ->sl_lock.
+ *	is the skiplist head element's ->sl_lock.
  *
  * Usage:
  *
@@ -27,11 +27,17 @@
 
 #include "skiplist.h"
 
+/*
+ * Lock the skiplist that the specified element is a member of.
+ */
 static void skiplist_lock(struct skiplist *slp)
 {
 	spin_lock(&slp->sl_head->sl_lock);
 }
 
+/*
+ * Unlock the skiplist that the specified element is a member of.
+ */
 static void skiplist_unlock(struct skiplist *slp)
 {
 	spin_unlock(&slp->sl_head->sl_lock);
@@ -53,8 +59,8 @@ static void skiplist_unlock_update(struct skiplist **update, int toplevel)
 }
 
 /*
- * Unsynchronized lookup helper.  Returns a pointer to the node preceding
- * either the specified node (if present) or the place it would be inserted
+ * Unsynchronized lookup helper.  Returns a pointer to the element preceding
+ * either the specified element (if present) or the place it would be inserted
  * (if not).  Because this is unsynchronized, the returned pointer could
  * be out of date immediately upon return.  This function cannot return NULL,
  * in the worst case, it will return a pointer to the header.
@@ -81,9 +87,9 @@ skiplist_lookup_help(struct skiplist *head_slp, void *key,
 }
 
 /*
- * Unsynchronized unordered lookup.  Returns a pointer to the specified node,
- * or NULL if that node was not found.  Note that the node might be deleted
- * immediately upon return.
+ * Unsynchronized unordered lookup.  Returns a pointer to the specified element,
+ * or NULL if that element was not found.  Note that the element might be
+ * deleted immediately upon return.
  *
  * The caller must be in an RCU read-side critical section, or must hold
  * the update-side lock.
@@ -102,6 +108,18 @@ skiplist_lookup_relaxed(struct skiplist *head_slp, void *key,
 	return NULL;
 }
 
+/*
+ * Return a pointer to the specified element if it exists, and also
+ * lock the skiplist.  A pointer to the predecessor is passed back
+ * through slpp_prev, and the comparison result is passed back through
+ * result.  If there is no such element, return NULL, pass the
+ * would-be predecessor back through slpp_prev (unlocked!), and
+ * pass back a greater-than value (1) through result.  Again, if the
+ * return value is NULL, the skiplist is unlocked.
+ *
+ * The caller must be in an RCU read-side critical section.  Do -not-
+ * call this function with the skiplist locked unless you want deadlock.
+ */
 static struct skiplist *
 skiplist_lookup_lock_prev(struct skiplist *head_slp, void *key,
 			  int (*cmp)(struct skiplist *slp, void *key),
@@ -121,6 +139,14 @@ skiplist_lookup_lock_prev(struct skiplist *head_slp, void *key,
 	return NULL;
 }
 
+/*
+ * Return a pointer to the specified element if it exists, and lock
+ * the skiplist.  If there is no such element, return NULL and leave
+ * the skiplist unlocked.
+ *
+ * The caller must be in an RCU read-side critical section.  Do -not-
+ * call this function with the skiplist locked unless you want deadlock.
+ */
 struct skiplist *
 skiplist_lookup_lock(struct skiplist *head_slp, void *key,
 		     int (*cmp)(struct skiplist *slp, void *key))
@@ -139,6 +165,12 @@ skiplist_lookup_lock(struct skiplist *head_slp, void *key,
 	return slp_cur;
 }
 
+/*
+ * Remove the specified element from the skiplist and return a pointer
+ * to it.  The caller is responsible for disposing of the element, but
+ * must ensure that a grace period elapses before doing so.  If there is
+ * no such element, returns NULL.
+ */
 struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 				 int (*cmp)(struct skiplist *slp, void *key))
 {
@@ -149,6 +181,8 @@ struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 	struct skiplist *update[SL_MAX_LEVELS];
 
 	skiplist_lock(head_slp);
+
+	/* Find all the predecessors. */
 	slp = head_slp;
 	for (level = slp->sl_toplevel; level >= 0; level--) {
 		slp_next = slp->sl_next[level];
@@ -161,15 +195,23 @@ struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 		else
 			update[level] = slp;
 	}
+
+	/* Locate the element to be deleted, and check its identity. */
 	slp = slp->sl_next[0];
 	if (!slp || cmp(slp, key) != 0) {
+		/* No element or wrong element. */
 		skiplist_unlock(head_slp);
 		return NULL;
 	}
+
+	/* Unlink from skiplist. */
 	for (level = slp->sl_toplevel; level >= 0; level--)
 		if (update[level])
 			rcu_assign_pointer(update[level]->sl_next[level],
 					   slp->sl_next[level]);
+		else
+			BUG_ON(level < slp->sl_toplevel && update[level + 1]);
+	BUG_ON(slp->sl_deleted);
 	slp->sl_deleted = 1;
 	if (debug)
 		skiplist_fsck(head_slp, cmp);
