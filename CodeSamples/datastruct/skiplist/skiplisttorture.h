@@ -402,6 +402,7 @@ struct stresstest_attr {
 	int myid;
 	long long nlookups;
 	long long nlookupfails;
+	long long nscans;
 	long long nadds;
 	long long naddfails;
 	long long ndels;
@@ -473,6 +474,9 @@ void *stresstest_reader(void *arg)
 	long ne = pap->nelements;
 	long long nlookups = 0;
 	long long nlookupfails = 0;
+	long long nscans = 0;
+	struct skiplist *slp;
+	struct testsl *tslp;
 
 	run_on(pap->mycpu);
 	rcu_register_thread();
@@ -496,6 +500,7 @@ void *stresstest_reader(void *arg)
 				/* Still initializing, kill statistics. */
 				nlookups = 0;
 				nlookupfails = 0;
+				nscans = 0;
 			}
 		}
 		rcu_read_lock();
@@ -506,9 +511,28 @@ void *stresstest_reader(void *arg)
 		i++;
 		if (i >= valsperupdater * nupdaters)
 			i = 0;
+		rcu_read_lock();
+		slp = skiplist_valiter_first(&head_sl.sle_e);
+		while (slp) {
+			tslp = container_of(slp, struct testsl, sle_e);
+			slp = skiplist_valiter_next(&head_sl.sle_e,
+						    (void *)tslp->data,
+						    testcmp);
+		}
+		nscans++;
+		slp = skiplist_valiter_last(&head_sl.sle_e);
+		while (slp) {
+			tslp = container_of(slp, struct testsl, sle_e);
+			slp = skiplist_valiter_prev(&head_sl.sle_e,
+						    (void *)tslp->data,
+						    testcmp);
+		}
+		nscans++;
+		rcu_read_unlock();
 	}
 	pap->nlookups = nlookups;
 	pap->nlookupfails = nlookupfails;
+	pap->nscans = nscans;
 	rcu_unregister_thread();
 	return NULL;
 }
@@ -629,6 +653,7 @@ void stresstest(void)
 	long i;
 	long long nlookups = 0;
 	long long nlookupfails = 0;
+	long long nscans = 0;
 	long long nadds = 0;
 	long long naddfails = 0;
 	long long ndels = 0;
@@ -649,6 +674,7 @@ void stresstest(void)
 		pap[i].myid = i < nreaders ? i : i - nreaders;
 		pap[i].nlookups = 0;
 		pap[i].nlookupfails = 0;
+		pap[i].nscans = 0;
 		pap[i].nadds = 0;
 		pap[i].naddfails = 0;
 		pap[i].ndels = 0;
@@ -681,15 +707,16 @@ void stresstest(void)
 	for (i = 0; i < nreaders + nupdaters; i++) {
 		nlookups += pap[i].nlookups;
 		nlookupfails += pap[i].nlookupfails;
+		nscans += pap[i].nscans;
 		nadds += pap[i].nadds;
 		naddfails += pap[i].naddfails;
 		ndels += pap[i].ndels;
 		ndelfails += pap[i].ndelfails;
 	}
-	printf("nlookups: %lld %lld  nadds: %lld %lld  ndels: %lld %lld  duration: %g\n",
-	       nlookups, nlookupfails, nadds, naddfails, ndels, ndelfails, starttime / 1000.);
-	printf("ns/read: %g  ns/update: %g\n",
-	       (starttime * 1000. * (double)nreaders) / (double)nlookups,
+	printf("nlookups: %lld %lld scans: %lld  nadds: %lld %lld  ndels: %lld %lld  duration: %g\n",
+	       nlookups, nlookupfails, nscans, nadds, naddfails, ndels, ndelfails, starttime / 1000.);
+	printf("ns/read+scan: %g  ns/update: %g\n",
+	       (starttime * 1000. * (double)nreaders) / (double)(nlookups + nscans),
 	       ((starttime * 1000. * (double)nupdaters) /
 	        (double)(nadds + ndels)));
 
