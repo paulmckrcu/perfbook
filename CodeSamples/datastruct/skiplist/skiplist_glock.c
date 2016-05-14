@@ -1,6 +1,7 @@
 /*
  * skiplist_glock.c: Simple RCU-protected concurrent skiplists with
- *	updates protected by single global lock.
+ *	updates protected by single global lock.  This global lock
+ *	is the skiplist head node's ->sl_lock.
  *
  * Usage:
  *
@@ -26,6 +27,9 @@
 
 #include "skiplist.h"
 
+/*
+ * Unlock the skiplist if the update vector indicates that it was locked.
+ */
 static void skiplist_unlock_update(struct skiplist **update, int toplevel)
 {
 	int level;
@@ -38,6 +42,16 @@ static void skiplist_unlock_update(struct skiplist **update, int toplevel)
 	}
 }
 
+/*
+ * Unsynchronized lookup helper.  Returns a pointer to the node preceding
+ * either the specified node (if present) or the place it would be inserted
+ * (if not).  Because this is unsynchronized, the returned pointer could
+ * be out of date immediately upon return.  This function cannot return NULL,
+ * in the worst case, it will return a pointer to the header.
+ *
+ * The caller must be in an RCU read-side critical section, or must hold
+ * the update-side lock.
+ */
 static struct skiplist *
 skiplist_lookup_help(struct skiplist *head_slp, void *key,
 		     int (*cmp)(struct skiplist *slp, void *key))
@@ -56,6 +70,14 @@ skiplist_lookup_help(struct skiplist *head_slp, void *key,
 	return slp;
 }
 
+/*
+ * Unsynchronized unordered lookup.  Returns a pointer to the specified node,
+ * or NULL if that node was not found.  Note that the node might be deleted
+ * immediately upon return.
+ *
+ * The caller must be in an RCU read-side critical section, or must hold
+ * the update-side lock.
+ */
 struct skiplist *
 skiplist_lookup_relaxed(struct skiplist *head_slp, void *key,
 			int (*cmp)(struct skiplist *slp, void *key))
@@ -82,7 +104,7 @@ skiplist_lookup_lock_prev(struct skiplist *head_slp, void *key,
 	slp_prev = skiplist_lookup_help(head_slp, key, cmp);
 	*slpp_prev = slp_prev;
 	slp = slp_prev->sl_next[0];
-	if (slp && !slp->sl_deleted && cmp(slp, key) == 0)
+	if (slp && !slp->sl_deleted && (*result = cmp(slp, key)) == 0)
 		return slp;
 	skiplist_unlock(head_slp);
 	return NULL;
