@@ -95,7 +95,7 @@ skiplist_lookup_lock_prev(struct skiplist *head_slp, void *key,
 			goto unlock_retry;
 		slp_cur = slp_prev->sl_next[0];
 		*slpp_prev = slp_prev;
-		if (!slp_cur) {
+		if (!slp_cur || slp_cur->sl_deleted) {
 			skiplist_unlock(slp_prev);
 			*result = 1;
 			return NULL;
