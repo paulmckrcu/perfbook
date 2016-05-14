@@ -25,6 +25,16 @@
 
 #include "skiplist.h"
 
+static void skiplist_lock(struct skiplist *slp)
+{
+	spin_lock(&slp->sl_lock);
+}
+
+static void skiplist_unlock(struct skiplist *slp)
+{
+	spin_unlock(&slp->sl_lock);
+}
+
 static void skiplist_unlock_update(struct skiplist **update, int toplevel)
 {
 	int level;

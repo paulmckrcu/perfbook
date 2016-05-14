@@ -97,13 +97,3 @@ void skiplist_fsck(struct skiplist *head_slp,
 		BUG_ON(slp->sl_head != head_slp);
 	}
 }
-
-static void skiplist_lock(struct skiplist *slp)
-{
-	spin_lock(&slp->sl_lock);
-}
-
-static void skiplist_unlock(struct skiplist *slp)
-{
-	spin_unlock(&slp->sl_lock);
-}
