@@ -16,7 +16,7 @@
 
 include ../../Makefile.arch
 
-PROGS =	skiplist_glock
+PROGS =	skiplist skiplist_glock
 
 all: $(PROGS)
 
