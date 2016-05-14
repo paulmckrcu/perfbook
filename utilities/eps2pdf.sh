@@ -18,6 +18,18 @@
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
 # Copyright (c) 2010 Paul E. McKenney, IBM Corporation.
+# Copyright (c) 2016 Akira Yokosawa
+
+if ! fc-list | grep -q steel
+then
+	echo "#######################################################################"
+	echo "## Steel City Comic font is not found in the font cache!             ##"
+	echo "## Some speech baloons in the cartoons would be rendered awkwardly.  ##"
+	echo "## See item 1 in FAQ.txt for how to install the font.                ##"
+	echo "## Nevertheless, this build will resume in a short while.            ##"
+	echo "#######################################################################"
+	sleep 5
+fi
 
 epsfiles=`find . -name '*.eps' -print`
 for i in $epsfiles

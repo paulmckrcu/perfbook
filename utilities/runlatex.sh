@@ -109,5 +109,16 @@ then
 	exit 1
 fi
 rm -f $basename-warning.log $basename-warning-prev.log
-echo "No 'LaTeX Warning' found. '$basename.pdf' is ready."
+echo "'$basename.pdf' is ready."
+# to avoid redundant run of bibtex and pdflatex
+touch $basename.bbl
+touch $basename.pdf
+if ! grep -q -i "steel city comic" cartoons/*.pdf
+then
+	echo "#######################################################################"
+	echo "## Steel City Comic font is not found in the resulting PDF!          ##"
+	echo "## Some speech baloons in the cartoons have been rendered awkwardly. ##"
+	echo "## See item 1 in FAQ-BUILD.txt for the solution.                     ##"
+	echo "#######################################################################"
+fi
 exit 0
