@@ -20,12 +20,12 @@ PROGS =	skiplist skiplist_glock
 
 all: $(PROGS)
 
-skiplist: skiplist.c ../../api.h skiplisttorture.h
+skiplist: skiplist.c ../../api.h skiplisttorture.h skiplist.h
 	cc -O0 -g -o skiplist skiplist.c -lpthread -lurcu -lurcu-signal
 	# cc $(GCC_ARGS) -o skiplist skiplist.c -lpthread -lurcu -lurcu-signal
 	# cc $(GCC_ARGS) -o skiplist skiplist.c -lpthread -lurcu -lurcu-qsbr
 
-skiplist_glock: skiplist_glock.c ../../api.h skiplisttorture.h
+skiplist_glock: skiplist_glock.c ../../api.h skiplisttorture.h skiplist.h
 	cc -O0 -g -o skiplist_glock skiplist_glock.c -lpthread -lurcu -lurcu-signal
 	# cc $(GCC_ARGS) -o skiplist_glock skiplist_glock.c -lpthread -lurcu -lurcu-signal
 	# cc $(GCC_ARGS) -o skiplist_glock skiplist_glock.c -lpthread -lurcu -lurcu-qsbr
