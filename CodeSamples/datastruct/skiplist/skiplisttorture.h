@@ -210,6 +210,7 @@ void smoketest(void)
 	static struct testsl e00; /* Initialized at insertion time. */
 	long i;
 	int result;
+	struct skiplist_iter sli;
 	struct skiplist *slp;
 	struct skiplist *slp_prev;
 	int toplevel;
@@ -276,38 +277,71 @@ void smoketest(void)
 		}
 	}
 
-	printf("\nIterators:\n");
+	printf("\nValue iterators:\n");
 	slp = skiplist_valiter_first(&eh.sle_e);
 	assert(slp == &e0.sle_e);
-	printf("\n\tskiplist_valiter_first() OK.\n");
+	printf("\tskiplist_valiter_first() OK.\n");
 	slp = skiplist_valiter_next(&eh.sle_e, (void *)e0.data, testcmp);
 	assert(slp == &e1.sle_e);
-	printf("\n\tskiplist_valiter_next(e0) OK.\n");
+	printf("\tskiplist_valiter_next(e0) OK.\n");
 	slp = skiplist_valiter_next(&eh.sle_e, (void *)e1.data, testcmp);
 	assert(slp == &e2.sle_e);
-	printf("\n\tskiplist_valiter_next(e1) OK.\n");
+	printf("\tskiplist_valiter_next(e1) OK.\n");
 	slp = skiplist_valiter_next(&eh.sle_e, (void *)e2.data, testcmp);
 	assert(slp == &e3.sle_e);
-	printf("\n\tskiplist_valiter_next(e2) OK.\n");
+	printf("\tskiplist_valiter_next(e2) OK.\n");
 	slp = skiplist_valiter_next(&eh.sle_e, (void *)e3.data, testcmp);
 	assert(slp == NULL);
-	printf("\n\tskiplist_valiter_next(e3) OK (NULL).\n");
+	printf("\tskiplist_valiter_next(e3) OK (NULL).\n");
 
 	slp = skiplist_valiter_last(&eh.sle_e);
 	assert(slp == &e3.sle_e);
 	printf("\n\tskiplist_valiter_last() OK.\n");
 	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e3.data, testcmp);
 	assert(slp == &e2.sle_e);
-	printf("\n\tskiplist_valiter_prev(e3) OK.\n");
+	printf("\tskiplist_valiter_prev(e3) OK.\n");
 	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e2.data, testcmp);
 	assert(slp == &e1.sle_e);
-	printf("\n\tskiplist_valiter_prev(e2) OK.\n");
+	printf("\tskiplist_valiter_prev(e2) OK.\n");
 	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e1.data, testcmp);
 	assert(slp == &e0.sle_e);
-	printf("\n\tskiplist_valiter_prev(e1) OK.\n");
+	printf("\tskiplist_valiter_prev(e1) OK.\n");
 	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e0.data, testcmp);
 	assert(slp == NULL);
-	printf("\n\tskiplist_valiter_prev(e0) OK (NULL).\n");
+	printf("\tskiplist_valiter_prev(e0) OK (NULL).\n");
+
+	printf("\nPointer-hinted iterators:\n");
+	slp = skiplist_ptriter_first(&eh.sle_e, &sli);
+	assert(slp == &e0.sle_e);
+	printf("\tskiplist_ptriter_first() OK.\n");
+	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e0.data, testcmp, &sli);
+	assert(slp == &e1.sle_e);
+	printf("\tskiplist_ptriter_next(e0) OK.\n");
+	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e1.data, testcmp, &sli);
+	assert(slp == &e2.sle_e);
+	printf("\tskiplist_ptriter_next(e1) OK.\n");
+	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e2.data, testcmp, &sli);
+	assert(slp == &e3.sle_e);
+	printf("\tskiplist_ptriter_next(e2) OK.\n");
+	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e3.data, testcmp, &sli);
+	assert(slp == NULL);
+	printf("\tskiplist_ptriter_next(e3) OK (NULL).\n");
+
+	slp = skiplist_ptriter_last(&eh.sle_e, &sli);
+	assert(slp == &e3.sle_e);
+	printf("\n\tskiplist_ptriter_last() OK.\n");
+	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e3.data, testcmp, &sli);
+	assert(slp == &e2.sle_e);
+	printf("\tskiplist_ptriter_prev(e3) OK.\n");
+	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e2.data, testcmp, &sli);
+	assert(slp == &e1.sle_e);
+	printf("\tskiplist_ptriter_prev(e2) OK.\n");
+	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e1.data, testcmp, &sli);
+	assert(slp == &e0.sle_e);
+	printf("\tskiplist_ptriter_prev(e1) OK.\n");
+	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e0.data, testcmp, &sli);
+	assert(slp == NULL);
+	printf("\tskiplist_ptriter_prev(e0) OK (NULL).\n");
 
 	printf("\n");
 	for (i = 0; i <= 8; i++) {

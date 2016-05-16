@@ -30,12 +30,25 @@
 
 #define SL_MAX_LEVELS 8
 
+/*
+ * Skiplist element.
+ */
 struct skiplist {
 	int sl_toplevel;
 	spinlock_t sl_lock;
 	int sl_deleted;
 	struct skiplist *sl_head;
+	unsigned long sl_seq;
 	struct skiplist *sl_next[SL_MAX_LEVELS];
+};
+
+/*
+ * Skiplist iterator hint structure.  Opaque outside of skiplist
+ * implementation.
+ */
+struct skiplist_iter {
+	struct skiplist *hintp;
+	unsigned long iter_seq;
 };
 
 static struct skiplist *
@@ -55,8 +68,63 @@ void skiplist_init(struct skiplist *slp)
 	spin_lock_init(&slp->sl_lock);
 	slp->sl_deleted = 0;
 	slp->sl_head = slp;
+	slp->sl_seq = 0;
 	for (i = 0; i < SL_MAX_LEVELS; i++)
 		slp->sl_next[i] = NULL;
+}
+
+/*
+ * Pick up a read-side sequence number, which can later be checked against
+ * a new sequence number to detect intervening updates.
+ *
+ * The caller must in in an RCU read-side critical section, or must hold
+ * the update-side lock.
+ */
+static unsigned long skiplist_start_reader(struct skiplist *head_slp)
+{
+	unsigned long ret;
+
+	ret = head_slp->sl_seq & ~0x1;
+	smp_mb();
+	return ret;
+}
+
+/*
+ * Check a read-side sequence number, returning 1 to indicate a need to
+ * retry the reader.
+ *
+ * The caller must in in an RCU read-side critical section, or must hold
+ * the update-side lock.
+ */
+static unsigned long skiplist_retry_reader(struct skiplist *head_slp,
+					   unsigned long seq)
+{
+	smp_mb();
+	return head_slp->sl_seq != seq;
+}
+
+/*
+ * Update sequence number to reflect starting a writer.  Note that this
+ * function assumes that there is only one writer, for example, the
+ * skiplist lock must be held.
+ */
+static void skiplist_start_writer(struct skiplist *head_slp)
+{
+	ACCESS_ONCE(head_slp->sl_seq) = head_slp->sl_seq + 1;
+	smp_mb();
+	BUG_ON(!(head_slp->sl_seq & 0x1));
+}
+
+/*
+ * Update sequence number to reflect ending a writer.  Note that this
+ * function assumes that there is only one writer, for example, the
+ * skiplist lock must be held.
+ */
+static void skiplist_end_writer(struct skiplist *head_slp)
+{
+	smp_mb();
+	ACCESS_ONCE(head_slp->sl_seq) = head_slp->sl_seq + 1;
+	BUG_ON(head_slp->sl_seq & 0x1);
 }
 
 /*

@@ -127,6 +127,34 @@ skiplist_lookup_lock(struct skiplist *head_slp, void *key,
 	return slp_cur;
 }
 
+struct skiplist *skiplist_ptriter_first(struct skiplist *head_slp,
+					struct skiplist_iter *slip)
+{
+	return skiplist_valiter_first(head_slp);
+}
+
+struct skiplist *skiplist_ptriter_last(struct skiplist *head_slp,
+				       struct skiplist_iter *slip)
+{
+	return skiplist_valiter_last(head_slp);
+}
+
+struct skiplist *
+skiplist_ptriter_next(struct skiplist *head_slp, void *key,
+		      int (*cmp)(struct skiplist *slp, void *key),
+		      struct skiplist_iter *slip)
+{
+	return skiplist_valiter_next(head_slp, key, cmp);
+}
+
+struct skiplist *
+skiplist_ptriter_prev(struct skiplist *head_slp, void *key,
+		      int (*cmp)(struct skiplist *slp, void *key),
+		      struct skiplist_iter *slip)
+{
+	return skiplist_valiter_prev(head_slp, key, cmp);
+}
+
 struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 				 int (*cmp)(struct skiplist *slp, void *key))
 {

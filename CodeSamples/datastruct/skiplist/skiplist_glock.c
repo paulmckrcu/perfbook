@@ -166,6 +166,88 @@ skiplist_lookup_lock(struct skiplist *head_slp, void *key,
 }
 
 /*
+ * Return a pointer to the first element in the list and initialize the
+ * skiplist iteration-hint structure passed in via slip, or return NULL
+ * if the list is empty.
+ *
+ * The caller must be in an RCU read-side critical section, or must hold
+ * the update-side lock.
+ */
+struct skiplist *skiplist_ptriter_first(struct skiplist *head_slp,
+					struct skiplist_iter *slip)
+{
+	slip->iter_seq = skiplist_start_reader(head_slp);
+	slip->hintp = head_slp->sl_next[0];
+	return slip->hintp;
+}
+
+/*
+ * Return a pointer to the last element in the list and initialize the
+ * skiplist iteration-hint structure passed in via slip, or return NULL
+ * if the list is empty.
+ *
+ * The caller must be in an RCU read-side critical section, or must hold
+ * the update-side lock.
+ */
+struct skiplist *skiplist_ptriter_last(struct skiplist *head_slp,
+				       struct skiplist_iter *slip)
+{
+	slip->iter_seq = skiplist_start_reader(head_slp);
+	slip->hintp = skiplist_valiter_last(head_slp);
+	return slip->hintp;
+}
+
+/*
+ * If still valid, use the hint to find the next element.  Otherwise,
+ * fall back to a key lookup.
+ */
+struct skiplist *
+skiplist_ptriter_next(struct skiplist *head_slp, void *key,
+		      int (*cmp)(struct skiplist *slp, void *key),
+		      struct skiplist_iter *slip)
+{
+	struct skiplist *slp;
+
+	if (skiplist_retry_reader(head_slp, slip->iter_seq))
+		goto regen_iter;
+	slp = rcu_dereference(slip->hintp);
+	if (slp == NULL)
+		return NULL;
+	if (ACCESS_ONCE(slp->sl_deleted))
+		goto regen_iter;
+	slp = rcu_dereference(slp->sl_next[0]);
+	if (slp == NULL) {
+		slip->hintp = NULL;
+		return NULL;
+	}
+	if (ACCESS_ONCE(slp->sl_deleted))
+		goto regen_iter;
+	slip->hintp = slp;
+	if (!skiplist_retry_reader(head_slp, slip->iter_seq))
+		return slp;
+
+regen_iter:
+	slip->iter_seq = skiplist_start_reader(head_slp);
+	slip->hintp = skiplist_valiter_next(head_slp, key, cmp);
+	return slip->hintp;
+}
+
+/*
+ * Find the previous element.  We don't have backwards pointers, so we
+ * cannot really use the hint in this case, but we do regenerate the
+ * hint in case the caller laster wants to move forwards.
+ */
+struct skiplist *
+skiplist_ptriter_prev(struct skiplist *head_slp, void *key,
+		      int (*cmp)(struct skiplist *slp, void *key),
+		      struct skiplist_iter *slip)
+{
+	slip->iter_seq = skiplist_start_reader(head_slp);
+	slip->hintp = skiplist_valiter_prev(head_slp, key, cmp);
+	return slip->hintp;
+}
+
+/*
  * Remove the specified element from the skiplist and return a pointer
  * to it.  The caller is responsible for disposing of the element, but
  * must ensure that a grace period elapses before doing so.  If there is
