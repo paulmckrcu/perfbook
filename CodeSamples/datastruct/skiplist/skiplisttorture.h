@@ -277,6 +277,45 @@ void smoketest(void)
 		}
 	}
 
+	printf("\n");
+	for (i = 0; i <= 8; i++) {
+		printf("---\nskiplist_insert_lock(%ld):\n", i);
+		toplevel = skiplist_insert_lock(&eh.sle_e, (void *)i, testcmp,
+						update);
+		if (toplevel < 0)
+			break;
+		update_dump(update, toplevel);
+		sl_dump(&eh.sle_e);
+		skiplist_fsck(&eh.sle_e, testcmp);
+		if (toplevel >= 0) {
+			printf("skiplist_unlock_update():\n");
+			skiplist_unlock_update(update, toplevel);
+			sl_dump(&eh.sle_e);
+			skiplist_fsck(&eh.sle_e, testcmp);
+		}
+	}
+
+	for (i = 0; i < 10; i++) {
+		e00.data = random() % 9;
+		printf("\nskiplist_insert(%lu)\n", e00.data);
+		result = skiplist_insert(&e00.sle_e, &eh.sle_e,
+					 (void *)e00.data, testcmp);
+		printf("%lu insertion: %s\n", e00.data,
+		       result == 0
+			? "Successful"
+			: result == -EEXIST ? "Already present" : "Failed");
+		sl_dump(&eh.sle_e);
+		skiplist_fsck(&eh.sle_e, testcmp);
+		if (result == 0) {
+			printf("\nskiplist_delete()\n");
+			slp = skiplist_delete(&eh.sle_e, (void *)e00.data,
+					      testcmp);
+			BUG_ON(slp != &e00.sle_e);
+			sl_dump(&eh.sle_e);
+			skiplist_fsck(&eh.sle_e, testcmp);
+		}
+	}
+
 	printf("\nValue iterators:\n");
 	slp = skiplist_valiter_first(&eh.sle_e);
 	assert(slp == &e0.sle_e);
@@ -342,45 +381,6 @@ void smoketest(void)
 	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e0.data, testcmp, &sli);
 	assert(slp == NULL);
 	printf("\tskiplist_ptriter_prev(e0) OK (NULL).\n");
-
-	printf("\n");
-	for (i = 0; i <= 8; i++) {
-		printf("---\nskiplist_insert_lock(%ld):\n", i);
-		toplevel = skiplist_insert_lock(&eh.sle_e, (void *)i, testcmp,
-						update);
-		if (toplevel < 0)
-			break;
-		update_dump(update, toplevel);
-		sl_dump(&eh.sle_e);
-		skiplist_fsck(&eh.sle_e, testcmp);
-		if (toplevel >= 0) {
-			printf("skiplist_unlock_update():\n");
-			skiplist_unlock_update(update, toplevel);
-			sl_dump(&eh.sle_e);
-			skiplist_fsck(&eh.sle_e, testcmp);
-		}
-	}
-
-	for (i = 0; i < 10; i++) {
-		e00.data = random() % 9;
-		printf("\nskiplist_insert(%lu)\n", e00.data);
-		result = skiplist_insert(&e00.sle_e, &eh.sle_e,
-					 (void *)e00.data, testcmp);
-		printf("%lu insertion: %s\n", e00.data,
-		       result == 0
-			? "Successful"
-			: result == -EEXIST ? "Already present" : "Failed");
-		sl_dump(&eh.sle_e);
-		skiplist_fsck(&eh.sle_e, testcmp);
-		if (result == 0) {
-			printf("\nskiplist_delete()\n");
-			slp = skiplist_delete(&eh.sle_e, (void *)e00.data,
-					      testcmp);
-			BUG_ON(slp != &e00.sle_e);
-			sl_dump(&eh.sle_e);
-			skiplist_fsck(&eh.sle_e, testcmp);
-		}
-	}
 
 	printf("\nsl_dump():\n");
 	sl_dump(&eh.sle_e);
