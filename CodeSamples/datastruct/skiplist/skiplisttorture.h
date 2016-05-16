@@ -356,6 +356,13 @@ void smoketest(void)
 	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e0.data, testcmp, &sli);
 	assert(slp == &e1.sle_e);
 	printf("\tskiplist_ptriter_next(e0) OK.\n");
+	printf("\tInsert and then delete an element to invalidate hint.\n");
+	e00.data = 10;
+	result = skiplist_insert(&e00.sle_e, &eh.sle_e,
+				 (void *)e00.data, testcmp);
+	BUG_ON(result);
+	slp = skiplist_delete(&eh.sle_e, (void *)e00.data, testcmp);
+	BUG_ON(slp != &e00.sle_e);
 	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e1.data, testcmp, &sli);
 	assert(slp == &e2.sle_e);
 	printf("\tskiplist_ptriter_next(e1) OK.\n");
