@@ -263,6 +263,7 @@ struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 	struct skiplist *update[SL_MAX_LEVELS];
 
 	skiplist_lock(head_slp);
+	skiplist_start_writer(head_slp);
 
 	/* Find all the predecessors. */
 	slp = head_slp;
@@ -283,6 +284,7 @@ struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 	if (!slp || cmp(slp, key) != 0) {
 
 		/* No element or wrong element. */
+		skiplist_end_writer(head_slp);
 		skiplist_unlock(head_slp);
 		return NULL;
 	}
@@ -301,6 +303,7 @@ struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
 	if (debug)
 		skiplist_fsck(head_slp, cmp);
 
+	skiplist_end_writer(head_slp);
 	skiplist_unlock(head_slp);
 	return slp;
 }
@@ -330,6 +333,7 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	struct skiplist *update[SL_MAX_LEVELS];
 
 	skiplist_lock(head_slp);
+	skiplist_start_writer(head_slp);
 
 	/* Locate predecessors for position in list. */
 	slp = head_slp;
@@ -350,6 +354,7 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	if (slp && cmp(slp, key) == 0) {
 
 		/* Element exists, unlock and indicate failure. */
+		skiplist_end_writer(head_slp);
 		skiplist_unlock(head_slp);
 		return -EEXIST;
 	}
@@ -371,6 +376,7 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	if (debug)
 		skiplist_fsck(head_slp, cmp);
 
+	skiplist_end_writer(head_slp);
 	skiplist_unlock(head_slp);
 	return 0;
 }
