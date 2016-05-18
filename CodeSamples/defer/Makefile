@@ -36,6 +36,7 @@ PROGS =	bug_rcu_dp \
 	rcu_rcpls \
 	rcu_sig \
 	rcu_ts \
+	route_hazptr \
 	route_rcu \
 	route_seq \
 	seqlocktorture \
@@ -106,11 +107,14 @@ rcu_sig: rcu_sig.c rcu_sig.h ../api.h rcutorture.h
 rcu_ts: rcu_ts.c rcu_ts.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_ts -DTEST rcu_ts.c -lpthread
 
+route_hazptr: route_hazptr.c ../api.h routetorture.h
+	cc $(GCC_ARGS) -o route_hazptr route_hazptr.c hazptr.c -lpthread
+
 route_rcu: route_rcu.c ../api.h routetorture.h
-	cc $(GCC_ARGS) -o route_rcu -DTEST route_rcu.c -lpthread  -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -o route_rcu route_rcu.c -lpthread  -lurcu -lurcu-signal
 
 route_seq: route_seq.c ../api.h routetorture.h
-	cc $(GCC_ARGS) -o route_seq -DTEST route_seq.c -lpthread
+	cc $(GCC_ARGS) -o route_seq route_seq.c -lpthread
 
 seqlocktorture: seqlocktorture.c seqlock.h ../api.h
 	cc $(GCC_ARGS) -o seqlocktorture seqlocktorture.c -lpthread

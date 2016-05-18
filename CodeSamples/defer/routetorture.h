@@ -39,9 +39,15 @@
 #define synchronize_rcu() do ; while (0)
 #endif /* #ifndef quiescent_state */
 
+#ifndef other_init
+#define other_init() do { } while (0)
+#endif /* #ifndef other_init */
+
 void smoketest(void)
 {
 	int i;
+
+	route_register_thread();
 
 	for (i = 0; i < 8; i++)
 		BUG_ON(route_lookup(i) != ULONG_MAX);
@@ -55,6 +61,8 @@ void smoketest(void)
 		route_del(i);
 		BUG_ON(route_lookup(i) != ULONG_MAX);
 	}
+
+	route_unregister_thread();
 
 	printf("End of smoketest.\n");
 }
@@ -247,6 +255,7 @@ int main(int argc, char *argv[])
 	void (*test_to_do)(void) = NULL;
 
 	smp_init();
+	other_init();
 
 	while (i < argc) {
 		if (strcmp(argv[i], "--smoketest") == 0) {
