@@ -22,7 +22,7 @@
 
 #include "../api.h"
 
-/* Hash-table element to be included in structures in a hash table. */
+/* Route-table entry to be included in the routing list. */
 struct route_entry {
 	struct cds_list_head re_next;
 	unsigned long re_addr;

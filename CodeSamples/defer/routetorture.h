@@ -3,7 +3,7 @@
  *
  * Usage:
  *
- *	./hash_xxx --smoketest
+ *	./route_xxx --smoketest
  *		Run a simple single-threaded smoke test.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -108,7 +108,7 @@ void *stresstest_updater(void *arg)
 	run_on(pap->mycpu);
 	route_register_thread();
 
-	/* Start with some random half of the elements in the hash table. */
+	/* Start with some random half of the elements in the route table. */
 	for (i = 0; i < nupdaters; i++) {
 		j = random() % nids;
 		route_add(j, 2 * j);
@@ -145,7 +145,7 @@ void *stresstest_updater(void *arg)
 			ndelfails++;
 	}
 
-	/* Test over, so remove all our elements from the hash table. */
+	/* Test over, so remove all our elements from the route table. */
 	for (i = 0; i < nids; i++) {
 		route_del(i);
 	}
@@ -237,7 +237,7 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "Usage: %s --stresstest\n", progname);
 	fprintf(stderr, "\t--nupdaters\n");
 	fprintf(stderr, "\t\tNumber of updaters, defaults to 1.  Must be 1\n");
-	fprintf(stderr, "\t\tor greater, or hash table will be empty.\n");
+	fprintf(stderr, "\t\tor greater, or route table will be empty.\n");
 	fprintf(stderr, "\t--cpustride\n");
 	fprintf(stderr, "\t\tStride when spreading threads across CPUs,\n");
 	fprintf(stderr, "\t\tdefaults to 1.\n");

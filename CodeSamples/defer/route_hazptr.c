@@ -22,7 +22,7 @@
 #include "../api.h"
 #include "hazptr.h"
 
-/* Hash-table element to be included in structures in a hash table. */
+/* Route-table entry to be included in the routing list. */
 struct route_entry {
 	struct hazptr_head hh;
 	struct route_entry *re_next;
