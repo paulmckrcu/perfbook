@@ -24,7 +24,7 @@ if ! fc-list | grep -q steel
 then
 	echo "#######################################################################"
 	echo "## Steel City Comic font is not found in the font cache!             ##"
-	echo "## Some speech baloons in the cartoons would be rendered awkwardly.  ##"
+	echo "## Some speech balloons in the cartoons would be rendered awkwardly.  ##"
 	echo "## See item 1 in FAQ.txt for how to install the font.                ##"
 	echo "## Nevertheless, this build will resume in a short while.            ##"
 	echo "#######################################################################"

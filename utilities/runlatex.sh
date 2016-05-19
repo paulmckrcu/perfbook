@@ -117,7 +117,7 @@ if ! grep -q -i "steel city comic" cartoons/*.pdf
 then
 	echo "#######################################################################"
 	echo "## Steel City Comic font is not found in the resulting PDF!          ##"
-	echo "## Some speech baloons in the cartoons have been rendered awkwardly. ##"
+	echo "## Some speech balloons in the cartoons have been rendered awkwardly. ##"
 	echo "## See item 1 in FAQ-BUILD.txt for the solution.                     ##"
 	echo "#######################################################################"
 fi
