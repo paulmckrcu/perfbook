@@ -45,7 +45,10 @@ unsigned long route_lookup(unsigned long addr)
 
 retry:
 	repp = &route_list.re_next;
+	rep = NULL;
 	do {
+		if (rep && atomic_dec_and_test(&rep->re_refcnt))
+			free(rep);
 		rep = ACCESS_ONCE(*repp);
 		if (rep == NULL)
 			return ULONG_MAX;
