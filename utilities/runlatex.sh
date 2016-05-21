@@ -113,7 +113,7 @@ echo "'$basename.pdf' is ready."
 # to avoid redundant run of bibtex and pdflatex
 touch $basename.bbl
 touch $basename.pdf
-if ! grep -q -i "steel city comic" cartoons/*.pdf
+if ! strings cartoons/r-2014-Old-man-and-Brat.pdf | grep -q -i -e "Steel City Comic" -e "Test"
 then
 	echo "#######################################################################"
 	echo "## Steel City Comic font is not found in the resulting PDF!          ##"

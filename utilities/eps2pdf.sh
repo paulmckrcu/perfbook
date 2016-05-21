@@ -20,7 +20,7 @@
 # Copyright (c) 2010 Paul E. McKenney, IBM Corporation.
 # Copyright (c) 2016 Akira Yokosawa
 
-if ! fc-list | grep -q steel
+if ! fc-list | grep -q -i "Steel City Comic"
 then
 	echo "#######################################################################"
 	echo "## Steel City Comic font is not found in the font cache!             ##"
