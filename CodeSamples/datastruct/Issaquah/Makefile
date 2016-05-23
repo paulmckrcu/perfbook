@@ -17,6 +17,7 @@
 include ../../Makefile.arch
 
 PROGS = existence_test treetorture
+LIB = ../../lib
 
 all: $(PROGS)
 
@@ -33,8 +34,8 @@ all: $(PROGS)
 existence_test: existence.c existence_test.c
 	cc $(GCC_ARGS) -o existence_test existence.c existence_test.c -lpthread -lurcu -lurcu-signal
 
-treetorture: tree.c existence.c spinlockmult.c random.c ../../api.h treetorture.h treetorturetrace.h random.h existence.h tree.h
-	cc $(GCC_ARGS) -o treetorture tree.c existence.c spinlockmult.c random.c -lpthread -lurcu -lurcu-signal
+treetorture: tree.c existence.c spinlockmult.c $(LIB)/random.c ../../api.h treetorture.h treetorturetrace.h $(LIB)/random.h existence.h tree.h
+	cc $(GCC_ARGS) -o treetorture tree.c existence.c spinlockmult.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
 
 clean:
 	rm -f $(PROGS)

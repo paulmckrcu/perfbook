@@ -28,7 +28,7 @@
 #include <sys/time.h>
 #include "../../api.h"
 #include "spinlockmult.h"
-#include "random.h"
+#include "../../lib/random.h"
 #include "tree.h"
 #include "treetorturetrace.h"
 

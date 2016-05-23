@@ -22,7 +22,7 @@
 #include <string.h>
 #include "../../api.h"
 #include "tree.h"
-#include "random.h"
+#include "../../lib/random.h"
 
 /* Parameters. */
 static int affinity_step;
