@@ -17,16 +17,17 @@
 include ../../Makefile.arch
 
 PROGS =	skiplist skiplist_glock
+LIB = ../../lib
 
 all: $(PROGS)
 
 skiplist: skiplist.c ../../api.h skiplisttorture.h skiplist.h
-	cc -O0 -g -o skiplist skiplist.c -lpthread -lurcu -lurcu-signal
+	cc -O0 -I $(LIB) -g -o skiplist skiplist.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
 	# cc $(GCC_ARGS) -o skiplist skiplist.c -lpthread -lurcu -lurcu-signal
 	# cc $(GCC_ARGS) -o skiplist skiplist.c -lpthread -lurcu -lurcu-qsbr
 
 skiplist_glock: skiplist_glock.c ../../api.h skiplisttorture.h skiplist.h
-	cc -O0 -g -o skiplist_glock skiplist_glock.c -lpthread -lurcu -lurcu-signal
+	cc -O0 -I $(LIB) -g -o skiplist_glock skiplist_glock.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
 	# cc $(GCC_ARGS) -o skiplist_glock skiplist_glock.c -lpthread -lurcu -lurcu-signal
 	# cc $(GCC_ARGS) -o skiplist_glock skiplist_glock.c -lpthread -lurcu -lurcu-qsbr
 

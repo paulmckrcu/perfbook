@@ -21,6 +21,8 @@
 #define _LGPL_SOURCE
 #include "../../api.h"
 
+#include "../../lib/random.h"
+
 // Uncomment to enable signal-based RCU.  (Need corresponding Makefile change!)
 #define RCU_SIGNAL
 #include <urcu.h>
