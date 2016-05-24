@@ -41,6 +41,7 @@ struct ht_bucket {
 /* Top-level hash-table data structure, including buckets. */
 struct hashtab {
 	unsigned long ht_nbuckets;
+	int (*ht_cmp)(struct ht_elem *htep, void *key);
 	struct ht_bucket ht_bkt[0];
 };
 
@@ -91,8 +92,7 @@ static void hashtab_unlock_mod(struct hashtab *htp, unsigned long hash)
  * of key is in use to an unsigned long, passed in via "hash".
  */
 struct ht_elem *hashtab_lookup(struct hashtab *htp, unsigned long hash,
-			       void *key,
-			       int (*cmp)(struct ht_elem *htep, void *key))
+			       void *key)
 {
 	struct ht_elem *htep;
 	struct ht_elem *htep_head;
@@ -130,7 +130,7 @@ retry:
 
 		/* Advance to next. */
 		htepp = &htep->hte_next;
-	} while (htep->hte_hash != hash && !cmp(htep, key));
+	} while (htep->hte_hash != hash && !htp->ht_cmp(htep, key));
 	return htep;
 }
 
@@ -173,7 +173,8 @@ void hashtab_del(struct ht_elem *htep)
 /*
  * Allocate a new hash table with the specified number of buckets.
  */
-struct hashtab *hashtab_alloc(unsigned long nbuckets)
+struct hashtab *hashtab_alloc(unsigned long nbuckets,
+			      int (*cmp)(struct ht_elem *htep, void *key))
 {
 	struct ht_elem *htep;
 	struct hashtab *htp;
@@ -183,6 +184,7 @@ struct hashtab *hashtab_alloc(unsigned long nbuckets)
 	if (htp == NULL)
 		return NULL;
 	htp->ht_nbuckets = nbuckets;
+	htp->ht_cmp = cmp;
 	for (i = 0; i < nbuckets; i++) {
 		htep = &htp->ht_bkt[i].htb_head;
 		htep->hte_next = htep;

@@ -99,7 +99,7 @@ void smoketest(void)
 	struct hashtab *htp;
 	long i;
 
-	htp = hashtab_alloc(5);
+	htp = hashtab_alloc(5, testcmp);
 	BUG_ON(htp == NULL);
 	hash_register_test(htp);
 	hash_register_thread();
@@ -107,60 +107,57 @@ void smoketest(void)
 	/* Should be empty. */
 	for (i = 1; i <= 4; i++) {
 		hashtab_lock_lookup(htp, i);
-		BUG_ON(hashtab_lookup(htp, (unsigned long)i, (void *)i,
-				      testcmp));
+		BUG_ON(hashtab_lookup(htp, (unsigned long)i, (void *)i));
 		hashtab_unlock_lookup(htp, i);
 	}
 
 	/* Add one by one and check. */
 	hashtab_lock_mod(htp, 1);
 	hashtab_add(htp, 1, &e1.the_e);
-	BUG_ON(!hashtab_lookup(htp, 1, (void *)1, testcmp));
+	BUG_ON(!hashtab_lookup(htp, 1, (void *)1));
 	hashtab_unlock_mod(htp, 1);
 	hashtab_lock_mod(htp, 2);
 	hashtab_add(htp, 2, &e2.the_e);
-	BUG_ON(!hashtab_lookup(htp, 2, (void *)2, testcmp));
+	BUG_ON(!hashtab_lookup(htp, 2, (void *)2));
 	hashtab_unlock_mod(htp, 2);
 	hashtab_lock_mod(htp, 3);
 	hashtab_add(htp, 3, &e3.the_e);
-	BUG_ON(!hashtab_lookup(htp, 3, (void *)3, testcmp));
+	BUG_ON(!hashtab_lookup(htp, 3, (void *)3));
 	hashtab_unlock_mod(htp, 3);
 	hashtab_lock_mod(htp, 4);
 	hashtab_add(htp, 4, &e4.the_e);
-	BUG_ON(!hashtab_lookup(htp, 4, (void *)4, testcmp));
+	BUG_ON(!hashtab_lookup(htp, 4, (void *)4));
 	hashtab_unlock_mod(htp, 4);
 
 	/* Should be full. */
 	for (i = 1; i <= 4; i++) {
 		hashtab_lock_lookup(htp, i);
-		BUG_ON(!hashtab_lookup(htp, (unsigned long)i, (void *)i,
-				       testcmp));
+		BUG_ON(!hashtab_lookup(htp, (unsigned long)i, (void *)i));
 		hashtab_unlock_lookup(htp, i);
 	}
 
 	/* Delete all and check one by one. */
 	hashtab_lock_mod(htp, 1);
 	hashtab_del(&e1.the_e);
-	BUG_ON(hashtab_lookup(htp, 1, (void *)1, testcmp));
+	BUG_ON(hashtab_lookup(htp, 1, (void *)1));
 	hashtab_unlock_mod(htp, 1);
 	hashtab_lock_mod(htp, 2);
 	hashtab_del(&e2.the_e);
-	BUG_ON(hashtab_lookup(htp, 2, (void *)2, testcmp));
+	BUG_ON(hashtab_lookup(htp, 2, (void *)2));
 	hashtab_unlock_mod(htp, 2);
 	hashtab_lock_mod(htp, 3);
 	hashtab_del(&e3.the_e);
-	BUG_ON(hashtab_lookup(htp, 3, (void *)3, testcmp));
+	BUG_ON(hashtab_lookup(htp, 3, (void *)3));
 	hashtab_unlock_mod(htp, 3);
 	hashtab_lock_mod(htp, 4);
 	hashtab_del(&e4.the_e);
-	BUG_ON(hashtab_lookup(htp, 4, (void *)4, testcmp));
+	BUG_ON(hashtab_lookup(htp, 4, (void *)4));
 	hashtab_unlock_mod(htp, 4);
 
 	/* Should be empty. */
 	for (i = 1; i <= 4; i++) {
 		hashtab_lock_lookup(htp, i);
-		BUG_ON(hashtab_lookup(htp, (unsigned long)i, (void *)i,
-				      testcmp));
+		BUG_ON(hashtab_lookup(htp, (unsigned long)i, (void *)i));
 		hashtab_unlock_lookup(htp, i);
 	}
 	hashtab_free(htp);
@@ -671,7 +668,7 @@ int perftest_lookup(long i)
 	struct testhe *thep;
 
 	hashtab_lock_lookup(perftest_htp, i);
-	htep = hashtab_lookup(perftest_htp, i, (void *)i, testcmp);
+	htep = hashtab_lookup(perftest_htp, i, (void *)i);
 	thep = container_of(htep, struct testhe, the_e);
 	BUG_ON(thep && thep->data != i);
 	hashtab_unlock_lookup(perftest_htp, i);
@@ -683,8 +680,7 @@ void perftest_add(struct testhe *thep)
 {
 	BUG_ON(thep->in_table);
 	hashtab_lock_mod(perftest_htp, thep->data);
-	BUG_ON(hashtab_lookup(perftest_htp, thep->data,
-			      (void *)thep->data, testcmp));
+	BUG_ON(hashtab_lookup(perftest_htp, thep->data, (void *)thep->data));
 	thep->in_table = 1;
 	hashtab_add(perftest_htp, thep->data, &thep->the_e);
 	hashtab_unlock_mod(perftest_htp, thep->data);
@@ -849,7 +845,7 @@ void perftest(void)
 	long long starttime;
 
 	BUG_ON(maxcpus <= 0);
-	perftest_htp = hashtab_alloc(nbuckets);
+	perftest_htp = hashtab_alloc(nbuckets, testcmp);
 	BUG_ON(perftest_htp == NULL);
 	hash_register_test(perftest_htp);
 	defer_del_done = defer_del_done_perftest;
@@ -945,7 +941,7 @@ int zoo_lookup(char *key)
 	struct zoo_he *zhep;
 
 	hashtab_lock_lookup(perftest_htp, hash);
-	htep = hashtab_lookup(perftest_htp, hash, key, zoo_cmp);
+	htep = hashtab_lookup(perftest_htp, hash, key);
 	zhep = container_of(htep, struct zoo_he, zhe_e);
 	BUG_ON(htep &&
 	       (htep->hte_hash != hash ||
@@ -960,8 +956,7 @@ void zoo_add(struct zoo_he *zhep)
 	unsigned long hash = zoo_hash(zhep->name);
 
 	hashtab_lock_mod(perftest_htp, hash);
-	BUG_ON(hashtab_lookup(perftest_htp, hash,
-			      (void *)zhep->name, zoo_cmp));
+	BUG_ON(hashtab_lookup(perftest_htp, hash, (void *)zhep->name));
 	hashtab_add(perftest_htp, hash, &zhep->zhe_e);
 	hashtab_unlock_mod(perftest_htp, hash);
 }
@@ -1148,7 +1143,7 @@ void zoo_test(void)
 	struct zoo_he *zhep;
 
 	BUG_ON(maxcpus <= 0);
-	perftest_htp = hashtab_alloc(nbuckets);
+	perftest_htp = hashtab_alloc(nbuckets, zoo_cmp);
 	BUG_ON(perftest_htp == NULL);
 	hash_register_test(perftest_htp);
 	defer_del_done = defer_del_free;

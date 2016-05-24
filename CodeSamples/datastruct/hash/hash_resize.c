@@ -299,7 +299,7 @@ int tc(void *hash_private, struct ht_elem *htep, void *key)
 
 struct hashtab *test_htp;
 
-#define hashtab_alloc(n) hashtab_alloc((n), NULL, tc, tgh, testgk)
+#define hashtab_alloc(n, cmp) hashtab_alloc((n), NULL, tc, tgh, testgk)
 #define hash_register_test(htp) do test_htp = (htp); while (0)
 #define hash_register_thread() rcu_register_thread()
 #define hash_unregister_thread() rcu_unregister_thread()
@@ -307,7 +307,7 @@ struct hashtab *test_htp;
 #define hashtab_unlock_lookup(htp, i) hashtab_unlock_lookup((htp), (void *)(i))
 #define hashtab_lock_mod(htp, i) hashtab_lock_mod((htp), (void *)(i))
 #define hashtab_unlock_mod(htp, i) hashtab_unlock_mod((htp), (void *)(i))
-#define hashtab_lookup(htp, h, k, cmp) hashtab_lookup((htp), (k))
+#define hashtab_lookup(htp, h, k) hashtab_lookup((htp), (k))
 #define hashtab_add(htp, h, htep) hashtab_add((htp), (htep))
 #define hashtab_del(htep) hashtab_del(test_htp, (htep))
 #define hash_resize_test(htp, n) hashtab_resize((htp), (n), (void *)1, NULL, NULL, NULL)
