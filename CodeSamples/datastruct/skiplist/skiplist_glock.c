@@ -250,7 +250,7 @@ skiplist_ptriter_prev(struct skiplist *head_slp, void *key,
 struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key)
 {
 	int level;
-	int result;
+	int result = 0; /* Suppress compiler warning. */
 	struct skiplist *slp;
 	struct skiplist *slp_next;
 	struct skiplist *update[SL_MAX_LEVELS];

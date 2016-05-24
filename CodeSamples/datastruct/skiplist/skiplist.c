@@ -152,7 +152,7 @@ skiplist_ptriter_prev(struct skiplist *head_slp, void *key,
 struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key)
 {
 	int level;
-	int result;
+	int result = 0; /* Suppress compiler warning. */
 	struct skiplist *slp_cur;
 	struct skiplist *slp_last;
 	struct skiplist *slp_prev;
@@ -164,6 +164,7 @@ retry:
 	slp_last = NULL;
 	slp_prev = head_slp;
 	toplevel = slp_prev->sl_toplevel;
+	assert(toplevel >= 0);
 	for (level = slp_prev->sl_toplevel; level >= 0; level--) {
 		slp_cur = rcu_dereference(slp_prev->sl_next[level]);
 		while (slp_cur &&

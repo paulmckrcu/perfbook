@@ -87,7 +87,6 @@ void sl_print(struct skiplist *slp)
 
 void sl_dump(struct skiplist *head_slp)
 {
-	int held;
 	int i;
 	char sep;
 	struct skiplist *slp;
@@ -502,6 +501,7 @@ int stresstest_del(unsigned long key)
 	tslp = container_of(slp, struct testsl, sle_e);
 	tslp->in_table = 2;
 	defer_del(&tslp->rh);
+	return 0;
 }
 
 /* Stress test reader thread. */
@@ -510,7 +510,6 @@ void *stresstest_reader(void *arg)
 	int gf;
 	long i;
 	struct stresstest_attr *pap = arg;
-	long ne = pap->nelements;
 	long long nlookups = 0;
 	long long nlookupfails = 0;
 	long long nscans = 0;

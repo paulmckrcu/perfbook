@@ -84,7 +84,8 @@ void skiplist_init(struct skiplist *slp,
  * The caller must in in an RCU read-side critical section, or must hold
  * the update-side lock.
  */
-static unsigned long skiplist_start_reader(struct skiplist *head_slp)
+static unsigned long __attribute__((unused))
+skiplist_start_reader(struct skiplist *head_slp)
 {
 	unsigned long ret;
 
@@ -100,8 +101,8 @@ static unsigned long skiplist_start_reader(struct skiplist *head_slp)
  * The caller must in in an RCU read-side critical section, or must hold
  * the update-side lock.
  */
-static unsigned long skiplist_retry_reader(struct skiplist *head_slp,
-					   unsigned long seq)
+static unsigned long __attribute__((unused))
+skiplist_retry_reader(struct skiplist *head_slp, unsigned long seq)
 {
 	smp_mb();
 	return head_slp->sl_seq != seq;
@@ -112,7 +113,8 @@ static unsigned long skiplist_retry_reader(struct skiplist *head_slp,
  * function assumes that there is only one writer, for example, the
  * skiplist lock must be held.
  */
-static void skiplist_start_writer(struct skiplist *head_slp)
+static void __attribute__((unused))
+skiplist_start_writer(struct skiplist *head_slp)
 {
 	ACCESS_ONCE(head_slp->sl_seq) = head_slp->sl_seq + 1;
 	smp_mb();
@@ -124,7 +126,8 @@ static void skiplist_start_writer(struct skiplist *head_slp)
  * function assumes that there is only one writer, for example, the
  * skiplist lock must be held.
  */
-static void skiplist_end_writer(struct skiplist *head_slp)
+static void __attribute__((unused))
+skiplist_end_writer(struct skiplist *head_slp)
 {
 	smp_mb();
 	ACCESS_ONCE(head_slp->sl_seq) = head_slp->sl_seq + 1;
