@@ -177,18 +177,18 @@ void testsl_insert(struct testsl *ep, struct testsl *ehp)
 	do {
 		ep->data = random() % 9;
 		result = skiplist_insert(&ep->sle_e, &ehp->sle_e,
-					 (void *)ep->data, testcmp);
+					 (void *)ep->data);
 	} while (result);
-	skiplist_fsck(&ehp->sle_e, testcmp);
+	skiplist_fsck(&ehp->sle_e);
 }
 
 void testsl_delete(struct testsl *ep, struct testsl *ehp)
 {
 	struct skiplist *slp;
 
-	slp = skiplist_delete(&ehp->sle_e, (void *)ep->data, testcmp);
+	slp = skiplist_delete(&ehp->sle_e, (void *)ep->data);
 	BUG_ON(slp != &ep->sle_e);
-	skiplist_fsck(&ehp->sle_e, testcmp);
+	skiplist_fsck(&ehp->sle_e);
 }
 
 void smoketest(void)
@@ -206,6 +206,7 @@ void smoketest(void)
 		.sle_e.sl_next = {  &e1.sle_e,       NULL,       NULL, NULL },
 		.data = 1 };
 	static struct testsl eh = { .sle_e.sl_toplevel = SL_MAX_LEVELS - 1,
+		.sle_e.sl_cmp = testcmp,
 		.sle_e.sl_next = {  &e0.sle_e,  &e1.sle_e,       NULL, NULL } };
 	static struct testsl e00; /* Initialized at insertion time. */
 	long i;
@@ -231,67 +232,66 @@ void smoketest(void)
 
 	rcu_read_lock();
 
-	skiplist_fsck(&eh.sle_e, testcmp);
+	skiplist_fsck(&eh.sle_e);
 
 	printf("\nskiplist_lookup_help():\n");
 	for (i = 0; i <= 8; i++) {
-		slp = skiplist_lookup_help(&eh.sle_e, (void *)i, testcmp);
+		slp = skiplist_lookup_help(&eh.sle_e, (void *)i);
 		printf("%ld: ", i);
 		sl_print_next(slp);
-		skiplist_fsck(&eh.sle_e, testcmp);
+		skiplist_fsck(&eh.sle_e);
 	}
 
 	printf("\nskiplist_lookup_relaxed():\n");
 	for (i = 0; i <= 8; i++) {
-		slp = skiplist_lookup_relaxed(&eh.sle_e, (void *)i, testcmp);
+		slp = skiplist_lookup_relaxed(&eh.sle_e, (void *)i);
 		printf("%ld: ", i);
 		sl_print(slp);
-		skiplist_fsck(&eh.sle_e, testcmp);
+		skiplist_fsck(&eh.sle_e);
 	}
 
 	printf("\nskiplist_lookup_lock_prev():\n");
 	for (i = 0; i <= 8; i++) {
-		slp = skiplist_lookup_lock_prev(&eh.sle_e, (void *)i, testcmp,
+		slp = skiplist_lookup_lock_prev(&eh.sle_e, (void *)i,
 						&slp_prev, &result);
 		printf("---\n");
 		printf("%ld%c ", i, "<:>"[result + 1]);
 		sl_print(slp_prev);
-		skiplist_fsck(&eh.sle_e, testcmp);
+		skiplist_fsck(&eh.sle_e);
 		printf("%ld. ", i);
 		sl_print_next(slp_prev);
 		if (slp) {
 			skiplist_unlock(slp_prev);
-			skiplist_fsck(&eh.sle_e, testcmp);
+			skiplist_fsck(&eh.sle_e);
 		}
 	}
 
 	printf("\nskiplist_lookup_lock():\n");
 	for (i = 0; i <= 8; i++) {
-		slp = skiplist_lookup_lock(&eh.sle_e, (void *)i, testcmp);
+		slp = skiplist_lookup_lock(&eh.sle_e, (void *)i);
 		printf("%ld: ", i);
 		sl_print(slp);
-		skiplist_fsck(&eh.sle_e, testcmp);
+		skiplist_fsck(&eh.sle_e);
 		if (slp) {
 			skiplist_unlock(slp);
-			skiplist_fsck(&eh.sle_e, testcmp);
+			skiplist_fsck(&eh.sle_e);
 		}
 	}
 
 	printf("\n");
 	for (i = 0; i <= 8; i++) {
 		printf("---\nskiplist_insert_lock(%ld):\n", i);
-		toplevel = skiplist_insert_lock(&eh.sle_e, (void *)i, testcmp,
-						update);
+		toplevel = skiplist_insert_lock(&eh.sle_e, (void *)i, update);
 		if (toplevel < 0)
 			break;
 		update_dump(update, toplevel);
 		sl_dump(&eh.sle_e);
-		skiplist_fsck(&eh.sle_e, testcmp);
+		skiplist_fsck(&eh.sle_e);
 		if (toplevel >= 0) {
 			printf("skiplist_unlock_update():\n");
 			skiplist_unlock_update(update, toplevel);
 			sl_dump(&eh.sle_e);
-			skiplist_fsck(&eh.sle_e, testcmp);
+			skiplist_fsck(&eh.sle_e);
 		}
 	}
 
@@ -299,20 +299,19 @@ void smoketest(void)
 		e00.data = random() % 9;
 		printf("\nskiplist_insert(%lu)\n", e00.data);
 		result = skiplist_insert(&e00.sle_e, &eh.sle_e,
-					 (void *)e00.data, testcmp);
+					 (void *)e00.data);
 		printf("%lu insertion: %s\n", e00.data,
 		       result == 0
 			? "Successful"
 			: result == -EEXIST ? "Already present" : "Failed");
 		sl_dump(&eh.sle_e);
-		skiplist_fsck(&eh.sle_e, testcmp);
+		skiplist_fsck(&eh.sle_e);
 		if (result == 0) {
 			printf("\nskiplist_delete()\n");
-			slp = skiplist_delete(&eh.sle_e, (void *)e00.data,
-					      testcmp);
+			slp = skiplist_delete(&eh.sle_e, (void *)e00.data);
 			BUG_ON(slp != &e00.sle_e);
 			sl_dump(&eh.sle_e);
-			skiplist_fsck(&eh.sle_e, testcmp);
+			skiplist_fsck(&eh.sle_e);
 		}
 	}
 
@@ -320,32 +319,32 @@ void smoketest(void)
 	slp = skiplist_valiter_first(&eh.sle_e);
 	assert(slp == &e0.sle_e);
 	printf("\tskiplist_valiter_first() OK.\n");
-	slp = skiplist_valiter_next(&eh.sle_e, (void *)e0.data, testcmp);
+	slp = skiplist_valiter_next(&eh.sle_e, (void *)e0.data);
 	assert(slp == &e1.sle_e);
 	printf("\tskiplist_valiter_next(e0) OK.\n");
-	slp = skiplist_valiter_next(&eh.sle_e, (void *)e1.data, testcmp);
+	slp = skiplist_valiter_next(&eh.sle_e, (void *)e1.data);
 	assert(slp == &e2.sle_e);
 	printf("\tskiplist_valiter_next(e1) OK.\n");
-	slp = skiplist_valiter_next(&eh.sle_e, (void *)e2.data, testcmp);
+	slp = skiplist_valiter_next(&eh.sle_e, (void *)e2.data);
 	assert(slp == &e3.sle_e);
 	printf("\tskiplist_valiter_next(e2) OK.\n");
-	slp = skiplist_valiter_next(&eh.sle_e, (void *)e3.data, testcmp);
+	slp = skiplist_valiter_next(&eh.sle_e, (void *)e3.data);
 	assert(slp == NULL);
 	printf("\tskiplist_valiter_next(e3) OK (NULL).\n");
 
 	slp = skiplist_valiter_last(&eh.sle_e);
 	assert(slp == &e3.sle_e);
 	printf("\n\tskiplist_valiter_last() OK.\n");
-	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e3.data, testcmp);
+	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e3.data);
 	assert(slp == &e2.sle_e);
 	printf("\tskiplist_valiter_prev(e3) OK.\n");
-	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e2.data, testcmp);
+	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e2.data);
 	assert(slp == &e1.sle_e);
 	printf("\tskiplist_valiter_prev(e2) OK.\n");
-	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e1.data, testcmp);
+	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e1.data);
 	assert(slp == &e0.sle_e);
 	printf("\tskiplist_valiter_prev(e1) OK.\n");
-	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e0.data, testcmp);
+	slp = skiplist_valiter_prev(&eh.sle_e, (void *)e0.data);
 	assert(slp == NULL);
 	printf("\tskiplist_valiter_prev(e0) OK (NULL).\n");
 
@@ -353,39 +352,38 @@ void smoketest(void)
 	slp = skiplist_ptriter_first(&eh.sle_e, &sli);
 	assert(slp == &e0.sle_e);
 	printf("\tskiplist_ptriter_first() OK.\n");
-	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e0.data, testcmp, &sli);
+	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e0.data, &sli);
 	assert(slp == &e1.sle_e);
 	printf("\tskiplist_ptriter_next(e0) OK.\n");
 	printf("\tInsert and then delete an element to invalidate hint.\n");
 	e00.data = 10;
-	result = skiplist_insert(&e00.sle_e, &eh.sle_e,
-				 (void *)e00.data, testcmp);
+	result = skiplist_insert(&e00.sle_e, &eh.sle_e, (void *)e00.data);
 	BUG_ON(result);
-	slp = skiplist_delete(&eh.sle_e, (void *)e00.data, testcmp);
+	slp = skiplist_delete(&eh.sle_e, (void *)e00.data);
 	BUG_ON(slp != &e00.sle_e);
-	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e1.data, testcmp, &sli);
+	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e1.data, &sli);
 	assert(slp == &e2.sle_e);
 	printf("\tskiplist_ptriter_next(e1) OK.\n");
-	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e2.data, testcmp, &sli);
+	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e2.data, &sli);
 	assert(slp == &e3.sle_e);
 	printf("\tskiplist_ptriter_next(e2) OK.\n");
-	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e3.data, testcmp, &sli);
+	slp = skiplist_ptriter_next(&eh.sle_e, (void *)e3.data, &sli);
 	assert(slp == NULL);
 	printf("\tskiplist_ptriter_next(e3) OK (NULL).\n");
 
 	slp = skiplist_ptriter_last(&eh.sle_e, &sli);
 	assert(slp == &e3.sle_e);
 	printf("\n\tskiplist_ptriter_last() OK.\n");
-	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e3.data, testcmp, &sli);
+	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e3.data, &sli);
 	assert(slp == &e2.sle_e);
 	printf("\tskiplist_ptriter_prev(e3) OK.\n");
-	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e2.data, testcmp, &sli);
+	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e2.data, &sli);
 	assert(slp == &e1.sle_e);
 	printf("\tskiplist_ptriter_prev(e2) OK.\n");
-	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e1.data, testcmp, &sli);
+	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e1.data, &sli);
 	assert(slp == &e0.sle_e);
 	printf("\tskiplist_ptriter_prev(e1) OK.\n");
-	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e0.data, testcmp, &sli);
+	slp = skiplist_ptriter_prev(&eh.sle_e, (void *)e0.data, &sli);
 	assert(slp == NULL);
 	printf("\tskiplist_ptriter_prev(e0) OK (NULL).\n");
 
@@ -394,7 +392,7 @@ void smoketest(void)
 
 	printf("\nRandom insertions:\n");
 	for (i = 0; i < 100000; i++) {
-		skiplist_init(&eh.sle_e);
+		skiplist_init(&eh.sle_e, testcmp);
 		e0.data = random() % 9;
 		testsl_insert(&e0, &eh);
 		e1.data = random() % 9;
@@ -471,7 +469,7 @@ int stresstest_lookup(long i)
 	struct skiplist *slp;
 	struct testsl *tslp;
 
-	slp = skiplist_lookup_relaxed(&head_sl.sle_e, (void *)i, testcmp);
+	slp = skiplist_lookup_relaxed(&head_sl.sle_e, (void *)i);
 	tslp = container_of(slp, struct testsl, sle_e);
 	BUG_ON(slp && tslp->data != i);
 	BUG_ON(slp && !tslp->in_table);
@@ -486,7 +484,7 @@ int stresstest_add(struct testsl *tslp)
 	BUG_ON(tslp->in_table);
 	tslp->in_table = 1;
 	result = skiplist_insert(&tslp->sle_e, &head_sl.sle_e,
-				 (void *)tslp->data, testcmp);
+				 (void *)tslp->data);
 	if (result)
 		tslp->in_table = 0;
 	return result;
@@ -498,7 +496,7 @@ int stresstest_del(unsigned long key)
 	struct skiplist *slp;
 	struct testsl *tslp;
 
-	slp = skiplist_delete(&head_sl.sle_e, (void *)key, testcmp);
+	slp = skiplist_delete(&head_sl.sle_e, (void *)key);
 	if (!slp)
 		return -ENOENT;
 	tslp = container_of(slp, struct testsl, sle_e);
@@ -557,16 +555,14 @@ void *stresstest_reader(void *arg)
 		while (slp) {
 			tslp = container_of(slp, struct testsl, sle_e);
 			slp = skiplist_valiter_next(&head_sl.sle_e,
-						    (void *)tslp->data,
-						    testcmp);
+						    (void *)tslp->data);
 		}
 		nscans++;
 		slp = skiplist_valiter_last(&head_sl.sle_e);
 		while (slp) {
 			tslp = container_of(slp, struct testsl, sle_e);
 			slp = skiplist_valiter_prev(&head_sl.sle_e,
-						    (void *)tslp->data,
-						    testcmp);
+						    (void *)tslp->data);
 		}
 		nscans++;
 		rcu_read_unlock();
@@ -669,7 +665,7 @@ void *stresstest_updater(void *arg)
 	}
 
 	skiplist_lock(&head_sl.sle_e);
-	skiplist_fsck(&head_sl.sle_e, testcmp);
+	skiplist_fsck(&head_sl.sle_e);
 	skiplist_unlock(&head_sl.sle_e);
 
 	/* Really want rcu_barrier(), but missing from old liburcu versions. */
@@ -704,7 +700,7 @@ void stresstest(void)
 
 	BUG_ON(maxcpus <= 0);
 	rcu_register_thread();
-	skiplist_init(&head_sl.sle_e);
+	skiplist_init(&head_sl.sle_e, testcmp);
 	defer_del_done = defer_del_done_stresstest;
 	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
 	BUG_ON(pap == NULL);

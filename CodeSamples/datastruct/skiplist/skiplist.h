@@ -41,6 +41,7 @@ struct skiplist {
 	int sl_deleted;
 	struct skiplist *sl_head;
 	unsigned long sl_seq;
+	int (*sl_cmp)(struct skiplist *slp, void *key);
 	struct skiplist *sl_next[SL_MAX_LEVELS];
 };
 
@@ -54,15 +55,15 @@ struct skiplist_iter {
 };
 
 static struct skiplist *
-skiplist_lookup_help(struct skiplist *head_slp, void *key,
-		     int (*cmp)(struct skiplist *slp, void *key));
+skiplist_lookup_help(struct skiplist *head_slp, void *key);
 
 static int debug;
 
 /*
  * Initialize a skiplist header.
  */
-void skiplist_init(struct skiplist *slp)
+void skiplist_init(struct skiplist *slp,
+		   int (*cmp)(struct skiplist *slp, void *key))
 {
 	int i;
 
@@ -71,6 +72,7 @@ void skiplist_init(struct skiplist *slp)
 	slp->sl_deleted = 0;
 	slp->sl_head = slp;
 	slp->sl_seq = 0;
+	slp->sl_cmp = cmp;
 	for (i = 0; i < SL_MAX_LEVELS; i++)
 		slp->sl_next[i] = NULL;
 }
@@ -192,8 +194,7 @@ struct skiplist *skiplist_valiter_last(struct skiplist *head_slp)
  * the update-side lock.
  */
 struct skiplist *
-skiplist_valiter_next(struct skiplist *head_slp, void *key,
-		      int (*cmp)(struct skiplist *slp, void *key))
+skiplist_valiter_next(struct skiplist *head_slp, void *key)
 {
 	int level;
 	struct skiplist *slp = head_slp;
@@ -202,7 +203,7 @@ skiplist_valiter_next(struct skiplist *head_slp, void *key,
 	/* Find the element preceding the desired next element. */
 	for (level = slp->sl_toplevel; level >= 0; level--) {
 		next_slp = rcu_dereference(slp->sl_next[level]);
-		while (next_slp && cmp(next_slp, key) <= 0) {
+		while (next_slp && head_slp->sl_cmp(next_slp, key) <= 0) {
 			slp = next_slp;
 			next_slp = rcu_dereference(slp->sl_next[level]);
 		}
@@ -210,7 +211,7 @@ skiplist_valiter_next(struct skiplist *head_slp, void *key,
 
 	/* Find the desired next element.  Insertions can happen! */
 	next_slp = rcu_dereference(slp->sl_next[0]);
-	while (next_slp && cmp(next_slp, key) <= 0) {
+	while (next_slp && head_slp->sl_cmp(next_slp, key) <= 0) {
 		slp = next_slp;
 		next_slp = rcu_dereference(slp->sl_next[0]);
 	}
@@ -225,10 +226,9 @@ skiplist_valiter_next(struct skiplist *head_slp, void *key,
  * the update-side lock.
  */
 struct skiplist *
-skiplist_valiter_prev(struct skiplist *head_slp, void *key,
-		      int (*cmp)(struct skiplist *slp, void *key))
+skiplist_valiter_prev(struct skiplist *head_slp, void *key)
 {
-	struct skiplist *slp = skiplist_lookup_help(head_slp, key, cmp);
+	struct skiplist *slp = skiplist_lookup_help(head_slp, key);
 
 	return slp == head_slp ? NULL : slp;
 }
@@ -238,8 +238,7 @@ skiplist_valiter_prev(struct skiplist *head_slp, void *key,
  * Make sure lower-level list is connected to each downstream element,
  * and that the downstream element is tall enough.
  */
-void skiplist_fsck_one(struct skiplist *first_slp,
-		       int (*cmp)(struct skiplist *slp, void *key))
+void skiplist_fsck_one(struct skiplist *first_slp)
 {
 	int i;
 	struct skiplist *slp;
@@ -259,13 +258,12 @@ void skiplist_fsck_one(struct skiplist *first_slp,
 /*
  * Consistency check specified skiplist.
  */
-void skiplist_fsck(struct skiplist *head_slp,
-		   int (*cmp)(struct skiplist *slp, void *key))
+void skiplist_fsck(struct skiplist *head_slp)
 {
 	struct skiplist *slp;
 
 	for (slp = head_slp; slp; slp = slp->sl_next[0]) {
-		skiplist_fsck_one(slp, cmp);
+		skiplist_fsck_one(slp);
 		BUG_ON(slp->sl_head != head_slp);
 	}
 }

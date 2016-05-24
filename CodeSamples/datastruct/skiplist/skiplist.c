@@ -51,8 +51,7 @@ static void skiplist_unlock_update(struct skiplist **update, int toplevel)
 }
 
 static struct skiplist *
-skiplist_lookup_help(struct skiplist *head_slp, void *key,
-		     int (*cmp)(struct skiplist *slp, void *key))
+skiplist_lookup_help(struct skiplist *head_slp, void *key)
 {
 	int level;
 	struct skiplist *slp = head_slp;
@@ -60,7 +59,7 @@ skiplist_lookup_help(struct skiplist *head_slp, void *key,
 
 	for (level = slp->sl_toplevel; level >= 0; level--) {
 		next_slp = rcu_dereference(slp->sl_next[level]);
-		while (next_slp && cmp(next_slp, key) < 0) {
+		while (next_slp && head_slp->sl_cmp(next_slp, key) < 0) {
 			slp = next_slp;
 			next_slp = rcu_dereference(slp->sl_next[level]);
 		}
@@ -69,27 +68,26 @@ skiplist_lookup_help(struct skiplist *head_slp, void *key,
 }
 
 struct skiplist *
-skiplist_lookup_relaxed(struct skiplist *head_slp, void *key,
-			int (*cmp)(struct skiplist *slp, void *key))
+skiplist_lookup_relaxed(struct skiplist *head_slp, void *key)
 {
-	struct skiplist *slp = skiplist_lookup_help(head_slp, key, cmp);
+	struct skiplist *slp = skiplist_lookup_help(head_slp, key);
 
 	slp = slp->sl_next[0];
-	if (slp != head_slp && slp && !slp->sl_deleted && cmp(slp, key) == 0)
+	if (slp != head_slp && slp && !slp->sl_deleted &&
+	    head_slp->sl_cmp(slp, key) == 0)
 		return slp;
 	return NULL;
 }
 
 static struct skiplist *
 skiplist_lookup_lock_prev(struct skiplist *head_slp, void *key,
-			  int (*cmp)(struct skiplist *slp, void *key),
 			  struct skiplist **slpp_prev, int *result)
 {
 	struct skiplist *slp_cur;
 	struct skiplist *slp_prev;
 
 	for (;;) {
-		slp_prev = skiplist_lookup_help(head_slp, key, cmp);
+		slp_prev = skiplist_lookup_help(head_slp, key);
 		skiplist_lock(slp_prev);
 		if (slp_prev->sl_deleted)
 			goto unlock_retry;
@@ -100,7 +98,7 @@ skiplist_lookup_lock_prev(struct skiplist *head_slp, void *key,
 			*result = 1;
 			return NULL;
 		}
-		*result = cmp(slp_cur, key);
+		*result = head_slp->sl_cmp(slp_cur, key);
 		if (*result >= 0)
 			return slp_cur;
 unlock_retry:
@@ -109,15 +107,13 @@ unlock_retry:
 }
 
 struct skiplist *
-skiplist_lookup_lock(struct skiplist *head_slp, void *key,
-		     int (*cmp)(struct skiplist *slp, void *key))
+skiplist_lookup_lock(struct skiplist *head_slp, void *key)
 {
 	int result;
 	struct skiplist *slp_cur;
 	struct skiplist *slp_prev;
 
-	slp_cur = skiplist_lookup_lock_prev(head_slp, key, cmp,
-					    &slp_prev, &result);
+	slp_cur = skiplist_lookup_lock_prev(head_slp, key, &slp_prev, &result);
 	if (!slp_cur || result) {
 		skiplist_unlock(slp_prev);
 		return NULL;
@@ -141,22 +137,19 @@ struct skiplist *skiplist_ptriter_last(struct skiplist *head_slp,
 
 struct skiplist *
 skiplist_ptriter_next(struct skiplist *head_slp, void *key,
-		      int (*cmp)(struct skiplist *slp, void *key),
 		      struct skiplist_iter *slip)
 {
-	return skiplist_valiter_next(head_slp, key, cmp);
+	return skiplist_valiter_next(head_slp, key);
 }
 
 struct skiplist *
 skiplist_ptriter_prev(struct skiplist *head_slp, void *key,
-		      int (*cmp)(struct skiplist *slp, void *key),
 		      struct skiplist_iter *slip)
 {
-	return skiplist_valiter_prev(head_slp, key, cmp);
+	return skiplist_valiter_prev(head_slp, key);
 }
 
-struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key,
-				 int (*cmp)(struct skiplist *slp, void *key))
+struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key)
 {
 	int level;
 	int result;
@@ -173,7 +166,8 @@ retry:
 	toplevel = slp_prev->sl_toplevel;
 	for (level = slp_prev->sl_toplevel; level >= 0; level--) {
 		slp_cur = rcu_dereference(slp_prev->sl_next[level]);
-		while (slp_cur && (result = cmp(slp_cur, key)) < 0) {
+		while (slp_cur &&
+		       (result = head_slp->sl_cmp(slp_cur, key)) < 0) {
 			slp_prev = slp_cur;
 			slp_cur = rcu_dereference(slp_prev->sl_next[level]);
 		}
@@ -214,7 +208,6 @@ retry:
 }
 
 static int skiplist_insert_lock(struct skiplist *head_slp, void *key,
-				int (*cmp)(struct skiplist *slp, void *key),
 				struct skiplist **update)
 {
 	int level;
@@ -226,7 +219,7 @@ retry:
 	slp = head_slp;
 	for (level = slp->sl_toplevel; level >= 0; level--) {
 		slp_next = rcu_dereference(slp->sl_next[level]);
-		while (slp_next && cmp(slp_next, key) < 0) {
+		while (slp_next && head_slp->sl_cmp(slp_next, key) < 0) {
 			slp = slp_next;
 			slp_next = rcu_dereference(slp->sl_next[level]);
 		}
@@ -239,29 +232,31 @@ retry:
 				skiplist_lock(slp);
 		}
 	}
-	for (level = 0; level <= toplevel; level++)
-		if (update[level]->sl_deleted ||
-		    (update[level]->sl_next[level] &&
-		     cmp(update[level]->sl_next[level], key) < 0)) {
+	for (level = 0; level <= toplevel; level++) {
+		slp = update[level];
+		if (slp->sl_deleted ||
+		    (slp->sl_next[level] &&
+		     head_slp->sl_cmp(slp->sl_next[level], key) < 0)) {
 			skiplist_unlock_update(update, toplevel);
 			goto retry;
 		}
+	}
 	slp = update[0]->sl_next[0];
-	if (!slp || cmp(slp, key) > 0)
+	if (!slp || head_slp->sl_cmp(slp, key) > 0)
 		return toplevel;
 	skiplist_unlock_update(update, toplevel);
 	return -1;
 }
 
 int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
-		    void *key, int (*cmp)(struct skiplist *slp, void *key))
+		    void *key)
 {
 	int level;
 	int toplevel;
 	struct skiplist *update[SL_MAX_LEVELS];
 
 	rcu_read_lock();
-	toplevel = skiplist_insert_lock(head_slp, key, cmp, update);
+	toplevel = skiplist_insert_lock(head_slp, key, update);
 	if (toplevel < 0) {
 		rcu_read_unlock();
 		return -EEXIST;
