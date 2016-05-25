@@ -49,7 +49,8 @@ EPSSOURCES = \
 	future/*.eps \
 	intro/*.eps \
 	locking/*.eps \
-	$(EPSTARGETS_OF_TEX)
+	$(EPSTARGETS_OF_TEX) \
+	$(EPSTARGETS_OF_DOT)
 
 BIBSOURCES = bib/*.bib
 
@@ -149,6 +150,7 @@ clean:
 
 distclean: clean
 	sh utilities/cleanpdf.sh
+	rm -f $(EPSTARGETS_OF_DOT) $(EPSTARGETS_OF_TEX)
 
 touchsvg:
 	find . -name '*.svg' | xargs touch
