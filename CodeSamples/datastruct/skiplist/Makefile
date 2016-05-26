@@ -23,13 +23,9 @@ all: $(PROGS)
 
 skiplist: skiplist.c ../../api.h skiplisttorture.h skiplist.h
 	cc $(GCC_ARGS) -I $(LIB) -g -o skiplist skiplist.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
-	# cc $(GCC_ARGS) -o skiplist skiplist.c -lpthread -lurcu -lurcu-signal
-	# cc $(GCC_ARGS) -o skiplist skiplist.c -lpthread -lurcu -lurcu-qsbr
 
 skiplist_glock: skiplist_glock.c ../../api.h skiplisttorture.h skiplist.h
 	cc $(GCC_ARGS) -I $(LIB) -g -o skiplist_glock skiplist_glock.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
-	# cc $(GCC_ARGS) -o skiplist_glock skiplist_glock.c -lpthread -lurcu -lurcu-signal
-	# cc $(GCC_ARGS) -o skiplist_glock skiplist_glock.c -lpthread -lurcu -lurcu-qsbr
 
 clean:
 	rm -f $(PROGS)
