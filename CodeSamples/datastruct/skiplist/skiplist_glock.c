@@ -326,7 +326,6 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	struct skiplist *update[SL_MAX_LEVELS];
 
 	skiplist_lock(head_slp);
-	skiplist_start_writer(head_slp);
 
 	/* Locate predecessors for position in list. */
 	slp = head_slp;
@@ -348,7 +347,6 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	if (slp && head_slp->sl_cmp(slp, key) == 0) {
 
 		/* Element exists, unlock and indicate failure. */
-		skiplist_end_writer(head_slp);
 		skiplist_unlock(head_slp);
 		return -EEXIST;
 	}
@@ -370,7 +368,6 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	if (debug)
 		skiplist_fsck(head_slp);
 
-	skiplist_end_writer(head_slp);
 	skiplist_unlock(head_slp);
 	return 0;
 }
