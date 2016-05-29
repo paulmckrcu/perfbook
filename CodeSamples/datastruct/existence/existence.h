@@ -197,6 +197,7 @@ static inline int existence_head_set_outgoing(struct existence_head *ehp,
 		return -EAGAIN;
 	}
 	smp_store_release(&ehp->eh_egi, existence_group_outgoing(egp));
+	cds_list_add(&ehp->eh_list, &egp->eg_outgoing);
 	spin_unlock(&ehp->eh_lock);
 	return 0;
 }
@@ -249,7 +250,6 @@ static inline void existence_backout(struct existence_group *egp)
 	struct existence_head *ehp;
 
 	BUG_ON(ACCESS_ONCE(egp->eg_state));
-	smp_store_release(&egp->eg_state, 1);
 	cds_list_for_each_entry(ehp, &egp->eg_outgoing, eh_list)
 		smp_store_release(&ehp->eh_egi, 0);
 	cds_list_for_each_entry(ehp, &egp->eg_incoming, eh_list) {
