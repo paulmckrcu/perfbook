@@ -21,11 +21,12 @@
 #ifndef __EXISTENCE_H
 #define __EXISTENCE_H
 
-#define _LGPL_SOURCE
-#include "../../api.h"
-#define _LGPL_SOURCE
-#define RCU_SIGNAL
-#include <urcu.h>
+/* The following definitions or equivalent need to be supplied. */
+// #define _LGPL_SOURCE
+// #include "../../api.h"
+// #define _LGPL_SOURCE
+// #define RCU_SIGNAL
+// #include <urcu.h>
 
 /*
  * An existence_group structure mediates the existence of an
@@ -148,7 +149,6 @@ existence_head_init(struct existence_head *ehp,
  */
 static inline void
 existence_head_init_perm(struct existence_head *ehp,
-			 struct existence_group *egp,
 			 int (*eh_add)(struct existence_head *ehp),
 			 void (*eh_remove)(struct existence_head *ehp),
 			 void (*eh_free)(struct existence_head *ehp))
