@@ -471,11 +471,14 @@ typedef pthread_mutex_t spinlock_t;
 
 static __inline__ void spin_lock_init(spinlock_t *sp)
 {
+	int ret;
+
 retry:
-	if (pthread_mutex_init(sp, NULL) != 0) {
-		if (errno == EINTR)
+	ret = pthread_mutex_init(sp, NULL);
+	if (ret) {
+		if (ret == EINTR)
 			goto retry;
-		perror("spin_lock_init:pthread_mutex_init");
+		fprintf(stderr, "spin_lock_init:pthread_mutex_init %d\n", ret);
 		abort();
 	}
 }
