@@ -221,4 +221,6 @@ void hazptr_free(void *p)
 #define defer_del(p)	hazptr_free_later(&(p)->hh);
 #define other_init()	hazptr_init()
 
+#ifdef TEST_HASH
 #include "hashtorture.h"
+#endif /* #ifdef TEST_HASH */

@@ -149,4 +149,6 @@ void hashtab_free(struct hashtab *htp)
 	free(htp);
 }
 
+#ifdef TEST_HASH
 #include "hashtorture.h"
+#endif /* #ifdef TEST_HASH */

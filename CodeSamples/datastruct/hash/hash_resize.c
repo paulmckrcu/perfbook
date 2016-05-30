@@ -323,4 +323,6 @@ void defer_del_rcu(struct rcu_head *rhp)
 
 #define quiescent_state() rcu_quiescent_state()
 
+#ifdef TEST_HASH
 #include "hashtorture.h"
+#endif /* #ifdef TEST_HASH */
