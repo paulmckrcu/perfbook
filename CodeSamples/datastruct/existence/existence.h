@@ -93,6 +93,18 @@ static inline uintptr_t existence_group_outgoing(struct existence_group *egp)
 }
 
 /*
+ * Free up an existence_group structure after a grace period has elapsed.
+ * Intended to be passed to call_rcu(), and to be used externally.
+ */
+static inline void existence_group_rcu_cb(struct rcu_head *rhp)
+{
+	struct existence_group *egp;
+	
+	egp = container_of(rhp, struct existence_group, eg_rh);
+	free(egp);
+}
+
+/*
  * Does the specified structure exist?  Answered with ordering.
  */
 static inline int existence_exists(struct existence_head *ehp)
@@ -206,7 +218,7 @@ static inline int existence_head_set_outgoing(struct existence_head *ehp,
  * Free up an existence_head structure after a grace period has elapsed.
  * Intended to be passed to call_rcu(), but internally only.
  */
-static inline void existence_rcu_cb(struct rcu_head *rhp)
+static inline void existence_head_rcu_cb(struct rcu_head *rhp)
 {
 	struct existence_head *ehp;
 	
@@ -236,7 +248,7 @@ static inline void existence_flip(struct existence_group *egp)
 		if (ehp->eh_remove)
 			ehp->eh_remove(ehp);
 		spin_unlock(&ehp->eh_lock);
-		call_rcu(&ehp->eh_rh, existence_rcu_cb);
+		call_rcu(&ehp->eh_rh, existence_head_rcu_cb);
 	}
 }
 
@@ -259,7 +271,7 @@ static inline void existence_backout(struct existence_group *egp)
 		if (ehp->eh_remove)
 			ehp->eh_remove(ehp);
 		spin_unlock(&ehp->eh_lock);
-		call_rcu(&ehp->eh_rh, existence_rcu_cb);
+		call_rcu(&ehp->eh_rh, existence_head_rcu_cb);
 	}
 }
 
