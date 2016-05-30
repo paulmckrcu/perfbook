@@ -106,6 +106,7 @@ static inline void existence_group_rcu_cb(struct rcu_head *rhp)
 
 /*
  * Does the specified structure exist?  Answered with ordering.
+ * This uses Dmitry Vjukov's pointer-tagging trick.
  */
 static inline int existence_exists(struct existence_head *ehp)
 {
@@ -119,7 +120,8 @@ static inline int existence_exists(struct existence_head *ehp)
 }
 
 /*
- * Does the specified structure exist?  Answered without ordering.
+ * Does the specified structure exist?  Answered without ordering,
+ * otherwise the same as existence_exists().
  */
 static inline int existence_exists_relaxed(struct existence_head *ehp)
 {
