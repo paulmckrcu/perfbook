@@ -16,7 +16,7 @@
 
 include ../../Makefile.arch
 
-PROGS = existence_test
+PROGS = existence_test existence_3hash_test
 LIB = ../../lib
 
 all: $(PROGS)
@@ -33,6 +33,10 @@ all: $(PROGS)
 
 existence_test: existence.h existence_test.c
 	cc $(GCC_ARGS) -o existence_test existence_test.c -lpthread -lurcu -lurcu-signal
+
+existence_3hash_test: existence.h existence_3hash_test.c
+	cc -O0 -g -o existence_3hash_test existence_3hash_test.c -lpthread -lurcu -lurcu-signal
+	# cc $(GCC_ARGS) -o existence_3hash_test existence_3hash_test.c -lpthread -lurcu -lurcu-signal
 
 clean:
 	rm -f $(PROGS)
