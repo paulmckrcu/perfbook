@@ -286,4 +286,6 @@ void defer_del_rcu(struct rcu_head *rhp);
 
 #define quiescent_state() rcu_quiescent_state()
 
+#ifdef TEST_SKIPLIST
 #include "skiplisttorture.h"
+#endif /* #ifdef TEST_SKIPLIST */
