@@ -16,7 +16,7 @@
 
 include ../../Makefile.arch
 
-PROGS = existence_test existence_3hash_test
+PROGS = existence_test existence_3hash_test existence_3hash_uperf
 LIB = ../../lib
 
 all: $(PROGS)
@@ -30,13 +30,18 @@ all: $(PROGS)
 #		-Wl,--rpath,/home/paulmck/jemalloc/lib
 #		-DUSE_JEMALLOC
 #	 Verify by using the nm command and searching output for malloc.
+#
+#	So it is quite a bit easier to just use the default locations.  ;-)
 
 existence_test: existence.h existence_test.c
 	cc $(GCC_ARGS) -o existence_test existence_test.c -lpthread -lurcu -lurcu-signal
 
 existence_3hash_test: existence.h hash_exists.h keyvalue.h existence_3hash_test.c
-	cc -O0 -g -o existence_3hash_test existence_3hash_test.c -lpthread -lurcu -lurcu-signal
-	# cc $(GCC_ARGS) -o existence_3hash_test existence_3hash_test.c -lpthread -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -o existence_3hash_test existence_3hash_test.c -lpthread -lurcu -lurcu-signal
+
+existence_3hash_uperf: existence.h hash_exists.h keyvalue.h existence_3hash_uperf.c
+	cc -O0 -g -o existence_3hash_uperf existence_3hash_uperf.c -ljemalloc -lpthread -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -DUSE_JEMALLOC -o existence_3hash_uperf existence_3hash_uperf.c -ljemalloc -lpthread -lurcu -lurcu-signal
 
 clean:
 	rm -f $(PROGS)
