@@ -31,14 +31,17 @@ struct procon_mpool {
 	struct procon_mblock *pm_head;
 	unsigned long pm_alloccount;
 	unsigned long pm_outcount;
+	unsigned long pm_unoutcount;
 	struct procon_mblock *(*pm_alloc)(void);
 	struct procon_mblock **pm_tail
 			__attribute__((__aligned__(CACHE_LINE_SIZE)));
 	unsigned long pm_incount;
 };
 
-/* Remove a block from the pool, or get one from the alloator
+/*
+ * Remove a block from the pool, or get one from the allocator
  * if the pool is low on blocks.  NULL if no memory to be had.
+ * Note that allocating and unallocating must be single-threaded.
  */
 static inline struct procon_mblock *procon_alloc(struct procon_mpool *pmp)
 {
@@ -53,6 +56,19 @@ static inline struct procon_mblock *procon_alloc(struct procon_mpool *pmp)
 	return pmbp;
 }
 
+/*
+ * Push a newly allocated block back to the pool.  This may be carried out
+ * by the allocating thread, but only if the block has not yet been exposed
+ * to RCU readers.
+ */
+void procon_unalloc(struct procon_mpool *pmp, struct procon_mblock *pmbp)
+{
+	/* @@@ */
+}
+
+/*
+ * Add a block to the pool.  Note that freeing must be single-threaded.
+ */
 void procon_free(struct procon_mpool *pmp, struct procon_mblock *pmbp)
 {
 	struct procon_mblock **nextp;
@@ -73,10 +89,14 @@ static inline struct procon_mblock *type##__alloc(void) \
 	return &p->field; \
 } \
 \
-struct procon_mpool type##__procon_mpool = { \
+struct procon_mpool __thread type##__procon_mpool = { \
 	.pm_alloc = type##__alloc, \
-	.pm_tail = &type##__procon_mpool.pm_head, \
 }; \
+\
+static inline void type##__procon_init(struct procon_mpool *pmp) \
+{ \
+	pmp->pm_tail = &pmp->pm_head; \
+} \
 \
 static inline struct type *type##__procon_alloc(void) \
 { \
@@ -86,9 +106,10 @@ static inline struct type *type##__procon_alloc(void) \
 	return container_of(p, struct type, field); \
 } \
 \
-static inline void type##__procon_free(struct type *p) \
+static inline void type##__procon_free(struct procon_mpool *pmp, \
+				       struct type *p) \
 { \
-	procon_free(&type##__procon_mpool, &p->field); \
+	procon_free(pmp, &p->field); \
 }
 
 #endif /* #ifndef PROCON_H */

@@ -38,10 +38,10 @@ struct mystruct {
 
 DEFINE_PROCON_MPOOL(mystruct, pm, malloc(sizeof(struct mystruct)))
 
-void __thread (*myfree)(struct mystruct *p);
+struct procon_mpool __thread *mystruct_rcu_cb_mpool;
 
 struct rcu_cb_setup {
-	void (*rcs_free)(struct mystruct *p);
+	struct procon_mpool *rcs_mpool;
 	struct rcu_head rh;
 } my_rcu_cb_setup;
 
@@ -50,7 +50,7 @@ void mystruct_rcu_cb_setup(struct rcu_head *rhp)
 	struct rcu_cb_setup *rcsp;
 
 	rcsp = container_of(rhp, struct rcu_cb_setup, rh);
-	myfree = rcsp->rcs_free;
+	mystruct_rcu_cb_mpool = rcsp->rcs_mpool;
 }
 
 void mystruct_rcu_cb(struct rcu_head *rhp)
@@ -58,9 +58,9 @@ void mystruct_rcu_cb(struct rcu_head *rhp)
 	struct mystruct *msp;
 
 	msp = container_of(rhp, struct mystruct, rh);
-	if (!myfree)
+	if (!mystruct_rcu_cb_mpool)
 		abort();
-	myfree(msp);
+	mystruct__procon_free(mystruct_rcu_cb_mpool, msp);
 }
 
 int main(int argc, char *argv[])
@@ -73,7 +73,8 @@ int main(int argc, char *argv[])
 	run_on(0);
 	crdp = create_call_rcu_data(0, 0);
 	set_thread_call_rcu_data(crdp);
-	my_rcu_cb_setup.rcs_free = mystruct__procon_free;
+	mystruct__procon_init(&mystruct__procon_mpool);
+	my_rcu_cb_setup.rcs_mpool = &mystruct__procon_mpool;
 	call_rcu(&my_rcu_cb_setup.rh, mystruct_rcu_cb_setup);
 	for (i = 0; i < 100 * 1000 * 1000; i++) {
 		msp = mystruct__procon_alloc();
