@@ -24,7 +24,7 @@
 struct keyvalue {
 	unsigned long key;
 	unsigned long value;
-	atomic_t refcnt;
+	atomic_t refcnt __attribute__((__aligned__(CACHE_LINE_SIZE)));
 };
 
 #endif /* #ifndef KEYVALUE_H */
