@@ -29,6 +29,7 @@ struct procon_mblock {
 /* Producer/consumer memory pool. */
 struct procon_mpool {
 	struct procon_mblock *pm_head;
+	struct procon_mblock *pm_unalloc;
 	unsigned long pm_alloccount;
 	unsigned long pm_outcount;
 	unsigned long pm_unoutcount;
@@ -41,19 +42,37 @@ struct procon_mpool {
 /*
  * Remove a block from the pool, or get one from the allocator
  * if the pool is low on blocks.  NULL if no memory to be had.
- * Note that allocating must be single-threaded.
+ * Note that allocating and unallocating must be single-threaded.
  */
 static inline struct procon_mblock *procon_alloc(struct procon_mpool *pmp)
 {
 	struct procon_mblock *pmbp = pmp->pm_head;
 
-	if (pmbp == NULL || ACCESS_ONCE(pmbp->pm_next) == NULL) {
+	if ((pmbp == NULL || ACCESS_ONCE(pmbp->pm_next) == NULL) &&
+	    pmp->pm_unalloc == NULL) {
 		pmp->pm_alloccount++;
 		return pmp->pm_alloc();
 	}
 	pmp->pm_outcount++;
-	pmp->pm_head = pmbp->pm_next;
+	if (pmp->pm_unalloc != NULL) {
+		pmbp = pmp->pm_unalloc;
+		pmp->pm_unalloc = pmbp->pm_next;
+	} else {
+		pmp->pm_head = pmbp->pm_next;
+	}
 	return pmbp;
+}
+
+/*
+ * Push a block back onto the pool.  Note that the block must not yet have
+ * been exposed to readers and that this must be single-threaded from
+ * the allocation side.
+ */
+void procon_unalloc(struct procon_mpool *pmp, struct procon_mblock *pmbp)
+{
+	pmbp->pm_next = pmp->pm_unalloc;
+	pmp->pm_unalloc = pmbp;
+	pmp->pm_unoutcount++;
 }
 
 /*
@@ -112,6 +131,11 @@ static inline struct type *type##__procon_alloc(void) \
 	\
 	p = procon_alloc(&type##__procon_mpool); \
 	return container_of(p, struct type, field); \
+} \
+\
+static inline void type##__procon_unalloc(struct type *p) \
+{ \
+	procon_unalloc(&type##__procon_mpool, &p->field); \
 } \
 \
 static inline void type##__procon_free(struct type *p) \

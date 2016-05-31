@@ -60,19 +60,26 @@ int main(int argc, char *argv[])
 	for (i = 0; i < 100 * 1000 * 1000; i++) {
 		msp = mystruct__procon_alloc();
 		BUG_ON(!msp);
-		call_rcu(&msp->rh, mystruct_rcu_cb);
+		if (i & 0x1)
+			call_rcu(&msp->rh, mystruct_rcu_cb);
+		else
+			mystruct__procon_unalloc(msp);
 	}
-	printf("mystruct__procon_mpool: alloc: %lu out: %lu in: %lu\n",
+	printf("mystruct__procon_mpool: alloc: %lu out: %lu in: %lu unout: %lu\n",
 	       mystruct__procon_mpool.pm_alloccount,
 	       mystruct__procon_mpool.pm_outcount,
-	       mystruct__procon_mpool.pm_incount);
+	       mystruct__procon_mpool.pm_incount,
+	       mystruct__procon_mpool.pm_unoutcount);
 
+	synchronize_rcu();
 	poll(NULL, 0, 10);
+	synchronize_rcu();
 
-	printf("mystruct__procon_mpool: alloc: %lu out: %lu in: %lu\n",
+	printf("mystruct__procon_mpool: alloc: %lu out: %lu in: %lu unout: %lu\n",
 	       mystruct__procon_mpool.pm_alloccount,
 	       mystruct__procon_mpool.pm_outcount,
-	       mystruct__procon_mpool.pm_incount);
+	       mystruct__procon_mpool.pm_incount,
+	       mystruct__procon_mpool.pm_unoutcount);
 
 	return 0;
 }
