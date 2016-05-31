@@ -41,7 +41,7 @@ struct procon_mpool {
 /*
  * Remove a block from the pool, or get one from the allocator
  * if the pool is low on blocks.  NULL if no memory to be had.
- * Note that allocating and unallocating must be single-threaded.
+ * Note that allocating must be single-threaded.
  */
 static inline struct procon_mblock *procon_alloc(struct procon_mpool *pmp)
 {
@@ -54,16 +54,6 @@ static inline struct procon_mblock *procon_alloc(struct procon_mpool *pmp)
 	pmp->pm_outcount++;
 	pmp->pm_head = pmbp->pm_next;
 	return pmbp;
-}
-
-/*
- * Push a newly allocated block back to the pool.  This may be carried out
- * by the allocating thread, but only if the block has not yet been exposed
- * to RCU readers.
- */
-void procon_unalloc(struct procon_mpool *pmp, struct procon_mblock *pmbp)
-{
-	/* @@@ */
 }
 
 /*
@@ -92,10 +82,28 @@ static inline struct procon_mblock *type##__alloc(void) \
 struct procon_mpool __thread type##__procon_mpool = { \
 	.pm_alloc = type##__alloc, \
 }; \
+struct procon_mpool __thread *type##__procon_mpool_rcu_cb; \
 \
-static inline void type##__procon_init(struct procon_mpool *pmp) \
+struct type##__procon_mpool_rcu_cb_setup { \
+	struct procon_mpool *rcs_mpool; \
+	struct rcu_head rcs_rh; \
+} __thread type##__procon_mpool_rcu_cb_setup; \
+\
+void type##__procon_mpool_setup_cb(struct rcu_head *rhp) \
 { \
-	pmp->pm_tail = &pmp->pm_head; \
+	struct type##__procon_mpool_rcu_cb_setup *rp; \
+	\
+	rp = container_of(rhp, struct type##__procon_mpool_rcu_cb_setup, \
+			  rcs_rh); \
+	type##__procon_mpool_rcu_cb = rp->rcs_mpool; \
+} \
+\
+static inline void type##__procon_init(void) \
+{ \
+	type##__procon_mpool.pm_tail = &type##__procon_mpool.pm_head; \
+	type##__procon_mpool_rcu_cb_setup.rcs_mpool = &type##__procon_mpool; \
+	call_rcu(&type##__procon_mpool_rcu_cb_setup.rcs_rh, \
+		 type##__procon_mpool_setup_cb); \
 } \
 \
 static inline struct type *type##__procon_alloc(void) \
@@ -106,10 +114,9 @@ static inline struct type *type##__procon_alloc(void) \
 	return container_of(p, struct type, field); \
 } \
 \
-static inline void type##__procon_free(struct procon_mpool *pmp, \
-				       struct type *p) \
+static inline void type##__procon_free(struct type *p) \
 { \
-	procon_free(pmp, &p->field); \
+	procon_free(type##__procon_mpool_rcu_cb, &p->field); \
 }
 
 #endif /* #ifndef PROCON_H */
