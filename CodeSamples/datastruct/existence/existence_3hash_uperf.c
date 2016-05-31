@@ -91,6 +91,10 @@ void hash_rotate(struct hashtab *htp[],
 	rcu_read_unlock();
 	existence_flip(egp);
 	call_rcu(&egp->eg_rh, existence_group_rcu_cb);
+#if 0
+	if (atomic_read(&heo[0]->he_kv->refcnt) > 10000)
+		poll(NULL, 0, 1);
+#endif
 }
 
 void *perftest_child(void *arg)
