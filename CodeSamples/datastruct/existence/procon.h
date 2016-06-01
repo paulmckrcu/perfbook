@@ -130,6 +130,8 @@ static inline struct type *type##__procon_alloc(void) \
 	struct procon_mblock *p; \
 	\
 	p = procon_alloc(&type##__procon_mpool); \
+	if (p == NULL) \
+		return NULL; \
 	return container_of(p, struct type, field); \
 } \
 \
