@@ -36,13 +36,15 @@ struct mystruct {
 	struct rcu_head rh;
 };
 
-DEFINE_PROCON_MPOOL(mystruct, pm, malloc(sizeof(struct mystruct)))
+DEFINE_PROCON_MPOOL(mystruct, pm, calloc(1, sizeof(struct mystruct)))
 
 void mystruct_rcu_cb(struct rcu_head *rhp)
 {
 	struct mystruct *msp;
 
 	msp = container_of(rhp, struct mystruct, rh);
+	BUG_ON(!msp->a);
+	msp->a = 0;
 	mystruct__procon_free(msp);
 }
 
@@ -60,10 +62,14 @@ int main(int argc, char *argv[])
 	for (i = 0; i < 100 * 1000 * 1000; i++) {
 		msp = mystruct__procon_alloc();
 		BUG_ON(!msp);
-		if (i & 0x1)
+		BUG_ON(msp->a);
+		msp->a = 1;
+		if (i & 0x1) {
 			call_rcu(&msp->rh, mystruct_rcu_cb);
-		else
+		} else {
+			msp->a = 0;
 			mystruct__procon_unalloc(msp);
+		}
 	}
 	printf("mystruct__procon_mpool: alloc: %lu out: %lu in: %lu unout: %lu\n",
 	       mystruct__procon_mpool.pm_alloccount,
