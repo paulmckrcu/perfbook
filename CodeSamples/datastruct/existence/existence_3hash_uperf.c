@@ -193,7 +193,8 @@ void perftest(void)
 	for (i = 0; i < nupdaters; i++) {
 		nrotations += childp[i].nrotations;
 	}
-	printf("rotations: %lld  ns/rotation: %g\n", nrotations,
+	printf("duration (s): %g  rotations: %lld  ns/rotation: %g\n",
+	       starttime / 1000. / 1000., nrotations,
 	       (starttime * 1000. * (double)nupdaters) / (double)nrotations);
 	free(childp);
 	rcu_barrier();
