@@ -60,6 +60,7 @@ static inline struct procon_mblock *procon_alloc(struct procon_mpool *pmp)
 	} else {
 		pmp->pm_head = pmbp->pm_next;
 	}
+	pmbp->pm_next = NULL;
 	return pmbp;
 }
 
