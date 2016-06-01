@@ -83,8 +83,7 @@ void procon_free(struct procon_mpool *pmp, struct procon_mblock *pmbp)
 {
 	struct procon_mblock **nextp;
 
-	nextp = pmp->pm_tail;
-	pmp->pm_tail = &pmbp->pm_next;
+	nextp = xchg(&pmp->pm_tail, &pmbp->pm_next);
 	ACCESS_ONCE(*nextp) = pmbp;
 	pmp->pm_incount++;
 }
