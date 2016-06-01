@@ -21,12 +21,18 @@
 #ifndef HASH_EXISTS_H
 #define HASH_EXISTS_H
 
+#include "procon.h"
+
 struct hash_exists {
 	struct ht_elem he_hte;
 	struct hashtab *he_htp;
 	struct existence_head he_eh;
 	struct keyvalue *he_kv __attribute__((__aligned__(CACHE_LINE_SIZE)));
+	struct procon_mblock pm;
 };
+
+/* Producer/consumer memory pool. */
+DEFINE_PROCON_MPOOL(hash_exists, pm, malloc(sizeof(struct hash_exists)))
 
 /*
  * Trivial comparison function.
@@ -110,8 +116,8 @@ void hash_exists_free(struct existence_head *ehp)
 	hep = container_of(ehp, struct hash_exists, he_eh);
 	kvp = hep->he_kv;
 	if (atomic_dec_and_test(&kvp->refcnt))
-		free(kvp);
-	free(hep);
+		keyvalue__procon_free(kvp);
+	hash_exists__procon_free(hep);
 }
 
 /*
@@ -133,14 +139,14 @@ hash_exists_alloc(struct existence_group *egp, struct hashtab *htp,
 	struct hash_exists *hep;
 	struct keyvalue *kvp = kvp_in;
 
-	hep = malloc(sizeof(*hep));
+	hep = hash_exists__procon_alloc();
 	BUG_ON(!hep);
 	hep->he_htp = htp;
 	if (kvp) {
 		hep->he_kv = kvp;
 		atomic_inc(&kvp->refcnt);
 	} else {
-		kvp = malloc(sizeof(*kvp));
+		kvp = keyvalue__procon_alloc();
 		BUG_ON(!kvp);
 		kvp->key = key;
 		kvp->value = value;
@@ -151,8 +157,8 @@ hash_exists_alloc(struct existence_group *egp, struct hashtab *htp,
 				         hash_exists_remove,
 				         hash_exists_free)) {
 		if (atomic_dec_and_test(&kvp->refcnt))
-			free(kvp);
-		free(hep);
+			keyvalue__procon_unalloc(kvp);
+		hash_exists__procon_unalloc(hep);
 		return NULL;
 	}
 	return hep;

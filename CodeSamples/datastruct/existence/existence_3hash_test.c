@@ -31,6 +31,7 @@
 #include "existence.h"
 #include "../hash/hash_bkt_rcu.c"
 
+#include "procon.h"
 #include "keyvalue.h"
 #include "hash_exists.h"
 
@@ -150,6 +151,8 @@ int main(int argc, char *argv[])
 {
 	smp_init();
 	rcu_register_thread();
+	keyvalue__procon_init();
+	hash_exists__procon_init();
 	smoketest();
 
 	/* Shut up unused warnings. */

@@ -34,6 +34,7 @@
 #include "existence.h"
 #include "../hash/hash_bkt_rcu.c"
 
+#include "procon.h"
 #include "keyvalue.h"
 #include "hash_exists.h"
 
@@ -111,6 +112,8 @@ void *perftest_child(void *arg)
 	run_on(childp->mycpu);
 	crdp = create_call_rcu_data(0, childp->mycpu);
 	set_thread_call_rcu_data(crdp);
+	keyvalue__procon_init();
+	hash_exists__procon_init();
 	atomic_inc(&nthreads_running);
 	egp = malloc(sizeof(*egp));
 	BUG_ON(!egp);

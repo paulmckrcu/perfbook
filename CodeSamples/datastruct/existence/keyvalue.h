@@ -25,6 +25,10 @@ struct keyvalue {
 	unsigned long key;
 	unsigned long value;
 	atomic_t refcnt __attribute__((__aligned__(CACHE_LINE_SIZE)));
+	struct procon_mblock pm;
 };
+
+/* Producer/consumer memory pool. */
+DEFINE_PROCON_MPOOL(keyvalue, pm, malloc(sizeof(struct keyvalue)))
 
 #endif /* #ifndef KEYVALUE_H */
