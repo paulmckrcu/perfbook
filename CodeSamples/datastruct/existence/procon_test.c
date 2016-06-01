@@ -1,5 +1,5 @@
 /*
- * existence_test.c: Test existence data structures.
+ * procon_test.c: Test existence data structures.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,8 +27,8 @@
 #define _LGPL_SOURCE
 #define RCU_SIGNAL
 #include <urcu.h>
-#include "existence.h"
 #include "procon.h"
+#include "existence.h"
 
 struct mystruct {
 	int a;

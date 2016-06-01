@@ -27,6 +27,8 @@
 #define _LGPL_SOURCE
 #define RCU_SIGNAL
 #include <urcu.h>
+
+#include "procon.h"
 #include "existence.h"
 
 struct exist_test {

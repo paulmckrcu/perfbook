@@ -19,7 +19,6 @@
  * Copyright (c) 2016 Paul E. McKenney, IBM Corporation.
  */
 
-#include <jemalloc/jemalloc.h>
 #include "stdarg.h"
 #include <string.h>
 #include <sys/types.h>
@@ -31,10 +30,10 @@
 #define _LGPL_SOURCE
 #define RCU_SIGNAL
 #include <urcu.h>
-#include "existence.h"
 #include "../hash/hash_bkt_rcu.c"
 
 #include "procon.h"
+#include "existence.h"
 #include "keyvalue.h"
 #include "hash_exists.h"
 
@@ -79,7 +78,7 @@ void hash_rotate(struct hashtab *htp[],
 {
 	struct existence_group *egp;
 
-	egp = malloc(sizeof(*egp));
+	egp = existence_group__procon_alloc();
 	BUG_ON(!egp);
 	existence_group_init(egp);
 	rcu_read_lock();
@@ -114,8 +113,9 @@ void *perftest_child(void *arg)
 	set_thread_call_rcu_data(crdp);
 	keyvalue__procon_init();
 	hash_exists__procon_init();
+	existence_group__procon_init();
 	atomic_inc(&nthreads_running);
-	egp = malloc(sizeof(*egp));
+	egp = existence_group__procon_alloc();
 	BUG_ON(!egp);
 	existence_group_init(egp);
 	rcu_read_lock();

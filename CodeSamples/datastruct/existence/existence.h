@@ -37,7 +37,11 @@ struct existence_group {
 	struct cds_list_head eg_outgoing;
 	struct cds_list_head eg_incoming;
 	struct rcu_head eg_rh;
+	struct procon_mblock pm;
 };
+
+/* Producer/consumer memory pool. */
+DEFINE_PROCON_MPOOL(existence_group, pm, malloc(sizeof(struct existence_group)))
 
 /*
  * An existence_head structure wrappers an element of a concurrent
@@ -101,7 +105,7 @@ static inline void existence_group_rcu_cb(struct rcu_head *rhp)
 	struct existence_group *egp;
 	
 	egp = container_of(rhp, struct existence_group, eg_rh);
-	free(egp);
+	existence_group__procon_free(egp);
 }
 
 /*

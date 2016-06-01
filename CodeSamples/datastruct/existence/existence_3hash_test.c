@@ -28,10 +28,10 @@
 #define _LGPL_SOURCE
 #define RCU_SIGNAL
 #include <urcu.h>
-#include "existence.h"
 #include "../hash/hash_bkt_rcu.c"
 
 #include "procon.h"
+#include "existence.h"
 #include "keyvalue.h"
 #include "hash_exists.h"
 
@@ -151,6 +151,7 @@ int main(int argc, char *argv[])
 {
 	smp_init();
 	rcu_register_thread();
+	existence_group__procon_init();
 	keyvalue__procon_init();
 	hash_exists__procon_init();
 	smoketest();
