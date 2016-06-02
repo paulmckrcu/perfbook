@@ -89,7 +89,7 @@ skiplist_start_reader(struct skiplist *head_slp)
 {
 	unsigned long ret;
 
-	ret = head_slp->sl_seq & ~0x1;
+	ret = ACCESS_ONCE(head_slp->sl_seq) & ~0x1;
 	smp_mb();
 	return ret;
 }
@@ -105,7 +105,7 @@ static unsigned long __attribute__((unused))
 skiplist_retry_reader(struct skiplist *head_slp, unsigned long seq)
 {
 	smp_mb();
-	return head_slp->sl_seq != seq;
+	return ACCESS_ONCE(head_slp->sl_seq) != seq;
 }
 
 /*
