@@ -151,6 +151,7 @@ skiplist_ptriter_prev(struct skiplist *head_slp, void *key,
 
 struct skiplist *skiplist_delete(struct skiplist *head_slp, void *key)
 {
+	int i;
 	int level;
 	int result = 0; /* Suppress compiler warning. */
 	struct skiplist *slp_cur;
@@ -172,14 +173,27 @@ retry:
 			slp_prev = slp_cur;
 			slp_cur = rcu_dereference(slp_prev->sl_next[level]);
 		}
-		if (slp_cur && result == 0) {
-			if (slp_prev != slp_last) {
-				skiplist_lock(slp_prev);
-				slp_last = slp_prev;
-			}
-			update[level] = slp_prev;
-		} else {
+		if (!slp_cur || result != 0) {
 			update[level] = NULL;
+		} else if (slp_prev != slp_last) {
+			update[level] = slp_prev;
+			skiplist_lock(slp_prev);
+			if (slp_cur != slp_prev->sl_next[level] ||
+			    (level < slp_prev->sl_toplevel &&
+			     slp_prev->sl_next[level] ==
+			     slp_prev->sl_next[level + 1])) {
+				/* Note: could back up to previous lock. */
+				/* But if slp_last == NULL, there isn't one. */
+				for (i = level - 1; i >=0; i--)
+					update[i] = NULL;
+				skiplist_unlock_update(update,
+						       slp_cur->sl_toplevel);
+				rcu_read_unlock();
+				goto retry;
+			}
+			slp_last = slp_prev;
+		} else {
+			update[level] = slp_prev;
 		}
 	}
 	if (!slp_cur || result != 0) {
@@ -211,6 +225,7 @@ retry:
 static int skiplist_insert_lock(struct skiplist *head_slp, void *key,
 				struct skiplist **update)
 {
+	int i;
 	int level;
 	struct skiplist *slp;
 	struct skiplist *slp_next;
@@ -224,13 +239,20 @@ retry:
 			slp = slp_next;
 			slp_next = rcu_dereference(slp->sl_next[level]);
 		}
+		update[level] = slp;
 		if (level > toplevel) {
 			update[level] = NULL;
-		} else {
-			update[level] = slp;
-			if (level == toplevel ||
-			    update[level] != update[level + 1])
-				skiplist_lock(slp);
+		} else if (level == toplevel ||
+			   update[level] != update[level + 1]) {
+			skiplist_lock(slp);
+			if (slp_next != slp->sl_next[level] ||
+			    (level < slp->sl_toplevel &&
+			     slp->sl_next[level] == slp->sl_next[level + 1])) {
+				for (i = level - 1; i >= 0; i--)
+					update[i] = NULL;
+				skiplist_unlock_update(update, toplevel);
+				goto retry;
+			}
 		}
 	}
 	for (level = 0; level <= toplevel; level++) {
