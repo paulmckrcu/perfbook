@@ -234,6 +234,21 @@ static inline void existence_head_rcu_cb(struct rcu_head *rhp)
 }
 
 /*
+ * Clean up the list of existence structures that have no right to exist
+ * going forward.
+ */
+static inline void existence_cleanup_gone(struct existence_head *ehp)
+{
+	spin_lock(&ehp->eh_lock);
+	BUG_ON(ehp->eh_gone);
+	ehp->eh_gone = 1;
+	if (ehp->eh_remove)
+		ehp->eh_remove(ehp);
+	spin_unlock(&ehp->eh_lock);
+	call_rcu(&ehp->eh_rh, existence_head_rcu_cb);
+}
+
+/*
  * Flip the existence state so that all the incoming elements now exist
  * and all the outgoing elements cease to exist.  Then clean up the
  * outgoing objects and remove the existence-structure reference from
@@ -247,15 +262,8 @@ static inline void existence_flip(struct existence_group *egp)
 	smp_store_release(&egp->eg_state, 1);
 	cds_list_for_each_entry(ehp, &egp->eg_incoming, eh_list)
 		smp_store_release(&ehp->eh_egi, 0);
-	cds_list_for_each_entry(ehp, &egp->eg_outgoing, eh_list) {
-		spin_lock(&ehp->eh_lock);
-		BUG_ON(ehp->eh_gone);
-		ehp->eh_gone = 1;
-		if (ehp->eh_remove)
-			ehp->eh_remove(ehp);
-		spin_unlock(&ehp->eh_lock);
-		call_rcu(&ehp->eh_rh, existence_head_rcu_cb);
-	}
+	cds_list_for_each_entry(ehp, &egp->eg_outgoing, eh_list)
+		existence_cleanup_gone(ehp);
 }
 
 /*
@@ -270,15 +278,8 @@ static inline void existence_backout(struct existence_group *egp)
 	BUG_ON(ACCESS_ONCE(egp->eg_state));
 	cds_list_for_each_entry(ehp, &egp->eg_outgoing, eh_list)
 		smp_store_release(&ehp->eh_egi, 0);
-	cds_list_for_each_entry(ehp, &egp->eg_incoming, eh_list) {
-		spin_lock(&ehp->eh_lock);
-		BUG_ON(ehp->eh_gone);
-		ehp->eh_gone = 1;
-		if (ehp->eh_remove)
-			ehp->eh_remove(ehp);
-		spin_unlock(&ehp->eh_lock);
-		call_rcu(&ehp->eh_rh, existence_head_rcu_cb);
-	}
+	cds_list_for_each_entry(ehp, &egp->eg_incoming, eh_list)
+		existence_cleanup_gone(ehp);
 }
 
 #endif /* #ifndef __EXISTENCE_H */
