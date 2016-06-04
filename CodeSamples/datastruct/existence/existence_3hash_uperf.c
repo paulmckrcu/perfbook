@@ -152,6 +152,11 @@ void perftest(void)
 	long long starttime;
 	long long endtime;
 
+	rcu_register_thread();
+	keyvalue__procon_init();
+	hash_exists__procon_init();
+	existence_group__procon_init();
+
 	rcu_read_lock();
 	for (i = 0; i < 3; i++) {
 		ht_array[i] = hashtab_alloc(nbuckets, hash_exists_cmp);
@@ -173,6 +178,7 @@ void perftest(void)
 		childp[i].firstkey = i * updatespacing;
 		create_thread(perftest_child, &childp[i]);
 	}
+	rcu_unregister_thread();
 
 	/* Wait for all threads to initialize. */
 	while (atomic_read(&nthreads_running) < nreaders + nupdaters)
@@ -190,6 +196,7 @@ void perftest(void)
 	ACCESS_ONCE(goflag) = GOFLAG_STOP;
 	wait_all_threads();
 
+	rcu_register_thread();
 	for (i = 0; i < nupdaters; i++) {
 		nrotations += childp[i].nrotations;
 	}
@@ -197,6 +204,7 @@ void perftest(void)
 	       starttime / 1000. / 1000., nrotations,
 	       (starttime * 1000. * (double)nupdaters) / (double)nrotations);
 	free(childp);
+	rcu_unregister_thread();
 	rcu_barrier();
 }
 
