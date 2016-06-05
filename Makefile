@@ -26,42 +26,29 @@ LATEXSOURCES = \
 	together/*.tex \
 	toolsoftrade/*.tex
 
-EPSTARGETS_OF_TEX = \
+EPSSOURCES_FROM_TEX = \
 	SMPdesign/DiningPhilosopher5.eps \
 	SMPdesign/DiningPhilosopher5TB.eps \
 	SMPdesign/DiningPhilosopher4part-b.eps \
 	SMPdesign/DiningPhilosopher5PEM.eps
 
-EPSTARGETS_OF_DOT = \
+EPSSOURCES_FROM_DOT = \
 	advsync/store15tred.eps \
 	count/sig-theft.eps
 
 EPSSOURCES = \
-	SMPdesign/*.eps \
-	advsync/*.eps \
-	appendix/questions/*.eps \
-	appendix/whymb/*.eps \
-	count/*.eps \
-	cpu/*.eps \
-	datastruct/*.eps \
-	defer/*.eps \
-	easy/*.eps \
-	future/*.eps \
-	intro/*.eps \
-	locking/*.eps \
-	$(EPSTARGETS_OF_TEX) \
-	$(EPSTARGETS_OF_DOT)
+	$(wildcard */*.eps) \
+	$(wildcard */*/*.eps) \
+	$(EPSSOURCES_FROM_TEX) \
+	$(EPSSOURCES_FROM_DOT)
+
+PDFTARGETS_OF_EPS := $(EPSSOURCES:%.eps=%.pdf)
 
 BIBSOURCES = bib/*.bib
 
-SVGSOURCES = \
-	cartoons/*.svg \
-	debugging/*.svg \
-	count/*.svg \
-	SMPdesign/*.svg \
-	defer/*.svg \
-	datastruct/*.svg \
-	rt/*.svg
+SVGSOURCES = $(wildcard */*.svg)
+
+PDFTARGETS_OF_SVG := $(SVGSOURCES:%.svg=%.pdf)
 
 default = $(PERFBOOK_DEFAULT)
 
@@ -86,10 +73,10 @@ perfbook.pdf: perfbook.bbl
 perfbook.bbl: $(BIBSOURCES) perfbook.aux
 	bibtex perfbook
 
-perfbook.aux: $(LATEXSOURCES) extraction embedfonts
+perfbook.aux: $(LATEXSOURCES) extraction
 	sh utilities/runfirstlatex.sh perfbook
 
-perfbook_flat.tex qqz.tex: perfbook.tex $(LATEXSOURCES) $(EPSSOURCES) embedfonts
+perfbook_flat.tex qqz.tex: perfbook.tex $(LATEXSOURCES) $(EPSSOURCES) $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG)
 	echo > qqz.tex
 	texexpand perfbook.tex > perfbook_flat.tex
 	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
@@ -98,12 +85,6 @@ extraction: perfbook_flat.tex
 	cat perfbook_flat.tex qqz.tex | sh utilities/extractcontrib.sh > contrib.tex
 	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
 	touch extraction
-
-embedfonts: $(EPSSOURCES) $(SVGSOURCES)
-	sh utilities/fixfigfonts.sh
-	sh utilities/fixdotfonts.sh
-	sh utilities/eps2pdf.sh
-	touch embedfonts
 
 perfbook-1c.pdf: perfbook-1c.tex perfbook-1c.bbl
 	sh utilities/runlatex.sh perfbook-1c
@@ -114,7 +95,7 @@ perfbook-1c.tex: perfbook.tex
 perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c.aux
 	bibtex perfbook-1c
 
-perfbook-1c.aux: $(LATEXSOURCES) extraction embedfonts
+perfbook-1c.aux: $(LATEXSOURCES) extraction
 	sh utilities/runfirstlatex.sh perfbook-1c
 
 perfbook-hb.pdf: perfbook-hb.tex perfbook-hb.bbl
@@ -126,18 +107,25 @@ perfbook-hb.tex: perfbook.tex
 perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb.aux
 	bibtex perfbook-hb
 
-perfbook-hb.aux: $(LATEXSOURCES) extraction embedfonts
+perfbook-hb.aux: $(LATEXSOURCES) extraction
 	sh utilities/runfirstlatex.sh perfbook-hb
 
 # Rules related to perfbook_html are removed as of May, 2016
 
-$(EPSTARGETS_OF_TEX): %.eps: %.tex
+$(EPSSOURCES_FROM_TEX): %.eps: %.tex
 	latex -output-directory=$(shell dirname $<) $<
 	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
 	sh utilities/fixanepsfonts.sh $@
 
-$(EPSTARGETS_OF_DOT): %.eps: %.dot
+$(EPSSOURCES_FROM_DOT): %.eps: %.dot
 	dot -Tps -o $@ $<
+	sh utilities/fixanepsfonts.sh $@
+
+$(PDFTARGETS_OF_EPS): %.pdf: %.eps
+	a2ping --below --hires --bboxfrom=compute-gs $< $@
+
+$(PDFTARGETS_OF_SVG): %.pdf: %.svg
+	inkscape --export-pdf=$@ $<
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
@@ -146,11 +134,11 @@ clean:
 	rm -f perfbook_flat.tex perfbook.out perfbook-1c.out
 	rm -f qqz.tex
 	rm -f perfbook-hb.out perfbook-1c.tex perfbook-hb.tex
-	rm -f extraction embedfonts
+	rm -f extraction
 
 distclean: clean
 	sh utilities/cleanpdf.sh
-	rm -f $(EPSTARGETS_OF_DOT) $(EPSTARGETS_OF_TEX)
+	rm -f $(EPSSOURCES_FROM_DOT) $(EPSSOURCES_FROM_TEX)
 
 touchsvg:
 	find . -name '*.svg' | xargs touch
