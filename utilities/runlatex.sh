@@ -39,7 +39,7 @@ basename=`echo $1 | sed -e 's/\.tex$//'`
 iter=1
 if ! test -r $basename-first.log
 then
-	echo "pdflatex 1"
+	echo "pdflatex 1 for $basename.pdf"
 	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
 	if grep -q '! Emergency stop.' $basename.log
 	then
@@ -57,12 +57,12 @@ do
 		then
 			echo "No more improvement is expected, giving up."
 			break
-		else
-			echo "Some improvements are observed, continuing."
+#		else
+#			echo "Some improvements are observed, continuing."
 		fi
 	fi
 	iter=`expr $iter + 1`
-	echo "pdflatex $iter # remaining undefined refs"
+	echo "pdflatex $iter for $basename.pdf # remaining undefined refs"
 	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
 	if grep -q '! Emergency stop.' $basename.log
 	then
@@ -83,12 +83,12 @@ do
 		then
 			echo "No more improvement is expected, giving up."
 			break
-		else
-			echo "Some improvements are observed, continuing."
+#		else
+#			echo "Some improvements are observed, continuing."
 		fi
 	fi
 	iter=`expr $iter + 1`
-	echo "pdflatex $iter # label(s) may have been changed"
+	echo "pdflatex $iter for $basename.pdf # label(s) may have been changed"
 	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
 	if grep -q '! Emergency stop.' $basename.log
 	then
@@ -118,7 +118,7 @@ then
 	echo "#######################################################################"
 	echo "## Steel City Comic font is not found in the resulting PDF!          ##"
 	echo "## Some speech balloons in the cartoons have been rendered awkwardly.##"
-	echo "## See item 1 in FAQ-BUILD.txt for the solution.                     ##"
+	echo "## See item 1 in FAQ.txt and FAQ-BUILD.txt to fix the font issue.    ##"
 	echo "#######################################################################"
 fi
 exit 0

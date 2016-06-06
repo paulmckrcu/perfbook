@@ -34,7 +34,7 @@ fi
 
 basename=`echo $1 | sed -e 's/\.tex$//'`
 
-echo "pdflatex 1"
+echo "pdflatex 1 for $basename.pdf"
 pdflatex $basename > /dev/null 2>&1 < /dev/null || :
 if grep -q '! Emergency stop.' $basename.log
 then

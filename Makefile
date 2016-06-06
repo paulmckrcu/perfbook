@@ -2,29 +2,8 @@ LATEXSOURCES = \
 	perfbook.tex \
 	legal.tex \
 	qqz.sty origpub.sty \
-	advsync/*.tex \
-	appendix/*.tex \
-	appendix/ack/*.tex \
-	appendix/primitives/*.tex \
-	appendix/questions/*.tex \
-	appendix/whymb/*.tex \
-	count/*.tex \
-	cpu/*.tex \
-	datastruct/*.tex \
-	debugging/*.tex \
-	easy/*.tex \
-	glossary.tex \
-	intro/*.tex \
-	memalloc/*.tex \
-	owned/*.tex \
-	defer/*.tex \
-	formal/*.tex \
-	future/*.tex \
-	howto/*.tex \
-	SMPdesign/*.tex \
-	locking/*.tex \
-	together/*.tex \
-	toolsoftrade/*.tex
+	*/*.tex \
+	*/*/*.tex
 
 EPSSOURCES_FROM_TEX = \
 	SMPdesign/DiningPhilosopher5.eps \
@@ -36,11 +15,13 @@ EPSSOURCES_FROM_DOT = \
 	advsync/store15tred.eps \
 	count/sig-theft.eps
 
-EPSSOURCES = \
+EPSSOURCES_DUP = \
 	$(wildcard */*.eps) \
 	$(wildcard */*/*.eps) \
 	$(EPSSOURCES_FROM_TEX) \
 	$(EPSSOURCES_FROM_DOT)
+
+EPSSOURCES = $(sort $(EPSSOURCES_DUP))
 
 PDFTARGETS_OF_EPS := $(EPSSOURCES:%.eps=%.pdf)
 
@@ -113,19 +94,23 @@ perfbook-hb.aux: $(LATEXSOURCES) extraction
 # Rules related to perfbook_html are removed as of May, 2016
 
 $(EPSSOURCES_FROM_TEX): %.eps: %.tex
-	latex -output-directory=$(shell dirname $<) $<
-	dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
-	sh utilities/fixanepsfonts.sh $@
+	@echo "$< --> $@"
+	@latex -output-directory=$(shell dirname $<) $<
+	@dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
+	@sh utilities/fixanepsfonts.sh $@
 
 $(EPSSOURCES_FROM_DOT): %.eps: %.dot
-	dot -Tps -o $@ $<
-	sh utilities/fixanepsfonts.sh $@
+	@echo "$< --> $@"
+	@dot -Tps -o $@ $<
+	@sh utilities/fixanepsfonts.sh $@
 
 $(PDFTARGETS_OF_EPS): %.pdf: %.eps
-	a2ping --below --hires --bboxfrom=compute-gs $< $@
+	@echo "$< --> $@"
+	@a2ping --below --hires --bboxfrom=compute-gs $< $@ > /dev/null 2>&1
 
 $(PDFTARGETS_OF_SVG): %.pdf: %.svg
-	inkscape --export-pdf=$@ $<
+	@echo "$< --> $@"
+	@inkscape --export-pdf=$@ $<
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
