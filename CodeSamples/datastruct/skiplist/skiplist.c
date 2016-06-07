@@ -72,7 +72,8 @@ skiplist_lookup_relaxed(struct skiplist *head_slp, void *key)
 {
 	struct skiplist *slp = skiplist_lookup_help(head_slp, key);
 
-	slp = slp->sl_next[0];
+	/* rcu_dereference() pairs with rcu_assign_pointer() in skiplist_insert*/
+	slp = rcu_dereference(slp->sl_next[0]);
 	if (slp != head_slp && slp && !slp->sl_deleted &&
 	    head_slp->sl_cmp(slp, key) == 0)
 		return slp;
