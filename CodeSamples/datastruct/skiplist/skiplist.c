@@ -115,8 +115,10 @@ skiplist_lookup_lock(struct skiplist *head_slp, void *key)
 	struct skiplist *slp_prev;
 
 	slp_cur = skiplist_lookup_lock_prev(head_slp, key, &slp_prev, &result);
+
 	if (!slp_cur || result) {
-		skiplist_unlock(slp_prev);
+		if (slp_cur) /* if lock_prev() returns NULL, prev is unlocked.*/
+			skiplist_unlock(slp_prev);
 		return NULL;
 	}
 	skiplist_lock(slp_cur);
