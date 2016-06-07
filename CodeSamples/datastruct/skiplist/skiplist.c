@@ -250,6 +250,7 @@ retry:
 			skiplist_lock(slp);
 			if (slp_next != slp->sl_next[level] ||
 			    (level < slp->sl_toplevel &&
+			     level < toplevel &&
 			     slp->sl_next[level] == slp->sl_next[level + 1])) {
 				for (i = level - 1; i >= 0; i--)
 					update[i] = NULL;
