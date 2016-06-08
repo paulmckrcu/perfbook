@@ -11,9 +11,9 @@ EPSSOURCES_FROM_TEX = \
 	SMPdesign/DiningPhilosopher4part-b.eps \
 	SMPdesign/DiningPhilosopher5PEM.eps
 
-EPSSOURCES_FROM_DOT = \
-	advsync/store15tred.eps \
-	count/sig-theft.eps
+DOTSOURCES = $(wildcard */*.dot)
+
+EPSSOURCES_FROM_DOT := $(DOTSOURCES:%.dot=%.eps)
 
 EPSSOURCES_DUP = \
 	$(wildcard */*.eps) \
@@ -39,7 +39,7 @@ else
 	targ = $(default)
 endif
 
-.PHONY: all touchsvg clean distclean neatfreak 1c 2c hb
+.PHONY: all touchsvg clean distclean neatfreak 1c 2c hb ls-unused
 all: $(targ)
 
 1c: perfbook-1c.pdf
@@ -127,6 +127,9 @@ distclean: clean
 
 touchsvg:
 	find . -name '*.svg' | xargs touch
+
+ls-unused:
+	find . -name .unused | xargs ls
 
 neatfreak: distclean
 	# Don't forget to regenerate the .pdf from each .svg file
