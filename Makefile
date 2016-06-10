@@ -5,29 +5,29 @@ LATEXSOURCES = \
 	*/*.tex \
 	*/*/*.tex
 
-EPSSOURCES_FROM_TEX = \
+EPSSOURCES_FROM_TEX := \
 	SMPdesign/DiningPhilosopher5.eps \
 	SMPdesign/DiningPhilosopher5TB.eps \
 	SMPdesign/DiningPhilosopher4part-b.eps \
 	SMPdesign/DiningPhilosopher5PEM.eps
 
-DOTSOURCES = $(wildcard */*.dot)
+DOTSOURCES := $(wildcard */*.dot)
 
 EPSSOURCES_FROM_DOT := $(DOTSOURCES:%.dot=%.eps)
 
-EPSSOURCES_DUP = \
+EPSSOURCES_DUP := \
 	$(wildcard */*.eps) \
 	$(wildcard */*/*.eps) \
 	$(EPSSOURCES_FROM_TEX) \
 	$(EPSSOURCES_FROM_DOT)
 
-EPSSOURCES = $(sort $(EPSSOURCES_DUP))
+EPSSOURCES := $(sort $(EPSSOURCES_DUP))
 
 PDFTARGETS_OF_EPS := $(EPSSOURCES:%.eps=%.pdf)
 
 BIBSOURCES = bib/*.bib
 
-SVGSOURCES = $(wildcard */*.svg)
+SVGSOURCES := $(wildcard */*.svg)
 
 PDFTARGETS_OF_SVG := $(SVGSOURCES:%.svg=%.pdf)
 
