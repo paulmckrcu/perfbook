@@ -702,21 +702,21 @@ will observe any update made prior to the call to \co{synchronize_srcu()}.
 
 \QuickQuiz{}
 	Why is it OK to assume that updates separated by
-	{\tt synchronize\_sched()} will be performed in order?
+	\co{synchronize_sched()} will be performed in order?
 \QuickQuizAnswer{
-	Because this property is required for the {\tt synchronize\_sched()}
+	Because this property is required for the \co{synchronize_sched()}
 	aspect of RCU to work at all.
 	For example, consider a code sequence that removes an object
-	from a list, invokes {\tt synchronize\_sched()}, then frees
+	from a list, invokes \co{synchronize_sched()}, then frees
 	the object.
 	If this property did not hold, then that object might appear
 	to be freed before it was
 	removed from the list, which is precisely the situation that
-	{\tt synchronize\_sched()} is supposed to prevent!
+	\co{synchronize_sched()} is supposed to prevent!
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	Why must line~17 in {\tt synchronize\_srcu()}
+	Why must line~17 in \co{synchronize_srcu()}
 	(Figure~\ref{fig:app:rcuimpl:Update-Side Implementation})
 	precede the release of the mutex on line~18?
 	What would have to change to permit these two lines to be
@@ -726,17 +726,17 @@ will observe any update made prior to the call to \co{synchronize_srcu()}.
 \QuickQuizAnswer{
 	Suppose that the order was reversed, and that CPU~0
 	has just reached line~13 of
-	{\tt synchronize\_srcu()}, while both CPU~1 and CPU~2 start executing
-	another {\tt synchronize\_srcu()} each, and CPU~3 starts executing a
-	{\tt srcu\_read\_lock()}.
-	Suppose that CPU~1 reaches line~6 of {\tt synchronize\_srcu()}
+	\co{synchronize_srcu()}, while both CPU~1 and CPU~2 start executing
+	another \co{synchronize_srcu()} each, and CPU~3 starts executing a
+	\co{srcu_read_lock()}.
+	Suppose that CPU~1 reaches line~6 of \co{synchronize_srcu()}
 	just before CPU~0 increments the counter on line~13.
 	Most importantly, suppose that
-	CPU~3 executes {\tt srcu\_read\_lock()}
+	CPU~3 executes \co{srcu_read_lock()}
 	out of order with the following SRCU read-side critical section,
 	so that it acquires a reference to some SRCU-protected data
-	structure \emph{before} CPU~0 increments {\tt sp->completed}, but
-	executes the {\tt srcu\_read\_lock()} \emph{after} CPU~0 does
+	structure \emph{before} CPU~0 increments \co{sp->completed}, but
+	executes the \co{srcu_read_lock()} \emph{after} CPU~0 does
 	this increment.
 	
 	Then CPU~0 will \emph{not} wait for CPU~3 to complete its
@@ -745,33 +745,33 @@ will observe any update made prior to the call to \co{synchronize_srcu()}.
 	CPU could be reordering the code).
 	
 	Now suppose that CPU~2 acquires the mutex next,
-	and again increments {\tt sp->completed}.
+	and again increments \co{sp->completed}.
 	This CPU will then have to wait for CPU~3 to exit its SRCU
 	read-side critical section before exiting the loop on
 	lines~15-16 and releasing the mutex.
 	But suppose that CPU~3 again executes out of order,
-	completing the {\tt srcu\_read\_unlock()} prior to
+	completing the \co{srcu_read_unlock()} prior to
 	executing a final reference to the pointer it obtained
 	when entering the SRCU read-side critical section.
 
 	CPU~1 will then acquire the mutex, but see that the
-	{\tt sp->completed} counter has incremented twice, and
+	\co{sp->completed} counter has incremented twice, and
 	therefore take the early exit.
 	The caller might well free up the element that CPU~3 is
 	still referencing (due to CPU~3's out-of-order execution).
 
 	To prevent this perhaps improbable, but entirely possible,
-	scenario, the final {\tt synchronize\_sched()} must precede
-	the mutex release in {\tt synchronize\_srcu()}.
+	scenario, the final \co{synchronize_sched()} must precede
+	the mutex release in \co{synchronize_srcu()}.
 
 	Another approach would be to change to comparison on
-	line~7 of {\tt synchronize\_srcu()} to check for at
+	line~7 of \co{synchronize_srcu()} to check for at
 	least three increments of the counter.
 	However, such a change would increase the latency of a
 	``bulk update'' scenario, where a hash table is being updated
 	or unloaded using multiple threads.
 	In the current code, the latency of the resulting concurrent
-	{\tt synchronize\_srcu()} calls would take at most two SRCU
+	\co{synchronize_srcu()} calls would take at most two SRCU
 	grace periods, while with this change, three would be required.
 
 	More experience will be required to determine which approach
