@@ -27,4 +27,4 @@ sed -e 's/^\\QuickQuizChapter{/\\QuickQAC{/' \
     -e 's/^\\QuickQuiz{/\\QuickQ{/' \
     -e 's/^\\QuickQuizAnswer{/\\QuickA{}/' \
     -e 's/^\\QContributedBy{/\\ContributedBy{/' \
-    -e 's/^} \\QuickQuizEnd//'
+    -e 's/^} \\QuickQuizEnd/\\QuickE{}/'
