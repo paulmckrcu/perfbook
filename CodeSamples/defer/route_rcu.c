@@ -34,8 +34,8 @@
 struct route_entry {
 	struct rcu_head rh;
 	struct cds_list_head re_next;
-	unsigned long re_addr;
-	unsigned long re_interface;
+	unsigned long addr;
+	unsigned long proc;
 	int re_freed;
 };
 
@@ -58,8 +58,8 @@ unsigned long route_lookup(unsigned long addr)
 
 	rcu_read_lock();
 	cds_list_for_each_entry_rcu(rep, &route_list, re_next) {
-		if (rep->re_addr == addr) {
-			ret = rep->re_interface;
+		if (rep->addr == addr) {
+			ret = rep->proc;
 			if (ACCESS_ONCE(rep->re_freed))
 				abort();
 			rcu_read_unlock();
@@ -80,8 +80,8 @@ int route_add(unsigned long addr, unsigned long interface)
 	rep = malloc(sizeof(*rep));
 	if (!rep)
 		return -ENOMEM;
-	rep->re_addr = addr;
-	rep->re_interface = interface;
+	rep->addr = addr;
+	rep->proc = interface;
 	rep->re_freed = 0;
 	spin_lock(&routelock);
 	cds_list_add_rcu(&rep->re_next, &route_list);
@@ -106,7 +106,7 @@ int route_del(unsigned long addr)
 
 	spin_lock(&routelock);
 	cds_list_for_each_entry(rep, &route_list, re_next) {
-		if (rep->re_addr == addr) {
+		if (rep->addr == addr) {
 			cds_list_del_rcu(&rep->re_next);
 			spin_unlock(&routelock);
 			call_rcu(&rep->rh, route_cb);

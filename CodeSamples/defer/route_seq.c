@@ -25,8 +25,8 @@
 /* Route-table entry to be included in the routing list. */
 struct route_entry {
 	struct cds_list_head re_next;
-	unsigned long re_addr;
-	unsigned long re_interface;
+	unsigned long addr;
+	unsigned long proc;
 };
 
 CDS_LIST_HEAD(route_list);
@@ -40,8 +40,8 @@ unsigned long route_lookup(unsigned long addr)
 	unsigned long ret;
 
 	cds_list_for_each_entry(rep, &route_list, re_next) {
-		if (rep->re_addr == addr) {
-			ret = rep->re_interface;
+		if (rep->addr == addr) {
+			ret = rep->proc;
 			return ret;
 		}
 	}
@@ -58,8 +58,8 @@ int route_add(unsigned long addr, unsigned long interface)
 	rep = malloc(sizeof(*rep));
 	if (!rep)
 		return -ENOMEM;
-	rep->re_addr = addr;
-	rep->re_interface = interface;
+	rep->addr = addr;
+	rep->proc = interface;
 	cds_list_add(&rep->re_next, &route_list);
 	return 0;
 }
@@ -72,7 +72,7 @@ int route_del(unsigned long addr)
 	struct route_entry *rep;
 
 	cds_list_for_each_entry(rep, &route_list, re_next) {
-		if (rep->re_addr == addr) {
+		if (rep->addr == addr) {
 			cds_list_del(&rep->re_next);
 			free(rep);
 			return 0;
