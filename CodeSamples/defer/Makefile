@@ -40,6 +40,7 @@ PROGS =	bug_rcu_dp \
 	route_rcu \
 	route_refcnt \
 	route_seq \
+	route_seqlock \
 	seqlocktorture \
 
 all: $(PROGS)
@@ -119,6 +120,9 @@ route_refcnt: route_refcnt.c ../api.h routetorture.h
 
 route_seq: route_seq.c ../api.h routetorture.h
 	cc $(GCC_ARGS) -o route_seq route_seq.c -lpthread
+
+route_seqlock: route_seqlock.c ../api.h seqlock.h routetorture.h
+	cc $(GCC_ARGS) -o route_seqlock route_seqlock.c -lpthread
 
 seqlocktorture: seqlocktorture.c seqlock.h ../api.h
 	cc $(GCC_ARGS) -o seqlocktorture seqlocktorture.c -lpthread
