@@ -23,6 +23,11 @@ typedef struct {
 	spinlock_t lock;
 } seqlock_t;
 
+#define DEFINE_SEQ_LOCK(name) seqlock_t name = { \
+	.seq = 0, \
+	.lock = __SPIN_LOCK_UNLOCKED(name.lock), \
+};
+
 static void seqlock_init(seqlock_t *slp)
 {
 	slp->seq = 0;
