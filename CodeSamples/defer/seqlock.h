@@ -38,12 +38,9 @@ static unsigned long read_seqbegin(seqlock_t *slp)
 {
 	unsigned long s;
 
-repeat:
 	s = ACCESS_ONCE(slp->seq);
 	smp_mb();
-	if (unlikely(s & 1))
-		goto repeat;
-	return s;
+	return s & ~0x1UL;
 }
 
 static int read_seqretry(seqlock_t *slp, unsigned long oldseq)
