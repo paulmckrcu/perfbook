@@ -109,20 +109,20 @@ rcu_sig: rcu_sig.c rcu_sig.h ../api.h rcutorture.h
 rcu_ts: rcu_ts.c rcu_ts.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_ts -DTEST rcu_ts.c -lpthread
 
-route_hazptr: route_hazptr.c ../api.h routetorture.h
-	cc $(GCC_ARGS) -o route_hazptr route_hazptr.c hazptr.c -lpthread
+route_hazptr: route_hazptr.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
+	cc $(GCC_ARGS) -o route_hazptr route_hazptr.c hazptr.c ../lib/random.c -lpthread
 
-route_rcu: route_rcu.c ../api.h routetorture.h
-	cc $(GCC_ARGS) -o route_rcu route_rcu.c -lpthread  -lurcu -lurcu-signal
+route_rcu: route_rcu.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
+	cc $(GCC_ARGS) -o route_rcu route_rcu.c ../lib/random.c -lpthread  -lurcu -lurcu-signal
 
-route_refcnt: route_refcnt.c ../api.h routetorture.h
-	cc $(GCC_ARGS) -o route_refcnt route_refcnt.c -lpthread
+route_refcnt: route_refcnt.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
+	cc $(GCC_ARGS) -o route_refcnt route_refcnt.c ../lib/random.c -lpthread
 
-route_seq: route_seq.c ../api.h routetorture.h
-	cc $(GCC_ARGS) -o route_seq route_seq.c -lpthread
+route_seq: route_seq.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
+	cc $(GCC_ARGS) -o route_seq route_seq.c ../lib/random.c -lpthread
 
-route_seqlock: route_seqlock.c ../api.h seqlock.h routetorture.h
-	cc $(GCC_ARGS) -o route_seqlock route_seqlock.c -lpthread
+route_seqlock: route_seqlock.c ../api.h seqlock.h ../lib/random.h ../lib/random.c routetorture.h
+	cc $(GCC_ARGS) -o route_seqlock route_seqlock.c ../lib/random.c -lpthread
 
 seqlocktorture: seqlocktorture.c seqlock.h ../api.h
 	cc $(GCC_ARGS) -o seqlocktorture seqlocktorture.c -lpthread
