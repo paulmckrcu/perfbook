@@ -1,11 +1,6 @@
 /*
  * routetorture.h: simple user-level stress test of route tables.
  *
- * Usage:
- *
- *	./route_xxx --smoketest
- *		Run a simple single-threaded smoke test.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -29,6 +24,7 @@
 #include <stdarg.h>
 #include <sched.h>
 #include <string.h>
+#include "../lib/random.h"
 
 #ifndef route_register_thread
 #define route_register_thread() do { } while (0)
@@ -68,6 +64,8 @@ void smoketest(void)
 }
 
 /* Parameters for performance test. */
+int nelems = 100;
+int nreaders = 7;
 int nupdaters = 7;
 int cpustride = 1;
 long duration = 10; /* in milliseconds. */
@@ -90,6 +88,114 @@ struct perftest_attr {
 	long long ndelfails;
 	int mycpu;
 };
+
+/* Performance test reader thread. */
+void *perftest_reader(void *arg)
+{
+	long i;
+	int gf;
+	struct perftest_attr *pap = arg;
+	long long nlookups = 0;
+	long long nlookupfails = 0;
+
+	run_on(pap->mycpu);
+	route_register_thread();
+
+	/* Announce our presence and enter the test loop. */
+	atomic_inc(&nthreads_running);
+	for (;;) {
+		gf = ACCESS_ONCE(goflag);
+		if (gf != GOFLAG_RUN) {
+			if (gf == GOFLAG_STOP)
+				break;
+			if (gf == GOFLAG_INIT) {
+				/* Still initializing, kill statistics. */
+				nlookups = 0;
+				nlookupfails = 0;
+			}
+		}
+		i = random() % nelems;
+		nlookups++;
+		if (route_lookup(i) == ULONG_MAX) {
+			nlookupfails++;
+		}
+	}
+
+	/* Really want rcu_barrier(), but missing from old liburcu versions. */
+	synchronize_rcu();
+	poll(NULL, 0, 100);
+	synchronize_rcu();
+
+	route_unregister_thread();
+	pap->nlookups = nlookups;
+	pap->nlookupfails = nlookupfails;
+	return NULL;
+}
+
+/* Run a stress test. */
+void perftest(void)
+{
+	struct perftest_attr *pap;
+	int maxcpus = sysconf(_SC_NPROCESSORS_CONF);
+	long i;
+	long long nlookups = 0;
+	long long nlookupfails = 0;
+	long long nadds = 0;
+	long long ndels = 0;
+	long long ndelfails = 0;
+	long long starttime;
+
+	BUG_ON(maxcpus <= 0);
+	pap = malloc(sizeof(*pap) * nupdaters);
+	BUG_ON(pap == NULL);
+	atomic_set(&nthreads_running, 0);
+	goflag = GOFLAG_INIT;
+
+	/* Populate route table. */
+	for (i = 0; i < nelems; i++)
+		route_add(i, 2 * i);
+
+	for (i = 0; i < nupdaters; i++) {
+		pap[i].myid = i;
+		pap[i].nlookups = 0;
+		pap[i].nlookupfails = 0;
+		pap[i].nadds = 0;
+		pap[i].ndels = 0;
+		pap[i].ndelfails = 0;
+		pap[i].mycpu = (i * cpustride) % maxcpus;
+		create_thread(perftest_reader, &pap[i]);
+	}
+
+	/* Wait for all threads to initialize. */
+	while (atomic_read(&nthreads_running) < nupdaters)
+		poll(NULL, 0, 1);
+	smp_mb();
+
+	/* Run the test. */
+	starttime = get_microseconds();
+	ACCESS_ONCE(goflag) = GOFLAG_RUN;
+	poll(NULL, 0, duration);
+	ACCESS_ONCE(goflag) = GOFLAG_STOP;
+	starttime = get_microseconds() - starttime;
+	wait_all_threads();
+
+	/* Collect stats and output them. */
+	for (i = 0; i < nupdaters; i++) {
+		nlookups += pap[i].nlookups;
+		nlookupfails += pap[i].nlookupfails;
+		nadds += pap[i].nadds;
+		ndels += pap[i].ndels;
+		ndels += pap[i].ndelfails;
+	}
+	printf("nlookups: %lld %lld  nadds: %lld  ndels: %lld %lld  duration: %g\n",
+	       nlookups, nlookupfails, nadds, ndels, ndelfails, starttime / 1000.);
+	printf("ns/read: %g  ns/update: %g\n",
+	       (starttime * 1000. * (double)nupdaters) / (double)nlookups,
+	       ((starttime * 1000. * (double)nupdaters) /
+	        (double)(nadds + ndels)));
+
+	free(pap);
+}
 
 /* Stress test updater thread. */
 void *stresstest_updater(void *arg)
@@ -233,11 +339,18 @@ void usage(char *progname, const char *format, ...)
 	va_start(ap, format);
 	vfprintf(stderr, format, ap);
 	va_end(ap);
+	fprintf(stderr, "Usage: %s --perftest\n", progname);
 	fprintf(stderr, "Usage: %s --smoketest\n", progname);
 	fprintf(stderr, "Usage: %s --stresstest\n", progname);
+	fprintf(stderr, "\t--nelems\n");
+	fprintf(stderr, "\t\tNumber of elements, defaults to 100.  Must be\n");
+	fprintf(stderr, "\t\t1 or greater.\n");
+	fprintf(stderr, "\t--nreaders\n");
+	fprintf(stderr, "\t\tNumber of readers, defaults to 1.  Must be 1\n");
+	fprintf(stderr, "\t\tor greater.\n");
 	fprintf(stderr, "\t--nupdaters\n");
 	fprintf(stderr, "\t\tNumber of updaters, defaults to 1.  Must be 1\n");
-	fprintf(stderr, "\t\tor greater, or route table will be empty.\n");
+	fprintf(stderr, "\t\tor greater.\n");
 	fprintf(stderr, "\t--cpustride\n");
 	fprintf(stderr, "\t\tStride when spreading threads across CPUs,\n");
 	fprintf(stderr, "\t\tdefaults to 1.\n");
@@ -264,11 +377,26 @@ int main(int argc, char *argv[])
 				      "Excess arguments for %s\n", argv[i]);
 			smoketest();
 			exit(0);
+		} else if (strcmp(argv[i], "--perftest") == 0) {
+			test_to_do = perftest;
+			if (i != 1)
+				usage(argv[0],
+				      "Must be first argument: %s\n", argv[i]);
 		} else if (strcmp(argv[i], "--stresstest") == 0) {
 			test_to_do = stresstest;
 			if (i != 1)
 				usage(argv[0],
 				      "Must be first argument: %s\n", argv[i]);
+		} else if (strcmp(argv[i], "--nelems") == 0) {
+			nelems = strtol(argv[++i], NULL, 0);
+			if (nupdaters < 1)
+				usage(argv[0],
+				      "%s must be >= 1\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--nreaders") == 0) {
+			nreaders = strtol(argv[++i], NULL, 0);
+			if (nupdaters < 1)
+				usage(argv[0],
+				      "%s must be >= 1\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--nupdaters") == 0) {
 			nupdaters = strtol(argv[++i], NULL, 0);
 			if (nupdaters < 1)
