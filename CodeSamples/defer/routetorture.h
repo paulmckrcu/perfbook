@@ -155,7 +155,7 @@ void perftest(void)
 	for (i = 0; i < nelems; i++)
 		route_add(i, 2 * i);
 
-	for (i = 0; i < nupdaters; i++) {
+	for (i = 0; i < nreaders; i++) {
 		pap[i].myid = i;
 		pap[i].nlookups = 0;
 		pap[i].nlookupfails = 0;
