@@ -146,7 +146,7 @@ void perftest(void)
 	long long starttime;
 
 	BUG_ON(maxcpus <= 0);
-	pap = malloc(sizeof(*pap) * nupdaters);
+	pap = malloc(sizeof(*pap) * nreaders);
 	BUG_ON(pap == NULL);
 	atomic_set(&nthreads_running, 0);
 	goflag = GOFLAG_INIT;
@@ -167,7 +167,7 @@ void perftest(void)
 	}
 
 	/* Wait for all threads to initialize. */
-	while (atomic_read(&nthreads_running) < nupdaters)
+	while (atomic_read(&nthreads_running) < nreaders)
 		poll(NULL, 0, 1);
 	smp_mb();
 
@@ -180,7 +180,7 @@ void perftest(void)
 	wait_all_threads();
 
 	/* Collect stats and output them. */
-	for (i = 0; i < nupdaters; i++) {
+	for (i = 0; i < nreaders; i++) {
 		nlookups += pap[i].nlookups;
 		nlookupfails += pap[i].nlookupfails;
 		nadds += pap[i].nadds;
@@ -190,8 +190,8 @@ void perftest(void)
 	printf("nlookups: %lld %lld  nadds: %lld  ndels: %lld %lld  duration: %g\n",
 	       nlookups, nlookupfails, nadds, ndels, ndelfails, starttime / 1000.);
 	printf("ns/read: %g  ns/update: %g\n",
-	       (starttime * 1000. * (double)nupdaters) / (double)nlookups,
-	       ((starttime * 1000. * (double)nupdaters) /
+	       (starttime * 1000. * (double)nreaders) / (double)nlookups,
+	       ((starttime * 1000. * (double)nreaders) /
 	        (double)(nadds + ndels)));
 
 	free(pap);
