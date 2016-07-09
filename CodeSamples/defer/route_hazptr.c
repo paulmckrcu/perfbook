@@ -28,6 +28,7 @@ struct route_entry {
 	struct route_entry *re_next;
 	unsigned long addr;
 	unsigned long iface;
+	int re_freed;
 };
 
 struct route_entry route_list;
@@ -66,6 +67,8 @@ retry:
 		/* Advance to next. */
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
+	if (ACCESS_ONCE(rep->re_freed))
+		abort();
 	return rep->iface;
 }
 
@@ -81,6 +84,7 @@ int route_add(unsigned long addr, unsigned long interface)
 		return -ENOMEM;
 	rep->addr = addr;
 	rep->iface = interface;
+	rep->re_freed = 0;
 	spin_lock(&routelock);
 	rep->re_next = route_list.re_next;
 	route_list.re_next = rep;
@@ -151,6 +155,9 @@ void route_register_thread(void)
 
 void hazptr_free(void *p)
 {
+	struct route_entry *rep = p;
+
+	ACCESS_ONCE(rep->re_freed) = 1;
 	free(p);
 }
 
