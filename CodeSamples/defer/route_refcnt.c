@@ -26,7 +26,7 @@ struct route_entry {
 	atomic_t re_refcnt;
 	struct route_entry *re_next;
 	unsigned long addr;
-	unsigned long proc;
+	unsigned long iface;
 	int re_freed;
 };
 
@@ -73,7 +73,7 @@ retry:
 		/* Advance to next. */
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
-	ret = rep->proc;
+	ret = rep->iface;
 	if (atomic_dec_and_test(&rep->re_refcnt))
 		re_free(rep);
 	return ret;
@@ -91,7 +91,7 @@ int route_add(unsigned long addr, unsigned long interface)
 		return -ENOMEM;
 	atomic_set(&rep->re_refcnt, 1);
 	rep->addr = addr;
-	rep->proc = interface;
+	rep->iface = interface;
 	spin_lock(&routelock);
 	rep->re_next = route_list.re_next;
 	rep->re_freed = 0;

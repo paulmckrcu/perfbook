@@ -26,7 +26,7 @@
 struct route_entry {
 	struct cds_list_head re_next;
 	unsigned long addr;
-	unsigned long proc;
+	unsigned long iface;
 };
 
 CDS_LIST_HEAD(route_list);
@@ -41,7 +41,7 @@ unsigned long route_lookup(unsigned long addr)
 
 	cds_list_for_each_entry(rep, &route_list, re_next) {
 		if (rep->addr == addr) {
-			ret = rep->proc;
+			ret = rep->iface;
 			return ret;
 		}
 	}
@@ -59,7 +59,7 @@ int route_add(unsigned long addr, unsigned long interface)
 	if (!rep)
 		return -ENOMEM;
 	rep->addr = addr;
-	rep->proc = interface;
+	rep->iface = interface;
 	cds_list_add(&rep->re_next, &route_list);
 	return 0;
 }

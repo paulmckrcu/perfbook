@@ -26,7 +26,7 @@
 struct route_entry {
 	struct route_entry *re_next;
 	unsigned long addr;
-	unsigned long proc;
+	unsigned long iface;
 };
 
 struct route_entry route_list;
@@ -57,7 +57,7 @@ retry:
 		/* Advance to next. */
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
-	ret = rep->proc;
+	ret = rep->iface;
 	if (read_seqretry(&sl, s))
 		goto retry;
 	return ret;
@@ -74,7 +74,7 @@ int route_add(unsigned long addr, unsigned long interface)
 	if (!rep)
 		return -ENOMEM;
 	rep->addr = addr;
-	rep->proc = interface;
+	rep->iface = interface;
 	write_seqlock(&sl);
 	rep->re_next = route_list.re_next;
 	route_list.re_next = rep;
