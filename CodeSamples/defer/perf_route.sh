@@ -24,7 +24,7 @@ for i in 1 2 3 4 5 6 7 8 9 10
 do
 	for routetype in route_hazptr route_rcu route_refcnt route_seq route_seqlock
 	do
-		for ncpu in 1 2 3 4 6 8
+		for ncpu in 1 2 3 4 5 6 7 8
 		do
 			echo $routetype --perftest --nreaders $ncpu --duration 100 --nelems 10
 			./$routetype --perftest --nreaders $ncpu --duration 100 --nelems 10
