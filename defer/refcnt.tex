@@ -3,9 +3,125 @@
 \section{Reference Counting}
 \label{sec:defer:Reference Counting}
 
+{ \scriptsize
+\begin{verbbox}
+ 1 struct route_entry {
+ 2   atomic_t re_refcnt;
+ 3   struct route_entry *re_next;
+ 4   unsigned long addr;
+ 5   unsigned long iface;
+ 6   int re_freed;
+ 7 };
+ 8 struct route_entry route_list;
+ 9 DEFINE_SPINLOCK(routelock);
+10
+11 static void re_free(struct route_entry *rep)
+12 {
+13   ACCESS_ONCE(rep->re_freed) = 1;
+14   free(rep);
+15 }
+16
+17 unsigned long route_lookup(unsigned long addr)
+18 {
+19   int old;
+20   int new;
+21   struct route_entry *rep;
+22   struct route_entry **repp;
+23   unsigned long ret;
+24
+25 retry:
+26   repp = &route_list.re_next;
+27   rep = NULL;
+28   do {
+29     if (rep &&
+30         atomic_dec_and_test(&rep->re_refcnt))
+31       re_free(rep);
+32     rep = ACCESS_ONCE(*repp);
+33     if (rep == NULL)
+34       return ULONG_MAX;
+35     do {
+36       if (ACCESS_ONCE(rep->re_freed))
+37         abort();
+38       old = atomic_read(&rep->re_refcnt);
+39       if (old <= 0)
+40         goto retry;
+41       new = old + 1;
+42     } while (atomic_cmpxchg(&rep->re_refcnt,
+43                             old, new) != old);
+44     repp = &rep->re_next;
+45   } while (rep->addr != addr);
+46   ret = rep->iface;
+47   if (atomic_dec_and_test(&rep->re_refcnt))
+48     re_free(rep);
+49   return ret;
+50 }
+\end{verbbox}
+}
+\begin{figure}[bp]
+\centering
+\theverbbox
+\caption{Reference-Counted Pre-BSD Routing Table Lookup}
+\label{fig:defer:Reference-Counted Pre-BSD Routing Table Lookup}
+\end{figure}
+
+{ \scriptsize
+\begin{verbbox}
+ 1 int route_add(unsigned long addr,
+ 2               unsigned long interface)
+ 3 {
+ 4   struct route_entry *rep;
+ 5
+ 6   rep = malloc(sizeof(*rep));
+ 7   if (!rep)
+ 8     return -ENOMEM;
+ 9   atomic_set(&rep->re_refcnt, 1);
+10   rep->addr = addr;
+11   rep->iface = interface;
+12   spin_lock(&routelock);
+13   rep->re_next = route_list.re_next;
+14   rep->re_freed = 0;
+15   route_list.re_next = rep;
+16   spin_unlock(&routelock);
+17   return 0;
+18 }
+19
+20 int route_del(unsigned long addr)
+21 {
+22   struct route_entry *rep;
+23   struct route_entry **repp;
+24
+25   spin_lock(&routelock);
+26   repp = &route_list.re_next;
+27   for (;;) {
+28     rep = *repp;
+29     if (rep == NULL)
+30       break;
+31     if (rep->addr == addr) {
+32       *repp = rep->re_next;
+33       spin_unlock(&routelock);
+34       if (atomic_dec_and_test(&rep->re_refcnt))
+35         re_free(rep);
+36       return 0;
+37     }
+38     repp = &rep->re_next;
+39   }
+40   spin_unlock(&routelock);
+41   return -ENOENT;
+42 }
+\end{verbbox}
+}
+\begin{figure}[bp]
+\centering
+\theverbbox
+\caption{Reference-Counted Pre-BSD Routing Table Add/Delete}
+\label{fig:defer:Reference-Counted Pre-BSD Routing Table Add/Delete}
+\end{figure}
+
 Reference counting tracks the number of references
 to a given object in order to prevent that object from being prematurely
 freed.
+
+
 Although this is a conceptually simple technique, many devils hide in
 the details.
 After all, if the object was not subject to premature disposal,
