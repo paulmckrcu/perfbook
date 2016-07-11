@@ -278,6 +278,38 @@ and in other publications~\cite{ThomasEHart2007a,McKenney:2013:SDS:2483852.24838
 \label{fig:defer:Hazard-Pointer Pre-BSD Routing Table Add/Delete}
 \end{figure}
 
+The Pre-BSD routing example can use hazard pointers as shown in
+Figure~\ref{fig:defer:Hazard-Pointer Pre-BSD Routing Table Lookup}
+for data structures and \co{route_lookup()}, and in
+Figure~\ref{fig:defer:Hazard-Pointer Pre-BSD Routing Table Add/Delete}
+for \co{route_add()} and \co{route_del()}
+(\path{route_hazptr.c}).
+As with reference counting, the hazard-pointers implementation
+is quite similar to the sequential algorithm shown in
+Figure~\ref{fig:defer:Sequential Pre-BSD Routing Table}
+on
+page~\pageref{fig:defer:Sequential Pre-BSD Routing Table},
+so only differences will be discussed.
+
+Starting with
+Figure~\ref{fig:defer:Hazard-Pointer Pre-BSD Routing Table Lookup},
+line~2 shows the \co{->hh} field used to queue objects pending
+hazard-pointer free,
+line~6 shows the \co{->re_freed} field used to detect use-after-free bugs,
+and lines~24-30 attempt to acquire a hazard pointer, branching
+to line~18's \co{retry} label on failure.
+
+In
+Figure~\ref{fig:defer:Hazard-Pointer Pre-BSD Routing Table Add/Delete},
+line~11 initializes \co{->re_freed},
+lines~32 and~33 poison the \co{->re_next} field of the newly removed
+object, and
+line~35 passes that object to the hazard pointers's
+\co{hazptr_free_later()} function, which will free that object once it
+is safe to do so.
+The spinlocks work the same as in
+Figure~\ref{fig:defer:Reference-Counted Pre-BSD Routing Table Add/Delete}.
+
 \begin{figure}[tb]
 \centering
 \resizebox{2.5in}{!}{\includegraphics{CodeSamples/defer/data/paulmck.2016/perf-hazptr}}
@@ -285,7 +317,39 @@ and in other publications~\cite{ThomasEHart2007a,McKenney:2013:SDS:2483852.24838
 \label{fig:defer:Pre-BSD Routing Table Protected by Hazard Pointers}
 \end{figure}
 
-Hazard pointers are much more scalable than reference counters,
-but they still require readers to do writes to shared memory.
-The topic of the next section, sequence counters, avoids read-side
-writes entirely.
+Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by Hazard Pointers}
+shows the hazard-pointers-protected Pre-BSD routing algorithm's
+performance on the same read-only workload as for
+Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by Reference Counting}.
+Although hazard pointers scales much better than does reference counting,
+hazard pointers still require readers to do writes to shared
+memory (albeit with much improved locality of reference),
+and also require a full memory barrier and retry check for each
+object traversed.
+Therefore, hazard pointers's performance is far short of ideal.
+On the other hand, hazard pointers do operate correctly for workloads
+involving concurrent updates.
+
+\QuickQuiz{}
+	The paper ``Structured Deferral: Synchronization via
+	Procrastination''~\cite{McKenney:2013:SDS:2483852.2483867}
+	shows that hazard pointers have near-ideal performance.
+	Whatever happened in
+	Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by Hazard Pointers}???
+\QuickQuizAnswer{
+	First,
+	Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by Hazard Pointers}
+	has a linear y-axis, while most of the graphs in the
+	``Structured Deferral'' paper have logscale y-axes.
+	Next, that paper uses hash tables, while
+	Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by Hazard Pointers}'s
+	uses a simple linked list.
+	Finally, that paper used a larger and older x86 system, while
+	a newer but smaller system that was used to generate the data
+	shown in
+	Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by Hazard Pointers}.
+} \QuickQuizEnd
+
+The next section attempts to improve on hazard pointers by using
+sequence locks, which avoid both read-side writes and per-object memory
+barriers.
