@@ -30,7 +30,6 @@ struct route_entry {
 };
 
 struct route_entry route_list;
-DEFINE_SPINLOCK(routelock);
 DEFINE_SEQ_LOCK(sl);
 
 /*
