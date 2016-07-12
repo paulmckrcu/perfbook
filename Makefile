@@ -18,8 +18,6 @@ EPSSOURCES_FROM_DOT := $(DOTSOURCES:%.dot=%.eps)
 EPSSOURCES_DUP := \
 	$(wildcard */*.eps) \
 	$(wildcard */*/*.eps) \
-	$(wildcard */*/*/*.eps) \
-	$(wildcard */*/*/*/*.eps) \
 	$(EPSSOURCES_FROM_TEX) \
 	$(EPSSOURCES_FROM_DOT)
 
