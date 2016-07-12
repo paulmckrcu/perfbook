@@ -7,52 +7,82 @@
 \begin{table*}
 \small
 \centering
-\begin{tabular}{l||c|c|c|c|c|c|c}
+\begin{tabular}{p{1.5in}||p{1.5in}|p{0.8in}|p{0.8in}|p{1.0in}}
 	~ ~ ~ ~ ~ ~ ~ ~ ~
-	& \begin{picture}(6,100)(0,0)
-		\rotatebox{90}{Existence Guarantee}
-	  \end{picture}
-	& \begin{picture}(7,100)(0,0)
-		\rotatebox{90}{Updates and Readers}
-	  \end{picture}
-	  \begin{picture}(7,100)(0,0)
-		\rotatebox{90}{Progress Concurrently}
-	  \end{picture}
-	& \begin{picture}(6,100)(0,0)
-		\rotatebox{90}{Read-Side Overhead}
-	  \end{picture}
-	& \begin{picture}(6,100)(0,0)
-		\rotatebox{90}{Bulk Reference}
-	  \end{picture}
-	& \begin{picture}(6,100)(0,0)
-		\rotatebox{90}{Low Memory Footprint}
-	  \end{picture}
-	& \begin{picture}(6,100)(0,0)
-		\rotatebox{90}{Unconditional Acquisition}
-	  \end{picture}
-	& \begin{picture}(6,100)(0,0)
-		\rotatebox{90}{Non-Blocking Updates}
-	  \end{picture}
-	\\
+		& Reference Counting
+			& Hazard Pointers
+				& Sequence Locks
+					& RCU \\
 	\hline
-%				 EX  CO  RSO       BU    LMF    UA
+%		  RC	  HP	  SL	  RCU \\
 	\hline
-	Reference Counting	& Y & Y & ++ $\rightarrow$ atomic \dag
-						  & ~   & Y   & ~ & ? \\
+	Existence Guarantees
+		& Complex
+			& Yes
+				& No
+					& Yes \\
 	\hline
-	Hazard Pointers		& Y & Y & MB \dag & ~   & Y   & ~ & Y \\
+	Updates and Readers Progress Concurrently
+		& Yes
+			& Yes
+				& No
+					& Yes \\
 	\hline
-	Sequence Locks		& ~ & ~ & 2 MB \ddag
-						  & N/A & N/A & ~ &   \\
+	Contention Among Readers
+		& High
+			& None
+				& None
+					& None \\
 	\hline
-	RCU			& Y & Y & 0 $\rightarrow$ 2 MB
-						  & Y   & ~   & Y & ? \\
-	\multicolumn{7}{l}{} \\
-	\multicolumn{7}{l}{\dag Incurred on each element traversed on
-				each retry} \\
-	\multicolumn{7}{l}{\ddag Incurred on each retry} \\
-	\multicolumn{7}{l}{atomic: Atomic operation} \\
-	\multicolumn{7}{l}{MB: Memory barrier} \\
+	Reader Per-Critical-Section Overhead
+		& N/A
+			& N/A
+				& Two \co{smp_mb()}
+					& Ranges from none to two
+					  \co{smp_mb()} \\
+	\hline
+	Reader Per-Object Traversal Overhead
+		& Read-modify-write atomic operations, memory-barrier
+		  instructions, and cache misses
+			& \co{smp_mb()}
+				& None, but unsafe
+					& None (volatile accesses) \\
+	\hline
+	Reader Forward Progress Guarantee
+		& Lock free
+			& Lock free
+				& Blocking
+					& Bounded wait free \\
+	\hline
+	Reader Reference Acquisition
+		& Can fail (conditional)
+			& Can fail (conditional)
+				& Unsafe
+					& Cannot fail (unconditional) \\
+	\hline
+	Memory Footprint
+		& Bounded
+			& Bounded
+				& Bounded
+					& Unbounded \\
+	\hline
+	Reclamation Forward Progress
+		& Lock free
+			& Lock free
+				& N/A
+					& Blocking \\
+	\hline
+	Automatic Reclamation
+		& Yes
+			& No
+				& N/A
+					& No \\
+	\hline
+	Lines of Code
+		& 94
+			& 79
+				& 79
+					& 73 \\
 \end{tabular}
 \caption{Which Deferred Technique to Choose?}
 \label{tab:defer:Which Deferred Technique to Choose?}
@@ -62,7 +92,7 @@ Table~\ref{tab:defer:Which Deferred Technique to Choose?}
 provides some rough rules of thumb that can help you choose among the
 four deferred-processing techniques presented in this chapter.
 
-As shown in the ``Existence Guarantee'' column,
+As shown in the ``Existence Guarantee'' row,
 if you need existence guarantees for linked
 data elements, you must use reference counting, hazard pointers, or RCU.
 Sequence locks do not provide existence guarantees, instead providing
@@ -70,7 +100,7 @@ detection of updates, retrying any read-side critical sections
 that do encounter an update.
 
 Of course, as shown in the ``Updates and Readers Progress Concurrently''
-column, this detection of updates implies
+row, this detection of updates implies
 that sequence locking does not permit updaters and readers to make forward
 progress concurrently.
 After all, preventing such forward progress is the whole point of using
@@ -81,15 +111,12 @@ both existence guarantees and update detection.
 In fact, the Linux kernel combines RCU and sequence locking in
 this manner during pathname lookup.
 
-The ``Read-Side Overhead'' column gives a rough sense of the read-side
-overhead of these techniques.
-The overhead of reference counting can vary widely.
-At the low end, a simple non-atomic increment suffices, at least in the
-case where the reference is acquired under the protection of a lock
-that must acquired for other reasons.
-At the high end, a fully ordered atomic operation is required.
-Reference counting incurs this overhead on each and every data element
-traversed.
+The ``Contention Among Readers'', ``Reader Per-Critical-Section Overhead'',
+and ``Reader Per-Object Traversal Overhead'' rows give a rough sense of
+the read-side overhead of these techniques.
+The overhead of reference counting can be quite large, with
+contention among readers along with a fully ordered read-modify-write
+atomic operation required for each and every object traversed.
 Hazard pointers incur the overhead of a memory barrier for each data element
 traversed, and sequence locks incur the overhead of a pair of memory barriers
 for each attempt to execute the critical section.
@@ -98,80 +125,35 @@ memory barriers for each read-side critical section, thus providing RCU
 with the best performance, particularly for read-side critical sections
 that traverse many data elements.
 
-The ``Bulk Reference'' column indicates that only RCU is capable of acquiring
-multiple references with constant overhead.
+The ``Reader Forward Progress Guarantee'' row shows that only RCU
+has a bounded wait-free forward-progress guarantee, which means that
+it can carry out a finite traversal by executing a bounded number of
+instructions.
+
+The ``Reader Reference Acquisition'' rows indicates that only RCU is
+capable of unconditionally acquiring references.
 The entry for sequence locks is ``N/A'' because, again, sequence locks
 detect updates rather than acquiring references.
+Reference counting and hazard pointers require that traversals be
+restarted from the beginning should a given acquisition fail because
+the currrent object might be removed and all of its
+possible successsors might be not only be removed, but also freed.
+For example, when using reference counting or hazard pointers to
+protect a tree traversal, any reference-acquisition failure requires
+that the traversal be restarted from the root of the tree.
+This situation gives RCU a significant ease-of-use advantage.
 
-\QuickQuiz{}
-	But can't both reference counting and hazard pointers can also acquire
-	a reference to multiple data elements with constant overhead?
-	A single reference count can cover multiple data elements, right?
-\QuickQuizAnswer{
-	Almost.
-	As we will see in the ``Unconditional Acquisition'' column,
-	neither reference counting
-	nor hazard pointers provide unconditional acquisition of references,
-	so acquiring a reference can have non-constant overhead in the face
-	of conflicting updates.
-
-	In addition, using a single reference count to cover multiple
-	data items can have severe consequences, for example, you cannot
-	remove any of the data items until all references to all of them
-	have been released.
-	This can result in more complex data-element-cleanup code,
-	and can also increase memory footprint to rival that of RCU.
-	In other words, the increased memory footprint is a consequence
-	not of RCU in particular, but of bulk reference-count acquisition
-	in general.
-} \QuickQuizEnd
-
-The ``Low Memory Footprint'' column indicates which techniques enjoy low
-memory footprint.
-This column ends up being the mirror image of the ``Bulk Reference''
-column: The ability to acquire references on large numbers of data
-elements implies that all these data elements must persist, which
-in turn implies a large memory footprint in some cases.
-For example, one thread might delete a large number of data
-elements while another thread concurrently executes a long RCU read-side
-critical section.
-Because the read-side critical section could potentially retain a reference
-to any of the newly deleted data elements, all those data elements must
-be retained for the full duration of that critical section.
+However, RCU's ease-of-use advantage does not come
+for free, as can be seen in the ``Memory Footprint'' row.
+RCU's support of unconditional reference acquisition means that
+it must avoid freeing any object visible to a given RCU reader
+until that reader completes.
+RCU therefore has an unbounded footprint, at least unless updates
+are artificially throttled.
 In contrast, reference counting and hazard pointers would retain only
 those specific data elements actually referenced by concurrent readers.
 
-However, this low-memory-footprint advantage comes at a price, as shown
-in the ``Unconditional Acquisition'' column.
-To see this, imagine a large linked data structure in which a
-reference-counting or hazard-pointer reader (call it Thread~A)
-holds a reference to
-an isolated data element in the middle of that structure.
-Consider the following sequence of events:
-
-\begin{enumerate}
-\item	Thread~B removes the data element referenced by Thread~A.
-	Because of this reference, the data element cannot yet be freed.
-\item	Thread~B removes all the data elements adjacent to the one
-	referenced by Thread~A.
-	Because there are no references held for these data elements,
-	they are all immediately freed.
-	Because Thread~A's data element has already been removed,
-	its outgoing pointers are not updated.
-\item	All of Thread~A's data element's outgoing pointers now reference
-	the freelist, and therefore cannot safely be traversed.
-\item	The reference-counting or hazard-pointer implementation therefore
-	has no choice but to fail any attempt by Thread~A to acquire
-	a reference via any of the pointers emanating from its data
-	element.
-\end{enumerate}
-
-In short, any defered-processing technique that offers precise tracking
-of references must also be prepared to fail attempts to acquire references.
-Therefore, RCU's memory-footprint disadvantage implies an ease-of-use
-advantage, namely that RCU readers need not deal with acquisition failure.
-
-This tension between memory footprint, precise tracking, and acquisition
+This tension between memory footprint and acquisition
 failures is sometimes resolved within the Linux kernel by combining use
 of RCU and reference counters.
 RCU is used for short-lived references, which means that RCU read-side
@@ -183,8 +165,11 @@ counting is used.
 This means that the complexity of reference-acquisition failure only
 needs to be dealt with for those few data elements:  The bulk of
 the reference acquisitions are unconditional, courtesy of RCU.
+See Section~\ref{sec:together:Refurbish Reference Counting}
+for more information on combining reference counting with other
+synchronization mechanisms.
 
-Finally, the ``Non-Blocking Updates'' column shows that hazard pointers
+The ``Reclamation Forward Progress'' row shows that hazard pointers
 can provide non-blocking updates~\cite{MagedMichael04a,HerlihyLM02}.
 Reference counting might or might not, depending on the implementation.
 However, sequence locking cannot provide non-blocking updates, courtesy
@@ -194,6 +179,16 @@ updates.
 However, there are situations in which the only blocking operation is
 a wait to free memory, which results in an situation that, for many
 purposes, is as good as non-blocking~\cite{MathieuDesnoyers2012URCU}.
+
+As shown in the ``Automatic Reclamation'' row, only reference
+counting can automate freeing of memory, at least assuming non-cyclic
+data structures.
+
+Finally, the ``Lines of Code'' row shows the size of the Pre-BSD
+Routing Table implementations, giving a rough idea of relative ease of use.
+That said, it is important to note that the reference-counting and
+sequence-locking implementations are buggy, and that a correct
+reference-counting implementation is considerably more complex.
 
 As more experience is gained using these techniques, both separately
 and in combination, the rules of thumb laid out in this section will
