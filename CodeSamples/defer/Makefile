@@ -38,6 +38,7 @@ PROGS =	bug_rcu_dp \
 	rcu_ts \
 	route_hazptr \
 	route_rcu \
+	route_rcu_qsbr \
 	route_refcnt \
 	route_seq \
 	route_seqlock \
@@ -114,6 +115,9 @@ route_hazptr: route_hazptr.c ../api.h ../lib/random.h ../lib/random.c routetortu
 
 route_rcu: route_rcu.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
 	cc $(GCC_ARGS) -o route_rcu route_rcu.c ../lib/random.c -lpthread  -lurcu -lurcu-signal
+
+route_rcu_qsbr: route_rcu.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
+	cc $(GCC_ARGS) -o route_rcu_qsbr -DDO_QSBR route_rcu.c ../lib/random.c -lpthread  -lurcu-qsbr
 
 route_refcnt: route_refcnt.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
 	cc $(GCC_ARGS) -o route_refcnt route_refcnt.c ../lib/random.c -lpthread
