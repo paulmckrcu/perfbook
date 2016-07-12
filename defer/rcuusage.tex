@@ -38,6 +38,175 @@ as listed in Table~\ref{tab:defer:RCU Usage}.
 Following the sections listed in this table,
 Section~\ref{sec:defer:RCU Usage Summary} provides a summary.
 
+\subsubsection{RCU for Pre-BSD Routing}
+\label{sec:defer:RCU for Pre-BSD Routing}
+
+{ \scriptsize
+\begin{verbbox}
+ 1 struct route_entry {
+ 2   struct rcu_head rh;
+ 3   struct cds_list_head re_next;
+ 4   unsigned long addr;
+ 5   unsigned long iface;
+ 6   int re_freed;
+ 7 };
+ 8 CDS_LIST_HEAD(route_list);
+ 9 DEFINE_SPINLOCK(routelock);
+10
+11 unsigned long route_lookup(unsigned long addr)
+12 {
+13   struct route_entry *rep;
+14   unsigned long ret;
+15
+16   rcu_read_lock();
+17   cds_list_for_each_entry_rcu(rep, &route_list,
+18                               re_next) {
+19     if (rep->addr == addr) {
+20       ret = rep->iface;
+21       if (ACCESS_ONCE(rep->re_freed))
+22         abort();
+23       rcu_read_unlock();
+24       return ret;
+25     }
+26   }
+27   rcu_read_unlock();
+28   return ULONG_MAX;
+29 }
+\end{verbbox}
+}
+\begin{figure}[tbp]
+\centering
+\theverbbox
+\caption{RCU Pre-BSD Routing Table Lookup}
+\label{fig:defer:RCU Pre-BSD Routing Table Lookup}
+\end{figure}
+
+{ \scriptsize
+\begin{verbbox}
+ 1 int route_add(unsigned long addr,
+ 2               unsigned long interface)
+ 3 {
+ 4   struct route_entry *rep;
+ 5
+ 6   rep = malloc(sizeof(*rep));
+ 7   if (!rep)
+ 8     return -ENOMEM;
+ 9   rep->addr = addr;
+10   rep->iface = interface;
+11   rep->re_freed = 0;
+12   spin_lock(&routelock);
+13   cds_list_add_rcu(&rep->re_next, &route_list);
+14   spin_unlock(&routelock);
+15   return 0;
+16 }
+17
+18 static void route_cb(struct rcu_head *rhp)
+19 {
+20   struct route_entry *rep;
+21
+22   rep = container_of(rhp, struct route_entry, rh);
+23   ACCESS_ONCE(rep->re_freed) = 1;
+24   free(rep);
+25 }
+26
+27 int route_del(unsigned long addr)
+28 {
+29   struct route_entry *rep;
+30
+31   spin_lock(&routelock);
+32   cds_list_for_each_entry(rep, &route_list,
+33                           re_next) {
+34     if (rep->addr == addr) {
+35       cds_list_del_rcu(&rep->re_next);
+36       spin_unlock(&routelock);
+37       call_rcu(&rep->rh, route_cb);
+38       return 0;
+39     }
+40   }
+41   spin_unlock(&routelock);
+42   return -ENOENT;
+43 }
+\end{verbbox}
+}
+\begin{figure}[tbp]
+\centering
+\theverbbox
+\caption{RCU Pre-BSD Routing Table Add/Delete}
+\label{fig:defer:RCU Pre-BSD Routing Table Add/Delete}
+\end{figure}
+
+Figures~\ref{fig:defer:RCU Pre-BSD Routing Table Lookup}
+and~\ref{fig:defer:RCU Pre-BSD Routing Table Add/Delete}
+show code for an RCU-protected Pre-BSD routing table
+(\path{route_rcu.c}).
+The former shows data structures and \co{route_lookup()},
+and the latter shows \co{route_add()} and \co{route_del()}.
+
+In Figure~\ref{fig:defer:RCU Pre-BSD Routing Table Lookup},
+line~2 adds the \co{->rh} field used by RCU reclamation,
+line~6 adds the \co{->re_freed} use-after-free-check field,
+lines~16, 17, 23, and~27 add RCU read-side protection,
+and lines~21 and~22 add the use-after-free check.
+In Figure~\ref{fig:defer:RCU Pre-BSD Routing Table Add/Delete},
+lines~12, 14, 31, 36, and~41 add update-side locking,
+lines~13 and~35 add RCU update-side protection,
+line~37 causes \co{route_cb()} to be invoked after a grace period elapses,
+and lines~18-25 define \co{route_cb()}.
+This is minimal added code for a working concurrent implementation.
+
+\begin{figure}[tb]
+\centering
+\resizebox{2.5in}{!}{\includegraphics{CodeSamples/defer/perf-rcu}}
+\caption{Pre-BSD Routing Table Protected by RCU}
+\label{fig:defer:Pre-BSD Routing Table Protected by RCU}
+\end{figure}
+
+Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by RCU}
+shows the performance on the read-only workload.
+RCU scales quite well, and offers nearly ideal performance.
+However, this data was generated using the \co{RCU_SIGNAL}
+flavor of userspace
+RCU~\cite{MathieuDesnoyers2009URCU,PaulMcKenney2013LWNURCU},
+for which \co{rcu_read_lock()} and \co{rcu_read_unlock()}
+generate a small amount of code.
+What happens for the quiescent-state-based-reclamation (QSBR)
+flavor of RCU, which generates no code for
+\co{rcu_read_lock()} and \co{rcu_read_unlock()}?
+
+The answer to this shown in
+Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by RCU QSBR},
+which shows the RCU QSBR results as the trace between the RCU and
+the ideal traces.
+RCU QSBR's performance and scalability is very nearly that of an
+ideal synchronization-free workload, as desired.
+
+\QuickQuiz{}
+	Why doesn't RCU QSBR give \emph{exactly} ideal results?
+\QuickQuizAnswer{
+	The \co{rcu_dereference()} primitive does constrain the
+	compiler's optimizations somewhat, which can result in
+	slightly slower code.
+	This would effect would normally be insignificant, but
+	each search is taking on average about 13~nanoseconds,
+	which is short enough for small differences in code
+	generation to make their presence felt.
+	The difference ranges from about 1.5\% to about 11.1\%, which is
+	quite small when you consider that the RCU QSBR code can handle
+	concurrent updates and the ``ideal'' code cannot.
+
+	It is hoped that C11 \co{memory_order_consume}
+	loads~\cite{RichardSmith2015N4527}
+	might someday allow \co{rcu_dereference()} provide the
+	needed protection at lower cost.
+} \QuickQuizEnd
+
+\begin{figure}[tb]
+\centering
+\resizebox{2.5in}{!}{\includegraphics{CodeSamples/defer/perf-rcu-qsbr}}
+\caption{Pre-BSD Routing Table Protected by RCU QSBR}
+\label{fig:defer:Pre-BSD Routing Table Protected by RCU QSBR}
+\end{figure}
+
 \subsubsection{RCU is a Reader-Writer Lock Replacement}
 \label{sec:defer:RCU is a Reader-Writer Lock Replacement}
 
