@@ -27,6 +27,7 @@ struct route_entry {
 	struct route_entry *re_next;
 	unsigned long addr;
 	unsigned long iface;
+	int re_freed;
 };
 
 struct route_entry route_list;
@@ -56,6 +57,8 @@ retry:
 		/* Advance to next. */
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
+	if (ACCESS_ONCE(rep->re_freed))
+		abort();
 	ret = rep->iface;
 	if (read_seqretry(&sl, s))
 		goto retry;
@@ -74,6 +77,7 @@ int route_add(unsigned long addr, unsigned long interface)
 		return -ENOMEM;
 	rep->addr = addr;
 	rep->iface = interface;
+	rep->re_freed = 0;
 	write_seqlock(&sl);
 	rep->re_next = route_list.re_next;
 	route_list.re_next = rep;
@@ -99,7 +103,7 @@ int route_del(unsigned long addr)
 			*repp = rep->re_next;
 			write_sequnlock(&sl);
 			/* Poison pointer for debugging purposes. */
-			rep->re_next = (struct route_entry *)1UL;
+			rep->re_freed = 1;
 			free(rep);
 			return 0;
 		}
