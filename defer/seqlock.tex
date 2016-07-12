@@ -287,18 +287,156 @@ increment of the sequence number on line~44, then releases the lock.
 	that is 64 bits on 64-bit systems.
 } \QuickQuizEnd
 
-@@@
+{ \scriptsize
+\begin{verbbox}
+ 1 struct route_entry {
+ 2   struct route_entry *re_next;
+ 3   unsigned long addr;
+ 4   unsigned long iface;
+ 5   int re_freed;
+ 6 };
+ 7 struct route_entry route_list;
+ 8 DEFINE_SEQ_LOCK(sl);
+ 9
+10 unsigned long route_lookup(unsigned long addr)
+11 {
+12   struct route_entry *rep;
+13   struct route_entry **repp;
+14   unsigned long ret;
+15   unsigned long s;
+16
+17 retry:
+18   s = read_seqbegin(&sl);
+19   repp = &route_list.re_next;
+20   do {
+21     rep = ACCESS_ONCE(*repp);
+22     if (rep == NULL) {
+23       if (read_seqretry(&sl, s))
+24         goto retry;
+25       return ULONG_MAX;
+26     }
+27     repp = &rep->re_next;
+28   } while (rep->addr != addr);
+29   if (ACCESS_ONCE(rep->re_freed))
+30     abort();
+31   ret = rep->iface;
+32   if (read_seqretry(&sl, s))
+33     goto retry;
+34   return ret;
+35 }
+\end{verbbox}
+}
+\begin{figure}[tbp]
+\centering
+\theverbbox
+\caption{Sequence-Locked Pre-BSD Routing Table Lookup (BUGGY!!!)}
+\label{fig:defer:Sequence-Locked Pre-BSD Routing Table Lookup}
+\end{figure}
+
+{ \scriptsize
+\begin{verbbox}
+ 1 int route_add(unsigned long addr,
+ 2               unsigned long interface)
+ 3 {
+ 4   struct route_entry *rep;
+ 5
+ 6   rep = malloc(sizeof(*rep));
+ 7   if (!rep)
+ 8     return -ENOMEM;
+ 9   rep->addr = addr;
+10   rep->iface = interface;
+11   rep->re_freed = 0;
+12   write_seqlock(&sl);
+13   rep->re_next = route_list.re_next;
+14   route_list.re_next = rep;
+15   write_sequnlock(&sl);
+16   return 0;
+17 }
+18
+19 int route_del(unsigned long addr)
+20 {
+21   struct route_entry *rep;
+22   struct route_entry **repp;
+23
+24   write_seqlock(&sl);
+25   repp = &route_list.re_next;
+26   for (;;) {
+27     rep = *repp;
+28     if (rep == NULL)
+29       break;
+30     if (rep->addr == addr) {
+31       *repp = rep->re_next;
+32       write_sequnlock(&sl);
+33       smp_mb();
+34       rep->re_freed = 1;
+35       free(rep);
+36       return 0;
+37     }
+38     repp = &rep->re_next;
+39   }
+40   write_sequnlock(&sl);
+41   return -ENOENT;
+42 }
+\end{verbbox}
+}
+\begin{figure}[tbp]
+\centering
+\theverbbox
+\caption{Sequence-Locked Pre-BSD Routing Table Add/Delete (BUGGY!!!)}
+\label{fig:defer:Sequence-Locked Pre-BSD Routing Table Add/Delete}
+\end{figure}
+
+So what happens when sequence locking is applied to the Pre-BSD
+routing table?
+Figure~\ref{fig:defer:Sequence-Locked Pre-BSD Routing Table Lookup}
+shows the data structures and \co{route_lookup()}, adn
+Figure~\ref{fig:defer:Sequence-Locked Pre-BSD Routing Table Add/Delete}
+shows \co{route_add()} and \co{route_del()} (\path{route_seqlock.c}).
+This implementation is once again similar to its counterparts in earlier
+sections, so only the differences will be highlighted.
+
+In
+Figure~\ref{fig:defer:Sequence-Locked Pre-BSD Routing Table Lookup},
+line~5 adds \co{->re_freed}, which is checked on lines~29 and~30.
+Line~8 adds a sequence lock, which is used by \co{route_lookup()}
+on lines~18, 23, and~32, with lines~24 and~33 branching back to
+the \co{retry} label on line~16.
+The effect is to retry any lookup that runs concurrently with an update.
+
+In
+Figure~\ref{fig:defer:Sequence-Locked Pre-BSD Routing Table Add/Delete},
+lines~12, 15, 24, and~40 acquire and release the sequence lock,
+while lines~11, 33, and~44 handle \co{->re_freed}.
+This implementation is therefore quite straightforward.
+
+\begin{figure}[tb]
+\centering
+\resizebox{2.5in}{!}{\includegraphics{CodeSamples/defer/data/paulmck.2016/perf-seqlock}}
+\caption{Pre-BSD Routing Table Protected by Sequence Locking}
+\label{fig:defer:Pre-BSD Routing Table Protected by Sequence Locking}
+\end{figure}
+
+It also performs better on the read-only workload, as can be seen in
+Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by Sequence Locking},
+though its performance is still far from ideal.
+
+Unfortunately, it also suffers use-after-free failures.
+The problem is that the reader might encounter a segmentation violation
+due to accessing an already-freed structure before it comes to the
+\co{read_seqretry()}.
 
 \QuickQuiz{}
-	Can you use sequence locks as the only synchronization
-	mechanism protecting a linked list supporting concurrent
-	addition, deletion, and search?
+	Can this bug be fixed?
+	In other words, can you use sequence locks as the \emph{only}
+	synchronization mechanism protecting a linked list supporting
+	concurrent addition, deletion, and lookup?
 \QuickQuizAnswer{
 	One trivial way of accomplishing this is to surround all
 	accesses, including the read-only accesses, with
 	\co{write_seqlock()} and \co{write_sequnlock()}.
 	Of course, this solution also prohibits all read-side
-	parallelism, and furthermore could just as easily be implemented
+	parallelism, resulting in massive lock contention,
+	and furthermore could just as easily be implemented
 	using simple locking.
 
 	If you do come up with a solution that uses \co{read_seqbegin()}

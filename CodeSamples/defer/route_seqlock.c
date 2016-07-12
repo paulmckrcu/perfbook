@@ -102,7 +102,7 @@ int route_del(unsigned long addr)
 		if (rep->addr == addr) {
 			*repp = rep->re_next;
 			write_sequnlock(&sl);
-			/* Poison pointer for debugging purposes. */
+			smp_mb();
 			rep->re_freed = 1;
 			free(rep);
 			return 0;
