@@ -22,7 +22,7 @@
 
 for i in 1 2 3 4 5 6 7 8 9 10
 do
-	for routetype in route_hazptr route_rcu route_refcnt route_seq route_seqlock
+	for routetype in route_hazptr route_rcu route_rcu_qsbr route_refcnt route_seq route_seqlock
 	do
 		for ncpu in 1 2 3 4 5 6 7 8
 		do
