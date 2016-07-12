@@ -107,3 +107,22 @@ set label 5 "RCU" at 7.8,286000 right
 plot "route_seq.paulmck.2016.07.07a.dat" w l, "route_seq.paulmck.2016.07.07a.dat" w e, "route_refcnt.paulmck.2016.07.07a.dat" w l, "route_refcnt.paulmck.2016.07.07a.dat" w e, "route_hazptr.paulmck.2016.07.07a.dat" w l, "route_hazptr.paulmck.2016.07.07a.dat" w e, "route_seqlock.paulmck.2016.07.07a.dat" w l, "route_seqlock.paulmck.2016.07.07a.dat" w e, "route_rcu.paulmck.2016.07.07a.dat" w l, "route_rcu.paulmck.2016.07.07a.dat" w e
 ---EOF---
 cp perf-rcu.eps ../..
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "perf-rcu-qsbr.eps"
+set xlabel "Number of CPUs (Threads)"
+set ylabel "Lookups per Millisecond"
+# set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+set label 1 "ideal" at 6.9,400000 right
+set label 2 "refcnt" at 7.8,32000 right
+set label 3 "hazptr" at 5,48000 left
+set label 4 "seqlock" at 7.8,165000 right
+set label 5 "RCU" at 7.8,286000 right
+plot "route_seq.paulmck.2016.07.07a.dat" w l, "route_seq.paulmck.2016.07.07a.dat" w e, "route_refcnt.paulmck.2016.07.07a.dat" w l, "route_refcnt.paulmck.2016.07.07a.dat" w e, "route_hazptr.paulmck.2016.07.07a.dat" w l, "route_hazptr.paulmck.2016.07.07a.dat" w e, "route_seqlock.paulmck.2016.07.07a.dat" w l, "route_seqlock.paulmck.2016.07.07a.dat" w e, "route_rcu.paulmck.2016.07.07a.dat" w l, "route_rcu.paulmck.2016.07.07a.dat" w e, "route_rcu_qsbr.paulmck.2016.07.12a.dat" w l, "route_rcu_qsbr.paulmck.2016.07.12a.dat" w e
+---EOF---
+cp perf-rcu-qsbr.eps ../..
