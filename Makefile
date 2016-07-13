@@ -1,6 +1,7 @@
 LATEXSOURCES = \
 	perfbook.tex \
 	legal.tex \
+	glossary.tex \
 	qqz.sty origpub.sty \
 	*/*.tex \
 	*/*/*.tex
