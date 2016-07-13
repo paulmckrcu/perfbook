@@ -36,7 +36,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "/home/git/perfbook/fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|/home/git/perfbook/utilities/gnuplotepsfix > lookup.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Lookups Per Millisecond"
 #set logscale y
 #set yrange [1:10000]
@@ -54,7 +54,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "/home/git/perfbook/fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|/home/git/perfbook/utilities/gnuplotepsfix > ops.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Operations Per Millisecond"
 #set logscale y
 #set yrange [1:10000]
@@ -72,7 +72,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "/home/git/perfbook/fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|/home/git/perfbook/utilities/gnuplotepsfix > moves-8.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Moves Per Millisecond"
 #set logscale y
 set xrange [0:8]
@@ -90,7 +90,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "/home/git/perfbook/fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|/home/git/perfbook/utilities/gnuplotepsfix > moves.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Moves Per Millisecond"
 #set logscale y
 #set yrange [1:10000]

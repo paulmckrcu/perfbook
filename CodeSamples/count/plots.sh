@@ -29,7 +29,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../../fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|../../utilities/gnuplotepsfix > atomic.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Time Per Increment (nanoseconds)"
 #set logscale y
 #set yrange [1:10000]
@@ -47,7 +47,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../../fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|../../utilities/gnuplotepsfix > atomic125.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Time Per Increment (ns)"
 #set logscale y
 #set yrange [1:10000]
@@ -68,7 +68,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../../fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "|../../utilities/gnuplotepsfix > atomic_nehalem.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Time Per Increment (ns)"
 #set logscale y
 #set yrange [1:10000]

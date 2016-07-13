@@ -101,7 +101,7 @@ gnuplot << ---EOF---
 set term gif
 set size square ${plotsize},${plotsize}
 set output "synceff.gif"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Synchronization Efficiency"
 #set logscale y
 set yrange [.1:1]
@@ -124,7 +124,7 @@ gnuplot << ---EOF---
 set term gif
 set size square ${plotsize},${plotsize}
 set output "matmuleff.gif"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Matrix Multiply Efficiency"
 set logscale x
 set xrange [1:100]

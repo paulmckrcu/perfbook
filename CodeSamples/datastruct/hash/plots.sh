@@ -36,7 +36,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "perftest.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Lookups per Millisecond"
 set logscale xy
 #set yrange [1:10000]
@@ -54,7 +54,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "perftestlin.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Lookups per Millisecond"
 # set logscale xy
 #set yrange [1:10000]
@@ -72,7 +72,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "zoocpu.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 set logscale xy
 #set yrange [1:10000]
@@ -90,7 +90,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "zoocpulin.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
 #set yrange [1:10000]
@@ -108,7 +108,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "zoocpubktlin8.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
 set xrange [1:8]
@@ -126,7 +126,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "zoocpubktlin.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
 #set yrange [1:10000]
@@ -144,7 +144,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "zoocpubktsizelin.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
 #set yrange [1:10000]
@@ -162,7 +162,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "zoocatall.eps"
-set xlabel "Number of CPUs/Threads Looking Up The Cat"
+set xlabel "Number of CPUs (Threads) Looking Up The Cat"
 set ylabel "Total Lookups per Millisecond"
 set logscale xy
 #set yrange [1:10000]
@@ -180,7 +180,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "zoocatalllin.eps"
-set xlabel "Number of CPUs/Threads Looking Up The Cat"
+set xlabel "Number of CPUs (Threads) Looking Up The Cat"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
 #set yrange [1:10000]
@@ -198,7 +198,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "zoocatonly.eps"
-set xlabel "Number of CPUs/Threads Looking Up The Cat"
+set xlabel "Number of CPUs (Threads) Looking Up The Cat"
 set ylabel "Cat Lookups per Millisecond"
 set logscale xy
 #set yrange [1:10000]
@@ -216,7 +216,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "zoocatonlylin.eps"
-set xlabel "Number of CPUs/Threads Looking Up The Cat"
+set xlabel "Number of CPUs (Threads) Looking Up The Cat"
 set ylabel "Cat Lookups per Millisecond"
 #set logscale xy
 #set yrange [1:10000]

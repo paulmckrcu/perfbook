@@ -36,7 +36,7 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "perftestresize.eps"
-set xlabel "Number of CPUs/Threads"
+set xlabel "Number of CPUs (Threads)"
 set ylabel "Lookups per Millisecond"
 set logscale xy
 #set yrange [1:10000]
