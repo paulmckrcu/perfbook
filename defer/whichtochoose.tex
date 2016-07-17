@@ -132,26 +132,48 @@ instructions.
 
 The ``Reader Reference Acquisition'' rows indicates that only RCU is
 capable of unconditionally acquiring references.
-The entry for sequence locks is ``N/A'' because, again, sequence locks
+The entry for sequence locks is ``Unsafe'' because, again, sequence locks
 detect updates rather than acquiring references.
-Reference counting and hazard pointers require that traversals be
-restarted from the beginning should a given acquisition fail because
-the currrent object might be removed and all of its
-possible successsors might be not only be removed, but also freed.
-For example, when using reference counting or hazard pointers to
-protect a tree traversal, any reference-acquisition failure requires
-that the traversal be restarted from the root of the tree.
+Reference counting and hazard pointers both require that traversals be
+restarted from the beginning if a given acquisition fails.
+To see this, consider a linked list containing objects~A, B, C, and~D,
+in that order, and the following series of events:
+
+\begin{enumerate}
+\item	A reader acquires a reference to object~B.
+\item	An updater removes~object B, but refrains from freeing it because
+	the reader holds a reference.
+	The list now contains objects~A, C, and~D, and
+	object~B's \co{->next} pointer is set to \co{HAZPTR_POISON}.
+\item	The updater removes object~C, so that the list now contains
+	objects~A and~D.
+	Because there is no reference to object~C, it is immediately freed.
+\item	The reader tries to advance to the successor of the object
+	following the now-removed object~B, but the poisoned
+	\co{->next} pointer prevents this.
+	Which is a good thing, because object~B's \co{->next} pointer
+	would otherwise point to the freelist.
+\item	The reader must therefore restart its traversal from the head
+	of the list.
+\end{enumerate}
+
+Thus, when failing to acquire a reference, a hazard-pointer or
+reference-counter traversal must restart that traversal from the
+beginning.
+In the case of nested linked data structures, for example, a
+tree containing linked lists, the traversal must be restarted from
+the outermost data structure.
 This situation gives RCU a significant ease-of-use advantage.
 
 However, RCU's ease-of-use advantage does not come
 for free, as can be seen in the ``Memory Footprint'' row.
 RCU's support of unconditional reference acquisition means that
-it must avoid freeing any object visible to a given RCU reader
-until that reader completes.
-RCU therefore has an unbounded footprint, at least unless updates
-are artificially throttled.
-In contrast, reference counting and hazard pointers would retain only
-those specific data elements actually referenced by concurrent readers.
+it must avoid freeing any object reachable by a given
+RCU reader until that reader completes.
+RCU therefore has an unbounded memory footprint, at least unless updates
+are throttled.
+In contrast, reference counting and hazard pointers need to  retain only
+those data elements actually referenced by concurrent readers.
 
 This tension between memory footprint and acquisition
 failures is sometimes resolved within the Linux kernel by combining use
@@ -159,7 +181,7 @@ of RCU and reference counters.
 RCU is used for short-lived references, which means that RCU read-side
 critical sections can be short.
 These short RCU read-side critical sections in turn mean that the corresponding
-RCU grace periods can also be short, limiting the memory footprint.
+RCU grace periods can also be short, which limits the memory footprint.
 For the few data elements that need longer-lived references, reference
 counting is used.
 This means that the complexity of reference-acquisition failure only
@@ -181,14 +203,19 @@ a wait to free memory, which results in an situation that, for many
 purposes, is as good as non-blocking~\cite{MathieuDesnoyers2012URCU}.
 
 As shown in the ``Automatic Reclamation'' row, only reference
-counting can automate freeing of memory, at least assuming non-cyclic
-data structures.
+counting can automate freeing of memory, and even then only
+for non-cyclic data structures.
 
 Finally, the ``Lines of Code'' row shows the size of the Pre-BSD
 Routing Table implementations, giving a rough idea of relative ease of use.
 That said, it is important to note that the reference-counting and
 sequence-locking implementations are buggy, and that a correct
-reference-counting implementation is considerably more complex.
+reference-counting implementation is considerably
+more complex~\cite{Valois95a,MagedMichael95a}.
+For its part, a correct sequence-locking implementation requires
+the addition of some other synchronization mechanism, for example,
+hazard pointers or RCU, so that sequence locking detects concurrent
+updates and the other mechanism provides safe reference acquisition.
 
 As more experience is gained using these techniques, both separately
 and in combination, the rules of thumb laid out in this section will
