@@ -213,7 +213,6 @@ void rperftest(int nreaders, int cpustride)
 	long arg;
 
 	perftestinit();
-	init_per_thread(n_reads_pt, 0LL);
 	for (i = 0; i < nreaders; i++) {
 		arg = (long)(i * cpustride);
 		create_thread(rcu_read_perf_test, (void *)arg);
@@ -227,7 +226,6 @@ void uperftest(int nupdaters, int cpustride)
 	long arg;
 
 	perftestinit();
-	init_per_thread(n_reads_pt, 0LL);
 	for (i = 0; i < nupdaters; i++) {
 		arg = (long)(i * cpustride);
 		create_thread(rcu_update_perf_test, (void *)arg);
