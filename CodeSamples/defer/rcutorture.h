@@ -271,7 +271,7 @@ void *rcu_read_stress_test(void *arg)
 			n_mberror++;
 		rcu_read_lock_nest();
 		for (i = 0; i < 100; i++)
-			garbage++;
+			ACCESS_ONCE(garbage)++;
 		rcu_read_unlock_nest();
 		pc = p->pipe_count;
 		rcu_read_unlock();
