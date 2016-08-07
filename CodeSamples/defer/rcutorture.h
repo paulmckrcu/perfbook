@@ -387,7 +387,8 @@ void stresstest(int nreaders)
 
 void usage(int argc, char *argv[])
 {
-	fprintf(stderr, "Usage: %s [nreaders [ perf | stress ] ]\n", argv[0]);
+	fprintf(stderr, "Usage: %s [nreaders [ perf | rperf | uperf | stress [cpustride] ] ]\n",
+			argv[0]);
 	exit(-1);
 }
 
