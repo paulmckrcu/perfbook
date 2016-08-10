@@ -16,11 +16,16 @@ DOTSOURCES := $(wildcard */*.dot)
 
 EPSSOURCES_FROM_DOT := $(DOTSOURCES:%.dot=%.eps)
 
+FIGSOURCES := $(wildcard */*.fig) $(wildcard */*/*.fig)
+
+EPSSOURCES_FROM_FIG := $(FIGSOURCES:%.fig=%.eps)
+
 EPSSOURCES_DUP := \
 	$(wildcard */*.eps) \
 	$(wildcard */*/*.eps) \
 	$(EPSSOURCES_FROM_TEX) \
-	$(EPSSOURCES_FROM_DOT)
+	$(EPSSOURCES_FROM_DOT) \
+	$(EPSSOURCES_FROM_FIG)
 
 EPSSOURCES := $(sort $(EPSSOURCES_DUP))
 
@@ -96,13 +101,18 @@ perfbook-hb.aux: $(LATEXSOURCES) extraction
 
 $(EPSSOURCES_FROM_TEX): %.eps: %.tex
 	@echo "$< --> $@"
-	@latex -output-directory=$(shell dirname $<) $<
-	@dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@
+	@latex -output-directory=$(shell dirname $<) $< > /dev/null 2>&1
+	@dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@ > /dev/null 2>&1
 	@sh utilities/fixanepsfonts.sh $@
 
 $(EPSSOURCES_FROM_DOT): %.eps: %.dot
 	@echo "$< --> $@"
 	@dot -Tps -o $@ $<
+	@sh utilities/fixanepsfonts.sh $@
+
+$(EPSSOURCES_FROM_FIG): %.eps: %.fig
+	@echo "$< --> $@"
+	@fig2eps --nogv $< > /dev/null 2>&1
 	@sh utilities/fixanepsfonts.sh $@
 
 $(PDFTARGETS_OF_EPS): %.pdf: %.eps
@@ -124,7 +134,7 @@ clean:
 
 distclean: clean
 	sh utilities/cleanpdf.sh
-	rm -f $(EPSSOURCES_FROM_DOT) $(EPSSOURCES_FROM_TEX)
+	rm -f $(EPSSOURCES_FROM_DOT) $(EPSSOURCES_FROM_TEX) $(EPSSOURCES_FROM_FIG)
 
 touchsvg:
 	find . -name '*.svg' | xargs touch
