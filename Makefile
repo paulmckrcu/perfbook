@@ -37,6 +37,10 @@ SVGSOURCES := $(wildcard */*.svg)
 
 PDFTARGETS_OF_SVG := $(SVGSOURCES:%.svg=%.pdf)
 
+DOT := $(shell which dot 2>/dev/null)
+
+FIG2EPS := $(shell which fig2eps 2>/dev/null)
+
 default = $(PERFBOOK_DEFAULT)
 
 ifeq ($(default),)
@@ -107,11 +111,17 @@ $(EPSSOURCES_FROM_TEX): %.eps: %.tex
 
 $(EPSSOURCES_FROM_DOT): %.eps: %.dot
 	@echo "$< --> $@"
+ifndef DOT
+	$(error "$< --> $@: dot not found. Please install graphviz")
+endif
 	@dot -Tps -o $@ $<
 	@sh utilities/fixanepsfonts.sh $@
 
 $(EPSSOURCES_FROM_FIG): %.eps: %.fig
 	@echo "$< --> $@"
+ifndef FIG2EPS
+	$(error "$< --> $@: fig2eps not found. Please install fig2ps")
+endif
 	@fig2eps --nogv $< > /dev/null 2>&1
 	@sh utilities/fixanepsfonts.sh $@
 
