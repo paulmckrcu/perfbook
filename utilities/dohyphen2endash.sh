@@ -59,16 +59,16 @@ then
 	exit 1
 fi
 texfiles=`find . -name '*.tex' -print`
+tmpf=`mktemp`
 for i in $texfiles
 do
 	basename="${i%.tex}"
 #	echo $basename
-	sh ./utilities/hyphen2endash.sh $basename.tex > $basename.tmp
-	if diff -q $basename.tex $basename.tmp >/dev/null
+	sh ./utilities/hyphen2endash.sh $basename.tex > $tmpf
+	if ! diff -q $basename.tex $tmpf >/dev/null
 	then
-		rm $basename.tmp
-	else
 		echo "$basename.tex modified"
-		mv -f $basename.tmp $basename.tex
+		cp -f $tmpf $basename.tex
 	fi
 done
+rm -f $tmpf
