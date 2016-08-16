@@ -41,6 +41,10 @@ DOT := $(shell which dot 2>/dev/null)
 
 FIG2EPS := $(shell which fig2eps 2>/dev/null)
 
+A2PING := $(shell which a2ping 2>/dev/null)
+
+INKSCAPE := $(shell which inkscape 2>/dev/null)
+
 default = $(PERFBOOK_DEFAULT)
 
 ifeq ($(default),)
@@ -127,10 +131,16 @@ endif
 
 $(PDFTARGETS_OF_EPS): %.pdf: %.eps
 	@echo "$< --> $@"
+ifndef A2PING
+	$(error "$< --> $@: a2ping not found. Please install it.")
+endif
 	@a2ping --below --hires --bboxfrom=compute-gs $< $@ > /dev/null 2>&1
 
 $(PDFTARGETS_OF_SVG): %.pdf: %.svg
 	@echo "$< --> $@"
+ifndef INKSCAPE
+	$(error "$< --> $@: inkscape not found. Please install it.")
+endif
 	@inkscape --export-pdf=$@ $<
 
 clean:
