@@ -6,6 +6,8 @@ LATEXSOURCES = \
 	*/*.tex \
 	*/*/*.tex
 
+LATEXGENERATED = qqz.tex contrib.tex origpub.tex
+
 EPSSOURCES_FROM_TEX := \
 	SMPdesign/DiningPhilosopher5.eps \
 	SMPdesign/DiningPhilosopher5TB.eps \
@@ -68,18 +70,23 @@ perfbook.pdf: perfbook.bbl
 perfbook.bbl: $(BIBSOURCES) perfbook.aux
 	bibtex perfbook
 
-perfbook.aux: $(LATEXSOURCES) extraction
+perfbook.aux: $(LATEXSOURCES) $(LATEXGENERATED)
 	sh utilities/runfirstlatex.sh perfbook
 
-perfbook_flat.tex qqz.tex: perfbook.tex $(LATEXSOURCES) $(EPSSOURCES) $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG)
+perfbook_flat.tex: perfbook.tex $(LATEXSOURCES) $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG)
 	echo > qqz.tex
+	echo > contrib.tex
+	echo > origpub.tex
 	texexpand perfbook.tex > perfbook_flat.tex
+
+qqz.tex: perfbook_flat.tex
 	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
 
-extraction: perfbook_flat.tex
+contrib.tex: perfbook_flat.tex qqz.tex
 	cat perfbook_flat.tex qqz.tex | sh utilities/extractcontrib.sh > contrib.tex
+
+origpub.tex: perfbook_flat.tex
 	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
-	touch extraction
 
 perfbook-1c.pdf: perfbook-1c.tex perfbook-1c.bbl
 	sh utilities/runlatex.sh perfbook-1c
@@ -90,7 +97,7 @@ perfbook-1c.tex: perfbook.tex
 perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c.aux
 	bibtex perfbook-1c
 
-perfbook-1c.aux: $(LATEXSOURCES) extraction
+perfbook-1c.aux: $(LATEXSOURCES) $(LATEXGENERATED)
 	sh utilities/runfirstlatex.sh perfbook-1c
 
 perfbook-hb.pdf: perfbook-hb.tex perfbook-hb.bbl
@@ -102,7 +109,7 @@ perfbook-hb.tex: perfbook.tex
 perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb.aux
 	bibtex perfbook-hb
 
-perfbook-hb.aux: $(LATEXSOURCES) extraction
+perfbook-hb.aux: $(LATEXSOURCES) $(LATEXGENERATED)
 	sh utilities/runfirstlatex.sh perfbook-hb
 
 # Rules related to perfbook_html are removed as of May, 2016
@@ -148,7 +155,7 @@ clean:
 		-o -name '*.dvi' -o -name '*.log' \
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook.out perfbook-1c.out
-	rm -f qqz.tex
+	rm -f $(LATEXGENERATED)
 	rm -f perfbook-hb.out perfbook-1c.tex perfbook-hb.tex
 	rm -f extraction
 
@@ -165,23 +172,3 @@ ls-unused:
 neatfreak: distclean
 	# Don't forget to regenerate the .pdf from each .svg file
 	find . -name '*.pdf' | xargs rm -f
-
-# Note on why 'extraction' should be an empty target
-#
-# There are dependency loops around perfbook_flat.tex.
-# perfbook_flat.tex requires an empty qqz.tex and up-to-date
-# contrib.tex and origpub.tex for texexpand to work properly.
-#
-# Both contrib.tex and origpub.tex requires perfbook_flat.tex.
-# contrib.tex also requires up-to-date qqz.tex.
-#
-# So at first glance, rules for contrib.tex and origpub.tex
-# can be defined, but that requires 'extraction' to be a phony
-# target.
-#
-# 'extraction' is prerequisite for perfbook.aux.
-# If you make it a phony target, the rule for perfbook.aux is
-# always executed. That means runfirstlatex.run will run even
-# if no source file is updated.
-# To avoid the redundant run, we need to make 'extraction' an
-# empty target.
