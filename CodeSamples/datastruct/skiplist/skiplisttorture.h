@@ -754,14 +754,13 @@ void stresstest(void)
 	ACCESS_ONCE(goflag) = GOFLAG_STOP;
 	wait_all_threads();
 
-	skiplist_lock(&head_sl.sle_e);
+	/* Don't need to lock anything here: No more updates happening. */
 	if (dump_skiplists) {
 		printf("Skiplist dump from parent thread\n:");
 		sl_dump(&head_sl.sle_e);
 		fflush(stdout);
 	}
 	skiplist_fsck(&head_sl.sle_e);
-	skiplist_unlock(&head_sl.sle_e);
 
 	/* Collect stats and output them. */
 	for (i = 0; i < nreaders + nupdaters; i++) {
