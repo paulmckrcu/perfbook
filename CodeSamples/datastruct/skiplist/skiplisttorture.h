@@ -515,15 +515,19 @@ int stresstest_reader_scan(void)
 	rcu_read_lock();
 	slp = skiplist_valiter_first(&head_sl.sle_e);
 	while (slp) {
+		rcu_read_unlock();
 		tslp = container_of(slp, struct testsl, sle_e);
 		slp = skiplist_valiter_next(&head_sl.sle_e,
 					    (void *)tslp->data);
+		rcu_read_lock();
 	}
 	slp = skiplist_valiter_last(&head_sl.sle_e);
 	while (slp) {
+		rcu_read_unlock();
 		tslp = container_of(slp, struct testsl, sle_e);
 		slp = skiplist_valiter_prev(&head_sl.sle_e,
 					    (void *)tslp->data);
+		rcu_read_lock();
 	}
 	rcu_read_unlock();
 
