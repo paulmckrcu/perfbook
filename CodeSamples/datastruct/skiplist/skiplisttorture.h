@@ -418,6 +418,7 @@ void smoketest(void)
 
 
 /* Parameters for performance test. */
+int dump_skiplists = 0;
 int nreaders = 2;
 int nupdaters = 5;
 int updatewait = 1;
@@ -660,10 +661,15 @@ void *stresstest_updater(void *arg)
 	for (i = 0; i < elperupdater; i++) {
 		if (tslp[i].in_table != 1)
 			continue;
-		(void)stresstest_del((unsigned long)i);
+		(void)stresstest_del(tslp[i].data);
 	}
 
 	skiplist_lock(&head_sl.sle_e);
+	if (dump_skiplists) {
+		printf("Skiplist dump 2 from thread %d\n:", pap->myid);
+		sl_dump(&head_sl.sle_e);
+		fflush(stdout);
+	}
 	skiplist_fsck(&head_sl.sle_e);
 	skiplist_unlock(&head_sl.sle_e);
 
@@ -671,6 +677,15 @@ void *stresstest_updater(void *arg)
 	synchronize_rcu();
 	poll(NULL, 0, 100);
 	synchronize_rcu();
+
+	skiplist_lock(&head_sl.sle_e);
+	if (dump_skiplists) {
+		printf("Skiplist dump 2 from thread %d\n:", pap->myid);
+		sl_dump(&head_sl.sle_e);
+		fflush(stdout);
+	}
+	skiplist_fsck(&head_sl.sle_e);
+	skiplist_unlock(&head_sl.sle_e);
 
 	rcu_unregister_thread();
 	free(tslp);
@@ -739,6 +754,15 @@ void stresstest(void)
 	ACCESS_ONCE(goflag) = GOFLAG_STOP;
 	wait_all_threads();
 
+	skiplist_lock(&head_sl.sle_e);
+	if (dump_skiplists) {
+		printf("Skiplist dump from parent thread\n:");
+		sl_dump(&head_sl.sle_e);
+		fflush(stdout);
+	}
+	skiplist_fsck(&head_sl.sle_e);
+	skiplist_unlock(&head_sl.sle_e);
+
 	/* Collect stats and output them. */
 	for (i = 0; i < nreaders + nupdaters; i++) {
 		nlookups += pap[i].nlookups;
@@ -773,7 +797,9 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t--cpustride\n");
 	fprintf(stderr, "\t\tCPU stride, defaults to 1.\n");
 	fprintf(stderr, "\t--debug\n");
-	fprintf(stderr, "\t\tEnable additional debug checks..\n");
+	fprintf(stderr, "\t\tEnable additional debug checks.\n");
+	fprintf(stderr, "\t--dump_skiplists\n");
+	fprintf(stderr, "\t\tDump skiplists at end of stresstest.\n");
 	fprintf(stderr, "\t--duration\n");
 	fprintf(stderr, "\t\tDuration of test, in milliseconds, defaults.\n");
 	fprintf(stderr, "\t\tto 10.\n");
@@ -827,6 +853,8 @@ int main(int argc, char *argv[])
 				      "%s must be > 0\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--debug") == 0) {
 			debug = 1;
+		} else if (strcmp(argv[i], "--dump-skiplists") == 0) {
+			dump_skiplists = 1;
 		} else if (strcmp(argv[i], "--duration") == 0) {
 			duration = strtol(argv[++i], NULL, 0);
 			if (duration < 0)
