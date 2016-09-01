@@ -54,6 +54,18 @@ struct skiplist_iter {
 	unsigned long iter_seq;
 };
 
+struct skiplist *skiplist_ptriter_first(struct skiplist *head_slp,
+					struct skiplist_iter *slip);
+struct skiplist *skiplist_ptriter_last(struct skiplist *head_slp,
+				       struct skiplist_iter *slip);
+struct skiplist *
+skiplist_ptriter_next(struct skiplist *head_slp, void *key,
+		      struct skiplist_iter *slip);
+struct skiplist *
+skiplist_ptriter_prev(struct skiplist *head_slp, void *key,
+		      struct skiplist_iter *slip);
+
+
 static struct skiplist *
 skiplist_lookup_help(struct skiplist *head_slp, void *key);
 
