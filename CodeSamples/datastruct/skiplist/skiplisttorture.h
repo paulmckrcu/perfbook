@@ -419,6 +419,7 @@ void smoketest(void)
 
 /* Parameters for performance test. */
 int dump_skiplists = 0;
+int no_scan = 0;
 int nreaders = 2;
 int nupdaters = 5;
 int updatewait = 1;
@@ -505,6 +506,30 @@ int stresstest_del(unsigned long key)
 	return 0;
 }
 
+/* Do a forward and a reverse scan of the entire skiplist. */
+int stresstest_reader_scan(void)
+{
+	struct skiplist *slp;
+	struct testsl *tslp;
+
+	rcu_read_lock();
+	slp = skiplist_valiter_first(&head_sl.sle_e);
+	while (slp) {
+		tslp = container_of(slp, struct testsl, sle_e);
+		slp = skiplist_valiter_next(&head_sl.sle_e,
+					    (void *)tslp->data);
+	}
+	slp = skiplist_valiter_last(&head_sl.sle_e);
+	while (slp) {
+		tslp = container_of(slp, struct testsl, sle_e);
+		slp = skiplist_valiter_prev(&head_sl.sle_e,
+					    (void *)tslp->data);
+	}
+	rcu_read_unlock();
+
+	return 2;
+}
+
 /* Stress test reader thread. */
 void *stresstest_reader(void *arg)
 {
@@ -514,8 +539,6 @@ void *stresstest_reader(void *arg)
 	long long nlookups = 0;
 	long long nlookupfails = 0;
 	long long nscans = 0;
-	struct skiplist *slp;
-	struct testsl *tslp;
 
 	run_on(pap->mycpu);
 	rcu_register_thread();
@@ -550,22 +573,8 @@ void *stresstest_reader(void *arg)
 		i++;
 		if (i >= valsperupdater * nupdaters)
 			i = 0;
-		rcu_read_lock();
-		slp = skiplist_valiter_first(&head_sl.sle_e);
-		while (slp) {
-			tslp = container_of(slp, struct testsl, sle_e);
-			slp = skiplist_valiter_next(&head_sl.sle_e,
-						    (void *)tslp->data);
-		}
-		nscans++;
-		slp = skiplist_valiter_last(&head_sl.sle_e);
-		while (slp) {
-			tslp = container_of(slp, struct testsl, sle_e);
-			slp = skiplist_valiter_prev(&head_sl.sle_e,
-						    (void *)tslp->data);
-		}
-		nscans++;
-		rcu_read_unlock();
+		if (!no_scan)
+			nscans += stresstest_reader_scan();
 	}
 	pap->nlookups = nlookups;
 	pap->nlookupfails = nlookupfails;
@@ -806,6 +815,8 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t\tSkiplist elements per updater.  A largish\n");
 	fprintf(stderr, "\t\tnumber is required to allow for grace-period\n");
 	fprintf(stderr, "\t\tlatency.  Defaults to 2048.\n");
+	fprintf(stderr, "\t--no-scan\n");
+	fprintf(stderr, "\t\tOmit full-skiplist scans from stresstest.\n");
 	fprintf(stderr, "\t--nreaders\n");
 	fprintf(stderr, "\t\tNumber of reader threads.\n");
 	fprintf(stderr, "\t--nupdaters\n");
@@ -864,6 +875,8 @@ int main(int argc, char *argv[])
 			if (elperupdater <= 0)
 				usage(argv[0],
 				      "%s must be > 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--no-scan") == 0) {
+			no_scan = 1;
 		} else if (strcmp(argv[i], "--nreaders") == 0) {
 			nreaders = strtol(argv[++i], NULL, 0);
 			if (nreaders < 0)
