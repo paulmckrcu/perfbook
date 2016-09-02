@@ -372,6 +372,71 @@ int skiplist_insert(struct skiplist *new_slp, struct skiplist *head_slp,
 	return 0;
 }
 
+/*
+ * Acquire any locks that might be needed to rebalance the specified node.
+ * Return NULL without holding any locks if the node does not exist.
+ */
+static struct skiplist *skiplist_balance_node_lock(struct skiplist *head_slp,
+						   void *key,
+						   struct skiplist **update)
+{
+	int level;
+	struct skiplist *slp;
+	struct skiplist *slp_next;
+
+	skiplist_lock(head_slp);
+	slp = head_slp;
+	for (level = slp->sl_toplevel; level >= 0; level--) {
+		slp_next = slp->sl_next[level];
+		while (slp_next && head_slp->sl_cmp(slp_next, key) < 0) {
+			slp = slp_next;
+			slp_next = slp->sl_next[level];
+		}
+		update[level] = slp;
+	}
+	slp = slp->sl_next[0];
+	if (slp && head_slp->sl_cmp(slp, key) == 0)
+		return slp;
+	skiplist_unlock(head_slp);
+	return NULL;
+}
+
+/*
+ * Rebalance the specified skiplist node to the specified level.
+ * Returns an error if the node does not exist, or if the node is already
+ * at or below the specified level.  This function is intended to be used
+ * for "sentinel" nodes that are not subject to removal or insertion
+ */
+int skiplist_balance_node(struct skiplist *head_slp, void *key, int newlevel)
+{
+	int level;
+	struct skiplist *slp;
+	struct skiplist *update[SL_MAX_LEVELS];
+
+	slp = skiplist_balance_node_lock(head_slp, key, update);
+	if (!slp)
+		return -ENOENT;
+	if (slp->sl_toplevel == newlevel) {
+		skiplist_unlock(head_slp);
+		return 0;
+	}
+	if (slp->sl_toplevel > newlevel) {
+		/* Balance down. */
+		for (level = newlevel; level > slp->sl_toplevel; level++)
+			rcu_assign_pointer(update[level]->sl_next[level],
+					   slp->sl_next[level]);
+	} else {
+		/* Balance up. */
+		for (level = slp->sl_toplevel + 1; level <= newlevel; level++) {
+			slp->sl_next[level] = update[level]->sl_next[level];
+			rcu_assign_pointer(update[level]->sl_next[level], slp);
+		}
+	}
+	slp->sl_toplevel = newlevel;
+	skiplist_unlock(head_slp);
+	return 0;
+}
+
 void defer_del_rcu(struct rcu_head *rhp);
 
 #define defer_del(p)	call_rcu(p, defer_del_rcu)

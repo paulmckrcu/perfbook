@@ -389,6 +389,26 @@ void smoketest(void)
 	printf("\nsl_dump():\n");
 	sl_dump(&eh.sle_e);
 
+	printf("\nRebalancing:\n");
+	skiplist_init(&eh.sle_e, testcmp);
+	e0.data = 1;
+	testsl_insert(&e0, &eh);
+	e1.data = 2;
+	testsl_insert(&e1, &eh);
+	e2.data = 3;
+	testsl_insert(&e2, &eh);
+	e3.data = 4;
+	testsl_insert(&e3, &eh);
+	e00.data = 5;
+	testsl_insert(&e00, &eh);
+	sl_dump(&eh.sle_e);
+	printf("--- Node 0 to level 7:\n");
+	skiplist_balance_node(&eh.sle_e, (void *)0, 7);
+	sl_dump(&eh.sle_e);
+	printf("--- Node 1 to level 6:\n");
+	skiplist_balance_node(&eh.sle_e, (void *)1, 6);
+	sl_dump(&eh.sle_e);
+
 	printf("\nRandom insertions:\n");
 	for (i = 0; i < 100000; i++) {
 		skiplist_init(&eh.sle_e, testcmp);
