@@ -635,6 +635,7 @@ void *stresstest_updater(void *arg)
 	long i;
 	long j;
 	long k;
+	void *key;
 	int gf;
 	struct stresstest_attr *pap = arg;
 	int myid = pap->myid;
@@ -693,8 +694,13 @@ void *stresstest_updater(void *arg)
 				nadds++;
 				if (stresstest_add(&tslp[i]))
 					naddfails++;
-				if ((nadds & 0xff) == 0)
+				if ((nadds & 0xff) == 0) {
 					quiescent_state();
+					k = random() % SL_MAX_LEVELS;
+					key = (void *)tslp[i].data;
+					skiplist_balance_node(&head_sl.sle_e,
+							      key, k);
+				}
 			}
 			ndels++;
 			if (stresstest_del((unsigned long)j))
