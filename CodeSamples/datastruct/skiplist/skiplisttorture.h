@@ -465,6 +465,7 @@ struct stresstest_attr {
 	long long nscans;
 	long long nadds;
 	long long naddfails;
+	long long nbals;
 	long long ndels;
 	long long ndelfails;
 	int mycpu;
@@ -643,6 +644,7 @@ void *stresstest_updater(void *arg)
 	struct testsl *tslp;
 	long long nadds = 0;
 	long long naddfails = 0;
+	long long nbals = 0;
 	long long ndels = 0;
 	long long ndelfails = 0;
 
@@ -677,6 +679,7 @@ void *stresstest_updater(void *arg)
 				/* Still initializing, kill statistics. */
 				nadds = 0;
 				naddfails = 0;
+				nbals = 0;
 				ndels = 0;
 				ndelfails = 0;
 			}
@@ -700,6 +703,7 @@ void *stresstest_updater(void *arg)
 					key = (void *)tslp[i].data;
 					skiplist_balance_node(&head_sl.sle_e,
 							      key, k);
+					nbals++;
 				}
 			}
 			ndels++;
@@ -752,6 +756,7 @@ void *stresstest_updater(void *arg)
 	free(tslp);
 	pap->nadds = nadds;
 	pap->naddfails = naddfails;
+	pap->nbals = nbals;
 	pap->ndels = ndels;
 	pap->ndelfails = ndelfails;
 	return NULL;
@@ -768,6 +773,7 @@ void stresstest(void)
 	long long nscans = 0;
 	long long nadds = 0;
 	long long naddfails = 0;
+	long long nbals = 0;
 	long long ndels = 0;
 	long long ndelfails = 0;
 	long long starttime;
@@ -789,6 +795,7 @@ void stresstest(void)
 		pap[i].nscans = 0;
 		pap[i].nadds = 0;
 		pap[i].naddfails = 0;
+		pap[i].nbals = 0;
 		pap[i].ndels = 0;
 		pap[i].ndelfails = 0;
 		pap[i].mycpu = (i * cpustride) % maxcpus;
@@ -830,11 +837,12 @@ void stresstest(void)
 		nscans += pap[i].nscans;
 		nadds += pap[i].nadds;
 		naddfails += pap[i].naddfails;
+		nbals += pap[i].nbals;
 		ndels += pap[i].ndels;
 		ndelfails += pap[i].ndelfails;
 	}
-	printf("nlookups: %lld %lld scans: %lld  nadds: %lld %lld  ndels: %lld %lld  duration: %g\n",
-	       nlookups, nlookupfails, nscans, nadds, naddfails, ndels, ndelfails, starttime / 1000.);
+	printf("nlookups: %lld %lld scans: %lld  nadds: %lld %lld  nbals: %lld  ndels: %lld %lld  duration: %g\n",
+	       nlookups, nlookupfails, nscans, nadds, naddfails, nbals, ndels, ndelfails, starttime / 1000.);
 	printf("ns/read+scan: %g  ns/update: %g\n",
 	       (starttime * 1000. * (double)nreaders) / (double)(nlookups + nscans),
 	       ((starttime * 1000. * (double)nupdaters) /
