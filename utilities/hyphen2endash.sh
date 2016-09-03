@@ -11,9 +11,13 @@
 # Line nn-mm -> Lines~nn--mm  -- includes typo fix
 # line~nn-mm -> lines~nn--mm  -- includes typo fix
 # Line~nn-mm -> Lines~nn--mm  -- includes typo fix
-# Lines~nn--mm and oo-pp -> Lines~nn--mm and oo--pp
 # Slides nn-mm -> Slides~nn--mm
+# CPUs~nn-mm -> CPUs~nn--mm
+# CPUs nn-mm -> CPUs~nn--mm
+# and nn-mm -> and~nn--mm
+# and~nn-mm -> and~nn--mm
 # Figures~\ref{foo}-\ref{bar} -> Figures~\ref{foo}--\ref{bar}
+# \co{xxx}-\{yyy} -> \co{xxx}--\co{yyy}
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,7 +35,7 @@
 #
 # Copyright (C) Akira Yokosawa, 2016
 #
-# Authors: Akira Yokosawa <akiyks@gmain.com>
+# Authors: Akira Yokosawa <akiyks@gmail.com>
 
 cat $1 |
 	sed -e 's/Lines~\([0-9]\+\)-\([0-9]\+\)/Lines~\1--\2/g' \
@@ -42,9 +46,13 @@ cat $1 |
 	    -e 's/Line \([0-9]\+\)-\([0-9]\+\)/Lines~\1--\2/g' \
 	    -e 's/line~\([0-9]\+\)-\([0-9]\+\)/lines~\1--\2/g' \
 	    -e 's/line \([0-9]\+\)-\([0-9]\+\)/lines~\1--\2/g' \
-	    -e 's/Lines~\([0-9]\+\)--\([0-9]\+\) and \([0-9]\+\)-\([0-9]\+\)/Lines~\1--\2 and \3--\4/g' \
 	    -e 's/Slides \([0-9]\+\)-\([0-9]\+\)/Slides~\1--\2/g' \
 	    -e 's/Figures~\(\\ref{.*}\)-\(\\ref{.*}\)/Figures~\1--\2/g' \
+	    -e 's/CPUs~\([0-9]\+\)-\([0-9]\+\)/CPUs~\1--\2/g' \
+	    -e 's/CPUs \([0-9]\+\)-\([0-9]\+\)/CPUs~\1--\2/g' \
+	    -e 's/and~\([0-9]\+\)-\([0-9]\+\)/and~\1--\2/g' \
+	    -e 's/and \([0-9]\+\)-\([0-9]\+\)/and~\1--\2/g' \
+	    -e 's/\(\\co{.*}\)-\(\\co{.*}\)/\1--\2/g' \
 	    -e 's/\/\* Lines~\([0-9]\+\)--\([0-9]\+\) \*\//\/\* Lines \1-\2 \*\//g'
 
 # Last pattern is to preserve "Lines n-m" in comments within code snippet

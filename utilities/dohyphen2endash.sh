@@ -21,7 +21,7 @@
 #
 # Copyright (C) Akira Yokosawa, 2016
 #
-# Authors: Akira Yokosawa <akiyks@gmain.com>
+# Authors: Akira Yokosawa <akiyks@gmail.com>
 
 # parse option
 TEMP=`getopt -o f --long force -- "$@"`
