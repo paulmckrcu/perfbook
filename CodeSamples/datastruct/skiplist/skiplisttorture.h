@@ -439,6 +439,7 @@ void smoketest(void)
 
 /* Parameters for performance test. */
 int dump_skiplists = 0;
+int no_bal = 0;
 int no_scan = 0;
 int nreaders = 2;
 int nupdaters = 5;
@@ -697,8 +698,9 @@ void *stresstest_updater(void *arg)
 				nadds++;
 				if (stresstest_add(&tslp[i]))
 					naddfails++;
-				if ((nadds & 0xff) == 0) {
+				if ((nadds & 0xff) == 0)
 					quiescent_state();
+				if ((nadds & 0xff) == 0 && !no_bal) {
 					k = random() % SL_MAX_LEVELS;
 					key = (void *)tslp[i].data;
 					skiplist_balance_node(&head_sl.sle_e,
@@ -875,6 +877,8 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t\tSkiplist elements per updater.  A largish\n");
 	fprintf(stderr, "\t\tnumber is required to allow for grace-period\n");
 	fprintf(stderr, "\t\tlatency.  Defaults to 2048.\n");
+	fprintf(stderr, "\t--no-bal\n");
+	fprintf(stderr, "\t\tOmit skiplist balances from stresstest.\n");
 	fprintf(stderr, "\t--no-scan\n");
 	fprintf(stderr, "\t\tOmit full-skiplist scans from stresstest.\n");
 	fprintf(stderr, "\t--nreaders\n");
@@ -935,6 +939,8 @@ int main(int argc, char *argv[])
 			if (elperupdater <= 0)
 				usage(argv[0],
 				      "%s must be > 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--no-bal") == 0) {
+			no_bal = 1;
 		} else if (strcmp(argv[i], "--no-scan") == 0) {
 			no_scan = 1;
 		} else if (strcmp(argv[i], "--nreaders") == 0) {
