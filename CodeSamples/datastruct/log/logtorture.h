@@ -159,6 +159,7 @@ void *stresstest_reader(void *arg)
 {
 	int gf;
 	long i;
+	long n;
 	struct stresstest_attr *pap = arg;
 	long long nlookups = 0;
 	unsigned long val;
@@ -179,13 +180,16 @@ void *stresstest_reader(void *arg)
 				nlookups = 0;
 			}
 		}
-		nlookups++;
-		i = random() % get_log_next_idx(&test_log);
+		n = get_log_next_idx(&test_log);
+		if (n == 0)
+			continue;
+		i = random() % n;
 		val = get_log_value(&test_log, i);
 		if ((val >> ID_SHIFT) >= nupdaters)
 			abort();
 		if ((val & SEQUENCE_MASK) >= valsperupdater)
 			abort();
+		nlookups++;
 	}
 	pap->nlookups = nlookups;
 	return NULL;
@@ -306,9 +310,9 @@ void stresstest(void)
 			abort();
 		if (seq >= valsperupdater)
 			abort();
-		if (pap[id].stlp[seq].index != i)
+		if (pap[id + nreaders].stlp[seq].index != i)
 			abort();
-		if (pap[id].stlp[seq].val != val)
+		if (pap[id + nreaders].stlp[seq].val != val)
 			abort();
 	}
 
