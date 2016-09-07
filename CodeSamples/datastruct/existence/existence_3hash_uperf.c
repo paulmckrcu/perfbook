@@ -45,6 +45,7 @@ int updatewait = -1;
 long updatespacing = 32;
 int cpustride = 1;
 long duration = 10; /* in milliseconds. */
+long dump_procon_stats = 0;
 
 atomic_t nthreads_running;
 atomic_t nthreads_done;
@@ -157,9 +158,9 @@ void perftest(void)
 	long long nrotations = 0LL;
 	long long starttime;
 	long long endtime;
-	struct procon_stats kv_pst;
-	struct procon_stats he_pst;
-	struct procon_stats eg_pst;
+	struct procon_stats kv_pst = { 0 };
+	struct procon_stats he_pst = { 0 };
+	struct procon_stats eg_pst = { 0 };
 
 	rcu_register_thread();
 	keyvalue__procon_init();
@@ -215,6 +216,14 @@ void perftest(void)
 	printf("duration (s): %g  rotations: %lld  ns/rotation: %g\n",
 	       starttime / 1000. / 1000., nrotations,
 	       (starttime * 1000. * (double)nupdaters) / (double)nrotations);
+	if (dump_procon_stats) {
+		printf("Key-value producer-consumer statistics:\n");
+		procon_stats_print(&kv_pst);
+		printf("Hash-exists producer-consumer statistics:\n");
+		procon_stats_print(&he_pst);
+		printf("Existence-group producer-consumer statistics:\n");
+		procon_stats_print(&eg_pst);
+	}
 	free(childp);
 	rcu_unregister_thread();
 	rcu_barrier();
@@ -247,6 +256,8 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t\tdefaults to 1.\n");
 	fprintf(stderr, "\t--duration\n");
 	fprintf(stderr, "\t\tDuration of test, in milliseconds.\n");
+	fprintf(stderr, "\t--dump-procon-stats\n");
+	fprintf(stderr, "\t\tDump procon memory-piping statistics.\n");
 	hashtab_lock_lookup(NULL, 0);  /* Suppress unused warning. */
 	hashtab_unlock_lookup(NULL, 0);
 	exit(-1);
@@ -292,6 +303,8 @@ int main(int argc, char *argv[])
 			if (duration < 0)
 				usage(argv[0],
 				      "%s must be >= 0\n", argv[i - 1]);
+		} else if (strcmp(argv[i], "--dump-procon-stats") == 0) {
+			dump_procon_stats = 1;
 		} else {
 			usage(argv[0], "Unrecognized argument: %s\n",
 			      argv[i]);

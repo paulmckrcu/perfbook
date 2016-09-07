@@ -109,6 +109,17 @@ void procon_stats_accumulate(struct procon_stats *ps, struct procon_stats *p)
 	ps->pm_incount += p->pm_incount;
 }
 
+/*
+ * Print out procon_stats structure.
+ */
+void procon_stats_print(struct procon_stats *p)
+{
+	printf("\tpm_alloccount = %lu\n", p->pm_alloccount);
+	printf("\tpm_outcount = %lu\n", p->pm_outcount);
+	printf("\tpm_unoutcount = %lu\n", p->pm_unoutcount);
+	printf("\tpm_incount = %lu\n", p->pm_incount);
+}
+
 #define DEFINE_PROCON_MPOOL(type, field, alloc) \
 static inline struct procon_mblock *type##__alloc(void) \
 { \
