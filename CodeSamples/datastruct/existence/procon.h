@@ -37,6 +37,7 @@ struct procon_mpool {
 	struct procon_mblock **pm_tail
 			__attribute__((__aligned__(CACHE_LINE_SIZE)));
 	unsigned long pm_incount;
+	struct rcu_head pm_rh;
 };
 
 /* Statistics reporting structure. */
@@ -91,7 +92,8 @@ void procon_free(struct procon_mpool *pmp, struct procon_mblock *pmbp)
 {
 	struct procon_mblock **nextp;
 
-	nextp = xchg(&pmp->pm_tail, &pmbp->pm_next);
+	nextp = __atomic_exchange_n(&pmp->pm_tail, &pmbp->pm_next,
+				    __ATOMIC_SEQ_CST);
 	ACCESS_ONCE(*nextp) = pmbp;
 	pmp->pm_incount++;
 }
@@ -117,30 +119,25 @@ static inline struct procon_mblock *type##__alloc(void) \
 	return &p->field; \
 } \
 \
-struct procon_mpool __thread type##__procon_mpool = { \
+struct procon_mpool __thread type##__procon_mpool_backing = { \
 	.pm_alloc = type##__alloc, \
 }; \
-struct procon_mpool __thread *type##__procon_mpool_rcu_cb; \
-\
-struct type##__procon_mpool_rcu_cb_setup { \
-	struct procon_mpool *rcs_mpool; \
-	struct rcu_head rcs_rh; \
-} __thread type##__procon_mpool_rcu_cb_setup; \
+struct procon_mpool __thread *type##__procon_mpool; \
 \
 void type##__procon_mpool_setup_cb(struct rcu_head *rhp) \
 { \
-	struct type##__procon_mpool_rcu_cb_setup *rp; \
+	struct procon_mpool *pmp; \
 	\
-	rp = container_of(rhp, struct type##__procon_mpool_rcu_cb_setup, \
-			  rcs_rh); \
-	type##__procon_mpool_rcu_cb = rp->rcs_mpool; \
+	pmp = container_of(rhp, struct procon_mpool, pm_rh); \
+	type##__procon_mpool = pmp; \
 } \
 \
 static inline void type##__procon_init(void) \
 { \
-	type##__procon_mpool.pm_tail = &type##__procon_mpool.pm_head; \
-	type##__procon_mpool_rcu_cb_setup.rcs_mpool = &type##__procon_mpool; \
-	call_rcu(&type##__procon_mpool_rcu_cb_setup.rcs_rh, \
+	type##__procon_mpool_backing.pm_tail = \
+		&type##__procon_mpool_backing.pm_head; \
+	type##__procon_mpool = &type##__procon_mpool_backing; \
+	call_rcu(&type##__procon_mpool_backing.pm_rh, \
 		 type##__procon_mpool_setup_cb); \
 } \
 \
@@ -148,7 +145,7 @@ static inline struct type *type##__procon_alloc(void) \
 { \
 	struct procon_mblock *p; \
 	\
-	p = procon_alloc(&type##__procon_mpool); \
+	p = procon_alloc(&type##__procon_mpool_backing); \
 	if (p == NULL) \
 		return NULL; \
 	return container_of(p, struct type, field); \
@@ -156,20 +153,20 @@ static inline struct type *type##__procon_alloc(void) \
 \
 static inline void type##__procon_unalloc(struct type *p) \
 { \
-	procon_unalloc(&type##__procon_mpool, &p->field); \
+	procon_unalloc(&type##__procon_mpool_backing, &p->field); \
 } \
 \
 static inline void type##__procon_free(struct type *p) \
 { \
-	procon_free(type##__procon_mpool_rcu_cb, &p->field); \
+	procon_free(type##__procon_mpool, &p->field); \
 } \
 \
 static inline void type##__procon_stats(struct procon_stats *psp) \
 { \
-	psp->pm_alloccount = type##__procon_mpool.pm_alloccount; \
-	psp->pm_outcount = type##__procon_mpool.pm_outcount; \
-	psp->pm_unoutcount = type##__procon_mpool.pm_unoutcount; \
-	psp->pm_incount = type##__procon_mpool.pm_incount; \
+	psp->pm_alloccount = type##__procon_mpool_backing.pm_alloccount; \
+	psp->pm_outcount = type##__procon_mpool_backing.pm_outcount; \
+	psp->pm_unoutcount = type##__procon_mpool_backing.pm_unoutcount; \
+	psp->pm_incount = type##__procon_mpool_backing.pm_incount; \
 }
 
 #endif /* #ifndef PROCON_H */

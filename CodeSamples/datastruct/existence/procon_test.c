@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
 	crdp = create_call_rcu_data(0, 0);
 	set_thread_call_rcu_data(crdp);
 	mystruct__procon_init();
+	rcu_barrier();
 	for (i = 0; i < 100 * 1000 * 1000; i++) {
 		msp = mystruct__procon_alloc();
 		BUG_ON(!msp);
@@ -72,20 +73,20 @@ int main(int argc, char *argv[])
 		}
 	}
 	printf("mystruct__procon_mpool: alloc: %lu out: %lu in: %lu unout: %lu\n",
-	       mystruct__procon_mpool.pm_alloccount,
-	       mystruct__procon_mpool.pm_outcount,
-	       mystruct__procon_mpool.pm_incount,
-	       mystruct__procon_mpool.pm_unoutcount);
+	       mystruct__procon_mpool->pm_alloccount,
+	       mystruct__procon_mpool->pm_outcount,
+	       mystruct__procon_mpool->pm_incount,
+	       mystruct__procon_mpool->pm_unoutcount);
 
 	synchronize_rcu();
 	poll(NULL, 0, 10);
 	synchronize_rcu();
 
 	printf("mystruct__procon_mpool: alloc: %lu out: %lu in: %lu unout: %lu\n",
-	       mystruct__procon_mpool.pm_alloccount,
-	       mystruct__procon_mpool.pm_outcount,
-	       mystruct__procon_mpool.pm_incount,
-	       mystruct__procon_mpool.pm_unoutcount);
+	       mystruct__procon_mpool->pm_alloccount,
+	       mystruct__procon_mpool->pm_outcount,
+	       mystruct__procon_mpool->pm_incount,
+	       mystruct__procon_mpool->pm_unoutcount);
 
 	return 0;
 }
