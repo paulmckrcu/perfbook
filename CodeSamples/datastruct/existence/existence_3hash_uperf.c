@@ -67,6 +67,9 @@ struct perftest_attr {
 	long long ndels;
 	int mycpu;
 	long firstkey;
+	struct procon_stats kv_ps;
+	struct procon_stats he_ps;
+	struct procon_stats eg_ps;
 };
 
 /*
@@ -137,6 +140,9 @@ void *perftest_child(void *arg)
 	rcu_unregister_thread();
 	childp->nrotations = nrotations;
 	rcu_barrier();
+	keyvalue__procon_stats(&childp->kv_ps);
+	hash_exists__procon_stats(&childp->he_ps);
+	existence_group__procon_stats(&childp->eg_ps);
 	atomic_inc(&nthreads_done);
 	set_thread_call_rcu_data(NULL);
 	call_rcu_data_free(crdp);
@@ -146,11 +152,14 @@ void *perftest_child(void *arg)
 
 void perftest(void)
 {
-	struct perftest_attr *childp = malloc(sizeof(*childp) * nupdaters);
+	struct perftest_attr *childp = calloc(sizeof(*childp), nupdaters);
 	int i;
 	long long nrotations = 0LL;
 	long long starttime;
 	long long endtime;
+	struct procon_stats kv_pst;
+	struct procon_stats he_pst;
+	struct procon_stats eg_pst;
 
 	rcu_register_thread();
 	keyvalue__procon_init();
@@ -199,6 +208,9 @@ void perftest(void)
 	rcu_register_thread();
 	for (i = 0; i < nupdaters; i++) {
 		nrotations += childp[i].nrotations;
+		procon_stats_accumulate(&kv_pst, &childp[i].kv_ps);
+		procon_stats_accumulate(&he_pst, &childp[i].he_ps);
+		procon_stats_accumulate(&eg_pst, &childp[i].eg_ps);
 	}
 	printf("duration (s): %g  rotations: %lld  ns/rotation: %g\n",
 	       starttime / 1000. / 1000., nrotations,

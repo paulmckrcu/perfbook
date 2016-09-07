@@ -39,6 +39,14 @@ struct procon_mpool {
 	unsigned long pm_incount;
 };
 
+/* Statistics reporting structure. */
+struct procon_stats {
+	unsigned long pm_alloccount;
+	unsigned long pm_outcount;
+	unsigned long pm_unoutcount;
+	unsigned long pm_incount;
+};
+
 /*
  * Remove a block from the pool, or get one from the allocator
  * if the pool is low on blocks.  NULL if no memory to be had.
@@ -86,6 +94,17 @@ void procon_free(struct procon_mpool *pmp, struct procon_mblock *pmbp)
 	nextp = xchg(&pmp->pm_tail, &pmbp->pm_next);
 	ACCESS_ONCE(*nextp) = pmbp;
 	pmp->pm_incount++;
+}
+
+/*
+ * Sum procon_stats structure into a total-accumulation structure.
+ */
+void procon_stats_accumulate(struct procon_stats *ps, struct procon_stats *p)
+{
+	ps->pm_alloccount += p->pm_alloccount;
+	ps->pm_outcount += p->pm_outcount;
+	ps->pm_unoutcount += p->pm_unoutcount;
+	ps->pm_incount += p->pm_incount;
 }
 
 #define DEFINE_PROCON_MPOOL(type, field, alloc) \
@@ -143,6 +162,14 @@ static inline void type##__procon_unalloc(struct type *p) \
 static inline void type##__procon_free(struct type *p) \
 { \
 	procon_free(type##__procon_mpool_rcu_cb, &p->field); \
+} \
+\
+static inline void type##__procon_stats(struct procon_stats *psp) \
+{ \
+	psp->pm_alloccount = type##__procon_mpool.pm_alloccount; \
+	psp->pm_outcount = type##__procon_mpool.pm_outcount; \
+	psp->pm_unoutcount = type##__procon_mpool.pm_unoutcount; \
+	psp->pm_incount = type##__procon_mpool.pm_incount; \
 }
 
 #endif /* #ifndef PROCON_H */
