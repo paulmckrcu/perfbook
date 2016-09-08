@@ -44,6 +44,8 @@ pthreads-x86:
 	echo "" >> api.h
 	cat api-pthreads/api-pthreads.h >> api.h
 	echo "" >> api.h
+	cat api-pthreads/api-gcc.h >> api.h
+	echo "" >> api.h
 	if test -f /usr/include/urcu-call-rcu.h -o -f /usr/local/include/urcu-call-rcu.h ; \
 	then \
 		echo "#define _LGPL_SOURCE" >> api.h; \
