@@ -93,7 +93,7 @@ perfbook-1c.pdf: perfbook-1c.tex perfbook-1c.bbl
 	sh utilities/runlatex.sh perfbook-1c
 
 perfbook-1c.tex: perfbook.tex
-	sed -e 's/,twocolumn//' -e '/^\\frontmatter/a \\\\pagestyle{plain}' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
+	sed -e 's/,twocolumn//' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
 
 perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c.aux
 	bibtex perfbook-1c
