@@ -38,7 +38,7 @@ struct existence_group {
 	struct cds_list_head eg_incoming;
 	struct rcu_head eg_rh;
 	struct procon_mblock pm;
-};
+} __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
 /* Producer/consumer memory pool. */
 DEFINE_PROCON_MPOOL(existence_group, pm, malloc(sizeof(struct existence_group)))

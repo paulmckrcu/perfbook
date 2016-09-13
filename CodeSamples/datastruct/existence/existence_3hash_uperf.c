@@ -113,7 +113,7 @@ void *perftest_child(void *arg)
 
 	rcu_register_thread();
 	run_on(childp->mycpu);
-	crdp = create_call_rcu_data(0, childp->mycpu);
+	crdp = create_call_rcu_data(URCU_CALL_RCU_RT, childp->mycpu);
 	set_thread_call_rcu_data(crdp);
 	keyvalue__procon_init();
 	hash_exists__procon_init();
