@@ -27,7 +27,7 @@ struct hash_exists {
 	struct ht_elem he_hte;
 	struct hashtab *he_htp;
 	struct existence_head he_eh;
-	struct keyvalue *he_kv __attribute__((__aligned__(CACHE_LINE_SIZE)));
+	struct keyvalue *he_kv;
 	struct procon_mblock pm;
 } __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
