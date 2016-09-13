@@ -29,7 +29,7 @@ struct hash_exists {
 	struct existence_head he_eh;
 	struct keyvalue *he_kv __attribute__((__aligned__(CACHE_LINE_SIZE)));
 	struct procon_mblock pm;
-};
+} __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
 /* Producer/consumer memory pool. */
 DEFINE_PROCON_MPOOL(hash_exists, pm, malloc(sizeof(struct hash_exists)))
