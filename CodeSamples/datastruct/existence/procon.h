@@ -38,7 +38,7 @@ struct procon_mpool {
 			__attribute__((__aligned__(CACHE_LINE_SIZE)));
 	unsigned long pm_incount;
 	struct rcu_head pm_rh;
-};
+} __attribute__((__aligned__(CACHE_LINE_SIZE)));
 
 /* Statistics reporting structure. */
 struct procon_stats {
