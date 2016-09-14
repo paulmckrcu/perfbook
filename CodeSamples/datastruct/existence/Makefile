@@ -33,13 +33,13 @@ all: $(PROGS)
 #
 #	So it is quite a bit easier to just use the default locations.  ;-)
 
-existence_test: existence.h existence_test.c
+existence_test: existence.h existence_test.c procon.h
 	cc $(GCC_ARGS) -o existence_test existence_test.c -lpthread -lurcu -lurcu-signal
 
-existence_3hash_test: existence.h hash_exists.h keyvalue.h existence_3hash_test.c
+existence_3hash_test: existence.h hash_exists.h keyvalue.h existence_3hash_test.c procon.h
 	cc $(GCC_ARGS) -o existence_3hash_test existence_3hash_test.c -lpthread -lurcu -lurcu-signal
 
-existence_3hash_uperf: existence.h hash_exists.h keyvalue.h existence_3hash_uperf.c
+existence_3hash_uperf: existence.h hash_exists.h keyvalue.h existence_3hash_uperf.c procon.h
 	# cc -O0 -Wall -g -o existence_3hash_uperf existence_3hash_uperf.c -ltcmalloc -lpthread -lurcu -lurcu-signal
 	cc $(GCC_ARGS) -o existence_3hash_uperf existence_3hash_uperf.c -ltcmalloc -lpthread -lurcu -lurcu-signal
 
