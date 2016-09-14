@@ -48,6 +48,14 @@ struct procon_stats {
 	unsigned long pm_incount;
 };
 
+/* Thread-local buffering to reduce free-side cache misses. */
+#define PROCON_MAX_BUF 128
+struct procon_buf {
+	struct procon_mblock *pb_head;
+	struct procon_mblock **pb_tail;
+	unsigned long pb_count;
+};
+
 /*
  * Remove a block from the pool, or get one from the allocator
  * if the pool is low on blocks.  NULL if no memory to be had.
@@ -88,14 +96,28 @@ void procon_unalloc(struct procon_mpool *pmp, struct procon_mblock *pmbp)
 /*
  * Add a block to the pool.  Note that freeing must be single-threaded.
  */
-void procon_free(struct procon_mpool *pmp, struct procon_mblock *pmbp)
+void procon_free(struct procon_mpool *pmp, struct procon_mblock *pmbp,
+		 struct procon_buf *pbp)
 {
-	struct procon_mblock **nextp;
+	struct procon_mblock **oldtail;
 
-	nextp = __atomic_exchange_n(&pmp->pm_tail, &pmbp->pm_next,
-				    __ATOMIC_SEQ_CST);
-	ACCESS_ONCE(*nextp) = pmbp;
-	pmp->pm_incount++;
+	/* Add to the local buffer. */
+	if (!pbp->pb_tail)
+		pbp->pb_tail = &pbp->pb_head;
+	oldtail = pbp->pb_tail;
+	pbp->pb_tail = &pmbp->pm_next;
+	*oldtail = pmbp;
+	if (++pbp->pb_count < PROCON_MAX_BUF)
+		return;
+
+	/* The local buffer is full, pass it on to the consumer. */
+	oldtail = __atomic_exchange_n(&pmp->pm_tail, pbp->pb_tail,
+				      __ATOMIC_SEQ_CST);
+	ACCESS_ONCE(*oldtail) = pbp->pb_head;
+	__atomic_fetch_add(&pmp->pm_incount, pbp->pb_count, __ATOMIC_RELAXED);
+	pbp->pb_head = NULL;
+	pbp->pb_tail = &pbp->pb_head;
+	pbp->pb_count = 0;
 }
 
 /*
@@ -134,6 +156,7 @@ struct procon_mpool __thread type##__procon_mpool_backing = { \
 	.pm_alloc = type##__alloc, \
 }; \
 struct procon_mpool __thread *type##__procon_mpool; \
+struct procon_buf __thread type##__procon_buf; \
 \
 void type##__procon_mpool_setup_cb(struct rcu_head *rhp) \
 { \
@@ -169,7 +192,7 @@ static inline void type##__procon_unalloc(struct type *p) \
 \
 static inline void type##__procon_free(struct type *p) \
 { \
-	procon_free(type##__procon_mpool, &p->field); \
+	procon_free(type##__procon_mpool, &p->field, &type##__procon_buf); \
 } \
 \
 static inline void type##__procon_stats(struct procon_stats *psp) \
