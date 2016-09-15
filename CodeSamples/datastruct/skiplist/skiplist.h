@@ -70,7 +70,7 @@ int skiplist_balance_node(struct skiplist *head_slp, void *key, int newlevel);
 static struct skiplist *
 skiplist_lookup_help(struct skiplist *head_slp, void *key);
 
-static int debug;
+static int __attribute__((unused)) debug;
 
 /*
  * Initialize a skiplist header.
