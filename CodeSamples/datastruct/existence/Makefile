@@ -20,6 +20,7 @@ PROGS = existence_test \
 	existence_3hash_test \
 	existence_3hash_uperf \
 	existence_3skiplist_test \
+	existence_3skiplist_uperf \
 	procon_test
 LIB = ../../lib
 
@@ -50,6 +51,10 @@ existence_3hash_uperf: existence.h hash_exists.h keyvalue.h existence_3hash_uper
 existence_3skiplist_test: existence.h skiplist_exists.h keyvalue.h existence_3skiplist_test.c procon.h
 	cc -g -O0 -o existence_3skiplist_test existence_3skiplist_test.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
 	# cc $(GCC_ARGS) -o existence_3skiplist_test existence_3skiplist_test.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
+
+existence_3skiplist_uperf: existence.h hash_exists.h keyvalue.h existence_3skiplist_uperf.c procon.h
+	# cc -O0 -Wall -ggdb -fno-inline -o existence_3skiplist_uperf existence_3skiplist_uperf.c -ltcmalloc $(LIB)/random.c -lpthread -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -o existence_3skiplist_uperf existence_3skiplist_uperf.c -ltcmalloc $(LIB)/random.c -lpthread -lurcu -lurcu-signal
 
 procon_test: procon.h procon_test.c
 	cc -O0 -g -o procon_test procon_test.c -lpthread -lurcu -lurcu-signal
