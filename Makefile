@@ -3,6 +3,7 @@ LATEXSOURCES = \
 	legal.tex \
 	glossary.tex \
 	qqz.sty origpub.sty \
+	book.cls \
 	*/*.tex \
 	*/*/*.tex
 
