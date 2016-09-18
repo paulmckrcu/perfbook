@@ -39,6 +39,7 @@
 
 /* Parameters for performance test. */
 int nbuckets = 4096;
+int nobjects;
 int nreaders = 0;
 int nupdaters = 1;
 int updatewait = -1;
@@ -81,17 +82,23 @@ void hash_rotate(struct hashtab *htp[],
 		 struct hash_exists *hei[], struct hash_exists *heo[])
 {
 	struct existence_group *egp;
+	int i;
 
 	egp = existence_group__procon_alloc();
 	BUG_ON(!egp);
 	existence_group_init(egp);
 	rcu_read_lock();
-	heo[0] = hash_exists_alloc(egp, htp[0], hei[2]->he_kv, ~0, ~0);
-	heo[1] = hash_exists_alloc(egp, htp[1], hei[0]->he_kv, ~0, ~0);
-	heo[2] = hash_exists_alloc(egp, htp[2], hei[1]->he_kv, ~0, ~0);
-	BUG_ON(existence_head_set_outgoing(&hei[0]->he_eh, egp));
-	BUG_ON(existence_head_set_outgoing(&hei[1]->he_eh, egp));
-	BUG_ON(existence_head_set_outgoing(&hei[2]->he_eh, egp));
+	for (i = 0; i < nobjects; i += 3) {
+		heo[i + 0] = hash_exists_alloc(egp, htp[0], hei[i + 2]->he_kv,
+					       ~0, ~0);
+		heo[i + 1] = hash_exists_alloc(egp, htp[1], hei[i + 0]->he_kv,
+					       ~0, ~0);
+		heo[i + 2] = hash_exists_alloc(egp, htp[2], hei[i + 1]->he_kv,
+					       ~0, ~0);
+		BUG_ON(existence_head_set_outgoing(&hei[i + 0]->he_eh, egp));
+		BUG_ON(existence_head_set_outgoing(&hei[i + 1]->he_eh, egp));
+		BUG_ON(existence_head_set_outgoing(&hei[i + 2]->he_eh, egp));
+	}
 	rcu_read_unlock();
 	existence_flip(egp);
 	call_rcu(&egp->eg_rh, existence_group_rcu_cb);
@@ -106,8 +113,8 @@ void *perftest_child(void *arg)
 	struct perftest_attr *childp = arg;
 	struct call_rcu_data *crdp;
 	struct existence_group *egp;
-	struct hash_exists *hei[3];
-	struct hash_exists *heo[3];
+	struct hash_exists **hei;
+	struct hash_exists **heo;
 	int i;
 	long long nrotations = 0LL;
 
@@ -122,9 +129,11 @@ void *perftest_child(void *arg)
 	egp = existence_group__procon_alloc();
 	BUG_ON(!egp);
 	existence_group_init(egp);
+	hei = calloc(sizeof(*hei), 3 * nobjects);
+	heo = calloc(sizeof(*heo), 3 * nobjects);
 	rcu_read_lock();
-	for (i = 0; i < 3; i++)
-		hei[i] = hash_exists_alloc(egp, ht_array[i], NULL,
+	for (i = 0; i < 3 * nobjects; i++)
+		hei[i] = hash_exists_alloc(egp, ht_array[i % 3], NULL,
 					   childp->firstkey + i,
 					   childp->firstkey + i);
 	rcu_read_unlock();
@@ -134,10 +143,12 @@ void *perftest_child(void *arg)
 		poll(NULL, 0, 1);
 	while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
 		hash_rotate(ht_array, hei, heo);
-		for (i = 0; i < 3; i++)
+		for (i = 0; i < 3 * nobjects; i++)
 			hei[i] = heo[i];
 		nrotations++;
 	}
+	free(hei);
+	free(heo);
 	rcu_unregister_thread();
 	childp->nrotations = nrotations;
 	rcu_barrier();
@@ -213,9 +224,10 @@ void perftest(void)
 		procon_stats_accumulate(&he_pst, &childp[i].he_ps);
 		procon_stats_accumulate(&eg_pst, &childp[i].eg_ps);
 	}
-	printf("duration (s): %g  rotations: %lld  ns/rotation: %g\n",
+	printf("duration (s): %g  rotations: %lld  ns/rotation: %g  obj/hash/thread: %d\n",
 	       starttime / 1000. / 1000., nrotations,
-	       (starttime * 1000. * (double)nupdaters) / (double)nrotations);
+	       (starttime * 1000. * (double)nupdaters) / (double)nrotations,
+	       nobjects);
 	if (dump_procon_stats) {
 		printf("Key-value producer-consumer statistics:\n");
 		procon_stats_print(&kv_pst);
@@ -250,7 +262,7 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t\tbetween updates.\n");
 	fprintf(stderr, "\t--updatespacing\n");
 	fprintf(stderr, "\t\tKey values between successive updaters,\n");
-	fprintf(stderr, "\t\tdefaults to 32.  Must be greater than zero.\n");
+	fprintf(stderr, "\t\tdefaults to 32.  Must be greater than 19.\n");
 	fprintf(stderr, "\t--cpustride\n");
 	fprintf(stderr, "\t\tStride when spreading threads across CPUs,\n");
 	fprintf(stderr, "\t\tdefaults to 1.\n");
@@ -293,9 +305,9 @@ int main(int argc, char *argv[])
 			updatewait = strtol(argv[++i], NULL, 0);
 		} else if (strcmp(argv[i], "--updatespacing") == 0) {
 			updatespacing = strtol(argv[++i], NULL, 0);
-			if (updatespacing < 0)
+			if (updatespacing < 20)
 				usage(argv[0],
-				      "%s must be >= 0\n", argv[i - 1]);
+				      "%s must be >= 32\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--cpustride") == 0) {
 			cpustride = strtol(argv[++i], NULL, 0);
 		} else if (strcmp(argv[i], "--duration") == 0) {
@@ -311,6 +323,7 @@ int main(int argc, char *argv[])
 		}
 		i++;
 	}
+	nobjects = (updatespacing - 16) / 3;
 	test_to_do();
 	return 0;
 }
