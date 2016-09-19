@@ -319,10 +319,10 @@ void defer_del_rcu(struct rcu_head *rhp)
 	defer_del_done((struct ht_elem *)rhp);
 }
 
+#ifdef TEST_HASH
 #define defer_del(p)	call_rcu(&(p)->rh, defer_del_rcu)
 
 #define quiescent_state() rcu_quiescent_state()
 
-#ifdef TEST_HASH
 #include "hashtorture.h"
 #endif /* #ifdef TEST_HASH */

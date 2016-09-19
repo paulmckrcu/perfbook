@@ -375,10 +375,10 @@ int skiplist_balance_node(struct skiplist *head_slp, void *key, int newlevel)
 
 void defer_del_rcu(struct rcu_head *rhp);
 
+#ifdef TEST_SKIPLIST
 #define defer_del(p)	call_rcu(p, defer_del_rcu)
 
 #define quiescent_state() rcu_quiescent_state()
 
-#ifdef TEST_SKIPLIST
 #include "skiplisttorture.h"
 #endif /* #ifdef TEST_SKIPLIST */
