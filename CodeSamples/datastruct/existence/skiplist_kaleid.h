@@ -63,7 +63,7 @@ struct skiplist_kaleid *skiplist_kaleid_lookup(struct skiplist *slhp,
 	if (!slp)
 		return NULL;
 	slkp = container_of(slp, struct skiplist_kaleid, sk_sle);
-	if (existence_exists(&slkp->sk_kh))
+	if (kaleidoscope_exists(&slkp->sk_kh))
 		return slkp;
 	return NULL;
 }

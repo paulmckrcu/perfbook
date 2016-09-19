@@ -23,6 +23,7 @@ PROGS = existence_test \
 	existence_3skiplist_uperf \
 	kaleidoscope_test \
 	kaleidoscope_3hash_test \
+	kaleidoscope_3skiplist_test \
 	procon_test
 LIB = ../../lib
 
@@ -63,6 +64,10 @@ kaleidoscope_test: kaleidoscope.h kaleidoscope_test.c procon.h
 
 kaleidoscope_3hash_test: kaleidoscope.h hash_exists.h keyvalue.h kaleidoscope_3hash_test.c procon.h
 	cc $(GCC_ARGS) -o kaleidoscope_3hash_test kaleidoscope_3hash_test.c -lpthread -lurcu -lurcu-signal
+
+kaleidoscope_3skiplist_test: kaleidoscope.h skiplist_exists.h keyvalue.h kaleidoscope_3skiplist_test.c procon.h
+	cc -g -O0 -o kaleidoscope_3skiplist_test kaleidoscope_3skiplist_test.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
+	# cc $(GCC_ARGS) -o kaleidoscope_3skiplist_test kaleidoscope_3skiplist_test.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
 
 procon_test: procon.h procon_test.c
 	cc -O0 -g -o procon_test procon_test.c -lpthread -lurcu -lurcu-signal
