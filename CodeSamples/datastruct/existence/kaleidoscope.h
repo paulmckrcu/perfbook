@@ -79,6 +79,10 @@ static inline void kaleidoscope_group_init(struct kaleidoscope_group *kgp)
 static inline uintptr_t
 kaleidoscope_group_forstate(struct kaleidoscope_group *kgp, int state)
 {
+	if (kgp == NULL) {
+		BUG_ON(state != 0);
+		return 0;
+	}
 	BUG_ON(state & ~KALEID_MASK);
 	BUG_ON(state & (uintptr_t)&kgp->kg_state);
 	return ((uintptr_t)&kgp->kg_state) | state;
@@ -184,7 +188,7 @@ kaleidoscope_head_init_state(struct kaleidoscope_head *khp,
 	kaleidoscope_head_init(khp, kaleidoscope_group_forstate(kgp, state),
 			       kh_add, kh_remove, kh_free);
 	ret = kh_add(khp);
-	if (!ret)
+	if (!ret && kgp)
 		cds_list_add(&khp->kh_list, &kgp->kg_statelist[state]);
 	return ret;
 }
