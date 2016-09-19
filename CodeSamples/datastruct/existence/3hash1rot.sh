@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # Runs single-object-set rotation through three hash tables.
+#	And through three skiplists.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,14 +19,16 @@
 
 nsamples=7
 
-# Simple hash tables, read-only.
-for ((i=1;i<=nsamples;i++))
+for pgm in existence_3hash_uperf existence_3skiplist_uperf
 do
-	for ncpu in 1 2 3 4 5 6 7
+	for ((i=1;i<=nsamples;i++))
 	do
-		echo ./existence_3hash_uperf --nupdaters $ncpu --duration 1000 --updatespacing 20
-		./existence_3hash_uperf --nupdaters $ncpu --duration 1000 --updatespacing 20
-		sleep 1
+		for ncpu in 1 2 3 4 5 6 7
+		do
+			echo ./$pgm --nupdaters $ncpu --duration 1000 --updatespacing 20
+			./$pgm --nupdaters $ncpu --duration 1000 --updatespacing 20
+			sleep 1
 
+		done
 	done
 done
