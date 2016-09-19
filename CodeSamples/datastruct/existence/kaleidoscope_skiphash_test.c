@@ -114,7 +114,7 @@ void *perftest_child(void *arg)
 	while (ACCESS_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);
 	while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
-		kaleidoscope_set_state(kgp, nrotations % 3);
+		kaleidoscope_set_state(kgp, nrotations % 2);
 		nrotations++;
 	}
 	free(hke);
