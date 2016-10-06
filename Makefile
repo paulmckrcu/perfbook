@@ -9,6 +9,8 @@ LATEXSOURCES = \
 
 LATEXGENERATED = qqz.tex contrib.tex origpub.tex
 
+PDFTARGETS := perfbook.pdf perfbook-1c.pdf perfbook-hb.pdf
+
 EPSSOURCES_FROM_TEX := \
 	SMPdesign/DiningPhilosopher5.eps \
 	SMPdesign/DiningPhilosopher5TB.eps \
@@ -65,14 +67,14 @@ all: $(targ)
 
 hb: perfbook-hb.pdf
 
-perfbook.pdf: perfbook.bbl
-	sh utilities/runlatex.sh perfbook
+$(PDFTARGETS): %.pdf: %.tex %.bbl
+	sh utilities/runlatex.sh $(basename $@)
 
-perfbook.bbl: $(BIBSOURCES) perfbook.aux
-	bibtex perfbook
+$(PDFTARGETS:.pdf=.bbl): %.bbl: $(BIBSOURCES) %.aux
+	bibtex $(basename $@)
 
-perfbook.aux: $(LATEXSOURCES) $(LATEXGENERATED)
-	sh utilities/runfirstlatex.sh perfbook
+$(PDFTARGETS:.pdf=.aux): $(LATEXSOURCES) $(LATEXGENERATED)
+	sh utilities/runfirstlatex.sh $(basename $@)
 
 perfbook_flat.tex: perfbook.tex $(LATEXSOURCES) $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG)
 	echo > qqz.tex
@@ -89,29 +91,11 @@ contrib.tex: perfbook_flat.tex qqz.tex
 origpub.tex: perfbook_flat.tex
 	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
 
-perfbook-1c.pdf: perfbook-1c.tex perfbook-1c.bbl
-	sh utilities/runlatex.sh perfbook-1c
-
 perfbook-1c.tex: perfbook.tex
 	sed -e 's/,twocolumn//' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
 
-perfbook-1c.bbl: $(BIBSOURCES) perfbook-1c.aux
-	bibtex perfbook-1c
-
-perfbook-1c.aux: $(LATEXSOURCES) $(LATEXGENERATED)
-	sh utilities/runfirstlatex.sh perfbook-1c
-
-perfbook-hb.pdf: perfbook-hb.tex perfbook-hb.bbl
-	sh utilities/runlatex.sh perfbook-hb
-
 perfbook-hb.tex: perfbook.tex
 	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < perfbook.tex > perfbook-hb.tex
-
-perfbook-hb.bbl: $(BIBSOURCES) perfbook-hb.aux
-	bibtex perfbook-hb
-
-perfbook-hb.aux: $(LATEXSOURCES) $(LATEXGENERATED)
-	sh utilities/runfirstlatex.sh perfbook-hb
 
 # Rules related to perfbook_html are removed as of May, 2016
 
