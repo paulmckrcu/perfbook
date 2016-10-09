@@ -9,7 +9,9 @@ LATEXSOURCES = \
 
 LATEXGENERATED = qqz.tex contrib.tex origpub.tex
 
-PDFTARGETS := perfbook.pdf perfbook-1c.pdf perfbook-hb.pdf
+ABBREVTARGETS := 1c hb
+
+PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
 EPSSOURCES_FROM_TEX := \
 	SMPdesign/DiningPhilosopher5.eps \
@@ -58,14 +60,10 @@ else
 	targ = $(default)
 endif
 
-.PHONY: all touchsvg clean distclean neatfreak 1c 2c hb ls-unused
+.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS)
 all: $(targ)
 
-1c: perfbook-1c.pdf
-
 2c: perfbook.pdf
-
-hb: perfbook-hb.pdf
 
 $(PDFTARGETS): %.pdf: %.tex %.bbl
 	sh utilities/runlatex.sh $(basename $@)
@@ -156,3 +154,6 @@ ls-unused:
 neatfreak: distclean
 	# Don't forget to regenerate the .pdf from each .svg file
 	find . -name '*.pdf' | xargs rm -f
+
+.SECONDEXPANSION:
+$(ABBREVTARGETS): %: perfbook-$$@.pdf
