@@ -80,22 +80,22 @@ perfbook_flat.tex: perfbook.tex $(LATEXSOURCES) $(PDFTARGETS_OF_EPS) $(PDFTARGET
 	echo > qqz.tex
 	echo > contrib.tex
 	echo > origpub.tex
-	texexpand perfbook.tex > perfbook_flat.tex
+	texexpand perfbook.tex > $@
 
 qqz.tex: perfbook_flat.tex
-	sh utilities/extractqqz.sh < perfbook_flat.tex > qqz.tex
+	sh utilities/extractqqz.sh < $< > $@
 
 contrib.tex: perfbook_flat.tex qqz.tex
-	cat perfbook_flat.tex qqz.tex | sh utilities/extractcontrib.sh > contrib.tex
+	cat $^ | sh utilities/extractcontrib.sh > $@
 
 origpub.tex: perfbook_flat.tex
-	sh utilities/extractorigpub.sh < perfbook_flat.tex > origpub.tex
+	sh utilities/extractorigpub.sh < $< > $@
 
 perfbook-1c.tex: perfbook.tex
-	sed -e 's/,twocolumn//' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < perfbook.tex > perfbook-1c.tex
+	sed -e 's/,twocolumn//' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < $< > $@
 
 perfbook-hb.tex: perfbook.tex
-	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < perfbook.tex > perfbook-hb.tex
+	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < $< > $@
 
 # Rules related to perfbook_html are removed as of May, 2016
 
@@ -139,9 +139,8 @@ clean:
 	find . -name '*.aux' -o -name '*.blg' \
 		-o -name '*.dvi' -o -name '*.log' \
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
-	rm -f perfbook_flat.tex perfbook.out perfbook-1c.out
+	rm -f perfbook_flat.tex perfbook*.out perfbook-*.tex
 	rm -f $(LATEXGENERATED)
-	rm -f perfbook-hb.out perfbook-1c.tex perfbook-hb.tex
 	rm -f extraction
 
 distclean: clean
