@@ -9,7 +9,7 @@ LATEXSOURCES = \
 
 LATEXGENERATED = qqz.tex contrib.tex origpub.tex
 
-ABBREVTARGETS := 1c hb mss mstx msr msn msnt
+ABBREVTARGETS := 1c hb mss mstx msr msn msnt 1csf
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
@@ -112,6 +112,10 @@ perfbook-msn.tex: perfbook.tex
 perfbook-msnt.tex: perfbook.tex
 	sed -e 's/usepackage{courier}/usepackage[zerostyle=a]{newtxtt}/' < $< > $@
 	@echo "## This target requires font package newtxtt. ##"
+
+perfbook-1csf.tex: perfbook-1c.tex
+	sed -e 's/setboolean{sansserif}{false}/setboolean{sansserif}{true}/' \
+	    -e 's/usepackage{courier}/usepackage[var0]{inconsolata}/' < $< > $@
 
 # Rules related to perfbook_html are removed as of May, 2016
 
