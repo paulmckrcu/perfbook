@@ -9,7 +9,7 @@ LATEXSOURCES = \
 
 LATEXGENERATED = qqz.tex contrib.tex origpub.tex
 
-ABBREVTARGETS := 1c hb
+ABBREVTARGETS := 1c hb mss mstx msr msn msnt
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
@@ -94,6 +94,24 @@ perfbook-1c.tex: perfbook.tex
 
 perfbook-hb.tex: perfbook.tex
 	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < $< > $@
+
+perfbook-mss.tex: perfbook.tex
+	sed -e 's/usepackage{courier}/usepackage[scaled=0.94]{couriers}/' < $< > $@
+
+perfbook-mstx.tex: perfbook.tex
+	sed -e 's/usepackage{courier}/renewcommand*\\ttdefault{txtt}/' < $< > $@
+
+perfbook-msr.tex: perfbook.tex
+	sed -e 's/usepackage{courier}/usepackage[scaled=0.94]{nimbusmono}/' < $< > $@
+	@echo "## This target requires font package nimbus15. ##"
+
+perfbook-msn.tex: perfbook.tex
+	sed -e 's/usepackage{courier}/usepackage{nimbusmononarrow}/' < $< > $@
+	@echo "## This target requires font package nimbus15. ##"
+
+perfbook-msnt.tex: perfbook.tex
+	sed -e 's/usepackage{courier}/usepackage[zerostyle=a]{newtxtt}/' < $< > $@
+	@echo "## This target requires font package newtxtt. ##"
 
 # Rules related to perfbook_html are removed as of May, 2016
 
