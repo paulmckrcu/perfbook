@@ -38,7 +38,7 @@ EPSSOURCES := $(sort $(EPSSOURCES_DUP))
 
 PDFTARGETS_OF_EPS := $(EPSSOURCES:%.eps=%.pdf)
 
-BIBSOURCES = bib/*.bib
+BIBSOURCES := bib/*.bib alphapf.bst
 
 SVGSOURCES := $(wildcard */*.svg)
 
