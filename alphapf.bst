@@ -1187,9 +1187,9 @@ FUNCTION {unpublished}
   new.block
   title empty$ 'skip$ 'possibly.setup.inlinelink if$ % urlbst
   format.title "title" output.check
+  format.date output
   new.block
   note "note" output.check
-  format.date output
   fin.entry
 }
 
