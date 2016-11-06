@@ -36,7 +36,6 @@ fi
 
 basename=`echo $1 | sed -e 's/\.tex$//'`
 
-iter=1
 if ! test -r $basename-first.log
 then
 	echo "pdflatex 1 for $basename.pdf"
@@ -49,6 +48,15 @@ then
 	grep 'LaTex Warning:' $basename.log > $basename-warning.log
 fi
 rm -f $basename-first.log
+iter=2
+echo "pdflatex 2 for $basename.pdf # for possible bib update"
+pdflatex $basename > /dev/null 2>&1 < /dev/null || :
+if grep -q '! Emergency stop.' $basename.log
+then
+    echo "----- Fatal latex error, see $basename.log for details. -----"
+    exit 1
+fi
+grep 'LaTex Warning:' $basename.log > $basename-warning.log
 while grep -q 'LaTeX Warning: There were undefined references' $basename.log
 do
 	if test -r $basename-warning-prev.log
