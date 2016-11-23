@@ -74,7 +74,7 @@ void deq_push_r(struct cds_list_head *e, struct deq *p)
 /*
  * And now the concurrent implementation, which uses a counter and a rw lock.
  * The counter holds the current available number of items to modify.
- * Before doing a modification we aquire a read lock and reserve our item to modify
+ * Before doing a modification we acquire a read lock and reserve our item to modify
  * (link/unlink).
  * If there are not enough items left for true parallel access we will upgrade
  * the read lock, to a write lock, making the access truly sequential.
