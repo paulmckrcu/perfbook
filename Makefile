@@ -122,6 +122,7 @@ perfbook-1csf.tex: perfbook-1c.tex
 
 $(EPSSOURCES_FROM_TEX): %.eps: %.tex
 	@echo "$< --> $@"
+	sh utilities/mpostcheck.sh
 	@latex -output-directory=$(shell dirname $<) $< > /dev/null 2>&1
 	@dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@ > /dev/null 2>&1
 	@sh utilities/fixanepsfonts.sh $@

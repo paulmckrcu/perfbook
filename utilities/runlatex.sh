@@ -38,6 +38,10 @@ basename=`echo $1 | sed -e 's/\.tex$//'`
 
 if ! test -r $basename-first.log
 then
+	if ! sh utilities/mpostcheck.sh
+	then
+		exit 1
+	fi
 	echo "pdflatex 1 for $basename.pdf"
 	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
 	if grep -q '! Emergency stop.' $basename.log
@@ -129,4 +133,5 @@ then
 	echo "## See item 1 in FAQ.txt and FAQ-BUILD.txt to fix the font issue.    ##"
 	echo "#######################################################################"
 fi
+sh utilities/mpostcheck.sh
 exit 0

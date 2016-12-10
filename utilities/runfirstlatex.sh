@@ -32,6 +32,11 @@ then
 	exit 1
 fi
 
+if ! sh utilities/mpostcheck.sh
+then
+	exit 1
+fi
+
 basename=`echo $1 | sed -e 's/\.tex$//'`
 
 echo "pdflatex 1 for $basename.pdf"
