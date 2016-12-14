@@ -1770,6 +1770,11 @@ for a larger example.
 \subsubsection{Control Dependencies}
 \label{sec:advsync:Control Dependencies}
 
+Control dependencies are expecially tricky because current compilers
+do not understand them.
+The rules and examples in this section are intended to help you
+prevent your compiler's ignorance from breaking your code.
+
 A load-load control dependency requires a full read memory barrier,
 not simply a data dependency barrier.
 Consider the following bit of code:
@@ -2112,6 +2117,55 @@ Furthermore, the original two-CPU example is very fragile and should be avoided.
 
 The two-CPU example is known as LB (load buffering) and the three-CPU
 example as WWC~\cite{Maranget2012TutorialARMPower}.
+
+The following list of rules summarizes the lessons of this section:
+
+\begin{enumerate}
+\item	Compilers do not understand control dependencies, so it is
+	your job to make sure that the compiler cannot break your code.
+
+\item	Control dependencies can order prior loads against later stores.
+	However, they do \emph{not} guarantee any other sort of ordering:
+	Not prior loads against later loads, nor prior stores against
+	later anything.
+	If you need these other forms of ordering, use \co{smp_rmb()},
+	\co{smp_wmb()}, or, in the case of prior stores and later loads,
+	\co{smp_mb()}.
+
+\item	If both legs of the "if" statement begin with identical stores
+	to the same variable, then those stores must be ordered,
+	either by preceding both of them with \co{smp_mb()} or by using
+	\co{smp_store_release()} to carry out the stores.
+	Please note that it is \emph{not} sufficient to use \co{barrier()}
+	at beginning of each leg of the "if" statement because, as shown
+	by the example above, optimizing compilers can destroy the control
+	dependency while respecting the letter of the \co{barrier()} law.
+
+\item	Control dependencies require at least one run-time conditional
+	between the prior load and the subsequent store, and this
+	conditional must involve the prior load.
+	If the compiler is able to optimize the conditional away, it
+	will have also optimized away the ordering.
+	Careful use of \co{READ_ONCE()} and \co{WRITE_ONCE()} can help
+	to preserve the needed conditional.
+
+\item	Control dependencies require that the compiler avoid reordering
+	the dependency into nonexistence.
+	Careful use of \co{READ_ONCE()}, \co{atomic_read()}, or
+	\co{atomic,64_read()} can help to preserve your control
+	dependency.
+
+\item	Control dependencies apply only to the ``\co{then}'' and
+	``\co{else}'' of the ``\co{if}'' containing the control
+	dependency, including any functions that these two clauses call.
+	Control dependencies do \emph{not} apply to code following the
+	`\co{if}'' containing the control dependency.
+
+\item	Control dependencies pair normally with other types of barriers.
+
+\item	Control dependencies do \emph{not} provide transitivity.
+	If you need transitivity, use \co{smp_mb()}.
+\end{enumerate}
 
 \subsubsection{SMP Barrier Pairing}
 \label{sec:advsync:SMP Barrier Pairing}
