@@ -13,14 +13,14 @@ scripting languages,
 Section~\ref{sec:toolsoftrade:POSIX Multiprocessing}
 describes the multi-process parallelism supported by the POSIX API and
 touches on POSIX threads,
-@@@.
-Section~\ref{sec:toolsoftrade:Linux-Kernel Equivalents to POSIX Operations}
-presents the analogous operations within the Linux kernel, and finally,
+Section~\ref{sec:toolsoftrade:Alternatives to POSIX Operations}
+presents the analogous operations within other environments, and finally,
 Section~\ref{sec:toolsoftrade:The Right Tool for the Job: How to Choose?}
 helps to choose the tool that will get the job done.
 
 Please note that this chapter provides but a brief introduction.
-More detail is available from the references cited, and more information
+More detail is available from the references cited (and especially
+from Internet), and more information
 on how best to use these tools will be provided in later chapters.
 
 \section{Scripting Languages}
@@ -49,7 +49,7 @@ This can be accomplished using UNIX shell scripting as follows:
 \centering
 \resizebox{3in}{!}{\includegraphics{toolsoftrade/shellparallel}}
 \caption{Execution Diagram for Parallel Shell Execution}
-\label{fig:intro:Execution Diagram for Parallel Shell Execution}
+\label{fig:toolsoftrade:Execution Diagram for Parallel Shell Execution}
 \end{figure}
 
 Lines~1 and 2 launch two instances of this program, redirecting their
@@ -58,7 +58,7 @@ shell to run the two instances of the program in the background.
 Line~3 waits for both instances to complete, and lines~4 and 5
 display their output.
 The resulting execution is as shown in
-Figure~\ref{fig:intro:Execution Diagram for Parallel Shell Execution}:
+Figure~\ref{fig:toolsoftrade:Execution Diagram for Parallel Shell Execution}:
 the two instances of \co{compute_it} execute in parallel,
 \co{wait} completes after both of them do, and then the two instances
 of \co{cat} execute sequentially.
@@ -1012,10 +1012,10 @@ Line~39 moves the lock-acquisition count to this thread's element of the
 \centering
 \resizebox{3in}{!}{\includegraphics{CodeSamples/toolsoftrade/rwlockscale}}
 \caption{Reader-Writer Lock Scalability}
-\label{fig:intro:Reader-Writer Lock Scalability}
+\label{fig:toolsoftrade:Reader-Writer Lock Scalability}
 \end{figure}
 
-Figure~\ref{fig:intro:Reader-Writer Lock Scalability}
+Figure~\ref{fig:toolsoftrade:Reader-Writer Lock Scalability}
 shows the results of running this test on a 64-core Power-5 system
 with two hardware threads per core for a total of 128 software-visible
 CPUs.
@@ -1080,7 +1080,7 @@ This situation will only get worse as you add CPUs.
 
 \QuickQuiz{}
 	In
-	Figure~\ref{fig:intro:Reader-Writer Lock Scalability},
+	Figure~\ref{fig:toolsoftrade:Reader-Writer Lock Scalability},
 	all of the traces other than the 100M trace deviate gently
 	from the ideal line.
 	In contrast, the 100M trace breaks sharply from the ideal
@@ -1138,7 +1138,7 @@ Chapters~\ref{chp:Counting} and \ref{chp:Deferred Processing}.
 \label{sec:toolsoftrade:Atomic Operations (gcc Classic)}
 
 Given that
-Figure~\ref{fig:intro:Reader-Writer Lock Scalability}
+Figure~\ref{fig:toolsoftrade:Reader-Writer Lock Scalability}
 shows that the overhead of reader-writer locking is most severe for the
 smallest critical sections, it would be nice to have some other way
 to protect the tiniest of critical sections.
@@ -1288,102 +1288,38 @@ The gcc compiler therefore provides
 These primitives offer the same semantics as their C11 counterparts,
 but may be used on plain non-atomic objects.
 
-\section{Linux-Kernel Equivalents to POSIX Operations}
-\label{sec:toolsoftrade:Linux-Kernel Equivalents to POSIX Operations}
+\subsection{Per-Thread Variables}
+\label{sec:toolsoftrade:Per-Thread Variables}
 
-\begin{table*}
-\scriptsize
-\centering
-\begin{tabular}{l|l|l}
-	Category & POSIX & Linux Kernel \\
-	\hline
-	\hline
-	Thread Management
-		& \co{pthread_t}
-			& \co{struct task_struct} \\
-	\cline{2-3}
-		& \co{pthread_create()}
-			& \co{kthread_create} \\
-	\cline{2-3}
-		& \co{pthread_exit()}
-			& \co{kthread_should_stop()}~~~~~(rough) \\
-	\cline{2-3}
-		& \co{pthread_join()}
-			& \co{kthread_stop()}~~~(rough) \\
-	\cline{2-3}
-		& \co{poll(NULL, 0, 5)}
-			& \co{schedule_timeout_interruptible()} ~~~ \\
-	\hline
-	\hline
-	POSIX Locking
-		& \co{pthread_mutex_t}
-			& \co{spinlock_t}~~~(rough) \\
-		&	& \co{struct mutex} \\
-	\cline{2-3}
-		& \co{PTHREAD_MUTEX_INITIALIZER}
-			& \co{DEFINE_SPINLOCK()} \\
-		&	& \co{DEFINE_MUTEX()} \\
-	\cline{2-3}
-		& \co{pthread_mutex_lock()}
-			& \co{spin_lock()}~~~(and friends) \\
-		&	& \co{mutex_lock()}~~~(and friends) \\
-	\cline{2-3}
-		& \co{pthread_mutex_unlock()}
-			& \co{spin_unlock()}~~~(and friends) \\
-		&	& \co{mutex_unlock()} \\
-	\hline
-	\hline
-	POSIX Reader-Writer
-		& \co{pthread_rwlock_t}
-			& \co{rwlock_t}~~~(rough) \\
-	Locking	&	& \co{struct rw_semaphore} \\
-	\cline{2-3}
-		& \co{PTHREAD_RWLOCK_INITIALIZER}
-			& \co{DEFINE_RWLOCK()} \\
-		&	& \co{DECLARE_RWSEM()} \\
-	\cline{2-3}
-		& \co{pthread_rwlock_rdlock()}
-			& \co{read_lock()}~~~(and friends) \\
-		&	& \co{down_read()}~~~(and friends) \\
-	\cline{2-3}
-		& \co{pthread_rwlock_unlock()}
-			& \co{read_unlock()}~~~(and friends) \\
-		&	& \co{up_read()} \\
-	\cline{2-3}
-		& \co{pthread_rwlock_wrlock()}
-			& \co{write_lock()}~~~(and friends) \\
-		&	& \co{down_write()}~~~(and friends) \\
-	\cline{2-3}
-		& \co{pthread_rwlock_unlock()}
-			& \co{write_unlock()}~~~(and friends) \\
-		&	& \co{up_write()} \\
-	\hline
-	\hline
-	Atomic Operations
-		& C Scalar Types
-			& \co{atomic_t} \\
-		&	& \co{atomic64_t} \\
-	\cline{2-3}
-		& \co{__sync_fetch_and_add()}
-			& \co{atomic_add_return()} \\
-		&	& \co{atomic64_add_return()} \\
-	\cline{2-3}
-		& \co{__sync_fetch_and_sub()}
-			& \co{atomic_sub_return()} \\
-		&	& \co{atomic64_sub_return()} \\
-	\cline{2-3}
-		& \co{__sync_val_compare_and_swap()} ~~~~~~~~~~
-			& \co{cmpxchg()} \\
-	\cline{2-3}
-		& \co{__sync_lock_test_and_set()}
-			& \co{xchg()}~~~(rough) \\
-	\cline{2-3}
-		& \co{__sync_synchronize()}
-			& \co{smp_mb()} \\
-\end{tabular}
-\caption{Mapping from POSIX to Linux-Kernel Primitives}
-\label{tab:advsync:Mapping from POSIX to Linux-Kernel Primitives}
-\end{table*}
+Per-thread variables, also called thread-specific data, thread-local
+storage, and other less-polite names, are used extremely
+heavily in concurrent code, as will be explored in
+Chapters~\ref{chp:Counting} and~\ref{chp:Data Ownership}.
+POSIX supplies the \co{pthread_key_create()} function to create a
+per-thread variable (and return the corresponding key,
+\co{pthread_key_delete()} to delete the per-thread variable corresponding
+to key,
+\co{pthread_setspecific()} to set the value of the current thread's
+variable corresponding to the specified key,
+and \co{pthread_getspecific()} to return that value.
+
+A number of compilers (including gcc) provide a \co{__thread} specifier
+that may be used in a variable definition to designate that variable
+as being per-thread.
+The name of the variable may then be used normally to access the
+value of the current thread's instance of that variable.
+Of course, \co{__thread} is much easier to use than the POSIX
+thead-specific data, and so \co{__thread} is usually preferred for
+code that is to be built only with gcc or other compilers supporting
+\co{__thread}.
+
+Fortunately, the C11 standard introduced a \co{_Thread_local} keyword
+that can be used in place of \co{__thread}.
+In the fullness of time, this new keyword should combine the ease of use
+of \co{__thread} with the portability of POSIX thread-specific data.
+
+\section{Alternatives to POSIX Operations}
+\label{sec:toolsoftrade:Alternatives to POSIX Operations}
 
 Unfortunately, threading operations, locking primitives, and atomic
 operations were in reasonably wide use long before the various standards
@@ -1394,22 +1330,209 @@ It is still quite common to find these operations implemented in
 assembly language, either for historical reasons or to obtain better
 performance in specialized circumstances.
 For example, the gcc \co{__sync_} family of primitives all
-provide memory-ordering semantics, motivating many developers to
-create their own implementations for situations where the memory
+provide full memory-ordering semantics, motivating many developers to
+create their own implementations for situations where the full memory
 ordering semantics are not required.
+The following sections show some alternatives from the Linux kernel
+and some historical primitives used by this book's sample code.
 
-Therefore,
-Table~\ref{tab:advsync:Mapping from POSIX to Linux-Kernel Primitives} on
-page~\pageref{tab:advsync:Mapping from POSIX to Linux-Kernel Primitives}
-provides a rough mapping between the POSIX and
-gcc primitives to those used in the Linux kernel.
-Exact mappings are not always available, for example, the Linux kernel
-has a wide variety of locking primitives, while gcc has a number
-of atomic operations that are not directly available in the Linux kernel.
-Of course, on the one hand, user-level code does not need the Linux
-kernel's wide array of locking primitives, while on the other hand,
-gcc's atomic operations can be emulated reasonably straightforwardly
-using \co{cmpxchg()}.
+\subsection{Organization and Initialization}
+\label{sec:toolsoftrade:Organization and Initialization}
+
+Although many environments do not require any special initialization
+code, the code samples in this book start with a call to \co{smp_init()},
+which initializes a mapping from \co{pthread_t} to consecutive integers.
+The userspace RCU library similarly requires a call to \co{rcu_init()}.
+However, these calls can be hidden in environments (such as that of
+gcc) that support constructors.
+However, most of the RCU flavors supported by the userspace RCU library
+also require each thread invoke \co{rcu_register_thread()} upon thread
+creation and \co{rcu_unregister_thread()} before thread exit.
+
+In the case of the Linux kernel, it is a philosophical question as to
+whether the kernel does not require calls to special initialization
+code or whether the kernel's boot-time code is in fact the required
+initialization code.
+
+\subsection{Thread Creation, Destruction, and Control}
+\label{sec:toolsoftrade:Thread Creation, Destruction, and Control}
+
+The Linux kernel uses
+\co{struct task_struct} pointers to track kthreads,
+\co{kthread_create} to create them,
+\co{kthread_should_stop()} to externally suggest that they stop
+(no real POSIX equivalent),
+\co{kthread_stop()} to wait for them to stop, and
+\co{schedule_timeout_interruptible()} for a timed wait.
+There are quite a few additional kthread-management APIs, but this
+provides a good start (and good search terms).
+
+The CodeSamples API focuses on ``threads'', which are a locus of
+control.\footnote{
+	There are many other names for similar software constructs, including
+	``process'', ``task'', ``fiber'', ``event'', and so on.
+	Similar design principles apply to all of them.}
+Each such thread has an identifier of type \co{thread_id_t},
+and no two threads running at a given time will have the same
+identifier.
+Threads share everything except for per-thread local state,\footnote{
+	How is that for a circular definition?}
+which includes program counter and stack.
+
+The thread API is shown in
+Figure~\ref{fig:toolsoftrade:Thread API}, and members are described in the
+following sections.
+
+\begin{figure*}[tbp]
+{ \scriptsize
+\begin{verbbox}
+int smp_thread_id(void)
+thread_id_t create_thread(void *(*func)(void *), void *arg)
+for_each_thread(t)
+for_each_running_thread(t)
+void *wait_thread(thread_id_t tid)
+void wait_all_threads(void)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Thread API}
+\label{fig:toolsoftrade:Thread API}
+\end{figure*}
+
+\subsubsection{create\_thread()}
+
+The \co{create_thread()} primitive creates a new thread,
+starting the new thread's execution
+at the function \co{func} specified by \co{create_thread()}'s
+first argument, and passing it the argument specified by
+\co{create_thread()}'s second argument.
+This newly created thread will terminate when it returns from the
+starting function specified by \co{func}.
+The \co{create_thread()} primitive returns the \co{thread_id_t}
+corresponding to the newly created child thread.
+
+This primitive will abort the program if more than \co{NR_THREADS}
+threads are created, counting the one implicitly created by running
+the program.
+\co{NR_THREADS} is a compile-time constant that may be modified,
+though some systems may have an upper bound for the allowable number
+of threads.
+
+\subsubsection{smp\_thread\_id()}
+
+Because the \co{thread_id_t} returned from \co{create_thread()} is
+system-dependent, the \co{smp_thread_id()} primitive returns a thread
+index corresponding to the thread making the request.
+This index is guaranteed to be less than the maximum number of threads
+that have been in existence since the program started,
+and is therefore useful for bitmasks, array indices, and
+the like.
+
+\subsubsection{for\_each\_thread()}
+
+The \co{for_each_thread()} macro loops through all threads that exist,
+including all threads that \emph{would} exist if created.
+This macro is useful for handling per-thread variables as will be
+seen in Section~\ref{sec:toolsoftrade:Per-Thread Variables}.
+
+\subsubsection{for\_each\_running\_thread()}
+
+The \co{for_each_running_thread()}
+macro loops through only those threads that currently exist.
+It is the caller's responsibility to synchronize with thread
+creation and deletion if required.
+
+\subsubsection{wait\_thread()}
+
+The \co{wait_thread()} primitive waits for completion of the thread
+specified by the \co{thread_id_t} passed to it.
+This in no way interferes with the execution of the specified thread;
+instead, it merely waits for it.
+Note that \co{wait_thread()} returns the value that was returned by
+the corresponding thread.
+
+\subsubsection{wait\_all\_threads()}
+
+The \co{wait_all_threads()}
+primitive waits for completion of all currently running threads.
+It is the caller's responsibility to synchronize with thread creation
+and deletion if required.
+However, this primitive is normally used to clean up at the end of
+a run, so such synchronization is normally not needed.
+
+\subsubsection{Example Usage}
+
+Figure~\ref{fig:toolsoftrade:Example Child Thread}
+shows an example hello-world-like child thread.
+As noted earlier, each thread is allocated its own stack, so
+each thread has its own private \co{arg} argument and \co{myarg} variable.
+Each child simply prints its argument and its \co{smp_thread_id()}
+before exiting.
+Note that the \co{return} statement on line~7 terminates the thread,
+returning a \co{NULL} to whoever invokes \co{wait_thread()} on this
+thread.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+  1 void *thread_test(void *arg)
+  2 {
+  3   int myarg = (int)arg;
+  4
+  5   printf("child thread %d: smp_thread_id() = %d\n",
+  6          myarg, smp_thread_id());
+  7   return NULL;
+  8 }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Example Child Thread}
+\label{fig:toolsoftrade:Example Child Thread}
+\end{figure}
+
+The parent program is shown in
+Figure~\ref{fig:toolsoftrade:Example Parent Thread}.
+It invokes \co{smp_init()} to initialize the threading system on
+line~6,
+parses arguments on lines~7-14, and announces its presence on line~15.
+It creates the specified number of child threads on lines~16-17,
+and waits for them to complete on line~18.
+Note that \co{wait_all_threads()} discards the threads return values,
+as in this case they are all \co{NULL}, which is not very interesting.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+  1 int main(int argc, char *argv[])
+  2 {
+  3   int i;
+  4   int nkids = 1;
+  5
+  6   smp_init();
+  7   if (argc > 1) {
+  8     nkids = strtoul(argv[1], NULL, 0);
+  9     if (nkids > NR_THREADS) {
+ 10       fprintf(stderr, "nkids=%d too big, max=%d\n",
+ 11         nkids, NR_THREADS);
+ 12       usage(argv[0]);
+ 13     }
+ 14   }
+ 15   printf("Parent spawning %d threads.\n", nkids);
+ 16   for (i = 0; i < nkids; i++)
+ 17     create_thread(thread_test, (void *)i);
+ 18   wait_all_threads();
+ 19   printf("All threads completed.\n", nkids);
+ 20   exit(0);
+ 21 }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Example Parent Thread}
+\label{fig:toolsoftrade:Example Parent Thread}
+\end{figure}
 
 \QuickQuiz{}
 	What happened to the Linux-kernel equivalents to \co{fork()}
@@ -1420,6 +1543,299 @@ using \co{cmpxchg()}.
 	at least unless you want to do a huge amount of memory-mapping
 	work by hand.
 } \QuickQuizEnd
+
+\subsection{Locking}
+\label{sec:toolsoftrade:Locking}
+
+A good starting subset of the Linux kernel's locking API is shown in
+Figure~\ref{fig:toolsoftrade:Locking API},
+each API element being described in the following sections.
+This book's CodeSamples locking API closely follows that of the Linux kernel.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+void spin_lock_init(spinlock_t *sp);
+void spin_lock(spinlock_t *sp);
+int spin_trylock(spinlock_t *sp);
+void spin_unlock(spinlock_t *sp);
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Locking API}
+\label{fig:toolsoftrade:Locking API}
+\end{figure}
+
+\subsubsection{spin\_lock\_init()}
+
+The \co{spin_lock_init()} primitive initializes the specified
+\co{spinlock_t} variable, and must be invoked before
+this variable is passed to any other spinlock primitive.
+
+\subsubsection{spin\_lock()}
+
+The \co{spin_lock()} primitive acquires the specified spinlock,
+if necessary, waiting until the spinlock becomes available.
+In some environments, such as pthreads, this waiting will involve
+``spinning'', while
+in others, such as the Linux kernel, it will involve blocking.
+
+The key point is that only one thread may hold a spinlock at any
+given time.
+
+\subsubsection{spin\_trylock()}
+
+The \co{spin_trylock()} primitive acquires the specified spinlock,
+but only if it is immediately available.
+It returns \co{true} if it was able to acquire the spinlock and
+\co{false} otherwise.
+
+\subsubsection{spin\_unlock()}
+
+The \co{spin_unlock()} primitive releases the specified spinlock,
+allowing other threads to acquire it.
+
+% \emph{@@@ likely need to add reader-writer locking.}
+
+\subsubsection{Example Usage}
+
+A spinlock named \co{mutex} may be used to protect a variable
+\co{counter} as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+spin_lock(&mutex);
+counter++;
+spin_unlock(&mutex);
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+\QuickQuiz{}
+	What problems could occur if the variable {\tt counter} were
+	incremented without the protection of {\tt mutex}?
+\QuickQuizAnswer{
+	On CPUs with load-store architectures, incrementing {\tt counter}
+	might compile into something like the following:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+LOAD counter,r0
+INC r0
+STORE r0,counter
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	On such machines, two threads might simultaneously load the
+	value of {\tt counter}, each increment it, and each store the
+	result.
+	The new value of {\tt counter} will then only be one greater
+	than before, despite two threads each incrementing it.
+} \QuickQuizEnd
+
+However, the \co{spin_lock()} and \co{spin_unlock()} primitives
+do have performance consequences, as will be seen in
+Section~\ref{sec:toolsoftrade:Performance}.
+
+\subsection{Atomic Operations}
+\label{sec:toolsoftrade:Atomic Operations}
+
+The Linux kernel provides a wide variety of atomic operations, but
+those defined on type \co{atomic_t} provide a good start.
+Normal non-tearing reads and stores are provided by
+\co{atomic_read()} and \co{atomic_set()}, respectively.
+Acquire load is provided by \co{smp_load_acquire()} and release
+store by \co{smp_store_release()}.
+
+Non-value-returning fetch-and-add operations are provided by
+\co{atomic_add()}, \co{atomic_sub()}, \co{atomic_inc()}, and
+\co{atomic_dec()}, among others.
+An atomic decrement that returns a reached-zero indication is provided
+by both \co{atomic_dec_and_test()} and \co{atomic_sub_and_test()}.
+An atomic add that returns the new value is provided by
+\co{atomic_add_return()}.
+Both \co{atomic_add_unless()} and \co{atomic_inc_not_zero()} provide
+conditional atomic operations, where nothing happens unless the
+original value of the atomic variable is different than the value
+specified (these are very handy for managing reference counters, for
+example).
+
+An atomic exchange operation is provided by \co{atomic_xchg()}, and
+the celebrated compare-and-swap (CAS) operation is provided by
+\co{atomic_cmpxchg()}.
+Both of these return the old value.
+
+This book's CodeSamples API closely follows that of the Linux kernel.
+
+\subsection{Per-CPU Variables}
+\label{sec:toolsoftrade:Per-CPU Variables}
+
+The Linux kernel uses \co{DEFINE_PER_CPU()} to define a per-CPU variable,
+\co{this_cpu_ptr()} to form a reference to this CPU's instance of a
+given per-CPU variable, \co{per_cpu()} to access a specified CPU's
+instance of a given per-CPU variable, along with many other special-purpose
+per-CPU operations.
+
+Figure~\ref{fig:toolsoftrade:Per-Thread-Variable API}
+shows this book's per-thread-variable API, which is patterned
+after the Linux kernel's per-CPU-variable API.
+This API provides the per-thread equivalent of global variables.
+Although this API is, strictly speaking, not necessary\footnote{
+	You could instead use \co{__thread} or \co{_Thread_local}.},
+it can provide a good userspace analogy to Linux kernel code.
+
+\begin{figure}[htbp]
+{ \scriptsize
+\begin{verbbox}
+DEFINE_PER_THREAD(type, name)
+DECLARE_PER_THREAD(type, name)
+per_thread(name, thread)
+__get_thread_var(name)
+init_per_thread(name, v)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Per-Thread-Variable API}
+\label{fig:toolsoftrade:Per-Thread-Variable API}
+\end{figure}
+
+\QuickQuiz{}
+	How could you work around the lack of a per-thread-variable
+	API on systems that do not provide it?
+\QuickQuizAnswer{
+	One approach would be to create an array indexed by
+	\co{smp_thread_id()}, and another would be to use a hash
+	table to map from \co{smp_thread_id()} to an array
+	index---which is in fact what this
+	set of APIs does in pthread environments.
+
+	Another approach would be for the parent to allocate a structure
+	containing fields for each desired per-thread variable, then
+	pass this to the child during thread creation.
+	However, this approach can impose large software-engineering
+	costs in large systems.
+	To see this, imagine if all global variables in a large system
+	had to be declared in a single file, regardless of whether or
+	not they were C static variables!
+} \QuickQuizEnd
+
+\subsubsection{DEFINE\_PER\_THREAD()}
+
+The \co{DEFINE_PER_THREAD()} primitive defines a per-thread variable.
+Unfortunately, it is not possible to provide an initializer in the way
+permitted by the Linux kernel's \co{DEFINE_PER_THREAD()} primitive,
+but there is an \co{init_per_thread()} primitive that permits easy
+runtime initialization.
+
+\subsubsection{DECLARE\_PER\_THREAD()}
+
+The \co{DECLARE_PER_THREAD()} primitive is a declaration in the C sense,
+as opposed to a definition.
+Thus, a \co{DECLARE_PER_THREAD()} primitive may be used to access
+a per-thread variable defined in some other file.
+
+\subsubsection{per\_thread()}
+
+The \co{per_thread()} primitive accesses the specified thread's variable.
+
+\subsubsection{\_\_get\_thread\_var()}
+
+The \co{__get_thread_var()} primitive accesses the current thread's variable.
+
+\subsubsection{init\_per\_thread()}
+
+The \co{init_per_thread()} primitive sets all threads' instances of
+the specified variable to the specified value.
+The Linux kernel accomplishes this via normal C initialization,
+relying in clever use of linker scripts and code executed during
+the CPU-online process.
+
+\subsubsection{Usage Example}
+
+Suppose that we have a counter that is incremented very frequently
+but read out quite rarely.
+As will become clear in
+Section~\ref{sec:toolsoftrade:Performance},
+it is helpful to implement such a counter using a per-thread variable.
+Such a variable can be defined as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+DEFINE_PER_THREAD(int, counter);
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+The counter must be initialized as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+init_per_thread(counter, 0);
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+A thread can increment its instance of this counter as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+__get_thread_var(counter)++;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+The value of the counter is then the sum of its instances.
+A snapshot of the value of the counter can thus be collected
+as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+for_each_thread(i)
+  sum += per_thread(counter, i);
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+Again, it is possible to gain a similar effect using other mechanisms,
+but per-thread variables combine convenience and high performance.
+
+\subsection{Performance}
+\label{sec:toolsoftrade:Performance}
+
+It is instructive to compare the performance of the locked increment
+shown in
+Section~\ref{sec:toolsoftrade:Atomic Operations}
+to that of per-CPU (or per-thread) variables
+(see Section~\ref{sec:toolsoftrade:Per-CPU Variables}),
+as well as to conventional increment (as in ``counter++'').
+
+% \emph{@@@ need parable on cache thrashing.}
+
+% \emph{@@@ more here using performance results from a modest multiprocessor.}
+
+% \emph{@@@ Also work in something about critical-section size? Or put later?}
+
+The difference in performance is quite large, to put it mildly.
+The purpose of this book is to help you write SMP programs,
+perhaps with realtime response, while avoiding such performance
+pitfalls.
+Chapter~\ref{chp:Counting}
+starts this process by describing a few parallel counting algorithms.
 
 \section{The Right Tool for the Job: How to Choose?}
 \label{sec:toolsoftrade:The Right Tool for the Job: How to Choose?}
