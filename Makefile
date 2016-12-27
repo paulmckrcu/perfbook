@@ -68,10 +68,10 @@ all: $(targ)
 $(PDFTARGETS): %.pdf: %.tex %.bbl
 	sh utilities/runlatex.sh $(basename $@)
 
-$(PDFTARGETS:.pdf=.bbl): %.bbl: %.aux
+$(PDFTARGETS:.pdf=.bbl): %.bbl: %.aux $(BIBSOURCES)
 	bibtex $(basename $@)
 
-$(PDFTARGETS:.pdf=.aux): $(LATEXSOURCES) $(LATEXGENERATED) $(BIBSOURCES)
+$(PDFTARGETS:.pdf=.aux): $(LATEXSOURCES) $(LATEXGENERATED)
 	sh utilities/runfirstlatex.sh $(basename $@)
 
 perfbook_flat.tex: perfbook.tex $(LATEXSOURCES) $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG)
