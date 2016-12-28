@@ -43,7 +43,7 @@ void *lock_reader(void *arg)
 		exit(-1);
 	}
 	for (i = 0; i < 100; i++) {
-		newx = ACCESS_ONCE(x);
+		newx = READ_ONCE(x);
 		if (newx != oldx) {
 			printf("lock_reader(): x = %d\n", newx);
 		}
@@ -67,7 +67,7 @@ void *lock_writer(void *arg)
 		exit(-1);
 	}
 	for (i = 0; i < 3; i++) {
-		ACCESS_ONCE(x)++;
+		READ_ONCE(x)++;
 		poll(NULL, 0, 5);
 	}
 	if (pthread_mutex_unlock(pmlp) != 0) {

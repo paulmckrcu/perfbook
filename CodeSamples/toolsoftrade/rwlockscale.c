@@ -44,10 +44,10 @@ void *reader(void *arg)
 	long me = (long)arg;
 
 	__sync_fetch_and_add(&nreadersrunning, 1);
-	while (ACCESS_ONCE(goflag) == GOFLAG_INIT) {
+	while (READ_ONCE(goflag) == GOFLAG_INIT) {
 		continue;
 	}
-	while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
+	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		if (pthread_rwlock_rdlock(&rwl) != 0) {
 			perror("pthread_rwlock_rdlock");
 			exit(-1);
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 			exit(-1);
 		}
 	}
-	while (ACCESS_ONCE(nreadersrunning) < nthreads) {
+	while (READ_ONCE(nreadersrunning) < nthreads) {
 		continue;
 	}
 	goflag = GOFLAG_RUN;
