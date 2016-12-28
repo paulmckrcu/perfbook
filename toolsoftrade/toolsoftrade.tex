@@ -14,9 +14,19 @@ Section~\ref{sec:toolsoftrade:POSIX Multiprocessing}
 describes the multi-process parallelism supported by the POSIX API and
 touches on POSIX threads,
 Section~\ref{sec:toolsoftrade:Alternatives to POSIX Operations}
-presents the analogous operations within other environments, and finally,
+presents analogous operations in other environments, and finally,
 Section~\ref{sec:toolsoftrade:The Right Tool for the Job: How to Choose?}
 helps to choose the tool that will get the job done.
+
+\QuickQuiz{}
+	You call these tools???
+	They look more like low-level synchronization primitives to me!
+\QuickQuizAnswer{
+	They look that way because they are in fact low-level synchronization
+	primitives.
+	But as such, they are in fact the fundamental tools for building
+	low-level concurrent software.
+} \QuickQuizEnd
 
 Please note that this chapter provides but a brief introduction.
 More detail is available from the references cited (and especially
@@ -125,6 +135,9 @@ programming need not always be complex or difficult.
 		expensive file I/O.
 	\item	The reliable synchronization primitives available to
 		scripts also typically involve expensive file I/O.
+	\item	Scripting languages are often too slow, but are often
+		quite useful when coordinating execution of long-running
+		programs written in lower-level programming languages.
 	\end{enumerate}
 	These limitations require that script-based parallelism use
 	coarse-grained parallelism, with each unit of work having
@@ -479,6 +492,10 @@ in the following section.
 	from a given pointer might well result in the load returning the
 	low-order 16 bits of the old value of the pointer concatenated
 	with the high-order 16 bits of the new value of the pointer.
+
+	Nevertheless, even in the Linux kernel, data races can be
+	quite dangerous and should be avoided where
+	feasible~\cite{JonCorbet2012ACCESS:ONCE}.
 } \QuickQuizEnd
 
 \subsection{POSIX Locking}
@@ -501,6 +518,9 @@ only one thread at a time may ``hold'' a given lock at a given time.
 For example, if a pair of threads attempt to acquire the same lock
 concurrently, one of the pair will be ``granted'' the lock first, and
 the other will wait until the first thread releases the lock.
+A simple and reasonably useful programming model permits a given data item
+to be accessed only while holding the corresponding
+lock~\cite{Hoare74}.
 
 \QuickQuiz{}
 	What if I want several threads to hold the same lock at the
@@ -540,7 +560,7 @@ the other will wait until the first thread releases the lock.
  14     exit(-1);
  15   }
  16   for (i = 0; i < 100; i++) {
- 17     newx = ACCESS_ONCE(x);
+ 17     newx = READ_ONCE(x);
  18     if (newx != oldx) {
  19       printf("lock_reader(): x = %d\n", newx);
  20     }
@@ -564,7 +584,7 @@ the other will wait until the first thread releases the lock.
  38     exit(-1);
  39   }
  40   for (i = 0; i < 3; i++) {
- 41     ACCESS_ONCE(x)++;
+ 41     READ_ONCE(x)++;
  42     poll(NULL, 0, 5);
  43   }
  44   if (pthread_mutex_unlock(pmlp) != 0) {
@@ -874,10 +894,10 @@ provided by reader-writer locks.
  16   long me = (long)arg;
  17 
  18   __sync_fetch_and_add(&nreadersrunning, 1);
- 19   while (ACCESS_ONCE(goflag) == GOFLAG_INIT) {
+ 19   while (READ_ONCE(goflag) == GOFLAG_INIT) {
  20     continue;
  21   }
- 22   while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
+ 22   while (READ_ONCE(goflag) == GOFLAG_RUN) {
  23     if (pthread_rwlock_rdlock(&rwl) != 0) {
  24       perror("pthread_rwlock_rdlock");
  25       exit(-1);
@@ -928,21 +948,21 @@ Lines~12-41 define \co{reader()}, which is the reader thread.
 Line~18 atomically increments the \co{nreadersrunning} variable
 to indicate that this thread is now running, and
 lines~19-21 wait for the test to start.
-The \co{ACCESS_ONCE()} primitive forces the compiler to fetch \co{goflag}
+The \co{READ_ONCE()} primitive forces the compiler to fetch \co{goflag}
 on each pass through the loop---the compiler would otherwise be within its
 rights to assume that the value of \co{goflag} would never change.
 
 \QuickQuiz{}
-	Instead of using \co{ACCESS_ONCE()} everywhere, why not just
+	Instead of using \co{READ_ONCE()} everywhere, why not just
 	declare \co{goflag} as \co{volatile} on line~10 of
 	Figure~\ref{fig:toolsoftrade:Measuring Reader-Writer Lock Scalability}?
 \QuickQuizAnswer{
 	A \co{volatile} declaration is in fact a reasonable alternative in
 	this particular case.
-	However, use of \co{ACCESS_ONCE()} has the benefit of clearly
+	However, use of \co{READ_ONCE()} has the benefit of clearly
 	flagging to the reader that \co{goflag} is subject to concurrent
 	reads and updates.
-	However, \co{ACCESS_ONCE()} is especially useful in cases where
+	However, \co{READ_ONCE()} is especially useful in cases where
 	most of the accesses are protected by a lock (and thus \emph{not}
 	subject to change), but where a few of the accesses are made outside
 	of the lock.
@@ -953,7 +973,7 @@ rights to assume that the value of \co{goflag} would never change.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	\co{ACCESS_ONCE()} only affects the compiler, not the CPU.
+	\co{READ_ONCE()} only affects the compiler, not the CPU.
 	Don't we also need memory barriers to make sure
 	that the change in \co{goflag}'s value propagates to the
 	CPU in a timely fashion in
@@ -977,14 +997,14 @@ rights to assume that the value of \co{goflag} would never change.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	Would it ever be necessary to use \co{ACCESS_ONCE()} when accessing
+	Would it ever be necessary to use \co{READ_ONCE()} when accessing
 	a per-thread variable, for example, a variable declared using
 	the \co{gcc} \co{__thread} storage class?
 \QuickQuizAnswer{
 	It depends.
 	If the per-thread variable was accessed only from its thread,
 	and never from a signal handler, then no.
-	Otherwise, it is quite possible that \co{ACCESS_ONCE()} is needed.
+	Otherwise, it is quite possible that \co{READ_ONCE()} is needed.
 	We will see examples of both situations in
 	Section~\ref{sec:count:Signal-Theft Limit Counter Implementation}.
 
@@ -1075,7 +1095,7 @@ This situation will only get worse as you add CPUs.
 	increases.
 
 	Some other ways of handling very small critical sections are
-	described in Section~\ref{sec:defer:Read-Copy Update (RCU)}.
+	described in Chapter~\ref{chp:Deferred Processing}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -1223,8 +1243,10 @@ case the \co{barrier()} primitive may be used, as it in fact was
 on line~28 of
 Figure~\ref{fig:toolsoftrade:Measuring Reader-Writer Lock Scalability}.
 In some cases, it is only necessary to ensure that the compiler
-avoids optimizing away a given memory access, in which case the
-\co{ACCESS_ONCE()} primitive may be used, as it was on line~17 of
+avoids optimizing away a given memory read, in which case the
+\co{READ_ONCE()} primitive may be used, as it was on line~17 of
+Similarly, the \co{WRITE_ONCE()} primitive may be used to prevent the
+compiler from optimizing a way a given memory write.
 Figure~\ref{fig:toolsoftrade:Demonstration of Exclusive Locks}.
 These last two primitives are not provided directly by gcc,
 but may be implemented straightforwardly as follows:
@@ -1234,6 +1256,8 @@ but may be implemented straightforwardly as follows:
 \scriptsize
 \begin{verbatim}
 #define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+#define READ_ONCE(x) ACCESS_ONCE(x)
+#define WRITE_ONCE(x, val) ({ ACCESS_ONCE(x) = (val); })
 #define barrier() __asm__ __volatile__("": : :"memory")
 \end{verbatim}
 }
@@ -1329,9 +1353,9 @@ are supported.
 It is still quite common to find these operations implemented in
 assembly language, either for historical reasons or to obtain better
 performance in specialized circumstances.
-For example, the gcc \co{__sync_} family of primitives all
-provide full memory-ordering semantics, motivating many developers to
-create their own implementations for situations where the full memory
+For example, the gcc \co{__sync_} family of primitives all provide full
+memory-ordering semantics, which in the past motivated many developers
+to create their own implementations for situations where the full memory
 ordering semantics are not required.
 The following sections show some alternatives from the Linux kernel
 and some historical primitives used by this book's sample code.
@@ -1343,9 +1367,9 @@ Although many environments do not require any special initialization
 code, the code samples in this book start with a call to \co{smp_init()},
 which initializes a mapping from \co{pthread_t} to consecutive integers.
 The userspace RCU library similarly requires a call to \co{rcu_init()}.
-However, these calls can be hidden in environments (such as that of
-gcc) that support constructors.
-However, most of the RCU flavors supported by the userspace RCU library
+Although these calls can be hidden in environments (such as that of
+gcc) that support constructors,
+most of the RCU flavors supported by the userspace RCU library
 also require each thread invoke \co{rcu_register_thread()} upon thread
 creation and \co{rcu_unregister_thread()} before thread exit.
 
@@ -1361,11 +1385,11 @@ The Linux kernel uses
 \co{struct task_struct} pointers to track kthreads,
 \co{kthread_create} to create them,
 \co{kthread_should_stop()} to externally suggest that they stop
-(no real POSIX equivalent),
+(which has no POSIX equivalent),
 \co{kthread_stop()} to wait for them to stop, and
 \co{schedule_timeout_interruptible()} for a timed wait.
 There are quite a few additional kthread-management APIs, but this
-provides a good start (and good search terms).
+provides a good start, as well as good search terms.
 
 The CodeSamples API focuses on ``threads'', which are a locus of
 control.\footnote{
@@ -1670,6 +1694,9 @@ An atomic exchange operation is provided by \co{atomic_xchg()}, and
 the celebrated compare-and-swap (CAS) operation is provided by
 \co{atomic_cmpxchg()}.
 Both of these return the old value.
+Many additional atomic RMW primitives are available in the Linux kernel,
+see the \co{Documentation/atomic_ops.txt} file in the Linux-kernel
+source tree.
 
 This book's CodeSamples API closely follows that of the Linux kernel.
 
