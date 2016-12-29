@@ -67,7 +67,7 @@ void *lock_writer(void *arg)
 		exit(-1);
 	}
 	for (i = 0; i < 3; i++) {
-		READ_ONCE(x)++;
+		WRITE_ONCE(x, READ_ONCE(x) + 1);
 		poll(NULL, 0, 5);
 	}
 	if (pthread_mutex_unlock(pmlp) != 0) {
