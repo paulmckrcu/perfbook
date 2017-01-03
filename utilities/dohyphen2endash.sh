@@ -71,4 +71,16 @@ do
 		cp -f $tmpf $basename.tex
 	fi
 done
+bibfiles=`find bib -name '*.bib' -print`
+for i in $bibfiles
+do
+	basename="${i%.bib}"
+#	echo $basename.bib
+	sh ./utilities/bibhyphen2endash.sh $basename.bib > $tmpf
+	if ! diff -q $basename.bib $tmpf >/dev/null
+	then
+		echo "$basename.bib modified"
+		cp -f $tmpf $basename.bib
+	fi
+done
 rm -f $tmpf
