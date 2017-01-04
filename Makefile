@@ -60,7 +60,7 @@ else
 	targ = $(default)
 endif
 
-.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mss perfbook-mss.pdf mssmsg
+.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mss perfbook-mss.pdf mssmsg help
 all: $(targ)
 
 2c: perfbook.pdf
@@ -167,6 +167,25 @@ ifndef INKSCAPE
 	$(error "$< --> $@: inkscape not found. Please install it.")
 endif
 	@inkscape --export-pdf=$@ $<
+
+help:
+	@echo "Official targets:"
+	@echo "  Full,              Abbr."
+	@echo "  perfbook.pdf,      2c:   (defalut) 2-column layout"
+	@echo "  perfbook-1c.pdf,   1c:   1-column layout"
+	@echo "  perfbook-hb.pdf,   hb:   For hardcover books (2-column)"
+	@echo
+	@echo "Experimental targets:"
+	@echo "  Full,              Abbr."
+	@echo "  perfbook-msr.pdf,  msr:  2c with regular thickness courier clone"
+	@echo "  perfbook-msn.pdf,  msn:  2c with narrow courier clone"
+	@echo "  perfbook-mstx.pdf, mstx: 2c with txtt as monospace"
+	@echo "  perfbook-msnt.pdf, msnt: 2c with newtxtt as monospace (non-slashed 0)"
+	@echo "  perfbook-1csf.pdf, 1csf: 1c with sans serif font"
+	@echo "  perfbook-msns.pdf, msns: 2c with non-scaled courier"
+	@echo "  \"msr\" and \"msn\" require \"numbus15\"."
+	@echo "  \"msnt\" requires \"newtxtt\"."
+	@echo "  \"1csf\" requires recent version (>=1.3i) of \"mathastext\"."
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
