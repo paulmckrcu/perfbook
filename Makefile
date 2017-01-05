@@ -171,7 +171,7 @@ endif
 help:
 	@echo "Official targets:"
 	@echo "  Full,              Abbr."
-	@echo "  perfbook.pdf,      2c:   (defalut) 2-column layout"
+	@echo "  perfbook.pdf,      2c:   (default) 2-column layout"
 	@echo "  perfbook-1c.pdf,   1c:   1-column layout"
 	@echo "  perfbook-hb.pdf,   hb:   For hardcover books (2-column)"
 	@echo
@@ -183,7 +183,7 @@ help:
 	@echo "  perfbook-msnt.pdf, msnt: 2c with newtxtt as monospace (non-slashed 0)"
 	@echo "  perfbook-1csf.pdf, 1csf: 1c with sans serif font"
 	@echo "  perfbook-msns.pdf, msns: 2c with non-scaled courier"
-	@echo "  \"msr\" and \"msn\" require \"numbus15\"."
+	@echo "  \"msr\" and \"msn\" require \"nimbus15\"."
 	@echo "  \"msnt\" requires \"newtxtt\"."
 	@echo "  \"1csf\" requires recent version (>=1.3i) of \"mathastext\"."
 
