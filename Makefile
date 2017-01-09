@@ -92,7 +92,7 @@ perfbook_flat.tex: perfbook.tex $(LATEXSOURCES) $(PDFTARGETS_OF_EPS) $(PDFTARGET
 	texexpand perfbook.tex > $@
 
 qqz.tex: perfbook_flat.tex
-	sh utilities/extractqqz.sh < $< > $@
+	sh utilities/extractqqz.sh < $< | perl utilities/qqzreorder.pl > $@
 
 contrib.tex: perfbook_flat.tex qqz.tex
 	cat $^ | sh utilities/extractcontrib.sh > $@
