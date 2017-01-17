@@ -35,7 +35,7 @@ else
 	gitstatus=`git status --porcelain | wc -l`
 	if [ $gitstatus != "0" ]
 	then
-		modified=" (m)"
+		modified="(m)"
 	else
 		modified=""
 	fi
@@ -44,5 +44,5 @@ month=`date --date="$date_str" +%B`
 year=`date --date="$date_str" +%Y`
 day=`date --date="$date_str" +%e`
 
-echo "\\date{$month $day, $year$modified}"
-echo "\\\newcommand{\\\commityear}{$year}"
+env printf "\\date{%s %s, %s %s}\n" $month $day $year $modified
+env printf "\\\newcommand{\\\commityear}{%s}\n" $year
