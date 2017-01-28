@@ -6,6 +6,15 @@
 %%% Added DOI support.
 %%% Added PUBMED support.
 %%% Added hyperref support.
+%%%
+%%% Also modified by Akira Yokosawa <akiyks@gmail.com> for perfbook.
+%%% (marked with "% ay")
+%%% Brought date field of unpublished entry in front of note field.
+%%% (In perfbook, note field is mostly used for URL info.)
+%%% Added support of location field in inproceedings entry.
+%%% If "location" is available, it is used instead of "address".
+%%% Copyright (C) 2016, 2017 Akira Yokosawa.
+%%%
 %%% Original headers follow...
 
 % BibTeX standard bibliography style `alpha'
@@ -46,6 +55,7 @@ ENTRY
     pubmed % urlbst
     url % urlbst
     lastchecked % urlbst
+    location %ay
   }
   {}
   { label extra.label sort.label }
@@ -1022,19 +1032,28 @@ FUNCTION {inproceedings}
       format.bvolume output
       format.number.series output
       format.pages output
-      address empty$
-        { organization publisher new.sentence.checkb
-          organization output
-          publisher output
-          format.date "year" output.check
-        }
-        { address output.nonnull
-          format.date "year" output.check
-          new.sentence
-          organization output
-          publisher output
-        }
-      if$
+      location empty$        %ay
+        { address empty$     %ay
+          { organization publisher new.sentence.checkb
+            organization output
+            publisher output
+            format.date "year" output.check
+          }
+            { address output.nonnull
+              format.date "year" output.check
+              new.sentence
+              organization output
+              publisher output
+            }
+          if$
+        }                                 % ay
+        { location output.nonnull         % ay
+          format.date "year" output.check % ay
+          new.sentence                    % ay
+          organization output             % ay
+          publisher output                % ay
+        }                                 % ay
+      if$                                 % ay
     }
     { format.incoll.inproc.crossref output.nonnull
       format.pages output
@@ -1187,7 +1206,7 @@ FUNCTION {unpublished}
   new.block
   title empty$ 'skip$ 'possibly.setup.inlinelink if$ % urlbst
   format.title "title" output.check
-  format.date output
+  format.date output        % ay
   new.block
   note "note" output.check
   fin.entry
