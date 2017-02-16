@@ -1764,19 +1764,24 @@ shows how this can happen on
 an aggressively parallel machine with partitioned caches, so that
 alternating cache lines are processed by the different partitions
 of the caches.
-Assume that the list header {\tt head} will be processed by cache bank~0,
-and that the new element will be processed by cache bank~1.
-On Alpha, the \co{smp_wmb()} will guarantee that the cache invalidates performed
-by lines~6-8 of
-Figure~\ref{fig:app:whymb:Insert and Lock-Free Search} will reach
-the interconnect before that of line~10 does, but
-makes absolutely no guarantee about the order in which the new values will
-reach the reading CPU's core.
+For example, the load of \co{head.next} on line~17 of
+Figure~\ref{fig:app:whymb:Insert and Lock-Free Search}
+might access cache bank~0,
+and the load of \co{p->key} on line~20 and of \co{p->next} on line~23
+might access cache bank~1.
+On Alpha, the \co{smp_wmb()} will guarantee that the cache invalidations
+performed by lines~6-8 of
+Figure~\ref{fig:app:whymb:Insert and Lock-Free Search}
+(for \co{p->next}, \co{p->key}, and \co{p->data}) will reach
+the interconnect before that of line~10 (for \co{head.next}), but
+makes absolutely no guarantee about the order of
+propagation through the reading CPU's cache banks.
 For example, it is possible that the reading CPU's cache bank~1 is very
 busy, but cache bank~0 is idle.
-This could result in the cache invalidates for the new element being
-delayed, so that the reading CPU gets the new value for the pointer,
-but sees the old cached values for the new element.
+This could result in the cache invalidations for the new element
+(\co{p->next}, \co{p->key}, and \co{p->data}) being
+delayed, so that the reading CPU loads the new value for \co{head.next},
+but loads the old cached values for \co{p->key} and \co{p->next}.
 See the documentation~\cite{Compaq01} called out earlier for more information,
 or, again, if you think that I am just making all this up.\footnote{
 	Of course, the astute reader will have already recognized that
