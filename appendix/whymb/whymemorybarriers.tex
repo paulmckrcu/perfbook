@@ -1494,14 +1494,38 @@ Therefore, CPU~2's assertion on line~9 is guaranteed \emph{not} to fire.
 	Table~\ref{tab:app:whymb:Memory Barrier Example 3}
 	are in an interrupt
 	handler, and that the CPU~2's line~9 runs at process level.
+	In other words, the code in all three columns of the table
+	runs on the same CPU, but the first two columns run in an
+	interrupt handler, and the third column runs at process
+	level, so that the code in third column can be interrupted
+	by the code in the first two columns.
 	What changes, if any, are required to enable the code to work
 	correctly, in other words, to prevent the assertion from firing?
 \QuickQuizAnswer{
-	The assertion must be written to ensure that the load of
+	The assertion must ensure that the load of
 	``e'' precedes that of ``a''.
 	In the Linux kernel, the barrier() primitive may be used to accomplish
 	this in much the same way that the memory barrier was used in the
-	assertions in the previous examples.
+	assertions in the previous examples, for example, as follows:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+while (b == 0) ;
+smp_mb();
+d = 1;
+r1 = e;
+barrier();
+assert(r1 == 0 || a == 1);
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	No changes are needed to the code in the first two columns,
+	because interrupt handlers run atomically from the perspective
+	of the interrupted code.
+
 } \QuickQuizEnd
 
 \QuickQuiz{}
