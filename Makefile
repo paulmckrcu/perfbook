@@ -9,7 +9,7 @@ LATEXSOURCES = \
 
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
 
-ABBREVTARGETS := 1c hb msns mstx msr msn msnt 1csf
+ABBREVTARGETS := 1c hb msns mstx msr msn msnt mslm 1csf
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
@@ -124,9 +124,13 @@ perfbook-msnt.tex: perfbook.tex
 	sed -e 's/\[scaled=\.94\]{couriers}/[zerostyle=a]{newtxtt}/' < $< > $@
 	@echo "## This target requires font package newtxtt. ##"
 
+perfbook-mslm.tex: perfbook.tex
+	sed -e 's/%\\usepackage{lmodern}/\\usepackage{lmodern}/' \
+	    -e 's/\\usepackage\[scaled=\.94\]{couriers}/%\\usepackage[scaled=.94]{couriers}/' < $< > $@
+
 perfbook-1csf.tex: perfbook-1c.tex
 	sed -e 's/setboolean{sansserif}{false}/setboolean{sansserif}{true}/' \
-	    -e 's/\[scaled=\.94\]{couriers}/[var0]{inconsolata}/' < $< > $@
+	    -e 's/\[scaled=\.94\]{couriers}/[var0]{inconsolata}[2013\/07\/17]/' < $< > $@
 	@echo "## This target requires recent version (>= 1.3i) of mathastext. ##"
 
 # Rules related to perfbook_html are removed as of May, 2016
@@ -181,9 +185,12 @@ help:
 	@echo "  perfbook-msn.pdf,  msn:  2c with narrow courier clone"
 	@echo "  perfbook-mstx.pdf, mstx: 2c with txtt as monospace"
 	@echo "  perfbook-msnt.pdf, msnt: 2c with newtxtt as monospace (non-slashed 0)"
+	@echo "  perfbook-mslm.pdf, mslm: 2c with lmtt (Latin Modern Typewriter) as monospace"
+	@echo "       (Latin Modern is a clone of Computer Modern with additional type faces)"
 	@echo "  perfbook-1csf.pdf, 1csf: 1c with sans serif font"
 	@echo "  perfbook-msns.pdf, msns: 2c with non-scaled courier"
 	@echo "  \"msr\" and \"msn\" require \"nimbus15\"."
+	@echo "  \"msn\" doesn't cover bold face for monospace."
 	@echo "  \"msnt\" requires \"newtxtt\"."
 	@echo "  \"1csf\" requires recent version (>=1.3i) of \"mathastext\"."
 
