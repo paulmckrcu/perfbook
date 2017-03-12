@@ -50,7 +50,7 @@ iterate_latex () {
 	then
 		mv -f $basename-warning.log $basename-warning-prev.log
 	fi
-	grep 'LaTex Warning:' $basename.log > $basename-warning.log
+	grep 'LaTeX Warning:' $basename.log > $basename-warning.log
 	return 0 ;
 }
 

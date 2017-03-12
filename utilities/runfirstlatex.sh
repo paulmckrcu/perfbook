@@ -46,6 +46,6 @@ then
 	echo "----- Fatal latex error, see $basename.log for details. -----"
 	exit 1
 fi
-grep 'Latex Warning:' $basename.log > $basename-warning.log
+grep 'LaTeX Warning:' $basename.log > $basename-warning.log
 touch $basename-first.log
 exit 0
