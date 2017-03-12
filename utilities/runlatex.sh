@@ -23,10 +23,36 @@
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
 # Copyright (C) IBM Corporation, 2012
-# Copyright (C) Akira Yokosawa, 2016
+# Copyright (C) Akira Yokosawa, 2016, 2017
 #
 # Authors: Paul E. McKenney <paulmck@us.ibm.com>
 #          Akira Yokosawa <akiyks@gmail.com>
+
+diff_warning () {
+	if diff -q $basename-warning.log $basename-warning-prev.log >/dev/null
+	then
+		echo "No more improvement is expected, giving up."
+		return 0 ;
+	else
+#		echo "Some improvements are observed, continuing."
+		return 1 ;
+	fi
+}
+
+iterate_latex () {
+	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
+	if grep -q '! Emergency stop.' $basename.log
+	then
+		echo "----- Fatal latex error, see $basename.log for details. -----"
+		exit 1
+	fi
+	if test -r $basename-warning.log
+	then
+		mv -f $basename-warning.log $basename-warning-prev.log
+	fi
+	grep 'LaTex Warning:' $basename.log > $basename-warning.log
+	return 0 ;
+}
 
 if test -z "$1"
 then
@@ -43,75 +69,37 @@ then
 		exit 1
 	fi
 	echo "pdflatex 1 for $basename.pdf"
-	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
-	if grep -q '! Emergency stop.' $basename.log
-	then
-		echo "----- Fatal latex error, see $basename.log for details. -----"
-		exit 1
-	fi
-	grep 'LaTex Warning:' $basename.log > $basename-warning.log
+	iterate_latex
 fi
 rm -f $basename-first.log
 iter=2
 echo "pdflatex 2 for $basename.pdf # for possible bib update"
-pdflatex $basename > /dev/null 2>&1 < /dev/null || :
-if grep -q '! Emergency stop.' $basename.log
-then
-    echo "----- Fatal latex error, see $basename.log for details. -----"
-    exit 1
-fi
-grep 'LaTex Warning:' $basename.log > $basename-warning.log
+iterate_latex
 while grep -q 'LaTeX Warning: There were undefined references' $basename.log
 do
 	if test -r $basename-warning-prev.log
 	then
-		if test "$iter" -gt 2 && diff -q $basename-warning.log $basename-warning-prev.log >/dev/null
+		if test "$iter" -gt 2 && diff_warning
 		then
-			echo "No more improvement is expected, giving up."
 			break
-#		else
-#			echo "Some improvements are observed, continuing."
 		fi
 	fi
 	iter=`expr $iter + 1`
 	echo "pdflatex $iter for $basename.pdf # remaining undefined refs"
-	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
-	if grep -q '! Emergency stop.' $basename.log
-	then
-		echo "----- Fatal latex error, see $basename.log for details. -----"
-		exit 1
-	fi
-	if test -r $basename-warning.log
-	then
-		mv -f $basename-warning.log $basename-warning-prev.log
-	fi
-	grep 'LaTex Warning:' $basename.log > $basename-warning.log
+	iterate_latex
 done
 while grep -q 'LaTeX Warning: Label(s) may have changed' $basename.log
 do
-	if test -r $basename-warning-prev.log;
+	if test -r $basename-warning-prev.log
 	then
-		if test "$iter" -gt 3 && diff -q $basename-warning.log $basename-warning-prev.log >/dev/null
+		if test "$iter" -gt 3 && diff_warning
 		then
-			echo "No more improvement is expected, giving up."
 			break
-#		else
-#			echo "Some improvements are observed, continuing."
 		fi
 	fi
 	iter=`expr $iter + 1`
 	echo "pdflatex $iter for $basename.pdf # label(s) may have been changed"
-	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
-	if grep -q '! Emergency stop.' $basename.log
-	then
-		echo "----- Fatal latex error, see $basename.log for details. -----"
-		exit 1
-	fi
-	if test -r $basename-warning.log
-	then
-		mv -f $basename-warning.log $basename-warning-prev.log
-	fi
-	grep 'LaTex Warning:' $basename.log > $basename-warning.log
+	iterate_latex
 done
 if grep "LaTeX Warning:" $basename.log
 then
