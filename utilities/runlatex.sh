@@ -43,6 +43,7 @@ iterate_latex () {
 	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
 	if grep -q '! Emergency stop.' $basename.log
 	then
+		grep -B 15 -A 5 '! Emergency stop.' $basename.log
 		echo "----- Fatal latex error, see $basename.log for details. -----"
 		exit 1
 	fi
@@ -98,11 +99,13 @@ do
 		fi
 	fi
 	iter=`expr $iter + 1`
-	echo "pdflatex $iter for $basename.pdf # label(s) may have been changed"
+	echo "pdflatex $iter for $basename.pdf # label(s) may have changed"
 	iterate_latex
 done
-if grep "LaTeX Warning:" $basename.log
+if grep -q "LaTeX Warning:" $basename.log
 then
+	echo "----- Excerpt around remaining warning messages -----"
+	grep -B 8 -A 5 "LaTeX Warning:" $basename.log | tee $basename-warning.log
 	echo "----- You can see $basename-warning.log for the warnings above. -----"
 	echo "----- If you need to, see $basename.log for details. -----"
 	rm -f $basename-warning-prev.log
