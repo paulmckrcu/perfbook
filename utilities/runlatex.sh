@@ -39,6 +39,17 @@ diff_warning () {
 	fi
 }
 
+identical_warnings () {
+	if test -r $basename-warning-prev.log
+	then
+		if test "$iter" -gt "$min_iter" && diff_warning
+		then
+			return 0 ;
+		fi
+	fi
+	return 1 ;
+}
+
 iterate_latex () {
 	pdflatex $basename > /dev/null 2>&1 < /dev/null || :
 	if grep -q '! Emergency stop.' $basename.log
@@ -76,27 +87,23 @@ rm -f $basename-first.log
 iter=2
 echo "pdflatex 2 for $basename.pdf # for possible bib update"
 iterate_latex
+min_iter=2
 while grep -q 'LaTeX Warning: There were undefined references' $basename.log
 do
-	if test -r $basename-warning-prev.log
+	if identical_warnings
 	then
-		if test "$iter" -gt 2 && diff_warning
-		then
-			break
-		fi
+		break
 	fi
 	iter=`expr $iter + 1`
 	echo "pdflatex $iter for $basename.pdf # remaining undefined refs"
 	iterate_latex
 done
+min_iter=3
 while grep -q 'LaTeX Warning: Label(s) may have changed' $basename.log
 do
-	if test -r $basename-warning-prev.log
+	if identical_warnings
 	then
-		if test "$iter" -gt 3 && diff_warning
-		then
-			break
-		fi
+		break
 	fi
 	iter=`expr $iter + 1`
 	echo "pdflatex $iter for $basename.pdf # label(s) may have changed"
