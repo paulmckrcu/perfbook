@@ -110,7 +110,8 @@ perfbook-msns.tex: perfbook.tex
 	sed -e 's/\[scaled=\.94\]{couriers}/{courier}/' < $< > $@
 
 perfbook-mstx.tex: perfbook.tex
-	sed -e 's/usepackage\[scaled=\.94\]{couriers}/renewcommand*\\ttdefault{txtt}/' < $< > $@
+	sed -e 's/usepackage\[scaled=\.94\]{couriers}/renewcommand*\\ttdefault{txtt}/' \
+	    -e 's/setboolean{cmttforcode}{false}/setboolean{cmttforcode}{true}/' < $< > $@
 
 perfbook-msr.tex: perfbook.tex
 	sed -e 's/\[scaled=\.94\]{couriers}/[scaled=.94]{nimbusmono}/' < $< > $@
@@ -121,8 +122,10 @@ perfbook-msn.tex: perfbook.tex
 	@echo "## This target requires font package nimbus15. ##"
 
 perfbook-msnt.tex: perfbook.tex
-	sed -e 's/\[scaled=\.94\]{couriers}/[zerostyle=a]{newtxtt}/' < $< > $@
+	sed -e 's/\[scaled=\.94\]{couriers}/[zerostyle=a]{newtxtt}/' \
+	    -e 's/setboolean{cmttforcode}{false}/setboolean{cmttforcode}{true}/' < $< > $@
 	@echo "## This target requires font package newtxtt. ##"
+	@echo "## If build fails, try target 'mstx' instead. ##"
 
 perfbook-mslm.tex: perfbook.tex
 	sed -e 's/%\\usepackage{lmodern}/\\usepackage{lmodern}/' \
@@ -181,17 +184,19 @@ help:
 	@echo
 	@echo "Experimental targets:"
 	@echo "  Full,              Abbr."
-	@echo "  perfbook-msr.pdf,  msr:  2c with regular thickness courier clone"
-	@echo "  perfbook-msn.pdf,  msn:  2c with narrow courier clone"
-	@echo "  perfbook-mstx.pdf, mstx: 2c with txtt as monospace"
 	@echo "  perfbook-msnt.pdf, msnt: 2c with newtxtt as monospace (non-slashed 0)"
+	@echo "  perfbook-mstx.pdf, mstx: 2c with txtt as monospace"
 	@echo "  perfbook-mslm.pdf, mslm: 2c with lmtt (Latin Modern Typewriter) as monospace"
 	@echo "       (Latin Modern is a clone of Computer Modern with additional type faces)"
+	@echo "  perfbook-msr.pdf,  msr:  2c with regular thickness courier clone"
+	@echo "  perfbook-msn.pdf,  msn:  2c with narrow courier clone"
+
 	@echo "  perfbook-1csf.pdf, 1csf: 1c with sans serif font"
 	@echo "  perfbook-msns.pdf, msns: 2c with non-scaled courier"
+	@echo "  \"msnt\" requires \"newtxtt\". \"mstx\" is fallback target for older TeX env."
+	@echo "  \"msnt\" and \"mstx\" use \"cmtt\" font for code snippet."
 	@echo "  \"msr\" and \"msn\" require \"nimbus15\"."
 	@echo "  \"msn\" doesn't cover bold face for monospace."
-	@echo "  \"msnt\" requires \"newtxtt\"."
 	@echo "  \"1csf\" requires recent version (>=1.3i) of \"mathastext\"."
 
 clean:
