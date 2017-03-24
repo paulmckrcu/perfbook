@@ -9,7 +9,7 @@ LATEXSOURCES = \
 
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
 
-ABBREVTARGETS := 1c hb msns mstx msr msn msnt mslm 1csf
+ABBREVTARGETS := 1c hb msns mss mstx msr msn msnt 1csf
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
@@ -60,17 +60,17 @@ else
 	targ = $(default)
 endif
 
-.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mss perfbook-mss.pdf mssmsg help
+.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mslm perfbook-mslm.pdf mslmmsg help
 all: $(targ)
 
 2c: perfbook.pdf
 
-mss: perfbook-mss.pdf
+mslm: perfbook-mslm.pdf
 
-perfbook-mss.pdf: perfbook.pdf mssmsg
+perfbook-mslm.pdf: perfbook.pdf mslmmsg
 
-mssmsg:
-	@echo "perfbook-mss.pdf is promoted to default target,"
+mslmmsg:
+	@echo "perfbook-mslm.pdf is promoted to default target,"
 	@echo "built as perfbook.pdf."
 
 $(PDFTARGETS): %.pdf: %.tex %.bbl
@@ -107,33 +107,32 @@ perfbook-hb.tex: perfbook.tex
 	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < $< > $@
 
 perfbook-msns.tex: perfbook.tex
-	sed -e 's/\[scaled=\.94\]{couriers}/{courier}/' < $< > $@
+	sed -e 's/%msfontstub/\\usepackage{courier}/' \
+	    -e 's/{lmttforcode}{true}/{lmttforcode}{false}/' < $< > $@
+
+perfbook-mss.tex: perfbook.tex
+	sed -e 's/%msfontstub/\\usepackage[scaled=.94]{couriers}/' \
+	    -e 's/{lmttforcode}{true}/{lmttforcode}{false}/' < $< > $@
 
 perfbook-mstx.tex: perfbook.tex
-	sed -e 's/usepackage\[scaled=\.94\]{couriers}/renewcommand*\\ttdefault{txtt}/' \
-	    -e 's/setboolean{cmttforcode}{false}/setboolean{cmttforcode}{true}/' < $< > $@
+	sed -e 's/%msfontstub/\\renewcommand*\\ttdefault{txtt}/' < $< > $@
 
 perfbook-msr.tex: perfbook.tex
-	sed -e 's/\[scaled=\.94\]{couriers}/[scaled=.94]{nimbusmono}/' < $< > $@
+	sed -e 's/%msfontstub/\\usepackage[scaled=.94]{nimbusmono}/' < $< > $@
 	@echo "## This target requires font package nimbus15. ##"
 
 perfbook-msn.tex: perfbook.tex
-	sed -e 's/\[scaled=\.94\]{couriers}/{nimbusmononarrow}/' < $< > $@
+	sed -e 's/%msfontstub/\\usepackage{nimbusmononarrow}/' < $< > $@
 	@echo "## This target requires font package nimbus15. ##"
 
 perfbook-msnt.tex: perfbook.tex
-	sed -e 's/\[scaled=\.94\]{couriers}/[zerostyle=a]{newtxtt}/' \
-	    -e 's/setboolean{cmttforcode}{false}/setboolean{cmttforcode}{true}/' < $< > $@
+	sed -e 's/%msfontstub/\\usepackage[zerostyle=a]{newtxtt}/' < $< > $@
 	@echo "## This target requires font package newtxtt. ##"
 	@echo "## If build fails, try target 'mstx' instead. ##"
 
-perfbook-mslm.tex: perfbook.tex
-	sed -e 's/%\\usepackage{lmodern}/\\usepackage{lmodern}/' \
-	    -e 's/\\usepackage\[scaled=\.94\]{couriers}/%\\usepackage[scaled=.94]{couriers}/' < $< > $@
-
 perfbook-1csf.tex: perfbook-1c.tex
 	sed -e 's/setboolean{sansserif}{false}/setboolean{sansserif}{true}/' \
-	    -e 's/\[scaled=\.94\]{couriers}/[var0]{inconsolata}[2013\/07\/17]/' < $< > $@
+	    -e 's/%msfontstub/\\usepackage[var0]{inconsolata}[2013\/07\/17]/' < $< > $@
 	@echo "## This target requires recent version (>= 1.3i) of mathastext. ##"
 
 # Rules related to perfbook_html are removed as of May, 2016
@@ -176,7 +175,7 @@ endif
 	@inkscape --export-pdf=$@ $<
 
 help:
-	@echo "Official targets:"
+	@echo "Official targets (Latin Modern Typewriter for monospace font):"
 	@echo "  Full,              Abbr."
 	@echo "  perfbook.pdf,      2c:   (default) 2-column layout"
 	@echo "  perfbook-1c.pdf,   1c:   1-column layout"
@@ -186,18 +185,19 @@ help:
 	@echo "  Full,              Abbr."
 	@echo "  perfbook-msnt.pdf, msnt: 2c with newtxtt as monospace (non-slashed 0)"
 	@echo "  perfbook-mstx.pdf, mstx: 2c with txtt as monospace"
-	@echo "  perfbook-mslm.pdf, mslm: 2c with lmtt (Latin Modern Typewriter) as monospace"
-	@echo "       (Latin Modern is a clone of Computer Modern with additional type faces)"
 	@echo "  perfbook-msr.pdf,  msr:  2c with regular thickness courier clone"
 	@echo "  perfbook-msn.pdf,  msn:  2c with narrow courier clone"
 
 	@echo "  perfbook-1csf.pdf, 1csf: 1c with sans serif font"
-	@echo "  perfbook-msns.pdf, msns: 2c with non-scaled courier"
+	@echo "  perfbook-msns.pdf, msns: 2c with non-scaled courier (orig default)"
+	@echo "  perfbook-mss.pdf,  mss:  2c with scaled courier (prev default)"
 	@echo "  \"msnt\" requires \"newtxtt\". \"mstx\" is fallback target for older TeX env."
-	@echo "  \"msnt\" and \"mstx\" use \"cmtt\" font for code snippet."
 	@echo "  \"msr\" and \"msn\" require \"nimbus15\"."
 	@echo "  \"msn\" doesn't cover bold face for monospace."
 	@echo "  \"1csf\" requires recent version (>=1.3i) of \"mathastext\"."
+	@echo
+	@echo "All targets except for \"msns\" and \"mss\" use \"Latin Modern Typewriter font"
+	@echo "for code snippets."
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
