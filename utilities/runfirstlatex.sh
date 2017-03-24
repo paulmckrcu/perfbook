@@ -47,6 +47,12 @@ then
 	echo "----- Fatal latex error, see $basename.log for details. -----"
 	exit 1
 fi
+if grep -q '!pdfTeX error:' $basename.log
+then
+	grep -A 2 '!pdfTeX error:' $basename.log
+	echo "----- Fatal latex error, see $basename.log for details. -----"
+	exit 1
+fi
 grep 'LaTeX Warning:' $basename.log > $basename-warning.log
 touch $basename-first.log
 exit 0

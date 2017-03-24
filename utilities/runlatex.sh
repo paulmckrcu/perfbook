@@ -58,6 +58,12 @@ iterate_latex () {
 		echo "----- Fatal latex error, see $basename.log for details. -----"
 		exit 1
 	fi
+	if grep -q '!pdfTeX error:' $basename.log
+	then
+		grep -A 2 '!pdfTeX error:' $basename.log
+		echo "----- Fatal latex error, see $basename.log for details. -----"
+		exit 1
+	fi
 	if test -r $basename-warning.log
 	then
 		mv -f $basename-warning.log $basename-warning-prev.log
