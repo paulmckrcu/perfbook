@@ -2767,10 +2767,10 @@ These implicit memory barriers provide the following guarantees:
 
 \subsubsection{Locking Examples}
 
-\paragraph{LOCK Followed by UNLOCK:}
-A LOCK followed by an UNLOCK may not be assumed to be a full memory barrier
-because it is possible for an access preceding the LOCK to happen after the
-LOCK, and an access following the UNLOCK to happen before the UNLOCK, and the
+\paragraph{ACQUIRE Followed by RELEASE:}
+An ACQUIRE followed by a RELEASE may not be assumed to be a full memory barrier
+because it is possible for an access preceding the ACQUIRE to happen after the
+ACQUIRE, and an access following the RELEASE to happen before the RELEASE, and the
 two accesses can themselves then cross.
 For example, the following:
 
@@ -2779,8 +2779,8 @@ For example, the following:
 \scriptsize
 \begin{verbatim}
   1 *A = a;
-  2 LOCK
-  3 UNLOCK
+  2 ACQUIRE
+  3 RELEASE
   4 *B = b;
 \end{verbatim}
 \end{minipage}
@@ -2792,24 +2792,24 @@ might well execute in the following order:
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-  2 LOCK
+  2 ACQUIRE
   4 *B = b;
   1 *A = a;
-  3 UNLOCK
+  3 RELEASE
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
 
-Again, always remember that LOCK and UNLOCK are permitted to let preceding
+Again, always remember that ACQUIRE and RELEASE are permitted to let preceding
 operations and following operations ``bleed in'' to the critical section
 respectively.
 
 \QuickQuiz{}
-	What sequence of LOCK-UNLOCK operations \emph{would}
+	What sequence of ACQUIRE-RELEASE operations \emph{would}
 	act as a full memory barrier?
 \QuickQuizAnswer{
-	A series of two back-to-back LOCK-UNLOCK operations, or, somewhat
-	less conventionally, an UNLOCK operation followed by a LOCK
+	A series of two back-to-back ACQUIRE-RELEASE operations, or, somewhat
+	less conventionally, a RELEASE operation followed by an ACQUIRE
 	operation.
 } \QuickQuizEnd
 
@@ -2823,8 +2823,8 @@ respectively.
 	exercise for the reader.
 } \QuickQuizEnd
 
-\paragraph{LOCK-Based Critical Sections:}
-Although a LOCK-UNLOCK pair does not act as a full memory barrier,
+\paragraph{Lock-Based Critical Sections:}
+Although an ACQUIRE-RELEASE pair does not act as a full memory barrier,
 these operations \emph{do} affect memory ordering.
 
 Consider the following code:
@@ -2835,10 +2835,10 @@ Consider the following code:
 \begin{verbatim}
   1 *A = a;
   2 *B = b;
-  3 LOCK
+  3 ACQUIRE
   4 *C = c;
   5 *D = d;
-  6 UNLOCK
+  6 RELEASE
   7 *E = e;
   8 *F = f;
 \end{verbatim}
@@ -2853,12 +2853,12 @@ operations concurrently:
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-  3 LOCK
+  3 ACQUIRE
   1 *A = a; *F = f;
   7 *E = e;
   4 *C = c; *D = d;
   2 *B = b;
-  6 UNLOCK
+  6 RELEASE
 \end{verbatim}
 \end{minipage}
 \vspace{5pt}
@@ -2869,23 +2869,23 @@ operations concurrently:
   \# & Ordering: legitimate or not? \\
   \hline
   \hline
-  1 & \verb|*A; *B; LOCK; *C; *D; UNLOCK; *E; *F;| \\
+  1 & \verb|*A; *B; ACQUIRE; *C; *D; RELEASE; *E; *F;| \\
   \hline
-  2 & \verb|*A; {*B; LOCK;} *C; *D; UNLOCK; *E; *F;| \\
+  2 & \verb|*A; {*B; ACQUIRE;} *C; *D; RELEASE; *E; *F;| \\
   \hline
-  3 & \verb|{*F; *A;} *B; LOCK; *C; *D; UNLOCK; *E;| \\
+  3 & \verb|{*F; *A;} *B; ACQUIRE; *C; *D; RELEASE; *E;| \\
   \hline
-  4 & \verb|*A; *B; {LOCK; *C;} *D; {UNLOCK; *E;} *F;| \\
+  4 & \verb|*A; *B; {ACQUIRE; *C;} *D; {RELEASE; *E;} *F;| \\
   \hline
-  5 & \verb|*B; LOCK; *C; *D; *A; UNLOCK; *E; *F;| \\
+  5 & \verb|*B; ACQUIRE; *C; *D; *A; RELEASE; *E; *F;| \\
   \hline
-  6 & \verb|*A; *B; *C; LOCK; *D; UNLOCK; *E; *F;| \\
+  6 & \verb|*A; *B; *C; ACQUIRE; *D; RELEASE; *E; *F;| \\
   \hline
-  7 & \verb|*A; *B; LOCK; *C; UNLOCK; *D; *E; *F;| \\
+  7 & \verb|*A; *B; ACQUIRE; *C; RELEASE; *D; *E; *F;| \\
   \hline
-  8 & \verb|{*B; *A; LOCK;} {*D; *C;} {UNLOCK; *F; *E;}| \\
+  8 & \verb|{*B; *A; ACQUIRE;} {*D; *C;} {RELEASE; *F; *E;}| \\
   \hline
-  9 & \verb|*B; LOCK; *C; *D; UNLOCK; {*F; *A;} *E;| \\
+  9 & \verb|*B; ACQUIRE; *C; *D; RELEASE; {*F; *A;} *E;| \\
 \end{tabular}
 \caption{Lock-Based Critical Sections}
 \label{tab:advsync:Lock-Based Critical Sections}
@@ -2896,26 +2896,26 @@ operations concurrently:
 	concurrently, which of the rows of
 	Table~\ref{tab:advsync:Lock-Based Critical Sections}
 	are legitimate reorderings of the assignments to variables
-	``A'' through ``F'' and the LOCK/UNLOCK operations?
-	(The order in the code is A, B, LOCK, C, D, UNLOCK, E, F.)
+	``A'' through ``F'' and the ACQUIRE/RELEASE operations?
+	(The order in the code is {\tt *A, *B, ACQUIRE, *C, *D, RELEASE, *E, *F}.)
 	Why or why not?
 \QuickQuizAnswer{
 	\begin{enumerate}
 	\item	Legitimate, executed in order.
 	\item	Legitimate, the lock acquisition was executed concurrently
 		with the last assignment preceding the critical section.
-	\item	Illegitimate, the assignment to ``F'' must follow the LOCK
+	\item	Illegitimate, the assignment to ``F'' must follow the ACQUIRE
 		operation.
-	\item	Illegitimate, the LOCK must complete before any operation in
-		the critical section.  However, the UNLOCK may legitimately
+	\item	Illegitimate, the ACQUIRE must complete before any operation in
+		the critical section.  However, the RELEASE may legitimately
 		be executed concurrently with subsequent operations.
-	\item	Legitimate, the assignment to ``A'' precedes the UNLOCK,
+	\item	Legitimate, the assignment to ``A'' precedes the RELEASE,
 		as required, and all other operations are in order.
-	\item	Illegitimate, the assignment to ``C'' must follow the LOCK.
-	\item	Illegitimate, the assignment to ``D'' must precede the UNLOCK.
+	\item	Illegitimate, the assignment to ``C'' must follow the ACQUIRE.
+	\item	Illegitimate, the assignment to ``D'' must precede the RELEASE.
 	\item	Legitimate, all assignments are ordered with respect to the
-		LOCK and UNLOCK operations.
-	\item	Illegitimate, the assignment to ``A'' must precede the UNLOCK.
+		ACQUIRE and RELEASE operations.
+	\item	Illegitimate, the assignment to ``A'' must precede the RELEASE.
 	\end{enumerate}
 } \QuickQuizEnd
 
@@ -2932,10 +2932,10 @@ a pair of locks named ``M'' and ``Q''.
   \nf{CPU 1} &	\nf{CPU 2} \\
   \hline
   A = a; &	E = e; \\
-  LOCK M; &	LOCK Q; \\
+  ACQUIRE M; &	ACQUIRE Q; \\
   B = b; &	F = f; \\
   C = c; &	G = g; \\
-  UNLOCK M; &	UNLOCK Q; \\
+  RELEASE M; &	RELEASE Q; \\
   D = d; &	H = h; \\
 \end{tabular}}
 \caption{Ordering With Multiple Locks}
@@ -2953,10 +2953,10 @@ described in the previous section.
 \QuickQuizAnswer{
 	All CPUs must see the following ordering constraints:
 	\begin{enumerate}
-	\item	LOCK M precedes B, C, and D.
-	\item	UNLOCK M follows A, B, and C.
-	\item	LOCK Q precedes F, G, and H.
-	\item	UNLOCK Q follows E, F, and G.
+	\item	ACQUIRE M precedes B, C, and D.
+	\item	RELEASE M follows A, B, and C.
+	\item	ACQUIRE Q precedes F, G, and H.
+	\item	RELEASE Q follows E, F, and G.
 	\end{enumerate}
 } \QuickQuizEnd
 
@@ -2972,10 +2972,10 @@ Table~\ref{tab:advsync:Ordering With Multiple CPUs on One Lock}?
   \nf{CPU 1} &	\nf{CPU 2} \\
   \hline
   A = a; &	E = e; \\
-  LOCK M; &	LOCK M; \\
+  ACQUIRE M; &	ACQUIRE M; \\
   B = b; &	F = f; \\
   C = c; &	G = g; \\
-  UNLOCK M; &	UNLOCK M; \\
+  RELEASE M; &	RELEASE M; \\
   D = d; &	H = h; \\
 \end{tabular}}
 \caption{Ordering With Multiple CPUs on One Lock}
