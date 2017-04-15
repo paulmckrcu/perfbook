@@ -520,11 +520,11 @@ on this weaker if-then conditional ordering guarantee.
 \tt
 \scriptsize
 \begin{tabular}{l|l}
-	\nf{CPU 1} &		\nf{CPU 2} \\
+	\nf{CPU 1}	& \nf{CPU 2} \\
 	\hline
-	access(A);	&	access(B); \\
-	\tco{smp_mb();}	&	\tco{smp_mb();} \\
-	access(B);	&	access(A); \\
+	<access> A	& <access> B \\
+	<memory barrier>& <memory barrier> \\
+	<access> B	& <access> A \\
 \end{tabular}
 \end{minipage}
 \vspace{5pt}
@@ -615,11 +615,11 @@ pairings that portable software may depend on.
 	\tt
 	\scriptsize
 	\begin{tabular}{l|l}
-		\nf{CPU 1} &		\nf{CPU 2} \\
+		\nf{CPU 1}	& \nf{CPU 2} \\
 		\hline
-		A=1;		&	Y=B; \\
-		\tco{smp_mb();}	&	\tco{smp_mb();} \\
-		B=1;		&	X=A; \\
+		STORE A = 1	& Y = LOAD B \\
+		<memory barrier>& <memory barrier> \\
+		STORE B = 1	& X = LOAD A \\
 	\end{tabular}
 	\end{minipage}
 	\vspace{5pt}
@@ -647,11 +647,11 @@ pairings that portable software may depend on.
 	\tt
 	\scriptsize
 	\begin{tabular}{l|l}
-		\nf{CPU 1} &		\nf{CPU 2} \\
+		\nf{CPU 1}	& \nf{CPU 2} \\
 		\hline
-		X=A;            &	Y=B; \\
-		\tco{smp_mb();}	&	\tco{smp_mb();} \\
-		B=1;            &	A=1; \\
+		X = LOAD A	& Y = LOAD B \\
+		<memory barrier>& <memory barrier> \\
+		STORE B = 1	& STORE A = 1 \\
 	\end{tabular}
 	\end{minipage}
 	\vspace{5pt}
@@ -684,11 +684,11 @@ pairings that portable software may depend on.
 	\tt
 	\scriptsize
 	\begin{tabular}{l|l}
-		\nf{CPU 1} &		\nf{CPU 2} \\
+		\nf{CPU 1}	& \nf{CPU 2} \\
 		\hline
-		X=A;		&	B=2; \\
-		\tco{smp_mb();}	&	\tco{smp_mb();} \\
-		B=1;		&	A=1; \\
+		X = LOAD A	& STORE B = 2 \\
+		<memory barrier>& <memory barrier> \\
+		STORE B = 1	& STORE A = 1 \\
 	\end{tabular}
 	\end{minipage}
 	\vspace{5pt}
@@ -735,9 +735,19 @@ keep in mind that they used to be a \emph{lot} harder on some systems!
 \QuickQuizAnswer{
 	The scenario is as follows, with~A and~B both initially zero:
 
-	CPU~0: A=1; \co{smp_mb()}; r1=B;
-
-	CPU~1: B=1; \co{smp_mb()}; r2=A;
+	\vspace{5pt}
+	\begin{minipage}[t]{\columnwidth}
+	\tt
+	\scriptsize
+	\begin{tabular}{l|l}
+		\nf{CPU 0}	& \nf{CPU 1} \\
+		\hline
+		STORE A = 1	& STORE B = 1 \\
+		<memory barrier>& <memory barrier> \\
+		r1 = LOAD B	& r2 = LOAD A \\
+	\end{tabular}
+	\end{minipage}
+	\vspace{5pt}
 
 	If neither of the loads see the corresponding store, when both
 	CPUs finish, both \co{r1} and \co{r2} will be equal to zero.
@@ -765,11 +775,11 @@ keep in mind that they used to be a \emph{lot} harder on some systems!
 	\tt
 	\scriptsize
 	\begin{tabular}{l|l}
-		\nf{CPU 1} &		\nf{CPU 2} \\
+		\nf{CPU 1}	& \nf{CPU 2} \\
 		\hline
-		A=1;		&	B=2; \\
-		\tco{smp_mb();}	&	\tco{smp_mb();} \\
-		B=1;		&	A=2; \\
+		STORE A = 1	& STORE B = 2 \\
+		<memory barrier>& <memory barrier> \\
+		STORE B = 1	& STORE A = 2 \\
 	\end{tabular}
 	\end{minipage}
 	\vspace{5pt}
