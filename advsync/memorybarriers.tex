@@ -2211,14 +2211,14 @@ write barrier, though, again, a general barrier is viable:
 \tt
 \scriptsize
 \begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1} &	\nf{CPU 2} \\
+	\nf{CPU 1}	& \nf{CPU 2} \\
 	\hline
-	A = 1; & \\
-	<write barrier> & \\
-	B = 2;	&	\\
-		&	X = B; \\
-		&	<read barrier> \\
-		&	Y = A; \\
+	STORE A = 1	& \\
+	<write barrier>	& \\
+	STORE B = 2	& \\
+			& X = LOAD B \\
+			& <read barrier> \\
+			& Y = LOAD A \\
 \end{tabular}
 \end{minipage}
 \vspace{5pt}
@@ -2230,14 +2230,14 @@ Or:
 \tt
 \scriptsize
 \begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1} &	\nf{CPU 2} \\
+	\nf{CPU 1}	& \nf{CPU 2} \\
 	\hline
-	A = 1; & \\
-	<write barrier> & \\
-	B = \&A; &	\\
-		&	X = B; \\
-		&	<data dependency barrier> \\
-		&	Y = *X; \\
+	STORE A = 1	& \\
+	<write barrier>	& \\
+	STORE B = \&A	& \\
+			& X = LOAD B \\
+			& <data dependency barrier> \\
+			& Y = LOAD *X \\
 \end{tabular}
 \end{minipage}
 \vspace{5pt}
@@ -2300,14 +2300,14 @@ loads.  Consider the following sequence of events with initial values
 \tt
 \scriptsize
 \begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1} &	\nf{CPU 2} \\
+	\nf{CPU 1}	& \nf{CPU 2} \\
 	\hline
-	A = 1; & \\
-	B = 2; & \\
-	<write barrier> & \\
-	C = \&B; & 	LOAD X\\
-	D = 4;	&	LOAD C \nf{(gets \tco{&B})} \\
-		&	LOAD *C \nf{(reads \tco{B})} \\
+	STORE A = 1	& \\
+	STORE B = 2	& \\
+	<write barrier>	& \\
+	STORE C = \&B	& LOAD X\\
+	STORE D = 4	& LOAD C \nf{(gets \tco{&B})} \\
+			& LOAD *C \nf{(reads \tco{B})} \\
 \end{tabular}
 \end{minipage}
 \vspace{5pt}
@@ -2336,15 +2336,15 @@ values of {\tt \{B~=~7, X~=~9, Y~=~8, C~=~\&Y\}}:
 \tt
 \scriptsize
 \begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1} &	\nf{CPU 2} \\
+	\nf{CPU 1}	& \nf{CPU 2} \\
 	\hline
-	A = 1; & \\
-	B = 2; & \\
-	<write barrier> & \\
-	C = \&B; & 	LOAD X\\
-	D = 4;	&	LOAD C \nf{(gets \tco{&B})} \\
-		&	<data dependency barrier> \\
-		&	LOAD *C \nf{(reads \tco{B})} \\
+	STORE A = 1	& \\
+	STORE B = 2	& \\
+	<write barrier>	& \\
+	STORE C = \&B	& LOAD X\\
+	STORE D = 4	& LOAD C \nf{(gets \tco{&B})} \\
+			& <data dependency barrier> \\
+			& LOAD *C \nf{(reads \tco{B})} \\
 \end{tabular}
 \end{minipage}
 \vspace{5pt}
@@ -2368,13 +2368,13 @@ following sequence of events, with initial values
 \tt
 \scriptsize
 \begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1} &	\nf{CPU 2} \\
+	\nf{CPU 1}	& \nf{CPU 2} \\
 	\hline
-	A = 1; & \\
-	<write barrier> & \\
-	B = 2; & \\
-		&	LOAD B \\
-		&	LOAD A \\
+	STORE A = 1	& \\
+	<write barrier>	& \\
+	STORE B = 2	& \\
+			& LOAD B \\
+			& LOAD A \\
 \end{tabular}
 \end{minipage}
 \vspace{5pt}
@@ -2399,14 +2399,14 @@ and the load of~\co{A} on CPU~2, again with initial values of
 \tt
 \scriptsize
 \begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1} &	\nf{CPU 2} \\
+	\nf{CPU 1}	& \nf{CPU 2} \\
 	\hline
-	A = 1; & \\
-	<write barrier> & \\
-	B = 2; & \\
-		&	LOAD B \\
-		&	<read barrier> \\
-		&	LOAD A \\
+	STORE A = 1	& \\
+	<write barrier>	& \\
+	STORE B = 2	& \\
+			& LOAD B \\
+			& <read barrier> \\
+			& LOAD A \\
 \end{tabular}
 \end{minipage}
 \vspace{5pt}
@@ -2432,15 +2432,15 @@ with the same initial values of
 \tt
 \scriptsize
 \begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1} &	\nf{CPU 2} \\
+	\nf{CPU 1}	& \nf{CPU 2} \\
 	\hline
-	A = 1; & \\
-	<write barrier> & \\
-	B = 2; & \\
-		&	LOAD B \\
-		&	LOAD A \nf{(1\textsuperscript{st})} \\
-		&	<read barrier> \\
-		&	LOAD A \nf{(2\textsuperscript{nd})} \\
+	STORE A = 1	& \\
+	<write barrier>	& \\
+	STORE B = 2	& \\
+			& LOAD B \\
+			& LOAD A \nf{(1\textsuperscript{st})} \\
+			& <read barrier> \\
+			& LOAD A \nf{(2\textsuperscript{nd})} \\
 \end{tabular}
 \end{minipage}
 \vspace{5pt}
