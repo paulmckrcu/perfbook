@@ -1296,12 +1296,12 @@ There are some minimal guarantees that may be expected of a CPU:
 
 \begin{enumerate}
 \item	On any given CPU, dependent memory accesses will be issued in order,
-	with respect to itself.  This means that for:
+	with respect to itself.  This means that for a sequence (in C):
 
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-Q = P; D = *Q;
+Q = READ_ONCE(P); D = READ_ONCE(*Q);
 \end{verbatim}
 \end{minipage}
 
@@ -1322,7 +1322,7 @@ Q = LOAD P, D = LOAD *Q
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-a = *X; *X = b;
+a = READ_ONCE(*X); WRITE_ONCE(*X, b);
 \end{verbatim}
 \end{minipage}
 
@@ -1341,7 +1341,7 @@ a = LOAD *X, STORE *X = b
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-*X = c; d = *X;
+WRITE_ONCE(*X, c); d = READ_ONCE(*X);
 \end{verbatim}
 \end{minipage}
 
@@ -1371,7 +1371,7 @@ And there are a number of things that \emph{must} or \emph{must not} be assumed:
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-X = *A; Y = *B; *D = Z;
+X = READ_ONCE(*A); Y = READ_ONCE(*B); WRITE_ONCE(*D, Z);
 \end{verbatim}
 \end{minipage}
 
@@ -1395,7 +1395,7 @@ STORE *D = Z,  Y = LOAD *B,  X = LOAD *A
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-X = *A; Y = *(A + 4);
+X = READ_ONCE(*A); Y = READ_ONCE(*(A + 4));
 \end{verbatim}
 \end{minipage}
 
@@ -1404,9 +1404,9 @@ X = *A; Y = *(A + 4);
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-X = LOAD *A; Y = LOAD *(A + 4);
-Y = LOAD *(A + 4); X = LOAD *A;
-{X, Y} = LOAD {*A, *(A + 4) };
+X = LOAD *A, Y = LOAD *(A + 4)
+Y = LOAD *(A + 4), X = LOAD *A
+{X, Y} = LOAD {*A, *(A + 4) }
 \end{verbatim}
 \vspace{1pt}
 \end{minipage}
@@ -1416,7 +1416,7 @@ Y = LOAD *(A + 4); X = LOAD *A;
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-*A = X; *(A + 4) = Y;
+WRITE_ONCE(*A, X); WRITE_ONCE(*(A + 4), Y);
 \end{verbatim}
 \end{minipage}
 
@@ -1425,9 +1425,9 @@ Y = LOAD *(A + 4); X = LOAD *A;
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-STORE *A = X; STORE *(A + 4) = Y;
-STORE *(A + 4) = Y; STORE *A = X;
-STORE {*A, *(A + 4) } = {X, Y};
+STORE *A = X, STORE *(A + 4) = Y
+STORE *(A + 4) = Y, STORE *A = X
+STORE {*A, *(A + 4) } = {X, Y}
 \end{verbatim}
 \vspace{1pt}
 \end{minipage}
@@ -1437,7 +1437,7 @@ STORE {*A, *(A + 4) } = {X, Y};
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-*A = X; *A = Y;
+WRITE_ONCE(*A, X); WRITE_ONCE(*A, Y);
 \end{verbatim}
 \end{minipage}
 
@@ -1446,8 +1446,8 @@ STORE {*A, *(A + 4) } = {X, Y};
 \begin{minipage}[t]{\columnwidth}
 \scriptsize
 \begin{verbatim}
-STORE *A = X; STORE *A = Y;
-STORE *A = Y;
+STORE *A = X, STORE *A = Y
+STORE *A = Y
 \end{verbatim}
 \end{minipage}
 
