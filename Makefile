@@ -4,6 +4,7 @@ LATEXSOURCES = \
 	glossary.tex \
 	qqz.sty origpub.sty \
 	book.cls \
+	ushyphex.tex pfhyphex.tex \
 	*/*.tex \
 	*/*/*.tex
 
