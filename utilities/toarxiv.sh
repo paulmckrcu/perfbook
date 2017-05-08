@@ -2,7 +2,7 @@
 #
 # toarxiv.sh: Create a directory containing the pieces of perfbook
 #	needed for an arxiv.org submission.  Run at the top level of
-#	the perfbook source tree.
+#	the perfbook source tree after typing "make".
 #
 # Usage: toarxiv.sh [ destdir ]
 #
