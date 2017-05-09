@@ -38,7 +38,7 @@ unsigned long read_count(void)
 void *eventual(void *arg)
 {
 	int t;
-	int sum;
+	unsigned long sum;
 
 	while (stopflag < 3) {
 		sum = 0;
