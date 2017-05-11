@@ -27,12 +27,12 @@ int stopflag;
 
 void inc_count(void)
 {
-	ACCESS_ONCE(__get_thread_var(counter))++;
+	READ_ONCE(__get_thread_var(counter))++;
 }
 
 unsigned long read_count(void)
 {
-	return ACCESS_ONCE(global_count);
+	return READ_ONCE(global_count);
 }
 
 void *eventual(void *arg)
@@ -43,8 +43,8 @@ void *eventual(void *arg)
 	while (stopflag < 3) {
 		sum = 0;
 		for_each_thread(t)
-			sum += ACCESS_ONCE(per_thread(counter, t));
-		ACCESS_ONCE(global_count) = sum;
+			sum += READ_ONCE(per_thread(counter, t));
+		WRITE_ONCE(global_count, sum);
 		poll(NULL, 0, 1);
 		if (stopflag) {
 			smp_mb();
