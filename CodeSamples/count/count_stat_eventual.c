@@ -40,15 +40,15 @@ void *eventual(void *arg)
 	int t;
 	unsigned long sum;
 
-	while (stopflag < 3) {
+	while (READ_ONCE(stopflag) < 3) {
 		sum = 0;
 		for_each_thread(t)
 			sum += READ_ONCE(per_thread(counter, t));
 		WRITE_ONCE(global_count, sum);
 		poll(NULL, 0, 1);
-		if (stopflag) {
+		if (READ_ONCE(stopflag)) {
 			smp_mb();
-			stopflag++;
+			WRITE_ONCE(stopflag, READ_ONCE(stopflag) + 1);
 		}
 	}
 	return NULL;
@@ -66,8 +66,9 @@ void count_init(void)
 
 void count_cleanup(void)
 {
-	stopflag = 1;
-	while (stopflag < 3)
+	WRITE_ONCE(stopflag, 1);
+	smp_mb();
+	while (READ_ONCE(stopflag) < 3)
 		poll(NULL, 0, 1);
 	smp_mb();
 }
