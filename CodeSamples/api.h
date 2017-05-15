@@ -243,7 +243,7 @@ static __inline__ int spin_is_locked(spinlock_t *sp)
 #define spin_unlock_irqrestore(l, f) do { f = 0; spin_unlock(l); } while (0)
 
 #define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
-#define READ_ONCE(x) ACCESS_ONCE(x)
+#define READ_ONCE(x) ({ typeof(x) ___x = ACCESS_ONCE(x); ___x; })
 #define WRITE_ONCE(x, val) ({ ACCESS_ONCE(x) = (val); })
 #ifndef unlikely
 #define unlikely(x) x

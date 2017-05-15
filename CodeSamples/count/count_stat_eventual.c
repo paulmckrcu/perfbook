@@ -27,7 +27,8 @@ int stopflag;
 
 void inc_count(void)
 {
-	READ_ONCE(__get_thread_var(counter))++;
+	WRITE_ONCE(__get_thread_var(counter),
+		   READ_ONCE(__get_thread_var(counter)) + 1);
 }
 
 unsigned long read_count(void)
