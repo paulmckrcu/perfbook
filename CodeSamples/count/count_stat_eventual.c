@@ -68,7 +68,6 @@ void count_init(void)
 void count_cleanup(void)
 {
 	WRITE_ONCE(stopflag, 1);
-	smp_mb();
 	while (READ_ONCE(stopflag) < 3)
 		poll(NULL, 0, 1);
 	smp_mb();
