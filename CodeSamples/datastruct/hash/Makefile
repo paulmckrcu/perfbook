@@ -20,6 +20,9 @@ PROGS =	hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global hash_resize
 
 all: $(PROGS)
 
+top := ../..
+include $(top)/depends.mk
+
 hash_bkt: hash_bkt.c ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_bkt hash_bkt.c -lpthread
 

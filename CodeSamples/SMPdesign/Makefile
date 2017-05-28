@@ -25,6 +25,9 @@ include ../Makefile.arch
 # http://www.ibm.com/developerworks/wikis/display/hpccentral/Tuning+options+to+consider+with+gcc#Tuningoptionstoconsiderwithgcc-mcpuandmtune
 # GCC_ARGS=-g -O3 -m64 -mcpu=power5 -mtune=power5
 
+top := ..
+include $(top)/depends.mk
+
 smpalloc: smpalloc.c ../api.h
 	cc $(GCC_ARGS) -g -o smpalloc -DTEST smpalloc.c -lpthread
 

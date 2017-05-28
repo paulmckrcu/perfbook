@@ -21,6 +21,9 @@ LIB = ../../lib
 
 all: $(PROGS)
 
+top := ../..
+include $(top)/depends.mk
+
 skiplist: skiplist.c ../../api.h skiplisttorture.h skiplist.h
 	cc $(GCC_ARGS) -DTEST_SKIPLIST -I $(LIB) -g -o skiplist skiplist.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
 

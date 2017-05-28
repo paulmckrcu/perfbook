@@ -26,6 +26,9 @@ PROGS =	forkjoin \
 
 all: $(PROGS)
 
+top := ..
+include $(top)/depends.mk
+
 forkjoin: forkjoin.c ../api.h
 	cc $(GCC_ARGS) -o forkjoin forkjoin.c
 

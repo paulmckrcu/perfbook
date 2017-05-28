@@ -1,3 +1,7 @@
+.PHONY: all clean pthreads pthreads-x86 pthreads-ppc64 pthreads-arm
+
+top := .
+
 all:
 	(cd SMPdesign; make)
 	(cd advsync; make)
@@ -5,6 +9,17 @@ all:
 	(cd defer; make)
 	(cd intro; make)
 	(cd toolsoftrade; make)
+
+include depends.mk
+
+api.h Makefile.arch:
+ifeq ($(strip $(target)),)
+	make pthreads
+	$(warning "Could not figure out which target to use (arch:$(arch)).\
+		   Used 'make pthreads' in CodeSamples/Makefile.")
+else
+	make pthreads-$(target)
+endif
 
 pthreads:
 	echo "#ifndef __PERFBOOK_API_H__" > api.h
@@ -125,3 +140,6 @@ pthreads-arm:
 	echo "#endif /* #ifndef __PERFBOOK_API_H__ */" >> api.h
 	echo "# MECHANICALLY GENERATED, DO NOT EDIT!!!" > Makefile.arch
 	cat arch-arm/Makefile.arch >> Makefile.arch
+
+clean:
+	rm -f Makefile.arch api.h

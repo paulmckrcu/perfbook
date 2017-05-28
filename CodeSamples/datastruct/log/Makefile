@@ -21,6 +21,9 @@ LIB = ../../lib
 
 all: $(PROGS)
 
+top := ../..
+include $(top)/depends.mk
+
 log_glock: log_glock.c ../../api.h logtorture.h log.h
 	cc $(GCC_ARGS) -DTEST_LOG -I $(LIB) -g -o log_glock log_glock.c $(LIB)/random.c -lpthread
 

@@ -20,6 +20,9 @@ PROGS =	q singleq wfenqueue
 
 all: $(PROGS)
 
+top := ..
+include $(top)/depends.mk
+
 q: q.c q.h queuetorture.h ../api.h
 	cc $(GCC_ARGS) -o q -DTEST q.c -lpthread
 

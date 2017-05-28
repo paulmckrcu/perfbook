@@ -21,6 +21,9 @@ LIB = ../../lib
 
 all: $(PROGS)
 
+top := ../..
+include $(top)/depends.mk
+
 # NOTE:  For decent scalability on update-side tests as of early 2015,
 #	 use something like jemalloc() instead of glibc malloc().
 #	 If you install jemalloc at /home/paulmck/jemalloc, you will

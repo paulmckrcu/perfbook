@@ -46,6 +46,9 @@ PROGS =	bug_rcu_dp \
 
 all: $(PROGS)
 
+top := ..
+include $(top)/depends.mk
+
 # Note that bug_srcu_a is disabled until completed.
 bug_srcu_a: bug_srcu_a.c srcu.c ../api.h
 	cc $(GCC_ARGS) -o bug_srcu_a -DTEST bug_srcu_a.c -lurcu -lpthread

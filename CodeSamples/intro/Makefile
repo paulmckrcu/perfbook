@@ -2,6 +2,9 @@ PROGS = initrace initraceperf lockinc nakedinc perthreadinc threadcreate
 
 all: $(PROGS)
 
+top := ..
+include $(top)/depends.mk
+
 initrace: initrace.c ../api.h
 	cc -g -Wall -o initrace initrace.c -lpthread
 

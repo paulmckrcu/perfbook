@@ -35,6 +35,9 @@ RCU_SRCS = ../defer/rcu_nest32.h ../defer/rcu_nest32.c
 
 all: $(PROGS)
 
+top := ..
+include $(top)/depends.mk
+
 count_atomic: count_atomic.c ../api.h counttorture.h
 	cc $(GCC_ARGS) $(CFLAGS) -o count_atomic count_atomic.c -lpthread
 
