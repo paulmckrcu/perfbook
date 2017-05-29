@@ -1,0 +1,155 @@
+% defer/rcurelated.tex
+
+\subsection{RCU Related Work}
+\label{sec:defer:RCU Related Work}
+\OriginallyPublished{Section}{sec:defer:RCU Related Work}{RCU Related Work}{Linux Weekly News}{PaulEMcKenney2014ReadMostly}
+\OriginallyPublished{Section}{sec:defer:RCU Related Work}{RCU Related Work}{Linux Weekly News}{PaulEMcKenney2015ReadMostly}
+
+The known first mention of anything resembling RCU took the form of a bug
+report from
+Donald Knuth~\cite[page 413 of Fundamental Algorithms]{Knuth73}
+against J. Weizenbaum's SLIP list-processing facility for
+FORTRAN~\cite{Weizenbaum:1963:SLP:367593.367617}.
+Knuth was justified in reporting the bug, as SLIP had no notion of
+any sort of grace-period guarantee.
+
+The first known non-bug-report mention of anything resembing RCU appeared
+in Kung's and Lehman's landmark paper~\cite{Kung80}.
+There was some additional use of this technique in
+academia~\cite{Manber82,Manber84,BarbaraLiskov1988ArgusCACM,Pugh90,Andrews91textbook,Pu95a,Cowan96a,Rastogi:1997:LPV:645923.671017,Gamsa99},
+but much of the work in this area was carried out by
+practitioners~\cite{RichardRashid87a,Hennessy89,Jacobson93,AjuJohn95,Slingwine95,Slingwine97,Slingwine98,McKenney98}.
+By the year 2000, the initiative had passed to open-source projects,
+most notably the Linux kernel
+community~\cite{RustyRussell2000a,RustyRussell2000b,McKenney01b,McKenney01a,McKenney02a,Arcangeli03}.\footnote{
+	A list of citations with well over 200 entries may be found in
+	\co{bib/RCU.bib} in the {\LaTeX} source for this book.}
+
+However, in the mid 2010s, there was a welcome upsurge in RCU research
+and development across a number of communities and institutions.
+Section~\ref{sec:defer:RCU Uses} describes uses of RCU,
+Section~\ref{sec:defer:RCU Implementations} describes RCU implementations
+(as well as work that both creates and uses an implementation),
+and finally,
+Section~\ref{sec:defer:RCU Validation} describes verification and validation
+of RCU and its uses.
+
+\subsubsection{RCU Uses}
+\label{sec:defer:RCU Uses}
+
+Phil Howard and Jon Walpole of Portland State University (PSU) have
+applied RCU to red-black
+trees~\cite{PhilHowardPhD,PhilHoward2011RCUTMRBTree} combined with updates
+synchronized using software transactional memory.
+Josh Triplett and Jon Walpole (again of PSU) applied RCU to resizable
+hash tables~\cite{JoshTriplettPhD,Triplett:2011:RPHash,JonCorbet2014RCUhash1,JonCorbet2014RCUhash2}.
+Other RCU-protected resizable hash tables have been created by
+Herbert Xu~\cite{HerbertXu2010RCUResizeHash} and by
+Mathieu Desnoyers~\cite{PaulMcKenney2013LWNURCUhash}.
+
+Austin Clements, Frans Kaashoek, and Nickolai Zeldovich
+of MIT created an RCU-optimized balanced binary tree
+(Bonsai)~\cite{AustinClements2012RCULinux:mmapsem}, and applied this
+tree to the Linux kernel's VM subsystem in order to reduce read-side
+contention on the Linux kernel's \co{mmap_sem}.
+This work resulted in order-of-magnitude speedups and scalability up to
+at least 80 CPUs for a microbenchmark featuring large numbers of minor
+page faults.
+This is similar to a patch developed earlier by
+Peter Zijlstra~\cite{PeterZijlstra2014SpeculativePageFault}, and both
+were limited by the fact that, at the time, filesystem data structures
+were not safe for RCU readers.
+Clements et al. avoided this limitation by optimizing the page-fault
+path for anonymous pages only.
+More recently, filesystem data structures have been made safe for RCU
+readers~\cite{JonathanCorbet2010dcacheRCU,JonathanCorbet2011dcacheRCUbug},
+so perhaps this work can be implemented for all page types, not just
+anonymous pages---Peter Zijlstra has, in fact, recently prototyped
+exactly this.
+
+Yandong Mao and Robert Morris of MIT and Eddie Kohler of
+Harvard University created another RCU-protected tree named
+Masstree~\cite{Mao:2012:CCF:2168836.2168855} that combines ideas from B+
+trees and tries.
+Although this tree is about 2.5x slower than an RCU-protected hash table,
+it supports operations on key ranges, unlike hash tables.
+In addition, Masstree supports efficient storage of objects with long
+shared key prefixes and, furthermore, provides persistence via logging
+to mass storage.
+
+The paper notes that Masstree's performance rivals that of memcached, even
+given that Masstree is persistently storing updates and memcached is not.
+The paper also compares Masstree's performance to the persistent
+datastores MongoDB, VoltDB, and Redis, reporting significant performance
+advantages for Masstree, in some cases exceeding two orders of magnitude.
+Another paper~\cite{Tu:2013:STM:2517349.2522713}, by Stephen Tu,
+Wenting Zheng, Barbara Liskov, and Samuel Madden of MIT and Kohler,
+applies Masstree to an in-memory database named Silo, achieving 700K
+transactions per second (42M transactions per minute) on a well-known
+transaction-processing benchmark.
+Interestingly enough, Silo guarantees linearizability without incurring
+the overhead of grace periods while holding locks.
+
+\subsubsection{RCU Implementations}
+\label{sec:defer:RCU Implementations}
+
+Mathieu Desnoyers created a user-space RCU for use in
+tracing~\cite{MathieuDesnoyersPhD,MathieuDesnoyers2012URCU},
+which has seen use in a number of projects~\cite{MikeDay2013RCUqemu}.
+
+Maya Arbel and Hagit Attiya of Technion took a more rigorous
+approach~\cite{MayaArbel2014RCUtree} to an RCU-protected search tree that,
+like Masstree, allows concurrent updates.
+This paper includes a proof of correctness, including proof that all
+operations on this tree are linearizable.
+Unfortunately, this implementation achieves linearizability by incurring
+the full latency of grace-period waits while holding locks, which degrades
+scalability of update-only workloads.
+One way around this problem is to abandon
+linearizability~\cite{AndreasHaas2012FIFOisnt,PaulEMcKennneyAtomicTreeN4037}),
+however, Arbel and Attiya instead created an RCU variant that reduces
+low-end grace-period latency.
+Of course, nothing comes for free, and this RCU variant appears to hit
+a scalability limit at about 32 CPUs.
+Although there is much to be said for dropping linearizability, thus
+gaining both performance and scalability, it is very good to see academics
+experimenting with alternative RCU implementations.
+Researchers at Charles University in Prague have also been
+working on RCU implementations, including dissertations by
+Andrej Podzimek~\cite{AndrejPodzimek2010masters} and Adam
+Hraska~\cite{AdamHraska2013RCUHelenOS}.
+
+RCU-like mechanisms are also finding their way into Java.
+Sivaramakrishnan et al.~\cite{Sivaramakrishnan:2012:ERB:2258996.2259005}
+use an RCU-like mechanism to eliminate the read barriers that are
+otherwise required when interacting with Java's garbage collector,
+resulting in significant performance improvements.
+
+Ran Liu, Heng Zhang, and Haibo Chen of Shanghai Jiao Tong University
+created a specialized variant of RCU that they used for an optimized
+``passive reader-writer lock''~\cite{RanLiu2014PassiveRWLock}, similar to
+those created by Gautham Shenoy~\cite{GauthamShenoy2006RCUrwlock} and
+Srivatsa Bhat~\cite{SrivatsaSBhat2014RCUrwlock}.
+The Liu et al.~paper is interesting from a number of
+perspectives~\cite{PaulEMcKenney2014ReadMostly}.
+
+Geoff Romer and Andrew Hunter proposed a cell-based API for RCU
+protection of singleton data structures for inclusion in the
+C++ standard~\cite{GeoffRomer2017C++DeferredReclamation}.
+
+\subsubsection{RCU Validation}
+\label{sec:defer:RCU Validation}
+
+In early 2017, it is commonly recognized that almost any bug is a potential
+security exploit, so validation and verification are first-class concerns.
+
+Researchers at Stony Brook University have produced an RCU-aware data-race
+detector~\cite{AbhinavDuggal2010Masters,JustinSeyster2012PhD,Seyster:2011:RFA:2075416.2075425}.
+Alexey Gotsman of IMDEA, Noam Rinetzky of Tel Aviv University,
+and Hongseok Yang of the University of Oxford have published a
+paper~\cite{AlexeyGotsman2012VerifyGraceExtended} expressing the formal
+semantics of RCU in terms of separation logic, and have continued with
+other aspects of concurrency.
+
+With some luck, all of this validation work will eventually result in
+more and better tools for validating concurrent code.
