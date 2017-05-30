@@ -30,16 +30,19 @@ long curtimestamp = 0;
 void *collect_timestamps(void *mask_in)
 {
 	long mask = (intptr_t)mask_in;
+	long cts;
 
-	while (curtimestamp < MAX_TIMESTAMPS) {
-		while ((curtimestamp & CURTIMESTAMP_MASK) != mask)
-			continue;
-		if (curtimestamp >= MAX_TIMESTAMPS)
+	for (;;) {
+		cts = READ_ONCE(curtimestamp);
+		if (cts >= MAX_TIMESTAMPS)
 			break;
+		if ((cts & CURTIMESTAMP_MASK) != mask)
+			continue;
 
 		/* Don't need memory barrier -- no other shared vars!!! */
 
-		ts[curtimestamp++] = get_timestamp();
+		ts[cts] = get_timestamp();
+		WRITE_ONCE(curtimestamp, cts + 1);
 	}
 	smp_mb();
 	return (NULL);
