@@ -29,7 +29,7 @@ long curtimestamp = 0;
 
 void *collect_timestamps(void *mask_in)
 {
-	long mask = (long)mask_in;
+	long mask = (intptr_t)mask_in;
 
 	while (curtimestamp < MAX_TIMESTAMPS) {
 		while ((curtimestamp & CURTIMESTAMP_MASK) != mask)

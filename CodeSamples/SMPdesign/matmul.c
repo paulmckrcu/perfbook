@@ -38,7 +38,7 @@ atomic_t nstarted;
 
 void *matmul_thread(void *me_in)
 {
-	long me = (long)me_in;
+	long me = (intptr_t)me_in;
 	int i, j, k;
 
 	atomic_inc(&nstarted);
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 	goflag = GOFLAG_INIT;
 	startcreatetime = get_microseconds();
 	for (i = 0; i < nthread; i++)
-		create_thread(matmul_thread, (void *)(long)i);
+		create_thread(matmul_thread, (void *)(intptr_t)i);
 	while (atomic_read(&nstarted) != nthread)
 		barrier();
 	starttime = get_microseconds();

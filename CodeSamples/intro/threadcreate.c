@@ -22,7 +22,7 @@
 
 void *thread_test(void *arg)
 {
-	int myarg = (int)arg;
+	int myarg = (intptr_t)arg;
 
 	printf("child thread %d: smp_thread_id() = %d\n",
 	       myarg, smp_thread_id());
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
 	printf("Parent thread spawning %d threads.\n", nkids);
 
 	for (i = 0; i < nkids; i++)
-		create_thread(thread_test, (void *)i);
+		create_thread(thread_test, (void *)(intptr_t)i);
 
 	wait_all_threads();
 
