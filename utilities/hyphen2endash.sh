@@ -19,6 +19,10 @@
 # Figures~\ref{foo}-\ref{bar} -> Figures~\ref{foo}--\ref{bar}
 # \co{xxx}-\{yyy} -> \co{xxx}--\co{yyy}
 # yyyy-\commityear -> yyyy--\commityear (in Legal statement)
+# nn-mm~nanosecond -> nn--mm~nanosecond
+# nn-mm~microsecond -> nn--mm~microsecond
+# nn-mm~millisecond -> nn--mm~millisecond
+# nn-mm~\emp -> nn--mm~\emp
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -46,6 +50,10 @@ cat $1 |
 	    -e 's/and[ ~]\([0-9]\+\)-\([0-9]\+\)/and~\1--\2/g' \
 	    -e 's/\(\\co{[^}]*}\)-\(\\co{[^}]*}\)/\1--\2/g' \
 	    -e 's/\([0-9]\)-\(\\commityear\)/\1--\2/g' \
+	    -e 's/\([0-9]\+\)-\([0-9]\+\)~nanosecond/\1--\2~nanosecond/g' \
+	    -e 's/\([0-9]\+\)-\([0-9]\+\)~microsecond/\1--\2~microsecond/g' \
+	    -e 's/\([0-9]\+\)-\([0-9]\+\)~millisecond/\1--\2~millisecond/g' \
+	    -e 's/\([0-9]\+\)-\([0-9]\+\)~\\emp/\1--\2~\\emp/g' \
 	    -e 's/\/\* Lines~\([0-9]\+\)--\([0-9]\+\) \*\//\/\* Lines \1-\2 \*\//g'
 
 # Last pattern is to preserve "Lines n-m" in comments within code snippet
