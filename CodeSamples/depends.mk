@@ -8,6 +8,8 @@ else ifeq ($(arch),x86_64)
 target := x86
 else ifeq ($(arch),ppc64)
 target := ppc64
+else ifeq ($(arch),ppc64le)
+target := ppc64
 else ifneq (,$(findstring arm,$(arch)))
 target := arm
 else
