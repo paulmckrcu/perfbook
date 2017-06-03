@@ -26,7 +26,8 @@ community~\cite{RustyRussell2000a,RustyRussell2000b,McKenney01b,McKenney01a,McKe
 	\co{bib/RCU.bib} in the {\LaTeX} source for this book.}
 
 However, in the mid 2010s, there was a welcome upsurge in RCU research
-and development across a number of communities and institutions.
+and development across a number of communities and
+institutions~\cite{FransKaashoek2015ParallelOSHistory}.
 Section~\ref{sec:defer:RCU Uses} describes uses of RCU,
 Section~\ref{sec:defer:RCU Implementations} describes RCU implementations
 (as well as work that both creates and uses an implementation),
@@ -90,13 +91,6 @@ transaction-processing benchmark.
 Interestingly enough, Silo guarantees linearizability without incurring
 the overhead of grace periods while holding locks.
 
-\subsubsection{RCU Implementations}
-\label{sec:defer:RCU Implementations}
-
-Mathieu Desnoyers created a user-space RCU for use in
-tracing~\cite{MathieuDesnoyersPhD,MathieuDesnoyers2012URCU},
-which has seen use in a number of projects~\cite{MikeDay2013RCUqemu}.
-
 Maya Arbel and Hagit Attiya of Technion took a more rigorous
 approach~\cite{MayaArbel2014RCUtree} to an RCU-protected search tree that,
 like Masstree, allows concurrent updates.
@@ -114,10 +108,28 @@ a scalability limit at about 32 CPUs.
 Although there is much to be said for dropping linearizability, thus
 gaining both performance and scalability, it is very good to see academics
 experimenting with alternative RCU implementations.
+
+\subsubsection{RCU Implementations}
+\label{sec:defer:RCU Implementations}
+
+Mathieu Desnoyers created a user-space RCU for use in
+tracing~\cite{MathieuDesnoyers2009URCU,MathieuDesnoyersPhD,MathieuDesnoyers2012URCU},
+which has seen use in a number of projects~\cite{MikeDay2013RCUqemu}.
+
 Researchers at Charles University in Prague have also been
 working on RCU implementations, including dissertations by
 Andrej Podzimek~\cite{AndrejPodzimek2010masters} and Adam
 Hraska~\cite{AdamHraska2013RCUHelenOS}.
+
+Yujie Liu (Lehigh University), Victor Luchangco (Oracle Labs), and
+Michael Spear (also Lehigh)~\cite{Liu:2013:MSA:2549695.2549732}
+pressed scalable non-zero indicators
+(SNZI)~\cite{FaithEllen:2007:SNZI} into service as a grace-period
+mechanism.
+The intended use is to implement software transactional memory
+(see Section~\ref{sec:future:Transactional Memory}), which
+imposes linearizability requirements, which in turn seems to
+limit scalability.
 
 RCU-like mechanisms are also finding their way into Java.
 Sivaramakrishnan et al.~\cite{Sivaramakrishnan:2012:ERB:2258996.2259005}
@@ -133,7 +145,57 @@ Srivatsa Bhat~\cite{SrivatsaSBhat2014RCUrwlock}.
 The Liu et al.~paper is interesting from a number of
 perspectives~\cite{PaulEMcKenney2014ReadMostly}.
 
-Geoff Romer and Andrew Hunter proposed a cell-based API for RCU
+Mike Ash posted~\cite{MikeAsh2015Apple} a description of an RCU-like
+primitive in Apple's Objective-C runtime.
+This approach identifies read-side critical sections via designated
+code ranges, thus qualifying as another method of achieving
+zero read-side overhead, albeit one that poses some interesting
+practical challenges for large read-side critical sections that
+span multiple functions.
+
+Pedro Ramalhete and Andreia Correia~\cite{PedroRmalhete2015PoorMansRCU}
+produced ``Poor Man's RCU'', which, despite using a pair of reader-writer
+locks, manages to provide lock-free forward-progress guarantees to
+readers~\cite{PaulEMcKenney2015ReadMostly}.
+
+Maya Arbel and Adam Morrison~\cite{Arbel:2015:PRR:2858788.2688518}
+produced ``Predicate RCU'', which works hard to reduce grace-period
+duration in order to efficiently support algorithms that hold
+update-side locks across grace periods.
+This results in reduced batching of updates into grace periods
+and reduced scalability, but does succeed in providing short
+grace periods.
+
+\QuickQuiz{}
+	Why not just drop the lock before waiting for the grace
+	period, or using something like \co{call_rcu()}
+	instead of waiting for a grace period?
+\QuickQuizAnswer{
+	The authors wished to support linearizable tree
+	operations, so that concurrent additions to, deletions
+	from, and searches of the tree would appear to execute
+	in some globally agreed-upon order.
+	In their search trees, this requires holding locks
+	across grace periods.
+	(It is probably better to drop linearizability as a
+	requirement in most cases, but linearizability is a
+	surprisingly popular (and costly!) requirement.)
+} \QuickQuizEnd
+
+Alexander Matveev (MIT), Nir Shavit (MIT and Tel-Aviv University),
+Pascal Felber (University of Neuch\^{a}tel), and Patrick Marlier (also
+University of Neuch\^{a}tel)~\cite{Matveev:2015:RLS:2815400.2815406}
+produced an RCU-like mechanism that can be thought of as
+software transactional memory that explicitly marks
+read-only transactions.
+Their use cases require holding locks across grace periods, which limits
+scalability~\cite{PaulEMcKenney2015ReadMostly,PaulEMcKenney2015ReadMostlySidebar}.
+This appears to be the first academic RCU-related work to
+make good use of the \co{rcutorture} test suite, and also the
+first to have submitted a performance improvement to Linux-kernel
+RCU, which was accepted into v4.4.
+
+Geoff Romer and Andrew Hunter (both at Google) proposed a cell-based API for RCU
 protection of singleton data structures for inclusion in the
 C++ standard~\cite{GeoffRomer2017C++DeferredReclamation}.
 
@@ -150,6 +212,38 @@ and Hongseok Yang of the University of Oxford have published a
 paper~\cite{AlexeyGotsman2012VerifyGraceExtended} expressing the formal
 semantics of RCU in terms of separation logic, and have continued with
 other aspects of concurrency.
+
+Joseph Tassarotti (Carnegie-Mellon University), Derek Dreyer (Max
+Planck Institute for Software Systems), and Viktor Vafeiadis
+(also MPI-SWS)~\cite{JosephTassarotti2015RCUproof}
+produced a manual formal proof of correctness of the quiescent-state-based
+reclamation (QSBR) variant of userspace
+RCU~\cite{MathieuDesnoyers2009URCU,MathieuDesnoyers2012URCU}.
+Lihao Liang (University of Oxford), Paul E.~McKenney (IBM),
+Daniel Kroening, and Tom Melham
+(both also Oxford)~\cite{LihaoLiang2016VerifyTreeRCU}
+used the C bounded model checker (CBMC)~\cite{EdmundClarke2004CBMC}
+to produce a mechanical proof of correctness of a significant portion
+of Linux-kernel Tree RCU.
+Lance Roy~\cite{LanceRoy2017CBMC-SRCU} used CBMC to produce a similar
+proof of correctness for a significant portion of Linux-kernel
+sleepable RCU (SRCU)~\cite{PaulEMcKenney2006c}.
+Finally, Michalis Kokologiannakis and Konstantinos Sagonas (National Technical University of
+Athens)~\cite{MichalisKokologiannakis2017NidhuggRCU}
+used the Nighugg tool~\cite{CarlLeonardsson2014Nidhugg}
+to produce a mechanical proof of correctness of a somewhat larger
+portion of Linux-kernel Tree RCU.
+
+None of these efforts located any bugs other than bugs injected into
+RCU specifically to test the verification tools.
+In contrast,
+Alex Groce (Oregon State University), Iftekhar Ahmed, Carlos Jensen
+(both also OSU), and Paul E.~McKenney
+(IBM)~\cite{Groce:2015:VMC:2916135.2916190}
+automatically mutated Linux-kernel RCU's source code to test the
+coverage of the \co{rcutorture} test suite.
+The effort found several holes in this suite's coverage, one of which
+was hiding a real bug (since fixed) in Tiny RCU.
 
 With some luck, all of this validation work will eventually result in
 more and better tools for validating concurrent code.
