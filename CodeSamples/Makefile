@@ -1,24 +1,24 @@
+subdirs = SMPdesign advsync count defer intro toolsoftrade
+
 .PHONY: all clean pthreads pthreads-x86 pthreads-ppc64 pthreads-arm
 
 top := .
 
 all:
-	(cd SMPdesign; make)
-	(cd advsync; make)
-	(cd count; make)
-	(cd defer; make)
-	(cd intro; make)
-	(cd toolsoftrade; make)
+	for d in $(subdirs); \
+	do \
+		$(MAKE) -C $$d; \
+	done
 
 include depends.mk
 
 api.h Makefile.arch:
 ifeq ($(strip $(target)),)
-	make pthreads
+	$(MAKE) pthreads
 	$(warning "Could not figure out which target to use (arch:$(arch)).\
 		   Used 'make pthreads' in CodeSamples/Makefile.")
 else
-	make pthreads-$(target)
+	$(MAKE) pthreads-$(target)
 endif
 
 pthreads:
