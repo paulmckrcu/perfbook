@@ -1,4 +1,5 @@
-subdirs = SMPdesign advsync count defer intro toolsoftrade
+subdirs =  SMPdesign advsync count defer intro toolsoftrade locking
+subdirs += datastruct/Issaquah datastruct/hash datastruct/log datastruct/skiplist
 
 .PHONY: all clean pthreads
 
