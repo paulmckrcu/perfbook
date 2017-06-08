@@ -346,10 +346,10 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t\tNumber of elements, defaults to 100.  Must be\n");
 	fprintf(stderr, "\t\t1 or greater.\n");
 	fprintf(stderr, "\t--nreaders\n");
-	fprintf(stderr, "\t\tNumber of readers, defaults to 1.  Must be 1\n");
+	fprintf(stderr, "\t\tNumber of readers, defaults to 7.  Must be 1\n");
 	fprintf(stderr, "\t\tor greater.\n");
 	fprintf(stderr, "\t--nupdaters\n");
-	fprintf(stderr, "\t\tNumber of updaters, defaults to 1.  Must be 1\n");
+	fprintf(stderr, "\t\tNumber of updaters, defaults to 7.  Must be 1\n");
 	fprintf(stderr, "\t\tor greater.\n");
 	fprintf(stderr, "\t--cpustride\n");
 	fprintf(stderr, "\t\tStride when spreading threads across CPUs,\n");
