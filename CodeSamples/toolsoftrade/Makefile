@@ -28,6 +28,7 @@ all: $(PROGS)
 
 top := ..
 include $(top)/depends.mk
+include $(top)/recipes.mk
 
 forkjoin: forkjoin.c ../api.h
 	cc $(GCC_ARGS) -o forkjoin forkjoin.c

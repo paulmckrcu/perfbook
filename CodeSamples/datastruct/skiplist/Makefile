@@ -19,10 +19,17 @@ include ../../Makefile.arch
 PROGS =	skiplist skiplist_glock
 LIB = ../../lib
 
-all: $(PROGS)
-
 top := ../..
 include $(top)/depends.mk
+
+ifeq ($(strip $(target)),)
+all:
+	@echo "### None in datastruct/skiplist/ can be built on arch: '$(arch)'."
+else
+all: $(PROGS)
+endif
+
+include $(top)/recipes.mk
 
 skiplist: skiplist.c ../../api.h skiplisttorture.h skiplist.h
 	cc $(GCC_ARGS) -DTEST_SKIPLIST -I $(LIB) -g -o skiplist skiplist.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal

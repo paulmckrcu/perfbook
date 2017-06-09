@@ -4,6 +4,7 @@ subdirs += datastruct/Issaquah datastruct/hash datastruct/log datastruct/skiplis
 .PHONY: all clean pthreads
 
 top := .
+include depends.mk
 
 all:
 	for d in $(subdirs); \
@@ -11,7 +12,7 @@ all:
 		$(MAKE) -C $$d; \
 	done
 
-include depends.mk
+include recipes.mk
 
 api.h Makefile.arch:
 ifeq ($(strip $(target)),)

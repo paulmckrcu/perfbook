@@ -19,10 +19,17 @@ include ../../Makefile.arch
 PROGS =	log_glock
 LIB = ../../lib
 
-all: $(PROGS)
-
 top := ../..
 include $(top)/depends.mk
+
+ifeq ($(strip $(target)),)
+all:
+	@echo "### None in datastruct/log/ can be built on arch: '$(arch)'."
+else
+all: $(PROGS)
+endif
+
+include $(top)/recipes.mk
 
 log_glock: log_glock.c ../../api.h logtorture.h log.h
 	cc $(GCC_ARGS) -DTEST_LOG -I $(LIB) -g -o log_glock log_glock.c $(LIB)/random.c -lpthread

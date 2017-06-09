@@ -1,9 +1,18 @@
-PROGS = initrace initraceperf lockinc nakedinc perthreadinc threadcreate
-
-all: $(PROGS)
+ARCH_INDEPENDENT = initraceperf lockinc nakedinc perthreadinc threadcreate
+ARCH_DEPENDENT = initrace
+PROGS = $(ARCH_DEPENDENT) $(ARCH_INDEPENDENT)
 
 top := ..
 include $(top)/depends.mk
+
+ifeq ($(strip $(target)),)
+all: $(ARCH_INDEPENDENT)
+	@echo "### $(ARCH_DEPENDENT) in intro/ can't be built on arch: '$(arch)'."
+else
+all: $(PROGS)
+endif
+
+include $(top)/recipes.mk
 
 initrace: initrace.c ../api.h
 	cc -g -Wall -o initrace initrace.c -lpthread

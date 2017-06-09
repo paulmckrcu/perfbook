@@ -19,10 +19,17 @@ include ../../Makefile.arch
 PROGS = existence_test treetorture
 LIB = ../../lib
 
-all: $(PROGS)
-
 top := ../..
 include $(top)/depends.mk
+
+ifeq ($(strip $(target)),)
+all:
+	@echo "### None in datastruct/Issaquah/ can be built on arch: '$(arch)'."
+else
+all: $(PROGS)
+endif
+
+include $(top)/recipes.mk
 
 # NOTE:  For decent scalability on update-side tests as of early 2015,
 #	 use something like jemalloc() instead of glibc malloc().

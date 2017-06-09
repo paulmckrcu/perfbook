@@ -33,10 +33,17 @@ PROGS =	count_atomic \
 
 RCU_SRCS = ../defer/rcu_nest32.h ../defer/rcu_nest32.c
 
-all: $(PROGS)
-
 top := ..
 include $(top)/depends.mk
+
+ifeq ($(strip $(target)),)
+all:
+	@echo "### None in count/ can be built on arch: '$(arch)'."
+else
+all: $(PROGS)
+endif
+
+include $(top)/recipes.mk
 
 count_atomic: count_atomic.c ../api.h counttorture.h
 	cc $(GCC_ARGS) $(CFLAGS) -o count_atomic count_atomic.c -lpthread

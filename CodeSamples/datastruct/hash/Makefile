@@ -18,10 +18,17 @@ include ../../Makefile.arch
 
 PROGS =	hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global hash_resize
 
-all: $(PROGS)
-
 top := ../..
 include $(top)/depends.mk
+
+ifeq ($(strip $(target)),)
+all:
+	@echo "### None in datastruct/hash/ can be built on arch: '$(arch)'."
+else
+all: $(PROGS)
+endif
+
+include $(top)/recipes.mk
 
 hash_bkt: hash_bkt.c ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_bkt hash_bkt.c -lpthread

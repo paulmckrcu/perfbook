@@ -14,19 +14,28 @@
 #
 # Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
 
-PROGS = smpalloc lockdeq lockhdeq locktdeq lockrwdeq matmul matmul_block
-
-all: $(PROGS)
+ARCH_INDEPENDENT = smpalloc
+ARCH_DEPENDENT = lockdeq lockhdeq locktdeq lockrwdeq matmul matmul_block
+PROGS = $(ARCH_DEPENDENT) $(ARCH_INDEPENDENT)
 
 include ../Makefile.arch
+
+top := ..
+include $(top)/depends.mk
+
+ifeq ($(strip $(target)),)
+all: $(ARCH_INDEPENDENT)
+	@echo "### $(ARCH_DEPENDENT) in SMPdesign/ can't be built on arch: '$(arch)'."
+else
+all: $(PROGS)
+endif
+
+include $(top)/recipes.mk
 
 # GCC_ARGS=-g -O3
 
 # http://www.ibm.com/developerworks/wikis/display/hpccentral/Tuning+options+to+consider+with+gcc#Tuningoptionstoconsiderwithgcc-mcpuandmtune
 # GCC_ARGS=-g -O3 -m64 -mcpu=power5 -mtune=power5
-
-top := ..
-include $(top)/depends.mk
 
 smpalloc: smpalloc.c ../api.h
 	cc $(GCC_ARGS) -g -o smpalloc -DTEST smpalloc.c -lpthread

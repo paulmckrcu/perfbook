@@ -16,11 +16,12 @@
 
 include ../Makefile.arch
 
-PROGS =	bug_rcu_dp \
-	gettimestamp \
+ARCH_INDEPENDENT = bug_rcu_dp \
+	ptxroute
+
+ARCH_DEPENDENT = gettimestamp \
 	gettimestampmp \
 	hazptr \
-	ptxroute \
 	rcu \
 	rcu64 \
 	rcu64_atomicgp \
@@ -44,10 +45,19 @@ PROGS =	bug_rcu_dp \
 	route_seqlock \
 	seqlocktorture \
 
-all: $(PROGS)
+PROGS = $(ARCH_DEPENDENT) $(ARCH_INDEPENDENT)
 
 top := ..
 include $(top)/depends.mk
+
+ifeq ($(strip $(target)),)
+all: $(ARCH_INDEPENDENT)
+	@echo "### $(ARCH_DEPENDENT) in defer/ can't be built on arch: '$(arch)'."
+else
+all: $(PROGS)
+endif
+
+include $(top)/recipes.mk
 
 # Note that bug_srcu_a is disabled until completed.
 bug_srcu_a: bug_srcu_a.c srcu.c ../api.h
