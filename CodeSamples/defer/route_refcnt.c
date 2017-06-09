@@ -35,7 +35,7 @@ DEFINE_SPINLOCK(routelock);
 
 static void re_free(struct route_entry *rep)
 {
-	ACCESS_ONCE(rep->re_freed) = 1;
+	WRITE_ONCE(rep->re_freed, 1);
 	free(rep);
 }
 
@@ -56,13 +56,13 @@ retry:
 	do {
 		if (rep && atomic_dec_and_test(&rep->re_refcnt))
 			re_free(rep);
-		rep = ACCESS_ONCE(*repp);
+		rep = READ_ONCE(*repp);
 		if (rep == NULL)
 			return ULONG_MAX;
 
 		/* Acquire a reference if the count is non-zero. */
 		do {
-			if (ACCESS_ONCE(rep->re_freed))
+			if (READ_ONCE(rep->re_freed))
 				abort();
 			old = atomic_read(&rep->re_refcnt);
 			if (old <= 0)
@@ -137,7 +137,7 @@ void route_clear(void)
 
 	spin_lock(&routelock);
 	rep = route_list.re_next;
-	ACCESS_ONCE(route_list.re_next) = NULL;
+	WRITE_ONCE(route_list.re_next, NULL);
 	while (rep != NULL) {
 		rep1 = rep->re_next;
 		if (atomic_dec_and_test(&rep->re_refcnt))
