@@ -49,7 +49,7 @@ unsigned long route_lookup(unsigned long addr)
 retry:
 	repp = &route_list.re_next;
 	do {
-		rep = ACCESS_ONCE(*repp);
+		rep = READ_ONCE(*repp);
 		if (rep == NULL)
 			return ULONG_MAX;
 		if (rep == (struct route_entry *)HAZPTR_POISON)
@@ -61,13 +61,13 @@ retry:
 		smp_mb(); /* Force pointer loads in order. */
 
 		/* Recheck the hazard pointer against the original. */
-		if (ACCESS_ONCE(*repp) != rep)
+		if (READ_ONCE(*repp) != rep)
 			goto retry;
 
 		/* Advance to next. */
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
-	if (ACCESS_ONCE(rep->re_freed))
+	if (READ_ONCE(rep->re_freed))
 		abort();
 	return rep->iface;
 }
@@ -129,7 +129,7 @@ void route_clear(void)
 
 	spin_lock(&routelock);
 	rep = route_list.re_next;
-	ACCESS_ONCE(route_list.re_next) = NULL;
+	WRITE_ONCE(route_list.re_next, NULL);
 	while (rep != NULL) {
 		rep1 = rep->re_next;
 		rep->re_next = (struct route_entry *)HAZPTR_POISON;
@@ -157,7 +157,7 @@ void hazptr_free(void *p)
 {
 	struct route_entry *rep = p;
 
-	ACCESS_ONCE(rep->re_freed) = 1;
+	WRITE_ONCE(rep->re_freed, 1);
 	free(p);
 }
 
