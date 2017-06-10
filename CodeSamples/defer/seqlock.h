@@ -38,7 +38,7 @@ static inline unsigned long read_seqbegin(seqlock_t *slp)
 {
 	unsigned long s;
 
-	s = ACCESS_ONCE(slp->seq);
+	s = READ_ONCE(slp->seq);
 	smp_mb();
 	return s & ~0x1UL;
 }
@@ -48,7 +48,7 @@ static inline int read_seqretry(seqlock_t *slp, unsigned long oldseq)
 	unsigned long s;
 
 	smp_mb();
-	s = ACCESS_ONCE(slp->seq);
+	s = READ_ONCE(slp->seq);
 	return s != oldseq;
 }
 

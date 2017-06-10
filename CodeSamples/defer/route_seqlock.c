@@ -47,7 +47,7 @@ retry:
 	s = read_seqbegin(&sl);
 	repp = &route_list.re_next;
 	do {
-		rep = ACCESS_ONCE(*repp);
+		rep = READ_ONCE(*repp);
 		if (rep == NULL) {
 			if (read_seqretry(&sl, s))
 				goto retry;
@@ -57,7 +57,7 @@ retry:
 		/* Advance to next. */
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
-	if (ACCESS_ONCE(rep->re_freed))
+	if (READ_ONCE(rep->re_freed))
 		abort();
 	ret = rep->iface;
 	if (read_seqretry(&sl, s))
@@ -123,7 +123,7 @@ void route_clear(void)
 
 	write_seqlock(&sl);
 	rep = route_list.re_next;
-	ACCESS_ONCE(route_list.re_next) = NULL;
+	WRITE_ONCE(route_list.re_next, NULL);
 	while (rep != NULL) {
 		rep1 = rep->re_next;
 		free(rep);

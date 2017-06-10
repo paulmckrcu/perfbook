@@ -116,7 +116,7 @@ It is also used in pathname traversal to detect concurrent rename operations.
 13  {
 14    unsigned long s;
 15
-16    s = ACCESS_ONCE(slp->seq);
+16    s = READ_ONCE(slp->seq);
 17    smp_mb();
 18    return s & ~0x1UL;
 19  }
@@ -127,7 +127,7 @@ It is also used in pathname traversal to detect concurrent rename operations.
 24    unsigned long s;
 25
 26    smp_mb();
-27    s = ACCESS_ONCE(slp->seq);
+27    s = READ_ONCE(slp->seq);
 28    return s != oldseq;
 29  }
 30
@@ -211,11 +211,11 @@ in other words, that there has been no writer, and returns true if so.
 	In older versions of the Linux kernel, no.
 
 	In very new versions of the Linux kernel, line~16 could use
-	\co{smp_load_acquire()} instead of \co{ACCESS_ONCE()}, which
+	\co{smp_load_acquire()} instead of \co{READ_ONCE()}, which
 	in turn would allow the \co{smp_mb()} on line~17 to be dropped.
 	Similarly, line~41 could use an \co{smp_store_release()}, for
 	example, as follows: \\
-	\co{smp_store_release(&slp->seq, ACCESS_ONCE(slp->seq) + 1);} \\
+	\co{smp_store_release(&slp->seq, READ_ONCE(slp->seq) + 1);} \\
 	This would allow the \co{smp_mb()} on line~40 to be dropped.
 } \QuickQuizEnd
 
@@ -310,7 +310,7 @@ increment of the sequence number on line~44, then releases the lock.
 18   s = read_seqbegin(&sl);
 19   repp = &route_list.re_next;
 20   do {
-21     rep = ACCESS_ONCE(*repp);
+21     rep = READ_ONCE(*repp);
 22     if (rep == NULL) {
 23       if (read_seqretry(&sl, s))
 24         goto retry;
@@ -318,7 +318,7 @@ increment of the sequence number on line~44, then releases the lock.
 26     }
 27     repp = &rep->re_next;
 28   } while (rep->addr != addr);
-29   if (ACCESS_ONCE(rep->re_freed))
+29   if (READ_ONCE(rep->re_freed))
 30     abort();
 31   ret = rep->iface;
 32   if (read_seqretry(&sl, s))
