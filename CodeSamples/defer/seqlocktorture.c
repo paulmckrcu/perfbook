@@ -78,9 +78,9 @@ void *seqlock_read_test(void *arg)
 
 	run_on(me);
 	atomic_inc(&nthreadsrunning);
-	while (ACCESS_ONCE(goflag) == GOFLAG_INIT)
+	while (READ_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);
-	while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
+	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		for (i = COUNT_READ_RUN; i > 0; i--) {
 			n_retries_local_cur = -1;
 			do {
@@ -115,9 +115,9 @@ void *seqlock_write_test(void *arg)
 
 	run_on(me);
 	atomic_inc(&nthreadsrunning);
-	while (ACCESS_ONCE(goflag) == GOFLAG_INIT)
+	while (READ_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);
-	while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
+	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		for (i = COUNT_UPDATE_RUN; i > 0; i--) {
 			write_seqlock(&test_seqlock);
 			for (j = 0; j < n_elems; j++)
