@@ -47,7 +47,7 @@ static void rcu_read_lock(void)
 
 	n = __get_thread_var(rcu_nesting);
 	if (n == 0) {
-		i = ACCESS_ONCE(rcu_idx) & 0x1;
+		i = READ_ONCE(rcu_idx) & 0x1;
 		__get_thread_var(rcu_read_idx) = i;
 		__get_thread_var(rcu_refcnt)[i]++;
 	}

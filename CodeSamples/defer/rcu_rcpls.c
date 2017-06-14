@@ -28,7 +28,7 @@ static void flip_counter_and_wait(int ctr)
 	int i;
 	int t;
 
-	ACCESS_ONCE(rcu_idx) = ctr + 1;
+	WRITE_ONCE(rcu_idx, ctr + 1);
 	i = ctr & 0x1;
 	smp_mb();
 	for_each_thread(t) {
@@ -46,10 +46,10 @@ void synchronize_rcu(void)
 	int oldctr;
 
 	smp_mb();
-	oldctr = ACCESS_ONCE(rcu_idx);
+	oldctr = READ_ONCE(rcu_idx);
 	smp_mb();
 	spin_lock(&rcu_gp_lock);
-	ctr = ACCESS_ONCE(rcu_idx);
+	ctr = READ_ONCE(rcu_idx);
 	if (ctr - oldctr >= 3) {
 
 		/*
