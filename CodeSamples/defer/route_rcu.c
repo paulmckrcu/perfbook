@@ -93,7 +93,6 @@ static void route_cb(struct rcu_head *rhp)
 {
 	struct route_entry *rep = container_of(rhp, struct route_entry, rh);
 
-	WRITE_ONCE(rep->re_freed, 1);
 	re_free(rep);
 }
 
