@@ -44,7 +44,7 @@ DEFINE_SPINLOCK(routelock);
 
 static void re_free(struct route_entry *rep)
 {
-	ACCESS_ONCE(rep->re_freed) = 1;
+	WRITE_ONCE(rep->re_freed, 1);
 	free(rep);
 }
 
@@ -60,7 +60,7 @@ unsigned long route_lookup(unsigned long addr)
 	cds_list_for_each_entry_rcu(rep, &route_list, re_next) {
 		if (rep->addr == addr) {
 			ret = rep->iface;
-			if (ACCESS_ONCE(rep->re_freed))
+			if (READ_ONCE(rep->re_freed))
 				abort();
 			rcu_read_unlock();
 			return ret;
@@ -93,7 +93,7 @@ static void route_cb(struct rcu_head *rhp)
 {
 	struct route_entry *rep = container_of(rhp, struct route_entry, rh);
 
-	ACCESS_ONCE(rep->re_freed) = 1;
+	WRITE_ONCE(rep->re_freed, 1);
 	re_free(rep);
 }
 
