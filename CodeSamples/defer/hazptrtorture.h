@@ -286,17 +286,17 @@ void *hazptr_update_stress_test(void *arg)
 		if (i >= HAZPTR_STRESS_PIPE_LEN)
 			i = 0;
 		p = &hazptr_stress_array[i];
-		if (ACCESS_ONCE(p->inuse)) {
+		if (READ_ONCE(p->inuse)) {
 			hazptr_stress_idx = i;
 			continue;
 		}
 		p->pipe_count = 0;
-		ACCESS_ONCE(p->inuse) = 1;
+		WRITE_ONCE(p->inuse, 1);
 		p->mbtest = 0;
 		smp_mb();
 		p->mbtest = 1;
 		smp_mb();
-		ACCESS_ONCE(hazptr_stress_current) =  p;
+		WRITE_ONCE(hazptr_stress_current, p);
 		hazptr_stress_idx = i;
 		for (i = 0; i < HAZPTR_STRESS_PIPE_LEN; i++)
 			if (!hazptr_stress_array[i].inuse) {

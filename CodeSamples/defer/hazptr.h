@@ -65,17 +65,17 @@ static inline void *hp_record(void **p, hazard_pointer *hp)
 	hazptr_head_t *tmp;
 
 	do {
-		tmp = ACCESS_ONCE(*p);
-		ACCESS_ONCE(hp->p) = tmp;
+		tmp = READ_ONCE(*p);
+		WRITE_ONCE(hp->p, tmp);
 		smp_mb();
-	} while (tmp != ACCESS_ONCE(*p));
+	} while (tmp != READ_ONCE(*p));
 	return tmp;
 }
 
 static inline void hp_clear(hazard_pointer *hp)
 {
 	smp_mb();
-	ACCESS_ONCE(hp->p) = NULL;
+	WRITE_ONCE(hp->p, NULL);
 }
 
 #define hazptr_clean_pointer(p) ((typeof(p))((unsigned long)(p) & ~0x1UL))
