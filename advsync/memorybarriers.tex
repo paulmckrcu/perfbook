@@ -12,39 +12,69 @@ and debugging both sequential code and parallel code that makes
 use of standard mutual-exclusion mechanisms, such as locking and
 RCU.
 
-\begin{table}
-\centering{\tt
-\begin{tabular}{l|l}
-	\nf{Thread 1} & \nf{Thread 2} \\
-	\hline
-	x = 1;  & y = 1; \\
-	r1 = y; & r2 = x; \\
-	\hline
-	\multicolumn{2}{l}{assert(r1 == 1 || r2 == 1);} \\
-\end{tabular}}
-\caption{Memory Misordering: Dekker}
-\label{tab:advsync:Memory Misordering: Dekker}
-\end{table}
+\begin{figure}
+{ \scriptsize
+\begin{verbbox}
+ 1 C C-SB+o-o+o-o
+ 2 {
+ 3 }
+ 4
+ 5 P0(int *x0, int *x1)
+ 6 {
+ 7   int r2;
+ 8
+ 9   *x0 = 2;
+10   r2 = *x1;
+11 }
+12
+13
+14 P1(int *x0, int *x1)
+15 {
+16   int r2;
+17
+18   *x1 = 2;
+19   r2 = *x0;
+20 }
+21
+22 exists (1:r2=0 /\ 0:r2=0)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Memory Misordering: Store-Buffering Litmus Test}
+\label{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}
+\end{figure}
 
 Unfortunately, these intuitions break down completely in face of
 code that makes direct use of explicit memory barriers for data structures
 in shared memory.
 For example, the litmus test in
-Table~\ref{tab:advsync:Memory Misordering: Dekker}
+Table~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}
 appears to guarantee that the assertion never fires.
-After all, if \nbco{r1 != 1}, we might hope that Thread~1's load from~\co{y}
-must have happened before Thread~2's store to~\co{y}, which might raise
-further hopes that Thread~2's load from~\co{x} must happen after
-Thread~1's store to~\co{x}, so that \nbco{r2 == 1}, as required by the
+After all, if \nbco{0:r2=0},\footnote{
+	That is, Thread~\co{P0()}'s instance of local variable \co{r2}
+	equals zero.
+	See Section~\ref{sec:formal:Anatomy of a Litmus Test}
+	for documention of litmus-test structure.}
+as shown in the \co{exists} clause, we might hope that Thread~\co{P0()}'s
+load from~\co{x1} must have happened before Thread~\co{P1()}'s store to~\co{x1},
+which might raise
+further hopes that Thread~\co{P1()}'s load from~\co{x0} must happen after
+Thread~\co{P0()}'s store to~\co{x0}, so that \nbco{1:r2=0}, as required by the
 assertion.
 The example is symmetric, so similar hopeful reasoning might lead
-us to hope that \nbco{r2 != 1} guarantees that \nbco{r1 == 1}.
+us to hope that \nbco{1:r2=0} guarantees that \nbco{0:r2=1}.
 Unfortunately, the lack of memory barriers in
-Table~\ref{tab:advsync:Memory Misordering: Dekker}
+Table~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}
 dashes these hopes.
 Both the compiler and the CPU are within their rights to reorder
-the statements within both Thread~1 and Thread~2, even on relatively
-strongly ordered systems such as x86.
+the statements within both Thread~\co{P0()} and Thread~\co{P1()},
+even on relatively strongly ordered systems such as x86.
+This can be confirmed using tools such as
+\co{litmus7}~\cite{Alglave:2014:HCM:2594291.2594347},
+which found that the counter-intuitive ordering happened
+three times out of one million trials on my x86 laptop.
+% litmus7 -carch X86 /home/git/perfbook/advsync/C-SB+o-o+o-o.litmus
 
 The following sections show exactly where this intuition breaks down,
 and then puts forward a mental model of memory barriers that can help
