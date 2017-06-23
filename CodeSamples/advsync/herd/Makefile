@@ -1,0 +1,4 @@
+all: C-SB+o-o+o-o.litmus.out
+
+%.litmus.out: %.litmus
+	litmus7 -r 1000 -carch X86 $< > $@ 2>&1
