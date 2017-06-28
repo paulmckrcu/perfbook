@@ -117,34 +117,56 @@ Isn't that why we have computers in the first place, to keep track of things?
 
 Many people do indeed expect their computers to keep track of things,
 but many also insist that they keep track of things quickly.
-One difficulty that modern computer-system vendors face is that
+However, as seen in Chapter~\ref{chp:Hardware and its Habits},
+one difficulty that modern computer-system vendors face is that
 the main memory cannot keep up with the CPU---modern CPUs can execute
 hundreds of instructions in the time required to fetch a single variable
 from memory.
-CPUs therefore sport increasingly large caches, as shown in
-Figure~\ref{fig:advsync:Modern Computer System Cache Structure}.
-Variables that are heavily used by a given CPU will tend to remain
-in that CPU's cache, allowing high-speed access to the corresponding
-data.
+CPUs therefore sport increasingly large caches, as seen back in
+Figure~\ref{fig:cpu:System Hardware Architecture}, which means that
+although the first load by a given CPU from a given variable will
+result in an expensive \emph{cache miss} as was discussed in
+Section~\ref{sec:cpu:Cache Misses}, subsequent
+repeated loads from that variable by that CPU can execute
+very quickly because the initial cache miss will have loaded that
+variable into that CPU's cache.
 
-\begin{figure}[htb]
+However, it is also necessary to accommodate frequent concurrent stores
+from multiple CPUs to a set of shared variables.
+In cache-coherent systems, if the caches hold multiple copies of a given
+variable, all the copies of that variable must have the same value.
+This works extremely well for concurrent reads, but not so well for
+concurrent writes:  Each write musd do something about all
+copies of the old value (another cache miss!), which, given the finite
+speed of light and the atomic nature of matter, will be slower
+than impatient software hackers would like.
+
+\begin{figure}[tb]
 \centering
-\resizebox{3in}{!}{\includegraphics{appendix/whymb/cacheSC}}
-\caption{Modern Computer System Cache Structure}
-\label{fig:advsync:Modern Computer System Cache Structure}
+\resizebox{2.5in}{!}{\includegraphics{advsync/SystemArchSB}}
+\caption{System Architecture With Store Buffers}
+\label{fig:advsync:System Architecture With Store Buffers}
 \end{figure}
 
-Unfortunately, when a CPU accesses data that is not yet in its cache
-will result in an expensive ``cache miss'', requiring the data to
-be fetched from main memory.
-Doubly unfortunately, running typical code results in a significant
-number of cache misses.
-To limit the resulting performance degradation, CPUs have been designed to
-execute other instructions and memory references while waiting for
-a cache miss to fetch data from memory.
-This clearly causes instructions and memory references to execute out
-of order, which could cause serious confusion, as illustrated in
+CPUs therefore come equipped with store buffers, as shown in
+Figure~\ref{fig:advsync:System Architecture With Store Buffers}.
+When a given CPU does a store to a given variable when that
+variable is not present in that CPU's cache, then the new value
+is instead placed in that CPU's store buffer.
+The CPU can then proceed immediately, without having to wait for the
+store to do something about all the old values of that variable
+residing in other CPUs' caches.
+
+Although store buffers can greatly increase performance,
+they can cause instructions and memory references to execute out
+of order, which can in turn cause serious confusion, as illustrated in
 Figure~\ref{fig:advsync:CPUs Can Do Things Out of Order}.
+In particular, these store buffers can cause the memory misordering
+shown in the store-buffering litmus test in
+Figure~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}
+
+% @@@ More here.  Some sort of illustration of store-buffering misordering
+
 Compilers and synchronization primitives (such as locking and RCU)
 are responsible for maintaining the illusion of ordering through use of
 ``memory barriers'' (for example, \co{smp_mb()} in the Linux kernel).
