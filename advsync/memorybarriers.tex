@@ -157,6 +157,13 @@ The CPU can then proceed immediately, without having to wait for the
 store to do something about all the old values of that variable
 residing in other CPUs' caches.
 
+\begin{figure}[htb]
+\centering
+\resizebox{3in}{!}{\includegraphics{cartoons/r-2014-Out-of-order}}
+\caption{CPUs Can Do Things Out of Order}
+\ContributedBy{Figure}{fig:advsync:CPUs Can Do Things Out of Order}{Melissa Broussard}
+\end{figure}
+
 Although store buffers can greatly increase performance,
 they can cause instructions and memory references to execute out
 of order, which can in turn cause serious confusion, as illustrated in
@@ -165,29 +172,116 @@ In particular, these store buffers can cause the memory misordering
 shown in the store-buffering litmus test in
 Figure~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}.
 
-% @@@ More here.  Some sort of illustration of store-buffering misordering
+\begin{table*}
+\small
+\centering
+\begin{tabular}{r||l|l|l||l|l|l}
+	& \multicolumn{3}{c||}{CPU 0} & \multicolumn{3}{c}{CPU 1} \\
+	\cline{2-7}
+	& Instruction & Store Buffer & Cache &
+		Instruction & Store Buffer & Cache \\
+	\hline
+	\hline
+	1 & (Initial state) & & \tco{x1==0} &
+		(Initial state) & & \tco{x0==0} \\
+	\hline
+	2 & \tco{*x0 = 2} & \tco{x0==2} & \tco{x1==0} &
+		\tco{*x1 = 2;} & \tco{x1==2} & \tco{x0==0} \\
+	\hline
+	3 & \tco{r2 = *x1;} (0) & \tco{x0==2} & \tco{x1==0} &
+		\tco{r2 = *x0;} (0) & \tco{x1==2} & \tco{x0==0} \\
+	\hline
+	4 & (Read-invalidate) & \tco{x0==2} & \tco{x0==0} &
+		(Read-invalidate) & \tco{x1==2} & \tco{x1==0} \\
+	\hline
+	5 & (Finish store) & & \tco{x0==2} &
+		(Finish store) & & \tco{x1==2} \\
+\end{tabular}
+\caption{Memory Misordering: Store-Buffering Sequence of Events}
+\label{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}
+\end{table*}
 
-Compilers and synchronization primitives (such as locking and RCU)
-are responsible for maintaining the illusion of ordering through use of
-``memory barriers'' (for example, \co{smp_mb()} in the Linux kernel).
+Table~\ref{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}
+shows how this memory misordering can happen.
+Line~1 shows the initial state, where CPU~0 has \co{x1} in its cache
+and CPU~1 has \co{x0} in its cache, both variables having a value of zero.
+Line~2 shows the state change due to each CPU's store (lines~9 and~18 of
+Figure~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}).
+Because neither CPU has the stored-to variable in its cache, both CPUs
+record their stores in their respective store buffers.
+
+\QuickQuiz{}
+	But wait!!!
+	On line~2 of
+	Table~\ref{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}
+	both \co{x0} and \co{x1} each have two values at the same time,
+	namely zero and two.
+	How can that possibly work???
+\QuickQuizAnswer{
+	There is an underlying cache-coherence protocol that straightens
+	things out, which will be discussed later.
+	% @@@ Add forward reference.
+	But if you think that a given variable having two values at
+	the same time is surprising, just wait until you get to
+	Section~\ref{sec:advsync:Variables Can Have More Than One Value}!
+} \QuickQuizEnd
+
+Line~3 shows the two reads (lines~10 and~19 of
+Figure~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}).
+Because the variable being read by each CPU is in that CPU's cache,
+each read immediately returns the cached value, which in both cases
+is zero.
+
+But the CPUs are not done yet: Sooner or later, they must empty their
+store buffers.
+Because caches move data around in relatively large blocks called
+\emph{cachelines}, and because each cacheline can hold several
+variables, each CPU must get the cacheline into its own cache so
+that it can update the portion of that cacheline corresponding
+to the variable in its store buffer, but without disturbing any
+other part of the cacheline.
+Each CPU must also ensure that the cacheline is not present in any other
+CPU's cache, for which a read-invalidate operation is used.
+As shown on line 4, after both read-invalidate operations complete,
+the two CPUs have traded cachelines, so that CPU~0's cache now contains
+\co{x0} and CPU~1's cache now contains \co{x1}.
+Once these two variables are in their new homes, each CPU can flush
+its store buffer into the corresponding cache line, leaving each
+variable with its final value as shown on line~5.
+
+\QuickQuiz{}
+	But don't the values also need to be flushed from the cache
+	to main memory?
+\QuickQuizAnswer{
+	Perhaps surprisingly, not necessarily!
+	On some systems,
+	if the two variables are being used heavily, they might
+	be bounced back and forth between the CPUs' caches and never
+	land in main memory.
+} \QuickQuizEnd
+
+In summary, store buffers are needed to allow CPUs to handle
+store instructions efficiently, but they can result in
+counter-intuitive memory misordering.
+
+But what do you do if your algorithm really needs its memory
+references to be ordered?
+It turns out that there are compilers directives and standard
+synchronization primitives (such as locking and RCU)
+that are responsible for maintaining the illusion of ordering through use of
+\emph{memory barriers} (for example, \co{smp_mb()} in the Linux kernel).
 These memory barriers can be explicit instructions, as they are on
 ARM, POWER, Itanium, and Alpha, or they can be implied by other instructions,
-as they are on x86.
-
-\begin{figure}[htb]
-\centering
-\resizebox{3in}{!}{\includegraphics{cartoons/r-2014-Out-of-order}}
-\caption{CPUs Can Do Things Out of Order}
-\ContributedBy{Figure}{fig:advsync:CPUs Can Do Things Out of Order}{Melissa Broussard}
-\end{figure}
-
-Since the standard synchronization primitives preserve the illusion of
-ordering, your path of least resistance is to stop reading
-this section and simply use these primitives.
+as they often are on x86.
+Since these standard synchronization primitives preserve the illusion of
+ordering, your path of least resistance is to simply use these primitives,
+thus allowing you to stop reading this section.
 
 However, if you need to implement the synchronization primitives
 themselves, or if you are simply interested in understanding how memory
 ordering and memory barriers work, read on!
+
+% @@@ More here.  Add memory barriers to the litmus test...
 
 The next sections present counter-intuitive scenarios that you might
 encounter when using explicit memory barriers.
