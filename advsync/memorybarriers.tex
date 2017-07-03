@@ -114,12 +114,13 @@ gives a brief overview of memory ordering and memory barriers.
 Once this background is in place, the next step is to get you to admit
 that your intuition has a problem.
 This painful task is taken up by
-Section~\ref{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?},
-which shows an intuitively correct code fragment that fails miserably
-on real hardware, and by
 Section~\ref{sec:advsync:Variables Can Have More Than One Value},
 which presents some code demonstrating that scalar variables can
-take on multiple values simultaneously.
+take on multiple values simultaneously,
+and by
+Section~\ref{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?},
+which shows an intuitively correct code fragment that fails miserably
+on real hardware.
 Once your intuition has made it through the grieving process,
 Section~\ref{sec:advsync:What Can You Trust?}
 provides the basic rules that memory barriers follow, rules that we
@@ -411,110 +412,6 @@ low-level concurrent primitives.
 % The next sections present counter-intuitive scenarios that you might
 % encounter when using explicit memory barriers.
 
-\subsection{If B Follows A, and C Follows B, Why Doesn't C Follow A?}
-\label{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?}
-
-% @@@ Replace this with WRC, RWC, or similar and move later.
-% @@@ Non-multicopy atomicity example as opposed to transitivity.
-
-Memory ordering and memory barriers can be extremely counter-intuitive.
-For example, consider the functions shown in
-Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal}
-executing in parallel
-where variables~A, B, and~C are initially zero:
-
-\begin{figure}[htbp]
-{ \scriptsize
-\begin{verbbox}
-  1 thread0(void)
-  2 {
-  3   A = 1;
-  4   smp_wmb();
-  5   B = 1;
-  6 }
-  7
-  8 thread1(void)
-  9 {
- 10   while (B != 1)
- 11     continue;
- 12   barrier();
- 13   C = 1;
- 14 }
- 15
- 16 thread2(void)
- 17 {
- 18   while (C != 1)
- 19     continue;
- 20   barrier();
- 21   assert(A != 0);
- 22 }
-\end{verbbox}
-}
-\centering
-\theverbbox
-\caption{Parallel Hardware is Non-Causal}
-\label{fig:advsync:Parallel Hardware is Non-Causal}
-\end{figure}
-
-Intuitively, \co{thread0()} assigns to~B after it assigns to~A,
-\co{thread1()} waits until \co{thread0()} has assigned to~B before
-assigning to~C, and \co{thread2()} waits until \co{thread1()} has
-assigned to~C before referencing~A.
-Therefore, again intuitively, the assertion on line~21 cannot possibly
-fire.
-
-This line of reasoning, intuitively obvious though it may be, is completely
-and utterly incorrect.
-Please note that this is \emph{not} a theoretical assertion:
-actually running this code on real-world weakly-ordered hardware
-(a 1.5\,GHz 16-CPU POWER 5 system) resulted in the assertion firing
-16~times out of 10~million runs.
-Clearly, anyone who produces code with explicit memory barriers
-should do some extreme testing---although a proof of correctness might
-be helpful, the strongly counter-intuitive nature of the behavior of
-memory barriers should in turn strongly limit one's trust in such proofs.
-The requirement for extreme testing should not be taken lightly, given
-that a number of dirty hardware-dependent tricks were used to
-greatly \emph{increase} the probability of failure in this run.
-
-\QuickQuiz{}
-	How on earth could the assertion on line~21 of the code in
-	Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal} on
-	page~\pageref{fig:advsync:Parallel Hardware is Non-Causal}
-	\emph{possibly} fail?
-\QuickQuizAnswer{
-	The key point is that the intuitive analysis missed is that
-	there is nothing preventing the assignment to~C from overtaking
-	the assignment to~A as both race to reach \co{thread2()}.
-	This is explained in the remainder of this section.
-} \QuickQuizEnd
-
-\QuickQuiz{}
-	Great \ldots So how do I fix it?
-\QuickQuizAnswer{
-	The easiest fix is to replace each of the \co{barrier()}s on
-	line~12 and line~20 with an \co{smp_mb()}.
-
-	Of course, some hardware is more forgiving than other hardware.
-	For example, on x86 the assertion on line~21 of
-	Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal} on
-	page~\pageref{fig:advsync:Parallel Hardware is Non-Causal}
-	cannot trigger.
-	On PowerPC, only the \co{barrier()} on line~20 need be
-	replaced with \co{smp_mb()} to prevent the assertion from
-	triggering.
-} \QuickQuizEnd
-
-So what should you do?
-Your best strategy, if possible, is to use existing primitives that
-incorporate any needed memory barriers, so that you can simply ignore
-the rest of this chapter.
-
-Of course, if you are implementing synchronization primitives,
-you don't have this luxury.
-The following discussion of memory ordering and memory barriers
-is for you.
-
 \subsection{Variables Can Have More Than One Value}
 \label{sec:advsync:Variables Can Have More Than One Value}
 
@@ -684,6 +581,110 @@ and~\ref{cha:Partitioning and Synchronization Design}.
 Having all CPUs write concurrently to the same variable
 is absolutely no way to design a parallel program, at least
 not if performance and scalability are at all important to you.
+
+\subsection{If B Follows A, and C Follows B, Why Doesn't C Follow A?}
+\label{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?}
+
+% @@@ Replace this with WRC, RWC, or similar and move later.
+% @@@ Non-multicopy atomicity example as opposed to transitivity.
+
+Memory ordering and memory barriers can be extremely counter-intuitive.
+For example, consider the functions shown in
+Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal}
+executing in parallel
+where variables~A, B, and~C are initially zero:
+
+\begin{figure}[htbp]
+{ \scriptsize
+\begin{verbbox}
+  1 thread0(void)
+  2 {
+  3   A = 1;
+  4   smp_wmb();
+  5   B = 1;
+  6 }
+  7
+  8 thread1(void)
+  9 {
+ 10   while (B != 1)
+ 11     continue;
+ 12   barrier();
+ 13   C = 1;
+ 14 }
+ 15
+ 16 thread2(void)
+ 17 {
+ 18   while (C != 1)
+ 19     continue;
+ 20   barrier();
+ 21   assert(A != 0);
+ 22 }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Parallel Hardware is Non-Causal}
+\label{fig:advsync:Parallel Hardware is Non-Causal}
+\end{figure}
+
+Intuitively, \co{thread0()} assigns to~B after it assigns to~A,
+\co{thread1()} waits until \co{thread0()} has assigned to~B before
+assigning to~C, and \co{thread2()} waits until \co{thread1()} has
+assigned to~C before referencing~A.
+Therefore, again intuitively, the assertion on line~21 cannot possibly
+fire.
+
+This line of reasoning, intuitively obvious though it may be, is completely
+and utterly incorrect.
+Please note that this is \emph{not} a theoretical assertion:
+actually running this code on real-world weakly-ordered hardware
+(a 1.5\,GHz 16-CPU POWER 5 system) resulted in the assertion firing
+16~times out of 10~million runs.
+Clearly, anyone who produces code with explicit memory barriers
+should do some extreme testing---although a proof of correctness might
+be helpful, the strongly counter-intuitive nature of the behavior of
+memory barriers should in turn strongly limit one's trust in such proofs.
+The requirement for extreme testing should not be taken lightly, given
+that a number of dirty hardware-dependent tricks were used to
+greatly \emph{increase} the probability of failure in this run.
+
+\QuickQuiz{}
+	How on earth could the assertion on line~21 of the code in
+	Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal} on
+	page~\pageref{fig:advsync:Parallel Hardware is Non-Causal}
+	\emph{possibly} fail?
+\QuickQuizAnswer{
+	The key point is that the intuitive analysis missed is that
+	there is nothing preventing the assignment to~C from overtaking
+	the assignment to~A as both race to reach \co{thread2()}.
+	This is explained in the remainder of this section.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Great \ldots So how do I fix it?
+\QuickQuizAnswer{
+	The easiest fix is to replace each of the \co{barrier()}s on
+	line~12 and line~20 with an \co{smp_mb()}.
+
+	Of course, some hardware is more forgiving than other hardware.
+	For example, on x86 the assertion on line~21 of
+	Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal} on
+	page~\pageref{fig:advsync:Parallel Hardware is Non-Causal}
+	cannot trigger.
+	On PowerPC, only the \co{barrier()} on line~20 need be
+	replaced with \co{smp_mb()} to prevent the assertion from
+	triggering.
+} \QuickQuizEnd
+
+So what should you do?
+Your best strategy, if possible, is to use existing primitives that
+incorporate any needed memory barriers, so that you can simply ignore
+the rest of this chapter.
+
+Of course, if you are implementing synchronization primitives,
+you don't have this luxury.
+The following discussion of memory ordering and memory barriers
+is for you.
 
 \subsection{What Can You Trust?}
 \label{sec:advsync:What Can You Trust?}
