@@ -277,17 +277,122 @@ Since these standard synchronization primitives preserve the illusion of
 ordering, your path of least resistance is to simply use these primitives,
 thus allowing you to stop reading this section.
 
+\begin{figure}
+{ \scriptsize
+\begin{verbbox}
+ 1 C C-SB+o-mb-o+o-mb-o
+ 2 {
+ 3 }
+ 4
+ 5 P0(int *x0, int *x1)
+ 6 {
+ 7   int r2;
+ 8
+ 9   *x0 = 2;
+10   __atomic_thread_fence(__ATOMIC_SEQ_CST);
+11   r2 = *x1;
+12 }
+13
+14
+15 P1(int *x0, int *x1)
+16 {
+17   int r2;
+18
+19   *x1 = 2;
+20   __atomic_thread_fence(__ATOMIC_SEQ_CST);
+21   r2 = *x0;
+22 }
+23
+24 exists (1:r2=0 /\ 0:r2=0)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Memory Ordering: Store-Buffering Litmus Test}
+\label{fig:advsync:Memory Ordering: Store-Buffering Litmus Test}
+\end{figure}
+
 However, if you need to implement the synchronization primitives
 themselves, or if you are simply interested in understanding how memory
 ordering and memory barriers work, read on!
+The first stop is
+Figure~\ref{fig:advsync:Memory Ordering: Store-Buffering Litmus Test},
+which has \co{__atomic_thread_fence()} directives placed between
+the store and load in both \co{P0()} and \co{P1()}, but is otherwise
+identical to the code shown in
+Figure~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}.
+% Test C-SB+o-mb-o+o-mb-o Allowed
+% Histogram (3 states)
+% 49553298:>0:r2=2; 1:r2=0;
+% 49636449:>0:r2=0; 1:r2=2;
+% 810253:>0:r2=2; 1:r2=2;
+% No
+These directives prevent the counter-intuitive outcome from happening
+on 100,000,000 trials on my x86 laptop.
+Interestingly enough, the overhead of these directives causes the
+legal outcome where both loads return the value two to happen more
+than 800,000 times, as opposed to only 167 times for the
+directive-free code in
+Figure~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}.
 
-% @@@ More here.  Add memory barriers to the litmus test...
+\begin{table*}
+\small
+\centering
+\begin{tabular}{r||l|l|l||l|l|l}
+	& \multicolumn{3}{c||}{CPU 0} & \multicolumn{3}{c}{CPU 1} \\
+	\cline{2-7}
+	& Instruction & Store Buffer & Cache &
+		Instruction & Store Buffer & Cache \\
+	\hline
+	\hline
+	1 & (Initial state) & & \tco{x1==0} &
+		(Initial state) & & \tco{x0==0} \\
+	\hline
+	2 & \tco{*x0 = 2} & \tco{x0==2} & \tco{x1==0} &
+		\tco{*x1 = 2;} & \tco{x1==2} & \tco{x0==0} \\
+	\hline
+	3 & \tco{__atomic_thread_fence()} & \tco{x0==2} & \tco{x1==0} &
+		\tco{__atomic_thread_fence()} & \tco{x1==2} & \tco{x0==0} \\
+	\hline
+	4 & (Read-invalidate) & \tco{x0==2} & \tco{x0==0} &
+		(Read-invalidate) & \tco{x1==2} & \tco{x1==0} \\
+	\hline
+	5 & (Finish store) & & \tco{x0==2} &
+		(Finish store) & & \tco{x1==2} \\
+	\hline
+	6 & \tco{r2 = *x1;} (2) & \tco{x0==2} & \tco{x1==0} &
+		\tco{r2 = *x0;} (2) & \tco{x1==2} & \tco{x0==0} \\
+\end{tabular}
+\caption{Memory Ordering: Store-Buffering Sequence of Events}
+\label{tab:advsync:Memory Ordering: Store-Buffering Sequence of Events}
+\end{table*}
 
-The next sections present counter-intuitive scenarios that you might
-encounter when using explicit memory barriers.
+These directives have a profound effect on ordering, as can be seen in
+Table~\ref{tab:advsync:Memory Ordering: Store-Buffering Sequence of Events}.
+Although the \co{__atomic_thread_fence()} directives on row~3
+do not change state
+in and of themselves, they do cause the stores to complete before the
+loads, which rules out the counter-intuitive outcome shown in
+Table~\ref{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}.
+Note that variables \co{x0} and \co{x1} each still have more than one
+value on row~2, however, as promised earlier, the directives straighten
+things out in the end.
+
+Please note that actual hardware tends to be much more complex, tricky,
+and subtle than is described here.
+After all, the point of this discussion is not to train you to be
+a hardware architect, but rather to help you correctly code
+low-level concurrent primitives.
+
+% @@@ multivalue variables next, actually...
+% The next sections present counter-intuitive scenarios that you might
+% encounter when using explicit memory barriers.
 
 \subsection{If B Follows A, and C Follows B, Why Doesn't C Follow A?}
 \label{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?}
+
+% @@@ Replace this with WRC, RWC, or similar and move later.
+% @@@ Non-multicopy atomicity example as opposed to transitivity.
 
 Memory ordering and memory barriers can be extremely counter-intuitive.
 For example, consider the functions shown in
