@@ -23,8 +23,8 @@ RCU.
  6 {
  7   int r2;
  8
- 9   __atomic_store_n(x0, 2, __ATOMIC_RELAXED);
-10   r2 = __atomic_load_n(x1, __ATOMIC_RELAXED);
+ 9   WRITE_ONCE(x0, 2);
+10   r2 = READ_ONCE(x1);
 11 }
 12
 13
@@ -32,8 +32,8 @@ RCU.
 15 {
 16   int r2;
 17
-18   __atomic_store_n(x1, 2, __ATOMIC_RELAXED);
-19   r2 = __atomic_load_n(x0, __ATOMIC_RELAXED);
+18   WRITE_ONCE(x1, 2);
+19   r2 = READ_ONCE(x0);
 20 }
 21
 22 exists (1:r2=0 /\ 0:r2=0)
@@ -68,25 +68,6 @@ Unfortunately, the lack of memory barriers dashes these hopes.
 Both the compiler and the CPU are within their rights to reorder
 the statements within both Thread~\co{P0()} and Thread~\co{P1()},
 even on relatively strongly ordered systems such as x86.
-
-\QuickQuiz{}
-	Shouldn't lines~9 and~18 use \co{WRITE_ONCE()} and
-	lines~10 and~19 use \co{READ_ONCE()} instead of this
-	verbose \co{__atomic_} silliness?
-\QuickQuizAnswer{
-	In the Linux kernel, yes.
-	But the \co{litmus7} tool used to run these litmus tests
-	only knows about usermode primitives, in this case, gcc's
-	C11-like intrinsics.
-	They are not hard to figure out:
-	Line~9 is more or less \co{WRITE_ONCE()} and
-	line~10 is more or less \co{READ_ONCE()}.
-
-	But you can use kernel primitives if you want.
-	Just set up an environment where you can install and run
-	kernel modules, then use the \co{klitmus} tool
-	instead of the \co{litmus} tool.
-} \QuickQuizEnd
 
 This willingness to reorder can be confirmed using tools such as
 \co{litmus7}~\cite{Alglave:2014:HCM:2594291.2594347},
@@ -309,9 +290,9 @@ thus allowing you to stop reading this section.
  6 {
  7   int r2;
  8
- 9   __atomic_store_n(x0, 2, __ATOMIC_RELAXED);
-10   __atomic_thread_fence(__ATOMIC_SEQ_CST);
-11   r2 = __atomic_load_n(x1, __ATOMIC_RELAXED);
+ 9   WRITE_ONCE(x0, 2);
+10   smp_mb();
+11   r2 = READ_ONCE(x1);
 12 }
 13
 14
@@ -319,9 +300,9 @@ thus allowing you to stop reading this section.
 16 {
 17   int r2;
 18
-19   __atomic_store_n(x1, 2, __ATOMIC_RELAXED);
-20   __atomic_thread_fence(__ATOMIC_SEQ_CST);
-21   r2 = __atomic_load_n(x0, __ATOMIC_RELAXED);
+19   WRITE_ONCE(x1, 2);
+20   smp_mb();
+21   r2 = READ_ONCE(x0);
 22 }
 23
 24 exists (1:r2=0 /\ 0:r2=0)
@@ -339,13 +320,7 @@ ordering and memory barriers work, read on!
 The first stop is
 Figure~\ref{fig:advsync:Memory Ordering: Store-Buffering Litmus Test}
 (\path{C-SB+o-mb-o+o-mb-o.litmux}),
-which has \co{__atomic_thread_fence()} directives\footnote{
-	This is one of GCC's atomic intrinsics that was introduced
-	briefly in
-	Section~\ref{sec:toolsoftrade:Atomic Operations (C11)}.
-	It is roughly similar to the Linux kernel's \co{smp_mb()} full
-	memory barrier.}
-placed between
+which the \co{smp_mb()} Linux-kernel full memory barrier placed between
 the store and load in both \co{P0()} and \co{P1()}, but is otherwise
 identical to the code shown in
 Figure~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}.
@@ -379,8 +354,8 @@ Figure~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}.
 	2 & \tco{*x0 = 2} & \tco{x0==2} & \tco{x1==0} &
 		\tco{*x1 = 2;} & \tco{x1==2} & \tco{x0==0} \\
 	\hline
-	3 & \tco{__atomic_thread_fence()} & \tco{x0==2} & \tco{x1==0} &
-		\tco{__atomic_thread_fence()} & \tco{x1==2} & \tco{x0==0} \\
+	3 & \tco{smp_mb()} & \tco{x0==2} & \tco{x1==0} &
+		\tco{smp_mb()} & \tco{x1==2} & \tco{x0==0} \\
 	\hline
 	4 & (Read-invalidate) & \tco{x0==2} & \tco{x0==0} &
 		(Read-invalidate) & \tco{x1==2} & \tco{x1==0} \\
@@ -397,7 +372,7 @@ Figure~\ref{fig:advsync:Memory Misordering: Store-Buffering Litmus Test}.
 
 These directives have a profound effect on ordering, as can be seen in
 Table~\ref{tab:advsync:Memory Ordering: Store-Buffering Sequence of Events}.
-Although the \co{__atomic_thread_fence()} directives on row~3
+Although the \co{smp_mb()} instructions on row~3
 do not change state
 in and of themselves, they do cause the stores to complete before the
 loads, which rules out the counter-intuitive outcome shown in

@@ -2,13 +2,19 @@ C C-SB+o-mb-o+o-mb-o
 {
 }
 
+{
+#define READ_ONCE(x) __atomic_load_n((x), __ATOMIC_RELAXED)
+#define WRITE_ONCE(x, v) __atomic_store_n((x), (v), __ATOMIC_RELAXED)
+#define smp_mb() __atomic_thread_fence(__ATOMIC_SEQ_CST)
+}
+
 P0(int *x0, int *x1)
 {
 	int r2;
 
-	__atomic_store_n(x0, 2, __ATOMIC_RELAXED);
-	__atomic_thread_fence(__ATOMIC_SEQ_CST);
-	r2 = __atomic_load_n(x1, __ATOMIC_RELAXED);
+	WRITE_ONCE(x0, 2);
+	smp_mb();
+	r2 = READ_ONCE(x1);
 }
 
 
@@ -16,9 +22,9 @@ P1(int *x0, int *x1)
 {
 	int r2;
 
-	__atomic_store_n(x1, 2, __ATOMIC_RELAXED);
-	__atomic_thread_fence(__ATOMIC_SEQ_CST);
-	r2 = __atomic_load_n(x0, __ATOMIC_RELAXED);
+	WRITE_ONCE(x1, 2);
+	smp_mb();
+	r2 = READ_ONCE(x0);
 }
 
 exists (1:r2=0 /\ 0:r2=0)
