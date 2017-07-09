@@ -8,7 +8,7 @@ CUSTOM_HEADER := $(wildcard *.h)
 
 all: $(LITMUS_OUT)
 
-%.litmus.out: %.litmus
+%.litmus.out: %.litmus $(CUSTOM_HEADER)
 	litmus7 -r 1000 -carch X86 -ccopts "$(CCOPTS)" $< > $@ 2>&1
 
 cross-x86: TARGET = X86
