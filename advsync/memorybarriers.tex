@@ -427,7 +427,7 @@ the loop if not for the check on lines~6-7.
 	intermediate results before converging on the final value.
 } \QuickQuizEnd
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbbox}
   1 state.variable = mycpu;
@@ -583,9 +583,210 @@ Section~\ref{sec:advsync:Memory Ordering and Memory Barriers}
 showed that even relatively strongly ordered systems like x86
 can reorder prior stores with later loads, at least when the
 store and load are to different variables.
-This section looks at other combinations of loads and stores.
+This section buids on that result, looking at the other combinations of
+loads and stores.
 
-\paragraph{Load Followed By Store}
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 C C-MP+o-wmb-o+o-o.litmus
+ 2
+ 3 {
+ 4 }
+ 5
+ 6
+ 7 P0(int* x0, int* x1) {
+ 8
+ 9   WRITE_ONCE(*x0, 2);
+10   smp_mb();
+11   WRITE_ONCE(*x1, 2);
+12
+13 }
+14
+15 P1(int* x0, int* x1) {
+16
+17   int r2;
+18   int r3;
+19
+20   r2 = READ_ONCE(*x0);
+21   r3 = READ_ONCE(*x1);
+22
+23 }
+24
+25 exists (1:r2=1 /\ 1:r3=0)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Message-Passing Litmus Test}
+\label{fig:advsync:Message-Passing Litmus Test}
+\end{figure}
+
+\paragraph{Load Followed By Load:}
+Figure~\ref{fig:advsync:Message-Passing Litmus Test}
+shows the classic \emph{message-passing} litmus test, where \co{x0} is
+the message and \co{x1} is a flag indicating whether or not a message
+is available.
+In this test, the \co{smp_wmb()} forces \co{P0()} writes to be ordered,
+but there is no ordering specified for the reads.
+Relatively strongly ordered architectures, such as x86, do enforce ordering.
+However, weakly ordered archictures do not necessarily enforce
+this~\cite{JadeAlglave2011ppcmem}.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 C C-MP+o-wmb-o+o-o.litmus
+ 2
+ 3 {
+ 4 }
+ 5
+ 6 P0(int* x0, int* x1) {
+ 7
+ 8   WRITE_ONCE(*x0, 2);
+ 9   smp_wmb();
+10   WRITE_ONCE(*x1, 2);
+11
+12 }
+13
+14 P1(int* x0, int* x1) {
+15
+16   int r2;
+17   int r3;
+18
+19   r2 = READ_ONCE(*x1);
+20   smp_rmb();
+21   r3 = READ_ONCE(*x0);
+22
+23 }
+24
+25 exists (1:r2=2 /\ 1:r3=0)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Enforcing Order of Message-Passing Litmus Test}
+\label{fig:advsync:Enforcing Order of Message-Passing Litmus Test}
+\end{figure}
+
+Therefore, portable code relying on ordering in this case should
+add explicit ordering, for example, the \co{smp_rmb(} shown on
+line~20 of
+Figure~\ref{fig:advsync:Enforcing Order of Message-Passing Litmus Test}.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 C C-MP+o-wmb-o+o-o.litmus
+ 2
+ 3 {
+ 4 }
+ 5
+ 6 P0(int* x0, int* x1) {
+ 7
+ 8   WRITE_ONCE(*x0, 2);
+ 9   smp_wmb();
+10   WRITE_ONCE(*x1, 2);
+11
+12 }
+13
+14 P1(int* x0, int* x1) {
+15
+16   int r2;
+17   int r3;
+18
+19   r2 = READ_ONCE(*x1);
+20   r3 = READ_ONCE(*x0);
+21
+22 }
+23 exists (1:r2=2 /\ 1:r3=0)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Load-Buffering Litmus Test}
+\label{fig:advsync:Load-Buffering Litmus Test}
+\end{figure}
+
+\paragraph{Load Followed By Store:}
+Figure~\ref{fig:advsync:Load-Buffering Litmus Test}
+shows the classic \emph{load-buffering} litmus test.
+Although relatively strongly ordered systems such as x86
+or the IBM Mainframe do not reorder prior loads with subsequent stores,
+more weakly ordered architectures really do allow such
+reordering~\cite{JadeAlglave2011ppcmem}.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 C C-LB+o-mb-o+o-mb-o.litmus
+ 2 {
+ 3 }
+ 4
+ 5 P0(int *x0, int *x1)
+ 6 {
+ 7   int r2;
+ 8
+ 9   r2 = READ_ONCE(*x1);
+10   smp_store_release(x0, 2);
+11 }
+12
+13
+14 P1(int *x0, int *x1)
+15 {
+16   int r2;
+17
+18   r2 = smp_load_acquire(x0);
+19   WRITE_ONCE(*x1, 2);
+20 }
+21
+22 exists (1:r2=1 /\ 0:r2=1)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Enforcing Ordering of Load-Buffering Litmus Test}
+\label{fig:advsync:Enforcing Ordering of Load-Buffering Litmus Test}
+\end{figure}
+
+Interestingly enough, it is relatively rare for actual hardware to
+exhibit this reordering~\cite{LucMaranget2017aarch64}.
+Nevertheless, you should enforce any required ordering, for example,
+as shown in
+Figure~\ref{fig:advsync:Enforcing Ordering of Load-Buffering Litmus Test}.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 C C-2+2W+o-o+o-o
+ 2 {
+ 3 }
+ 4
+ 5 P0(int *x0, int *x1)
+ 6 {
+ 7   WRITE_ONCE(*x0, 1);
+ 8   WRITE_ONCE(*x1, 2);
+ 9 }
+10
+11
+12 P1(int *x0, int *x1)
+13 {
+14   WRITE_ONCE(*x1, 1);
+15   WRITE_ONCE(*x0, 2);
+16 }
+17
+18 exists (x0=1 /\ x1=1)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Enforcing Ordering of 2+2W Litmus Test}
+\label{fig:advsync:Enforcing Ordering of 2+2W Litmus Test}
+\end{figure}
+
+\paragraph{Store Followed By Store:}
+Figure~\ref{fig:advsync:Enforcing Ordering of 2+2W Litmus Test}
+shows the classic \emph{2+2W}.
 
 \subsubsection{Address and Data Dependencies}
 \label{sec:advsync:Address and Data Reordering}
@@ -605,7 +806,7 @@ Figure~\ref{fig:advsync:Parallel Hardware is Non-Causal}
 executing in parallel
 where variables~A, B, and~C are initially zero:
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 { \scriptsize
 \begin{verbbox}
   1 thread0(void)
