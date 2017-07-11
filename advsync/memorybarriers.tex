@@ -758,24 +758,30 @@ Figure~\ref{fig:advsync:Enforcing Ordering of Load-Buffering Litmus Test}.
 \begin{figure}[tbp]
 { \scriptsize
 \begin{verbbox}
- 1 C C-2+2W+o-o+o-o
- 2 {
- 3 }
- 4
- 5 P0(int *x0, int *x1)
- 6 {
- 7   WRITE_ONCE(*x0, 1);
- 8   WRITE_ONCE(*x1, 2);
- 9 }
+ 1 C C-MP+o-o+o-rmb-o.litmus
+ 2
+ 3 {
+ 4 }
+ 5
+ 6 P0(int* x0, int* x1) {
+ 7
+ 8   WRITE_ONCE(*x0, 2);
+ 9   WRITE_ONCE(*x1, 2);
 10
-11
-12 P1(int *x0, int *x1)
-13 {
-14   WRITE_ONCE(*x1, 1);
-15   WRITE_ONCE(*x0, 2);
-16 }
+11 }
+12
+13 P1(int* x0, int* x1) {
+14
+15   int r2;
+16   int r3;
 17
-18 exists (x0=1 /\ x1=1)
+18   r2 = READ_ONCE(*x1);
+19   smp_rmb();
+20   r3 = READ_ONCE(*x0);
+21
+22 }
+23
+24 exists (1:r2=2 /\ 1:r3=0)
 \end{verbbox}
 }
 \centering
@@ -796,11 +802,159 @@ Therefore, portable code should explicitly order the writes, for
 example, as shown in
 Figure~\ref{fig:advsync:Enforcing Order of Message-Passing Litmus Test}.
 
-\subsubsection{Address and Data Dependencies}
-\label{sec:advsync:Address and Data Reordering}
+\subsubsection{Address Dependencies}
+\label{sec:advsync:Address Dependencies}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 C C-MP+o-wmb-o+o-ad-o.litmus
+ 2
+ 3 {
+ 4 int y=1;
+ 5 int *x1 = &y;
+ 6 }
+ 7
+ 8 P0(int* x0, int** x1) {
+ 9
+10   WRITE_ONCE(*x0, 2);
+11   smp_wmb();
+12   WRITE_ONCE(*x1, x0);
+13
+14 }
+15
+16 P1(int** x1) {
+17
+18   int *r2;
+19   int r3;
+20
+21   r2 = READ_ONCE(*x1);
+22   r3 = READ_ONCE(*r2);
+23
+24 }
+25
+26 exists (1:r2=x0 /\ 1:r3=1)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Message-Passing Address-Dependency Litmus Test}
+\label{fig:advsync:Message-Passing Address-Dependency Litmus Test}
+\end{figure}
+
+Figure~\ref{fig:advsync:Message-Passing Address-Dependency Litmus Test}
+shows a linked variant of the message-passing pattern.
+The head pointer is \co{x1}, which is initially
+references the \co{int} variable \co{y} (line~5), which is in turn 
+is initialized to the value $1$ (line~4).
+
+\co{P0()} updates head pointer \co{x1} to reference \co{x0} (line~12),
+but only afer initializing it to $2$ (line~10) and forcing ordering
+(line~11).
+\co{P1()} picks up the head pointer \co{x1} (line~21), and then loads
+the referenced value (line~22).
+One might hope that line~21's load from the head pointer would be ordered
+before line~22's dereference.
+However, this is not the case on DEC Alpha, which can in effect use
+a speculated value for the dependent read, as described in more detail in
+Section~\ref{sec:app:whymb:Alpha}.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 C C-MP+o-wmb-o+ld-ad-o.litmus
+ 2
+ 3 {
+ 4 int y=1;
+ 5 int *x1 = &y;
+ 6 }
+ 7
+ 8 P0(int* x0, int** x1) {
+ 9
+10   WRITE_ONCE(*x0, 2);
+11   smp_wmb();
+12   WRITE_ONCE(*x1, x0);
+13
+14 }
+15
+16 P1(int** x1) {
+17
+18   int *r2;
+19   int r3;
+20
+21   r2 = lockless_dereference(*x1);
+22   r3 = READ_ONCE(*r2);
+23
+24 }
+25
+26 exists (1:r2=x0 /\ 1:r3=1)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+\label{fig:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+\end{figure}
+
+Figure~\ref{fig:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+shows how to make this work portably, even on DEC Alpha, by
+replacing line~21's \co{READ_ONCE()} with \co{lockless_dereference()},
+which acts like \co{READ_ONCE()} on all platforms other than DEC Alpha,
+where it acts like a \co{READ_ONCE()} followed by an \co{smp_mb()},
+thereby forcing the required ordering on all platforms.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 C C-S+o-wmb-o+o-ad-o.litmus
+ 2
+ 3 {
+ 4 int y=1;
+ 5 int *x1 = &y;
+ 6 }
+ 7
+ 8 P0(int* x0, int** x1) {
+ 9
+10   WRITE_ONCE(*x0, 2);
+11   smp_wmb();
+12   WRITE_ONCE(*x1, x0);
+13
+14 }
+15
+16 P1(int** x1) {
+17
+18   int *r2;
+19
+20   r2 = READ_ONCE(*x1);
+21   WRITE_ONCE(*r2, 3);
+22
+23 }
+24
+25 exists (1:r2=x0 /\ x0=2)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{S Address-Dependency Litmus Test}
+\label{fig:advsync:S Address-Dependency Litmus Test}
+\end{figure}
+
+But suppose that the dependent operation is a write rather than
+a read, for example, in the \emph{S}
+litmus test~\cite{JadeAlglave2011ppcmem} shown in
+Figure~\ref{fig:advsync:S Address-Dependency Litmus Test}?
+Because no production-quality architecture speculated writes,
+it is not possible for the \co{WRITE_ONCE()} on line~10 to overwrite
+the \co{WRITE_ONCE()} on line~21, meaning that the \co{exists}
+clause on line`25 cannot be satisfied, even on DEC Alpha, even
+without the \co{lockless_dereference()} that is required in the
+dependent-read case.
+
+\subsubsection{Data Dependencies}
+\label{sec:advsync:Data Reordering}
 
 \subsubsection{Control Dependencies}
-\label{sec:advsync:Control Reordering}
+\label{sec:advsync:Control Dependencies}
 
 \subsubsection{Non-Multicopy Atomicity}
 \label{sec:advsync:Non-Multicopy Atomicity}
@@ -2045,7 +2199,7 @@ not a control dependency.  If the address for the second load is dependent
 on the first load, but the dependency is through a conditional rather than
 actually loading the address itself, then it's a \emph{control} dependency and
 a full read barrier or better is required.  See
-Section~\ref{sec:advsync:Control Dependencies} for more information.
+Section~\ref{sec:advsync:Control-Dependency Restrictions} for more information.
 
 Note that data dependency barriers should normally be paired with
 write barriers; see Section~\ref{sec:advsync:SMP Barrier Pairing}.
@@ -2301,8 +2455,8 @@ See also
 Section~\ref{sec:advsync:Cache Coherency}
 for a larger example.
 
-\subsubsection{Control Dependencies}
-\label{sec:advsync:Control Dependencies}
+\subsubsection{Control-Dependency Restrictions}
+\label{sec:advsync:Control-Dependency Restrictions}
 
 Control dependencies are especially tricky because current compilers
 do not understand them.

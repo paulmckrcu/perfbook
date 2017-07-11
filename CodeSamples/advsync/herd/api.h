@@ -9,5 +9,10 @@
 #define smp_load_acquire(x) __atomic_load_n(x, __ATOMIC_ACQUIRE)
 #define smp_store_release(x, v) __atomic_store_n(x, v, __ATOMIC_RELEASE)
 #define smp_load_acquire(x) __atomic_load_n(x, __ATOMIC_ACQUIRE)
+#ifdef __alpha__
+#define lockless_dereference(x) ({ typeof(x) ___x = READ_ONCE(x); smp_mb(); ___x; })
+#else
+#define lockless_dereference(x) READ_ONCE(x)
+#endif
 #endif
 #endif
