@@ -573,8 +573,7 @@ The next section will give an overview of a few of these insults.
 \subsection{If B Follows A, and C Follows B, Why Doesn't C Follow A?}
 \label{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?}
 
-% @@@ Replace this with WRC, RWC, or similar.
-% @@@ Non-multicopy atomicity example as opposed to transitivity.
+@@@ Roadmap
 
 \subsubsection{Memory-Reference Reordering}
 \label{sec:advsync:Memory-Reference Reordering}
@@ -585,6 +584,8 @@ can reorder prior stores with later loads, at least when the
 store and load are to different variables.
 This section buids on that result, looking at the other combinations of
 loads and stores.
+
+% @@@ Rationale for further reordering.
 
 \begin{figure}[tbp]
 { \scriptsize
@@ -967,6 +968,10 @@ Section~\ref{sec:advsync:Address- and Data-Dependency Restrictions}.
 
 \subsubsection{Data Dependencies}
 \label{sec:advsync:Data Reordering}
+
+% @@@ More details on how hardware deals with address and data
+% @@@ dependencies
+% @@@ Explain hardware tagging of dependencies.
 
 \subsubsection{Control Dependencies}
 \label{sec:advsync:Control Dependencies}
@@ -2480,7 +2485,222 @@ them~\cite{PaulEMcKennneyConsumeP0190R0,PaulEMcKenney2017markconsumeP0461R1}.
 In the meantime, it is necessary to be very careful in order to avoid
 giving your compiler the opportunity to break your dependencies.
 
-% @@@ More her
+\paragraph{Give your dependency chain a good start.}
+The load that heads your dependency chain must use proper
+ordering, for example, \co{lockless_dereference()},
+\co{rcu_dereference()}, or
+a \co{READ_ONCE()} followed by \co{smp_read_barrier_depends()}.
+Failure to follow this rule can have serious side effects:
+
+\begin{enumerate}
+\item	On DEC Alpha, a dependent load might not be ordered with
+	the load heading the dependency chain, as described in
+	Section~\ref{sec:app:whymb:Alpha}.
+\item	If the load heading the dependency chain is a
+	C11 non-volatile \co{memory_order_relaxed} load,
+	the compiler could omit the load, for example, by using a value
+	that it loaded in the past.
+\item	If the load heading the dependency chain is a plain load,
+	the compiler can omit the load, again by using a value
+	that it loaded in the past.
+	Worse yet, it could load twice instead of once, so that
+	different parts of your code use different values---and
+	real compilers do this, especially when under register
+	pressure.
+\item	The value loaded by the head of the dependency chain must
+	be a pointer.
+	In theory, yes, you could load an integer, perhaps to use
+	it as an array index.
+	In practice, the compiler knows too much about integers,
+	and thus has way too many opportunities to break your
+	dependency chain.
+\end{enumerate}
+
+\paragraph{Avoid arithmetic dependency breakage.}
+Although it is just fine to do some arithmetic operations on a pointer in
+your dependency chain, you need to be careful to avoid giving the
+compiler too much information.
+After all, if the compiler learns enough to determine the exact value
+of the pointer, it can and sometimes will use that exact value instead
+of the pointer itself.
+As soon as the compiler does that, the dependency is broken and all
+ordering is lost.
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 int reserve_int;
+ 2 int *gp;
+ 3 int *p;
+ 4
+ 5 p = rcu_dereference(gp);
+ 6 if (p == &reserve_int)
+ 7   handle_reserve(p);
+ 8 do_something_with(*p); /* buggy! */
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Breakable Dependencies With Comparisons}
+\label{fig:advsync:Breakable Dependencies With Comparisons}
+\end{figure}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 int reserve_int;
+ 2 int *gp;
+ 3 int *p;
+ 4
+ 5 p = rcu_dereference(gp);
+ 6 if (p == &reserve_int) {
+ 7   handle_reserve(&reserve_int);
+ 8   do_something_with(reserve_int); /* buggy! */
+ 9 } else {
+10   do_something_with(*p); /* OK! */
+11 }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Broken Dependencies With Comparisons}
+\label{fig:advsync:Broken Dependencies With Comparisons}
+\end{figure}
+
+\begin{enumerate}
+\item	Although it is permissible to compute offsets from a
+	pointer, these offsets must not result in total cancellation.
+	For example, given a \co{char} pointer \co{cp},
+	\co{cp-(uintptr_t)cp)} will cancel and can allow the compiler
+	to break your dependency chain.
+	On the other hand, canceling offset values with each other
+	is perfectly safe and legal.
+	For example, if \co{a} and \co{b} are equal, \co{cp+a-b}
+	is an identity function, including preserving the dependency.
+\item	Comparisons can break dependencies.
+	Figure~\ref{fig:advsync:Breakable Dependencies With Comparisons}
+	shows how this can happen.
+	Here global pointer \co{gp} points to a dynamically allocated
+	integer, but if memory is low, it might instead point to
+	the \co{reserve_int} variable.
+	This \co{reserve_int} case might need special handling, as
+	shown on lines~6 and~7 of the figure.
+	But the compiler could reasonably transform this code into
+	the form shown in
+	Figure~\ref{fig:advsync:Broken Dependencies With Comparisons},
+	especially on systems where instructions with absolute
+	addresses run faster than instructions using addresses
+	supplied in registers.
+	However, there is clearly no ordering between the pointer
+	load on line~5 and the dereference on line~8.
+	Please note that this is simply an example: There are a great
+	many other ways to break dependency chains with comparisons.
+\end{enumerate}
+
+\QuickQuiz{}
+	Why can't you simply dereference the pointer before comparing it
+	to \co{&reserve_int} on line~6 of
+	Figure~\ref{fig:advsync:Breakable Dependencies With Comparisons}?
+\QuickQuizAnswer{
+	For first, it might be necessary to invoke
+	\co{handle_reserve()} before \co{do_something_with()}.
+
+	But more relevant to memory ordering, the compiler is often within
+	its rights to hoist the comparison ahead of the dereferences,
+	which would allow the compiler to use \co{&reserve_int} instead
+	of the varaiable \co{p} that the hardware has tagged with
+	a dependency.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	But it should be safe to compare two pointer variables,
+	right?  After all, the compiler doesn't know the value
+	of either, so how can it possibly learn anything from the
+	comparison?
+\QuickQuizAnswer{
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 int *gp1;
+ 2 int *gp2;
+ 3 int *p;
+ 4 int *q;
+ 5
+ 6 p = rcu_dereference(gp1);
+ 7 q = READ_ONCE(gp2);
+ 8 if (p == q)
+ 9   handle_equality(p);
+10 do_something_with(*p);
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Breakable Dependencies With Non-Constant Comparisons}
+\label{fig:advsync:Breakable Dependencies With Non-Constant Comparisons}
+\end{figure}
+
+\begin{figure}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 int *gp1;
+ 2 int *gp2;
+ 3 int *p;
+ 4 int *q;
+ 5
+ 6 p = rcu_dereference(gp1);
+ 7 q = READ_ONCE(gp2);
+ 8 if (p == q) {
+ 9   handle_equality(q);
+10   do_something_with(*q);
+11 } else {
+12   do_something_with(*p);
+13 }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Broken Dependencies With Non-Constant Comparisons}
+\label{fig:advsync:Broken Dependencies With Non-Constant Comparisons}
+\end{figure}
+
+	Unfortunately, the compiler really can learn enough to
+	break your dependency chain, for example, as shown in
+	Figure~\ref{fig:advsync:Breakable Dependencies With Non-Constant Comparisons}.
+	The compiler is within its rights to transform this code
+	into that shown in
+	Figure~\ref{fig:advsync:Broken Dependencies With Non-Constant Comparisons},
+	and might well make this transformation due to register pressure
+	if \co{handle_equality()} was inlined and needed a lot of registers.
+	Line~10 of this transformed code uses \co{q}, which although
+	equal to \co{p}, is not necessarily tagged by the hardware as
+	carrying a dependency.
+	Therefore, this transformed code does not necessarily guarantee
+	that line~10 is ordered after line~6.\footnote{
+		Kudos to Linus Torvalds for providing this example.}
+} \QuickQuizEnd
+
+% @@@ Quick quiz showing other ways to break dependencies by comparison
+
+\paragraph{Safe comparison of dependent pointers.}
+It turns out that there are several safe ways to compare dependent
+pointers:
+
+\begin{enumerate}
+\item	Comparisons against the \co{NULL} pointer.
+	In this case, all the compiler can learn is that the pointer
+	is \co{NULL}, in which case you are not allowed to
+	dereference it in any case.
+\item	The dependent pointer is never dereferenced, whether before or
+	after the comparison.
+\item	The dependent pointer is compared to a pointer that references
+	objects that were last modified a very long time ago, where
+	the safest value of ``a very long time ago'' is at compile time.
+\end{enumerate}
+
+@@@ convert to \co{uintptr_t} to set/clear bits and convert back.
+
+% @@@ More here
 
 \subsubsection{Control-Dependency Restrictions}
 \label{sec:advsync:Control-Dependency Restrictions}
