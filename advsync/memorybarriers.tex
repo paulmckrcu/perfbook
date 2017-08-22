@@ -1116,12 +1116,106 @@ the dependency.
 In short, you can rely on data dependencies, but only if you take care
 to prevent your compiler from breaking them.
 
-% @@@ More details on how hardware deals with address and data
-% @@@ dependencies
-% @@@ Explain hardware tagging of dependencies.
-
 \subsubsection{Control Dependencies}
 \label{sec:advsync:Control Dependencies}
+
+A \emph{control dependency} occurs when the value returned by a load
+instruction is tested to determine whether or not a later store instruction
+is executed.
+Note well the ``later store instruction'': Many platforms do not respect
+load-to-load control dependencies.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-LB+o-r+o-ctrl-o
+{
+}
+
+P0(int *x0, int *x1)
+{
+  int r2;
+
+  r2 = READ_ONCE(*x1);
+  smp_store_release(x0, 2);
+}
+
+
+P1(int *x0, int *x1)
+{
+  int r2;
+
+  r2 = READ_ONCE(*x0);
+  if (r2 >= 0)
+    WRITE_ONCE(*x1, 2);
+}
+
+exists (1:r2=2 /\ 0:r2=2)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Load-Buffering Control-Dependency Litmus Test}
+\label{lst:advsync:Load-Buffering Control-Dependency Litmus Test}
+\end{listing}
+
+Listing~\ref{lst:advsync:Load-Buffering Control-Dependency Litmus Test}
+shows another load-buffering example, this time using a control
+dependency (line~19) to order the load on line~18 and the store on
+line~20.
+The ordering is sufficient to prevent the \co{exists} from triggering.
+
+However, control dependencies are even more susceptible to being optimized
+out of existence than are data dependencies, and
+Section~\ref{sec:advsync:Control-Dependency Restrictions}
+describes some of the rules that must be followed in order to prevent
+your compiler from breaking your control dependencies.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-MP+o-r+o-ctrl-o
+
+{
+}
+
+P0(int* x0, int* x1) {
+
+  WRITE_ONCE(*x0, 2);
+  smp_store_release(x1, 2);
+
+}
+
+P1(int* x0, int* x1) {
+  int r2;
+  int r3;
+
+  r2 = READ_ONCE(*x1);
+  if (r2 >= 0)
+    r3 = READ_ONCE(*x0);
+
+}
+
+exists (1:r2=2 /\ 1:r3=0)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Message-Passing Control-Dependency Litmus Test (No Ordering)}
+\label{lst:advsync:Message-Passing Control-Dependency Litmus Test (No Ordering)}
+\end{listing}
+
+It is worth reiterating that control dependencies provide ordering only
+from loads to stores.
+Therefore, the load-to-load control dependency shown on lines~17-19 of
+Listing~\ref{lst:advsync:Message-Passing Control-Dependency Litmus Test (No Ordering)}
+does \emph{not} provide ordering, and therefore does \emph{not}
+prevent the \co{exists} clause from triggering.
+
+In summary, control dependencies can be useful, but they are high
+maintenance.
+You should therefore use them only when performance considerations
+permit no other solution.
 
 \subsubsection{Non-Multicopy Atomicity}
 \label{sec:advsync:Non-Multicopy Atomicity}
