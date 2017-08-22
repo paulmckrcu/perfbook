@@ -1021,6 +1021,101 @@ Section~\ref{sec:advsync:Address- and Data-Dependency Restrictions}.
 \subsubsection{Data Dependencies}
 \label{sec:advsync:Data Reordering}
 
+A \emph{data dependency} occurs when the value returned by a load
+instruction is used to compute the data stored by a later store
+instruction.
+Note well the ``data'' above: If the value returned by a load
+was instead used to compute the address used by a later store
+instruction, that would instead be an address dependency.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-LB+o-r+o-data-o.litmus
+{
+}
+
+P0(int *x0, int *x1)
+{
+  int r2;
+
+  r2 = READ_ONCE(*x1);
+  smp_store_release(x0, 2);
+}
+
+
+P1(int *x0, int *x1)
+{
+  int r2;
+
+  r2 = READ_ONCE(*x0);
+  WRITE_ONCE(*x1, r2);
+}
+
+exists (1:r2=2 /\ 0:r2=2)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Load-Buffering Data-Dependency Litmus Test}
+\label{lst:advsync:Load-Buffering Data-Dependency Litmus Test}
+\end{listing}
+
+Listing~\ref{lst:advsync:Load-Buffering Data-Dependency Litmus Test}
+is similar to
+Listing~\ref{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test},
+except that \co{P1()}'s ordering between lines~18 and~19 is
+enforced not by an acquire load, but instead by a data dependency:
+The value loaded by line~18 is what line~19 stores.
+
+\QuickQuiz{}
+	Why doesn't line~18 of
+	Listing~\ref{lst:advsync:Load-Buffering Data-Dependency Litmus Test}
+	need a \co{lockless_dereference()}?
+\QuickQuizAnswer{
+	Data dependencies are always load-to-store dependencies, and
+	so all platforms respect them, even DEC Alpha, and for the
+	same reasons that they respect load-to-store address dependencies.
+} \QuickQuizEnd
+
+Just as with address dependencies, it is important to note that
+data dependencies can
+be fragile and easily broken by compiler optimizations, as discussed in
+Section~\ref{sec:advsync:Address- and Data-Dependency Restrictions}.
+In fact, data dependencies can be even more fragile than are address
+dependencies.
+The reason for this is that address dependencies normally involve
+pointer values.
+In contrast, as shown in
+Listing~\ref{lst:advsync:Load-Buffering Data-Dependency Litmus Test},
+it is tempting to carry data dependencies through integral values,
+which the compiler has much more freedom to optimize into nonexistence.
+For but one example, if the integer loaded was multiplied by the constant
+zero, the compiler would know that the result was zero, and could therefore
+substitute the constant zero for the value loaded, thus breaking
+the dependency.
+
+\QuickQuiz{}
+	But wait!!!
+	Line~18 of
+	Listing~\ref{lst:advsync:Load-Buffering Data-Dependency Litmus Test}
+	uses \co{READ_ONCE()}, which marks the load as volatile,
+	which means that the compiler absolutely must emit the load
+	instruction even if the value is later multiplied by zero.
+	So do you really need to work so hard to keep the compiler from
+	breaking your data dependancies?
+\QuickQuizAnswer{
+	Yes, the compiler absolutely must emit a load instruction for
+	a volatile load.
+	But if you multiply the value loaded by zero, the compiler is
+	well within its rights to substitute a constant zero for the
+	result of that multiplication, which will break the data
+	dependency on many platforms.
+} \QuickQuizEnd
+
+In short, you can rely on data dependencies, but only if you take care
+to prevent your compiler from breaking them.
+
 % @@@ More details on how hardware deals with address and data
 % @@@ dependencies
 % @@@ Explain hardware tagging of dependencies.
