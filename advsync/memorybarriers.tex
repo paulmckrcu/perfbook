@@ -573,7 +573,9 @@ The next section will give an overview of a few of these insults.
 \subsection{If B Follows A, and C Follows B, Why Doesn't C Follow A?}
 \label{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?}
 
-@@@ Roadmap
+Why indeed?
+This section will help to answer this question, in part by looking
+more closely at what ``follows'' might mean.
 
 \subsubsection{Memory-Reference Reordering}
 \label{sec:advsync:Memory-Reference Reordering}
@@ -805,8 +807,8 @@ Listing~\ref{lst:advsync:Enforcing Order of Message-Passing Litmus Test}.
 \subsubsection{Address Dependencies}
 \label{sec:advsync:Address Dependencies}
 
-An address dependency occurs when the value returned by a load instruction
-is used to compute the address used by a later memory-reference
+An \emph{address dependency} occurs when the value returned by a load
+instruction is used to compute the address used by a later memory-reference
 instruction.
 
 \begin{listing}[tbp]
@@ -954,12 +956,63 @@ But what happens if the dependent operation is a write rather than
 a read, for example, in the \emph{S}
 litmus test~\cite{JadeAlglave2011ppcmem} shown in
 Listing~\ref{lst:advsync:S Address-Dependency Litmus Test}?
-Because no production-quality architecture speculated writes,
+Because no production-quality platform speculates writes,
 it is not possible for the \co{WRITE_ONCE()} on line~10 to overwrite
 the \co{WRITE_ONCE()} on line~21, meaning that the \co{exists}
 clause on line~25 cannot be satisfied, even on DEC Alpha, even
 without the \co{lockless_dereference()} that is required in the
 dependent-read case.
+
+\QuickQuiz{}
+	But how do we know that \emph{all} platforms really avoid
+	triggering the \co{exists} clauses in
+	Listings~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+	and~\ref{lst:advsync:S Address-Dependency Litmus Test}?
+\QuickQuizAnswer{
+	Answering this requires identifying three major groups of platforms:
+	(1)~Total-store-order (TSO) platforms,
+	(2)~Weakly ordered platorms, and
+	(3)~DEC Alpha.
+
+	The TSO platforms order all pairs of memory references except for
+	prior stores against later loads.
+	Because the address dependency on lines~21 and ~22 of
+	Listing~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+	is instead a load followed by another load, TSO platforms preserve
+	this address dependency.
+	They also preserve the address dependency on lines~20 and~21 of
+	Listing~\ref{lst:advsync:S Address-Dependency Litmus Test}
+	because this is a load followed by a store, so TSO platforms preserve
+	this address dependency as well.
+	Because address dependencies must start with a load, TSO platforms
+	implicitly but completely respect address dependencies.
+
+	Weakly ordered platforms don't necessarily maintain ordering of
+	unrelated accesses.
+	However, the address dependencies in
+	Listings~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+	and~\ref{lst:advsync:S Address-Dependency Litmus Test}
+	are not unrelated: They are related by an address dependency.
+	The hardware tracks these dependencies and maintains the needed
+	ordering.
+
+	There is one (famous) exception to this rule for weakly ordered
+	platforms, and that exception is DEC Alpha for read-to-read
+	address dependencies.
+	And this is why DEC Alpha requires the explicit memory barrier
+	supplied for it by the \co{lockless_dereferenc()} on line~21 of
+	Listings~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}.
+	However, DEC Alpha does track read-to-write address dependendencies,
+	which is why line~20 of
+	Listings~\ref{lst:advsync:S Address-Dependency Litmus Test}
+	does not have a \co{lockless_dereference()}.
+
+	To sum up, current platforms either respect address dependencies
+	implicitly, as is the case for TSO platforms (x86, mainframe,
+	SPARC, ...), have hardware tracking for address dependencies
+	(ARM, PowerPC, MIPS, ...), or have the required memory barriers
+	supplied by \co{lockless_dereference()} (DEC Alpha).
+} \QuickQuizEnd
 
 However, it is important to note that address dependencies can
 be fragile and easily broken by compiler optimizations, as discussed in
