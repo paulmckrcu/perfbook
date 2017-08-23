@@ -50,7 +50,10 @@ code that fails to use standard mechanisms.
 For example, the trivial-seeming litmus test in
 Listing~\ref{lst:advsync:Memory Misordering: Store-Buffering Litmus Test}
 (\path{C-SB+o-o+o-o.litmus})
-appears to guarantee that the \co{exists} clause is never satisfied.
+appears to guarantee that the \co{exists} clause never triggers.\footnote{
+	Purists would instead say that the \co{exists} clause is
+	never \emph{satisfied}, but we use ``trigger'' here by
+	analogy with assertions.}
 After all, if \nbco{0:r2=0} as shown in the \co{exists} clause,\footnote{
 	That is, Thread~\co{P0()}'s instance of local variable \co{r2}
 	equals zero.
@@ -61,7 +64,7 @@ load from~\co{x1} must have happened before Thread~\co{P1()}'s store to~\co{x1},
 which might raise
 further hopes that Thread~\co{P1()}'s load from~\co{x0} must happen after
 Thread~\co{P0()}'s store to~\co{x0}, so that \nbco{1:r2=2},
-thus not satisfying the \co{exists} clause.
+thus not triggering the \co{exists} clause.
 The example is symmetric, so similar reasoning might lead
 us to hope that \nbco{1:r2=0} guarantees that \nbco{0:r2=2}.
 Unfortunately, the lack of memory barriers dashes these hopes.
@@ -635,6 +638,8 @@ but there is no ordering specified for the reads.
 Relatively strongly ordered architectures, such as x86, do enforce ordering.
 However, weakly ordered archictures do not necessarily enforce
 this~\cite{JadeAlglave2011ppcmem}.
+Therefore, the \co{exists} clause on line~25 of the figure \emph{can}
+trigger.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -676,6 +681,7 @@ Therefore, portable code relying on ordering in this case should
 add explicit ordering, for example, the \co{smp_rmb()} shown on
 line~20 of
 Listing~\ref{lst:advsync:Enforcing Order of Message-Passing Litmus Test}.
+Here, the \co{exists} clause cannot trigger.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -717,6 +723,7 @@ Although relatively strongly ordered systems such as x86
 or the IBM Mainframe do not reorder prior loads with subsequent stores,
 more weakly ordered architectures really do allow such
 reordering~\cite{JadeAlglave2011ppcmem}.
+Therefore, the \co{exists} clause on line~22 really can trigger.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -755,7 +762,8 @@ Interestingly enough, it is relatively rare for actual hardware to
 exhibit this reordering~\cite{LucMaranget2017aarch64}.
 Nevertheless, you should enforce any required ordering, for example,
 as shown in
-Listing~\ref{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test}.
+Listing~\ref{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test},
+thus preventing the \co{exists} clause on line~22 from triggering.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -799,10 +807,12 @@ explicit ordering for \co{P0()}'s writes and with the \co{smp_mb()}
 providing ordering for \co{P1()}'s reads.
 Again, the relatively strongly ordered architectures do enforce ordering,
 but weakly ordered architectures do not necessarily do
-so~\cite{JadeAlglave2011ppcmem}.
+so~\cite{JadeAlglave2011ppcmem}, which means that the
+\co{exists} clause can trigger..
 Therefore, portable code should explicitly order the writes, for
 example, as shown in
-Listing~\ref{lst:advsync:Enforcing Order of Message-Passing Litmus Test}.
+Listing~\ref{lst:advsync:Enforcing Order of Message-Passing Litmus Test},
+thus preventing the \co{exists} clause from triggering.
 
 \subsubsection{Address Dependencies}
 \label{sec:advsync:Address Dependencies}
@@ -871,6 +881,9 @@ before line~22's dereference.
 However, this is not the case on DEC Alpha, which can in effect use
 a speculated value for the dependent read, as described in more detail in
 Section~\ref{sec:app:whymb:Alpha}.
+Therefore,
+Listing~\ref{lst:advsync:Message-Passing Address-Dependency Litmus Test}'s
+\co{exists} clause \emph{can} trigger.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -914,7 +927,8 @@ shows how to make this work portably, even on DEC Alpha, by
 replacing line~21's \co{READ_ONCE()} with \co{lockless_dereference()},
 which acts like \co{READ_ONCE()} on all platforms other than DEC Alpha,
 where it acts like a \co{READ_ONCE()} followed by an \co{smp_mb()},
-thereby forcing the required ordering on all platforms.
+thereby forcing the required ordering on all platforms, and thus
+preventing the \co{exists} clause from triggering.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -959,7 +973,7 @@ Listing~\ref{lst:advsync:S Address-Dependency Litmus Test}?
 Because no production-quality platform speculates writes,
 it is not possible for the \co{WRITE_ONCE()} on line~10 to overwrite
 the \co{WRITE_ONCE()} on line~21, meaning that the \co{exists}
-clause on line~25 cannot be satisfied, even on DEC Alpha, even
+clause on line~25 cannot trigger, even on DEC Alpha, even
 without the \co{lockless_dereference()} that is required in the
 dependent-read case.
 
@@ -1067,6 +1081,8 @@ Listing~\ref{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test},
 except that \co{P1()}'s ordering between lines~18 and~19 is
 enforced not by an acquire load, but instead by a data dependency:
 The value loaded by line~18 is what line~19 stores.
+The ordering provided by this data dependency is sufficient to prevent
+the \co{exists} clause from triggering.
 
 \QuickQuiz{}
 	Why doesn't line~18 of
