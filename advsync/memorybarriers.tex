@@ -343,7 +343,7 @@ themselves, or if you are simply interested in understanding how memory
 ordering and memory barriers work, read on!
 The first stop is
 Listing~\ref{lst:advsync:Memory Ordering: Store-Buffering Litmus Test}
-(\path{C-SB+o-mb-o+o-mb-o.litmux}),
+(\path{C-SB+o-mb-o+o-mb-o.litmus}),
 which the \co{smp_mb()} Linux-kernel full memory barrier placed between
 the store and load in both \co{P0()} and \co{P1()}, but is otherwise
 identical to the code shown in
@@ -613,7 +613,7 @@ loads and stores.
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-MP+o-wmb-o+o-o.litmus
+C C-MP+o-wmb-o+o-o
 
 {
 }
@@ -648,6 +648,7 @@ exists (1:r2=2 /\ 1:r3=0)
 
 \paragraph{Load Followed By Load:}
 Listing~\ref{lst:advsync:Message-Passing Litmus Test (No Ordering)}
+(\path{C-MP+o-wmb-o+o-o.litmus})
 shows the classic \emph{message-passing} litmus test, where \co{x0} is
 the message and \co{x1} is a flag indicating whether or not a message
 is available.
@@ -662,7 +663,7 @@ trigger.
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-MP+o-wmb-o+o-rmb-o.litmus
+C C-MP+o-wmb-o+o-rmb-o
 
 {
 }
@@ -698,7 +699,8 @@ exists (1:r2=2 /\ 1:r3=0)
 Therefore, portable code relying on ordering in this case should
 add explicit ordering, for example, the \co{smp_rmb()} shown on
 line~20 of
-Listing~\ref{lst:advsync:Enforcing Order of Message-Passing Litmus Test}.
+Listing~\ref{lst:advsync:Enforcing Order of Message-Passing Litmus Test}
+(\path{C-MP+o-wmb-o+o-rmb-o.litmus}).
 Here, the \co{exists} clause cannot trigger.
 
 \begin{listing}[tbp]
@@ -736,6 +738,7 @@ exists (1:r2=2 /\ 0:r2=2)
 
 \paragraph{Load Followed By Store:}
 Listing~\ref{lst:advsync:Load-Buffering Litmus Test (No Ordering)}
+(\path{C-LB+o-o+o-o.litmus}),
 shows the classic \emph{load-buffering} litmus test.
 Although relatively strongly ordered systems such as x86
 or the IBM Mainframe do not reorder prior loads with subsequent stores,
@@ -746,7 +749,7 @@ Therefore, the \co{exists} clause on line~22 really can trigger.
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-LB+o-r+a-o.litmus
+C C-LB+o-r+a-o
 {
 }
 
@@ -780,13 +783,14 @@ Interestingly enough, it is relatively rare for actual hardware to
 exhibit this reordering~\cite{LucMaranget2017aarch64}.
 Nevertheless, you should enforce any required ordering, for example,
 as shown in
-Listing~\ref{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test},
+Listing~\ref{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test}
+(\path{C-LB+o-r+a-o.litmus}),
 thus preventing the \co{exists} clause on line~22 from triggering.
 
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-MP+o-o+o-rmb-o.litmus
+C C-MP+o-o+o-rmb-o
 
 {
 }
@@ -820,6 +824,7 @@ exists (1:r2=2 /\ 1:r3=0)
 
 \paragraph{Store Followed By Store:}
 Listing~\ref{lst:advsync:Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
+(\path{C-MP+o-o+o-rmb-o.litmus})
 once again shows the classic message-passing litmus test, but without
 explicit ordering for \co{P0()}'s writes and with the \co{smp_mb()}
 providing ordering for \co{P1()}'s reads.
@@ -842,7 +847,7 @@ instruction.
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-MP+o-wmb-o+o-ad-o.litmus
+C C-MP+o-wmb-o+o-ad-o
 
 {
 int y=1;
@@ -877,6 +882,7 @@ exists (1:r2=x0 /\ 1:r3=1)
 \end{listing}
 
 Listing~\ref{lst:advsync:Message-Passing Address-Dependency Litmus Test (No Ordering)}
+(\path{C-MP+o-wmb-o+o-ad-o.litmus}),
 shows a linked variant of the message-passing pattern.
 The head pointer is \co{x1}, which initially
 references the \co{int} variable \co{y} (line~5), which is in turn 
@@ -906,7 +912,7 @@ Listing~\ref{lst:advsync:Message-Passing Address-Dependency Litmus Test (No Orde
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-MP+o-wmb-o+ld-ad-o.litmus
+C C-MP+o-wmb-o+ld-ad-o
 
 {
 int y=1;
@@ -941,6 +947,7 @@ exists (1:r2=x0 /\ 1:r3=1)
 \end{listing}
 
 Listing~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+(\path{C-MP+o-wmb-o+ld-ad-o.litmus})
 shows how to make this work portably, even on DEC Alpha, by
 replacing line~21's \co{READ_ONCE()} with \co{lockless_dereference()},
 which acts like \co{READ_ONCE()} on all platforms other than DEC Alpha,
@@ -951,7 +958,7 @@ preventing the \co{exists} clause from triggering.
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-S+o-wmb-o+o-ad-o.litmus
+C C-S+o-wmb-o+o-ad-o
 
 {
 int y=1;
@@ -987,7 +994,8 @@ exists (1:r2=x0 /\ x0=2)
 But what happens if the dependent operation is a write rather than
 a read, for example, in the \emph{S}
 litmus test~\cite{JadeAlglave2011ppcmem} shown in
-Listing~\ref{lst:advsync:S Address-Dependency Litmus Test}?
+Listing~\ref{lst:advsync:S Address-Dependency Litmus Test}
+(\path{C-S+o-wmb-o+o-ad-o.litmus})?
 Because no production-quality platform speculates writes,
 it is not possible for the \co{WRITE_ONCE()} on line~10 to overwrite
 the \co{WRITE_ONCE()} on line~21, meaning that the \co{exists}
@@ -1063,7 +1071,7 @@ instruction, that would instead be an address dependency.
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-LB+o-r+o-data-o.litmus
+C C-LB+o-r+o-data-o
 {
 }
 
@@ -1094,6 +1102,7 @@ exists (1:r2=2 /\ 0:r2=2)
 \end{listing}
 
 Listing~\ref{lst:advsync:Load-Buffering Data-Dependency Litmus Test}
+(\path{C-LB+o-r+o-data-o.litmus})
 is similar to
 Listing~\ref{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test},
 except that \co{P1()}'s ordering between lines~18 and~19 is
@@ -1194,6 +1203,7 @@ exists (1:r2=2 /\ 0:r2=2)
 \end{listing}
 
 Listing~\ref{lst:advsync:Load-Buffering Control-Dependency Litmus Test}
+(\path{C-LB+o-r+o-ctrl-o.litmus}),
 shows another load-buffering example, this time using a control
 dependency (line~19) to order the load on line~18 and the store on
 line~20.
@@ -1243,6 +1253,7 @@ It is worth reiterating that control dependencies provide ordering only
 from loads to stores.
 Therefore, the load-to-load control dependency shown on lines~17-19 of
 Listing~\ref{lst:advsync:Message-Passing Control-Dependency Litmus Test (No Ordering)}
+(\path{C-MP+o-r+o-ctrl-o.litmus})
 does \emph{not} provide ordering, and therefore does \emph{not}
 prevent the \co{exists} clause from triggering.
 
