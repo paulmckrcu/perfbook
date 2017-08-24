@@ -425,7 +425,7 @@ Unfortunately, it is time to say ``goodbye'' to this comforting fiction.
 Hopefully, you already started to say ``goodbye'' in response to row~2 of
 Tables~\ref{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}
 and~\ref{tab:advsync:Memory Ordering: Store-Buffering Sequence of Events},
-but either way, the purpose of this section is to drive this point home.
+and if so, the purpose of this section is to drive this point home.
 
 To this end, consider the program fragment shown in
 Listing~\ref{lst:advsync:Software Logic Analyzer}.
@@ -449,6 +449,9 @@ the loop if not for the check on lines~6-7.
 	final agreed-upon value.
 	On real hardware, some of the CPUs might well see several
 	intermediate results before converging on the final value.
+	The actual code used to produce the data in the figures
+	discussed later in this section was therefore somewhat more
+	complex.
 } \QuickQuizEnd
 
 \begin{listing}[tbp]
@@ -506,7 +509,9 @@ CPU~4 believes that the value is~``4'' for almost 500\,ns.
 	How could CPUs possibly have different views of the
 	value of a single variable \emph{at the same time?}
 \QuickQuizAnswer{
-	Many CPUs have write buffers that record the values of
+	As discussed in
+	Section~\ref{sec:advsync:Memory Ordering and Memory Barriers},
+	many CPUs have write buffers that record the values of
 	recent writes, which are applied once the corresponding
 	cache line makes its way to the CPU.
 	Therefore, it is quite possible for each CPU to see a
@@ -656,10 +661,10 @@ shows the classic \emph{message-passing} litmus test, where \co{x0} is
 the message and \co{x1} is a flag indicating whether or not a message
 is available.
 In this test, the \co{smp_wmb()} forces \co{P0()} writes to be ordered,
-but there is no ordering specified for the reads.
+but no ordering is specified for the reads.
 Relatively strongly ordered architectures, such as x86, do enforce ordering.
-However, weakly ordered archictures do not necessarily enforce
-this~\cite{JadeAlglave2011ppcmem}.
+However, weakly ordered architectures often do
+not~\cite{JadeAlglave2011ppcmem}.
 Therefore, the \co{exists} clause on line~25 of the figure \emph{can}
 trigger.
 
@@ -788,7 +793,7 @@ Nevertheless, you should enforce any required ordering, for example,
 as shown in
 Listing~\ref{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test}
 (\path{C-LB+o-r+a-o.litmus}),
-thus preventing the \co{exists} clause on line~22 from triggering.
+thus guaranteeing that the \co{exists} clause on line~22 never triggers.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -829,7 +834,7 @@ exists (1:r2=2 /\ 1:r3=0)
 Listing~\ref{lst:advsync:Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
 (\path{C-MP+o-o+o-rmb-o.litmus})
 once again shows the classic message-passing litmus test, but without
-explicit ordering for \co{P0()}'s writes and with the \co{smp_mb()}
+explicit ordering for \co{P0()}'s writes and with the \co{smp_rmb()}
 providing ordering for \co{P1()}'s reads.
 Again, the relatively strongly ordered architectures do enforce ordering,
 but weakly ordered architectures do not necessarily do
@@ -890,7 +895,6 @@ shows a linked variant of the message-passing pattern.
 The head pointer is \co{x1}, which initially
 references the \co{int} variable \co{y} (line~5), which is in turn 
 initialized to the value $1$ (line~4).
-
 \co{P0()} updates head pointer \co{x1} to reference \co{x0} (line~12),
 but only afer initializing it to $2$ (line~10) and forcing ordering
 (line~11).
@@ -898,8 +902,8 @@ but only afer initializing it to $2$ (line~10) and forcing ordering
 the referenced value (line~22).
 There is thus an address dependency from the load on line~21 to the
 load on line~22.
-In this case, the value return by the load on line~21 is exactly the address
-used by the load on line~22, but many variations are possible,
+In this case, the value returned by line~21 is exactly the address
+used by line~22, but many variations are possible,
 including field access using the C-language \co{->} operator,
 addition, subtraction, and array indexing.
 
@@ -955,7 +959,7 @@ shows how to make this work portably, even on DEC Alpha, by
 replacing line~21's \co{READ_ONCE()} with \co{lockless_dereference()},
 which acts like \co{READ_ONCE()} on all platforms other than DEC Alpha,
 where it acts like a \co{READ_ONCE()} followed by an \co{smp_mb()},
-thereby forcing the required ordering on all platforms, and thus
+thereby forcing the required ordering on all platforms, in turn
 preventing the \co{exists} clause from triggering.
 
 \begin{listing}[tbp]
@@ -1025,35 +1029,34 @@ dependent-read case.
 	this address dependency.
 	They also preserve the address dependency on lines~20 and~21 of
 	Listing~\ref{lst:advsync:S Address-Dependency Litmus Test}
-	because this is a load followed by a store, so TSO platforms preserve
-	this address dependency as well.
+	because this is a load followed by a store.
 	Because address dependencies must start with a load, TSO platforms
-	implicitly but completely respect address dependencies.
+	implicitly but completely respect them.
 
 	Weakly ordered platforms don't necessarily maintain ordering of
 	unrelated accesses.
 	However, the address dependencies in
 	Listings~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
 	and~\ref{lst:advsync:S Address-Dependency Litmus Test}
-	are not unrelated: They are related by an address dependency.
-	The hardware tracks these dependencies and maintains the needed
+	are not unrelated: There is an address dependency.
+	The hardware tracks dependencies and maintains the needed
 	ordering.
 
 	There is one (famous) exception to this rule for weakly ordered
 	platforms, and that exception is DEC Alpha for read-to-read
 	address dependencies.
 	And this is why DEC Alpha requires the explicit memory barrier
-	supplied for it by the \co{lockless_dereferenc()} on line~21 of
+	supplied for it by the \co{lockless_dereference()} on line~21 of
 	Listings~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}.
-	However, DEC Alpha does track read-to-write address dependendencies,
+	However, DEC Alpha does track read-to-write address dependencies,
 	which is why line~20 of
 	Listings~\ref{lst:advsync:S Address-Dependency Litmus Test}
 	does not have a \co{lockless_dereference()}.
 
 	To sum up, current platforms either respect address dependencies
 	implicitly, as is the case for TSO platforms (x86, mainframe,
-	SPARC, ...), have hardware tracking for address dependencies
-	(ARM, PowerPC, MIPS, ...), or have the required memory barriers
+	SPARC,~...), have hardware tracking for address dependencies
+	(ARM, PowerPC, MIPS,~...), or have the required memory barriers
 	supplied by \co{lockless_dereference()} (DEC Alpha).
 } \QuickQuizEnd
 
@@ -1157,6 +1160,10 @@ the dependency.
 	well within its rights to substitute a constant zero for the
 	result of that multiplication, which will break the data
 	dependency on many platforms.
+
+	Worse yet, if the dependent store does not use \co{WRITE_ONCE()},
+	the compiler could hoist it above the load, which would cause
+	even TSO platforms to fail to provide ordering.
 } \QuickQuizEnd
 
 In short, you can rely on data dependencies, but only if you take care
