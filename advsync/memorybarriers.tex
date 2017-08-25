@@ -1272,8 +1272,8 @@ maintenance.
 You should therefore use them only when performance considerations
 permit no other solution.
 
-\subsubsection{Non-Multicopy Atomicity}
-\label{sec:advsync:Non-Multicopy Atomicity}
+\subsubsection{Non-Multicopy Atomicity \& Cumulativity}
+\label{sec:advsync:Non-Multicopy Atomicity and Cumulativity}
 
 \begin{figure}[tb]
 \centering
@@ -1338,8 +1338,131 @@ exists(1:r1=x /\ 2:r2=x /\ x=x)
 \centering
 \theverbbox
 \caption{WWC Litmus Test With Dependencies (No Ordering)}
-\label{lst:advsync:WWC Litmus With Dependencies (No Ordering)}
+\label{lst:advsync:WWC Litmus Test With Dependencies (No Ordering)}
 \end{listing}
+
+Listing~\ref{lst:advsync:WWC Litmus Test With Dependencies (No Ordering)}
+demonstrates multicopy atomicity, that is, on a multicopy-atomic platform,
+the \co{exists} clause on line~25 cannot trigger.
+In contrast, on a non-multicopy-atomic
+platform this \co{exists} clause can trigger, despite
+\co{P1()}'s accesses being ordered by a data dependency and \co{P2()}'s
+accesses being ordered by an address dependency.
+Recall that the definition of multicopy atomicity requires that all
+threads agree on the order of writes, which can be thought of as
+all writes reaching all threads at the same time.
+Therefore, a non-multicopy-atomic platform can have a write reach
+different threads at different times.
+In particular, \co{P0()}'s write might reach \co{P1()} long before it
+reaches \co{P2()}, which raises the possibility that \co{P1()}'s write
+might reach \co{P2()} before \co{P0()}'s write does.
+
+\begin{figure}[tb]
+\centering
+\resizebox{3.0in}{!}{\includegraphics{advsync/NonMCAplatform}}
+\caption{Shared Store Buffers And Multi-Copy Atomicity}
+\label{fig:advsync:Shared Store Buffers And Multi-Copy Atomicity}
+\end{figure}
+
+This leads to the question of why a real system constrained by the
+usual laws of physics would ever trigger the \co{exists} clause of
+Listing~\ref{lst:advsync:WWC Litmus Test With Dependencies (No Ordering)}.
+The cartoonish diagram of a such a real system is shown in
+Figure~\ref{fig:advsync:Shared Store Buffers And Multi-Copy Atomicity}.
+CPU~0 and CPU~1 share a store buffer, as do CPUs~2 and~3.
+This means that CPU~1 can load a value out of the store buffer, thus
+potentially immediately seeing a value stored by CPU~0.
+In contrast, CPUs~2 and~3 will have to wait for the corresponding cache
+line to carry this new value to them.
+
+\QuickQuiz{}
+	Then who would even \emph{think} of designing a system with shared
+	store buffers???
+\QuickQuizAnswer{
+	This is in fact a very natural design for any system having
+	multiple hardware threads per core.
+	Natural from a hardware point of view, that is!
+} \QuickQuizEnd
+
+\begin{table*}
+\small
+\centering\OneColumnHSpace{-0.1in}
+\begin{tabular}{r||l|l|l|l||l|l|l}
+	& P0 & \multicolumn{2}{c|}{P0 \& P1} & P1 & \multicolumn{3}{c}{P2} \\
+	\cline{2-8}
+	& Instruction & Store Buffer & Cache & Instruction &
+			Instruction & Store Buffer & Cache \\
+	\hline
+	\hline
+	1 & (Initial state) & & \tco{y==&b} &
+		(Initial state) &
+			(Initial state) & & \tco{x==&a} \\
+	\hline
+	2 & \tco{x = &x;} & \tco{x==&x} & \tco{y==&b} &
+		 & & & \tco{x==&a} \\
+	\hline
+	3 & (Read-Invalidate \tco{x}) & \tco{x==&x} & \tco{y==&b} & \tco{r1 = x} (\tco{&x})
+		 & & & \tco{x==&a} \\
+	\hline
+	4 &  & \tco{x==&x} \tco{y==&x} & \tco{y==&b} & \tco{y = r1}
+		 & \tco{r2 = y} & & \tco{x==&a} \\
+	\hline
+	5 & (Finish store) & \tco{x==&x} & \tco{y==&x} &
+		 & (Read \tco{y}) & & \tco{x==&a} \\
+	\hline
+	6 & & \tco{x==&x} & \tco{y==&x} &
+		 & (\tco{r2==&x}) & & \tco{x==&a} \tco{y==&x} \\
+	\hline
+	7 & & \tco{x==&x} & \tco{y==&x} &
+		 & \tco{*r2 = &a} & \tco{y==&a} & \tco{x==&a} \tco{y==&x} \\
+	\hline
+	8 & & \tco{x==&x} & \tco{y==&x} &
+		 & (Read Invalidate \tco{y}) & \tco{y==&a} & \tco{x==&a} \tco{y==&x} \\
+	\hline
+	9 & & \tco{x==&x} &  &
+		 &  & \tco{y==&a} & \tco{x==&a} \tco{y==&x} \\
+	\hline
+	10 & & \tco{x==&x} &  &
+		 & (Finish store) & & \tco{x==&a} \tco{y==&a} \\
+	\hline
+	11 & & \tco{x==&x} & \tco{x==&a} &
+		 & (Respond \co{x}) & & \tco{y==&a} \\
+	\hline
+	11 & (Finish store) & & \tco{x==&x} &
+		 &  & & \tco{y==&a} \\
+\end{tabular}
+\caption{Memory Ordering: WWC Sequence of Events}
+\label{tab:advsync:Memory Ordering: WWC Sequence of Events}
+\end{table*}
+
+Table~\ref{tab:advsync:Memory Ordering: WWC Sequence of Events}
+shows one sequence of events that can result in the \co{exists} clause in
+Listing~\ref{lst:advsync:WWC Litmus Test With Dependencies (No Ordering)}
+triggering.
+Row~1 shows the initial state, with the initial value of \co{y} in
+P0's and P1's shared cache, and the initial value of \co{x} in
+P2's cache.
+
+\QuickQuiz{}
+	Just how is it fair that P0 and P1 must share a store buffer
+	and a cache, but P2 gets one each of its very own???
+\QuickQuizAnswer{
+	Presumably there is a P3, not used by this litmus test, that
+	shares P2's store buffer and cache.
+	But not necessarily.
+	Some platforms allow different cores to disable different numbers
+	of threads, allowing the hardware to adjust to the needs of the
+	workload at hand.
+	For example, a single-threaded critical-path portion of the workload
+	might be assigned to a core with only one thread enabled, thus
+	allowing that portion of the workload to use the entire capabilities
+	of that core.
+	Other more highly parallel but cache-miss-prone portions of the
+	workload might be assigned to cores with all hardware threads
+	enabled to provide better throughput.
+
+	In such cases, performance overrides human notions of fairness.
+} \QuickQuizEnd
 
 \begin{listing}[tbp]
 { \scriptsize
