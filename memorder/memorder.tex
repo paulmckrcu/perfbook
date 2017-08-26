@@ -1,8 +1,10 @@
-% advsync/memorybarriers.tex
+% memorder/memorder.tex
 
-\section{Memory Barriers}
-\label{sec:advsync:Memory Barriers}
-\OriginallyPublished{Section}{sec:advsync:Memory Barriers}{Linux Kernel Memory Barriers}{kernel.org}{Howells2009membartxt}
+\QuickQuizChapter{chp:memorder:Memory Ordering}{Memory Ordering}
+\OriginallyPublished{Chapter}{chp:memorder:Memory Ordering}{Linux Kernel Memory Barriers}{kernel.org}{Howells2009membartxt}
+\OriginallyPublished{Chapter}{chp:memorder:Memory Ordering}{A formal kernel memory-ordering model}{Linux Weekly News}{JadeAlglave2017LWN-LKMM-1,JadeAlglave2017LWN-LKMM-2}
+%
+\epigraph{The art of progress is to preserve order amid change and to preserve change amid order.}{Alfred North Whitehead}
 
 Causality and sequencing are deeply intuitive, and hackers often
 tend to have a much stronger grasp of these concepts than does
@@ -42,13 +44,13 @@ exists (1:r2=0 /\ 0:r2=0)
 \centering
 \theverbbox
 \caption{Memory Misordering: Store-Buffering Litmus Test}
-\label{lst:advsync:Memory Misordering: Store-Buffering Litmus Test}
+\label{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}
 \end{listing}
 
 Unfortunately, these intuitions break down completely in face of
 code that fails to use standard mechanisms.
 For example, the trivial-seeming litmus test in
-Listing~\ref{lst:advsync:Memory Misordering: Store-Buffering Litmus Test}
+Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}
 (\path{C-SB+o-o+o-o.litmus})
 appears to guarantee that the \co{exists} clause never triggers.\footnote{
 	Purists would instead say that the \co{exists} clause is
@@ -75,7 +77,7 @@ even on relatively strongly ordered systems such as x86.
 \QuickQuiz{}
 	The compiler can also reorder Thread~\co{P0()}'s and
 	Thread~\co{P1()}'s memory accesses in
-	Listing~\ref{lst:advsync:Memory Misordering: Store-Buffering Litmus Test},
+	Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test},
 	right?
 \QuickQuizAnswer{
 	In general, compiler optimizations carry out more extensive
@@ -114,28 +116,28 @@ The following sections show exactly where this intuition breaks down,
 and then puts forward a mental model of memory barriers that can help
 you avoid these pitfalls.
 
-Section~\ref{sec:advsync:Memory Ordering and Memory Barriers}
+Section~\ref{sec:memorder:Memory Ordering and Memory Barriers}
 gives a brief overview of memory ordering and memory barriers.
 Once this background is in place, the next step is to get you to admit
 that your intuition has a problem.
 This painful task is taken up by
-Section~\ref{sec:advsync:Variables Can Have More Than One Value},
+Section~\ref{sec:memorder:Variables Can Have More Than One Value},
 which presents some code demonstrating that scalar variables can
 take on multiple values simultaneously,
 and by
-Section~\ref{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?},
+Section~\ref{sec:memorder:If B Follows A, and C Follows B, Why Doesn't C Follow A?},
 which shows an intuitively correct code fragment that fails miserably
 on real hardware.
 Once your intuition has made it through the grieving process,
-Section~\ref{sec:advsync:What Can You Trust?}
+Section~\ref{sec:memorder:What Can You Trust?}
 provides the basic rules that memory barriers follow, rules that we
 will build upon.
 These rules are further refined in
-Sections~\ref{sec:advsync:Review of Locking Implementations}
-through~\ref{sec:advsync:Where Are Memory Barriers Needed?}.
+Sections~\ref{sec:memorder:Review of Locking Implementations}
+through~\ref{sec:memorder:Where Are Memory Barriers Needed?}.
 
-\subsection{Memory Ordering and Memory Barriers}
-\label{sec:advsync:Memory Ordering and Memory Barriers}
+\section{Memory Ordering and Memory Barriers}
+\label{sec:memorder:Memory Ordering and Memory Barriers}
 
 But why are memory barriers needed in the first place?
 Can't CPUs keep track of ordering on their own?
@@ -169,13 +171,13 @@ than impatient software hackers would like.
 
 \begin{figure}[tb]
 \centering
-\resizebox{2.5in}{!}{\includegraphics{advsync/SystemArchSB}}
+\resizebox{2.5in}{!}{\includegraphics{memorder/SystemArchSB}}
 \caption{System Architecture With Store Buffers}
-\label{fig:advsync:System Architecture With Store Buffers}
+\label{fig:memorder:System Architecture With Store Buffers}
 \end{figure}
 
 CPUs therefore come equipped with store buffers, as shown in
-Figure~\ref{fig:advsync:System Architecture With Store Buffers}.
+Figure~\ref{fig:memorder:System Architecture With Store Buffers}.
 When a given CPU does a store to a given variable when that
 variable is not present in that CPU's cache, then the new value
 is instead placed in that CPU's store buffer.
@@ -187,16 +189,16 @@ residing in other CPUs' caches.
 \centering
 \resizebox{3in}{!}{\includegraphics{cartoons/r-2014-Out-of-order}}
 \caption{CPUs Can Do Things Out of Order}
-\ContributedBy{Figure}{fig:advsync:CPUs Can Do Things Out of Order}{Melissa Broussard}
+\ContributedBy{Figure}{fig:memorder:CPUs Can Do Things Out of Order}{Melissa Broussard}
 \end{figure}
 
 Although store buffers can greatly increase performance,
 they can cause instructions and memory references to execute out
 of order, which can in turn cause serious confusion, as illustrated in
-Figure~\ref{fig:advsync:CPUs Can Do Things Out of Order}.
+Figure~\ref{fig:memorder:CPUs Can Do Things Out of Order}.
 In particular, these store buffers can cause the memory misordering
 shown in the store-buffering litmus test in
-Listing~\ref{lst:advsync:Memory Misordering: Store-Buffering Litmus Test}.
+Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}.
 
 \begin{table*}
 \small
@@ -224,22 +226,22 @@ Listing~\ref{lst:advsync:Memory Misordering: Store-Buffering Litmus Test}.
 		(Finish store) & & \tco{x1==2} \\
 \end{tabular}
 \caption{Memory Misordering: Store-Buffering Sequence of Events}
-\label{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}
+\label{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}
 \end{table*}
 
-Table~\ref{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}
+Table~\ref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}
 shows how this memory misordering can happen.
 Row~1 shows the initial state, where CPU~0 has \co{x1} in its cache
 and CPU~1 has \co{x0} in its cache, both variables having a value of zero.
 Row~2 shows the state change due to each CPU's store (lines~9 and~18 of
-Listing~\ref{lst:advsync:Memory Misordering: Store-Buffering Litmus Test}).
+Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}).
 Because neither CPU has the stored-to variable in its cache, both CPUs
 record their stores in their respective store buffers.
 
 \QuickQuiz{}
 	But wait!!!
 	On row~2 of
-	Table~\ref{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}
+	Table~\ref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}
 	both \co{x0} and \co{x1} each have two values at the same time,
 	namely zero and two.
 	How can that possibly work???
@@ -249,11 +251,11 @@ record their stores in their respective store buffers.
 	% @@@ Add forward reference.
 	But if you think that a given variable having two values at
 	the same time is surprising, just wait until you get to
-	Section~\ref{sec:advsync:Variables Can Have More Than One Value}!
+	Section~\ref{sec:memorder:Variables Can Have More Than One Value}!
 } \QuickQuizEnd
 
 Row~3 shows the two reads (lines~10 and~19 of
-Listing~\ref{lst:advsync:Memory Misordering: Store-Buffering Litmus Test}).
+Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}).
 Because the variable being read by each CPU is in that CPU's cache,
 each read immediately returns the cached value, which in both cases
 is zero.
@@ -335,19 +337,19 @@ exists (1:r2=0 /\ 0:r2=0)
 \centering
 \theverbbox
 \caption{Memory Ordering: Store-Buffering Litmus Test}
-\label{lst:advsync:Memory Ordering: Store-Buffering Litmus Test}
+\label{lst:memorder:Memory Ordering: Store-Buffering Litmus Test}
 \end{listing}
 
 However, if you need to implement the synchronization primitives
 themselves, or if you are simply interested in understanding how memory
 ordering and memory barriers work, read on!
 The first stop on the journey is
-Listing~\ref{lst:advsync:Memory Ordering: Store-Buffering Litmus Test}
+Listing~\ref{lst:memorder:Memory Ordering: Store-Buffering Litmus Test}
 (\path{C-SB+o-mb-o+o-mb-o.litmus}),
 which the \co{smp_mb()} Linux-kernel full memory barrier placed between
 the store and load in both \co{P0()} and \co{P1()}, but is otherwise
 identical to the code shown in
-Listing~\ref{lst:advsync:Memory Misordering: Store-Buffering Litmus Test}.
+Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}.
 % Test C-SB+o-mb-o+o-mb-o Allowed
 % Histogram (3 states)
 % 49553298:>0:r2=2; 1:r2=0;
@@ -360,7 +362,7 @@ Interestingly enough, the added overhead due to these directives causes the
 legal outcome where both loads return the value two to happen more
 than 800,000 times, as opposed to only 167 times for the
 directive-free code in
-Listing~\ref{lst:advsync:Memory Misordering: Store-Buffering Litmus Test}.
+Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}.
 
 \begin{table*}
 \small
@@ -391,19 +393,19 @@ Listing~\ref{lst:advsync:Memory Misordering: Store-Buffering Litmus Test}.
 		\tco{r2 = x0;} (2) & & \tco{x0==2} \\
 \end{tabular}
 \caption{Memory Ordering: Store-Buffering Sequence of Events}
-\label{tab:advsync:Memory Ordering: Store-Buffering Sequence of Events}
+\label{tab:memorder:Memory Ordering: Store-Buffering Sequence of Events}
 \end{table*}
 
 These directives have a profound effect on ordering, as can be seen in
-Table~\ref{tab:advsync:Memory Ordering: Store-Buffering Sequence of Events}.
+Table~\ref{tab:memorder:Memory Ordering: Store-Buffering Sequence of Events}.
 Although the first two rows are the same as in
-Table~\ref{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}
+Table~\ref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}
 and although the \co{smp_mb()} instructions on row~3
 do not change state
 in and of themselves, they do cause the stores to complete
 (rows~4 and~5) before the
 loads (row~6), which rules out the counter-intuitive outcome shown in
-Table~\ref{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}.
+Table~\ref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}.
 Note that variables \co{x0} and \co{x1} each still have more than one
 value on row~2, however, as promised earlier, the directives straighten
 things out in the end.
@@ -416,19 +418,19 @@ low-level concurrent primitives.
 But first, let's take a quick look at just how many values a single
 variable might have at a single moment of time.
 
-\subsection{Variables Can Have More Than One Value}
-\label{sec:advsync:Variables Can Have More Than One Value}
+\section{Variables Can Have More Than One Value}
+\label{sec:memorder:Variables Can Have More Than One Value}
 
 It is natural to think of a variable as taking on a well-defined
 sequence of values in a well-defined, global order.
 Unfortunately, the next stop on the journey says ``goodbye'' to this comforting fiction.
 Hopefully, you already started to say ``goodbye'' in response to row~2 of
-Tables~\ref{tab:advsync:Memory Misordering: Store-Buffering Sequence of Events}
-and~\ref{tab:advsync:Memory Ordering: Store-Buffering Sequence of Events},
+Tables~\ref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}
+and~\ref{tab:memorder:Memory Ordering: Store-Buffering Sequence of Events},
 and if so, the purpose of this section is to drive this point home.
 
 To this end, consider the program fragment shown in
-Listing~\ref{lst:advsync:Software Logic Analyzer}.
+Listing~\ref{lst:memorder:Software Logic Analyzer}.
 This code fragment is executed in parallel by several CPUs.
 Line~1 sets a shared variable to the current CPU's ID, line~2
 initializes several variables from a \co{gettb()} function that
@@ -441,7 +443,7 @@ the loop if not for the check on lines~6-7.
 
 \QuickQuiz{}
 	What assumption is the code fragment
-	in Listing~\ref{lst:advsync:Software Logic Analyzer}
+	in Listing~\ref{lst:memorder:Software Logic Analyzer}
 	making that might not be valid on real hardware?
 \QuickQuizAnswer{
 	The code assumes that as soon as a given CPU stops
@@ -470,7 +472,7 @@ the loop if not for the check on lines~6-7.
 \centering
 \theverbbox
 \caption{Software Logic Analyzer}
-\label{lst:advsync:Software Logic Analyzer}
+\label{lst:memorder:Software Logic Analyzer}
 \end{listing}
 
 Upon exit from the loop, \co{firsttb} will hold a timestamp
@@ -480,7 +482,7 @@ that still retained the assigned value, or a value equal to \co{firsttb}
 if the shared variable had changed before entry into the loop.
 This allows us to plot each CPU's view of the value of \co{state.variable}
 over a 532-nanosecond time period, as shown in
-Figure~\ref{fig:advsync:A Variable With Multiple Simultaneous Values}.
+Figure~\ref{fig:memorder:A Variable With Multiple Simultaneous Values}.
 This data was collected in 2006 on 1.5\,GHz POWER5 system with 8 cores,
 each containing a pair of hardware threads.
 CPUs~1, 2, 3, and~4 recorded the values, while CPU~0 controlled the test.
@@ -489,9 +491,9 @@ to allow observations of intermediate cache states.
 
 \begin{figure}[htb]
 \centering
-\resizebox{3in}{!}{\includegraphics{advsync/MoreThanOneValue}}
+\resizebox{3in}{!}{\includegraphics{memorder/MoreThanOneValue}}
 \caption{A Variable With Multiple Simultaneous Values}
-\label{fig:advsync:A Variable With Multiple Simultaneous Values}
+\label{fig:memorder:A Variable With Multiple Simultaneous Values}
 \end{figure}
 
 Each horizontal bar represents the observations of a given CPU over time,
@@ -510,7 +512,7 @@ CPU~4 believes that the value is~``4'' for almost 500\,ns.
 	value of a single variable \emph{at the same time?}
 \QuickQuizAnswer{
 	As discussed in
-	Section~\ref{sec:advsync:Memory Ordering and Memory Barriers},
+	Section~\ref{sec:memorder:Memory Ordering and Memory Barriers},
 	many CPUs have write buffers that record the values of
 	recent writes, which are applied once the corresponding
 	cache line makes its way to the CPU.
@@ -541,15 +543,15 @@ CPU~4 believes that the value is~``4'' for almost 500\,ns.
 } \QuickQuizEnd
 
 And if you think that the situation with four CPUs was intriguing, consider
-Figure~\ref{fig:advsync:A Variable With More Simultaneous Values},
+Figure~\ref{fig:memorder:A Variable With More Simultaneous Values},
 which shows the same situation, but with 15~CPUs each assigning their
 number to a single shared variable at time~$t=0$. Both diagrams in the
 figure are drawn in the same way as 
-Figure~\ref{fig:advsync:A Variable With Multiple Simultaneous Values}.
+Figure~\ref{fig:memorder:A Variable With Multiple Simultaneous Values}.
 The only difference is that the unit of horizontal axis is timebase ticks,
 with each tick lasting about 5.3~nanoseconds.
 The entire sequence therefore lasts a bit longer than the events recorded in
-Figure~\ref{fig:advsync:A Variable With Multiple Simultaneous Values},
+Figure~\ref{fig:memorder:A Variable With Multiple Simultaneous Values},
 consistent with the increase in number of CPUs.
 The upper diagram shows the overall picture, while the lower one shows
 the zoom-up of first 50~timebase ticks.
@@ -558,9 +560,9 @@ Again, CPU~0 coordinates the test, so does not record any values.
 
 \begin{figure*}
 \centering
-\resizebox{5in}{!}{\includegraphics{advsync/MoreThanOneValue-15CPU}}
+\resizebox{5in}{!}{\includegraphics{memorder/MoreThanOneValue-15CPU}}
 \caption{A Variable With More Simultaneous Values}
-\ContributedBy{Figure}{fig:advsync:A Variable With More Simultaneous Values}{Akira Yokosawa}
+\ContributedBy{Figure}{fig:memorder:A Variable With More Simultaneous Values}{Akira Yokosawa}
 \end{figure*}
 
 All CPUs eventually agree on the final value of~9, but not before
@@ -569,15 +571,15 @@ Note that there are fourteen different opinions on the variable's value
 at time~21 indicated by the vertical line in the lower diagram.
 Note also that all CPUs see sequences whose orderings are consistent with
 the directed graph shown in
-Figure~\ref{fig:advsync:Possible Global Orders With More Simultaneous Values}.
+Figure~\ref{fig:memorder:Possible Global Orders With More Simultaneous Values}.
 Nevertheless, both figures underscore the importance of
 proper use of memory barriers for code that cares about memory ordering.
 
 \begin{figure}[htb]
 \centering
-\resizebox{2.5in}{!}{\includegraphics{advsync/store15tred}}
+\resizebox{2.5in}{!}{\includegraphics{memorder/store15tred}}
 \caption{Possible Global Orders With More Simultaneous Values}
-\label{fig:advsync:Possible Global Orders With More Simultaneous Values}
+\label{fig:memorder:Possible Global Orders With More Simultaneous Values}
 \end{figure}
 
 How many values can a single variable take on at a single point in
@@ -599,17 +601,17 @@ intuition, and not all of these ways conflict with performance and
 scalability.
 The next section will give an overview of a few of these insults.
 
-\subsection{If B Follows A, and C Follows B, Why Doesn't C Follow A?}
-\label{sec:advsync:If B Follows A, and C Follows B, Why Doesn't C Follow A?}
+\section{If B Follows A, and C Follows B, Why Doesn't C Follow A?}
+\label{sec:memorder:If B Follows A, and C Follows B, Why Doesn't C Follow A?}
 
 Why indeed?
 This stop on the journey will help answer this question, in part by looking
 more closely at what ``follows'' might mean.
 
-\subsubsection{Memory-Reference Reordering}
-\label{sec:advsync:Memory-Reference Reordering}
+\subsection{Memory-Reference Reordering}
+\label{sec:memorder:Memory-Reference Reordering}
 
-Section~\ref{sec:advsync:Memory Ordering and Memory Barriers}
+Section~\ref{sec:memorder:Memory Ordering and Memory Barriers}
 showed that even relatively strongly ordered systems like x86
 can reorder prior stores with later loads, at least when the
 store and load are to different variables.
@@ -651,11 +653,11 @@ exists (1:r2=2 /\ 1:r3=0)
 \centering
 \theverbbox
 \caption{Message-Passing Litmus Test (No Ordering)}
-\label{lst:advsync:Message-Passing Litmus Test (No Ordering)}
+\label{lst:memorder:Message-Passing Litmus Test (No Ordering)}
 \end{listing}
 
-\paragraph{Load Followed By Load:}
-Listing~\ref{lst:advsync:Message-Passing Litmus Test (No Ordering)}
+\subsubsection{Load Followed By Load}
+Listing~\ref{lst:memorder:Message-Passing Litmus Test (No Ordering)}
 (\path{C-MP+o-wmb-o+o-o.litmus})
 shows the classic \emph{message-passing} litmus test, where \co{x0} is
 the message and \co{x1} is a flag indicating whether or not a message
@@ -701,13 +703,13 @@ exists (1:r2=2 /\ 1:r3=0)
 \centering
 \theverbbox
 \caption{Enforcing Order of Message-Passing Litmus Test}
-\label{lst:advsync:Enforcing Order of Message-Passing Litmus Test}
+\label{lst:memorder:Enforcing Order of Message-Passing Litmus Test}
 \end{listing}
 
 Therefore, portable code relying on ordering in this case should
 add explicit ordering, for example, the \co{smp_rmb()} shown on
 line~20 of
-Listing~\ref{lst:advsync:Enforcing Order of Message-Passing Litmus Test}
+Listing~\ref{lst:memorder:Enforcing Order of Message-Passing Litmus Test}
 (\path{C-MP+o-wmb-o+o-rmb-o.litmus}).
 Here, the \co{exists} clause cannot trigger.
 
@@ -741,11 +743,11 @@ exists (1:r2=2 /\ 0:r2=2)
 \centering
 \theverbbox
 \caption{Load-Buffering Litmus Test (No Ordering)}
-\label{lst:advsync:Load-Buffering Litmus Test (No Ordering)}
+\label{lst:memorder:Load-Buffering Litmus Test (No Ordering)}
 \end{listing}
 
-\paragraph{Load Followed By Store:}
-Listing~\ref{lst:advsync:Load-Buffering Litmus Test (No Ordering)}
+\subsubsection{Load Followed By Store}
+Listing~\ref{lst:memorder:Load-Buffering Litmus Test (No Ordering)}
 (\path{C-LB+o-o+o-o.litmus}),
 shows the classic \emph{load-buffering} litmus test.
 Although relatively strongly ordered systems such as x86
@@ -784,14 +786,14 @@ exists (1:r2=2 /\ 0:r2=2)
 \centering
 \theverbbox
 \caption{Enforcing Ordering of Load-Buffering Litmus Test}
-\label{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test}
+\label{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test}
 \end{listing}
 
 Interestingly enough, it is relatively rare for actual hardware to
 exhibit this reordering~\cite{LucMaranget2017aarch64}.
 Nevertheless, you should enforce any required ordering, for example,
 as shown in
-Listing~\ref{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test}
+Listing~\ref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test}
 (\path{C-LB+o-r+a-o.litmus}),
 thus guaranteeing that the \co{exists} clause on line~22 never triggers.
 
@@ -827,11 +829,11 @@ exists (1:r2=2 /\ 1:r3=0)
 \centering
 \theverbbox
 \caption{Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
-\label{lst:advsync:Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
+\label{lst:memorder:Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
 \end{listing}
 
-\paragraph{Store Followed By Store:}
-Listing~\ref{lst:advsync:Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
+\subsubsection{Store Followed By Store}
+Listing~\ref{lst:memorder:Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
 (\path{C-MP+o-o+o-rmb-o.litmus})
 once again shows the classic message-passing litmus test, but without
 explicit ordering for \co{P0()}'s writes and with the \co{smp_rmb()}
@@ -842,11 +844,11 @@ so~\cite{JadeAlglave2011ppcmem}, which means that the
 \co{exists} clause can trigger.
 Therefore, portable code should explicitly order the writes, for
 example, as shown in
-Listing~\ref{lst:advsync:Enforcing Order of Message-Passing Litmus Test},
+Listing~\ref{lst:memorder:Enforcing Order of Message-Passing Litmus Test},
 thus preventing the \co{exists} clause from triggering.
 
-\subsubsection{Address Dependencies}
-\label{sec:advsync:Address Dependencies}
+\subsection{Address Dependencies}
+\label{sec:memorder:Address Dependencies}
 
 An \emph{address dependency} occurs when the value returned by a load
 instruction is used to compute the address used by a later memory-reference
@@ -886,10 +888,10 @@ exists (1:r2=x0 /\ 1:r3=1)
 \centering
 \theverbbox
 \caption{Message-Passing Address-Dependency Litmus Test (No Ordering)}
-\label{lst:advsync:Message-Passing Address-Dependency Litmus Test (No Ordering)}
+\label{lst:memorder:Message-Passing Address-Dependency Litmus Test (No Ordering)}
 \end{listing}
 
-Listing~\ref{lst:advsync:Message-Passing Address-Dependency Litmus Test (No Ordering)}
+Listing~\ref{lst:memorder:Message-Passing Address-Dependency Litmus Test (No Ordering)}
 (\path{C-MP+o-wmb-o+o-addr-o.litmus}),
 shows a linked variant of the message-passing pattern.
 The head pointer is \co{x1}, which initially
@@ -913,7 +915,7 @@ However, this is not the case on DEC Alpha, which can in effect use
 a speculated value for the dependent read, as described in more detail in
 Section~\ref{sec:app:whymb:Alpha}.
 Therefore,
-Listing~\ref{lst:advsync:Message-Passing Address-Dependency Litmus Test (No Ordering)}'s
+Listing~\ref{lst:memorder:Message-Passing Address-Dependency Litmus Test (No Ordering)}'s
 \co{exists} clause \emph{can} trigger.
 
 \begin{listing}[tbp]
@@ -950,10 +952,10 @@ exists (1:r2=x0 /\ 1:r3=1)
 \centering
 \theverbbox
 \caption{Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
-\label{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+\label{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
 \end{listing}
 
-Listing~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+Listing~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
 (\path{C-MP+o-wmb-o+ld-addr-o.litmus})
 shows how to make this work portably, even on DEC Alpha, by
 replacing line~21's \co{READ_ONCE()} with \co{lockless_dereference()},
@@ -995,13 +997,13 @@ exists (1:r2=x0 /\ x0=2)
 \centering
 \theverbbox
 \caption{S Address-Dependency Litmus Test}
-\label{lst:advsync:S Address-Dependency Litmus Test}
+\label{lst:memorder:S Address-Dependency Litmus Test}
 \end{listing}
 
 But what happens if the dependent operation is a write rather than
 a read, for example, in the \emph{S}
 litmus test~\cite{JadeAlglave2011ppcmem} shown in
-Listing~\ref{lst:advsync:S Address-Dependency Litmus Test}
+Listing~\ref{lst:memorder:S Address-Dependency Litmus Test}
 (\path{C-S+o-wmb-o+o-addr-o.litmus})?
 Because no production-quality platform speculates writes,
 it is not possible for the \co{WRITE_ONCE()} on line~10 to overwrite
@@ -1013,8 +1015,8 @@ dependent-read case.
 \QuickQuiz{}
 	But how do we know that \emph{all} platforms really avoid
 	triggering the \co{exists} clauses in
-	Listings~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
-	and~\ref{lst:advsync:S Address-Dependency Litmus Test}?
+	Listings~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+	and~\ref{lst:memorder:S Address-Dependency Litmus Test}?
 \QuickQuizAnswer{
 	Answering this requires identifying three major groups of platforms:
 	(1)~Total-store-order (TSO) platforms,
@@ -1024,11 +1026,11 @@ dependent-read case.
 	The TSO platforms order all pairs of memory references except for
 	prior stores against later loads.
 	Because the address dependency on lines~21 and ~22 of
-	Listing~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+	Listing~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
 	is instead a load followed by another load, TSO platforms preserve
 	this address dependency.
 	They also preserve the address dependency on lines~20 and~21 of
-	Listing~\ref{lst:advsync:S Address-Dependency Litmus Test}
+	Listing~\ref{lst:memorder:S Address-Dependency Litmus Test}
 	because this is a load followed by a store.
 	Because address dependencies must start with a load, TSO platforms
 	implicitly but completely respect them.
@@ -1036,8 +1038,8 @@ dependent-read case.
 	Weakly ordered platforms don't necessarily maintain ordering of
 	unrelated accesses.
 	However, the address dependencies in
-	Listings~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
-	and~\ref{lst:advsync:S Address-Dependency Litmus Test}
+	Listings~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
+	and~\ref{lst:memorder:S Address-Dependency Litmus Test}
 	are not unrelated: There is an address dependency.
 	The hardware tracks dependencies and maintains the needed
 	ordering.
@@ -1047,10 +1049,10 @@ dependent-read case.
 	address dependencies.
 	And this is why DEC Alpha requires the explicit memory barrier
 	supplied for it by the \co{lockless_dereference()} on line~21 of
-	Listings~\ref{lst:advsync:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}.
+	Listings~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}.
 	However, DEC Alpha does track read-to-write address dependencies,
 	which is why line~20 of
-	Listings~\ref{lst:advsync:S Address-Dependency Litmus Test}
+	Listings~\ref{lst:memorder:S Address-Dependency Litmus Test}
 	does not have a \co{lockless_dereference()}.
 
 	To sum up, current platforms either respect address dependencies
@@ -1062,10 +1064,10 @@ dependent-read case.
 
 However, it is important to note that address dependencies can
 be fragile and easily broken by compiler optimizations, as discussed in
-Section~\ref{sec:advsync:Address- and Data-Dependency Restrictions}.
+Section~\ref{sec:memorder:Address- and Data-Dependency Restrictions}.
 
-\subsubsection{Data Dependencies}
-\label{sec:advsync:Data Reordering}
+\subsection{Data Dependencies}
+\label{sec:memorder:Data Reordering}
 
 A \emph{data dependency} occurs when the value returned by a load
 instruction is used to compute the data stored by a later store
@@ -1104,13 +1106,13 @@ exists (1:r2=2 /\ 0:r2=2)
 \centering
 \theverbbox
 \caption{Load-Buffering Data-Dependency Litmus Test}
-\label{lst:advsync:Load-Buffering Data-Dependency Litmus Test}
+\label{lst:memorder:Load-Buffering Data-Dependency Litmus Test}
 \end{listing}
 
-Listing~\ref{lst:advsync:Load-Buffering Data-Dependency Litmus Test}
+Listing~\ref{lst:memorder:Load-Buffering Data-Dependency Litmus Test}
 (\path{C-LB+o-r+o-data-o.litmus})
 is similar to
-Listing~\ref{lst:advsync:Enforcing Ordering of Load-Buffering Litmus Test},
+Listing~\ref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test},
 except that \co{P1()}'s ordering between lines~18 and~19 is
 enforced not by an acquire load, but instead by a data dependency:
 The value loaded by line~18 is what line~19 stores.
@@ -1119,7 +1121,7 @@ the \co{exists} clause from triggering.
 
 \QuickQuiz{}
 	Why doesn't line~18 of
-	Listing~\ref{lst:advsync:Load-Buffering Data-Dependency Litmus Test}
+	Listing~\ref{lst:memorder:Load-Buffering Data-Dependency Litmus Test}
 	need a \co{lockless_dereference()}?
 \QuickQuizAnswer{
 	Data dependencies are always load-to-store dependencies, and
@@ -1130,13 +1132,13 @@ the \co{exists} clause from triggering.
 Just as with address dependencies, it is important to note that
 data dependencies can
 be fragile and easily broken by compiler optimizations, as discussed in
-Section~\ref{sec:advsync:Address- and Data-Dependency Restrictions}.
+Section~\ref{sec:memorder:Address- and Data-Dependency Restrictions}.
 In fact, data dependencies can be even more fragile than are address
 dependencies.
 The reason for this is that address dependencies normally involve
 pointer values.
 In contrast, as shown in
-Listing~\ref{lst:advsync:Load-Buffering Data-Dependency Litmus Test},
+Listing~\ref{lst:memorder:Load-Buffering Data-Dependency Litmus Test},
 it is tempting to carry data dependencies through integral values,
 which the compiler has much more freedom to optimize into nonexistence.
 For but one example, if the integer loaded was multiplied by the constant
@@ -1147,7 +1149,7 @@ the dependency.
 \QuickQuiz{}
 	But wait!!!
 	Line~18 of
-	Listing~\ref{lst:advsync:Load-Buffering Data-Dependency Litmus Test}
+	Listing~\ref{lst:memorder:Load-Buffering Data-Dependency Litmus Test}
 	uses \co{READ_ONCE()}, which marks the load as volatile,
 	which means that the compiler absolutely must emit the load
 	instruction even if the value is later multiplied by zero.
@@ -1169,8 +1171,8 @@ the dependency.
 In short, you can rely on data dependencies, but only if you take care
 to prevent your compiler from breaking them.
 
-\subsubsection{Control Dependencies}
-\label{sec:advsync:Control Dependencies}
+\subsection{Control Dependencies}
+\label{sec:memorder:Control Dependencies}
 
 A \emph{control dependency} occurs when the value returned by a load
 instruction is tested to determine whether or not a later store instruction
@@ -1209,10 +1211,10 @@ exists (1:r2=2 /\ 0:r2=2)
 \centering
 \theverbbox
 \caption{Load-Buffering Control-Dependency Litmus Test}
-\label{lst:advsync:Load-Buffering Control-Dependency Litmus Test}
+\label{lst:memorder:Load-Buffering Control-Dependency Litmus Test}
 \end{listing}
 
-Listing~\ref{lst:advsync:Load-Buffering Control-Dependency Litmus Test}
+Listing~\ref{lst:memorder:Load-Buffering Control-Dependency Litmus Test}
 (\path{C-LB+o-r+o-ctrl-o.litmus}),
 shows another load-buffering example, this time using a control
 dependency (line~19) to order the load on line~18 and the store on
@@ -1221,7 +1223,7 @@ The ordering is sufficient to prevent the \co{exists} from triggering.
 
 However, control dependencies are even more susceptible to being optimized
 out of existence than are data dependencies, and
-Section~\ref{sec:advsync:Control-Dependency Restrictions}
+Section~\ref{sec:memorder:Control-Dependency Restrictions}
 describes some of the rules that must be followed in order to prevent
 your compiler from breaking your control dependencies.
 
@@ -1256,13 +1258,13 @@ exists (1:r2=2 /\ 1:r3=0)
 \centering
 \theverbbox
 \caption{Message-Passing Control-Dependency Litmus Test (No Ordering)}
-\label{lst:advsync:Message-Passing Control-Dependency Litmus Test (No Ordering)}
+\label{lst:memorder:Message-Passing Control-Dependency Litmus Test (No Ordering)}
 \end{listing}
 
 It is worth reiterating that control dependencies provide ordering only
 from loads to stores.
 Therefore, the load-to-load control dependency shown on lines~17-19 of
-Listing~\ref{lst:advsync:Message-Passing Control-Dependency Litmus Test (No Ordering)}
+Listing~\ref{lst:memorder:Message-Passing Control-Dependency Litmus Test (No Ordering)}
 (\path{C-MP+o-r+o-ctrl-o.litmus})
 does \emph{not} provide ordering, and therefore does \emph{not}
 prevent the \co{exists} clause from triggering.
@@ -1272,21 +1274,21 @@ maintenance.
 You should therefore use them only when performance considerations
 permit no other solution.
 
-\subsubsection{Non-Multicopy Atomicity \& Cumulativity}
-\label{sec:advsync:Non-Multicopy Atomicity and Cumulativity}
+\subsection{Non-Multicopy Atomicity \& Cumulativity}
+\label{sec:memorder:Non-Multicopy Atomicity and Cumulativity}
 
 \begin{figure}[tb]
 \centering
-\resizebox{3.0in}{!}{\includegraphics{advsync/SystemArchBus}}
+\resizebox{3.0in}{!}{\includegraphics{memorder/SystemArchBus}}
 \caption{Global System Bus And Multi-Copy Atomicity}
-\label{fig:advsync:Global System Bus And Multi-Copy Atomicity}
+\label{fig:memorder:Global System Bus And Multi-Copy Atomicity}
 \end{figure}
 
 Threads running on a \emph{multicopy atomic} platform are guaranteed
 to agree on the order of writes, even to different variables.
 A useful mental model of such a system is the single-bus architecture
 shown in
-Figure~\ref{fig:advsync:Global System Bus And Multi-Copy Atomicity}.
+Figure~\ref{fig:memorder:Global System Bus And Multi-Copy Atomicity}.
 If each write resulted in a message on the bus, and if the bus could
 accommodate only one write at a time, then any pair of CPUs would
 agree on the order of all writes that they observed.
@@ -1299,7 +1301,7 @@ multicopy atomicity (weakly ordered platforms), or
 into preserving multicopy atomicity (TSO platforms).
 
 However, the weakly ordered ARMv8 architecture recently changed its
-memory model to preserve multicopy atomicity$^{citation needed @@@}$,
+memory model to preserve multicopy atomicity~\cite{ARMv8A:2017},
 and perhaps there will come a day when all platforms provide multi-copy
 atomicity.
 In the meantime, non-multicopy-atomic platforms do exist, and so software
@@ -1338,10 +1340,10 @@ exists(1:r1=x /\ 2:r2=x /\ x=x)
 \centering
 \theverbbox
 \caption{WWC Litmus Test With Dependencies (No Ordering)}
-\label{lst:advsync:WWC Litmus Test With Dependencies (No Ordering)}
+\label{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
 \end{listing}
 
-Listing~\ref{lst:advsync:WWC Litmus Test With Dependencies (No Ordering)}
+Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
 demonstrates multicopy atomicity, that is, on a multicopy-atomic platform,
 the \co{exists} clause on line~25 cannot trigger.
 In contrast, on a non-multicopy-atomic
@@ -1359,16 +1361,16 @@ might reach \co{P2()} before \co{P0()}'s write does.
 
 \begin{figure}[tb]
 \centering
-\resizebox{3.0in}{!}{\includegraphics{advsync/NonMCAplatform}}
+\resizebox{3.0in}{!}{\includegraphics{memorder/NonMCAplatform}}
 \caption{Shared Store Buffers And Multi-Copy Atomicity}
-\label{fig:advsync:Shared Store Buffers And Multi-Copy Atomicity}
+\label{fig:memorder:Shared Store Buffers And Multi-Copy Atomicity}
 \end{figure}
 
 This leads to the question of why a real system constrained by the
 usual laws of physics would ever trigger the \co{exists} clause of
-Listing~\ref{lst:advsync:WWC Litmus Test With Dependencies (No Ordering)}.
+Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}.
 The cartoonish diagram of a such a real system is shown in
-Figure~\ref{fig:advsync:Shared Store Buffers And Multi-Copy Atomicity}.
+Figure~\ref{fig:memorder:Shared Store Buffers And Multi-Copy Atomicity}.
 CPU~0 and CPU~1 share a store buffer, as do CPUs~2 and~3.
 This means that CPU~1 can load a value out of the store buffer, thus
 potentially immediately seeing a value stored by CPU~0.
@@ -1432,12 +1434,12 @@ line to carry this new value to them.
 		 &  & & \tco{y==&a} \\
 \end{tabular}
 \caption{Memory Ordering: WWC Sequence of Events}
-\label{tab:advsync:Memory Ordering: WWC Sequence of Events}
+\label{tab:memorder:Memory Ordering: WWC Sequence of Events}
 \end{table*}
 
-Table~\ref{tab:advsync:Memory Ordering: WWC Sequence of Events}
+Table~\ref{tab:memorder:Memory Ordering: WWC Sequence of Events}
 shows one sequence of events that can result in the \co{exists} clause in
-Listing~\ref{lst:advsync:WWC Litmus Test With Dependencies (No Ordering)}
+Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
 triggering.
 Row~1 shows the initial state, with the initial value of \co{y} in
 P0's and P1's shared cache, and the initial value of \co{x} in
@@ -1497,15 +1499,15 @@ exists(1:r1=x /\ 2:r2=x /\ x=x)
 \centering
 \theverbbox
 \caption{WWC Litmus Test With Release}
-\label{lst:advsync:WWC Litmus With Release}
+\label{lst:memorder:WWC Litmus With Release}
 \end{listing}
 
-\subsubsection{Non-Single-Copy Atomicity}
-\label{sec:advsync:Non-Single-Copy Atomicity}
+\subsection{Non-Single-Copy Atomicity}
+\label{sec:memorder:Non-Single-Copy Atomicity}
 
 Memory ordering and memory barriers can be extremely counter-intuitive.
 For example, consider the functions shown in
-Listing~\ref{lst:advsync:Parallel Hardware is Non-Causal}
+Listing~\ref{lst:memorder:Parallel Hardware is Non-Causal}
 executing in parallel
 where variables~A, B, and~C are initially zero:
 
@@ -1539,7 +1541,7 @@ where variables~A, B, and~C are initially zero:
 \centering
 \theverbbox
 \caption{Parallel Hardware is Non-Causal}
-\label{lst:advsync:Parallel Hardware is Non-Causal}
+\label{lst:memorder:Parallel Hardware is Non-Causal}
 \end{listing}
 
 Intuitively, \co{thread0()} assigns to~B after it assigns to~A,
@@ -1565,8 +1567,8 @@ greatly \emph{increase} the probability of failure in this run.
 
 \QuickQuiz{}
 	How on earth could the assertion on line~21 of the code in
-	Listing~\ref{lst:advsync:Parallel Hardware is Non-Causal} on
-	page~\pageref{lst:advsync:Parallel Hardware is Non-Causal}
+	Listing~\ref{lst:memorder:Parallel Hardware is Non-Causal} on
+	page~\pageref{lst:memorder:Parallel Hardware is Non-Causal}
 	\emph{possibly} fail?
 \QuickQuizAnswer{
 	The key point is that the intuitive analysis missed is that
@@ -1583,8 +1585,8 @@ greatly \emph{increase} the probability of failure in this run.
 
 	Of course, some hardware is more forgiving than other hardware.
 	For example, on x86 the assertion on line~21 of
-	Listing~\ref{lst:advsync:Parallel Hardware is Non-Causal} on
-	page~\pageref{lst:advsync:Parallel Hardware is Non-Causal}
+	Listing~\ref{lst:memorder:Parallel Hardware is Non-Causal} on
+	page~\pageref{lst:memorder:Parallel Hardware is Non-Causal}
 	cannot trigger.
 	On PowerPC, only the \co{barrier()} on line~20 need be
 	replaced with \co{smp_mb()} to prevent the assertion from
@@ -1601,8 +1603,8 @@ you don't have this luxury.
 The following discussion of memory ordering and memory barriers
 is for you.
 
-\subsection{What Can You Trust?}
-\label{sec:advsync:What Can You Trust?}
+\section{What Can You Trust?}
+\label{sec:memorder:What Can You Trust?}
 
 You most definitely cannot trust your intuition.
 
@@ -1615,7 +1617,7 @@ to the bottom of the memory-barrier story, at least from the viewpoint
 of portable code.
 If you just want to be told what the rules are rather than suffering
 through the actual derivation,
-please feel free to skip to Section~\ref{sec:advsync:A Few Simple Rules}.
+please feel free to skip to Section~\ref{sec:memorder:A Few Simple Rules}.
 
 The exact semantics of memory barriers vary wildly from one CPU family to
 another, so portable code must rely only on the least-common-denominator
@@ -1639,7 +1641,7 @@ you can rely on all of these properties.\footnote{
 	But that would be the subject of other sections.}
 Each of these properties is described in the following sections.
 
-\subsubsection{Self-References Are Ordered}
+\subsection{Self-References Are Ordered}
 
 A given CPU will see its own accesses as occurring in ``program order'',
 as if the CPU was executing only one instruction at a time with no
@@ -1653,8 +1655,8 @@ for ensuring that ordering is explicitly enforced as needed.
 Either way, from the programmer's viewpoint, the CPU sees its own accesses
 in program order.
 
-\subsubsection{Single-Variable Memory Consistency}
-\label{sec:advsync:Single-Variable Memory Consistency}
+\subsection{Single-Variable Memory Consistency}
+\label{sec:memorder:Single-Variable Memory Consistency}
 
 Because current commercially available computer systems provide
 \emph{cache coherence},
@@ -1662,7 +1664,7 @@ if a group of CPUs all do concurrent non-atomic stores to a single variable,
 the series of values seen by all CPUs will be consistent with at
 least one global ordering.
 For example, in the series of accesses shown in
-Figure~\ref{fig:advsync:A Variable With Multiple Simultaneous Values},
+Figure~\ref{fig:memorder:A Variable With Multiple Simultaneous Values},
 CPU~1 sees the sequence {\tt \{1,2\}},
 CPU~2 sees the sequence {\tt \{2\}},
 CPU~3 sees the sequence {\tt \{3,2\}},
@@ -1698,7 +1700,7 @@ In contrast, if there are multiple variables, memory barriers are
 required for the CPUs to consistently agree on the order for current
 commercially available computer systems.
 
-\subsubsection{Pair-Wise Memory Barriers}
+\subsection{Pair-Wise Memory Barriers}
 
 Pair-wise memory barriers provide conditional ordering semantics.
 For example, in the following set of operations, CPU~1's access to
@@ -1740,12 +1742,12 @@ on this weaker if-then conditional ordering guarantee.
 	in uncached regions of physical memory.
 	Memory barriers \emph{do} unconditionally force ordering
 	of loads and stores to uncached memory, as discussed in
-	Section~\ref{sec:advsync:Device Operations}.
+	Section~\ref{sec:memorder:Device Operations}.
 } \QuickQuizEnd
 
 Of course, accesses must be either loads or stores, and these
 do have different properties.
-Table~\ref{tab:advsync:Memory-Barrier Combinations}
+Table~\ref{tab:memorder:Memory-Barrier Combinations}
 shows all possible combinations of loads and stores from a pair
 of CPUs.
 Of course, to enforce conditional ordering, there must be
@@ -1796,17 +1798,17 @@ a memory barrier between each CPU's pair of operations.
 		Stores ``pass in the night''. \\
 \end{tabular}
 \caption{Memory-Barrier Combinations}
-\label{tab:advsync:Memory-Barrier Combinations}
+\label{tab:memorder:Memory-Barrier Combinations}
 \end{table*}
 
-\subsubsection{Pair-Wise Memory Barriers: Portable Combinations}
+\subsection{Pair-Wise Memory Barriers: Portable Combinations}
 
 The following pairings from
-Table~\ref{tab:advsync:Memory-Barrier Combinations},
+Table~\ref{tab:memorder:Memory-Barrier Combinations},
 enumerate all the combinations of memory-barrier
 pairings that portable software may depend on.
 
-\paragraph{Pairing 1.}
+\subsubsection{Pairing 1}
 	In this pairing, one CPU executes a pair of loads separated
 	by a memory barrier, while a second CPU executes a pair
 	of stores also separated by a memory barrier, as follows
@@ -1839,7 +1841,7 @@ pairings that portable software may depend on.
 	On the other hand, if \co{Y==0}, the memory-barrier condition
 	does not hold, and so in this case, X~could be either~0 or~1.
 
-\paragraph{Pairing 2.}
+\subsubsection{Pairing 2}
 	In this pairing, each CPU executes a load followed by a
 	memory barrier followed by a store, as follows
 	(both~A and~B are initially equal to zero):
@@ -1875,7 +1877,7 @@ pairings that portable software may depend on.
 	after both CPUs have finished executing these code sequences,
 	then we must have \co{X==0}.
 
-\paragraph{Pairing 3.}
+\subsubsection{Pairing 3}
 	In this pairing, one CPU executes a load followed by a
 	memory barrier followed by a store, while the other CPU
 	executes a pair of stores separated by a memory barrier,
@@ -1909,10 +1911,10 @@ pairings that portable software may depend on.
 	On the other hand, if \co{X==0}, the memory-barrier condition
 	does not hold, and so in this case, B~could be either~1 or~2.
 
-\subsubsection{Pair-Wise Memory Barriers: Semi-Portable Combinations}
+\subsection{Pair-Wise Memory Barriers: Semi-Portable Combinations}
 
 The following pairings from
-Table~\ref{tab:advsync:Memory-Barrier Combinations}
+Table~\ref{tab:memorder:Memory-Barrier Combinations}
 can be used on modern hardware, but might fail on some systems
 that were produced in the 1900s.
 However, these \emph{can} safely be used on all mainstream hardware
@@ -1920,7 +1922,7 @@ introduced since the year 2000.
 So if you think that memory barriers are difficult to deal with, please
 keep in mind that they used to be a \emph{lot} harder on some systems!
 
-\paragraph{Ears to Mouths.}
+\subsubsection{Ears to Mouths}
 	Since the stores cannot see the results of the loads
 	(again, ignoring MMIO registers for the moment),
 	it is not always possible to determine whether the memory-barrier
@@ -1967,7 +1969,7 @@ keep in mind that they used to be a \emph{lot} harder on some systems!
 	the corresponding store, as claimed.
 } \QuickQuizEnd
 
-\paragraph{Stores ``Pass in the Night''.}
+\subsubsection{Stores ``Pass in the Night''}
 	In the following example, after both CPUs have finished
 	executing their code sequences, it is quite tempting to
 	conclude that the result {\tt \{A==1,B==2\}} cannot happen.
@@ -2008,10 +2010,10 @@ keep in mind that they used to be a \emph{lot} harder on some systems!
 	accommodate these ordering intuitions, and \emph{do} permit
 	this combination to be used safely.
 
-\subsubsection{Pair-Wise Memory Barriers: Dubious Combinations}
+\subsection{Pair-Wise Memory Barriers: Dubious Combinations}
 
 In the following combinations from
-Table~\ref{tab:advsync:Memory-Barrier Combinations},
+Table~\ref{tab:memorder:Memory-Barrier Combinations},
 the memory barriers have very limited use in portable code, even
 on 21\textsuperscript{st}-century hardware.
 However, ``limited use'' is different than ``no use'', so let's see
@@ -2019,7 +2021,7 @@ what can be done!
 Avid readers will want to write toy programs that rely on each of
 these combinations in order to fully understand how this works.
 
-\paragraph{Ears to Ears.}
+\subsubsection{Ears to Ears}
 	Since loads do not change the state of memory
 	(ignoring MMIO registers for the moment),
 	it is not possible for one of the loads to see the
@@ -2029,7 +2031,7 @@ these combinations in order to fully understand how this works.
 	that CPU~2's load from~A returned either the same value
 	as CPU~1's load from~A or some later value.
 
-\paragraph{Mouth to Mouth, Ear to Ear.}
+\subsubsection{Mouth to Mouth, Ear to Ear}
 	One of the variables is only loaded from, and the other
 	is only stored to.
 	Because (once again, ignoring MMIO registers) it is not
@@ -2045,7 +2047,7 @@ these combinations in order to fully understand how this works.
 	that CPU~2's load from~A returned either the same value
 	as CPU~1's load from~A or some later value.
 
-\paragraph{Only One Store.}
+\subsubsection{Only One Store}
 	Because there is only one store, only one of the variables
 	permits one CPU to see the results of the other CPU's
 	access.
@@ -2054,14 +2056,14 @@ these combinations in order to fully understand how this works.
 
 	At least not straightforwardly.
 	But suppose that in combination~1 from
-	Table~\ref{tab:advsync:Memory-Barrier Combinations},
+	Table~\ref{tab:memorder:Memory-Barrier Combinations},
 	CPU~1's load from~A returns the value that CPU~2 stored
 	to~A.  Then we know that CPU~1's load from~B returned
 	either the same value as CPU~2's load from~A or some later value.
 
 \QuickQuiz{}
 	How can the other ``Only one store'' entries in
-	Table~\ref{tab:advsync:Memory-Barrier Combinations}
+	Table~\ref{tab:memorder:Memory-Barrier Combinations}
 	be used?
 \QuickQuizAnswer{
 	For combination~2, if CPU~1's load from~B sees a value prior
@@ -2079,7 +2081,7 @@ these combinations in order to fully understand how this works.
 	value as CPU~2's load from~A, or some later value.
 } \QuickQuizEnd
 
-\subsubsection{Semantics Sufficient to Implement Locking}
+\subsection{Semantics Sufficient to Implement Locking}
 
 Suppose we have an exclusive lock (\co{spinlock_t} in the Linux
 kernel, \co{pthread_mutex_t} in pthreads code) that guards a number
@@ -2123,12 +2125,12 @@ b = 1 + a;
 assert(b == 2);
 \end{verbatim}
 \end{minipage}
-\label{codesample:advsync:What Can You Count On? 1}
+\label{codesample:memorder:What Can You Count On? 1}
 \vspace{5pt}
 
 \QuickQuiz{}
 	How could the assertion {\tt b==2} on
-	page~\pageref{codesample:advsync:What Can You Count On? 1}
+	page~\pageref{codesample:memorder:What Can You Count On? 1}
 	possibly fail?
 \QuickQuizAnswer{
 	If the CPU is not required to see all of its loads and
@@ -2152,12 +2154,12 @@ if (p == NULL)
 spin_unlock(&mylock);
 \end{verbatim}
 \end{minipage}
-\label{codesample:advsync:What Can You Count On? 2}
+\label{codesample:memorder:What Can You Count On? 2}
 \vspace{5pt}
 
 \QuickQuiz{}
 	How could the code on
-	page~\pageref{codesample:advsync:What Can You Count On? 2}
+	page~\pageref{codesample:memorder:What Can You Count On? 2}
 	possibly leak memory?
 \QuickQuizAnswer{
 	Only the first execution of the critical section should
@@ -2189,12 +2191,12 @@ ctr = ctr + 1;
 spin_unlock(&mylock);
 \end{verbatim}
 \end{minipage}
-\label{codesample:advsync:What Can You Count On? 3}
+\label{codesample:memorder:What Can You Count On? 3}
 \vspace{5pt}
 
 \QuickQuiz{}
 	How could the code on
-	page~\pageref{codesample:advsync:What Can You Count On? 3}
+	page~\pageref{codesample:memorder:What Can You Count On? 3}
 	possibly count backwards?
 \QuickQuizAnswer{
 	Suppose that the counter started out with the value zero,
@@ -2214,8 +2216,8 @@ spin_unlock(&mylock);
 If you are convinced that these rules are necessary, let's look at how
 they interact with a typical locking implementation.
 
-\subsection{Review of Locking Implementations}
-\label{sec:advsync:Review of Locking Implementations}
+\section{Review of Locking Implementations}
+\label{sec:memorder:Review of Locking Implementations}
 
 Naive pseudocode for simple lock and unlock operations are shown below.
 Note that the \co{atomic_xchg()} primitive implies a memory barrier
@@ -2230,7 +2232,7 @@ This pseudocode follows a number of Linux implementations for
 the unlock operation, which is a simple non-atomic store following a
 memory barrier.
 These minimal implementations must possess all the locking properties
-laid out in Section~\ref{sec:advsync:What Can You Trust?}.
+laid out in Section~\ref{sec:memorder:What Can You Trust?}.
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -2250,7 +2252,7 @@ laid out in Section~\ref{sec:advsync:What Can You Trust?}.
  12 }
 \end{verbatim}
 \end{minipage}
-\label{codesample:advsync:Naive Lock and Unlock Pseudocode}
+\label{codesample:memorder:Naive Lock and Unlock Pseudocode}
 \vspace{5pt}
 
 The \co{spin_lock()} primitive cannot proceed until
@@ -2284,8 +2286,8 @@ everything that CPU~1's preceding critical section did.
 Conversely, CPU~1's critical section cannot see anything that CPU~2's
 critical section will do.
 
-\subsection{A Few Simple Rules}
-\label{sec:advsync:A Few Simple Rules}
+\section{A Few Simple Rules}
+\label{sec:memorder:A Few Simple Rules}
 
 Probably the easiest way to understand memory barriers is to understand
 a few simple rules:
@@ -2328,16 +2330,16 @@ a few simple rules:
 
 The next section takes a more operational view of these rules.
 
-\subsection{Abstract Memory Access Model}
+\section{Abstract Memory Access Model}
 
 Consider the abstract model of the system shown in
-Figure~\ref{fig:advsync:Abstract Memory Access Model}.
+Figure~\ref{fig:memorder:Abstract Memory Access Model}.
 
 \begin{figure}[htb]
 \centering
-\includegraphics{advsync/AbstractMemoryAccessModel}
+%\includegraphics{advsync-/AbstractMemoryAccessModel}
 \caption{Abstract Memory Access Model}
-\ContributedBy{Figure}{fig:advsync:Abstract Memory Access Model}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Abstract Memory Access Model}{David Howells}
 \end{figure}
 
 Each CPU executes a program that generates memory access operations.  In the
@@ -2347,7 +2349,7 @@ appears to be maintained.  Similarly, the compiler may also arrange the
 instructions it emits in any order it likes, provided it doesn't affect the
 apparent operation of the program.
 
-So in Figure~\ref{fig:advsync:Abstract Memory Access Model},
+So in Figure~\ref{fig:memorder:Abstract Memory Access Model},
 the effects of the memory operations performed by a
 CPU are perceived by the rest of the system as the operations cross the
 interface between the CPU and rest of the system (the dotted lines).
@@ -2454,10 +2456,10 @@ into~Q before issuing the load of~*Q.\footnote{Although it might sound
 	{\em after} {\tt\scriptsize STORE P~=~\&B}.
 	To reach a consensus in ordering, we need a pair of memory barriers
 	as is described in
-	Section~\ref{sec:advsync:Data Dependency Barriers}.}
+	Section~\ref{sec:memorder:Data Dependency Barriers}.}
 
-\subsection{Device Operations}
-\label{sec:advsync:Device Operations}
+\section{Device Operations}
+\label{sec:memorder:Device Operations}
 
 Some devices present their control interfaces as collections of memory
 locations, but the order in which the control registers are accessed is very
@@ -2491,8 +2493,8 @@ x = LOAD *D, STORE *A = 5
 the second of which will almost certainly result in a malfunction, since it set
 the address \emph{after} attempting to read the register.
 
-\subsection{Minimal Guarantees}
-\label{sec:advsync:Minimal Guarantees}
+\section{Minimal Guarantees}
+\label{sec:memorder:Minimal Guarantees}
 
 In our abstract memory model, there are some minimal guarantees of ordering
 that may be expected of a CPU without any need of memory barriers:
@@ -2658,8 +2660,8 @@ STORE *A = Y
 
 \end{enumerate}
 
-\subsection{What Are Memory Barriers?}
-\label{sec:advsync:What Are Memory Barriers?}
+\section{What Are Memory Barriers?}
+\label{sec:memorder:What Are Memory Barriers?}
 
 As can be seen above, independent memory operations are effectively performed
 in random order, but this can be a problem for CPU-CPU interaction and for I/O.
@@ -2676,8 +2678,8 @@ branch prediction and various types of caching.  Memory barriers are used to
 override or suppress these tricks, allowing the code to sanely control the
 interaction of multiple CPUs and/or devices.
 
-\subsubsection{Explicit Memory Barriers}
-\label{sec:advsync:Explicit Memory Barriers}
+\subsection{Explicit Memory Barriers}
+\label{sec:memorder:Explicit Memory Barriers}
 
 Memory barriers come in four basic varieties:
 
@@ -2690,7 +2692,7 @@ Memory barriers come in four basic varieties:
 
 Each variety is described below.
 
-\paragraph{Write Memory Barriers}
+\subsubsection{Write Memory Barriers}
 
 A write memory barrier gives a guarantee that all the STORE operations
 specified before the barrier will appear to happen before all the STORE
@@ -2706,9 +2708,9 @@ occur in the sequence \emph{before} all the stores after the write barrier.
 
 Note that write barriers should normally be paired with read
 or data dependency barriers; see
-Section~\ref{sec:advsync:SMP Barrier Pairing}.
+Section~\ref{sec:memorder:SMP Barrier Pairing}.
 
-\paragraph{Data Dependency Barriers}
+\subsubsection{Data Dependency Barriers}
 
 A data dependency barrier is a weaker form of read barrier.  In the case
 where two loads are performed such that the second depends on the result
@@ -2731,7 +2733,7 @@ time the barrier completes, the effects of all the stores prior to that
 touched by the load will be perceptible to any loads issued after the data
 dependency barrier.
 
-See the Section~\ref{sec:advsync:Examples of Memory Barrier Pairings} for
+See the Section~\ref{sec:memorder:Examples of Memory Barrier Pairings} for
 diagrams showing the ordering constraints.
 
 Note that the first load really has to have a
@@ -2740,12 +2742,12 @@ not a control dependency.  If the address for the second load is dependent
 on the first load, but the dependency is through a conditional rather than
 actually loading the address itself, then it's a \emph{control} dependency and
 a full read barrier or better is required.  See
-Section~\ref{sec:advsync:Control-Dependency Restrictions} for more information.
+Section~\ref{sec:memorder:Control-Dependency Restrictions} for more information.
 
 Note that data dependency barriers should normally be paired with
-write barriers; see Section~\ref{sec:advsync:SMP Barrier Pairing}.
+write barriers; see Section~\ref{sec:memorder:SMP Barrier Pairing}.
 
-\paragraph{Read Memory Barriers}
+\subsubsection{Read Memory Barriers}
 
 A read barrier is a data dependency barrier plus a guarantee that all the
 LOAD operations specified before the barrier will appear to happen before
@@ -2759,9 +2761,9 @@ Read memory barriers imply data dependency barriers, and so can substitute
 for them.
 
 Note that read barriers should normally be paired with write barriers;
-see Section~\ref{sec:advsync:SMP Barrier Pairing}.
+see Section~\ref{sec:memorder:SMP Barrier Pairing}.
 
-\paragraph{General Memory Barriers}
+\subsubsection{General Memory Barriers}
 
 A general memory barrier gives a guarantee that all the LOAD and STORE
 operations specified before the barrier will appear to happen before all
@@ -2773,7 +2775,7 @@ A general memory barrier is a partial ordering over both loads and stores.
 General memory barriers imply both read and write memory barriers, and so
 can substitute for either.
 
-\subsubsection{Implicit Memory Barriers}
+\subsection{Implicit Memory Barriers}
 
 There are a couple of types of implicit memory barriers, so called
 because they are embedded into locking primitives:
@@ -2787,7 +2789,7 @@ because they are embedded into locking primitives:
 		discussing lockless techniques.}
 \end{enumerate}
 
-\paragraph{ACQUIRE Operations}
+\subsubsection{ACQUIRE Operations}
 
 An acuire operation acts as a one-way permeable barrier.
 It guarantees that all memory
@@ -2799,7 +2801,7 @@ after it completes.
 
 An ACQUIRE operation should almost always be paired with a RELEASE operation.
 
-\paragraph{RELEASE Operations}
+\subsubsection{RELEASE Operations}
 
 Release operations also act as a one-way permeable barrier.
 It guarantees that all
@@ -2814,7 +2816,7 @@ other strictly in the order specified.
 
 The use of ACQUIRE and RELEASE operations generally precludes the need for
 other sorts of memory barrier (but note the exceptions mentioned in the
-Section~\ref{sec:advsync:Device Operations}).
+Section~\ref{sec:memorder:Device Operations}).
 
 \QuickQuiz{}
 	What effect does the following sequence have on the
@@ -2836,8 +2838,8 @@ Section~\ref{sec:advsync:Device Operations}).
 	assignments to~``a'' and~``b'' themselves.
 } \QuickQuizEnd
 
-\subsubsection{What May Not Be Assumed About Memory Barriers?}
-\label{sec:advsync:What May Not Be Assumed About Memory Barriers?}
+\subsection{What May Not Be Assumed About Memory Barriers?}
+\label{sec:memorder:What May Not Be Assumed About Memory Barriers?}
 
 There are certain things that memory barriers cannot guarantee outside
 of the confines of a given architecture:
@@ -2857,7 +2859,7 @@ of the confines of a given architecture:
 	of effects from a second CPU's accesses, even \emph{if} the second CPU
 	uses a memory barrier, unless the first CPU \emph{also} uses a matching
 	memory barrier (see
-	Section~\ref{sec:advsync:SMP Barrier Pairing}).
+	Section~\ref{sec:memorder:SMP Barrier Pairing}).
 \item	There is no guarantee that some intervening piece of off-the-CPU
 	hardware\footnote{
 		This is of concern primarily in operating-system kernels.
@@ -2870,8 +2872,8 @@ of the confines of a given architecture:
 	a memory barrier between CPUs, but might not do so in order.
 \end{enumerate}
 
-\subsubsection{Data Dependency Barriers}
-\label{sec:advsync:Data Dependency Barriers}
+\subsection{Data Dependency Barriers}
+\label{sec:memorder:Data Dependency Barriers}
 
 The usage requirements of data dependency barriers are a little subtle, and
 it's not always obvious that they're needed.  To illustrate, consider the
@@ -2993,11 +2995,11 @@ target of an RCU'd pointer to be replaced with a new modified target, without
 the replacement target appearing to be incompletely initialized.
 
 See also
-Section~\ref{sec:advsync:Cache Coherency}
+Section~\ref{sec:memorder:Cache Coherency}
 for a larger example.
 
-\subsubsection{Address- and Data-Dependency Restrictions}
-\label{sec:advsync:Address- and Data-Dependency Restrictions}
+\subsection{Address- and Data-Dependency Restrictions}
+\label{sec:memorder:Address- and Data-Dependency Restrictions}
 
 Compilers do not understand either address or data dependencies,
 although there are efforts underway to teach them, or at the very
@@ -3006,7 +3008,7 @@ them~\cite{PaulEMcKennneyConsumeP0190R0,PaulEMcKenney2017markconsumeP0462R1}.
 In the meantime, it is necessary to be very careful in order to avoid
 giving your compiler the opportunity to break your dependencies.
 
-\paragraph{Give your dependency chain a good start.}
+\subsubsection{Give your dependency chain a good start}
 The load that heads your dependency chain must use proper
 ordering, for example, \co{lockless_dereference()},
 \co{rcu_dereference()}, or
@@ -3037,7 +3039,7 @@ Failure to follow this rule can have serious side effects:
 	dependency chain.
 \end{enumerate}
 
-\paragraph{Avoid arithmetic dependency breakage.}
+\subsubsection{Avoid arithmetic dependency breakage}
 Although it is just fine to do some arithmetic operations on a pointer in
 your dependency chain, you need to be careful to avoid giving the
 compiler too much information.
@@ -3063,7 +3065,7 @@ ordering is lost.
 \centering
 \theverbbox
 \caption{Breakable Dependencies With Comparisons}
-\label{fig:advsync:Breakable Dependencies With Comparisons}
+\label{fig:memorder:Breakable Dependencies With Comparisons}
 \end{figure}
 
 \begin{figure}[tbp]
@@ -3085,7 +3087,7 @@ ordering is lost.
 \centering
 \theverbbox
 \caption{Broken Dependencies With Comparisons}
-\label{fig:advsync:Broken Dependencies With Comparisons}
+\label{fig:memorder:Broken Dependencies With Comparisons}
 \end{figure}
 
 \begin{enumerate}
@@ -3099,7 +3101,7 @@ ordering is lost.
 	For example, if \co{a} and \co{b} are equal, \co{cp+a-b}
 	is an identity function, including preserving the dependency.
 \item	Comparisons can break dependencies.
-	Figure~\ref{fig:advsync:Breakable Dependencies With Comparisons}
+	Figure~\ref{fig:memorder:Breakable Dependencies With Comparisons}
 	shows how this can happen.
 	Here global pointer \co{gp} points to a dynamically allocated
 	integer, but if memory is low, it might instead point to
@@ -3108,7 +3110,7 @@ ordering is lost.
 	shown on lines~6 and~7 of the figure.
 	But the compiler could reasonably transform this code into
 	the form shown in
-	Figure~\ref{fig:advsync:Broken Dependencies With Comparisons},
+	Figure~\ref{fig:memorder:Broken Dependencies With Comparisons},
 	especially on systems where instructions with absolute
 	addresses run faster than instructions using addresses
 	supplied in registers.
@@ -3121,7 +3123,7 @@ ordering is lost.
 \QuickQuiz{}
 	Why can't you simply dereference the pointer before comparing it
 	to \co{&reserve_int} on line~6 of
-	Figure~\ref{fig:advsync:Breakable Dependencies With Comparisons}?
+	Figure~\ref{fig:memorder:Breakable Dependencies With Comparisons}?
 \QuickQuizAnswer{
 	For first, it might be necessary to invoke
 	\co{handle_reserve()} before \co{do_something_with()}.
@@ -3158,7 +3160,7 @@ ordering is lost.
 \centering
 \theverbbox
 \caption{Breakable Dependencies With Non-Constant Comparisons}
-\label{fig:advsync:Breakable Dependencies With Non-Constant Comparisons}
+\label{fig:memorder:Breakable Dependencies With Non-Constant Comparisons}
 \end{figure}
 
 \begin{figure}[tbp]
@@ -3182,15 +3184,15 @@ ordering is lost.
 \centering
 \theverbbox
 \caption{Broken Dependencies With Non-Constant Comparisons}
-\label{fig:advsync:Broken Dependencies With Non-Constant Comparisons}
+\label{fig:memorder:Broken Dependencies With Non-Constant Comparisons}
 \end{figure}
 
 	Unfortunately, the compiler really can learn enough to
 	break your dependency chain, for example, as shown in
-	Figure~\ref{fig:advsync:Breakable Dependencies With Non-Constant Comparisons}.
+	Figure~\ref{fig:memorder:Breakable Dependencies With Non-Constant Comparisons}.
 	The compiler is within its rights to transform this code
 	into that shown in
-	Figure~\ref{fig:advsync:Broken Dependencies With Non-Constant Comparisons},
+	Figure~\ref{fig:memorder:Broken Dependencies With Non-Constant Comparisons},
 	and might well make this transformation due to register pressure
 	if \co{handle_equality()} was inlined and needed a lot of registers.
 	Line~10 of this transformed code uses \co{q}, which although
@@ -3203,7 +3205,7 @@ ordering is lost.
 
 % @@@ Quick quiz showing other ways to break dependencies by comparison
 
-\paragraph{Safe comparison of dependent pointers.}
+\subsubsection{Safe comparison of dependent pointers}
 It turns out that there are several safe ways to compare dependent
 pointers:
 
@@ -3223,8 +3225,8 @@ pointers:
 
 % @@@ More here
 
-\subsubsection{Control-Dependency Restrictions}
-\label{sec:advsync:Control-Dependency Restrictions}
+\subsection{Control-Dependency Restrictions}
+\label{sec:memorder:Control-Dependency Restrictions}
 
 Control dependencies are especially tricky because current compilers
 do not understand them and can easily break them.
@@ -3523,7 +3525,7 @@ and ``\co{else}'' of the ``\co{if}'' in question (including functions
 invoked by those two clauses), not to code following that ``\co{if}''.
 
 Finally, control dependencies do \emph{not} provide transitivity.\footnote{
-	Refer to Section~\ref{sec:advsync:Transitivity} for
+	Refer to Section~\ref{sec:memorder:Transitivity} for
 	the meaning of transitivity.}
 This is demonstrated by two related examples, with the initial values
 of~\co{x} and~\co{y} both being zero:
@@ -3624,8 +3626,8 @@ The following list of rules summarizes the lessons of this section:
 	If you need transitivity, use \co{smp_mb()}.
 \end{enumerate}
 
-\subsubsection{SMP Barrier Pairing}
-\label{sec:advsync:SMP Barrier Pairing}
+\subsection{SMP Barrier Pairing}
+\label{sec:memorder:SMP Barrier Pairing}
 
 When dealing with CPU-CPU interactions, certain types of memory barrier should
 always be paired.  A lack of appropriate pairing is almost certainly an error.
@@ -3682,11 +3684,11 @@ match the loads after the read barrier or data dependency barrier, and vice
 versa:
 
 \begin{center}
-\resizebox{3in}{!}{\includegraphics{advsync/MemoryBarrierPairing}}
+% \resizebox{3in}{!}{\includegraphics{advsync-/MemoryBarrierPairing}}
 \end{center}
 
-\subsubsection{Examples of Memory Barrier Pairings}
-\label{sec:advsync:Examples of Memory Barrier Pairings}
+\subsection{Examples of Memory Barrier Pairings}
+\label{sec:memorder:Examples of Memory Barrier Pairings}
 
 Firstly, write barriers act as partial orderings on store operations.
 Consider the following sequence of events:
@@ -3711,13 +3713,13 @@ that the rest of the system might perceive as the unordered set of
 {\tt \{A=1,B=2,C=3\}}
 all occurring before the unordered set of
 {\tt \{D=4,E=5\}}, as shown in
-Figure~\ref{fig:advsync:Write Barrier Ordering Semantics}.
+Figure~\ref{fig:memorder:Write Barrier Ordering Semantics}.
 
 \begin{figure*}[htb]
 \centering
-\includegraphics{advsync/WriteBarrierOrdering}
+% \includegraphics{advsync-/WriteBarrierOrdering}
 \caption{Write Barrier Ordering Semantics}
-\ContributedBy{Figure}{fig:advsync:Write Barrier Ordering Semantics}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Write Barrier Ordering Semantics}{David Howells}
 \end{figure*}
 
 Secondly, data dependency barriers act as partial orderings on data-dependent
@@ -3743,13 +3745,13 @@ loads.  Consider the following sequence of events with initial values
 
 Without intervention, CPU~2 may perceive the events on CPU~1 in some
 effectively random order, despite the write barrier issued by CPU~1, as
-shown in Figure~\ref{fig:advsync:Data Dependency Barrier Omitted}.
+shown in Figure~\ref{fig:memorder:Data Dependency Barrier Omitted}.
 
 \begin{figure*}[htbp]
 \centering
-\includegraphics{advsync/DataDependencyNeeded}
+% \includegraphics{advsync-/DataDependencyNeeded}
 \caption{Data Dependency Barrier Omitted}
-\ContributedBy{Figure}{fig:advsync:Data Dependency Barrier Omitted}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Data Dependency Barrier Omitted}{David Howells}
 \end{figure*}
 
 In the above example, CPU~2 perceives that \co{B} is~7,
@@ -3779,13 +3781,13 @@ values of {\tt \{B~=~7, X~=~9, Y~=~8, C~=~\&Y\}}:
 \vspace{5pt}
 
 then ordering will be as intuitively expected, as shown in
-Figure~\ref{fig:advsync:Data Dependency Barrier Supplied}.
+Figure~\ref{fig:memorder:Data Dependency Barrier Supplied}.
 
 \begin{figure*}[htbp]
 \centering
-\includegraphics{advsync/DataDependencySupplied}
+% \includegraphics{advsync-/DataDependencySupplied}
 \caption{Data Dependency Barrier Supplied}
-\ContributedBy{Figure}{fig:advsync:Data Dependency Barrier Supplied}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Data Dependency Barrier Supplied}{David Howells}
 \end{figure*}
 
 And thirdly, a read barrier acts as a partial order on loads.  Consider the
@@ -3810,13 +3812,13 @@ following sequence of events, with initial values
 
 Without intervention, CPU~2 may then choose to perceive the events on CPU~1 in
 some effectively random order, despite the write barrier issued by CPU~1, as
-shown in Figure~\ref{fig:advsync:Read Barrier Needed}.
+shown in Figure~\ref{fig:memorder:Read Barrier Needed}.
 
 \begin{figure*}[htbp]
 \centering
-\includegraphics{advsync/ReadBarrierNeeded}
+% \includegraphics{advsync-/ReadBarrierNeeded}
 \caption{Read Barrier Needed}
-\ContributedBy{Figure}{fig:advsync:Read Barrier Needed}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Read Barrier Needed}{David Howells}
 \end{figure*}
 
 If, however, a read barrier were to be placed between the load of~\co{B}
@@ -3842,13 +3844,13 @@ and the load of~\co{A} on CPU~2, again with initial values of
 
 then the partial ordering imposed by CPU~1's write barrier will be
 perceived correctly by CPU~2, as shown in
-Figure~\ref{fig:advsync:Read Barrier Supplied}.
+Figure~\ref{fig:memorder:Read Barrier Supplied}.
 
 \begin{figure*}[htbp]
 \centering
-\includegraphics{advsync/ReadBarrierSupplied}
+% \includegraphics{advsync-/ReadBarrierSupplied}
 \caption{Read Barrier Supplied}
-\ContributedBy{Figure}{fig:advsync:Read Barrier Supplied}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Read Barrier Supplied}{David Howells}
 \end{figure*}
 
 To illustrate this more completely, consider what could happen if the code
@@ -3877,24 +3879,24 @@ with the same initial values of
 Even though the two loads of~\co{A}
 both occur after the load of~\co{B}, they may both
 come up with different values, as shown in
-Figure~\ref{fig:advsync:Read Barrier Supplied, Double Load}.
+Figure~\ref{fig:memorder:Read Barrier Supplied, Double Load}.
 
 \begin{figure*}[htbp]
 \centering
-\includegraphics{advsync/ReadBarrierSupplied1}
+% \includegraphics{advsync-/ReadBarrierSupplied1}
 \caption{Read Barrier Supplied, Double Load}
-\ContributedBy{Figure}{fig:advsync:Read Barrier Supplied, Double Load}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Read Barrier Supplied, Double Load}{David Howells}
 \end{figure*}
 
 Of course, it may well be that CPU~1's update to~\co{A} becomes perceptible
 to CPU~2 before the read barrier completes, as shown in
-Figure~\ref{fig:advsync:Read Barrier Supplied, Take Two}.
+Figure~\ref{fig:memorder:Read Barrier Supplied, Take Two}.
 
 \begin{figure*}[htbp]
 \centering
-\includegraphics{advsync/ReadBarrierSupplied2}
+% \includegraphics{advsync-/ReadBarrierSupplied2}
 \caption{Read Barrier Supplied, Take Two}
-\ContributedBy{Figure}{fig:advsync:Read Barrier Supplied, Take Two}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Read Barrier Supplied, Take Two}{David Howells}
 \end{figure*}
 
 The guarantee is that the second load will always come up with \nbco{A == 1}
@@ -3903,8 +3905,8 @@ load of~\co{B} came up with \nbco{B == 2}.
 No such guarantee exists for the first load
 of~\co{A}; that may come up with either \nbco{A == 0} or \nbco{A == 1}.
 
-\subsubsection{Read Memory Barriers vs. Load Speculation}
-\label{sec:advsync:Read Memory Barriers vs. Load Speculation}
+\subsection{Read Memory Barriers vs. Load Speculation}
+\label{sec:memorder:Read Memory Barriers vs. Load Speculation}
 
 Many CPUs speculate with loads: that is, they see that they will need to
 load an item from memory, and they find a time where they're not using
@@ -3942,13 +3944,13 @@ In the (hopefully) unlikely event of an exception from one of the dividees,
 this speculative load will have been wasted, but in the (again, hopefully)
 common case, overlapping the load with the divides will permit the load
 to complete more quickly, as illustrated by
-Figure~\ref{fig:advsync:Speculative Load}.
+Figure~\ref{fig:memorder:Speculative Load}.
 
 \begin{figure*}[htbp]
 \centering
-\includegraphics{advsync/SpeculativeLoad}
+% \includegraphics{advsync-/SpeculativeLoad}
 \caption{Speculative Load}
-\ContributedBy{Figure}{fig:advsync:Speculative Load}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Speculative Load}{David Howells}
 \end{figure*}
 
 Placing a read barrier or a data dependency barrier just before the second
@@ -3974,28 +3976,28 @@ will force any value speculatively obtained to be reconsidered to an extent
 dependent on the type of barrier used.  If there was no change made to the
 speculated memory location, then the speculated value will just be used,
 as shown in
-Figure~\ref{fig:advsync:Speculative Loads and Barrier}.
+Figure~\ref{fig:memorder:Speculative Loads and Barrier}.
 On the other hand, if there was an update or invalidation to~\co{A}
 from some other CPU, then the speculation will be cancelled and the
 value of~\co{A} will be reloaded,
-as shown in Figure~\ref{fig:advsync:Speculative Loads Cancelled by Barrier}.
+as shown in Figure~\ref{fig:memorder:Speculative Loads Cancelled by Barrier}.
 
 \begin{figure*}[htbp]
 \centering
-\includegraphics{advsync/SpeculativeLoadBarrier}
+% \includegraphics{advsync-/SpeculativeLoadBarrier}
 \caption{Speculative Load and Barrier}
-\ContributedBy{Figure}{fig:advsync:Speculative Loads and Barrier}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Speculative Loads and Barrier}{David Howells}
 \end{figure*}
 
 \begin{figure*}[htbp]
 \centering
-\includegraphics{advsync/SpeculativeLoadBarrierCancel}
+% \includegraphics{advsync-/SpeculativeLoadBarrierCancel}
 \caption{Speculative Load Cancelled by Barrier}
-\ContributedBy{Figure}{fig:advsync:Speculative Loads Cancelled by Barrier}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Speculative Loads Cancelled by Barrier}{David Howells}
 \end{figure*}
 
-\subsubsection{Transitivity}
-\label{sec:advsync:Transitivity}
+\subsection{Transitivity}
+\label{sec:memorder:Transitivity}
 
 ``Transitivity'' is a deeply intuitive notion about ordering that is not
 always provided by real computer systems.  The following example
@@ -4068,7 +4070,7 @@ agree on the order of operations.  In contrast, a chain of release-acquire
 pairs provides only ``local transitivity'', so that only those CPUs on
 the chain are guaranteed to agree on the combined order of the accesses.
 For example, switching to C~code in deference to Herman Hollerith shown in
-Figure~\ref{fig:advsync:Example of Local Transitivity (Release-Acquire Pair)}:
+Figure~\ref{fig:memorder:Example of Local Transitivity (Release-Acquire Pair)}:
 
 \begin{figure}[htbp]
 \scriptsize
@@ -4106,7 +4108,7 @@ Figure~\ref{fig:advsync:Example of Local Transitivity (Release-Acquire Pair)}:
 \end{verbbox}
 \theverbbox
 \caption{Example of Local Transitivity (Release-Acquire Pair)}
-\label{fig:advsync:Example of Local Transitivity (Release-Acquire Pair)}
+\label{fig:memorder:Example of Local Transitivity (Release-Acquire Pair)}
 \end{figure}
 
 Because \co{cpu0()}, \co{cpu1()}, and \co{cpu2()} participate in a local transitive
@@ -4175,8 +4177,8 @@ consistent system where nothing is ever reordered.
 To reiterate, if your code requires global transitivity, use general
 barriers throughout.
 
-\subsection{Locking Constraints}
-\label{sec:advsync:Locking Constraints}
+\section{Locking Constraints}
+\label{sec:memorder:Locking Constraints}
 
 As noted earlier, locking primitives contain implicit memory barriers.
 These primitives imply the following:
@@ -4218,12 +4220,12 @@ These primitives imply the following:
 	\end{itemize}
 \end{enumerate}
 
-\subsection{Memory-Barrier Examples}
-\label{sec:advsync:Memory-Barrier Examples}
+\section{Memory-Barrier Examples}
+\label{sec:memorder:Memory-Barrier Examples}
 
-\subsubsection{Locking Examples}
+\subsection{Locking Examples}
 
-\paragraph{ACQUIRE Followed by RELEASE:}
+\subsubsection{ACQUIRE Followed by RELEASE}
 An ACQUIRE followed by a RELEASE may not be assumed to be a full memory barrier
 because it is possible for an access preceding the ACQUIRE to happen after the
 ACQUIRE, and an access following the RELEASE to happen before the RELEASE, and the
@@ -4279,7 +4281,7 @@ respectively.
 	exercise for the reader.
 } \QuickQuizEnd
 
-\paragraph{Lock-Based Critical Sections:}
+\subsubsection{Lock-Based Critical Sections}
 Although an ACQUIRE\-/RELEASE pair does not act as a full memory barrier,
 these operations \emph{do} affect memory ordering.
 
@@ -4344,13 +4346,13 @@ operations concurrently:
   9 & \verb|*B; ACQUIRE; *C; *D; RELEASE; {*F; *A;} *E;| \\
 \end{tabular}
 \caption{Lock-Based Critical Sections}
-\label{tab:advsync:Lock-Based Critical Sections}
+\label{tab:memorder:Lock-Based Critical Sections}
 \end{table}
 
 \QuickQuiz{}
 	Given that operations grouped in curly braces are executed
 	concurrently, which of the rows of
-	Table~\ref{tab:advsync:Lock-Based Critical Sections}
+	Table~\ref{tab:memorder:Lock-Based Critical Sections}
 	are legitimate reorderings of the assignments to variables~``A''
 	through~`F'' and the ACQUIRE/RELEASE operations?
 	(The order in the code is {\tt *A, *B, ACQUIRE, *C, *D, RELEASE, *E, *F}.)
@@ -4375,11 +4377,11 @@ operations concurrently:
 	\end{enumerate}
 } \QuickQuizEnd
 
-\paragraph{Ordering with Multiple Locks:}
+\subsubsection{Ordering with Multiple Locks}
 Code containing multiple locks still sees ordering constraints from
 those locks, but one must be careful to keep track of which lock is which.
 For example, consider the code shown in
-Table~\ref{tab:advsync:Ordering With Multiple Locks}, which uses
+Table~\ref{tab:memorder:Ordering With Multiple Locks}, which uses
 a pair of locks named~``M'' and~``Q''.
 
 \begin{table}[htbp]
@@ -4395,7 +4397,7 @@ a pair of locks named~``M'' and~``Q''.
   D = d; &	H = h; \\
 \end{tabular}}
 \caption{Ordering With Multiple Locks}
-\label{tab:advsync:Ordering With Multiple Locks}
+\label{tab:memorder:Ordering With Multiple Locks}
 \end{table}
 
 In this example, there are no guarantees as to what order the
@@ -4405,7 +4407,7 @@ described in the previous section.
 
 \QuickQuiz{}
 	What are the constraints for
-	Table~\ref{tab:advsync:Ordering With Multiple Locks}?
+	Table~\ref{tab:memorder:Ordering With Multiple Locks}?
 \QuickQuizAnswer{
 	All CPUs must see the following ordering constraints:
 	\begin{enumerate}
@@ -4416,11 +4418,11 @@ described in the previous section.
 	\end{enumerate}
 } \QuickQuizEnd
 
-\paragraph{Ordering with Multiple CPUs on One Lock:}
+\subsubsection{Ordering with Multiple CPUs on One Lock}
 Suppose, instead of the two different locks as shown in
-Table~\ref{tab:advsync:Ordering With Multiple Locks}, both CPUs acquire
+Table~\ref{tab:memorder:Ordering With Multiple Locks}, both CPUs acquire
 the same lock, as shown in
-Table~\ref{tab:advsync:Ordering With Multiple CPUs on One Lock}?
+Table~\ref{tab:memorder:Ordering With Multiple CPUs on One Lock}?
 
 \begin{table}[htbp]
 \scriptsize\centering{\tt
@@ -4435,7 +4437,7 @@ Table~\ref{tab:advsync:Ordering With Multiple CPUs on One Lock}?
   D = d; &	H = h; \\
 \end{tabular}}
 \caption{Ordering With Multiple CPUs on One Lock}
-\label{tab:advsync:Ordering With Multiple CPUs on One Lock}
+\label{tab:memorder:Ordering With Multiple CPUs on One Lock}
 \end{table}
 
 In this case, either CPU~1 acquires~M before CPU~2 does, or vice versa.
@@ -4444,8 +4446,8 @@ those to~F, G, and~H.
 On the other hand, if CPU~2 acquires the lock first, then the
 assignments to~E, F, and~G must precede those to~B, C, and~D.
 
-\subsection{The Effects of the CPU Cache}
-\label{sec:advsync:The Effects of the CPU Cache}
+\section{The Effects of the CPU Cache}
+\label{sec:memorder:The Effects of the CPU Cache}
 
 The perceived ordering of memory operations is affected by the caches
 that lie between the CPUs and memory, as well as by the cache coherence
@@ -4453,15 +4455,15 @@ protocol that maintains memory consistency and ordering.
 From a software viewpoint, these caches are for all intents and purposes
 part of memory.
 Memory barriers can be thought of as acting on the vertical dotted line in
-Figure~\ref{fig:advsync:Memory Architecture}, ensuring that the CPU
+Figure~\ref{fig:memorder:Memory Architecture}, ensuring that the CPU
 presents its values to memory in the proper order, as well as ensuring
 that it sees changes made by other CPUs in the proper order.
 
 \begin{figure*}[htb]
 \centering
-\includegraphics{advsync/MemoryArchitecture}
+% \includegraphics{advsync-/MemoryArchitecture}
 \caption{Memory Architecture}
-\ContributedBy{Figure}{fig:advsync:Memory Architecture}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Memory Architecture}{David Howells}
 \end{figure*}
 
 Although the caches can ``hide'' a given CPU's memory accesses from the rest of
@@ -4476,8 +4478,8 @@ in the CPU's memory access queue, but execution may nonetheless continue
 until the CPU either fills up its internal resources or until it must
 wait for some queued memory access to complete.
 
-\subsubsection{Cache Coherency}
-\label{sec:advsync:Cache Coherency}
+\subsection{Cache Coherency}
+\label{sec:memorder:Cache Coherency}
 
 Although cache-coherence protocols guarantee that a given CPU sees its
 own accesses in order, and that all CPUs agree on the order of modifications
@@ -4488,13 +4490,13 @@ some such guarantees, portable software cannot rely on them.
 
 \begin{figure*}[htb]
 \centering
-\includegraphics{advsync/SplitCache}
+% \includegraphics{advsync-/SplitCache}
 \caption{Split Caches}
-\ContributedBy{Figure}{fig:advsync:Split Caches}{David Howells}
+\ContributedBy{Figure}{fig:memorder:Split Caches}{David Howells}
 \end{figure*}
 
 To see why reordering can occur, consider the two-CPU system shown in
-Figure~\ref{fig:advsync:Split Caches}, in which each CPU has a split
+Figure~\ref{fig:memorder:Split Caches}, in which each CPU has a split
 cache.
 This system has the following properties:
 \begin{enumerate}
@@ -4530,8 +4532,8 @@ of order.
 	 }
 	 {}
 
-\subsection{Where Are Memory Barriers Needed?}
-\label{sec:advsync:Where Are Memory Barriers Needed?}
+\section{Where Are Memory Barriers Needed?}
+\label{sec:memorder:Where Are Memory Barriers Needed?}
 
 Memory barriers are only required where there's a possibility of interaction
 between two CPUs or between a CPU and a device.  If it can be guaranteed that
