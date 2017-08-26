@@ -1322,23 +1322,23 @@ int *y = &b;
 
 P0(int **x)
 {
-	WRITE_ONCE(*x, x);
+  WRITE_ONCE(*x, x);
 }
 
 P1(int **x, int **y)
 {
-	int *r1;
+  int *r1;
 
-	r1 = READ_ONCE(*x);
-	WRITE_ONCE(*y, r1);
+  r1 = READ_ONCE(*x);
+  WRITE_ONCE(*y, r1);
 }
 
 P2(int **y, int **c)
 {
-	int *r2;
+  int *r2;
 
-	r2 = READ_ONCE(*y);
-	WRITE_ONCE(*r2, c);
+  r2 = READ_ONCE(*y);
+  WRITE_ONCE(*r2, c);
 }
 
 exists(1:r1=x /\ 2:r2=x /\ x=x)
@@ -1488,23 +1488,23 @@ int *y = &b;
 
 P0(int **x)
 {
-	WRITE_ONCE(*x, x);
+  WRITE_ONCE(*x, x);
 }
 
 P1(int **x, int **y)
 {
-	int *r1;
+  int *r1;
 
-	r1 = READ_ONCE(*x);
-	smp_store_release(y, r1);
+  r1 = READ_ONCE(*x);
+  smp_store_release(y, r1);
 }
 
 P2(int **y, int **c)
 {
-	int *r2;
+  int *r2;
 
-	r2 = READ_ONCE(*y);
-	WRITE_ONCE(*r2, c);
+  r2 = READ_ONCE(*y);
+  WRITE_ONCE(*r2, c);
 }
 
 exists(1:r1=x /\ 2:r2=x /\ x=x)
@@ -1714,386 +1714,8 @@ In contrast, if there are multiple variables, memory barriers are
 required for the CPUs to consistently agree on the order for current
 commercially available computer systems.
 
-\subsection{Pair-Wise Memory Barriers}
-
-Pair-wise memory barriers provide conditional ordering semantics.
-For example, in the following set of operations, CPU~1's access to
-A does not unconditionally precede its access to~B from the viewpoint
-of an external logic analyzer
-\IfInBook{(see Appendix~\ref{chp:app:whymb:Why Memory Barriers?}
-	  for examples).
-	 }
-	 {(the system is only to act \emph{as if} the accesses
-	  are in order; it is not necessarily required to actually
-	  force them to be in order).}
-However, if CPU~2's access to~B sees the result of CPU~1's access
-to~B, then CPU~2's access to~A is guaranteed to see the result of
-CPU~1's access to~A.
-Although some CPU families' memory barriers do in fact provide stronger,
-unconditional ordering guarantees, portable code may rely only
-on this weaker if-then conditional ordering guarantee.
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|l}
-	\nf{CPU 1}	& \nf{CPU 2} \\
-	\hline
-	<access> A	& <access> B \\
-	<memory barrier>& <memory barrier> \\
-	<access> B	& <access> A \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-\QuickQuiz{}
-	But if the memory barriers do not unconditionally force
-	ordering, how the heck can a device driver reliably execute
-	sequences of loads and stores to MMIO registers?
-\QuickQuizAnswer{
-	MMIO registers are special cases: because they appear
-	in uncached regions of physical memory.
-	Memory barriers \emph{do} unconditionally force ordering
-	of loads and stores to uncached memory, as discussed in
-	Section~\ref{sec:memorder:Device Operations}.
-} \QuickQuizEnd
-
-Of course, accesses must be either loads or stores, and these
-do have different properties.
-Table~\ref{tab:memorder:Memory-Barrier Combinations}
-shows all possible combinations of loads and stores from a pair
-of CPUs.
-Of course, to enforce conditional ordering, there must be
-a memory barrier between each CPU's pair of operations.
-
-\begin{table*}
-\small
-\centering
-\begin{tabular}{r||c|c||c|c||l}
-	\multicolumn{1}{c||}{} & \multicolumn{2}{c||}{CPU 1} &
-		\multicolumn{2}{c||}{CPU 2} & Description \\
-	\hline
-	\hline
-	0 & load(A) & load(B) & load(B) & load(A) &
-		Ears to ears. \\
-	1 & load(A) & load(B) & load(B) & store(A) &
-		Only one store. \\
-	2 & load(A) & load(B) & store(B) & load(A) &
-		Only one store. \\
-	3 & load(A) & load(B) & store(B) & store(A) &
-		Pairing 1. \\
-	\hline
-	4 & load(A) & store(B) & load(B) & load(A) &
-		Only one store. \\
-	5 & load(A) & store(B) & load(B) & store(A) &
-		Pairing 2. \\
-	6 & load(A) & store(B) & store(B) & load(A) &
-		Mouth to mouth, ear to ear. \\
-	7 & load(A) & store(B) & store(B) & store(A) &
-		Pairing 3. \\
-	\hline
-	8 & store(A) & load(B) & load(B) & load(A) &
-		Only one store. \\
-	9 & store(A) & load(B) & load(B) & store(A) &
-		Mouth to mouth, ear to ear. \\
-	A & store(A) & load(B) & store(B) & load(A) &
-		Ears to mouths. \\
-	B & store(A) & load(B) & store(B) & store(A) &
-		Stores ``pass in the night''. \\
-	\hline
-	C & store(A) & store(B) & load(B) & load(A) &
-		Pairing 1. \\
-	D & store(A) & store(B) & load(B) & store(A) &
-		Pairing 3. \\
-	E & store(A) & store(B) & store(B) & load(A) &
-		Stores ``pass in the night''. \\
-	F & store(A) & store(B) & store(B) & store(A) &
-		Stores ``pass in the night''. \\
-\end{tabular}
-\caption{Memory-Barrier Combinations}
-\label{tab:memorder:Memory-Barrier Combinations}
-\end{table*}
-
-\subsection{Pair-Wise Memory Barriers: Portable Combinations}
-
-The following pairings from
-Table~\ref{tab:memorder:Memory-Barrier Combinations},
-enumerate all the combinations of memory-barrier
-pairings that portable software may depend on.
-
-\subsubsection{Pairing 1}
-	In this pairing, one CPU executes a pair of loads separated
-	by a memory barrier, while a second CPU executes a pair
-	of stores also separated by a memory barrier, as follows
-	(both~A and~B are initially equal to zero):
-
-	\vspace{5pt}
-	\begin{minipage}[t]{\columnwidth}
-	\tt
-	\scriptsize
-	\begin{tabular}{l|l}
-		\nf{CPU 1}	& \nf{CPU 2} \\
-		\hline
-		STORE A = 1	& Y = LOAD B \\
-		<memory barrier>& <memory barrier> \\
-		STORE B = 1	& X = LOAD A \\
-	\end{tabular}
-	\end{minipage}
-	\vspace{5pt}
-
-	After both CPUs have completed executing these code sequences,
-	if \co{Y==1}, then we must also have \co{X==1}.
-	In this case, the fact that \co{Y==1} means that
-	CPU~2's load prior to its memory barrier has
-	seen the store following CPU~1's memory barrier.
-	Due to the pairwise nature of memory barriers, CPU~2's
-	load following its memory barrier must therefore see
-	the store that precedes CPU~1's memory barrier, so that
-	\co{X==1}.
-
-	On the other hand, if \co{Y==0}, the memory-barrier condition
-	does not hold, and so in this case, X~could be either~0 or~1.
-
-\subsubsection{Pairing 2}
-	In this pairing, each CPU executes a load followed by a
-	memory barrier followed by a store, as follows
-	(both~A and~B are initially equal to zero):
-
-	\vspace{5pt}
-	\begin{minipage}[t]{\columnwidth}
-	\tt
-	\scriptsize
-	\begin{tabular}{l|l}
-		\nf{CPU 1}	& \nf{CPU 2} \\
-		\hline
-		X = LOAD A	& Y = LOAD B \\
-		<memory barrier>& <memory barrier> \\
-		STORE B = 1	& STORE A = 1 \\
-	\end{tabular}
-	\end{minipage}
-	\vspace{5pt}
-
-	After both CPUs have completed executing these code sequences,
-	if \co{X==1}, then we must also have \co{Y==0}.
-	In this case, the fact that \co{X==1} means that
-	CPU~1's load prior to its memory barrier has
-	seen the store following CPU~2's memory barrier.
-	Due to the pairwise nature of memory barriers, CPU~1's
-	store following its memory barrier must therefore see
-	the results of CPU~2's load preceding its memory barrier,
-	so that \co{Y==0}.
-
-	On the other hand, if \co{X==0}, the memory-barrier condition
-	does not hold, and so in this case, Y~could be either~0 or~1.
-
-	The two CPUs' code sequences are symmetric, so if \co{Y==1}
-	after both CPUs have finished executing these code sequences,
-	then we must have \co{X==0}.
-
-\subsubsection{Pairing 3}
-	In this pairing, one CPU executes a load followed by a
-	memory barrier followed by a store, while the other CPU
-	executes a pair of stores separated by a memory barrier,
-	as follows (both~A and~B are initially equal to zero):
-
-	\vspace{5pt}
-	\begin{minipage}[t]{\columnwidth}
-	\tt
-	\scriptsize
-	\begin{tabular}{l|l}
-		\nf{CPU 1}	& \nf{CPU 2} \\
-		\hline
-		X = LOAD A	& STORE B = 2 \\
-		<memory barrier>& <memory barrier> \\
-		STORE B = 1	& STORE A = 1 \\
-	\end{tabular}
-	\end{minipage}
-	\vspace{5pt}
-
-	After both CPUs have completed executing these code sequences,
-	if \co{X==1}, then we must also have \co{B==1}.
-	In this case, the fact that \co{X==1} means that
-	CPU~1's load prior to its memory barrier has
-	seen the store following CPU~2's memory barrier.
-	Due to the pairwise nature of memory barriers, CPU~1's
-	store following its memory barrier must therefore see
-	the results of CPU~2's store preceding its memory barrier.
-	This means that CPU~1's store to~B will overwrite CPU~2's
-	store to~B, resulting in \co{B==1}.
-
-	On the other hand, if \co{X==0}, the memory-barrier condition
-	does not hold, and so in this case, B~could be either~1 or~2.
-
-\subsection{Pair-Wise Memory Barriers: Semi-Portable Combinations}
-
-The following pairings from
-Table~\ref{tab:memorder:Memory-Barrier Combinations}
-can be used on modern hardware, but might fail on some systems
-that were produced in the 1900s.
-However, these \emph{can} safely be used on all mainstream hardware
-introduced since the year 2000.
-So if you think that memory barriers are difficult to deal with, please
-keep in mind that they used to be a \emph{lot} harder on some systems!
-
-\subsubsection{Ears to Mouths}
-	Since the stores cannot see the results of the loads
-	(again, ignoring MMIO registers for the moment),
-	it is not always possible to determine whether the memory-barrier
-	condition has been met.
-	However, 21\textsuperscript{st}-century
-	hardware \emph{would} guarantee that at least one
-	of the loads saw the value stored by the corresponding store
-	(or some later value for that same variable).
-
-\QuickQuiz{}
-	How do we know that modern hardware guarantees that at least
-	one of the loads will see the value stored by the other thread
-	in the ears-to-mouths scenario?
-\QuickQuizAnswer{
-	The scenario is as follows, with~A and~B both initially zero:
-
-	\vspace{5pt}
-	\begin{minipage}[t]{\columnwidth}
-	\tt
-	\scriptsize
-	\begin{tabular}{l|l}
-		\nf{CPU 0}	& \nf{CPU 1} \\
-		\hline
-		STORE A = 1	& STORE B = 1 \\
-		<memory barrier>& <memory barrier> \\
-		r1 = LOAD B	& r2 = LOAD A \\
-	\end{tabular}
-	\end{minipage}
-	\vspace{5pt}
-
-	If neither of the loads see the corresponding store, when both
-	CPUs finish, both \co{r1} and \co{r2} will be equal to zero.
-	Let's suppose that \co{r1} is equal to zero.
-	Then we know that CPU~0's load from~B happened before CPU~1's
-	store to~B: After all, we would have had \co{r1} equal to one
-	otherwise.
-	But given that CPU~0's load from~B happened before CPU~1's store
-	to~B, memory-barrier pairing guarantees that CPU~0's store to~A
-	happens before CPU~1's load from~A, which in turn guarantees that
-	\co{r2} will be equal to one, not zero.
-
-	Therefore, at least one of \co{r1} and \co{r2} must be nonzero,
-	which means that at least one of the loads saw the value from
-	the corresponding store, as claimed.
-} \QuickQuizEnd
-
-\subsubsection{Stores ``Pass in the Night''}
-	In the following example, after both CPUs have finished
-	executing their code sequences, it is quite tempting to
-	conclude that the result {\tt \{A==1,B==2\}} cannot happen.
-
-	\vspace{5pt}
-	\begin{minipage}[t]{\columnwidth}
-	\tt
-	\scriptsize
-	\begin{tabular}{l|l}
-		\nf{CPU 1}	& \nf{CPU 2} \\
-		\hline
-		STORE A = 1	& STORE B = 2 \\
-		<memory barrier>& <memory barrier> \\
-		STORE B = 1	& STORE A = 2 \\
-	\end{tabular}
-	\end{minipage}
-	\vspace{5pt}
-
-	Unfortunately, although this conclusion is correct on
-	21\textsuperscript{st}-century systems, it does not necessarily hold
-	on all antique 20\textsuperscript{th}-century systems.
-	Suppose that the cache line containing~A is initially owned
-	by CPU~2, and that containing~B is initially owned by CPU~1.
-	Then, in systems that have invalidation queues and store
-	buffers, it is possible for the first assignments to ``pass
-	in the night'', so that the second assignments actually
-	happen first.
-	\IfInBook{This strange effect is explained in
-	          Appendix~\ref{chp:app:whymb:Why Memory Barriers?}.
-		 }
-		 {}
-
-	This same effect can happen in any memory-barrier pairing
-	where each CPU's memory barrier is preceded by a store,
-	including the ``ears to mouths'' pairing.
-
-	However, 21\textsuperscript{st}-century hardware \emph{does}
-	accommodate these ordering intuitions, and \emph{do} permit
-	this combination to be used safely.
-
-\subsection{Pair-Wise Memory Barriers: Dubious Combinations}
-
-In the following combinations from
-Table~\ref{tab:memorder:Memory-Barrier Combinations},
-the memory barriers have very limited use in portable code, even
-on 21\textsuperscript{st}-century hardware.
-However, ``limited use'' is different than ``no use'', so let's see
-what can be done!
-Avid readers will want to write toy programs that rely on each of
-these combinations in order to fully understand how this works.
-
-\subsubsection{Ears to Ears}
-	Since loads do not change the state of memory
-	(ignoring MMIO registers for the moment),
-	it is not possible for one of the loads to see the
-	results of the other load.
-	However, if we know that CPU~2's load from~B returned a
-	newer value than CPU~1's load from~B, then we also know
-	that CPU~2's load from~A returned either the same value
-	as CPU~1's load from~A or some later value.
-
-\subsubsection{Mouth to Mouth, Ear to Ear}
-	One of the variables is only loaded from, and the other
-	is only stored to.
-	Because (once again, ignoring MMIO registers) it is not
-	possible for one load to see the results of the other,
-	it is not possible to detect the conditional ordering
-	provided by the memory barrier.
-
-	However, it is possible to determine which store happened
-	last, but this requires an additional load from~B.
-	If this additional load from~B is executed after both
-	CPUs~1 and~2 complete, and if it turns out that CPU~2's
-	store to~B happened last, then we know
-	that CPU~2's load from~A returned either the same value
-	as CPU~1's load from~A or some later value.
-
-\subsubsection{Only One Store}
-	Because there is only one store, only one of the variables
-	permits one CPU to see the results of the other CPU's
-	access.
-	Therefore, there is no way to detect the
-	conditional ordering provided by the memory barriers.
-
-	At least not straightforwardly.
-	But suppose that in combination~1 from
-	Table~\ref{tab:memorder:Memory-Barrier Combinations},
-	CPU~1's load from~A returns the value that CPU~2 stored
-	to~A.  Then we know that CPU~1's load from~B returned
-	either the same value as CPU~2's load from~A or some later value.
-
-\QuickQuiz{}
-	How can the other ``Only one store'' entries in
-	Table~\ref{tab:memorder:Memory-Barrier Combinations}
-	be used?
-\QuickQuizAnswer{
-	For combination~2, if CPU~1's load from~B sees a value prior
-	to CPU~2's store to~B, then we know that CPU~2's load from~A
-	will return the same value as CPU~1's load from~A, or some later
-	value.
-
-	For combination~4, if CPU~2's load from~B sees the value from
-	CPU~1's store to~B, then we know that CPU~2's load from~A
-	will return the same value as CPU~1's load from~A, or some later
-	value.
-
-	For combination~8, if CPU~2's load from~A sees CPU~1's store
-	to~A, then we know that CPU~1's load from~B will return the same
-	value as CPU~2's load from~A, or some later value.
-} \QuickQuizEnd
+\section{Review of Locking Implementations}
+\label{sec:memorder:Review of Locking Implementations}
 
 \subsection{Semantics Sufficient to Implement Locking}
 
@@ -2230,8 +1852,8 @@ spin_unlock(&mylock);
 If you are convinced that these rules are necessary, let's look at how
 they interact with a typical locking implementation.
 
-\section{Review of Locking Implementations}
-\label{sec:memorder:Review of Locking Implementations}
+\subsection{Simple Locking Implementation}
+\label{sec:memorder:Simple Locking Implementation}
 
 Naive pseudocode for simple lock and unlock operations are shown below.
 Note that the \co{atomic_xchg()} primitive implies a memory barrier
@@ -2342,340 +1964,11 @@ a few simple rules:
 		CPU's store to~B ``wins''.}
 \end{enumerate}
 
-The next section takes a more operational view of these rules.
-
-\section{Abstract Memory Access Model}
-
-Consider the abstract model of the system shown in
-Figure~\ref{fig:memorder:Abstract Memory Access Model}.
-
-\begin{figure}[htb]
-\centering
-%\includegraphics{advsync-/AbstractMemoryAccessModel}
-\caption{Abstract Memory Access Model}
-\ContributedBy{Figure}{fig:memorder:Abstract Memory Access Model}{David Howells}
-\end{figure}
-
-Each CPU executes a program that generates memory access operations.  In the
-abstract CPU, memory operation ordering is very relaxed, and a CPU may actually
-perform the memory operations in any order it likes, provided program causality
-appears to be maintained.  Similarly, the compiler may also arrange the
-instructions it emits in any order it likes, provided it doesn't affect the
-apparent operation of the program.
-
-So in Figure~\ref{fig:memorder:Abstract Memory Access Model},
-the effects of the memory operations performed by a
-CPU are perceived by the rest of the system as the operations cross the
-interface between the CPU and rest of the system (the dotted lines).
-
-
-For example, consider the following sequence of events given the
-initial values of shared variables {\tt \{A~=~1, B~=~2\}}:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|l}
-	\nf{CPU 1} &	\nf{CPU 2} \\
-	\hline
-	STORE A = 3 &	x = LOAD B \\
-	STORE B = 4 &	y = LOAD A \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-The set of accesses as seen by the memory system in the middle can be arranged
-in 24 different combinations, with loads denoted by ``ld'' and stores
-denoted by ``st'':
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{llll}
-	st A=3, & st B=4, & x=ld B$\rightarrow$3, & y=ld A$\rightarrow$4 \\
-	st A=3, & st B=4, & y=ld A$\rightarrow$4, & x=ld B$\rightarrow$3 \\
-	st A=3, & x=ld B$\rightarrow$3, & st B=4, & y=ld A$\rightarrow$4 \\
-	st A=3, & x=ld B$\rightarrow$3, & y=ld A$\rightarrow$2, & st B=4 \\
-	st A=3, & y=ld A$\rightarrow$2, & st B=4, & x=ld B$\rightarrow$3 \\
-	st A=3, & y=ld A$\rightarrow$2, & x=ld B$\rightarrow$3, & st B=4 \\
-	st B=4, & st A=3, & x=ld B$\rightarrow$3, & y=ld A$\rightarrow$4 \\
-	st B=4, & ... & & \\
-	... & & & \\
-\end{tabular}
-\vspace{3pt}
-\end{minipage}
-%
-and can thus result in four different combinations of local values:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{ll}
-	x == 2, & y == 1 \\
-	x == 2, & y == 3 \\
-	x == 4, & y == 1 \\
-	x == 4, & y == 3 \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-Furthermore, the stores committed by a CPU to the memory system may not be
-perceived by the loads made by another CPU in the same order as the stores were
-committed.
-
-As a further example, consider this sequence of events given the
-initial values of shared variables
-{\tt \{A~=~1, B~=~2, C~=~3, P~=~\&A, Q~=~\&C\}}:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|l}
-	\nf{CPU 1}	& \nf{CPU 2} \\
-	\hline
-	STORE B = 4	& Q = LOAD P \\
-	STORE P = \&B	& D = LOAD *Q \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-There is an obvious data dependency here,
-as the value loaded into~\co{D} depends on
-the address retrieved from~\co{P} by CPU~2.
-At the end of the sequence, any of the
-following results are possible:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{c@{ and }c}
-	(Q == \&A) & (D == 1) \\
-	(Q == \&B) & (D == 2) \\
-	(Q == \&B) & (D == 4) \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-Note that CPU~2 will never try and load~C into~D because the CPU will load~P
-into~Q before issuing the load of~*Q.\footnote{Although it might sound
-	counterintuitive, one of the results,
-	{\tt\scriptsize (Q~==~\&B) and (D~==~2)},
-	does not necessarily mean that CPU~1's
-	{\tt\scriptsize STORE B~=~4} was issued
-	{\em after} {\tt\scriptsize STORE P~=~\&B}.
-	To reach a consensus in ordering, we need a pair of memory barriers
-	as is described in
-	Section~\ref{sec:memorder:Data Dependency Barriers}.}
-
-\section{Device Operations}
-\label{sec:memorder:Device Operations}
-
-Some devices present their control interfaces as collections of memory
-locations, but the order in which the control registers are accessed is very
-important.  For instance, imagine an Ethernet card with a set of internal
-registers that are accessed through an address port register~(A) and a data
-port register~(D).  To read internal register~5, the following code (in C)
-might then be used:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-WRITE_ONCE(*A, 5);
-x = READ_ONCE(*D);
-\end{verbatim}
-\vspace{1pt}
-\end{minipage}
-%
-but this might show up as either of the following two sequences:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-STORE *A = 5, x = LOAD *D
-x = LOAD *D, STORE *A = 5
-\end{verbatim}
-\vspace{1pt}
-\end{minipage}
-%
-the second of which will almost certainly result in a malfunction, since it set
-the address \emph{after} attempting to read the register.
-
-\section{Minimal Guarantees}
-\label{sec:memorder:Minimal Guarantees}
-
-In our abstract memory model, there are some minimal guarantees of ordering
-that may be expected of a CPU without any need of memory barriers:
-
-\begin{enumerate}
-\item	On any given CPU, dependent memory accesses will be issued in order,
-	with respect to itself.  This means that for a sequence (in C):
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-Q = READ_ONCE(P); D = READ_ONCE(*Q);
-\end{verbatim}
-\end{minipage}
-
-	the CPU will issue the following memory operations:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-Q = LOAD P, D = LOAD *Q
-\end{verbatim}
-\end{minipage}
-
-	and always in that order.\footnote{Again, you can not assume
-		any ordering between~\co{P} and the value loaded via
-		the pointer when they are updated by another CPU.}
-
-\item	Overlapping loads and stores within a particular CPU will appear to be
-	ordered within that CPU.  This means that for:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-a = READ_ONCE(*X); WRITE_ONCE(*X, b);
-\end{verbatim}
-\end{minipage}
-
-	the CPU will only issue the following sequence of memory operations:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-a = LOAD *X, STORE *X = b
-\end{verbatim}
-\vspace{1pt}
-\end{minipage}
-
-	And for:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-WRITE_ONCE(*X, c); d = READ_ONCE(*X);
-\end{verbatim}
-\end{minipage}
-
-	the CPU will only issue:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-STORE *X = c, d = LOAD *X
-\end{verbatim}
-\end{minipage}
-
-	(Loads and stores overlap if they are targeted at overlapping pieces of
-	memory).
-\item	A series of stores to a single variable will appear to all
-	CPUs to have occurred in a single order, though this order
-	might not be predictable from the code, and in fact the
-	order might vary from one run to another.
-\end{enumerate}
-
-And there are a number of things that \emph{must} or \emph{must not} be assumed:
-
-\begin{enumerate}
-\item	It \emph{must not} be assumed that independent loads and stores will
-	be issued in the order given.  This means that for:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-X = READ_ONCE(*A); Y = READ_ONCE(*B); WRITE_ONCE(*D, Z);
-\end{verbatim}
-\end{minipage}
-
-	we may get any of the following sequences:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-X = LOAD *A,   Y = LOAD *B,  STORE *D = Z
-X = LOAD *A,   STORE *D = Z, Y = LOAD *B
-Y = LOAD *B,   X = LOAD *A,  STORE *D = Z
-Y = LOAD *B,   STORE *D = Z, X = LOAD *A
-STORE *D = Z,  X = LOAD *A,  Y = LOAD *B
-STORE *D = Z,  Y = LOAD *B,  X = LOAD *A
-\end{verbatim}
-\end{minipage}
-
-\item	It \emph{must} be assumed that overlapping memory accesses may
-	be merged or discarded.  This means that for:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-X = READ_ONCE(*A); Y = READ_ONCE(*(A + 4));
-\end{verbatim}
-\end{minipage}
-
-	we may get any one of the following sequences:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-X = LOAD *A, Y = LOAD *(A + 4)
-Y = LOAD *(A + 4), X = LOAD *A
-{X, Y} = LOAD {*A, *(A + 4) }
-\end{verbatim}
-\vspace{1pt}
-\end{minipage}
-
-	And for:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-WRITE_ONCE(*A, X); WRITE_ONCE(*(A + 4), Y);
-\end{verbatim}
-\end{minipage}
-
-	we may get any of:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-STORE *A = X, STORE *(A + 4) = Y
-STORE *(A + 4) = Y, STORE *A = X
-STORE {*A, *(A + 4) } = {X, Y}
-\end{verbatim}
-\vspace{1pt}
-\end{minipage}
-
-	Finally, for:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-WRITE_ONCE(*A, X); WRITE_ONCE(*A, Y);
-\end{verbatim}
-\end{minipage}
-
-	we may get either of:
-
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-STORE *A = X, STORE *A = Y
-STORE *A = Y
-\end{verbatim}
-\end{minipage}
-
-\end{enumerate}
-
 \section{What Are Memory Barriers?}
 \label{sec:memorder:What Are Memory Barriers?}
+
+% @@@ rf, co, fr, and required strength.
+% @@@ overview of memory barriers early, more details later.
 
 As can be seen above, independent memory operations are effectively performed
 in random order, but this can be a problem for CPU-CPU interaction and for I/O.
@@ -2722,7 +2015,7 @@ occur in the sequence \emph{before} all the stores after the write barrier.
 
 Note that write barriers should normally be paired with read
 or data dependency barriers; see
-Section~\ref{sec:memorder:SMP Barrier Pairing}.
+% @@@ Section~\ref{sec:memorder:SMP Barrier Pairing}.
 
 \subsubsection{Data Dependency Barriers}
 
@@ -2747,7 +2040,7 @@ time the barrier completes, the effects of all the stores prior to that
 touched by the load will be perceptible to any loads issued after the data
 dependency barrier.
 
-See the Section~\ref{sec:memorder:Examples of Memory Barrier Pairings} for
+See the @@@ % Section~\ref{sec:memorder:Examples of Memory Barrier Pairings} for
 diagrams showing the ordering constraints.
 
 Note that the first load really has to have a
@@ -2759,7 +2052,7 @@ a full read barrier or better is required.  See
 Section~\ref{sec:memorder:Control-Dependency Restrictions} for more information.
 
 Note that data dependency barriers should normally be paired with
-write barriers; see Section~\ref{sec:memorder:SMP Barrier Pairing}.
+write barriers; see % @@@ Section~\ref{sec:memorder:SMP Barrier Pairing}.
 
 \subsubsection{Read Memory Barriers}
 
@@ -2775,7 +2068,7 @@ Read memory barriers imply data dependency barriers, and so can substitute
 for them.
 
 Note that read barriers should normally be paired with write barriers;
-see Section~\ref{sec:memorder:SMP Barrier Pairing}.
+see % @@@ Section~\ref{sec:memorder:SMP Barrier Pairing}.
 
 \subsubsection{General Memory Barriers}
 
@@ -2830,7 +2123,7 @@ other strictly in the order specified.
 
 The use of ACQUIRE and RELEASE operations generally precludes the need for
 other sorts of memory barrier (but note the exceptions mentioned in the
-Section~\ref{sec:memorder:Device Operations}).
+@@@ % Section~\ref{sec:memorder:Device Operations}).
 
 \QuickQuiz{}
 	What effect does the following sequence have on the
@@ -2873,7 +2166,7 @@ of the confines of a given architecture:
 	of effects from a second CPU's accesses, even \emph{if} the second CPU
 	uses a memory barrier, unless the first CPU \emph{also} uses a matching
 	memory barrier (see
-	Section~\ref{sec:memorder:SMP Barrier Pairing}).
+	% @@@ Section~\ref{sec:memorder:SMP Barrier Pairing}).
 \item	There is no guarantee that some intervening piece of off-the-CPU
 	hardware\footnote{
 		This is of concern primarily in operating-system kernels.
@@ -2886,7 +2179,7 @@ of the confines of a given architecture:
 	a memory barrier between CPUs, but might not do so in order.
 \end{enumerate}
 
-\subsection{Data Dependency Barriers}
+\subsection{Data Dependency Barriers (Again!)}
 \label{sec:memorder:Data Dependency Barriers}
 
 The usage requirements of data dependency barriers are a little subtle, and
@@ -3011,6 +2304,9 @@ the replacement target appearing to be incompletely initialized.
 See also
 Section~\ref{sec:memorder:Cache Coherency}
 for a larger example.
+
+% @@@ Section on READ_ONCE() and WRITE_ONCE()
+% @@@ Convert some examples in "restrictions" sections to litmus tests
 
 \subsection{Address- and Data-Dependency Restrictions}
 \label{sec:memorder:Address- and Data-Dependency Restrictions}
@@ -3538,8 +2834,8 @@ In short, control dependencies apply only to the stores in the ``\co{then}''
 and ``\co{else}'' of the ``\co{if}'' in question (including functions
 invoked by those two clauses), not to code following that ``\co{if}''.
 
-Finally, control dependencies do \emph{not} provide transitivity.\footnote{
-	Refer to Section~\ref{sec:memorder:Transitivity} for
+Finally, control dependencies do \emph{not} provide cumulativity.\footnote{
+	Refer to @@@ % Section~\ref{sec:memorder:Transitivity} for
 	the meaning of transitivity.}
 This is demonstrated by two related examples, with the initial values
 of~\co{x} and~\co{y} both being zero:
@@ -3640,285 +2936,6 @@ The following list of rules summarizes the lessons of this section:
 	If you need transitivity, use \co{smp_mb()}.
 \end{enumerate}
 
-\subsection{SMP Barrier Pairing}
-\label{sec:memorder:SMP Barrier Pairing}
-
-When dealing with CPU-CPU interactions, certain types of memory barrier should
-always be paired.  A lack of appropriate pairing is almost certainly an error.
-
-A write barrier should always be paired with a data dependency barrier or read
-barrier, though a general barrier would also be viable.  Similarly a read
-barrier or a data dependency barrier should always be paired with at least a
-write barrier, though, again, a general barrier is viable:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1}	& \nf{CPU 2} \\
-	\hline
-	STORE A = 1	& \\
-	<write barrier>	& \\
-	STORE B = 2	& \\
-			& X = LOAD B \\
-			& <read barrier> \\
-			& Y = LOAD A \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-Or:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1}	& \nf{CPU 2} \\
-	\hline
-	STORE A = 1	& \\
-	<write barrier>	& \\
-	STORE B = \&A	& \\
-			& X = LOAD B \\
-			& <data dependency barrier> \\
-			& Y = LOAD *X \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-One way or another, the read barrier must always be present, even though
-it might be of a weaker type.\footnote{
-	By ``weaker'', we mean ``makes fewer ordering guarantees''.
-	A weaker barrier is usually also lower-overhead than is a
-	stronger barrier.}
-
-Note that the stores before the write barrier would normally be expected to
-match the loads after the read barrier or data dependency barrier, and vice
-versa:
-
-\begin{center}
-% \resizebox{3in}{!}{\includegraphics{advsync-/MemoryBarrierPairing}}
-\end{center}
-
-\subsection{Examples of Memory Barrier Pairings}
-\label{sec:memorder:Examples of Memory Barrier Pairings}
-
-Firstly, write barriers act as partial orderings on store operations.
-Consider the following sequence of events:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l}
-	STORE A = 1 \\
-	STORE B = 2 \\
-	STORE C = 3 \\
-	<write barrier> \\
-	STORE D = 4 \\
-	STORE E = 5 \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-This sequence of events is committed to the memory coherence system in an order
-that the rest of the system might perceive as the unordered set of
-{\tt \{A=1,B=2,C=3\}}
-all occurring before the unordered set of
-{\tt \{D=4,E=5\}}, as shown in
-Figure~\ref{fig:memorder:Write Barrier Ordering Semantics}.
-
-\begin{figure*}[htb]
-\centering
-% \includegraphics{advsync-/WriteBarrierOrdering}
-\caption{Write Barrier Ordering Semantics}
-\ContributedBy{Figure}{fig:memorder:Write Barrier Ordering Semantics}{David Howells}
-\end{figure*}
-
-Secondly, data dependency barriers act as partial orderings on data-dependent
-loads.  Consider the following sequence of events with initial values
-{\tt \{B~=~7, X~=~9, Y~=~8, C~=~\&Y\}}:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1}	& \nf{CPU 2} \\
-	\hline
-	STORE A = 1	& \\
-	STORE B = 2	& \\
-	<write barrier>	& \\
-	STORE C = \&B	& LOAD X\\
-	STORE D = 4	& LOAD C \nf{(gets \tco{&B})} \\
-			& LOAD *C \nf{(reads \tco{B})} \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-Without intervention, CPU~2 may perceive the events on CPU~1 in some
-effectively random order, despite the write barrier issued by CPU~1, as
-shown in Figure~\ref{fig:memorder:Data Dependency Barrier Omitted}.
-
-\begin{figure*}[htbp]
-\centering
-% \includegraphics{advsync-/DataDependencyNeeded}
-\caption{Data Dependency Barrier Omitted}
-\ContributedBy{Figure}{fig:memorder:Data Dependency Barrier Omitted}{David Howells}
-\end{figure*}
-
-In the above example, CPU~2 perceives that \co{B} is~7,
-despite the load of~\co{*C}
-(which would be~\co{B}) coming after the \co{LOAD} of~\co{C}.
-
-If, however, a data dependency barrier were to be placed between the load
-of~\co{C} and the load of~\co{*C} (i.e.:~\co{B}) on CPU~2, again with initial
-values of {\tt \{B~=~7, X~=~9, Y~=~8, C~=~\&Y\}}:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1}	& \nf{CPU 2} \\
-	\hline
-	STORE A = 1	& \\
-	STORE B = 2	& \\
-	<write barrier>	& \\
-	STORE C = \&B	& LOAD X\\
-	STORE D = 4	& LOAD C \nf{(gets \tco{&B})} \\
-			& <data dependency barrier> \\
-			& LOAD *C \nf{(reads \tco{B})} \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-then ordering will be as intuitively expected, as shown in
-Figure~\ref{fig:memorder:Data Dependency Barrier Supplied}.
-
-\begin{figure*}[htbp]
-\centering
-% \includegraphics{advsync-/DataDependencySupplied}
-\caption{Data Dependency Barrier Supplied}
-\ContributedBy{Figure}{fig:memorder:Data Dependency Barrier Supplied}{David Howells}
-\end{figure*}
-
-And thirdly, a read barrier acts as a partial order on loads.  Consider the
-following sequence of events, with initial values
-{\tt \{A~=~0, B~=~9\}}:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1}	& \nf{CPU 2} \\
-	\hline
-	STORE A = 1	& \\
-	<write barrier>	& \\
-	STORE B = 2	& \\
-			& LOAD B \\
-			& LOAD A \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-Without intervention, CPU~2 may then choose to perceive the events on CPU~1 in
-some effectively random order, despite the write barrier issued by CPU~1, as
-shown in Figure~\ref{fig:memorder:Read Barrier Needed}.
-
-\begin{figure*}[htbp]
-\centering
-% \includegraphics{advsync-/ReadBarrierNeeded}
-\caption{Read Barrier Needed}
-\ContributedBy{Figure}{fig:memorder:Read Barrier Needed}{David Howells}
-\end{figure*}
-
-If, however, a read barrier were to be placed between the load of~\co{B}
-and the load of~\co{A} on CPU~2, again with initial values of
-{\tt \{A~=~0, B~=~9\}}:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1}	& \nf{CPU 2} \\
-	\hline
-	STORE A = 1	& \\
-	<write barrier>	& \\
-	STORE B = 2	& \\
-			& LOAD B \\
-			& <read barrier> \\
-			& LOAD A \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-then the partial ordering imposed by CPU~1's write barrier will be
-perceived correctly by CPU~2, as shown in
-Figure~\ref{fig:memorder:Read Barrier Supplied}.
-
-\begin{figure*}[htbp]
-\centering
-% \includegraphics{advsync-/ReadBarrierSupplied}
-\caption{Read Barrier Supplied}
-\ContributedBy{Figure}{fig:memorder:Read Barrier Supplied}{David Howells}
-\end{figure*}
-
-To illustrate this more completely, consider what could happen if the code
-contained a load of~\co{A} either side of the read barrier, once again
-with the same initial values of
-{\tt \{A~=~0, B~=~9\}}:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|p{1.5in}}
-	\nf{CPU 1}	& \nf{CPU 2} \\
-	\hline
-	STORE A = 1	& \\
-	<write barrier>	& \\
-	STORE B = 2	& \\
-			& LOAD B \\
-			& LOAD A \nf{(1\textsuperscript{st})} \\
-			& <read barrier> \\
-			& LOAD A \nf{(2\textsuperscript{nd})} \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-Even though the two loads of~\co{A}
-both occur after the load of~\co{B}, they may both
-come up with different values, as shown in
-Figure~\ref{fig:memorder:Read Barrier Supplied, Double Load}.
-
-\begin{figure*}[htbp]
-\centering
-% \includegraphics{advsync-/ReadBarrierSupplied1}
-\caption{Read Barrier Supplied, Double Load}
-\ContributedBy{Figure}{fig:memorder:Read Barrier Supplied, Double Load}{David Howells}
-\end{figure*}
-
-Of course, it may well be that CPU~1's update to~\co{A} becomes perceptible
-to CPU~2 before the read barrier completes, as shown in
-Figure~\ref{fig:memorder:Read Barrier Supplied, Take Two}.
-
-\begin{figure*}[htbp]
-\centering
-% \includegraphics{advsync-/ReadBarrierSupplied2}
-\caption{Read Barrier Supplied, Take Two}
-\ContributedBy{Figure}{fig:memorder:Read Barrier Supplied, Take Two}{David Howells}
-\end{figure*}
-
-The guarantee is that the second load will always come up with \nbco{A == 1}
-if the
-load of~\co{B} came up with \nbco{B == 2}.
-No such guarantee exists for the first load
-of~\co{A}; that may come up with either \nbco{A == 0} or \nbco{A == 1}.
-
 \subsection{Read Memory Barriers vs. Load Speculation}
 \label{sec:memorder:Read Memory Barriers vs. Load Speculation}
 
@@ -4009,456 +3026,6 @@ as shown in Figure~\ref{fig:memorder:Speculative Loads Cancelled by Barrier}.
 \caption{Speculative Load Cancelled by Barrier}
 \ContributedBy{Figure}{fig:memorder:Speculative Loads Cancelled by Barrier}{David Howells}
 \end{figure*}
-
-\subsection{Transitivity}
-\label{sec:memorder:Transitivity}
-
-``Transitivity'' is a deeply intuitive notion about ordering that is not
-always provided by real computer systems.  The following example
-demonstrates transitivity with initial values of
-{\tt \{X~=~0, Y~=~0\}}:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|l|l}
-	\nf{CPU 1}	& \nf{CPU 2}		& \nf{CPU 3} \\
-	\hline
-	STORE X = 1	& LOAD X		& STORE Y = 1 \\
-			& <general barrier>	& <general barrier> \\
-			& LOAD Y		& LOAD X \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-Suppose that CPU~2's load from~\co{X} returns~1 and its load from~\co{Y} returns~0.
-This indicates that CPU~2's load from~\co{X} in some sense follows CPU~1's
-store to~\co{X} and that CPU~2's load from~\co{Y} in some sense preceded CPU~3's
-store to~\co{Y}.  The question is then ``Can CPU~3's load from~\co{X} return~0?''
-
-Because CPU~2's load from~\co{X} in some sense came after CPU~1's store, it
-is natural to expect that CPU~3's load from~\co{X} must therefore return~1.
-This expectation is an example of transitivity: if a load executing on
-CPU~A follows a load from the same variable executing on CPU~B, then
-CPU~A's load must either return the same value that CPU~B's load did,
-or must return some later value.
-
-In the Linux kernel, use of general memory barriers guarantees
-transitivity.  Therefore, in the above example, if CPU~2's load from~\co{X}
-returns~1 and its load from~\co{Y} returns~0, then CPU~3's load from~\co{X} must
-also return~1.
-
-However, transitivity is {\em not} guaranteed for read or write barriers.
-For example, suppose that CPU~2's general barrier in the above example
-is changed to a read barrier as shown below with the same initial values of
-{\tt \{X~=~0, Y~=~0\}}:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\tt
-\scriptsize
-\begin{tabular}{l|l|l}
-	\nf{CPU 1}	& \nf{CPU 2}		& \nf{CPU 3} \\
-	\hline
-	STORE X = 1	& LOAD X		& STORE Y = 1 \\
-			& <read barrier>	& <general barrier> \\
-			& LOAD Y		& LOAD X \\
-\end{tabular}
-\end{minipage}
-\vspace{5pt}
-
-This substitution destroys transitivity: in this example, it is perfectly
-legal for CPU~2's load from~\co{X} to return~1, its load from~\co{Y} to return~0,
-and CPU~3's load from~\co{X} to return~0.
-
-The key point is that although CPU~2's read barrier orders its pair
-of loads, it does not guarantee to order CPU~1's store.  Therefore, if
-this example runs on a system where CPUs~1 and~2 share a store buffer
-or a level of cache, CPU~2 might have early access to CPU~1's writes.
-General barriers are therefore required to ensure that all CPUs agree
-on the combined order of CPU~1's and CPU~2's accesses.
-
-General barriers provide ``global transitivity'', so that all CPUs will
-agree on the order of operations.  In contrast, a chain of release-acquire
-pairs provides only ``local transitivity'', so that only those CPUs on
-the chain are guaranteed to agree on the combined order of the accesses.
-For example, switching to C~code in deference to Herman Hollerith shown in
-Figure~\ref{fig:memorder:Example of Local Transitivity (Release-Acquire Pair)}:
-
-\begin{figure}[htbp]
-\scriptsize
-\centering
-\begin{verbbox}
-   1 int u, v, x, y, z;
-   2
-   3 void cpu0(void)
-   4 {
-   5   r0 = smp_load_acquire(&x);
-   6   WRITE_ONCE(u, 1);
-   7   smp_store_release(&y, 1);
-   8 }
-   9
-  10 void cpu1(void)
-  11 {
-  12   r1 = smp_load_acquire(&y);
-  13   r4 = READ_ONCE(v);
-  14   r5 = READ_ONCE(u);
-  15   smp_store_release(&z, 1);
-  16 }
-  17
-  18 void cpu2(void)
-  19 {
-  20   r2 = smp_load_acquire(&z);
-  21   smp_store_release(&x, 1);
-  22 }
-  23
-  24 void cpu3(void)
-  25 {
-  26   WRITE_ONCE(v, 1);
-  27   smp_mb();
-  28   r3 = READ_ONCE(u);
-  29 }
-\end{verbbox}
-\theverbbox
-\caption{Example of Local Transitivity (Release-Acquire Pair)}
-\label{fig:memorder:Example of Local Transitivity (Release-Acquire Pair)}
-\end{figure}
-
-Because \co{cpu0()}, \co{cpu1()}, and \co{cpu2()} participate in a local transitive
-chain of \co{smp_store_release()}-\co{smp_load_acquire()} pairs, the following
-outcome is prohibited:
-
-{\scriptsize
-\begin{verbatim}
-  r0 == 1 && r1 == 1 && r2 == 1
-\end{verbatim}
-}
-
-Furthermore, because of the release-acquire relationship between \co{cpu0()}
-and \co{cpu1()}, \co{cpu1()} must see \co{cpu0()}'s writes, so that the following
-outcome is prohibited:
-
-{\scriptsize
-\begin{verbatim}
-  r1 == 1 && r5 == 0
-\end{verbatim}
-}
-
-However, the transitivity of release-acquire is local to the participating
-CPUs and does not apply to \co{cpu3()}.  Therefore, the following outcome
-is possible:
-
-{\scriptsize
-\begin{verbatim}
-  r0 == 0 && r1 == 1 && r2 == 1 && r3 == 0 && r4 == 0
-\end{verbatim}
-}
-
-As an aside, the following outcome is also possible:
-
-{\scriptsize
-\begin{verbatim}
-  r0 == 0 && r1 == 1 && r2 == 1 && r3 == 0 && r4 == 0
-          && r5 == 1
-\end{verbatim}
-}
-
-Although \co{cpu0()}, \co{cpu1()}, and \co{cpu2()} will see their respective reads and
-writes in order, CPUs not involved in the release-acquire chain might
-well disagree on the order.  This disagreement stems from the fact that
-the weak memory-barrier instructions used to implement \co{smp_load_acquire()}
-and \co{smp_store_release()} are not required to order prior stores against
-subsequent loads in all cases.  This means that \co{cpu3()} can see \co{cpu0()}'s
-store to~\co{u} as happening {\em after} \co{cpu1()}'s load from~\co{v}, even though
-both \co{cpu0()} and \co{cpu1()} agree that these two operations occurred in the
-intended order.
-
-However, please keep in mind that \co{smp_load_acquire()} is not magic.
-In particular, it simply reads from its argument with ordering.  It does
-{\em not} ensure that any particular value will be read.  Therefore, the
-following outcome is possible:
-
-{\scriptsize
-\begin{verbatim}
-  r0 == 0 && r1 == 0 && r2 == 0 && r5 == 0
-\end{verbatim}
-}
-
-Note that this outcome can happen even on a mythical sequentially
-consistent system where nothing is ever reordered.
-
-To reiterate, if your code requires global transitivity, use general
-barriers throughout.
-
-\section{Locking Constraints}
-\label{sec:memorder:Locking Constraints}
-
-As noted earlier, locking primitives contain implicit memory barriers.
-These primitives imply the following:
-\begin{enumerate}
-\item	ACQUIRE operation implication:
-	\begin{itemize}
-	\item	Memory operations issued after an ACQUIRE will be completed
-		after the ACQUIRE operation has completed.
-	\item	Memory operations issued before an ACQUIRE may be completed
-		after the ACQUIRE operation has completed.
-	\end{itemize}
-\item	RELEASE operation implication:
-	\begin{itemize}
-	\item	Memory operations issued before a RELEASE will be
-		completed before the RELEASE operation has completed.
-	\item	Memory operations issued after a RELEASE may be completed
-		before the RELEASE operation has completed.
-	\end{itemize}
-\item	ACQUIRE vs ACQUIRE implication:
-	\begin{itemize}
-	\item	All ACQUIRE operations issued before another ACQUIRE operation
-		will be completed before that ACQUIRE operation.
-	\end{itemize}
-\item	ACQUIRE vs RELEASE implication:
-	\begin{itemize}
-	\item	All ACQUIRE operations issued before a RELEASE operation
-		will be completed before the RELEASE operation.
-	\item	All RELEASE operations issued before an ACQUIRE operation
-		will be completed before the ACQUIRE operation.
-	\end{itemize}
-\item	Failed conditional ACQUIRE implication:
-	\begin{itemize}
-	\item	Certain variants of ACQUIRE operation may fail, either
-		due to being unable to get the lock immediately, or due
-		to receiving an unblocked signal or exception
-		whilst asleep waiting
-		for the lock to become available.  Failed ACQUIREs do not
-		imply any sort of barrier.
-	\end{itemize}
-\end{enumerate}
-
-\section{Memory-Barrier Examples}
-\label{sec:memorder:Memory-Barrier Examples}
-
-\subsection{Locking Examples}
-
-\subsubsection{ACQUIRE Followed by RELEASE}
-An ACQUIRE followed by a RELEASE may not be assumed to be a full memory barrier
-because it is possible for an access preceding the ACQUIRE to happen after the
-ACQUIRE, and an access following the RELEASE to happen before the RELEASE, and the
-two accesses can themselves then cross.
-For example, the following:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 *A = a;
-  2 ACQUIRE
-  3 RELEASE
-  4 *B = b;
-\end{verbatim}
-\vspace{1pt}
-\end{minipage}
-%
-might well execute in the following order:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  2 ACQUIRE
-  4 *B = b;
-  1 *A = a;
-  3 RELEASE
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-Again, always remember that ACQUIRE and RELEASE are permitted to let preceding
-operations and following operations ``bleed in'' to the critical section
-respectively.
-
-\QuickQuiz{}
-	What sequence of ACQUIRE-RELEASE operations \emph{would}
-	act as a full memory barrier?
-\QuickQuizAnswer{
-	A series of two back-to-back ACQUIRE-RELEASE operations, or, somewhat
-	less conventionally, a RELEASE operation followed by an ACQUIRE
-	operation.
-} \QuickQuizEnd
-
-\QuickQuiz{}
-	What (if any) CPUs have memory-barrier instructions
-	from which these semi-permeable locking primitives might
-	be constructed?
-\QuickQuizAnswer{
-	Itanium is one example.
-	The identification of any others is left as an
-	exercise for the reader.
-} \QuickQuizEnd
-
-\subsubsection{Lock-Based Critical Sections}
-Although an ACQUIRE\-/RELEASE pair does not act as a full memory barrier,
-these operations \emph{do} affect memory ordering.
-
-Consider the following code:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 *A = a;
-  2 *B = b;
-  3 ACQUIRE
-  4 *C = c;
-  5 *D = d;
-  6 RELEASE
-  7 *E = e;
-  8 *F = f;
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-This could legitimately execute in the following order, where pairs
-of operations on the same line indicate that the CPU executed those
-operations concurrently:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  3 ACQUIRE
-  1 *A = a; *F = f;
-  7 *E = e;
-  4 *C = c; *D = d;
-  2 *B = b;
-  6 RELEASE
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-\begin{table}[htbp]
-\scriptsize\centering
-\begin{tabular}{r|l}
-  \# & Ordering: legitimate or not? \\
-  \hline
-  \hline
-  1 & \verb|*A; *B; ACQUIRE; *C; *D; RELEASE; *E; *F;| \\
-  \hline
-  2 & \verb|*A; {*B; ACQUIRE;} *C; *D; RELEASE; *E; *F;| \\
-  \hline
-  3 & \verb|{*F; *A;} *B; ACQUIRE; *C; *D; RELEASE; *E;| \\
-  \hline
-  4 & \verb|*A; *B; {ACQUIRE; *C;} *D; {RELEASE; *E;} *F;| \\
-  \hline
-  5 & \verb|*B; ACQUIRE; *C; *D; *A; RELEASE; *E; *F;| \\
-  \hline
-  6 & \verb|*A; *B; *C; ACQUIRE; *D; RELEASE; *E; *F;| \\
-  \hline
-  7 & \verb|*A; *B; ACQUIRE; *C; RELEASE; *D; *E; *F;| \\
-  \hline
-  8 & \verb|{*B; *A; ACQUIRE;} {*D; *C;} {RELEASE; *F; *E;}| \\
-  \hline
-  9 & \verb|*B; ACQUIRE; *C; *D; RELEASE; {*F; *A;} *E;| \\
-\end{tabular}
-\caption{Lock-Based Critical Sections}
-\label{tab:memorder:Lock-Based Critical Sections}
-\end{table}
-
-\QuickQuiz{}
-	Given that operations grouped in curly braces are executed
-	concurrently, which of the rows of
-	Table~\ref{tab:memorder:Lock-Based Critical Sections}
-	are legitimate reorderings of the assignments to variables~``A''
-	through~`F'' and the ACQUIRE/RELEASE operations?
-	(The order in the code is {\tt *A, *B, ACQUIRE, *C, *D, RELEASE, *E, *F}.)
-	Why or why not?
-\QuickQuizAnswer{
-	\begin{enumerate}
-	\item	Legitimate, executed in order.
-	\item	Legitimate, the lock acquisition was executed concurrently
-		with the last assignment preceding the critical section.
-	\item	Illegitimate, the assignment to~``F'' must follow the ACQUIRE
-		operation.
-	\item	Illegitimate, the ACQUIRE must complete before any operation in
-		the critical section.  However, the RELEASE may legitimately
-		be executed concurrently with subsequent operations.
-	\item	Legitimate, the assignment to~``A'' precedes the RELEASE,
-		as required, and all other operations are in order.
-	\item	Illegitimate, the assignment to~``C'' must follow the ACQUIRE.
-	\item	Illegitimate, the assignment to~``D'' must precede the RELEASE.
-	\item	Legitimate, all assignments are ordered with respect to the
-		ACQUIRE and RELEASE operations.
-	\item	Illegitimate, the assignment to~``A'' must precede the RELEASE.
-	\end{enumerate}
-} \QuickQuizEnd
-
-\subsubsection{Ordering with Multiple Locks}
-Code containing multiple locks still sees ordering constraints from
-those locks, but one must be careful to keep track of which lock is which.
-For example, consider the code shown in
-Table~\ref{tab:memorder:Ordering With Multiple Locks}, which uses
-a pair of locks named~``M'' and~``Q''.
-
-\begin{table}[htbp]
-\scriptsize\centering{\tt
-\begin{tabular}{r|l}
-  \nf{CPU 1} &	\nf{CPU 2} \\
-  \hline
-  A = a; &	E = e; \\
-  ACQUIRE M; &	ACQUIRE Q; \\
-  B = b; &	F = f; \\
-  C = c; &	G = g; \\
-  RELEASE M; &	RELEASE Q; \\
-  D = d; &	H = h; \\
-\end{tabular}}
-\caption{Ordering With Multiple Locks}
-\label{tab:memorder:Ordering With Multiple Locks}
-\end{table}
-
-In this example, there are no guarantees as to what order the
-assignments to variables~``A'' through~``H'' will appear in, other
-than the constraints imposed by the locks themselves, as
-described in the previous section.
-
-\QuickQuiz{}
-	What are the constraints for
-	Table~\ref{tab:memorder:Ordering With Multiple Locks}?
-\QuickQuizAnswer{
-	All CPUs must see the following ordering constraints:
-	\begin{enumerate}
-	\item	ACQUIRE M precedes B, C, and D.
-	\item	RELEASE M follows A, B, and C.
-	\item	ACQUIRE Q precedes F, G, and H.
-	\item	RELEASE Q follows E, F, and G.
-	\end{enumerate}
-} \QuickQuizEnd
-
-\subsubsection{Ordering with Multiple CPUs on One Lock}
-Suppose, instead of the two different locks as shown in
-Table~\ref{tab:memorder:Ordering With Multiple Locks}, both CPUs acquire
-the same lock, as shown in
-Table~\ref{tab:memorder:Ordering With Multiple CPUs on One Lock}?
-
-\begin{table}[htbp]
-\scriptsize\centering{\tt
-\begin{tabular}{r|l}
-  \nf{CPU 1} &	\nf{CPU 2} \\
-  \hline
-  A = a; &	E = e; \\
-  ACQUIRE M; &	ACQUIRE M; \\
-  B = b; &	F = f; \\
-  C = c; &	G = g; \\
-  RELEASE M; &	RELEASE M; \\
-  D = d; &	H = h; \\
-\end{tabular}}
-\caption{Ordering With Multiple CPUs on One Lock}
-\label{tab:memorder:Ordering With Multiple CPUs on One Lock}
-\end{table}
-
-In this case, either CPU~1 acquires~M before CPU~2 does, or vice versa.
-In the first case, the assignments to~A, B, and~C must precede
-those to~F, G, and~H.
-On the other hand, if CPU~2 acquires the lock first, then the
-assignments to~E, F, and~G must precede those to~B, C, and~D.
 
 \section{The Effects of the CPU Cache}
 \label{sec:memorder:The Effects of the CPU Cache}
