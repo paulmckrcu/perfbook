@@ -13,8 +13,45 @@ These intuitions can be extremely powerful tools when writing, analyzing,
 and debugging both sequential code and parallel code that makes
 use of standard mutual-exclusion mechanisms, such as locking and
 RCU.
+Unfortunately, these intuitions break down completely in face of
+code that fails to use standard mechanisms, one important example
+of course being the code that implements these standard mechanisms.
+This chapter will help you gain an understanding of memory ordering
+sufficient to implement synchronization primitives and other
+performance-critical code.
 
-\begin{listing}
+@@@ roadmap @@@
+
+\section{Ordering: Why and How?}
+\label{sec:memorder:Ordering: Why and How?}
+
+One motivation for memory ordering can be seen in the trivial-seeming
+litmus test in
+Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}
+(\path{C-SB+o-o+o-o.litmus})
+appears to guarantee that the \co{exists} clause never triggers.\footnote{
+	Purists would instead say that the \co{exists} clause is
+	never \emph{satisfied}, but we use ``trigger'' here by
+	analogy with assertions.}
+After all, if \nbco{0:r2=0} as shown in the \co{exists} clause,\footnote{
+	That is, Thread~\co{P0()}'s instance of local variable \co{r2}
+	equals zero.
+	See Section~\ref{sec:formal:Anatomy of a Litmus Test}
+	for documentation of litmus-test nomenclature.}
+we might hope that Thread~\co{P0()}'s
+load from~\co{x1} must have happened before Thread~\co{P1()}'s store to~\co{x1},
+which might raise
+further hopes that Thread~\co{P1()}'s load from~\co{x0} must happen after
+Thread~\co{P0()}'s store to~\co{x0}, so that \nbco{1:r2=2},
+thus not triggering the \co{exists} clause.
+The example is symmetric, so similar reasoning might lead
+us to hope that \nbco{1:r2=0} guarantees that \nbco{0:r2=2}.
+Unfortunately, the lack of memory barriers dashes these hopes.
+The CPU is within its rights to reorder
+the statements within both Thread~\co{P0()} and Thread~\co{P1()},
+even on relatively strongly ordered systems such as x86.
+
+\begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
 C C-SB+o-o+o-o
@@ -46,33 +83,6 @@ exists (1:r2=0 /\ 0:r2=0)
 \caption{Memory Misordering: Store-Buffering Litmus Test}
 \label{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}
 \end{listing}
-
-Unfortunately, these intuitions break down completely in face of
-code that fails to use standard mechanisms.
-For example, the trivial-seeming litmus test in
-Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}
-(\path{C-SB+o-o+o-o.litmus})
-appears to guarantee that the \co{exists} clause never triggers.\footnote{
-	Purists would instead say that the \co{exists} clause is
-	never \emph{satisfied}, but we use ``trigger'' here by
-	analogy with assertions.}
-After all, if \nbco{0:r2=0} as shown in the \co{exists} clause,\footnote{
-	That is, Thread~\co{P0()}'s instance of local variable \co{r2}
-	equals zero.
-	See Section~\ref{sec:formal:Anatomy of a Litmus Test}
-	for documentation of litmus-test nomenclature.}
-we might hope that Thread~\co{P0()}'s
-load from~\co{x1} must have happened before Thread~\co{P1()}'s store to~\co{x1},
-which might raise
-further hopes that Thread~\co{P1()}'s load from~\co{x0} must happen after
-Thread~\co{P0()}'s store to~\co{x0}, so that \nbco{1:r2=2},
-thus not triggering the \co{exists} clause.
-The example is symmetric, so similar reasoning might lead
-us to hope that \nbco{1:r2=0} guarantees that \nbco{0:r2=2}.
-Unfortunately, the lack of memory barriers dashes these hopes.
-The CPU is within its rights to reorder
-the statements within both Thread~\co{P0()} and Thread~\co{P1()},
-even on relatively strongly ordered systems such as x86.
 
 \QuickQuiz{}
 	The compiler can also reorder Thread~\co{P0()}'s and
