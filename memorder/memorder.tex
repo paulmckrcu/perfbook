@@ -127,24 +127,10 @@ and then puts forward a mental model of memory barriers that can help
 you avoid these pitfalls.
 
 Section~\ref{sec:memorder:Why Hardware Misordering?}
-gives a brief overview of memory ordering and memory barriers.
-Once this background is in place, the next step is to get you to admit
-that your intuition has a problem.
-This painful task is taken up by
-Section~\ref{sec:memorder:Variables Can Have More Than One Value},
-which presents some code demonstrating that scalar variables can
-take on multiple values simultaneously,
-and by
-Section~\ref{sec:memorder:If B Follows A, and C Follows B, Why Doesn't C Follow A?},
-which shows an intuitively correct code fragment that fails miserably
-on real hardware.
-Once your intuition has made it through the grieving process,
-Section~\ref{sec:memorder:What Can You Trust?}
-provides the basic rules that memory barriers follow, rules that we
-will build upon.
-These rules are further refined in
-Sections~\ref{sec:memorder:Review of Locking Implementations}
-through~\ref{sec:memorder:Where Are Memory Barriers Needed?}.
+gives a brief overview of why hardware misorders memory accesses, and then
+Section~\ref{sec:memorder:How to Force Ordering?}
+gives an equally brief overview of how you can thwart evil hardware
+misordering schemes.
 
 \subsection{Why Hardware Misordering?}
 \label{sec:memorder:Why Hardware Misordering?}
@@ -261,7 +247,7 @@ record their stores in their respective store buffers.
 	% @@@ Add forward reference.
 	But if you think that a given variable having two values at
 	the same time is surprising, just wait until you get to
-	Section~\ref{sec:memorder:Variables Can Have More Than One Value}!
+	Section~\ref{sec:memorder:Variables With Multiple Values}!
 } \QuickQuizEnd
 
 Row~3 shows the two reads (lines~10 and~19 of
@@ -532,17 +518,123 @@ The column labeled ``C'' indicates cumulativity, and is explained in
 Section~\ref{sec:memorder:Non-Multicopy Atomicity and Cumulativity}.
 In the meantime, this column can be ignored unless there are three or
 more threads involved.
-The next section will introduce litmus tests using primitives called out
-in the table, using these tests to further illuminate memory ordering.
+
+\QuickQuiz{}
+	The rows in
+	Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
+	seem quite random and confused.
+	Whatever is the conceptual basis of this table???
+\QuickQuizAnswer{
+	The rows correspond roughly to hardware mechanisms of increasing
+	power and overhead.
+
+	The \co{READ_ONCE()} row captures the fact that (as of 2017) compilers
+	and CPUs do not indulge in user-visible speculative stores, so that
+	any write whose address, data, or execution depends on a prior load
+	will happen after that load completes.
+	At least assuming that these dependencies have been constructed
+	carefully as described in
+	Sections~\ref{sec:memorder:Address- and Data-Dependency Restrictions}
+	and~\ref{sec:memorder:Control-Dependency Restrictions}.
+
+	The \co{smp_read_barrier_depends()} row captures the fact that, with the
+	notable exception of DEC Alpha, compilers and CPUs do not indulge
+	in user-visible breakage of address dependencies, again assuming
+	that these dependencies have been constructed carefully as described in
+	Section~\ref{sec:memorder:Address- and Data-Dependency Restrictions}.
+
+	The ``Successful \co{*_acquire()}'' row captures the fact that many
+	CPUs have special ``acquire'' forms of loads and of atomic RMW
+	instructions,
+	and that many other CPUs have light-weight memory-barrier
+	instructions that order prior loads against subsequent loads
+	and stores.
+
+	The ``Successful \co{*_release()}'' row captures the fact that many
+	CPUs have special ``release'' forms of stores and of atomic RMW
+	instructions, and that many other CPUs have light-weight memory-barrier
+	instructions that order prior loads and stores against
+	subsequent stores.
+
+	The \co{smp_rmb()} row captures the fact that many CPUs have
+	light-weight memory-barrier instructions that order prior loads against
+	subsequent loads.
+	Similarly,
+	the \co{smp_wmb()} row captures the fact that many CPUs have
+	light-weight memory-barrier instructions that order prior stores against
+	subsequent stores.
+
+	None of the ordering operations thus far require prior stores to be
+	ordered against subsequent loads, which means that these operations
+	need not interfere with store buffers, whose main purpose in life
+	is in fact to reorder prior stores against subsequent loads.
+	The light-weight nature of these operations is precisely due to
+	their policy of store-buffer non-interference.
+	However, as noted earlier, it is sometimes necessary to interfere
+	with the store buffer in order to prevent prior stores from being
+	reordered against later stores, which brings us to the remaining
+	rows in this table.
+
+	The \co{smp_mb())} row corresponds to the full memory barrier
+	available on most platforms, with Itanium being the exception
+	that proves the rule.
+
+	The ``Successful Non-Relaxed Non-\co{void} RMW'' row captures
+	the fact that on some platforms (such as x86) atomic RMW instructions
+	provide full ordering both before and after.
+	The Linux kernel therefore requires that non-relaxed non-\co{void}
+	atomic RMW operations provide full ordering in cases where these
+	operations succeed.
+
+	However, the Linux kernel does not require that \co{void} atomic
+	RMW operations provide any ordering whatsoever.
+	Therefore, these operations, along with failing non-\co{void}
+	atomic RMW operations may be preceded by \co{smp_mb__before_atomic()}
+	and followed by \co{smp_mb__after_atomic()} to provide full
+	ordering for any accesses preceding or following both.
+	No ordering need be provided for accesses between the
+	\co{smp_mb__before_atomic()} (or, similarly, the
+	\co{smp_mb__after_atomic()} and the atomic RMW operation, as
+	indicated by the ``a'' entries on the \co{smp_mb__before_atomic()}
+	and \co{smp_mb__after_atomic()} rows of the table.
+} \QuickQuizEnd
+
+It is important to note that this table is just a cheat sheet,
+and is therefore in no way a replacement for a good understanding
+of memory ordering.
+To begin building such an understanding,
+the next section will introduce trick-and-trap litmus tests using
+primitives called out in the table, using these tests to further
+illuminate memory ordering.
 
 \section{Tricks and Traps}
 \label{sec:memorder:Tricks and Traps}
 
-@@@ But first, let's take a quick look at just how many values a single
+Now that you know that hardware can reorder memory accesses and that you
+can prevent it from doing so, the next step is to get you to admit
+that your intuition has a problem.
+This painful task is taken up by
+Section~\ref{sec:memorder:Variables With Multiple Values},
+which presents some code demonstrating that scalar variables can
+take on multiple values simultaneously,
+and by
+Sections~\ref{sec:memorder:Memory-Reference Reordering} through
+\ref{sec:memorder:Non-Single-Copy Atomicity},
+which show a series of intuitively correct code fragments that fail miserably
+on real hardware.
+Once your intuition has made it through the grieving process,
+Section~\ref{sec:memorder:What Can You Trust?}
+provides the basic rules that memory barriers follow, rules that we
+will build upon.
+These rules are further refined in
+Sections~\ref{sec:memorder:Review of Locking Implementations}
+through~\ref{sec:memorder:Where Are Memory Barriers Needed?}.
+
+But first, let's take a quick look at just how many values a single
 variable might have at a single moment of time.
 
-\subsection{Variables Can Have More Than One Value}
-\label{sec:memorder:Variables Can Have More Than One Value}
+\subsection{Variables With Multiple Values}
+\label{sec:memorder:Variables With Multiple Values}
 
 It is natural to think of a variable as taking on a well-defined
 sequence of values in a well-defined, global order.
@@ -722,14 +814,8 @@ not if performance and scalability are at all important to you.
 Unfortunately, memory ordering has many other ways of insulting your
 intuition, and not all of these ways conflict with performance and
 scalability.
-The next section will give an overview of a few of these insults.
-
-\section{If B Follows A, and C Follows B, Why Doesn't C Follow A?}
-\label{sec:memorder:If B Follows A, and C Follows B, Why Doesn't C Follow A?}
-
-Why indeed?
-This stop on the journey will help answer this question, in part by looking
-more closely at what ``follows'' might mean.
+The next section will give an overview of reordering of unrelated
+memory reference.
 
 \subsection{Memory-Reference Reordering}
 \label{sec:memorder:Memory-Reference Reordering}
