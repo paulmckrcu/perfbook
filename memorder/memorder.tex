@@ -126,7 +126,7 @@ The following sections show exactly where this intuition breaks down,
 and then puts forward a mental model of memory barriers that can help
 you avoid these pitfalls.
 
-Section~\ref{sec:memorder:Memory Ordering and Memory Barriers}
+Section~\ref{sec:memorder:Why Hardware Misordering?}
 gives a brief overview of memory ordering and memory barriers.
 Once this background is in place, the next step is to get you to admit
 that your intuition has a problem.
@@ -146,8 +146,8 @@ These rules are further refined in
 Sections~\ref{sec:memorder:Review of Locking Implementations}
 through~\ref{sec:memorder:Where Are Memory Barriers Needed?}.
 
-\section{Memory Ordering and Memory Barriers}
-\label{sec:memorder:Memory Ordering and Memory Barriers}
+\subsection{Why Hardware Misordering?}
+\label{sec:memorder:Why Hardware Misordering?}
 
 But why are memory barriers needed in the first place?
 Can't CPUs keep track of ordering on their own?
@@ -304,6 +304,22 @@ counter-intuitive memory misordering.
 
 But what do you do if your algorithm really needs its memory
 references to be ordered?
+For example, suppose that you are communicating with a driver using
+a pair of flags, one that says whether or not the driver is running
+and the other that says whether there is a request pending for that
+driver.
+The requester needs to set the request-pending flag, then check
+the driver-running flag, and if false, wake it up.
+Once the driver has serviced all the pending requests that it knows about,
+it needs to clear its driver-running flag, then check the request-pending
+flag to see if it needs to restart.
+This very reasonable approach cannot work unless there is some way
+to make sure that the hardware processes the stores and loads in order.
+This is the subject of the next section.
+
+\subsection{How to Force Ordering?}
+\label{sec:memorder:How to Force Ordering?}
+
 It turns out that there are compiler directives and standard
 synchronization primitives (such as locking and RCU)
 that are responsible for maintaining the illusion of ordering through use of
@@ -315,7 +331,7 @@ Since these standard synchronization primitives preserve the illusion of
 ordering, your path of least resistance is to simply use these primitives,
 thus allowing you to stop reading this section.
 
-\begin{listing}
+\begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
 C C-SB+o-mb-o+o-mb-o
@@ -420,15 +436,112 @@ Note that variables \co{x0} and \co{x1} each still have more than one
 value on row~2, however, as promised earlier, the directives straighten
 things out in the end.
 
-Please note that actual hardware tends to be much more complex, tricky,
-and subtle than is described here.
-After all, the point of this discussion is not to train you to be
-a hardware architect, but rather to help you correctly code
-low-level concurrent primitives.
-But first, let's take a quick look at just how many values a single
+\begin{table*}
+\small
+\centering\OneColumnHSpace{-0.1in}
+\begin{tabular}{l||c||c|c|c|c||c|c|c|c|c|c}
+	& & \multicolumn{4}{c||}{Prior Ordered Operation} &
+		\multicolumn{6}{c}{Subsequent Ordered Operation} \\
+	\cline{3-6} \cline{7-12}
+	Operation Providing Ordering & C &
+		Self & R & W & RMW & Self & R & W & DR & DW & RMW \\
+	\hline
+	\hline
+	\tco{READ_ONCE()} &  &
+		   Y &   &   &     &      &   &   &    &  Y &     \\
+	\hline
+	\tco{smp_read_barrier_depends()} &  &
+		     & Y &   &     &      &   &   &  Y &  Y &     \\
+	\hline
+	Successful \tco{*_acquire()} & w &
+		   R &   &   &     &      & Y & Y &  Y &  Y &   Y \\
+	\hline
+	Successful \tco{*_release()} & w &
+		     & Y & Y &   Y &    W &   &   &    &    &     \\
+	\hline
+	\tco{smp_rmb()} &   &
+		     & Y &   &   R &      & Y &   &  Y &    &   R \\
+	\hline
+	\tco{smp_wmb()} &   &
+		     &   & Y &   W &      &   & Y &    &  Y &   W \\
+	\hline
+	\tco{smp_mb()} & S &
+		     & Y & Y &   Y &      & Y & Y &  Y &  Y &   Y \\
+	\hline
+	Successful Non-Relaxed Non-\tco{void} RMW & S &
+		   Y & Y & Y &   Y &    Y & Y & Y &  Y &  Y &   Y \\
+	\hline
+	\tco{smp_mb__before_atomic()} & S &
+		     & Y & Y &   Y &      & a & a & a  & a  &   Y \\
+	\hline
+	\tco{smp_mb__after_atomic()} & S &
+		     & a & a &   Y &      & Y & Y &  Y &  Y &     \\
+	\multicolumn{12}{c}{~} \\
+	\multicolumn{1}{r}{Key:} &
+		\multicolumn{11}{l}{C: Cumulativity,
+			``w'' for weak and ``S'' for strong} \\
+	\multicolumn{1}{r}{} &
+		\multicolumn{11}{l}{R: Read, or read portion of RMW} \\
+	\multicolumn{1}{r}{} &
+		\multicolumn{11}{l}{W: Write, or write portion of RMW} \\
+	\multicolumn{1}{r}{} &
+		\multicolumn{11}{l}{Y: Provides the specified ordering} \\
+	\multicolumn{1}{r}{} &
+		\multicolumn{11}{l}{a: Provides specified ordering given intervening RMW atomic operation} \\
+	\multicolumn{1}{r}{} &
+		\multicolumn{11}{l}{DR: Dependent read (address dependency)} \\
+	\multicolumn{1}{r}{} &
+		\multicolumn{11}{l}{DW: Dependent write (address, data, or control dependency)} \\
+	\multicolumn{1}{r}{} &
+		\multicolumn{11}{l}{RMW: Atomic read-modify-write operation} \\
+\end{tabular}
+\caption{Linux-Kernel Memory-Ordering Cheat Sheet}
+\label{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
+\end{table*}
+
+Although \co{smp_mb()} has extremely strong ordering guarantees, its strength
+comes at a high price.
+A great many situations can be handled with much weaker ordering guarantees
+that use much cheaper memory-barrier instructions, or, in some case, no
+memory-barrier instructions at all.
+Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
+provides a cheatsheet of the Linux kernel's ordering primitives and their
+guarantees.
+Each row corresponds to a primitive or category of primitives that might
+or might not provide ordering, with the columns labeled
+``Prior Ordered Operation'' and ``Subsequent Ordered Operation''
+being the operations that might (or might not) be ordered against.
+Cells containing ``Y''indicate that ordering is supplied unconditionally,
+while other characters indicate that ordering is supplied only partially or
+conditionally.
+Blank cells indicate that no ordering is supplied.
+
+The \co{*_acquire} row covers \co{smp_load_acquire()},
+\co{cmpxchg_acquire()}, \co{xchg_release()}, and so on;
+the \co{*_release} row covers \co{smp_store_release()},
+\co{cmpxchg_release()}, \co{xchg_release()}, and so on; and
+the value-returning RMW row covers \co{atomic_add_return()},
+\co{atomic_add_unless()},
+\co{atomic_dec_and_test()}, \co{cmpxchg()}, \co{xchg()}, and so on.
+The ``Successful'' qualifiers apply to primitives such as
+\co{atomic_add_unless()}, \co{cmpxchg_acquire()}, and \co{cmpxchg_release()},
+which have no effect on either memory or on ordering when they indicate
+failure.
+
+The column labeled ``C'' indicates cumulativity, and is explained in
+Section~\ref{sec:memorder:Non-Multicopy Atomicity and Cumulativity}.
+In the meantime, this column can be ignored unless there are three or
+more threads involved.
+The next section will introduce litmus tests using primitives called out
+in the table, using these tests to further illuminate memory ordering.
+
+\section{Tricks and Traps}
+\label{sec:memorder:Tricks and Traps}
+
+@@@ But first, let's take a quick look at just how many values a single
 variable might have at a single moment of time.
 
-\section{Variables Can Have More Than One Value}
+\subsection{Variables Can Have More Than One Value}
 \label{sec:memorder:Variables Can Have More Than One Value}
 
 It is natural to think of a variable as taking on a well-defined
@@ -522,7 +635,7 @@ CPU~4 believes that the value is~``4'' for almost 500\,ns.
 	value of a single variable \emph{at the same time?}
 \QuickQuizAnswer{
 	As discussed in
-	Section~\ref{sec:memorder:Memory Ordering and Memory Barriers},
+	Section~\ref{sec:memorder:Why Hardware Misordering?},
 	many CPUs have write buffers that record the values of
 	recent writes, which are applied once the corresponding
 	cache line makes its way to the CPU.
@@ -621,7 +734,7 @@ more closely at what ``follows'' might mean.
 \subsection{Memory-Reference Reordering}
 \label{sec:memorder:Memory-Reference Reordering}
 
-Section~\ref{sec:memorder:Memory Ordering and Memory Barriers}
+Section~\ref{sec:memorder:Why Hardware Misordering?}
 showed that even relatively strongly ordered systems like x86
 can reorder prior stores with later loads, at least when the
 store and load are to different variables.
