@@ -439,10 +439,10 @@ things out in the end.
 	\tco{smp_read_barrier_depends()} &  &
 		     & Y &   &     &      &   &   &  Y &  Y &     \\
 	\hline
-	Successful \tco{*_acquire()} & w &
+	Successful \tco{*_acquire()} & C &
 		   R &   &   &     &      & Y & Y &  Y &  Y &   Y \\
 	\hline
-	Successful \tco{*_release()} & w &
+	Successful \tco{*_release()} & C &
 		     & Y & Y &   Y &    W &   &   &    &    &     \\
 	\hline
 	\tco{smp_rmb()} &   &
@@ -451,21 +451,22 @@ things out in the end.
 	\tco{smp_wmb()} &   &
 		     &   & Y &   W &      &   & Y &    &  Y &   W \\
 	\hline
-	\tco{smp_mb()} & S &
+	\tco{smp_mb()} & CP &
 		     & Y & Y &   Y &      & Y & Y &  Y &  Y &   Y \\
 	\hline
-	Successful Non-Relaxed Non-\tco{void} RMW & S &
+	Successful Non-Relaxed Non-\tco{void} RMW & CP &
 		   Y & Y & Y &   Y &    Y & Y & Y &  Y &  Y &   Y \\
 	\hline
-	\tco{smp_mb__before_atomic()} & S &
+	\tco{smp_mb__before_atomic()} & CP &
 		     & Y & Y &   Y &      & a & a & a  & a  &   Y \\
 	\hline
-	\tco{smp_mb__after_atomic()} & S &
+	\tco{smp_mb__after_atomic()} & CP &
 		     & a & a &   Y &      & Y & Y &  Y &  Y &     \\
 	\multicolumn{12}{c}{~} \\
 	\multicolumn{1}{r}{Key:} &
-		\multicolumn{11}{l}{C: Cumulativity,
-			``w'' for weak and ``S'' for strong} \\
+		\multicolumn{11}{l}{C: Ordering is cumulative} \\
+	\multicolumn{1}{r}{} &
+		\multicolumn{11}{l}{P: Ordering propagates} \\
 	\multicolumn{1}{r}{} &
 		\multicolumn{11}{l}{R: Read, or read portion of RMW} \\
 	\multicolumn{1}{r}{} &
@@ -514,8 +515,10 @@ The ``Successful'' qualifiers apply to primitives such as
 which have no effect on either memory or on ordering when they indicate
 failure.
 
-The column labeled ``C'' indicates cumulativity, and is explained in
-Section~\ref{sec:memorder:Non-Multicopy Atomicity and Cumulativity}.
+The column labeled ``C'' indicates cumulativity and/or propagation,
+and is explained in
+Sections~\ref{sec:memorder:Cumulativity}
+and~\ref{sec:memorder:Propagation}.
 In the meantime, this column can be ignored unless there are three or
 more threads involved.
 
@@ -1483,8 +1486,8 @@ maintenance.
 You should therefore use them only when performance considerations
 permit no other solution.
 
-\subsection{Non-Multicopy Atomicity \& Cumulativity}
-\label{sec:memorder:Non-Multicopy Atomicity and Cumulativity}
+\subsection{Non-Multicopy Atomicity}
+\label{sec:memorder:Non-Multicopy Atomicity}
 
 \begin{figure}[tb]
 \centering
@@ -1606,7 +1609,7 @@ line to carry this new value to them.
 \small
 \centering\OneColumnHSpace{-0.1in}
 \begin{tabular}{r||l|l|l|l||l|l|l}
-	& P0 & \multicolumn{2}{c|}{P0 \& P1} & P1 & \multicolumn{3}{c}{P2} \\
+	& \tco{P0()} & \multicolumn{2}{c|}{\tco{P0()} \& \tco{P1()}} & \tco{P1()} & \multicolumn{3}{c}{\tco{P2()}} \\
 	\cline{2-8}
 	& Instruction & Store Buffer & Cache & Instruction &
 			Instruction & Store Buffer & Cache \\
@@ -1625,29 +1628,29 @@ line to carry this new value to them.
 	4 &  & \tco{x==&x} \tco{y==&x} & \tco{y==&b} & \tco{y = r1}
 		 & \tco{r2 = y} & & \tco{x==&a} \\
 	\hline
-	5 & (Finish store) & \tco{x==&x} & \tco{y==&x} &
+	5 &  & \tco{x==&x} & \tco{y==&x} & (Finish store)
 		 & (Read \tco{y}) & & \tco{x==&a} \\
 	\hline
 	6 & & \tco{x==&x} & \tco{y==&x} &
 		 & (\tco{r2==&x}) & & \tco{x==&a} \tco{y==&x} \\
 	\hline
 	7 & & \tco{x==&x} & \tco{y==&x} &
-		 & \tco{*r2 = &a} & \tco{y==&a} & \tco{x==&a} \tco{y==&x} \\
+		 & \tco{*r2 = &c} & \tco{y==&c} & \tco{x==&a} \tco{y==&x} \\
 	\hline
 	8 & & \tco{x==&x} & \tco{y==&x} &
-		 & (Read Invalidate \tco{y}) & \tco{y==&a} & \tco{x==&a} \tco{y==&x} \\
+		 & (Read Invalidate \tco{y}) & \tco{y==&c} & \tco{x==&a} \tco{y==&x} \\
 	\hline
 	9 & & \tco{x==&x} &  &
-		 &  & \tco{y==&a} & \tco{x==&a} \tco{y==&x} \\
+		 &  & \tco{y==&c} & \tco{x==&a} \tco{y==&x} \\
 	\hline
 	10 & & \tco{x==&x} &  &
-		 & (Finish store) & & \tco{x==&a} \tco{y==&a} \\
+		 & (Finish store) & & \tco{x==&a} \tco{y==&c} \\
 	\hline
 	11 & & \tco{x==&x} & \tco{x==&a} &
-		 & (Respond \co{x}) & & \tco{y==&a} \\
+		 & (Respond \co{x}) & & \tco{y==&c} \\
 	\hline
 	11 & (Finish store) & & \tco{x==&x} &
-		 &  & & \tco{y==&a} \\
+		 &  & & \tco{y==&c} \\
 \end{tabular}
 \caption{Memory Ordering: WWC Sequence of Events}
 \label{tab:memorder:Memory Ordering: WWC Sequence of Events}
@@ -1657,30 +1660,107 @@ Table~\ref{tab:memorder:Memory Ordering: WWC Sequence of Events}
 shows one sequence of events that can result in the \co{exists} clause in
 Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
 triggering.
-Row~1 shows the initial state, with the initial value of \co{y} in
-P0's and P1's shared cache, and the initial value of \co{x} in
-P2's cache.
+This sequence of events will depend critically on \co{P0()} and
+\co{P1()} sharing both cache and a store buffer in the manner shown in
+Figure~\ref{fig:memorder:Shared Store Buffers And Multi-Copy Atomicity}.
 
 \QuickQuiz{}
-	Just how is it fair that P0 and P1 must share a store buffer
+	But just how is it fair that P0 and P1 must share a store buffer
 	and a cache, but P2 gets one each of its very own???
 \QuickQuizAnswer{
-	Presumably there is a P3, not used by this litmus test, that
-	shares P2's store buffer and cache.
+	Presumably there is a P3, as is in fact shown in
+	Figure~\ref{fig:memorder:Shared Store Buffers And Multi-Copy Atomicity},
+	that shares P2's store buffer and cache.
 	But not necessarily.
 	Some platforms allow different cores to disable different numbers
 	of threads, allowing the hardware to adjust to the needs of the
 	workload at hand.
 	For example, a single-threaded critical-path portion of the workload
 	might be assigned to a core with only one thread enabled, thus
-	allowing that portion of the workload to use the entire capabilities
-	of that core.
+	allowing the single thread running that portion of the workload
+	to use the entire capabilities of that core.
 	Other more highly parallel but cache-miss-prone portions of the
 	workload might be assigned to cores with all hardware threads
-	enabled to provide better throughput.
+	enabled to provide improved throughput.
+	This improved throughput could be due to the fact that while one
+	hardware thread is stalled on a cache miss, the other hardware
+	threads can make forward progress.
 
-	In such cases, performance overrides human notions of fairness.
+	In such cases, performance requirements override quaint human
+	notions of fairness.
 } \QuickQuizEnd
+
+Row~1 shows the initial state, with the initial value of \co{y} in
+P0's and P1's shared cache, and the initial value of \co{x} in
+P2's cache.
+
+Row~2 shows the immediate effect of \co{P0()} executing its write on line~13.
+Because the cacheline containing \co{x} is not in \co{P0()}'s and \co{P1()}'s
+shared cache, the new value (\co{&x})is stored in the shared store buffer.
+
+Row~3 shows two transitions.
+First, \co{P0()} issues a read-invalidate operation to fetch the cacheline
+containing \co{x} so that it can flush the new value for \co{x} out of
+the shared store buffer.
+Second, \co{P1()} reads from \co{x} (line~20), an operation that completes
+immediately because the new value of \co{x} is immediately available
+from the shared store buffer.
+
+Row~4 also shows two transitions.
+First, it shows the immediate effect of \co{P1()} executing its write to
+\co{y} (line~21), placing the new value into the shared store buffer.
+Second, it shows the start of \co{P2()}'s read from \co{y} (line~28).
+
+Row~5 continues the tradition of showing two transitions.
+First, it shows \co{P1()} complete its store to \co{y}, flushing
+from the shared store buffer to the cache.
+Second, it shows \co{P2()} request the cacheline containing \co{x}.
+
+Row~6 shows \co{P2()} receive the cacheline containing \co{y}, allowing
+it to finish its load into \co{r2}, which takes on the value \co{&x}.
+
+Row~7 shows \co{P2()} start executing its store to \co{y} (line~29), placing the
+new value in is store buffer.
+
+Row~8 shows \co{P2()} requesting exclusive ownership (``Read Invalidate'')
+for the cacheline containing \co{y} in order to finish its store.
+
+Row~9 shows the cacheline containing \co{y} removed from the shared cache,
+so that \co{P2()} now has exclusive ownership.
+
+Row~10 shows \co{P2()} completing its store to \co{y}, flushing the value
+from its store buffer to its cache.
+
+Row~11 shows \co{P2()} \emph{finally} responding to \co{P0()}'s request for
+the cacheline containing \co{x}, which was made way back up on row~3.
+
+Finally, row~12 shows \co{P0()} finish its store, flushing its value of
+\co{x} from the shared store buffer to the shared cache.
+
+Note well that the \co{exists} clause on line~32 has triggered.
+The values of \co{r1} and \co{r2} are both the address of \co{x}, and
+the final value of \co{x} is also the address of \co{x}.
+This strange result occurred because \co{P0()}'s new value of \co{x} was
+communicated to \co{P1()} long before it was communicated to \co{P2()}.
+
+This counter-intuitive result happens because although dependencies
+do provide ordering, they provide it only within the confines of their
+own thread.
+This three-thread example requires stronger ordering, which
+is the subject of
+Sections~\ref{sec:memorder:Cumulativity}
+and~\ref{sec:memorder:Propagation}.
+
+\subsubsection{Cumulativity}
+\label{sec:memorder:Cumulativity}
+
+The three-thread example shown in
+Figure~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
+requires \emph{cumulative} ordering, or \emph{cumulativity}.
+Given an ordering having the cumulativity property, any stores
+from other threads that are seen by any loads that qualify as
+prior ordered operations will be seen as preceding any subsequent
+ordered operations.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -1722,8 +1802,26 @@ exists(1:r1=x /\ 2:r2=x /\ x=x)
 \centering
 \theverbbox
 \caption{WWC Litmus Test With Release}
-\label{lst:memorder:WWC Litmus With Release}
+\label{lst:memorder:WWC Litmus Test With Release}
 \end{listing}
+
+Dependencies do not provide cumulativity,
+which is why the ``C'' column is blank for
+both the \co{READ_ONCE()} and the \co{smp_read_barrier_depends()} rows
+of Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
+However, release and acquire operations do provide cumulativity, and
+Figure~\ref{lst:memorder:WWC Litmus Test With Release}
+substitutes a release operation for
+Figure~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}'s
+data dependency.
+@@@
+
+\subsubsection{Propagation}
+\label{sec:memorder:Propagation}
+
+% cumulativity not sufficient, sometimes also need propagation.
+
+% @@@ write, release -> acquire, write -> read, smp_mb(), read
 
 \subsection{Non-Single-Copy Atomicity}
 \label{sec:memorder:Non-Single-Copy Atomicity}
