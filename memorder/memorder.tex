@@ -600,15 +600,125 @@ more threads involved.
 	\co{smp_mb__after_atomic()} and the atomic RMW operation, as
 	indicated by the ``a'' entries on the \co{smp_mb__before_atomic()}
 	and \co{smp_mb__after_atomic()} rows of the table.
+
+	In short, any randomness in the table is due to the properties
+	of the underlying hardware, which are constrained by nothing other
+	than the laws of physics, as was explained back in
+	Chapter~\ref{chp:Hardware and its Habits}.
+	% forward reference to rf co fr section
 } \QuickQuizEnd
 
 It is important to note that this table is just a cheat sheet,
 and is therefore in no way a replacement for a good understanding
 of memory ordering.
-To begin building such an understanding,
-the next section will introduce trick-and-trap litmus tests using
-primitives called out in the table, using these tests to further
-illuminate memory ordering.
+To begin building such an understanding, the next section will
+present some basic rules of thumb.
+
+\subsection{Basic Rules of Thumb}
+\label{sec:memorder:Basic Rules of Thumb}
+
+This section presents some basic rules of thumb that are ``good and
+sufficient'' for a great many situations.
+In fact, you could write a great deal of concurrent code having
+excellent performance and scalability without needing anything more
+than these rules of thumb.
+
+\QuickQuiz{}
+	But how can I know that a given project can be designed
+	and coded within the confines of these rules of thumb?
+\QuickQuizAnswer{
+	Much of the purpose of the remainder of this chapter is
+	to answer exactly that question!
+} \QuickQuizEnd
+
+\paragraph{A given thread sees its own accesses in order.}
+This rule assumes that reads and writes from/to shared variables use
+\co{READ_ONCE()} and \co{WRITE_ONCE()}, respectively.
+Otherwise, the compiler can profoundly scramble\footnote{
+	Many compiler writers prefer the word ``optimize'' instead of
+	``scramble'', but we all have our preferences.}
+your code, and sometimes the CPU can do a bit of scrambling as well.
+% @@@ Itanium forward reference?
+
+\begin{figure}[htb]
+\centering
+\resizebox{3in}{!}{\includegraphics{memorder/memorybarrier}}
+\caption{Memory Barriers Provide Conditional If-Then Ordering}
+\label{fig:memorder:Memory Barriers Provide Conditional If-Then Ordering}
+\end{figure}
+
+\paragraph{Ordering has conditional if-then semantics.}
+Figure~\ref{fig:memorder:Memory Barriers Provide Conditional If-Then Ordering}
+illustrates this for memory barriers.
+Assuming that both memory barriers are strong enough (and when in doubt, you
+can always use \co{smp_mb()}), if CPU~1's access Y1 happens after CPU~0's
+access Y0, then CPU~1's access X1 is guaranteed to happen after CPU~0's
+access X1.
+
+\QuickQuiz{}
+	How can you tell which memory barriers are strong enough for
+	a given use case?
+\QuickQuizAnswer{
+	Ah, that is a deep question whose answer requires most of the
+	rest of this chapter.
+} \QuickQuizEnd
+
+Listing~\ref{lst:memorder:Memory Ordering: Store-Buffering Litmus Test}
+is a case in point.
+The \co{smp_mb()} on line~10 and~20 serve as the barriers,
+the write to \co{x0} on line~9 as X0, the read from \co{x1} on line~11
+as Y0, the write to \co{x1} on line~19 as Y1, and the read from
+\co{x0} and X1.
+Applying the if-then rule step by step, we know that the write to
+\co{x1} on line~19 happens after the read from \co{x1} on line~11 if
+\co{P0()}'s local variable \co{r2} is set to the value zero.
+The if-then rule would then state that the read from \co{x1} on
+line~21 happens after the write to \co{x1} on line~9.
+In other words, if \co{P0()}'s local variable \co{r2} ends up with
+the value zero, then \co{P1()}'s local variable \co{r2} is guaranteed
+to end up with the value two.
+
+Although
+Figure~\ref{fig:memorder:Memory Barriers Provide Conditional If-Then Ordering}
+specifically mentions memory barriers, the same rule applies to the
+rest of the Linux kernel's ordering operations.
+
+\paragraph{Ordering operations must be paired.}
+If you carefully order the operations in one thread, but then fail to do
+so in another thread, then there is no ordering.
+Both threads must provide ordering for the if-then rule to apply.
+% @@@ forward reference to cycles.
+
+\paragraph{Ordering operations almost never speed things up.}
+If you find yourself tempted to add a memory barrier in an attempt
+to force a prior write to be flushed to memory faster, resist!
+Adding ordering usually slows things down.
+Of course, there are situations where adding instructions speeds things
+up, but careful benchmarking is required in such cases.
+And even then, it is quite possible that although you sped things up
+a little bit on \emph{your} system, you might well have slowed things
+down significantly on your users' systems.
+Or on your future system.
+
+\paragraph{Ordering operations are not magic.}
+When your program is failing due to some race condition, it is often
+tempting to toss in a few memory-ordering operations in an attempt
+to barrier your bug out of existence.
+A far better reaction is to use higher-level primitives in a carefully
+designed manner.
+With concurrent programming, it is almost always easier to design
+your bugs out of existence than to hack them out of existence!
+
+\paragraph{These are only rules of thumb.}
+Although these rules of thumb cover the vast majority of situations
+seen in actual practice, as with any set of rules of thumb, they
+do have their limits.
+The next section will demonstrate some of these limits by introducing
+trick-and-trap litmus tests that will hopefully both insult your
+intuition and increase your understanding.
+These litmus tests will also illuminate many of the concepts
+represented by
+Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
 
 \section{Tricks and Traps}
 \label{sec:memorder:Tricks and Traps}
