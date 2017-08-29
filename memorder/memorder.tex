@@ -1885,8 +1885,8 @@ and~\ref{sec:memorder:Propagation}.
 The three-thread example shown in
 Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
 requires \emph{cumulative} ordering, or \emph{cumulativity}.
-Given an ordering having the cumulativity property, any stores
-from other threads that are seen by any loads that qualify as
+Given a cumulative ordering, any stores
+from other threads whose values are returned by loads qualifying as
 prior ordered operations will be seen as preceding any subsequent
 ordered operations.
 
@@ -1937,12 +1937,27 @@ Dependencies do not provide cumulativity,
 which is why the ``C'' column is blank for
 both the \co{READ_ONCE()} and the \co{smp_read_barrier_depends()} rows
 of Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
-However, release operations do provide cumulativity, and so
+However, as indicated by the ``C'' in their ``C'' column,
+release operations do provide cumulativity.
+Therefore,
 Listing~\ref{lst:memorder:WWC Litmus Test With Release}
 substitutes a release operation for
 Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}'s
 data dependency.
-@@@
+Because the release operation is cumulative, its ordering applies not only to
+Listing~\ref{lst:memorder:WWC Litmus Test With Release}'s
+load from \co{x} by \co{P1()} on line~20, but also to its store to \co{x}
+by \co{P0()} on line~13---but only if that load returns the value stored,
+which in this case is the address of \co{x}, which matches the \co{1:r1=x}
+in the \co{exists} clause on line~32.
+This means that \co{P2()}'s address dependency suffices to force the
+write to \co{x} on line~29 to happen after the write on line~13, so
+that the final value of \co{x} is the address of \co{c}, which
+in turn prevents the \co{exists} clause from triggering.
+
+In short, cumulativity can force non-multicopy-atomic platforms to
+behave in a multi-copy-atomic manner in some situations.
+Cumulativity nevertheless has limits, which are examined in the next section.
 
 \subsubsection{Propagation}
 \label{sec:memorder:Propagation}
@@ -1950,6 +1965,11 @@ data dependency.
 % cumulativity not sufficient, sometimes also need propagation.
 
 % @@@ write, release -> acquire, write -> read, smp_mb(), read
+
+\subsubsection{Happens-Before}
+\label{sec:memorder:Happens-Before}
+
+% @@@ time as an implicit memory-ordering operation
 
 \subsection{Non-Single-Copy Atomicity}
 \label{sec:memorder:Non-Single-Copy Atomicity}
