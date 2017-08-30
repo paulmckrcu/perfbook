@@ -1598,8 +1598,8 @@ permit no other solution.
 \subsection{Cache Coherence}
 \label{sec:memorder:Cache Coherence}
 
-On cache-coherent platforms, all CPUs agree on the order of reads and
-writes to a given variable.
+On cache-coherent platforms, all CPUs agree on the order of loads and
+stores to a given variable.
 Fortunately, when \co{READ_ONCE()} and \co{WRITE_ONCE()} are used,
 almost all platforms are cache-coherent.
 Unfortunately, this property is so popular that it has been named
@@ -1608,7 +1608,86 @@ multiple times, with ``single-variable SC'',\footnote{
 ``single-copy atomic''~\cite{Stone:1995:SP:623262.623912},
 and just plain ``coherence''~\cite{JadeAlglave2011ppcmem}
 having seen use.
-This book uses ``cache coherence'' and ``coherence'' interchangeably.
+Rather than further compound the confusion by inventing yet another term
+for this concept, this book uses ``cache coherence'' and ``coherence''
+interchangeably.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-CCIRIW+o+o+o-o+o-o
+
+{
+int x = 0;
+}
+
+P0(int *x)
+{
+  WRITE_ONCE(*x, 1);
+}
+
+P1(int *x)
+{
+  WRITE_ONCE(*x, 2);
+}
+
+P2(int *x)
+{
+  int r1;
+  int r2;
+
+  r1 = READ_ONCE(*x);
+  r2 = READ_ONCE(*x);
+}
+
+P3(int *x)
+{
+  int r3;
+  int r4;
+
+  r3 = READ_ONCE(*x);
+  r4 = READ_ONCE(*x);
+}
+
+exists(2:r1=1 /\ 2:r2=2 /\ 3:r3=2 /\ 3:r4=1)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Cache-Coherent IRIW Litmus Test}
+\label{lst:memorder:Cache-Coherent IRIW Litmus Test}
+\end{listing}
+
+Listing~\ref{lst:memorder:Cache-Coherent IRIW Litmus Test}
+shows a litmus test that tests for cache coherence
+(\path{C-CCIRIW+o+o+o-o+o-o.litmus}), where ``IRIW'' stands
+for ``independent reads of independent writes''.
+Because this litmus test uses only one variable,
+\co{P2()} and \co{P3()} must agree
+on the order of \co{P0()}'s and \co{P()}'s stores.
+In other words, if \co{P2()} believes that \co{P0()}'s store
+came first, then \co{P3()} had better not believe that
+\co{P1()}'s store came first.
+And in fact the \co{exists} clause on line~35 will trigger if this
+situation arises.
+
+It is tempting to speculate that different-sized overlapping loads 
+and stores to a single region of memory (as might be set up using
+the C-language \co{union} keyword) would provide similar ordering
+guarantees.
+However, Flur et al.~discovered some surprisingly simple
+litmus tests that demonstrate that these guarantees can be violated on
+real hardware~\cite{Flur:2017:MCA:3093333.3009839}.
+It is therefore necessary to restrict code to non-overlapping
+same-sized aligned accesses to a given variable, at least if portability
+is a consideration.\footnote{
+	There is reason to believe that using atomic RMW operations
+	(for example, \co{xchg()}) for all the stores will
+	provide sequentially consistent ordering, but this has not
+	yet been proven either way.}
+
+Adding more variables and threads increases the scope for reordering
+and other counterintuitive behavior, as discussed in the next section.
 
 \subsection{Multicopy Atomicity}
 \label{sec:memorder:Multicopy Atomicity}
