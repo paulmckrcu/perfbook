@@ -1718,11 +1718,77 @@ multicopy atomicity (weakly ordered platforms),
 (2)~Provide all those hardware optimizations, and invest many transistors
 into preserving multicopy atomicity (TSO platforms), or
 (3)~Define a slightly weaker \emph{other-multicopy atomicity} that allows
-a given CPU to observe its own stores out of order~\cite{ARMv8A:2017}.
+a given CPU's stores to become visible to that CPU before they become visible
+to other CPUs, but in which each of those stores becomes visible to all
+the other CPUs simultaneously~\cite{ARMv8A:2017}.
 Perhaps there will come a day when all platforms provide some flavor
 of multi-copy atomicity, but
 in the meantime, non-multicopy-atomic platforms do exist, and so software
 does need to deal with them.
+
+\QuickQuiz{}
+	Can you give a specific example showing different behavior for
+	multicopy atomic on the one hand and other multicopy atomic
+	on the other?
+\QuickQuizAnswer{
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-MP-OMCA+o-o-o+o-rmb-o
+
+{
+}
+
+P0(int *x, int *y)
+{
+	int r0;
+
+	WRITE_ONCE(*x, 1);
+	r0 = READ_ONCE(*x);
+	WRITE_ONCE(*y, r0);
+}
+
+P1(int *x, int *y)
+{
+	int r1;
+	int r2;
+
+	r1 = READ_ONCE(*y);
+	smp_rmb();
+	r2 = READ_ONCE(*x);
+}
+
+exists (1:r1=1 /\ 1:r2=0)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Litmus Test Distinguishing Multicopy Atomic From Other Multicopy Atomic}
+\label{lst:memorder:Litmus Test Distinguishing Multicopy Atomic From Other Multicopy Atomic}
+\end{listing}
+
+	Figure~\ref{lst:memorder:Litmus Test Distinguishing Multicopy Atomic From Other Multicopy Atomic}
+	shows such a test.
+
+	On a multicopy-atomic platform, \co{P0()}'s store to \co{x} on
+	line~10 must become visible to both \co{P0()} and \co{P1()}
+	simultaneously.
+	Because this store becomes visible to \co{P0()} on line~11, before
+	\co{P0()}'s store to \co{y} on line~12, \co{P0()}'s store to
+	\co{x} must become visible before its store to \co{y} everywhere,
+	including \co{P1()}.
+	Therefore, if \co{P1()}'s load from \co{y} on line~20 returns the
+	value 1, so must its load from \co{x} on line~22, given that
+	the \co{smp_rmb()} on line~21 forces these two loads to execute
+	in order.
+	Therefore, the \co{exists} clause on line~25 cannot trigger on a
+	multicopy-atomic platform.
+
+	In contrast, on an other-multicopy-atomic platform, \co{P0()}
+	could see its own store early, so that there would be no constraint
+	on the order of visibility of the two stores from to \co{P1()},
+	which in turn allows the \co{exists} clause to trigger.
+} \QuickQuizEnd
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -1775,13 +1841,13 @@ platform this \co{exists} clause can trigger, despite
 \co{P1()}'s accesses being ordered by a data dependency and \co{P2()}'s
 accesses being ordered by an address dependency.
 Recall that the definition of multicopy atomicity requires that all
-threads agree on the order of writes, which can be thought of as
-all writes reaching all threads at the same time.
-Therefore, a non-multicopy-atomic platform can have a write reach
+threads agree on the order of stores, which can be thought of as
+all stores reaching all threads at the same time.
+Therefore, a non-multicopy-atomic platform can have a store reach
 different threads at different times.
-In particular, \co{P0()}'s write might reach \co{P1()} long before it
-reaches \co{P2()}, which raises the possibility that \co{P1()}'s write
-might reach \co{P2()} before \co{P0()}'s write does.
+In particular, \co{P0()}'s store might reach \co{P1()} long before it
+reaches \co{P2()}, which raises the possibility that \co{P1()}'s store
+might reach \co{P2()} before \co{P0()}'s store does.
 
 \begin{figure}[tb]
 \centering
@@ -1899,7 +1965,7 @@ Row~1 shows the initial state, with the initial value of \co{y} in
 P0's and P1's shared cache, and the initial value of \co{x} in
 P2's cache.
 
-Row~2 shows the immediate effect of \co{P0()} executing its write on line~13.
+Row~2 shows the immediate effect of \co{P0()} executing its store on line~13.
 Because the cacheline containing \co{x} is not in \co{P0()}'s and \co{P1()}'s
 shared cache, the new value (\co{&x})is stored in the shared store buffer.
 
@@ -1912,7 +1978,7 @@ immediately because the new value of \co{x} is immediately available
 from the shared store buffer.
 
 Row~4 also shows two transitions.
-First, it shows the immediate effect of \co{P1()} executing its write to
+First, it shows the immediate effect of \co{P1()} executing its store to
 \co{y} (line~21), placing the new value into the shared store buffer.
 Second, it shows the start of \co{P2()}'s read from \co{y} (line~28).
 
@@ -2056,12 +2122,26 @@ by \co{P0()} on line~13---but only if that load returns the value stored,
 which in this case is the address of \co{x}, which matches the \co{1:r1=x}
 in the \co{exists} clause on line~32.
 This means that \co{P2()}'s address dependency suffices to force the
-write to \co{x} on line~29 to happen after the write on line~13, so
+store to \co{x} on line~29 to happen after the store on line~13, so
 that the final value of \co{x} is the address of \co{c}, which
 in turn prevents the \co{exists} clause from triggering.
 
-In short, cumulativity can force non-multicopy-atomic platforms to
-behave in a multi-copy-atomic manner in some situations.
+Mapping this back to
+Figure~\ref{fig:memorder:Cumulativity},
+the figure's ``Store X0'' corresponds to the \co{WRITE_ONCE()} on line~13 of
+Listing~\ref{lst:memorder:WWC Litmus Test With Release},
+the ``Load X1'' to line~20,
+the ``Memory Reference Y0'' to line~21,
+the ``Memory Reference Y1'' to line~28, and
+the ``Memory Reference X2'' to line~29.
+Note also that cumulativity is not limited to a single step back in time.
+If there was another load from \co{x} or store to \co{x} from any thread
+that came before the store on line~13, that prior load or store would also
+be ordered before the store on line~32, though only if both \co{r1} and
+\co{r2} both end up containing the address of \co{x}.
+
+In short, use of cumulative ordering operations can suppress
+non-multicopy-atomic behaviors in some situations.
 Cumulativity nevertheless has limits, which are examined in the next section.
 
 \subsubsection{Propagation}
@@ -2069,7 +2149,7 @@ Cumulativity nevertheless has limits, which are examined in the next section.
 
 % cumulativity not sufficient, sometimes also need propagation.
 
-% @@@ write, release -> acquire, write -> read, smp_mb(), read
+% @@@ store, release -> acquire, store -> read, smp_mb(), read
 
 \subsubsection{Happens-Before}
 \label{sec:memorder:Happens-Before}
