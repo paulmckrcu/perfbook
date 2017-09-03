@@ -159,8 +159,8 @@ However, it is also necessary to accommodate frequent concurrent stores
 from multiple CPUs to a set of shared variables.
 In cache-coherent systems, if the caches hold multiple copies of a given
 variable, all the copies of that variable must have the same value.
-This works extremely well for concurrent reads, but not so well for
-concurrent writes:  Each write must do something about all
+This works extremely well for concurrent loads, but not so well for
+concurrent stores:  Each store must do something about all
 copies of the old value (another cache miss!), which, given the finite
 speed of light and the atomic nature of matter, will be slower
 than impatient software hackers would like.
@@ -250,10 +250,10 @@ record their stores in their respective store buffers.
 	Section~\ref{sec:memorder:Variables With Multiple Values}!
 } \QuickQuizEnd
 
-Row~3 shows the two reads (lines~10 and~19 of
+Row~3 shows the two loads (lines~10 and~19 of
 Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}).
-Because the variable being read by each CPU is in that CPU's cache,
-each read immediately returns the cached value, which in both cases
+Because the variable being load by each CPU is in that CPU's cache,
+each load immediately returns the cached value, which in both cases
 is zero.
 
 But the CPUs are not done yet: Sooner or later, they must empty their
@@ -532,7 +532,7 @@ are at most two threads involved.
 
 	The \co{READ_ONCE()} row captures the fact that (as of 2017) compilers
 	and CPUs do not indulge in user-visible speculative stores, so that
-	any write whose address, data, or execution depends on a prior load
+	any store whose address, data, or execution depends on a prior load
 	will happen after that load completes.
 	At least assuming that these dependencies have been constructed
 	carefully as described in
@@ -631,7 +631,7 @@ than these rules of thumb.
 } \QuickQuizEnd
 
 \paragraph{A given thread sees its own accesses in order.}
-This rule assumes that reads and writes from/to shared variables use
+This rule assumes that loads and stores from/to shared variables use
 \co{READ_ONCE()} and \co{WRITE_ONCE()}, respectively.
 Otherwise, the compiler can profoundly scramble\footnote{
 	Many compiler writers prefer the word ``optimize'' instead of
@@ -665,14 +665,14 @@ access X1.
 Listing~\ref{lst:memorder:Memory Ordering: Store-Buffering Litmus Test}
 is a case in point.
 The \co{smp_mb()} on line~10 and~20 serve as the barriers,
-the write to \co{x0} on line~9 as X0, the read from \co{x1} on line~11
-as Y0, the write to \co{x1} on line~19 as Y1, and the read from
+the store to \co{x0} on line~9 as X0, the load from \co{x1} on line~11
+as Y0, the store to \co{x1} on line~19 as Y1, and the load from
 \co{x0} and X1.
-Applying the if-then rule step by step, we know that the write to
-\co{x1} on line~19 happens after the read from \co{x1} on line~11 if
+Applying the if-then rule step by step, we know that the store to
+\co{x1} on line~19 happens after the load from \co{x1} on line~11 if
 \co{P0()}'s local variable \co{r2} is set to the value zero.
-The if-then rule would then state that the read from \co{x1} on
-line~21 happens after the write to \co{x1} on line~9.
+The if-then rule would then state that the load from \co{x1} on
+line~21 happens after the store to \co{x1} on line~9.
 In other words,
 \co{P1()}'s local variable \co{r2} is guaranteed
 to end up with the value two \emph{only if}
@@ -692,7 +692,7 @@ Both threads must provide ordering for the if-then rule to apply.
 
 \paragraph{Ordering operations almost never speed things up.}
 If you find yourself tempted to add a memory barrier in an attempt
-to force a prior write to be flushed to memory faster, resist!
+to force a prior store to be flushed to memory faster, resist!
 Adding ordering usually slows things down.
 Of course, there are situations where adding instructions speeds things
 up, but careful benchmarking is required in such cases.
@@ -842,8 +842,8 @@ CPU~4 believes that the value is~``4'' for almost 500\,ns.
 \QuickQuizAnswer{
 	As discussed in
 	Section~\ref{sec:memorder:Why Hardware Misordering?},
-	many CPUs have write buffers that record the values of
-	recent writes, which are applied once the corresponding
+	many CPUs have store buffers that record the values of
+	recent stores, which are applied once the corresponding
 	cache line makes its way to the CPU.
 	Therefore, it is quite possible for each CPU to see a
 	different value for a given variable at a single point
@@ -921,7 +921,7 @@ This is the regime where memory barriers are needed.
 All that aside, it is important to remember the lessons from
 Chapters~\ref{chp:Hardware and its Habits}
 and~\ref{cha:Partitioning and Synchronization Design}.
-Having all CPUs write concurrently to the same variable
+Having all CPUs store concurrently to the same variable
 is absolutely no way to design a parallel program, at least
 not if performance and scalability are at all important to you.
 
@@ -985,8 +985,8 @@ Listing~\ref{lst:memorder:Message-Passing Litmus Test (No Ordering)}
 shows the classic \emph{message-passing} litmus test, where \co{x0} is
 the message and \co{x1} is a flag indicating whether or not a message
 is available.
-In this test, the \co{smp_wmb()} forces \co{P0()} writes to be ordered,
-but no ordering is specified for the reads.
+In this test, the \co{smp_wmb()} forces \co{P0()} stores to be ordered,
+but no ordering is specified for the loads.
 Relatively strongly ordered architectures, such as x86, do enforce ordering.
 However, weakly ordered architectures often do
 not~\cite{JadeAlglave2011ppcmem}.
@@ -1159,13 +1159,13 @@ exists (1:r2=2 /\ 1:r3=0)
 Listing~\ref{lst:memorder:Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
 (\path{C-MP+o-o+o-rmb-o.litmus})
 once again shows the classic message-passing litmus test, but without
-explicit ordering for \co{P0()}'s writes and with the \co{smp_rmb()}
-providing ordering for \co{P1()}'s reads.
+explicit ordering for \co{P0()}'s stores and with the \co{smp_rmb()}
+providing ordering for \co{P1()}'s loads.
 Again, the relatively strongly ordered architectures do enforce ordering,
 but weakly ordered architectures do not necessarily do
 so~\cite{JadeAlglave2011ppcmem}, which means that the
 \co{exists} clause can trigger.
-Therefore, portable code should explicitly order the writes, for
+Therefore, portable code should explicitly order the stores, for
 example, as shown in
 Listing~\ref{lst:memorder:Enforcing Order of Message-Passing Litmus Test},
 thus preventing the \co{exists} clause from triggering.
@@ -1235,7 +1235,7 @@ addition, subtraction, and array indexing.
 One might hope that line~21's load from the head pointer would be ordered
 before line~22's dereference.
 However, this is not the case on DEC Alpha, which can in effect use
-a speculated value for the dependent read, as described in more detail in
+a speculated value for the dependent load, as described in more detail in
 Section~\ref{sec:app:whymb:Alpha}.
 Therefore,
 Listing~\ref{lst:memorder:Message-Passing Address-Dependency Litmus Test (No Ordering)}'s
@@ -1323,17 +1323,17 @@ exists (1:r2=x0 /\ x0=2)
 \label{lst:memorder:S Address-Dependency Litmus Test}
 \end{listing}
 
-But what happens if the dependent operation is a write rather than
-a read, for example, in the \emph{S}
+But what happens if the dependent operation is a store rather than
+a load, for example, in the \emph{S}
 litmus test~\cite{JadeAlglave2011ppcmem} shown in
 Listing~\ref{lst:memorder:S Address-Dependency Litmus Test}
 (\path{C-S+o-wmb-o+o-addr-o.litmus})?
-Because no production-quality platform speculates writes,
+Because no production-quality platform speculates stores,
 it is not possible for the \co{WRITE_ONCE()} on line~10 to overwrite
 the \co{WRITE_ONCE()} on line~21, meaning that the \co{exists}
 clause on line~25 cannot trigger, even on DEC Alpha, even
 without the \co{lockless_dereference()} that is required in the
-dependent-read case.
+dependent-load case.
 
 \QuickQuiz{}
 	But how do we know that \emph{all} platforms really avoid
@@ -1368,12 +1368,12 @@ dependent-read case.
 	ordering.
 
 	There is one (famous) exception to this rule for weakly ordered
-	platforms, and that exception is DEC Alpha for read-to-read
+	platforms, and that exception is DEC Alpha for load-to-load
 	address dependencies.
 	And this is why DEC Alpha requires the explicit memory barrier
 	supplied for it by the \co{lockless_dereference()} on line~21 of
 	Listings~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}.
-	However, DEC Alpha does track read-to-write address dependencies,
+	However, DEC Alpha does track load-to-store address dependencies,
 	which is why line~20 of
 	Listings~\ref{lst:memorder:S Address-Dependency Litmus Test}
 	does not have a \co{lockless_dereference()}.
@@ -1979,14 +1979,14 @@ Row~3 shows two transitions.
 First, \co{P0()} issues a read-invalidate operation to fetch the cacheline
 containing \co{x} so that it can flush the new value for \co{x} out of
 the shared store buffer.
-Second, \co{P1()} reads from \co{x} (line~20), an operation that completes
+Second, \co{P1()} loads from \co{x} (line~20), an operation that completes
 immediately because the new value of \co{x} is immediately available
 from the shared store buffer.
 
 Row~4 also shows two transitions.
 First, it shows the immediate effect of \co{P1()} executing its store to
 \co{y} (line~21), placing the new value into the shared store buffer.
-Second, it shows the start of \co{P2()}'s read from \co{y} (line~28).
+Second, it shows the start of \co{P2()}'s load from \co{y} (line~28).
 
 Row~5 continues the tradition of showing two transitions.
 First, it shows \co{P1()} complete its store to \co{y}, flushing
@@ -2155,7 +2155,7 @@ Cumulativity nevertheless has limits, which are examined in the next section.
 
 % cumulativity not sufficient, sometimes also need propagation.
 
-% @@@ store, release -> acquire, store -> read, smp_mb(), read
+% @@@ store, release -> acquire, store -> load, smp_mb(), load
 
 \subsubsection{Happens-Before}
 \label{sec:memorder:Happens-Before}
