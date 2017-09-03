@@ -1703,32 +1703,32 @@ and other counterintuitive behavior, as discussed in the next section.
 
 Threads running on a \emph{multicopy atomic}~\cite{Stone:1995:SP:623262.623912}
 platform are guaranteed
-to agree on the order of writes, even to different variables.
+to agree on the order of stores, even to different variables.
 A useful mental model of such a system is the single-bus architecture
 shown in
 Figure~\ref{fig:memorder:Global System Bus And Multi-Copy Atomicity}.
-If each write resulted in a message on the bus, and if the bus could
-accommodate only one write at a time, then any pair of CPUs would
-agree on the order of all writes that they observed.
+If each store resulted in a message on the bus, and if the bus could
+accommodate only one store at a time, then any pair of CPUs would
+agree on the order of all stores that they observed.
 Unfortunately, building a computer system as shown in the figure,
 without store buffers or even caches, would result in glacial computation.
-CPU vendors have therefore taken one of three approaches:
-(1)~Provide store buffers, caches, and the rest and abandon
-multicopy atomicity (weakly ordered platforms),
-(2)~Provide all those hardware optimizations, and invest many transistors
-into preserving multicopy atomicity (TSO platforms), or
-(3)~Define a slightly weaker \emph{other-multicopy atomicity} that allows
-a given CPU's stores to become visible to that CPU before they become visible
-to other CPUs, but in which each of those stores becomes visible to all
-the other CPUs simultaneously~\cite{ARMv8A:2017}.
-Perhaps there will come a day when all platforms provide some flavor
-of multi-copy atomicity, but
-in the meantime, non-multicopy-atomic platforms do exist, and so software
-does need to deal with them.
+CPU vendors interested in providing multicopy atomicity have therefore
+instead provided the slightly weaker
+\emph{other-multicopy atomicity}~\cite[Section B2.3]{ARMv8A:2017},
+which excludes the CPU doing a given store from the requirement that all
+CPUs agree on the order of all stores.
+This means that if only a subset of CPUs are doing stores, the
+other CPUs will agree on the order of stores, hence the ``other''
+in ``other-multicopy atomicity''.
+Unlike multicopy-atomic platforms, within other-multicopy-atomic platforms,
+the CPU doing the store is permitted to observe its
+store early, which allows its later loads to obtain the newly stored
+value directly from the store buffer.
+This in turn improves performance.
 
 \QuickQuiz{}
 	Can you give a specific example showing different behavior for
-	multicopy atomic on the one hand and other multicopy atomic
+	multicopy atomic on the one hand and other-multicopy atomic
 	on the other?
 \QuickQuizAnswer{
 \begin{listing}[tbp]
@@ -1789,6 +1789,12 @@ exists (1:r1=1 /\ 1:r2=0)
 	on the order of visibility of the two stores from to \co{P1()},
 	which in turn allows the \co{exists} clause to trigger.
 } \QuickQuizEnd
+
+
+Perhaps there will come a day when all platforms provide some flavor
+of multi-copy atomicity, but
+in the meantime, non-multicopy-atomic platforms do exist, and so software
+does need to deal with them.
 
 \begin{listing}[tbp]
 { \scriptsize
