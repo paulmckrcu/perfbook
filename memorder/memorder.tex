@@ -2337,12 +2337,131 @@ But sometimes time really is on our side, as shown in the next section.
 \subsubsection{Happens-Before}
 \label{sec:memorder:Happens-Before}
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 \centering
 \resizebox{\columnwidth}{!}{\includegraphics{memorder/rf}}
 \caption{Store-to-Load is Temporal}
 \label{fig:memorder:Store-to-Load is Temporal}
 \end{figure}
+
+As shown in
+Figure~\ref{fig:memorder:Store-to-Load is Temporal},
+on non-speculative platforms, if a load returns the value from a
+particular store, then, courtesy of the finite speed of light and
+the non-zero size of modern computing systems, the store absolutely
+has to have executed at an earlier time than did the load.
+This means that carefully constructed programs can rely on the
+passage of time itself as an memory-ordering operation.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-LB+a-o+o-data-o+o-data-o
+{
+}
+
+P0(int *x0, int *x1)
+{
+  int r2;
+
+  r2 = smp_load_acquire(x0);
+  WRITE_ONCE(*x1, 2);
+}
+
+
+P1(int *x1, int *x2)
+{
+  int r2;
+
+  r2 = READ_ONCE(*x1);
+  WRITE_ONCE(*x2, r2);
+}
+
+P2(int *x2, int *x0)
+{
+  int r2;
+
+  r2 = READ_ONCE(*x2);
+  WRITE_ONCE(*x0, r2);
+}
+
+exists (0:r2=2 /\ 1:r2=2 /\ 2:r2=2)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{LB Litmus Test With One Acquire}
+\label{lst:memorder:LB Litmus Test With One Acquire}
+\end{listing}
+
+Of course, just the passage of time by itself is not enough, as
+was seen in
+Listing~\ref{lst:memorder:Load-Buffering Litmus Test (No Ordering)},
+which has nothing but store-to-load relationships and still can
+trigger its \co{exists} clause.
+However, as long as each thread provides even the weakest possible
+ordering, \co{exists} clause would not be able to trigger.
+For example,
+Listing~\ref{lst:memorder:LB Litmus Test With One Acquire}
+shows \co{P0()} ordered with an \co{smp_load_acquire()} and
+both \co{P1()} and \co{P2()} ordered with data dependencies.
+These orderings, which are close to the top of
+Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet},
+suffice to prevent the \co{exists} clause from triggering.
+
+\QuickQuiz{}
+	Can you construct a litmus test similar to that in
+	Listing~\ref{lst:memorder:LB Litmus Test With One Acquire}
+	that uses \emph{only} dependencies?
+\QuickQuizAnswer{
+	Listing~\ref{lst:memorder:LB Litmus Test With No Acquires}
+	shows a somewhat nonsensical but very real example.
+	Creating a more useful (but still real) litmus test is left
+	as an exercise for the reader.
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-LB+o-data-o+o-data-o+o-data-o
+{
+int x0=0;
+int x1=1;
+int x2=2;
+}
+
+P0(int *x0, int *x1)
+{
+  int r2;
+
+  r2 = READ_ONCE(*x0);
+  WRITE_ONCE(*x1, r2);
+}
+
+
+P1(int *x1, int *x2)
+{
+  int r2;
+
+  r2 = READ_ONCE(*x1);
+  WRITE_ONCE(*x2, r2);
+}
+
+P2(int *x2, int *x0)
+{
+  int r2;
+
+  r2 = READ_ONCE(*x2);
+  WRITE_ONCE(*x0, r2);
+}
+
+exists (0:r2=2 /\ 1:r2=0 /\ 2:r2=1)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{LB Litmus Test With No Acquires}
+\label{lst:memorder:LB Litmus Test With No Acquires}
+\end{listing}
+} \QuickQuizEnd
 
 % @@@ time as an implicit memory-ordering operation
 
