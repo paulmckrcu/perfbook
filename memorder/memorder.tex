@@ -2143,9 +2143,175 @@ Cumulativity nevertheless has limits, which are examined in the next section.
 \subsubsection{Propagation}
 \label{sec:memorder:Propagation}
 
-% cumulativity not sufficient, sometimes also need propagation.
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-W+RWC+o-r+a-o+o-mb-o
 
-% @@@ store, release -> acquire, store -> load, smp_mb(), load
+{
+int x = 0;
+int y = 0;
+int z = 0;
+}
+
+P0(int *x, int *y)
+{
+  WRITE_ONCE(*x, 1);
+  smp_store_release(y, 1);
+}
+
+P1(int *y, int *z)
+{
+  int *r1;
+  int *r2;
+
+  r1 = smp_load_acquire(y);
+  r2 = READ_ONCE(*z);
+}
+
+P2(int *z, int *x)
+{
+  int *r3;
+
+  WRITE_ONCE(*z, 1);
+  smp_mb();
+  r3 = READ_ONCE(*x);
+}
+
+exists(1:r1=1 /\ 1:r2=0 /\ 2:r3=0)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{W+WRC Litmus Test With Release}
+\label{lst:memorder:W+WRC Litmus Test With Release}
+\end{listing}
+
+Listing~\ref{lst:memorder:W+WRC Litmus Test With Release}
+shows the limitations of cumulativity and of store-release,
+even with a full memory barrier helping out.
+The problem is that although the \co{smp_store_release()} on
+line~12 has cumulativity, and although that cumulativity does
+order \co{P2()}'s load on line~30, the \co{smp_store_release()}'s
+ordering cannot propagate through the combination of \co{P1()}'s
+load (line~21) and \co{P2()}'s store (line~28).
+This means that the \co{exists} clause on line~33 really can trigger.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\columnwidth}{!}{\includegraphics{memorder/fr}}
+\caption{Load-to-Store is Counter-Temporal}
+\label{fig:memorder:Load-to-Store is Counter-Temporal}
+\end{figure}
+
+This situation might seem completely counter-intuitive, but keep
+in mind that the speed of light is finite and computers are of
+non-zero size.
+It therefore takes time for the effect of the \co{P2()}'s store to
+\co{z} to propagate to \co{P1()}, which in turn means that it is possible
+that \co{P1()}'s read from \co{z} happens much later in time, but
+nevertheless still sees the old value of zero.
+This situation is depicted in
+Figure~\ref{fig:memorder:Load-to-Store is Counter-Temporal}:
+Just because a load see the old value does \emph{not} mean that
+this load executed at an earlier time than did the store of the
+new value.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-W+RWC+o-mb-o+a-o+o-mb-o
+
+{
+int x = 0;
+int y = 0;
+int z = 0;
+}
+
+P0(int *x, int *y)
+{
+  WRITE_ONCE(*x, 1);
+  smp_mb();
+  WRITE_ONCE(*y, 1);
+}
+
+P1(int *y, int *z)
+{
+  int *r1;
+  int *r2;
+
+  r1 = smp_load_acquire(y);
+  r2 = READ_ONCE(*z);
+}
+
+P2(int *z, int *x)
+{
+  int *r3;
+
+  WRITE_ONCE(*z, 1);
+  smp_mb();
+  r3 = READ_ONCE(*x);
+}
+
+exists(1:r1=1 /\ 1:r2=0 /\ 2:r3=0)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{W+WRC Litmus Test With More Barriers}
+\label{lst:memorder:W+WRC Litmus Test With More Barriers}
+\end{listing}
+
+But what if we need to keep the \co{exists} clause on line~33 of
+Listing~\ref{lst:memorder:W+WRC Litmus Test With Release}?
+One solution is to replace \co{P0()}'s \co{smp_store_release()}
+with an \co{smp_mb()}, which
+Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
+shows to have not only cumulativity, but also propagation.
+The result is shown in
+Listing~\ref{lst:memorder:W+WRC Litmus Test With More Barriers}.
+
+\QuickQuiz{}
+	But given that \co{smp_mb()} has the propagation property,
+	why doesn't the \co{smp_mb()} on line~29 of
+	Listing~\ref{lst:memorder:W+WRC Litmus Test With Release}
+	prevent the \co{exists} clause from triggering?
+\QuickQuizAnswer{
+	As a rough rule of thumb, the \co{smp_mb()} barrier's
+	propagation property is sufficient to maintain ordering
+	through only one store-to-load relationship between
+	processes.
+	Unfortunately,
+	Listing~\ref{lst:memorder:W+WRC Litmus Test With Release}
+	has not one but two store-to-load relationships, with the
+	first being from the \co{READ_ONCE()} on line~21 to the
+	\co{WRITE_ONCE()} on line~28 and the second being from
+	the \co{READ_ONCE()} on line~30 to the \co{WRITE_ONCE()}
+	on line~11.
+	Therefore, preventing the \co{exists} clause from triggering
+	should be expected to require not one but two
+	instances of \co{smp_mb()}.
+
+	As a special exception to this rule of thumb, a release-acquire
+	chain can have one load-to-store relationship between processes
+	and still prohibit the cycle.
+} \QuickQuizEnd
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\columnwidth}{!}{\includegraphics{memorder/co}}
+\caption{Store-to-Store is Counter-Temporal}
+\label{fig:memorder:Store-to-Store is Counter-Temporal}
+\end{figure}
+
+For completeness,
+Figure~\ref{fig:memorder:Store-to-Store is Counter-Temporal}
+shows that the ``winning'' store among a group of stores to the
+same variable is not necessarily the store that started last.
+This should not come as a surprise to anyone who carefully examined
+Figure~\ref{fig:memorder:A Variable With More Simultaneous Values}.
+
+But sometimes time really is on our side, as shown in the next section.
 
 \subsubsection{Happens-Before}
 \label{sec:memorder:Happens-Before}
