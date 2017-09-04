@@ -9,6 +9,11 @@
 #define smp_load_acquire(x) __atomic_load_n(x, __ATOMIC_ACQUIRE)
 #define smp_store_release(x, v) __atomic_store_n(x, v, __ATOMIC_RELEASE)
 #define smp_load_acquire(x) __atomic_load_n(x, __ATOMIC_ACQUIRE)
+#define cmpxchg(x, o, n) ({ \
+	typeof(o) __old = (o); \
+	__atomic_compare_exchange_n((x), &__old, (n), 1, __ATOMIC_SEQ_CST, __ATOMIC_RELAXED); \
+	__old; \
+})
 #ifdef __alpha__
 #define lockless_dereference(x) ({ typeof(x) ___x = READ_ONCE(x); smp_mb(); ___x; })
 #else
