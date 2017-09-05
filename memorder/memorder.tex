@@ -28,8 +28,9 @@ performance-critical code.
 One motivation for memory ordering can be seen in the trivial-seeming
 litmus test in
 Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}
-(\path{C-SB+o-o+o-o.litmus})
-appears to guarantee that the \co{exists} clause never triggers.\footnote{
+(\path{C-SB+o-o+o-o.litmus}),
+which at first glance might
+appear to guarantee that the \co{exists} clause never triggers.\footnote{
 	Purists would instead say that the \co{exists} clause is
 	never \emph{satisfied}, but we use ``trigger'' here by
 	analogy with assertions.}
@@ -95,7 +96,7 @@ exists (1:r2=0 /\ 0:r2=0)
 	However, in this case, the volatile accesses in
 	\co{READ_ONCE()} and \co{WRITE_ONCE()}
 	prevent the compiler from reordering.
-	And from doing much else as well, so the examples in this
+	And also from doing much else as well, so the examples in this
 	section will be making heavy use of
 	\co{READ_ONCE()} and \co{WRITE_ONCE()}.
 	% @@@ forward reference to a section describing READ_ONCE()
@@ -131,6 +132,9 @@ gives a brief overview of why hardware misorders memory accesses, and then
 Section~\ref{sec:memorder:How to Force Ordering?}
 gives an equally brief overview of how you can thwart evil hardware
 misordering schemes.
+Finally, Section~\ref{sec:memorder:Basic Rules of Thumb}
+lists some basic rules of thum, which will be further refined in
+later sections.
 
 \subsection{Why Hardware Misordering?}
 \label{sec:memorder:Why Hardware Misordering?}
@@ -151,7 +155,7 @@ Figure~\ref{fig:cpu:System Hardware Architecture}, which means that
 although the first load by a given CPU from a given variable will
 result in an expensive \emph{cache miss} as was discussed in
 Section~\ref{sec:cpu:Cache Misses}, subsequent
-repeated loads from that variable by that CPU can execute
+repeated loads from that variable by that CPU might execute
 very quickly because the initial cache miss will have loaded that
 variable into that CPU's cache.
 
@@ -174,8 +178,8 @@ than impatient software hackers would like.
 
 CPUs therefore come equipped with store buffers, as shown in
 Figure~\ref{fig:memorder:System Architecture With Store Buffers}.
-When a given CPU does a store to a given variable when that
-variable is not present in that CPU's cache, then the new value
+When a given CPU does a store to a variable that
+is not present in that CPU's cache, then the new value
 is instead placed in that CPU's store buffer.
 The CPU can then proceed immediately, without having to wait for the
 store to do something about all the old values of that variable
@@ -358,9 +362,9 @@ ordering and memory barriers work, read on!
 The first stop on the journey is
 Listing~\ref{lst:memorder:Memory Ordering: Store-Buffering Litmus Test}
 (\path{C-SB+o-mb-o+o-mb-o.litmus}),
-which the \co{smp_mb()} Linux-kernel full memory barrier placed between
+which places an \co{smp_mb()} Linux-kernel full memory barrier between
 the store and load in both \co{P0()} and \co{P1()}, but is otherwise
-identical to the code shown in
+identical to
 Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}.
 % Test C-SB+o-mb-o+o-mb-o Allowed
 % Histogram (3 states)
@@ -368,12 +372,12 @@ Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}.
 % 49636449:>0:r2=0; 1:r2=2;
 % 810253:>0:r2=2; 1:r2=2;
 % No
-These directives prevent the counter-intuitive outcome from happening
+These barriers prevent the counter-intuitive outcome from happening
 on 100,000,000 trials on my x86 laptop.
-Interestingly enough, the added overhead due to these directives causes the
+Interestingly enough, the added overhead due to these barriers causes the
 legal outcome where both loads return the value two to happen more
 than 800,000 times, as opposed to only 167 times for the
-directive-free code in
+barrier-free code in
 Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}.
 
 \begin{table*}
@@ -408,7 +412,7 @@ Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}.
 \label{tab:memorder:Memory Ordering: Store-Buffering Sequence of Events}
 \end{table*}
 
-These directives have a profound effect on ordering, as can be seen in
+These barriers have a profound effect on ordering, as can be seen in
 Table~\ref{tab:memorder:Memory Ordering: Store-Buffering Sequence of Events}.
 Although the first two rows are the same as in
 Table~\ref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}
@@ -419,8 +423,8 @@ in and of themselves, they do cause the stores to complete
 loads (row~6), which rules out the counter-intuitive outcome shown in
 Table~\ref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}.
 Note that variables \co{x0} and \co{x1} each still have more than one
-value on row~2, however, as promised earlier, the directives straighten
-things out in the end.
+value on row~2, however, as promised earlier, the \co{smp_mb()}
+instances straighten things out in the end.
 
 \begin{table*}
 \small
@@ -444,6 +448,9 @@ things out in the end.
 	\hline
 	\tco{smp_read_barrier_depends()} &  &
 		     & Y &   &     &      &   &   &  Y &  Y &     &    \\
+	\hline
+	\tco{*_dereference()} &  &
+		   Y &   &   &     &      &   &   &  Y &  Y &     &  Y \\
 	\hline
 	Successful \tco{*_acquire()} &   &
 		   R &   &   &     &      & Y & Y &  Y &  Y &   Y &  Y \\
@@ -488,7 +495,7 @@ things out in the end.
 	\multicolumn{1}{r}{} &
 		\multicolumn{12}{l}{RMW: Atomic read-modify-write operation} \\
 	\multicolumn{1}{r}{} &
-		\multicolumn{12}{l}{SV: Access to same variable} \\
+		\multicolumn{12}{l}{SV: Same-variable access} \\
 \end{tabular}
 \caption{Linux-Kernel Memory-Ordering Cheat Sheet}
 \label{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
@@ -506,7 +513,7 @@ Each row corresponds to a primitive or category of primitives that might
 or might not provide ordering, with the columns labeled
 ``Prior Ordered Operation'' and ``Subsequent Ordered Operation''
 being the operations that might (or might not) be ordered against.
-Cells containing ``Y''indicate that ordering is supplied unconditionally,
+Cells containing ``Y'' indicate that ordering is supplied unconditionally,
 while other characters indicate that ordering is supplied only partially or
 conditionally.
 Blank cells indicate that no ordering is supplied.
@@ -521,12 +528,12 @@ the ``Successful Non-Relaxed Non-\co{void} RMW'' row covers
 The ``Successful'' qualifiers apply to primitives such as
 \co{atomic_add_unless()}, \co{cmpxchg_acquire()}, and \co{cmpxchg_release()},
 which have no effect on either memory or on ordering when they indicate
-failure.
+failure, as indicated by the earlier ``Unsuccessful RMW operation'' row.
 
 Column ``C'' indicates cumulativity and propagation, as explained in
 Sections~\ref{sec:memorder:Cumulativity}
 and~\ref{sec:memorder:Propagation}.
-In the meantime, this column can always be ignored when there
+In the meantime, this column can usually be ignored when there
 are at most two threads involved.
 
 \QuickQuiz{}
@@ -538,6 +545,13 @@ are at most two threads involved.
 	The rows correspond roughly to hardware mechanisms of increasing
 	power and overhead.
 
+	The \co{WRITE_ONCE()} row captures the fact that accesses to
+	a single variable are always fully ordered, as indicated by
+	the ``SV''column.
+	Note that all other operations providing ordering against an
+	access to a
+	specific variable also provide this same-variable ordering.
+
 	The \co{READ_ONCE()} row captures the fact that (as of 2017) compilers
 	and CPUs do not indulge in user-visible speculative stores, so that
 	any store whose address, data, or execution depends on a prior load
@@ -547,11 +561,19 @@ are at most two threads involved.
 	Sections~\ref{sec:memorder:Address- and Data-Dependency Restrictions}
 	and~\ref{sec:memorder:Control-Dependency Restrictions}.
 
+	The ``Unsuccessful RMW operation'' row captures the fact that
+	even an unsuccessful RMW has done a read, and that read is
+	every bit as good as a \co{READ_ONCE()}.
+
 	The \co{smp_read_barrier_depends()} row captures the fact that, with the
 	notable exception of DEC Alpha, compilers and CPUs do not indulge
 	in user-visible breakage of address dependencies, again assuming
 	that these dependencies have been constructed carefully as described in
 	Section~\ref{sec:memorder:Address- and Data-Dependency Restrictions}.
+
+	The \co{*_dereference()} row captures the address and data
+	dependency ordering provided by \co{lockless_dereference()},
+	\co{rcu_dereference()}, and friends.
 
 	The ``Successful \co{*_acquire()}'' row captures the fact that many
 	CPUs have special ``acquire'' forms of loads and of atomic RMW
@@ -597,7 +619,8 @@ are at most two threads involved.
 	operations succeed.
 
 	However, the Linux kernel does not require that \co{void} atomic
-	RMW operations provide any ordering whatsoever.
+	RMW operations provide any ordering whatsoever, with the
+	canonical example being \co{atomic_inc()}.
 	Therefore, these operations, along with failing non-\co{void}
 	atomic RMW operations may be preceded by \co{smp_mb__before_atomic()}
 	and followed by \co{smp_mb__after_atomic()} to provide full
@@ -675,7 +698,7 @@ is a case in point.
 The \co{smp_mb()} on line~10 and~20 serve as the barriers,
 the store to \co{x0} on line~9 as X0, the load from \co{x1} on line~11
 as Y0, the store to \co{x1} on line~19 as Y1, and the load from
-\co{x0} and X1.
+\co{x0} as X1.
 Applying the if-then rule step by step, we know that the store to
 \co{x1} on line~19 happens after the load from \co{x1} on line~11 if
 \co{P0()}'s local variable \co{r2} is set to the value zero.
@@ -695,8 +718,9 @@ rest of the Linux kernel's ordering operations.
 \paragraph{Ordering operations must be paired.}
 If you carefully order the operations in one thread, but then fail to do
 so in another thread, then there is no ordering.
-Both threads must provide ordering for the if-then rule to apply.
-% @@@ forward reference to cycles.
+Both threads must provide ordering for the if-then rule to apply.\footnote{
+	In Section~\ref{sec:memorder:Propagation}, pairing will be
+	generalized to cycles.}
 
 \paragraph{Ordering operations almost never speed things up.}
 If you find yourself tempted to add a memory barrier in an attempt
@@ -718,16 +742,17 @@ designed manner.
 With concurrent programming, it is almost always easier to design
 your bugs out of existence than to hack them out of existence!
 
-\paragraph{These are only rules of thumb.}
+\paragraph{These are only rough rules of thumb.}
 Although these rules of thumb cover the vast majority of situations
 seen in actual practice, as with any set of rules of thumb, they
 do have their limits.
 The next section will demonstrate some of these limits by introducing
-trick-and-trap litmus tests that will hopefully both insult your
-intuition and increase your understanding.
+trick-and-trap litmus tests that are intended to insult your
+intuition while increasing your understanding.
 These litmus tests will also illuminate many of the concepts
 represented by
 Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
+% @@@ forward-reference to better rules of thumb later.
 
 \section{Tricks and Traps}
 \label{sec:memorder:Tricks and Traps}
@@ -851,8 +876,8 @@ CPU~4 believes that the value is~``4'' for almost 500\,ns.
 	As discussed in
 	Section~\ref{sec:memorder:Why Hardware Misordering?},
 	many CPUs have store buffers that record the values of
-	recent stores, which are applied once the corresponding
-	cache line makes its way to the CPU.
+	recent stores, which do not become globally visible until
+	the corresponding cache line makes its way to the CPU.
 	Therefore, it is quite possible for each CPU to see a
 	different value for a given variable at a single point
 	in time---and for main memory to hold yet another value.
@@ -914,7 +939,7 @@ proper use of memory barriers for code that cares about memory ordering.
 
 \begin{figure}[htb]
 \centering
-\resizebox{2.5in}{!}{\includegraphics{memorder/store15tred}}
+\resizebox{2.0in}{!}{\includegraphics{memorder/store15tred}}
 \caption{Possible Global Orders With More Simultaneous Values}
 \label{fig:memorder:Possible Global Orders With More Simultaneous Values}
 \end{figure}
@@ -1037,12 +1062,12 @@ exists (1:r2=2 /\ 1:r3=0)
 \label{lst:memorder:Enforcing Order of Message-Passing Litmus Test}
 \end{listing}
 
-Therefore, portable code relying on ordering in this case should
+Thus, portable code relying on ordering in this case must
 add explicit ordering, for example, the \co{smp_rmb()} shown on
 line~20 of
 Listing~\ref{lst:memorder:Enforcing Order of Message-Passing Litmus Test}
-(\path{C-MP+o-wmb-o+o-rmb-o.litmus}).
-Here, the \co{exists} clause cannot trigger.
+(\path{C-MP+o-wmb-o+o-rmb-o.litmus}), which prevents
+the \co{exists} clause from triggering.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -1120,13 +1145,13 @@ exists (1:r2=2 /\ 0:r2=2)
 \label{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test}
 \end{listing}
 
-Interestingly enough, it is relatively rare for actual hardware to
-exhibit this reordering~\cite{LucMaranget2017aarch64}.
-Nevertheless, you should enforce any required ordering, for example,
+Although it is rare for actual hardware to
+exhibit this reordering~\cite{LucMaranget2017aarch64},
+portable code must nevertheless enforce any required ordering, for example,
 as shown in
 Listing~\ref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test}
-(\path{C-LB+o-r+a-o.litmus}),
-thus guaranteeing that the \co{exists} clause on line~22 never triggers.
+(\path{C-LB+o-r+a-o.litmus}).
+This guarantees that the \co{exists} clause on line~22 never triggers.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -1173,7 +1198,7 @@ Again, the relatively strongly ordered architectures do enforce ordering,
 but weakly ordered architectures do not necessarily do
 so~\cite{JadeAlglave2011ppcmem}, which means that the
 \co{exists} clause can trigger.
-Therefore, portable code should explicitly order the stores, for
+Therefore, portable code must explicitly order the stores, for
 example, as shown in
 Listing~\ref{lst:memorder:Enforcing Order of Message-Passing Litmus Test},
 thus preventing the \co{exists} clause from triggering.
@@ -1356,7 +1381,7 @@ dependent-load case.
 
 	The TSO platforms order all pairs of memory references except for
 	prior stores against later loads.
-	Because the address dependency on lines~21 and ~22 of
+	Because the address dependency on lines~21 and~22 of
 	Listing~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
 	is instead a load followed by another load, TSO platforms preserve
 	this address dependency.
@@ -1460,9 +1485,8 @@ the \co{exists} clause from triggering.
 	same reasons that they respect load-to-store address dependencies.
 } \QuickQuizEnd
 
-Just as with address dependencies, it is important to note that
-data dependencies can
-be fragile and easily broken by compiler optimizations, as discussed in
+Just as with address dependencies, data dependencies are
+fragile and can be easily broken by compiler optimizations, as discussed in
 Section~\ref{sec:memorder:Address- and Data-Dependency Restrictions}.
 In fact, data dependencies can be even more fragile than are address
 dependencies.
@@ -1600,10 +1624,17 @@ Listing~\ref{lst:memorder:Message-Passing Control-Dependency Litmus Test (No Ord
 does \emph{not} provide ordering, and therefore does \emph{not}
 prevent the \co{exists} clause from triggering.
 
-In summary, control dependencies can be useful, but they are high
-maintenance.
+In summary, control dependencies can be useful, but they are
+high-maintenance items.
 You should therefore use them only when performance considerations
 permit no other solution.
+
+\QuickQuiz{}
+	Wouldn't control dependencies be more robust if they were
+	mandated by language standards???
+\QuickQuizAnswer{
+	In the fullness of time, perhaps they will be so mandated.
+} \QuickQuizEnd
 
 \subsection{Cache Coherence}
 \label{sec:memorder:Cache Coherence}
@@ -1611,7 +1642,9 @@ permit no other solution.
 On cache-coherent platforms, all CPUs agree on the order of loads and
 stores to a given variable.
 Fortunately, when \co{READ_ONCE()} and \co{WRITE_ONCE()} are used,
-almost all platforms are cache-coherent.
+almost all platforms are cache-coherent, as indicated by the ``SV''
+column of the cheat sheet shown in
+Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
 Unfortunately, this property is so popular that it has been named
 multiple times, with ``single-variable SC'',\footnote{
 	Recall that SC stands for sequentially consistent.}
@@ -1669,8 +1702,9 @@ exists(2:r1=1 /\ 2:r2=2 /\ 3:r3=2 /\ 3:r4=1)
 \end{listing}
 
 Listing~\ref{lst:memorder:Cache-Coherent IRIW Litmus Test}
-shows a litmus test that tests for cache coherence
-(\path{C-CCIRIW+o+o+o-o+o-o.litmus}), where ``IRIW'' stands
+(\path{C-CCIRIW+o+o+o-o+o-o.litmus})
+shows a litmus test that tests for cache coherence,
+where ``IRIW'' stands
 for ``independent reads of independent writes''.
 Because this litmus test uses only one variable,
 \co{P2()} and \co{P3()} must agree
@@ -1732,7 +1766,7 @@ Unlike multicopy-atomic platforms, within other-multicopy-atomic platforms,
 the CPU doing the store is permitted to observe its
 store early, which allows its later loads to obtain the newly stored
 value directly from the store buffer.
-This in turn improves performance.
+This in turn avoids abysmal performance.
 
 \QuickQuiz{}
 	Can you give a specific example showing different behavior for
@@ -1776,6 +1810,7 @@ exists (1:r1=1 /\ 1:r2=0)
 \end{listing}
 
 	Listing~\ref{lst:memorder:Litmus Test Distinguishing Multicopy Atomic From Other Multicopy Atomic}
+	(\path{C-MP-OMCA+o-o-o+o-rmb-o.litmus})
 	shows such a test.
 
 	On a multicopy-atomic platform, \co{P0()}'s store to \co{x} on
@@ -1797,7 +1832,6 @@ exists (1:r1=1 /\ 1:r2=0)
 	on the order of visibility of the two stores from to \co{P1()},
 	which in turn allows the \co{exists} clause to trigger.
 } \QuickQuizEnd
-
 
 Perhaps there will come a day when all platforms provide some flavor
 of multi-copy atomicity, but
@@ -1848,6 +1882,7 @@ exists(1:r1=x /\ 2:r2=x /\ x=x)
 \end{listing}
 
 Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
+(\path{C-WWC+o+o-data-o+o-addr-o.litmus})
 demonstrates multicopy atomicity, that is, on a multicopy-atomic platform,
 the \co{exists} clause on line~32 cannot trigger.
 In contrast, on a non-multicopy-atomic
@@ -2053,7 +2088,7 @@ own thread.
 This three-thread example requires stronger ordering, which
 is the subject of
 Sections~\ref{sec:memorder:Cumulativity}
-and~\ref{sec:memorder:Propagation}.
+through~\ref{sec:memorder:Release-Acquire Chains}.
 
 \subsubsection{Cumulativity}
 \label{sec:memorder:Cumulativity}
@@ -2115,6 +2150,7 @@ However, as indicated by the ``C'' in their ``C'' column,
 release operations do provide cumulativity.
 Therefore,
 Listing~\ref{lst:memorder:WWC Litmus Test With Release}
+(\path{C-WWC+o+o-r+o-addr-o.litmus})
 substitutes a release operation for
 Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}'s
 data dependency.
@@ -2196,6 +2232,7 @@ exists(1:r1=1 /\ 1:r2=0 /\ 2:r3=0)
 \end{listing}
 
 Listing~\ref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}
+(\path{C-W+RWC+o-r+a-o+o-mb-o.litmus})
 shows the limitations of cumulativity and of store-release,
 even with a full memory barrier helping out.
 The problem is that although the \co{smp_store_release()} on
@@ -2204,6 +2241,58 @@ order \co{P2()}'s load on line~30, the \co{smp_store_release()}'s
 ordering cannot propagate through the combination of \co{P1()}'s
 load (line~21) and \co{P2()}'s store (line~28).
 This means that the \co{exists} clause on line~33 really can trigger.
+
+\QuickQuiz{}
+	But it is not necessary to worry about propagation unless
+	there are at least three threads in the litmus test, right?
+\QuickQuizAnswer{
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-R+o-wmb-o+o-mb-o
+{
+}
+
+P0(int *x0, int *x1)
+{
+  WRITE_ONCE(*x0, 1);
+  smp_wmb();
+  WRITE_ONCE(*x1, 1);
+}
+
+
+P1(int *x0, int *x1)
+{
+  int r2;
+
+  WRITE_ONCE(*x1, 2);
+  smp_mb();
+  r2 = READ_ONCE(*x0);
+}
+
+exists (1:r2=0 /\ x1=2)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{R Litmus Test With Write Memory Barrier (No Ordering)}
+\label{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)}
+\end{listing}
+	Wrong.
+
+	Listing~\ref{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)}
+	(\path{C-R+o-wmb-o+o-mb-o.litmus})
+	shows a two-thread litmus test that requires propagation due to
+	the fact that it only has store-to-store and load-to-store
+	relationships between its pair of threads.
+	Even though \co{P0()} is fully ordered by the \co{smp_wmb()} and
+	\co{P1()} is fully ordered by the \co{smp_mb()}, the
+	counter-temporal nature of the relationships means that
+	the \co{exists} clause on line~22 really can trigger.
+	To prevent this triggering, the \co{smp_wmb()} on line~8
+	must become an \co{smp_mb()}, bringing propagation into play
+	twice, once for each non-temporal relationship.
+} \QuickQuizEnd
 
 \begin{figure}[htbp]
 \centering
@@ -2221,7 +2310,7 @@ that \co{P1()}'s read from \co{z} happens much later in time, but
 nevertheless still sees the old value of zero.
 This situation is depicted in
 Figure~\ref{fig:memorder:Load-to-Store is Counter-Temporal}:
-Just because a load see the old value does \emph{not} mean that
+Just because a load sees the old value does \emph{not} mean that
 this load executed at an earlier time than did the store of the
 new value.
 
@@ -2229,10 +2318,12 @@ Note that
 Listing~\ref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}
 also shows the limitations of memory-barrier pairing, given that
 there are not two but three processes.
-These more complex litmus tests can instead be said to have \emph{cycles}.
+These more complex litmus tests can instead be said to have \emph{cycles},
+where memory-barrier pairing is the special case of a two-thread cycle.
 The cycle in
 Listing~\ref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}
-goes through lines~11, 12, 20, 21, 28, 29, 30, and back to line~11.
+goes through \co{P0()} (lines~11 and~12), \co{P1()} (lines~20 and~21),
+\co{P2()} (lines~28, 29, and~30), and back to \co{P0()} (line~11).
 The \co{exists} clause delineates this cycle:
 the \co{1:r1=1} indicates that the \co{smp_load_acquire()} on line~20
 returned the value stored by the \co{smp_store_release()} on line~12,
@@ -2298,7 +2389,8 @@ with an \co{smp_mb()}, which
 Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 shows to have not only cumulativity, but also propagation.
 The result is shown in
-Listing~\ref{lst:memorder:W+WRC Litmus Test With More Barriers}.
+Listing~\ref{lst:memorder:W+WRC Litmus Test With More Barriers}
+(\path{C-W+RWC+o-mb-o+a-o+o-mb-o.litmus}).
 
 \QuickQuiz{}
 	But given that \co{smp_mb()} has the propagation property,
@@ -2326,7 +2418,7 @@ Listing~\ref{lst:memorder:W+WRC Litmus Test With More Barriers}.
 	and still prohibit the cycle.
 } \QuickQuizEnd
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
 \centering
 \resizebox{\columnwidth}{!}{\includegraphics{memorder/co}}
 \caption{Store-to-Store is Counter-Temporal}
@@ -2340,7 +2432,7 @@ same variable is not necessarily the store that started last.
 This should not come as a surprise to anyone who carefully examined
 Figure~\ref{fig:memorder:A Variable With More Simultaneous Values}.
 
-But sometimes time really is on our side, as shown in the next section.
+But sometimes time is on our side, as shown in the next section.
 
 \subsubsection{Happens-Before}
 \label{sec:memorder:Happens-Before}
@@ -2411,6 +2503,7 @@ However, as long as each thread provides even the weakest possible
 ordering, \co{exists} clause would not be able to trigger.
 For example,
 Listing~\ref{lst:memorder:LB Litmus Test With One Acquire}
+(\path{C-LB+a-o+o-data-o+o-data-o.litmus})
 shows \co{P0()} ordered with an \co{smp_load_acquire()} and
 both \co{P1()} and \co{P2()} ordered with data dependencies.
 These orderings, which are close to the top of
@@ -2480,7 +2573,7 @@ memory accesses is covered in the next section.
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-LB+a-r+a-r+a-r+a-r.litmus
+C C-LB+a-r+a-r+a-r+a-r
 {
 }
 
@@ -2527,7 +2620,8 @@ exists (0:r2=2 /\ 1:r2=2 /\ 2:r2=2 /\ 3:r2=2)
 \end{listing}
 
 A minimal release-acquire chain was shown in
-Listing~\ref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test},
+Listing~\ref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test}
+(\path{C-LB+a-r+a-r+a-r+a-r.litmus}),
 but these chains can be much longer, as shown in
 Listing~\ref{lst:memorder:Long LB Release-Acquire Chain}.
 The longer the release-acquire chain, the more benefit is gained
@@ -2590,6 +2684,7 @@ such steps being counter-temporal, as shown in
 Figure~\ref{fig:memorder:Load-to-Store is Counter-Temporal}.
 For example,
 Listing~\ref{lst:memorder:Long ISA2 Release-Acquire Chain}
+(\path{C-ISA2+o-r+a-r+a-r+a-o.litmus})
 shows a three-step release-acquire chain, but where \co{P3()}'s
 final access is a \co{READ_ONCE()} from \co{x0}, which is
 accessed via \co{WRITE_ONCE()} by \co{P0()}, forming a non-temporal
@@ -2602,13 +2697,14 @@ However, the release-acquire chain (lines~12, 20, 21, 28, 29, and~37)
 forces \co{P3()}'s \co{READ_ONCE()} to be ordered after \co{P0()}'s
 \co{smp_store_release()}.
 Because \co{P3()}'s \co{READ_ONCE()} cannot be both before and after
-\co{P0()}'s \co{smp_store_release()}, either of two things must be true:
+\co{P0()}'s \co{smp_store_release()}, either or both of two things must
+be true:
 
 \begin{enumerate}
 \item	\co{P3()}'s \co{READ_ONCE()} came after \co{P0()}'s
 	\co{WRITE_ONCE()}, so that the \co{READ_ONCE()} returned
 	the value two, so that the \co{exists} clause's \co{3:r2=0}
-	is false, or
+	is false.
 \item	The release-acquire chain did not form, that is, one or more
 	of the \co{exists} clause's \co{1:r2=2}, \co{2:r2=2}, or \co{3:r1=2}
 	is false.
@@ -2624,7 +2720,7 @@ Listing~\ref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}.
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-ISA2+o-r+a-r+a-r+a-o
+C C-Z6.2+o-r+a-r+a-r+a-o
 {
 }
 
@@ -2670,16 +2766,26 @@ exists (1:r2=2 /\ 2:r2=2 /\ 3:r2=2 /\ x0=2)
 
 Release-acquire chains can also tolerate a single store-to-store step,
 as shown in
-Listing~\ref{lst:memorder:Long Z6.2 Release-Acquire Chain}.
+Listing~\ref{lst:memorder:Long Z6.2 Release-Acquire Chain}
+(\path{C-Z6.2+o-r+a-r+a-r+a-o.litmus}).
 As with the previous example, \co{smp_store_release()}'s cumulativity
 combined with the temporal nature of the release-acquire chain
 prevents the \co{exists} clause on line~36 from triggering.
-Again, adding a second store-to-store step would allow the correspondingly
+But beware: Adding a second store-to-store step would allow the correspondingly
 updated \co{exists} clause to trigger.
+
+% @@@ QQ on having a release-acquire chain with one load-to-store and
+% @@@ one store-to-store relationship.
 
 In short, properly constructed release-acquire chains form a peaceful
 island of intuitive bliss surrounded by a strongly counter-intuitive
 sea of more complex memory-ordering constraints.
+
+
+% Rules of thumb from slideset
+% Care and feeding of memory references and dependencies
+% Exercises?
+% Hardware details from Appendix?
 
 @@@
 
