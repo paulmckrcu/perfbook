@@ -959,7 +959,8 @@ requires computing the periodicity of a function.
 Let's assume that there is no polynomial-time classical
 algorithm solving this problem.
 The question then becomes ``Why is solving this problem valuable?''
-At present, there is no known valuable use for this algorithm.
+At present, there is no known valuable use for this algorithm,
+other than Shor's algorithm, which is considered separately.
 
 \paragraph{Shor's Integer Factorization Algorithm}
 \label{sec:future:Shor's Integer Factorization Algorithm}
@@ -984,32 +985,224 @@ less than five years to live.
 Of course, both cases assume that QC surmounts the challenges called
 out in Section~\ref{sec:future:Quantum Computing Challenges}.
 Furthermore, it seems likely that a real implementation of Shor's
-algorithms would need additional qubits, which might significantly extend
-RSA's lifespan.
+algorithms would need additional qubits, as in about one hundred
+million of them~\cite{RachelCourtland2017GoogleQC},
+which might significantly extend RSA's lifespan.
 
-Even those who are only slightly paranoid might consider it to be not
-too early to start thinking in terms of replacing RSA.
+Nevertheless, even those who are only slightly paranoid might consider
+it to be not too early to start thinking in terms of replacing RSA.
 
 \paragraph{Grover's Search Algorithm}
 \label{sec:future:Grover's Search Algorithm}
 
 Grover's algorithm searches an unordered list of $N$ items
 in $O(\sqrt N)$ time.
-But before this can happen, the list must be downloaded into
-the QC system.
-The competing classical system can use this time to construct
-any desired index over the data, after which the classical
+This is mainly intended for implicit search for solutions as opposed
+to searching through data.
+To see why, keep in mind that before any data can be searched,
+that data list must be downloaded into the QC system, and that
+this download will have computational complexity $O(n)$, where
+$n$ is the number of data items.
+The competing classical system can use this time to sort the data
+or to construct any desired index over the data, and the computational
+complexity of these operations can be considered to be $O(n \log_2 n)$,
+after which the classical
 system can carry out the search in $O(\log N)$ time, which
 is much faster than the $O(\sqrt N)$ time promised by
 Grover's algorithm.
-Of course, this would change if the data originates in the
-QC system.
-However, given the large capacities and low costs of
-classical mass storage, we can expect the bulk of the data to remain
-in classical systems for the foreseeable future.
 
-Some believe that Grover's algorithm might also be applied to more general
-searches, including searching for solutions to optimization problems.
+\QuickQuiz{}
+	What do you mean $O(n)$ for classic-computing sorting/indexing
+	and $O(n \log_2 n)$ for classic-computing search?
+	Hash tables do $O(n)$ and $O(1)$ respectively!!!
+\QuickQuizAnswer{
+	Fixed-size hash table lookup lookups are $O(n)$, not $O(1)$.
+	And for a resizing hash table, fairness dictates that the overhead
+	of resizing be properly accounted for.
+
+	That said, the example of a properly tuned fixed-size hash table
+	is entirely appropriate for specific situations, and clearly
+	illustrates why this section's asymptotic analysis is not at
+	all unfair to quantum computing.
+} \QuickQuizEnd
+
+If there are to be $m$ searches, then the overall computational
+complexity of Grover's algorithm is given by:
+
+\begin{equation}
+	n + m \sqrt n
+\end{equation}
+
+Similarly, for classical computing:
+
+\begin{equation}
+	\left( n + m \right) \log_2 n
+\end{equation}
+
+Forming the ratio, so that larger numbers indicate a win for classical
+computing:
+
+\begin{equation}
+	\frac{n + m \sqrt n}{\left( n + m \right) \log_2 n}
+\label{eq:Grover to Classic Overhead Ratio}
+\end{equation}
+
+Of course, one can pick $n$ and $m$ to favor either approach.
+It makes little sense to choose small $m$ because the winner of that
+race is a simple $O(n)$ sequential scan.
+More interesting scenarios use larger values of $m$.
+
+The first scenario looks at
+Equation~\ref{eq:Grover to Classic Overhead Ratio}
+for large $n$ and $m$.
+Let's keep life simple by first taking the limit as $m$ increases:
+
+\begin{equation}
+	\lim_{m\to\infty} \frac{n + m \sqrt n}{\left( n + m \right) \log_2 n}
+	\Rightarrow \frac{\sqrt n}{\log_2 n}
+\label{eq:sqrt n by log 2 n}
+\end{equation}
+
+Next, we take the limit as $n$ increases:
+
+\begin{equation}
+	\lim_{n\to\infty} \frac{\sqrt n}{\log_2 n}
+	\Rightarrow \frac{\log 2}{2} \sqrt n
+\end{equation}
+
+This increases without limit, indicating the very large numbers of searches
+over very large data sets favors classical computing.
+
+The second scenario assumes that the dataset is large, but that only
+some fraction $p$ of the dataset is searched for.
+We therefore substitute $m = pn$ into
+Equation~\ref{eq:Grover to Classic Overhead Ratio}:
+
+\begin{equation}
+	\frac{n + p n \sqrt n}{\left( 1 + p \right) n \log_2 n}
+\end{equation}
+
+Canceling $n$:
+
+\begin{equation}
+	\frac{1 + p \sqrt n}{\left( 1 + p \right) \log_2 n}
+\end{equation}
+
+Because we are interested in asymptotic behavior, we can ignore the
+$1$ in the numerator, then cancel $p$, resulting in:
+
+\begin{equation}
+	\frac{\sqrt n}{\log_2 n}
+\end{equation}
+
+This is the same as Equation~\ref{eq:sqrt n by log 2 n},
+so this arrangement also favors classical computing.
+
+In a final attempt to show Grover's algorithm in a good light,
+the third scenario assumes that the dataset is large, but that the portion
+searched is given by $m = n^\alpha$.
+Substituting into
+Equation~\ref{eq:Grover to Classic Overhead Ratio}:
+
+\begin{equation}
+	\frac{n + n^\alpha \sqrt n}{\left( n + n^\alpha \right) \log_2 n}
+\end{equation}
+
+Simplifying:
+
+\begin{equation}
+	\frac{n + n^{\alpha + \frac{1}{2}}}{\left( n + n^\alpha \right) \log_2 n}
+\end{equation}
+
+The asymptotic behavior of the numerator and denominator depend on
+the value of $\alpha$.
+For the numerator (Grover overhead):
+
+\begin{eqnarray}
+	\alpha \leq \frac{1}{2} & \Rightarrow & n \\
+	\alpha > \frac{1}{2} & \Rightarrow & n^{\alpha + \frac{1}{2}}
+\end{eqnarray}
+
+For the denominator (classical-computing overhead):
+
+\begin{eqnarray}
+	\alpha \leq 1 & \Rightarrow & n \log_2 n \\
+	\alpha > 1 & \Rightarrow & n^\alpha \log_2 n
+\end{eqnarray}
+
+The first range is $\alpha \leq \frac{1}{2}$, where the ratio is as follows:
+
+\begin{equation}
+	\frac{n}{n \log_2 n} = \frac{1}{\log_2 n}
+\end{equation}
+
+And we finally have a regime that favors Grover's algorithm!
+The reason is that the slowly growing value of $m = p^\alpha$ does
+not give classical computing enough searches to make up for its
+greater initialization-time computational complexity.
+
+The second range is $\frac{1}{2} < \alpha \leq 1$,
+where the ratio is as follows:
+
+\begin{equation}
+	\frac{n^{\alpha + \frac{1}{2}}}{n \log_2 n} =
+	\frac{n^{\alpha - \frac{1}{2}}}{\log_2 n}
+\end{equation}
+
+Because we know $\alpha > \frac{1}{2}$ and of course $n \geq 1$,
+we know that this result is bounded below by
+Equation~\ref{eq:sqrt n by log 2 n}, so that this range again
+favors classical computing.
+The reason is that there are enough searches to make up for
+classical computing's greater initialization-time computational
+complexity.
+
+The final range is $\alpha > 1$, where the ratio is as follows:
+
+\begin{equation}
+	\frac{n^{\alpha + \frac{1}{2}}}{n^\alpha \log_2 n}
+\end{equation}
+
+Cancelling $n^\alpha$ yields:
+
+\begin{equation}
+	\frac{\sqrt n}{\log_2 n}
+\end{equation}
+
+This is exactly
+Equation~\ref{eq:sqrt n by log 2 n}, so that this range again
+favors classical computing, though interestingly enough not by
+as much as the 
+$\frac{1}{2} < \alpha \leq 1$ range.
+
+As long as there are enough searches to overcome classical computing's
+greater initialization-time computational complexity, classical computing
+beats Grover's algorithm.
+
+That said, this analysis has some limitations:
+
+\begin{enumerate}
+\item	Explicit lists are assumed.
+	Implicit lists might well favor quantum computing.
+\item	Traditional sorting and indexing is assumed to result in
+	the traditional $O(\log N)$ computational complexity for
+	classic-computing search.
+\item	Quantum computing is assumed to be capable of handling
+	very large data sets.
+\item	Any required quantum error correction is assumed to incur
+	constant overhead.
+\item	The data is stored on classical-computing systems.
+	The analysis changes dramatically if the full dataset
+	can be stored in the quantum computer.
+\end{enumerate}
+
+Nevertheless, it does produce the useful rule of thumb that Grover's
+algorithm can asymptotically prevail if, for a dataset of $n$ items,
+$\sqrt n$ or fewer of them will be searched.
+
+Again, most believe that Grover's algorithm would be better applied to
+more general searches, including searching for solutions to optimization
+problems.
 Optimization via QC is taken up later in this section.
 
 \paragraph{Quantum Mechanical Dynamics}
@@ -1028,7 +1221,9 @@ the initial QC killer app~\cite{TomSimonite2017QC-MS-Chemistry},
 perhaps based on reconfigurable QC hardware.
 Nor is Microsoft alone: Chinese researchers are working to apply
 QC to model quantum photon interactions~\cite{StephenChen2017ChinaQC}.
-In addition, IBM calls out chemistry as a possible QC application.
+In addition, IBM calls out chemistry as a possible QC application,
+and expects to deliver a convincing proof of concept using a
+50-qubit system.
 
 In any case, given that quantum chemistry requires solving
 Schr\"{o}dinger's equation, which in turn can require inverting
@@ -1039,7 +1234,15 @@ experiences with \url{https://fold.it}.
 It is also possible that another competitor might turn out to be the
 molecules themselves~\cite{Chin-wenChou2017ManipulateMolecule}, though
 currently these methods are restricted to very small molecules.
-So quantum chemistry might be QC's best killer-app bet.
+But it is worth noting that anything using the molecules themselves
+is by definition physical chemistry, and the big reason for applying
+classical computing to the quantum mechanical dynamics was to reduce
+cost and obtain results more quickly.
+Nevertheless, innovative combinations of physical chemistry and
+classical computing might well produce even better results,
+although a key word here is ``might''.
+
+Thus, quantum chemistry might be QC's best killer-app bet.
 
 \paragraph{Optimization Problems}
 \label{sec:future:Optimization Problems}
