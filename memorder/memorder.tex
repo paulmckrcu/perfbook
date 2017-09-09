@@ -1268,7 +1268,7 @@ One might hope that line~21's load from the head pointer would be ordered
 before line~22's dereference.
 However, this is not the case on DEC Alpha, which can in effect use
 a speculated value for the dependent load, as described in more detail in
-Section~\ref{sec:app:whymb:Alpha}.
+Section~\ref{sec:memorder:Alpha}.
 Therefore,
 Listing~\ref{lst:memorder:Message-Passing Address-Dependency Litmus Test (No Ordering)}'s
 \co{exists} clause \emph{can} trigger.
@@ -2812,7 +2812,7 @@ Failure to follow this rule can have serious side effects:
 \begin{enumerate}
 \item	On DEC Alpha, a dependent load might not be ordered with
 	the load heading the dependency chain, as described in
-	Section~\ref{sec:app:whymb:Alpha}.
+	Section~\ref{sec:memorder:Alpha}.
 \item	If the load heading the dependency chain is a
 	C11 non-volatile \co{memory_order_relaxed} load,
 	the compiler could omit the load, for example, by using a value
@@ -3425,6 +3425,830 @@ single-threaded use in mind.
 Successfully using these languages to construct multi-threaded software
 requires that you pay special attention to your memory references and
 dependencies.
+
+\section{Hardware Specifics}
+\label{sec:memorder:Hardware Specifics}
+\OriginallyPublished{Appendix}{sec:memorder:Hardware Specifics}{Memory-Barrier Instructions For Specific CPUs}{Linux Journal}{PaulMcKenney2005i,PaulMcKenney2005j}
+
+Each CPU has its own peculiar memory-barrier instructions, which
+can make portability a challenge, as indicated by
+Table~\ref{tab:memorder:Summary of Memory Ordering}.
+In fact, many software environments,
+including pthreads and Java, simply prohibit
+direct use of memory barriers, restricting the programmer to mutual-exclusion
+primitives that incorporate them to the extent that they are required.
+In the table,
+the first four columns indicate whether a given CPU allows the four
+possible combinations of loads and stores to be reordered.
+The next two columns indicate whether a given CPU allows loads and stores
+to be reordered with atomic instructions.
+
+The seventh column, data-dependent reads reordered, requires some explanation,
+which is undertaken in the following section covering Alpha CPUs.
+The short version is that Alpha requires memory barriers for readers
+as well as updaters of linked data structures.
+Yes, this does mean that Alpha can in effect fetch
+the data pointed to {\em before} it fetches the pointer itself, strange
+but true.
+Please see the online documentation~\cite{Compaq01,WilliamPugh2000Gharachorloo}
+if you think that I am just making this up.
+The benefit of this extremely weak memory model is that Alpha can use
+simpler cache hardware, which in turn permitted higher clock frequency
+in Alpha's heyday.
+
+The last column indicates whether a given CPU has an incoherent
+instruction cache and pipeline.
+Such CPUs require special instructions be executed for self-modifying
+code.
+
+Parenthesized CPU names indicate modes that are architecturally allowed,
+but rarely used in practice.
+
+\begin{table}
+\small
+\centering
+\begin{tabular}{l|c|c|c|c|c|c|c|c}
+	~ ~ ~ ~ ~ ~ ~ ~ ~
+	& \begin{picture}(6,185)(0,0)
+		\rotatebox{90}{Loads Reordered After Loads?}
+	  \end{picture}
+	& \begin{picture}(6,185)(0,0)
+		\rotatebox{90}{Loads Reordered After Stores?}
+	  \end{picture}
+	& \begin{picture}(6,185)(0,0)
+		\rotatebox{90}{Stores Reordered After Stores?}
+	  \end{picture}
+	& \begin{picture}(6,185)(0,0)
+		\rotatebox{90}{Stores Reordered After Loads?}
+	  \end{picture}
+	& \begin{picture}(6,185)(0,0)
+		\rotatebox{90}{Atomic Instructions Reordered With Loads?}
+	  \end{picture}
+	& \begin{picture}(6,185)(0,0)
+		\rotatebox{90}{Atomic Instructions Reordered With Stores?}
+	  \end{picture}
+	& \begin{picture}(6,185)(0,0)
+		\rotatebox{90}{Dependent Loads Reordered?}
+	  \end{picture}
+	& \begin{picture}(6,185)(0,0)
+		\rotatebox{90}{Incoherent Instruction Cache/Pipeline?}
+	  \end{picture}
+	\\
+	\hline
+%			 RR  RW  WW  WR    RA  WA  DR  IC
+	\hline
+	Alpha		& Y & Y & Y & Y   & Y & Y & Y & Y \\
+	\hline
+	AMD64		& ~ & ~ & ~ & Y   & ~ & ~ & ~ & ~ \\
+	\hline
+	ARMv7-A/R	& Y & Y & Y & Y   & Y & Y & ~ & Y \\
+	\hline
+	IA64		& Y & Y & Y & Y   & Y & Y & ~ & Y \\
+	\hline
+	MIPS		& Y & Y & Y & Y   & Y & Y & ~ & Y \\
+	\hline
+	(PA-RISC)	& Y & Y & Y & Y   & ~ & ~ & ~ & ~ \\
+	\hline
+	PA-RISC CPUs	& ~ & ~ & ~ & ~   & ~ & ~ & ~ & ~ \\
+	\hline
+	POWER\textsuperscript{\texttrademark}
+			& Y & Y & Y & Y   & Y & Y & ~ & Y \\
+	\hline
+	(SPARC RMO)	& Y & Y & Y & Y   & Y & Y & ~ & Y \\
+	\hline
+	(SPARC PSO)	& ~ & ~ & Y & Y   & ~ & Y & ~ & Y \\
+	\hline
+	SPARC TSO	& ~ & ~ & ~ & Y   & ~ & ~ & ~ & Y \\
+	\hline
+	x86		& ~ & ~ & ~ & Y   & ~ & ~ & ~ & Y \\
+	\hline
+	(x86 OOStore)	& Y & Y & Y & Y   & ~ & ~ & ~ & Y \\
+	\hline
+	zSeries\textsuperscript{\textregistered}
+			& ~ & ~ & ~ & Y   & ~ & ~ & ~ & Y \\
+\end{tabular}
+\caption{Summary of Memory Ordering}
+\label{tab:memorder:Summary of Memory Ordering}
+\end{table}
+
+The common ``just say no'' approach to memory barriers
+can be eminently reasonable where it applies,
+but there are environments, such as the Linux kernel, where direct
+use of memory barriers is required.
+Therefore,
+Linux provides a carefully chosen least-common-denominator
+set of memory-barrier primitives, which are as follows:
+\begin{description}
+\item	[\tco{smp_mb()}] (memory barrier) that orders both loads and
+	stores.
+	This means that loads and stores preceding the memory barrier
+	will be committed to memory before any loads and stores
+	following the memory barrier.
+\item	[\tco{smp_rmb()}] (read memory barrier) that orders only loads.
+\item	[\tco{smp_wmb()}] (write memory barrier) that orders only stores.
+\item	[\tco{smp_read_barrier_depends()}] that forces subsequent operations
+	that depend on prior operations to be ordered.
+	This primitive is a no-op on all platforms except Alpha.
+\item	[\tco{mmiowb()}] that forces ordering on MMIO writes that are guarded
+	by global spinlocks.
+	This primitive is a no-op on all platforms on which the memory
+	barriers in spinlocks already enforce MMIO ordering.
+	The platforms with a non-no-op {\tt mmiowb()} definition include
+	some (but not all) IA64, FRV, MIPS, and SH systems.
+	This primitive is relatively new, so relatively few drivers take
+	advantage of it.
+\end{description}
+The \co{smp_mb()}, \co{smp_rmb()}, and \co{smp_wmb()}
+primitives also force
+the compiler to eschew any optimizations that would have the effect
+of reordering memory optimizations across the barriers.
+The \co{smp_read_barrier_depends()} primitive has a similar effect, but
+only on Alpha CPUs.
+\IfInBook{See Chapter~\ref{chp:memorder:Memory Ordering} for
+more information on use of these primitives.}
+
+These primitives generate code only in SMP kernels, however, each
+also has a UP version ({\tt mb()}, {\tt rmb()}, {\tt wmb()},
+and \co{read_barrier_depends()},
+respectively) that generate a memory barrier even in UP kernels. The \co{smp_}
+versions should be used in most cases. However, these latter primitives
+are useful when writing drivers, because MMIO accesses must remain
+ordered even in UP kernels. In absence of memory-barrier instructions,
+both CPUs and compilers would happily rearrange these accesses, which at
+best would make the device act strangely, and could crash your kernel or,
+in some cases, even damage your hardware.
+
+So most kernel programmers need not worry about the memory-barrier
+peculiarities of each and every CPU, as long as they stick to these
+interfaces.
+If you are working deep in a given CPU's architecture-specific code,
+of course, all bets are off.
+
+Furthermore,
+all of Linux's locking primitives (spinlocks, reader-writer locks,
+semaphores, RCU, \ldots) include any needed barrier primitives.
+So if you are working with code that uses these primitives, you don't
+even need to worry about Linux's memory-ordering primitives.
+
+That said, deep knowledge of each CPU's memory-consistency model
+can be very helpful when debugging, to say nothing of when writing
+architecture-specific code or synchronization primitives.
+
+Besides, they say that a little knowledge is a very dangerous thing.
+Just imagine the damage you could do with a lot of knowledge!
+For those who wish to understand more about individual CPUs'
+memory consistency models, the next sections describes those of the
+most popular and prominent CPUs.
+Although nothing can replace actually reading a given CPU's documentation,
+these sections give a good overview.
+
+\subsection{Alpha}
+\label{sec:memorder:Alpha}
+
+It may seem strange to say much of anything about a CPU whose end of life
+has been announced, but Alpha is interesting because, with the weakest
+memory ordering model, it reorders memory operations the most aggressively.
+It therefore has defined the Linux-kernel memory-ordering primitives,
+which must work on all CPUs, including Alpha.
+Understanding Alpha is therefore surprisingly important to the Linux kernel
+hacker.
+
+The difference between Alpha and the other CPUs is illustrated by the
+code shown in
+Figure~\ref{fig:memorder:Insert and Lock-Free Search}.
+This \co{smp_wmb()} on line~9 of this figure
+guarantees that the element initialization
+in lines~6-8 is executed before the element is added to the
+list on line~10, so that the lock-free search will work correctly.
+That is, it makes this guarantee on all CPUs {\em except} Alpha.
+
+\begin{figure}
+{ \scriptsize
+\begin{verbbox}
+  1 struct el *insert(long key, long data)
+  2 {
+  3     struct el *p;
+  4     p = kmalloc(sizeof(*p), GFP_ATOMIC);
+  5     spin_lock(&mutex);
+  6     p->next = head.next;
+  7     p->key = key;
+  8     p->data = data;
+  9     smp_wmb();
+ 10     head.next = p;
+ 11     spin_unlock(&mutex);
+ 12 }
+ 13
+ 14 struct el *search(long key)
+ 15 {
+ 16     struct el *p;
+ 17     p = head.next;
+ 18     while (p != &head) {
+ 19         /* BUG ON ALPHA!!! */
+ 20         if (p->key == key) {
+ 21             return (p);
+ 22         }
+ 23         p = p->next;
+ 24     };
+ 25     return (NULL);
+ 26 }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Insert and Lock-Free Search}
+\label{fig:memorder:Insert and Lock-Free Search}
+\end{figure}
+
+Alpha has extremely weak memory ordering
+such that the code on line~20 of
+Figure~\ref{fig:memorder:Insert and Lock-Free Search} could see the old
+garbage values that were present before the initialization on lines~6-8.
+
+Figure~\ref{fig:memorder:Why smp-read-barrier-depends() is Required}
+shows how this can happen on
+an aggressively parallel machine with partitioned caches, so that
+alternating cache lines are processed by the different partitions
+of the caches.
+For example, the load of \co{head.next} on line~17 of
+Figure~\ref{fig:memorder:Insert and Lock-Free Search}
+might access cache bank~0,
+and the load of \co{p->key} on line~20 and of \co{p->next} on line~23
+might access cache bank~1.
+On Alpha, the \co{smp_wmb()} will guarantee that the cache invalidations
+performed by lines~6-8 of
+Figure~\ref{fig:memorder:Insert and Lock-Free Search}
+(for \co{p->next}, \co{p->key}, and \co{p->data}) will reach
+the interconnect before that of line~10 (for \co{head.next}), but
+makes absolutely no guarantee about the order of
+propagation through the reading CPU's cache banks.
+For example, it is possible that the reading CPU's cache bank~1 is very
+busy, but cache bank~0 is idle.
+This could result in the cache invalidations for the new element
+(\co{p->next}, \co{p->key}, and \co{p->data}) being
+delayed, so that the reading CPU loads the new value for \co{head.next},
+but loads the old cached values for \co{p->key} and \co{p->next}.
+See the documentation~\cite{Compaq01,WilliamPugh2000Gharachorloo}
+called out earlier for more information,
+or, again, if you think that I am just making all this up.\footnote{
+	Of course, the astute reader will have already recognized that
+	Alpha is nowhere near as mean and nasty as it could be,
+	the (thankfully) mythical architecture in
+	Section~\ref{sec:app:whymb:Ordering-Hostile Architecture}
+	being a case in point.}
+
+\begin{figure}[t]
+\centering
+\begin{picture}(213,160)(0,25)
+
+	% First CPU
+
+	\put(0,50){\framebox(90,20)[c]{(w)mb Sequencing}}
+	\put(0,70){\framebox(45,50)[l]{}}
+	\put(0,102){\makebox(45,1)[c]{Cache}}
+	\put(0,90){\makebox(45,1)[c]{Bank 0}}
+	\put(45,70){\framebox(45,50)[l]{}}
+	\put(45,102){\makebox(45,1)[c]{Cache}}
+	\put(45,90){\makebox(45,1)[c]{Bank 1}}
+	\put(0,120){\framebox(90,20)[c]{(r)mb Sequencing}}
+	\put(0,140){\framebox(90,20)[c]{Writing CPU Core}}
+
+	% Second CPU
+
+	\put(120,50){\framebox(90,20)[c]{(w)mb Sequencing}}
+	\put(120,70){\framebox(45,50)[l]{}}
+	\put(120,102){\makebox(45,1)[c]{Cache}}
+	\put(120,90){\makebox(45,1)[c]{Bank 0}}
+	\put(165,70){\framebox(45,50)[l]{}}
+	\put(165,102){\makebox(45,1)[c]{Cache}}
+	\put(165,90){\makebox(45,1)[c]{Bank 1}}
+	\put(120,120){\framebox(90,20)[c]{(r)mb Sequencing}}
+	\put(120,140){\framebox(90,20)[c]{Reading CPU Core}}
+
+	% Interconnection "network"
+
+	\put(45,50){\line(0,-1){25}}
+	\put(45,25){\line(1,0){120}}
+	\put(165,25){\vector(0,1){25}}
+	\put(45,25){\makebox(120,20)[c]{Interconnect}}
+
+\end{picture}
+\caption{Why \tco{smp_read_barrier_depends()} is Required}
+\label{fig:memorder:Why smp-read-barrier-depends() is Required}
+\end{figure}
+
+One could place an \co{smp_rmb()} primitive
+between the pointer fetch and dereference.
+However, this imposes unneeded overhead on systems (such as i386,
+IA64, PPC, and SPARC) that respect data dependencies on the read side.
+A \co{smp_read_barrier_depends()} primitive has been added to the
+Linux 2.6 kernel to eliminate overhead on these systems.
+This primitive may be used as shown on line~19 of
+Figure~\ref{fig:memorder:Safe Insert and Lock-Free Search}.
+
+It is also possible to implement a software barrier
+that could be used in place of \co{smp_wmb()}, which would force
+all reading CPUs to see the writing CPU's writes in order.
+However, this approach was deemed by the Linux community
+to impose excessive overhead
+on extremely weakly ordered CPUs such as Alpha.
+This software barrier could be implemented by sending inter-processor
+interrupts (IPIs) to all other CPUs.
+Upon receipt of such an IPI, a CPU would execute a memory-barrier
+instruction, implementing a memory-barrier shootdown.
+Additional logic is required to avoid deadlocks.
+Of course, CPUs that respect data dependencies would define such a barrier
+to simply be \co{smp_wmb()}.
+Perhaps this decision should be revisited in the future as Alpha
+fades off into the sunset.
+
+\begin{figure}
+{ \scriptsize
+\begin{verbbox}
+  1 struct el *insert(long key, long data)
+  2 {
+  3     struct el *p;
+  4     p = kmalloc(sizeof(*p), GFP_ATOMIC);
+  5     spin_lock(&mutex);
+  6     p->next = head.next;
+  7     p->key = key;
+  8     p->data = data;
+  9     smp_wmb();
+ 10     head.next = p;
+ 11     spin_unlock(&mutex);
+ 12 }
+ 13
+ 14 struct el *search(long key)
+ 15 {
+ 16     struct el *p;
+ 17     p = head.next;
+ 18     while (p != &head) {
+ 19         smp_read_barrier_depends();
+ 20         if (p->key == key) {
+ 21             return (p);
+ 22         }
+ 23         p = p->next;
+ 24     };
+ 25     return (NULL);
+ 26 }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Safe Insert and Lock-Free Search}
+\label{fig:memorder:Safe Insert and Lock-Free Search}
+\end{figure}
+
+The Linux memory-barrier primitives took their names from the Alpha
+instructions, so \co{smp_mb()} is {\tt mb}, \co{smp_rmb()} is {\tt rmb},
+and \co{smp_wmb()} is {\tt wmb}.
+Alpha is the only CPU where \co{smp_read_barrier_depends()} is
+an \co{smp_mb()} rather than a no-op.
+
+\QuickQuiz{}
+	Why is Alpha's \co{smp_read_barrier_depends()} an
+	\co{smp_mb()} rather than \co{smp_rmb()}?
+\QuickQuizAnswer{
+	First, Alpha has only \co{mb} and \co{wmb} instructions,
+	so \co{smp_rmb()} would be implemented by the Alpha \co{mb}
+	instruction in either case.
+
+	More importantly, \co{smp_read_barrier_depends()} must
+	order subsequent stores.
+	For example, consider the following code:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 p = global_pointer;
+  2 smp_read_barrier_depends();
+  3 if (do_something_with(p->a, p->b) == 0)
+  4   p->hey_look = 1;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+	Here the store to \co{p->hey_look} must be ordered,
+	not just the loads from \co{p->a} and \co{p->b}.
+} \QuickQuizEnd
+
+For more detail on Alpha, see the reference manual~\cite{ALPHA95}.
+
+\subsection{AMD64}
+
+AMD64 is compatible with x86, and has updated its documented memory
+model~\cite{AMDOpteron:2:2007}
+to enforce the tighter ordering that actual implementations have
+provided for some time.
+The AMD64 implementation of the Linux \co{smp_mb()} primitive is {\tt mfence},
+\co{smp_rmb()} is {\tt lfence}, and \co{smp_wmb()} is {\tt sfence}.
+In theory, these might be relaxed, but any such relaxation must take
+SSE and 3DNOW instructions into account.
+
+\subsection{ARMv7-A/R}
+
+The ARM family of CPUs is extremely popular in embedded applications,
+particularly for power-constrained applications such as cellphones.
+Its memory model is similar to that of Power
+(see Section~\ref{sec:memorder:POWER / PowerPC}, but ARM uses a
+different set of memory-barrier instructions~\cite{ARMv7A:2010}:
+
+\begin{description}
+\item	[\tco{DMB}] (data memory barrier) causes the specified type of
+	operations to \emph{appear} to have completed before any
+	subsequent operations of the same type.
+	The ``type'' of operations can be all operations or can be
+	restricted to only writes (similar to the Alpha \co{wmb}
+	and the POWER \co{eieio} instructions).
+	In addition, ARM allows cache coherence to have one of three
+	scopes: single processor, a subset of the processors
+	(``inner'') and global (``outer'').
+\item	[\tco{DSB}] (data synchronization barrier) causes the specified
+	type of operations to actually complete before any subsequent
+	operations (of any type) are executed.
+	The ``type'' of operations is the same as that of \co{DMB}.
+	The \co{DSB} instruction was called \co{DWB} (drain write buffer
+	or data write barrier, your choice) in early versions of the
+	ARM architecture.
+\item	[\tco{ISB}] (instruction synchronization barrier) flushes the CPU
+	pipeline, so that all instructions following the \co{ISB}
+	are fetched only after the \co{ISB} completes.
+	For example, if you are writing a self-modifying program
+	(such as a JIT), you should execute an \co{ISB} between
+	generating the code and executing it.
+\end{description}
+
+None of these instructions exactly match the semantics of Linux's
+\co{rmb()} primitive, which must therefore be implemented as a full
+\co{DMB}.
+The \co{DMB} and \co{DSB} instructions have a recursive definition
+of accesses ordered before and after the barrier, which has an effect
+similar to that of POWER's cumulativity.
+
+ARM also implements control dependencies, so that if a conditional
+branch depends on a load, then any store executed after that conditional
+branch will be ordered after the load.
+However, loads following the conditional branch will \emph{not}
+be guaranteed to be ordered unless there is an \co{ISB}
+instruction between the branch and the load.
+Consider the following example:
+
+\vspace{5pt}
+\begin{minipage}[t]{\columnwidth}
+\small
+\begin{verbatim}
+  1 r1 = x;
+  2 if (r1 == 0)
+  3   nop();
+  4 y = 1;
+  5 r2 = z;
+  6 ISB();
+  7 r3 = z;
+\end{verbatim}
+\end{minipage}
+\vspace{5pt}
+
+In this example, load-store control dependency ordering causes
+the load from \co{x} on line~1 to be ordered before the store to
+\co{y} on line~4.
+However, ARM does not respect load-load control dependencies, so that
+the load on line~1 might well happen \emph{after} the
+load on line~5.
+On the other hand, the combination of the conditional branch on line~2
+and the \co{ISB} instruction on line~6 ensures that
+the load on line~7 happens after the load on line~1.
+Note that inserting an additional \co{ISB} instruction somewhere between
+lines~3 and 4 would enforce ordering between lines~1 and 5.
+
+\subsection{IA64}
+
+IA64 offers a weak consistency model, so that in absence of explicit
+memory-barrier instructions, IA64 is within its rights to arbitrarily
+reorder memory references~\cite{IntelItanium02v2}.
+IA64 has a memory-fence instruction named {\tt mf}, but also has
+``half-memory fence'' modifiers to loads, stores, and to some of its atomic
+instructions~\cite{IntelItanium02v3}.
+The {\tt acq} modifier prevents subsequent memory-reference instructions
+from being reordered before the {\tt acq}, but permits
+prior memory-reference instructions to be reordered after the {\tt acq},
+as fancifully illustrated by Figure~\ref{fig:memorder:Half Memory Barrier}.
+Similarly, the {\tt rel} modifier prevents prior memory-reference
+instructions from being reordered after the {\tt rel}, but allows
+subsequent memory-reference instructions to be reordered before
+the {\tt rel}.
+
+\begin{figure}[tb]
+\centering
+\resizebox{2in}{!}{\includegraphics{cartoons/r-2014-LD-ACQ}}
+\caption{Half Memory Barrier}
+\ContributedBy{Figure}{fig:memorder:Half Memory Barrier}{Melissa Brossard}
+\end{figure}
+
+These half-memory fences are useful for critical sections, since
+it is safe to push operations into a critical section, but can be
+fatal to allow them to bleed out.
+However, as one of the only CPUs with this property,\footnote{
+	ARMv8 has recently added load-acquire and store-release instructions.}
+IA64 defines
+Linux's semantics of memory ordering associated with lock acquisition
+and release.
+
+The IA64 {\tt mf} instruction is used for the \co{smp_rmb()},
+\co{smp_mb()}, and \co{smp_wmb()} primitives in the Linux kernel.
+Oh, and despite rumors to the contrary, the ``mf'' mnemonic really
+does stand for ``memory fence''.
+
+Finally, IA64 offers a global total order for ``release'' operations,
+including the ``mf'' instruction.
+This provides the notion of transitivity, where if a given code fragment
+sees a given access as having happened, any later code fragment will
+also see that earlier access as having happened.
+Assuming, that is, that all the code fragments involved correctly use
+memory barriers.
+
+\subsection{MIPS}
+
+The MIPS memory model~\cite[Table 6.6]{MIPSvII-A-2015}
+appears to resemble that of ARM, IA64, and Power,
+being weakly ordered by default, but respecting dependencies.
+MIPS has a wide variety of memory-barrier instructions, but ties them
+not to hardware considerations, but rather to the use cases provided
+by the Linux kernel and the C++11 standard~\cite{RichardSmith2015N4527}
+in a manner similar to the ARM64 additions:
+
+\begin{description}[style=nextline]
+\item[\tco{SYNC}]
+	Full barrier for a number of hardware operations in addition
+	to memory references.
+\item[\tco{SYNC_WMB}]
+	Write memory barrier, which can be used to implement the
+	\co{smp_wmb()} primitive in the Linux kernel.
+\item[\tco{SYNC_MB}]
+	Full memory barrier, but only for memory operations.
+	This may be used to implement the Linux-kernel \co{smp_mb()}
+	and the C++ \co{atomic_thread_fence(memory_order_seq_cst)}.
+\item[\tco{SYNC_ACQUIRE}]
+	Acquire memory barrier, which may be used to implement the
+	Linux-kernel \co{smp_load_acquire()} and the C++
+	\co{atomic_load_explicit(..., memory_order_acquire)}.
+\item[\tco{SYNC_RELEASE}]
+	Release memory barrier, which may be used to implement the
+	Linux-kernel \co{smp_store_release()} and the C++
+	\co{atomic_store_explicit(..., memory_order_release)}.
+\item[\tco{SYNC_RMB}]
+	Read memory barrier, which can be used to implement the
+	\co{smp_rmb()} primitive in the Linux kernel.
+\end{description}
+
+Informal discussions with MIPS architects indicates that MIPS has a
+definition of transitivity or cumulativity similar to that of
+ARM and Power.
+However, it appears that different MIPS implementations can have
+different memory-ordering properties, so it is important to consult
+the documentation for the specific MIPS implementation you are using.
+
+\subsection{PA-RISC}
+
+Although the PA-RISC architecture permits full reordering of loads and
+stores, actual CPUs run fully ordered~\cite{GerryKane96a}.
+This means that the Linux kernel's memory-ordering primitives generate
+no code, however, they do use the gcc {\tt memory} attribute to disable
+compiler optimizations that would reorder code across the memory
+barrier.
+
+\subsection{POWER / PowerPC}
+\label{sec:memorder:POWER / PowerPC}
+
+The POWER and PowerPC\textsuperscript{\textregistered}
+CPU families have a wide variety of memory-barrier
+instructions~\cite{PowerPC94,MichaelLyons05a}:
+\begin{description}
+\item	[\tco{sync}] causes all preceding operations to {\em appear to have}
+	completed before any subsequent operations are started.
+	This instruction is therefore quite expensive.
+\item	[\tco{lwsync}] (light-weight sync) orders loads with respect to
+	subsequent loads and stores, and also orders stores.
+	However, it does {\em not} order stores with respect to subsequent
+	loads.
+	Interestingly enough, the {\tt lwsync} instruction enforces
+	the same ordering as does zSeries, and coincidentally,
+	SPARC TSO.
+	The \co{lwsync} instruction may be used to implement
+	load-acquire and store-release operations.
+\item	[\tco{eieio}] (enforce in-order execution of I/O, in case you
+	were wondering) causes all preceding cacheable stores to appear
+	to have completed before all subsequent stores.
+	However, stores to cacheable memory are ordered separately from
+	stores to non-cacheable memory, which means that {\tt eieio}
+	will not force an MMIO store to precede a spinlock release.
+\item	[\tco{isync}] forces all preceding instructions to appear to have
+	completed before any subsequent instructions start execution.
+	This means that the preceding instructions must have progressed
+	far enough that any traps they might generate have either happened
+	or are guaranteed not to happen, and that any side-effects of
+	these instructions (for example, page-table changes) are seen by the
+	subsequent instructions.
+\end{description}
+
+Unfortunately, none of these instructions line up exactly with Linux's
+{\tt wmb()} primitive, which requires {\em all} stores to be ordered,
+but does not require the other high-overhead actions of the {\tt sync}
+instruction.
+But there is no choice: ppc64 versions of {\tt wmb()} and {\tt mb()} are
+defined to be the heavyweight {\tt sync} instruction.
+However, Linux's \co{smp_wmb()} instruction is never used for MMIO
+(since a driver must carefully order MMIOs in UP as well as
+SMP kernels, after all), so it is defined to be the lighter weight
+{\tt eieio} instruction.
+This instruction may well be unique in having a five-vowel mnemonic.
+The \co{smp_mb()} instruction is also defined to be the {\tt sync}
+instruction, but both \co{smp_rmb()} and \co{rmb()} are defined to
+be the lighter-weight {\tt lwsync} instruction.
+
+Power features ``cumulativity'', which can be used to obtain
+transitivity.
+When used properly, any code seeing the results of an earlier
+code fragment will also see the accesses that this earlier code
+fragment itself saw.
+Much more detail is available from
+McKenney and Silvera~\cite{PaulEMcKenneyN2745r2009}.
+
+Power respects control dependencies in much the same way that ARM
+does, with the exception that the Power \co{isync} instruction
+is substituted for the ARM \co{ISB} instruction.
+
+Many members of the POWER architecture have incoherent instruction
+caches, so that a store to memory will not necessarily be reflected
+in the instruction cache.
+Thankfully, few people write self-modifying code these days, but JITs
+and compilers do it all the time.
+Furthermore, recompiling a recently run program looks just like
+self-modifying code from the CPU's viewpoint.
+The {\tt icbi} instruction (instruction cache block invalidate)
+invalidates a specified cache line from
+the instruction cache, and may be used in these situations.
+
+\subsection{SPARC RMO, PSO, and TSO}
+
+Solaris on SPARC uses TSO (total-store order), as does Linux when built for
+the ``sparc'' 32-bit architecture.
+However, a 64-bit Linux kernel (the ``sparc64'' architecture)
+runs SPARC in RMO (relaxed-memory order) mode~\cite{SPARC94}.
+The SPARC architecture also offers an intermediate PSO (partial store
+order).
+Any program that runs in RMO will also run in either PSO or TSO, and similarly,
+a program that runs in PSO will also run in TSO.
+Moving a shared-memory parallel program in the other direction may
+require careful insertion of memory barriers, although, as noted earlier,
+programs that make standard use of synchronization primitives need not
+worry about memory barriers.
+
+SPARC has a very flexible memory-barrier instruction~\cite{SPARC94}
+that permits fine-grained control of ordering:
+\begin{description}
+\item	[\tco{StoreStore}] orders preceding stores before subsequent stores.
+	(This option is used by the Linux \co{smp_wmb()} primitive.)
+\item	[\tco{LoadStore}] orders preceding loads before subsequent stores.
+\item	[\tco{StoreLoad}] orders preceding stores before subsequent loads.
+\item	[\tco{LoadLoad}] orders preceding loads before subsequent loads.
+	(This option is used by the Linux \co{smp_rmb()} primitive.)
+\item	[\tco{Sync}] fully completes all preceding operations before starting
+	any subsequent operations.
+\item	[\tco{MemIssue}] completes preceding memory operations before subsequent
+	memory operations, important for some instances of memory-mapped
+	I/O.
+\item	[\tco{Lookaside}] does the same as MemIssue,
+	but only applies to preceding stores
+	and subsequent loads, and even then only for stores and loads that
+	access the same memory location.
+\end{description}
+
+The Linux \co{smp_mb()} primitive uses the first four options together,
+as in
+\co{membar #LoadLoad | #LoadStore | #StoreStore | #StoreLoad},
+thus fully ordering memory operations.
+
+So, why is \qco{membar #MemIssue} needed?
+Because a \qco{membar #StoreLoad} could permit a subsequent
+load to get its value from a store buffer, which would be
+disastrous if the write was to an MMIO register that induced side effects
+on the value to be read.
+In contrast, \qco{membar #MemIssue} would wait until the store buffers
+were flushed before permitting the loads to execute,
+thereby ensuring that the load actually gets its value from the MMIO register.
+Drivers could instead use \qco{membar #Sync}, but the lighter-weight
+\qco{membar #MemIssue} is preferred in cases where the additional function
+of the more-expensive \qco{membar #Sync} are not required.
+
+The \qco{membar #Lookaside} is a lighter-weight version of
+\qco{membar #MemIssue}, which is useful when writing to a given MMIO register
+affects the value that will next be read from that register.
+However, the heavier-weight \qco{membar #MemIssue} must be used when
+a write to a given MMIO register affects the value that will next be
+read from {\em some other} MMIO register.
+
+It is not clear why SPARC does not define \co{wmb()} to be
+\qco{membar #MemIssue} and \co{smp_wmb()} to be
+\qco{membar #StoreStore},
+as the current definitions seem vulnerable to bugs in some drivers.
+It is quite possible that all the SPARC CPUs that Linux runs on
+implement a more conservative memory-ordering model than the architecture
+would permit.
+
+SPARC requires a {\tt flush} instruction be used between the time that
+an instruction is stored and executed~\cite{SPARC94}.
+This is needed to flush any prior value for that location from
+the SPARC's instruction cache.
+Note that {\tt flush} takes an address, and will flush only that address
+from the instruction cache.
+On SMP systems, all CPUs' caches are flushed, but there is no
+convenient way to determine when the off-CPU flushes complete,
+though there is a reference to an implementation note.
+
+\subsection{x86}
+
+Since the x86 CPUs provide ``process ordering'' so that all CPUs agree
+on the order of a given CPU's writes to memory, the \co{smp_wmb()} primitive
+is a no-op for the CPU~\cite{IntelXeonV3-96a}.
+However, a compiler directive is required to
+prevent the compiler from performing optimizations that would result
+in reordering across the \co{smp_wmb()} primitive.
+
+On the other hand, x86 CPUs have traditionally given
+no ordering guarantees for loads, so
+the \co{smp_mb()} and \co{smp_rmb()} primitives expand to {\tt lock;addl}.
+This atomic instruction acts as a barrier to both loads and stores.
+
+Intel has also published a memory model for
+x86~\cite{Intelx86MemoryOrdering2007}.
+It turns out that Intel's actual CPUs enforced tighter ordering than
+was claimed in the previous specifications, so this model is in effect
+simply mandating the earlier de-facto behavior.
+Even more recently, Intel published an updated memory model for
+x86~\cite[Section 8.2]{Intel64IA32v3A2011}, which mandates a total global order
+for stores, although individual CPUs are still permitted to see their
+own stores as having happened earlier than this total global order
+would indicate.
+This exception to the total ordering is needed to allow important
+hardware optimizations involving store buffers.
+In addition, memory ordering obeys causality, so that if CPU~0 sees a
+store by CPU~1, then CPU~0 is guaranteed to see all stores that CPU~1
+saw prior to its store.
+Software may use atomic operations to override these hardware optimizations,
+which is one reason that atomic operations tend to be more expensive
+than their non-atomic counterparts.
+This total store order is \emph{not} guaranteed on older processors.
+
+It is also important to note that atomic instructions operating
+on a given memory location should all be of the same
+size~\cite[Section 8.1.2.2]{Intel64IA32v3A2011}.
+For example, if you write a program where one CPU atomically increments
+a byte while another CPU executes a 4-byte atomic increment on
+that same location, you are on your own.
+
+However, note that some SSE instructions are weakly ordered ({\tt clflush}
+and non-temporal move instructions~\cite{IntelXeonV2b-96a}).
+CPUs that have SSE can use {\tt mfence} for \co{smp_mb()},
+{\tt lfence} for \co{smp_rmb()}, and {\tt sfence} for \co{smp_wmb()}.
+
+A few versions of the x86 CPU have a mode bit that enables out-of-order
+stores, and for these CPUs, \co{smp_wmb()} must also be defined to
+be {\tt lock;addl}.
+
+Although newer x86 implementations accommodate self-modifying code
+without any special instructions, to be fully compatible with
+past and potential future x86 implementations, a given CPU must
+execute a jump instruction or a serializing instruction (e.g., \co{cpuid})
+between modifying the code and executing
+it~\cite[Section 8.1.3]{Intel64IA32v3A2011}.
+
+\subsection{zSeries}
+
+The zSeries machines make up the IBM\textsuperscript{\texttrademark}
+mainframe family, previously
+known as the 360, 370, and 390~\cite{IBMzSeries04a}.
+Parallelism came late to zSeries, but given that these mainframes first
+shipped in the mid 1960s, this is not saying much.
+The \qco{bcr 15,0} instruction is used for the Linux \co{smp_mb()},
+\co{smp_rmb()}, and \co{smp_wmb()} primitives.
+It also has comparatively strong memory-ordering semantics, as shown in
+Table~\ref{tab:memorder:Summary of Memory Ordering}, which should allow the
+\co{smp_wmb()} primitive to be a {\tt nop} (and by the time you read this,
+this change may well have happened).
+The table actually understates the situation, as the zSeries memory model
+is otherwise sequentially consistent, meaning that all CPUs
+will agree on the order of unrelated stores from different CPUs.
+
+As with most CPUs, the zSeries architecture does not guarantee a
+cache-coherent instruction stream, hence,
+self-modifying code must execute a serializing instruction between updating
+the instructions and executing them.
+That said, many actual zSeries machines do in fact accommodate self-modifying
+code without serializing instructions.
+The zSeries instruction set provides a large set of serializing instructions,
+including compare-and-swap, some types of branches (for example, the
+aforementioned \qco{bcr 15,0} instruction), and test-and-set,
+among others.
 
 \section{Where is Memory Ordering Needed?}
 \label{sec:memorder:Where is Memory Ordering Needed?}
