@@ -1012,6 +1012,8 @@ exists (1:r2=2 /\ 1:r3=0)
 \end{listing}
 
 \subsubsection{Load Followed By Load}
+\label{sec:memorder:Load Followed By Load}
+
 Listing~\ref{lst:memorder:Message-Passing Litmus Test (No Ordering)}
 (\path{C-MP+o-wmb-o+o-o.litmus})
 shows the classic \emph{message-passing} litmus test, where \co{x0} is
@@ -1102,6 +1104,8 @@ exists (1:r2=2 /\ 0:r2=2)
 \end{listing}
 
 \subsubsection{Load Followed By Store}
+\label{sec:memorder:Load Followed By Store}
+
 Listing~\ref{lst:memorder:Load-Buffering Litmus Test (No Ordering)}
 (\path{C-LB+o-o+o-o.litmus}),
 shows the classic \emph{load-buffering} litmus test.
@@ -1188,6 +1192,8 @@ exists (1:r2=2 /\ 1:r3=0)
 \end{listing}
 
 \subsubsection{Store Followed By Store}
+\label{sec:memorder:Store Followed By Store}
+
 Listing~\ref{lst:memorder:Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
 (\path{C-MP+o-o+o-rmb-o.litmus})
 once again shows the classic message-passing litmus test, but without
@@ -3693,40 +3699,6 @@ dependencies.
 \label{sec:memorder:Hardware Specifics}
 \OriginallyPublished{Appendix}{sec:memorder:Hardware Specifics}{Memory-Barrier Instructions For Specific CPUs}{Linux Journal}{PaulMcKenney2005i,PaulMcKenney2005j}
 
-Each CPU has its own peculiar memory-barrier instructions, which
-can make portability a challenge, as indicated by
-Table~\ref{tab:memorder:Summary of Memory Ordering}.
-In fact, many software environments,
-including pthreads and Java, simply prohibit
-direct use of memory barriers, restricting the programmer to mutual-exclusion
-primitives that incorporate them to the extent that they are required.
-In the table,
-the first four columns indicate whether a given CPU allows the four
-possible combinations of loads and stores to be reordered.
-The next two columns indicate whether a given CPU allows loads and stores
-to be reordered with atomic instructions.
-
-The seventh column, data-dependent reads reordered, requires some explanation,
-which is undertaken in the following section covering Alpha CPUs.
-The short version is that Alpha requires memory barriers for readers
-as well as updaters of linked data structures.
-Yes, this does mean that Alpha can in effect fetch
-the data pointed to {\em before} it fetches the pointer itself, strange
-but true.
-Please see the online documentation~\cite{Compaq01,WilliamPugh2000Gharachorloo}
-if you think that I am just making this up.
-The benefit of this extremely weak memory model is that Alpha can use
-simpler cache hardware, which in turn permitted higher clock frequency
-in Alpha's heyday.
-
-The last column indicates whether a given CPU has an incoherent
-instruction cache and pipeline.
-Such CPUs require special instructions be executed for self-modifying
-code.
-
-Parenthesized CPU names indicate modes that are architecturally allowed,
-but rarely used in practice.
-
 \begin{table*}
 \small
 \centering
@@ -3786,7 +3758,7 @@ but rarely used in practice.
 	\hline
 	Itanium		& Y & Y & Y & Y   & ~ & ~ & Y & Y & Y & Y & I & C & Y \\
 	\hline
-	MIPS		& Y & Y & Y & Y   & ~ & ~ & Y & Y & Y & ~ & ? & ? & Y \\
+	MIPS		& Y & Y & Y & Y   & ~ & ~ & Y & Y & Y & ~ & ? & L & Y \\
 	\hline
 	(PA-RISC)	& Y & Y & Y & ~   & ~ & ~ & ~ & Y & ~ & ~ & ? & ? & ~ \\
 	\hline
@@ -3817,6 +3789,74 @@ but rarely used in practice.
 \caption{Summary of Memory Ordering}
 \label{tab:memorder:Summary of Memory Ordering}
 \end{table*}
+
+Each CPU has its own peculiar approach to memory ordering, which
+can make portability a challenge, as indicated by
+Table~\ref{tab:memorder:Summary of Memory Ordering}.
+In fact, some software environments simply prohibit
+direct use of memory barriers, restricting the programmer to mutual-exclusion
+primitives that incorporate them to the extent that they are required.
+Please note that this section is not intended to be a reference manual
+covering all (or even most) aspects of each CPU family, but rather
+a high-level overview giving a rough comparison.
+For full details, see the reference manual for the CPU of interest.
+
+Getting back to
+Table~\ref{tab:memorder:Summary of Memory Ordering},
+the the first group of columns look at memory-ordering
+properties and the second group looks at instruction properties.
+
+The first three columns indicate whether a given CPU allows the four
+possible combinations of loads and stores to be reordered, as discussed
+in
+Sections~\ref{sec:memorder:Ordering: Why and How?} and
+\ref{sec:memorder:Load Followed By Load}--\ref{sec:memorder:Store Followed By Store}.
+The next column (``Atomic Instructions Reordered With Loads or Stores?'')
+indicates whether a given CPU allows loads and stores
+to be reordered with atomic instructions.
+
+The fifth and sixth columns cover reordering and dependencies,
+which was covered in
+Sections~\ref{sec:memorder:Address Dependencies}--\ref{sec:memorder:Control Dependencies}
+and which is explained in more detail in
+Section~\ref{sec:memorder:Alpha}.
+The short version is that Alpha requires memory barriers for readers
+as well as updaters of linked data structures.
+% @@@ Move rest of paragraph to Alpha section.
+Yes, this does mean that Alpha can in effect fetch
+the data pointed to {\em before} it fetches the pointer itself, strange
+but true.
+Please see the online documentation~\cite{Compaq01,WilliamPugh2000Gharachorloo}
+if you think that I am just making this up.
+The benefit of this extremely weak memory model is that Alpha can use
+simpler cache hardware, which in turn permitted higher clock frequency
+in Alpha's heyday.
+
+The next column, ``Non-Sequentially Consistent'', indicates whether
+the CPU's normal load and store instructions are constrained by
+sequential consistency.
+Almost all are not constrained in this way for performance reasons.
+
+The next two columns cover multicopy atomicity, which was defined in
+Section~\ref{sec:memorder:Multicopy Atomicity}.
+The first is full-up (and rare) multicopy atomicity, and the second is the
+weaker other-multicopy atomicity.
+
+The next column, ``Non-Cache Coherent'', covers accesses from multiple
+threads to a single variable, which was discussed in
+Section~\ref{sec:memorder:Cache Coherence}.
+
+The final three columns cover instruction-level choices and issues.
+The first column indicates how each CPU implements load-acquire
+and store-release, the second column classifies CPUs by atomic-instruction
+type, and the third and final column
+indicates whether a given CPU has an incoherent
+instruction cache and pipeline.
+Such CPUs require special instructions be executed for self-modifying
+code.
+
+Parenthesized CPU names indicate modes that are architecturally allowed,
+but rarely used in practice.
 
 The common ``just say no'' approach to memory barriers
 can be eminently reasonable where it applies,
