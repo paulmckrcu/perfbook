@@ -3822,15 +3822,6 @@ and which is explained in more detail in
 Section~\ref{sec:memorder:Alpha}.
 The short version is that Alpha requires memory barriers for readers
 as well as updaters of linked data structures.
-% @@@ Move rest of paragraph to Alpha section.
-Yes, this does mean that Alpha can in effect fetch
-the data pointed to {\em before} it fetches the pointer itself, strange
-but true.
-Please see the online documentation~\cite{Compaq01,WilliamPugh2000Gharachorloo}
-if you think that I am just making this up.
-The benefit of this extremely weak memory model is that Alpha can use
-simpler cache hardware, which in turn permitted higher clock frequency
-in Alpha's heyday.
 
 The next column, ``Non-Sequentially Consistent'', indicates whether
 the CPU's normal load and store instructions are constrained by
@@ -3939,9 +3930,10 @@ these sections give a good overview.
 \label{sec:memorder:Alpha}
 
 It may seem strange to say much of anything about a CPU whose end of life
-has been announced, but Alpha is interesting because, with the weakest
-memory ordering model, it reorders memory operations the most aggressively.
-It therefore has defined the Linux-kernel memory-ordering primitives,
+has long since past, but Alpha is interesting because, with one of
+the weakest memory ordering models, it reorders memory operations quite
+aggressively.
+It therefore has defined many of the Linux-kernel memory-ordering primitives,
 which must work on all CPUs, including Alpha.
 Understanding Alpha is therefore surprisingly important to the Linux kernel
 hacker.
@@ -3974,13 +3966,13 @@ That is, it makes this guarantee on all CPUs {\em except} Alpha.
  14 struct el *search(long key)
  15 {
  16     struct el *p;
- 17     p = head.next;
+ 17     p = READ_ONCE(head.next);
  18     while (p != &head) {
  19         /* BUG ON ALPHA!!! */
  20         if (p->key == key) {
  21             return (p);
  22         }
- 23         p = p->next;
+ 23         p = READ_ONCE(p->next);
  24     };
  25     return (NULL);
  26 }
@@ -4020,14 +4012,20 @@ This could result in the cache invalidations for the new element
 (\co{p->next}, \co{p->key}, and \co{p->data}) being
 delayed, so that the reading CPU loads the new value for \co{head.next},
 but loads the old cached values for \co{p->key} and \co{p->next}.
+Yes, this does mean that Alpha can in effect fetch
+the data pointed to {\em before} it fetches the pointer itself, strange
+but true.
 See the documentation~\cite{Compaq01,WilliamPugh2000Gharachorloo}
 called out earlier for more information,
-or, again, if you think that I am just making all this up.\footnote{
+or if you think that I am just making all this up.\footnote{
 	Of course, the astute reader will have already recognized that
 	Alpha is nowhere near as mean and nasty as it could be,
 	the (thankfully) mythical architecture in
 	Section~\ref{sec:app:whymb:Ordering-Hostile Architecture}
 	being a case in point.}
+The benefit of this unusual approach to ordering is that Alpha can use
+simpler cache hardware, which in turn permitted higher clock frequency
+in Alpha's heyday.
 
 \begin{figure}[t]
 \centering
@@ -4070,12 +4068,16 @@ or, again, if you think that I am just making all this up.\footnote{
 \end{figure}
 
 One could place an \co{smp_rmb()} primitive
-between the pointer fetch and dereference.
-However, this imposes unneeded overhead on systems (such as i386,
+between the pointer fetch and dereference in order to force Alpha
+to order the pointer fetch with the later dependent load.
+However, this imposes unneeded overhead on systems (such as ARM
 IA64, PPC, and SPARC) that respect data dependencies on the read side.
-A \co{smp_read_barrier_depends()} primitive has been added to the
-Linux 2.6 kernel to eliminate overhead on these systems.
-This primitive may be used as shown on line~19 of
+A \co{smp_read_barrier_depends()} primitive has therefore been added to the
+Linux kernel to eliminate overhead on these systems.
+This primitive could be inserted in place of line~19 of
+Figure~\ref{fig:memorder:Insert and Lock-Free Search},
+but it is better to use the \co{rcu_dereference()} wrapper macro
+as shown on lines~17 and~22 of
 Figure~\ref{fig:memorder:Safe Insert and Lock-Free Search}.
 
 It is also possible to implement a software barrier
@@ -4083,7 +4085,9 @@ that could be used in place of \co{smp_wmb()}, which would force
 all reading CPUs to see the writing CPU's writes in order.
 However, this approach was deemed by the Linux community
 to impose excessive overhead
-on extremely weakly ordered CPUs such as Alpha.
+on extremely weakly ordered CPUs such as Alpha, and furthermore would
+not be considered a reasonable approach by those whose systems must meet
+aggressive real-time response requirements.
 This software barrier could be implemented by sending inter-processor
 interrupts (IPIs) to all other CPUs.
 Upon receipt of such an IPI, a CPU would execute a memory-barrier
@@ -4092,37 +4096,38 @@ Additional logic is required to avoid deadlocks.
 Of course, CPUs that respect data dependencies would define such a barrier
 to simply be \co{smp_wmb()}.
 Perhaps this decision should be revisited in the future as Alpha
-fades off into the sunset.
+fades off into the sunset, but as of 2017 there is a surprisingly
+large number of people who run recent Linux kernels on their lovingly
+preserved DEC Alpha systems.
 
 \begin{figure}
 { \scriptsize
 \begin{verbbox}
-  1 struct el *insert(long key, long data)
-  2 {
-  3     struct el *p;
-  4     p = kmalloc(sizeof(*p), GFP_ATOMIC);
-  5     spin_lock(&mutex);
-  6     p->next = head.next;
-  7     p->key = key;
-  8     p->data = data;
-  9     smp_wmb();
- 10     head.next = p;
- 11     spin_unlock(&mutex);
- 12 }
- 13
- 14 struct el *search(long key)
- 15 {
- 16     struct el *p;
- 17     p = head.next;
- 18     while (p != &head) {
- 19         smp_read_barrier_depends();
- 20         if (p->key == key) {
- 21             return (p);
- 22         }
- 23         p = p->next;
- 24     };
- 25     return (NULL);
- 26 }
+ 1  struct el *insert(long key, long data)
+ 2  {
+ 3      struct el *p;
+ 4      p = kmalloc(sizeof(*p), GFP_ATOMIC);
+ 5      spin_lock(&mutex);
+ 6      p->next = head.next;
+ 7      p->key = key;
+ 8      p->data = data;
+ 9      smp_wmb();
+10      head.next = p;
+11      spin_unlock(&mutex);
+12  }
+13
+14  struct el *search(long key)
+15  {
+16      struct el *p;
+17      p = rcu_dereference(head.next);
+18      while (p != &head) {
+19          if (p->key == key) {
+20              return (p);
+21          }
+22          p = rcu_dereference(p->next);
+23      };
+24      return (NULL);
+25  }
 \end{verbbox}
 }
 \centering
@@ -4165,7 +4170,7 @@ an \co{smp_mb()} rather than a no-op.
 	not just the loads from \co{p->a} and \co{p->b}.
 } \QuickQuizEnd
 
-For more detail on Alpha, see the reference manual~\cite{ALPHA95}.
+For more on Alpha, see its reference manual~\cite{ALPHA2002}.
 
 \subsection{AMD64}
 
