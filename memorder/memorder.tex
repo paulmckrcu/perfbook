@@ -4173,6 +4173,7 @@ an \co{smp_mb()} rather than a no-op.
 For more on Alpha, see its reference manual~\cite{ALPHA2002}.
 
 \subsection{ARMv7-A/R}
+\label{sec:memorder:ARMv7-A/R}
 
 The ARM family of CPUs is extremely popular in embedded applications,
 particularly for power-constrained applications such as cellphones.
@@ -4247,6 +4248,46 @@ the load on line~7 happens after the load on line~1.
 Note that inserting an additional \co{ISB} instruction somewhere between
 lines~3 and 4 would enforce ordering between lines~1 and 5.
 
+\subsection{ARMv8}
+
+\begin{figure}[tb]
+\centering
+\resizebox{2in}{!}{\includegraphics{cartoons/r-2014-LDLAR}}
+\caption{Half Memory Barrier}
+\ContributedBy{Figure}{fig:memorder:Half Memory Barrier}{Melissa Brossard}
+\end{figure}
+
+ARMv8 is ARM's 64-bit CPU~\cite{ARMv8A:2017},
+in contrast to their 32-bit CPU described in
+Section~\ref{sec:memorder:ARMv7-A/R}.
+ARMv8's memory model closely resembles its 32-bit counterpart,
+but adds load-acquire (\co{LDLARB}, \co{LDLARH}, and \co{LDLAR})
+and store-release (\co{STLLRB}, \co{STLLRH}, and \co{STLLR})
+instructions.
+These instructions act as ``half memory barriers'', so that
+ARMv8 CPUs can reorder previous accesses with a later \co{LDLAR}
+instruction, but are prohibited from reordering an earlier \co{LDAR}
+instruction with later accesses, as fancifully depicted in
+Figure~\ref{fig:memorder:Half Memory Barrier}.
+Similarly, ARMv8 CPUs can reorder an earlier \co{STLLR} instruction with
+a subsequent access, but are prohibited from reordering
+previous accesses with a later \co{STLLR} instruction.
+As one might expect, this means that these instructions directly support
+the C11 notion of load-acquire and store-release.
+
+However, ARMv8 goes well beyond the C11 memory model by mandating that
+the combination of a store-release and load-acquire act as a full
+barrier under many circumstances.
+For example, in ARMv8, given a store followed by a store-release followed
+a load-acquire followed by a load, all to different variable, all CPUs
+would agree that the initial store preceded the final load.
+Interestingly enough, most TSO architectures (including x86 and the
+mainframe) do not make this guarantee, as the two loads could be
+reordered before the two stores.
+
+ARMv8 also has the distinction of being the first CPU whose vendor publicly
+defined its memory ordering with a formal model~\cite{ARMv8A:2017}.
+
 \subsection{Itanium}
 
 Itanium offers a weak consistency model, so that in absence of explicit
@@ -4258,18 +4299,11 @@ instructions~\cite{IntelItanium02v3}.
 The {\tt acq} modifier prevents subsequent memory-reference instructions
 from being reordered before the {\tt acq}, but permits
 prior memory-reference instructions to be reordered after the {\tt acq},
-as fancifully illustrated by Figure~\ref{fig:memorder:Half Memory Barrier}.
+similar to the ARMv8 load-acquire instructions.
 Similarly, the {\tt rel} modifier prevents prior memory-reference
 instructions from being reordered after the {\tt rel}, but allows
 subsequent memory-reference instructions to be reordered before
 the {\tt rel}.
-
-\begin{figure}[tb]
-\centering
-\resizebox{2in}{!}{\includegraphics{cartoons/r-2014-LD-ACQ}}
-\caption{Half Memory Barrier}
-\ContributedBy{Figure}{fig:memorder:Half Memory Barrier}{Melissa Brossard}
-\end{figure}
 
 These half-memory fences are useful for critical sections, since
 it is safe to push operations into a critical section, but can be
@@ -4279,6 +4313,11 @@ However, as one of the only CPUs with this property,\footnote{
 Itanium defines
 Linux's semantics of memory ordering associated with lock acquisition
 and release.
+Oddly enough, actual Itanium hardware is rumored to implement
+both load-acquire and store-release instructions as full barriers.
+Nevertheless, Itanium was the first mainstream CPU to introduce the concept
+(if not the reality) of load-acquire and store-release into its
+instruction set.
 
 The Itanium {\tt mf} instruction is used for the \co{smp_rmb()},
 \co{smp_mb()}, and \co{smp_wmb()} primitives in the Linux kernel.
