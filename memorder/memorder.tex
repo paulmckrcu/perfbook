@@ -1846,54 +1846,51 @@ does need to deal with them.
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-WWC+o+o-data-o+o-addr-o
+C C-WRC-o+o-data-o+o-rmb-o
 
 {
-int a = 0;
-int b = 0;
-int *c = &b;
-int *x = &a;
-int *y = &b;
 }
 
-P0(int **x)
+P0(int *x)
 {
-  WRITE_ONCE(*x, x);
+  WRITE_ONCE(*x, 1);
 }
 
-P1(int **x, int **y)
+P1(int *x, int* y)
 {
-  int *r1;
+  int r1;
 
   r1 = READ_ONCE(*x);
   WRITE_ONCE(*y, r1);
 }
 
-P2(int **y, int **c)
+P2(int *x, int* y)
 {
-  int *r2;
+  int r2;
+  int r3;
 
   r2 = READ_ONCE(*y);
-  WRITE_ONCE(*r2, c);
+  smp_rmb();
+  r3 = READ_ONCE(*x);
 }
 
-exists(1:r1=x /\ 2:r2=x /\ x=x)
+exists (1:r1=1 /\ 2:r2=1 /\ 2:r3=0)
 \end{verbbox}
 }
 \centering
 \theverbbox
-\caption{WWC Litmus Test With Dependencies (No Ordering)}
-\label{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
+\caption{WRC Litmus Test With Dependencies (No Ordering)}
+\label{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}
 \end{listing}
 
-Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
+Listing~\ref{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}
 (\path{C-WWC+o+o-data-o+o-addr-o.litmus})
 demonstrates multicopy atomicity, that is, on a multicopy-atomic platform,
-the \co{exists} clause on line~32 cannot trigger.
+the \co{exists} clause on line~29 cannot trigger.
 In contrast, on a non-multicopy-atomic
 platform this \co{exists} clause can trigger, despite
 \co{P1()}'s accesses being ordered by a data dependency and \co{P2()}'s
-accesses being ordered by an address dependency.
+accesses being ordered by an \co{smp_rmb()}.
 Recall that the definition of multicopy atomicity requires that all
 threads agree on the order of stores, which can be thought of as
 all stores reaching all threads at the same time.
@@ -1912,7 +1909,7 @@ might reach \co{P2()} before \co{P0()}'s store does.
 
 This leads to the question of why a real system constrained by the
 usual laws of physics would ever trigger the \co{exists} clause of
-Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}.
+Listing~\ref{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}.
 The cartoonish diagram of a such a real system is shown in
 Figure~\ref{fig:memorder:Shared Store Buffers And Multi-Copy Atomicity}.
 CPU~0 and CPU~1 share a store buffer, as do CPUs~2 and~3.
@@ -1940,50 +1937,44 @@ line to carry this new value to them.
 			Instruction & Store Buffer & Cache \\
 	\hline
 	\hline
-	1 & (Initial state) & & \tco{y==&b} &
+	1 & (Initial state) & & \tco{y==0} &
 		(Initial state) &
-			(Initial state) & & \tco{x==&a} \\
+			(Initial state) & & \tco{x==0} \\
 	\hline
-	2 & \tco{x = &x;} & \tco{x==&x} & \tco{y==&b} &
-		 & & & \tco{x==&a} \\
+	2 & \tco{x = 1;} & \tco{x==1} & \tco{y==0} &
+		 & & & \tco{x==0} \\
 	\hline
-	3 & (Read-Invalidate \tco{x}) & \tco{x==&x} & \tco{y==&b} & \tco{r1 = x} (\tco{&x})
-		 & & & \tco{x==&a} \\
+	3 & (Read-Invalidate \tco{x}) & \tco{x==1} & \tco{y==0} & \tco{r1 = x} (1)
+		 & & & \tco{x==0} \\
 	\hline
-	4 &  & \tco{x==&x} \tco{y==&x} & \tco{y==&b} & \tco{y = r1}
-		 & \tco{r2 = y} & & \tco{x==&a} \\
+	4 &  & \tco{x==1} \tco{y==1} & \tco{y==0} & \tco{y = r1}
+		 & \tco{r2 = y} & & \tco{x==0} \\
 	\hline
-	5 &  & \tco{x==&x} & \tco{y==&x} & (Finish store)
-		 & (Read \tco{y}) & & \tco{x==&a} \\
+	5 &  & \tco{x==1} & \tco{y==1} & (Finish store)
+		 & (Read \tco{y}) & & \tco{x==0} \\
 	\hline
-	6 & & \tco{x==&x} & \tco{y==&x} &
-		 & (\tco{r2==&x}) & & \tco{x==&a} \tco{y==&x} \\
+	6 & (Respond \tco{y}) & \tco{x==1} & \tco{y==1} &
+		 & (\tco{r2==1}) & & \tco{x==0} \tco{y==1} \\
 	\hline
-	7 & & \tco{x==&x} & \tco{y==&x} &
-		 & \tco{*r2 = &c} & \tco{y==&c} & \tco{x==&a} \tco{y==&x} \\
+	7 & & \tco{x==1} & \tco{y==1} &
+		 & \tco{smp_rmb()} & & \tco{x==0} \tco{y==1} \\
 	\hline
-	8 & & \tco{x==&x} & \tco{y==&x} &
-		 & (Read Invalidate \tco{y}) & \tco{y==&c} & \tco{x==&a} \tco{y==&x} \\
+	8 & & \tco{x==1} & \tco{y==1} &
+		 & \tco{r3 = x (0)} & & \tco{x==0} \tco{y==1} \\
 	\hline
-	9 & & \tco{x==&x} &  &
-		 &  & \tco{y==&c} & \tco{x==&a} \tco{y==&x} \\
+	9 & & \tco{x==1} & \tco{x==0} \tco{y==1} &
+		 & (Respond \tco{x}) & & \tco{y==1} \\
 	\hline
-	10 & & \tco{x==&x} &  &
-		 & (Finish store) & & \tco{x==&a} \tco{y==&c} \\
-	\hline
-	11 & & \tco{x==&x} & \tco{x==&a} &
-		 & (Respond \co{x}) & & \tco{y==&c} \\
-	\hline
-	12 & (Finish store) & & \tco{x==&x} &
-		 &  & & \tco{y==&c} \\
+	10 & (Finish store) & & \tco{x==1} \tco{y==1} &
+		 &  & & \tco{y==1} \\
 \end{tabular}
-\caption{Memory Ordering: WWC Sequence of Events}
-\label{tab:memorder:Memory Ordering: WWC Sequence of Events}
+\caption{Memory Ordering: WRC Sequence of Events}
+\label{tab:memorder:Memory Ordering: WRC Sequence of Events}
 \end{table*}
 
-Table~\ref{tab:memorder:Memory Ordering: WWC Sequence of Events}
+Table~\ref{tab:memorder:Memory Ordering: WRC Sequence of Events}
 shows one sequence of events that can result in the \co{exists} clause in
-Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
+Listing~\ref{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}
 triggering.
 This sequence of events will depend critically on \co{P0()} and
 \co{P1()} sharing both cache and a store buffer in the manner shown in
@@ -2019,68 +2010,63 @@ Row~1 shows the initial state, with the initial value of \co{y} in
 P0's and P1's shared cache, and the initial value of \co{x} in
 P2's cache.
 
-Row~2 shows the immediate effect of \co{P0()} executing its store on line~13.
+Row~2 shows the immediate effect of \co{P0()} executing its store on line~8.
 Because the cacheline containing \co{x} is not in \co{P0()}'s and \co{P1()}'s
-shared cache, the new value (\co{&x}) is stored in the shared store buffer.
+shared cache, the new value (\co{1}) is stored in the shared store buffer.
 
 Row~3 shows two transitions.
 First, \co{P0()} issues a read-invalidate operation to fetch the cacheline
 containing \co{x} so that it can flush the new value for \co{x} out of
 the shared store buffer.
-Second, \co{P1()} loads from \co{x} (line~20), an operation that completes
+Second, \co{P1()} loads from \co{x} (line~15), an operation that completes
 immediately because the new value of \co{x} is immediately available
 from the shared store buffer.
 
 Row~4 also shows two transitions.
 First, it shows the immediate effect of \co{P1()} executing its store to
-\co{y} (line~21), placing the new value into the shared store buffer.
-Second, it shows the start of \co{P2()}'s load from \co{y} (line~28).
+\co{y} (line~16), placing the new value into the shared store buffer.
+Second, it shows the start of \co{P2()}'s load from \co{y} (line~24).
 
 Row~5 continues the tradition of showing two transitions.
 First, it shows \co{P1()} complete its store to \co{y}, flushing
 from the shared store buffer to the cache.
-Second, it shows \co{P2()} request the cacheline containing \co{x}.
+Second, it shows \co{P2()} request the cacheline containing \co{y}.
 
 Row~6 shows \co{P2()} receive the cacheline containing \co{y}, allowing
-it to finish its load into \co{r2}, which takes on the value \co{&x}.
+it to finish its load into \co{r2}, which takes on the value \co{1}.
 
-Row~7 shows \co{P2()} start executing its store to \co{y} (line~29), placing the
-new value in is store buffer.
+Row~7 shows \co{P2()} execute its \co{smp_rmb()} (line~25), thus keeping
+its two loads ordered.
 
-Row~8 shows \co{P2()} requesting exclusive ownership (``Read Invalidate'')
-for the cacheline containing \co{y} in order to finish its store.
+Row~8 shows \co{P2()} execute its load from \co{x}, which immediately
+returns with the value zero from \co{P2()}'s cache.
 
-Row~9 shows the cacheline containing \co{y} removed from the shared cache,
-so that \co{P2()} now has exclusive ownership.
-
-Row~10 shows \co{P2()} completing its store to \co{y}, flushing the value
-from its store buffer to its cache.
-
-Row~11 shows \co{P2()} \emph{finally} responding to \co{P0()}'s request for
+Row~9 shows \co{P2()} \emph{finally} responding to \co{P0()}'s request for
 the cacheline containing \co{x}, which was made way back up on row~3.
 
-Finally, row~12 shows \co{P0()} finish its store, flushing its value of
+Finally, row~10 shows \co{P0()} finish its store, flushing its value of
 \co{x} from the shared store buffer to the shared cache.
 
-Note well that the \co{exists} clause on line~32 has triggered.
-The values of \co{r1} and \co{r2} are both the address of \co{x}, and
-the final value of \co{x} is also the address of \co{x}.
+Note well that the \co{exists} clause on line~29 has triggered.
+The values of \co{r1} and \co{r2} are both the value one, and
+the final value of \co{r3} the value zero.
 This strange result occurred because \co{P0()}'s new value of \co{x} was
 communicated to \co{P1()} long before it was communicated to \co{P2()}.
 
 \QuickQuiz{}
 	Referring to
-	Table~\ref{tab:memorder:Memory Ordering: WWC Sequence of Events},
+	Table~\ref{tab:memorder:Memory Ordering: WRC Sequence of Events},
 	why on earth would \co{P0()}'s store take so long to complete when
-	\co{P1()}'s and \co{P2()}'s stores complete so quickly?
+	\co{P1()}'s store complete so quickly?
 	In other words, does the \co{exists} clause on line~32 of
-	Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
+	Listing~\ref{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}
 	really trigger on real systems?
 \QuickQuizAnswer{
+	@@@
 	You need to face the fact that it really can trigger.
 	Akira Yokosawa used the \co{litmus7} tool to run this litmus test
 	on a Power8 system.
-	Out of 100,000,000,000 runs, 1,119 triggered the \co{exists}
+	Out of 1,000,000,000 runs, 4 triggered the \co{exists}
 	clause.
 	Thus, triggering the \co{exists} clause is not merely a one-in-a-million
 	occurrence, but rather a one-in-a-hundred-million occurrence.
@@ -2099,7 +2085,7 @@ through~\ref{sec:memorder:Release-Acquire Chains}.
 \label{sec:memorder:Cumulativity}
 
 The three-thread example shown in
-Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}
+Listing~\ref{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}
 requires \emph{cumulative} ordering, or \emph{cumulativity}.
 A cumulative barrier orders not just any given access preceding it, but
 also earlier accesses by any thread to that same variable.
@@ -2107,44 +2093,40 @@ also earlier accesses by any thread to that same variable.
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
-C C-WWC+o+o-r+o-addr-o
+C C-WRC+o+o-r+a-o.litmus
 
 {
-int a = 0;
-int b = 0;
-int *c = &b;
-int *x = &a;
-int *y = &b;
 }
 
-P0(int **x)
+P0(int *x)
 {
-  WRITE_ONCE(*x, x);
+  WRITE_ONCE(*x, 1);
 }
 
-P1(int **x, int **y)
+P1(int *x, int* y)
 {
-  int *r1;
+  int r1;
 
   r1 = READ_ONCE(*x);
   smp_store_release(y, r1);
 }
 
-P2(int **y, int **c)
+P2(int *x, int* y)
 {
-  int *r2;
+  int r2;
+  int r3;
 
-  r2 = READ_ONCE(*y);
-  WRITE_ONCE(*r2, c);
+  r2 = smp_load_acquire(y);
+  r3 = READ_ONCE(*x);
 }
 
-exists(1:r1=x /\ 2:r2=x /\ x=x)
+exists (1:r1=1 /\ 2:r2=1 /\ 2:r3=0)
 \end{verbbox}
 }
 \centering
 \theverbbox
-\caption{WWC Litmus Test With Release}
-\label{lst:memorder:WWC Litmus Test With Release}
+\caption{WRC Litmus Test With Release}
+\label{lst:memorder:WRC Litmus Test With Release}
 \end{listing}
 
 Dependencies do not provide cumulativity,
@@ -2154,20 +2136,19 @@ of Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
 However, as indicated by the ``C'' in their ``C'' column,
 release operations do provide cumulativity.
 Therefore,
-Listing~\ref{lst:memorder:WWC Litmus Test With Release}
+Listing~\ref{lst:memorder:WRC Litmus Test With Release}
 (\path{C-WWC+o+o-r+o-addr-o.litmus})
 substitutes a release operation for
-Listing~\ref{lst:memorder:WWC Litmus Test With Dependencies (No Ordering)}'s
+Listing~\ref{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}'s
 data dependency.
 Because the release operation is cumulative, its ordering applies not only to
-Listing~\ref{lst:memorder:WWC Litmus Test With Release}'s
-load from \co{x} by \co{P1()} on line~20, but also to its store to \co{x}
-by \co{P0()} on line~13---but only if that load returns the value stored,
-which in this case is the address of \co{x}, which matches the \co{1:r1=x}
-in the \co{exists} clause on line~32.
-This means that \co{P2()}'s address dependency suffices to force the
-store to \co{x} on line~29 to happen after the store on line~13, so
-that the final value of \co{x} is the address of \co{c}, which
+Listing~\ref{lst:memorder:WRC Litmus Test With Release}'s
+load from \co{x} by \co{P1()} on line~15, but also to the store to \co{x}
+by \co{P0()} on line~8---but only if that load returns the value stored,
+which matches the \co{1:r1=1} in the \co{exists} clause on line~28.
+This means that \co{P2()}'s load-acquire suffices to force the
+load from \co{x} on line~25 to happen after the store on line~8, so
+the value returned is one, which does not match \co{2:r3=0}, which
 in turn prevents the \co{exists} clause from triggering.
 
 \begin{figure*}[htbp]
