@@ -124,7 +124,7 @@ imply decreased probability!
 % 167   :>0:r2=2; 1:r2=2;
 
 The following sections show exactly where this intuition breaks down,
-and then puts forward a mental model of memory barriers that can help
+and then puts forward a mental model of memory ordering that can help
 you avoid these pitfalls.
 
 Section~\ref{sec:memorder:Why Hardware Misordering?}
@@ -139,7 +139,7 @@ later sections.
 \subsection{Why Hardware Misordering?}
 \label{sec:memorder:Why Hardware Misordering?}
 
-But why are memory barriers needed in the first place?
+But why does memory misordering happen in the first place?
 Can't CPUs keep track of ordering on their own?
 Isn't that why we have computers in the first place, to keep track of things?
 
@@ -358,7 +358,7 @@ exists (1:r2=0 /\ 0:r2=0)
 
 However, if you need to implement the synchronization primitives
 themselves, or if you are simply interested in understanding how memory
-ordering and memory barriers work, read on!
+ordering works, read on!
 The first stop on the journey is
 Listing~\ref{lst:memorder:Memory Ordering: Store-Buffering Litmus Test}
 (\path{C-SB+o-mb-o+o-mb-o.litmus}),
@@ -504,8 +504,8 @@ instances straighten things out in the end.
 Although \co{smp_mb()} has extremely strong ordering guarantees, its strength
 comes at a high price.
 A great many situations can be handled with much weaker ordering guarantees
-that use much cheaper memory-barrier instructions, or, in some case, no
-memory-barrier instructions at all.
+that use much cheaper memory-ordering instructions, or, in some case, no
+memory-ordering instructions at all.
 Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 provides a cheatsheet of the Linux kernel's ordering primitives and their
 guarantees.
@@ -738,7 +738,7 @@ Or on your future system.
 \paragraph{Ordering operations are not magic.}
 When your program is failing due to some race condition, it is often
 tempting to toss in a few memory-ordering operations in an attempt
-to barrier your bug out of existence.
+to barrier your bugs out of existence.
 A far better reaction is to use higher-level primitives in a carefully
 designed manner.
 With concurrent programming, it is almost always easier to design
@@ -900,7 +900,7 @@ CPU~4 believes that the value is~``4'' for almost 500\,ns.
 	of private cache in addition to a larger shared cache.
 	Another possible reason is instruction reordering, given the
 	short 10-nanosecond duration of the disagreement and the
-	total lack of memory barriers in the code fragment.
+	total lack of memory-ordering operations in the code fragment.
 } \QuickQuizEnd
 
 And if you think that the situation with four CPUs was intriguing, consider
@@ -934,7 +934,8 @@ Note also that all CPUs see sequences whose orderings are consistent with
 the directed graph shown in
 Figure~\ref{fig:memorder:Possible Global Orders With More Simultaneous Values}.
 Nevertheless, both figures underscore the importance of
-proper use of memory barriers for code that cares about memory ordering.
+proper use of memory-ordering operations, such as memory barriers,
+for code that cares about memory ordering.
 
 \begin{figure}[htb]
 \centering
@@ -948,7 +949,7 @@ time?
 As many as one per store buffer in the system!
 We have therefore entered a regime where we must bid a fond farewell to
 comfortable intuitions about values of variables and the passage of time.
-This is the regime where memory barriers are needed.
+This is the regime where memory-ordering operations are needed.
 
 All that aside, it is important to remember the lessons from
 Chapters~\ref{chp:Hardware and its Habits}
@@ -2085,8 +2086,9 @@ through~\ref{sec:memorder:Release-Acquire Chains}.
 The three-thread example shown in
 Listing~\ref{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}
 requires \emph{cumulative} ordering, or \emph{cumulativity}.
-A cumulative barrier orders not just any given access preceding it, but
-also earlier accesses by any thread to that same variable.
+A cumulative memory-ordering operation orders not just any given
+access preceding it, but also earlier accesses by any thread to that
+same variable.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -3326,7 +3328,7 @@ dependencies, as in the following example:
 \end{minipage}
 \vspace{5pt}
 
-Control dependencies pair normally with other types of barriers.
+Control dependencies pair normally with other types of ordering operations.
 That said, please note that neither \co{READ_ONCE()} nor \co{WRITE_ONCE()}
 are optional!
 Without the \co{READ_ONCE()}, the compiler might combine the load
@@ -3395,7 +3397,7 @@ to~\co{y}, which means that the CPU is within its rights to reorder them:
 The conditional is absolutely required, and must be present in the
 assembly code even after all compiler optimizations have been applied.
 Therefore, if you need ordering in this example, you need explicit
-memory barriers, for example, a release store:
+memory-ordering operations, for example, a release store:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -3457,7 +3459,7 @@ Given this transformation, the CPU is not required to respect the ordering
 between the load from variable~\co{x} and the store to variable~\co{y}.
 It is tempting to add a \co{barrier()} to constrain the compiler,
 but this does not help.
-The conditional is gone, and the barrier won't bring it back.
+The conditional is gone, and the \co{barrier()} won't bring it back.
 Therefore, if you are relying on this ordering, you should make sure
 that \co{MAX} is greater than one, perhaps as follows:
 
@@ -3662,7 +3664,8 @@ The following list of rules summarizes the lessons of this section:
 	Control dependencies do \emph{not} apply to code following the
 	``\co{if}'' containing the control dependency.
 
-\item	Control dependencies pair normally with other types of barriers.
+\item	Control dependencies pair normally with other types of
+	memory-ordering operations.
 
 \item	Control dependencies do \emph{not} provide transitivity.
 	If you need transitivity, use \co{smp_mb()}.
@@ -3784,9 +3787,10 @@ Each CPU has its own peculiar approach to memory ordering, which
 can make portability a challenge, as indicated by
 Table~\ref{tab:memorder:Summary of Memory Ordering}.
 In fact, some software environments simply prohibit
-direct use of memory barriers, restricting the programmer to mutual-exclusion
-primitives that incorporate them to the extent that they are required.
-Please note that this section is not intended to be a reference manual
+direct use of memory-ordering operations, restricting the programmer
+to mutual-exclusion primitives that incorporate them to the extent that
+they are required.  Please note that this section is not intended to be
+a reference manual
 covering all (or even most) aspects of each CPU family, but rather
 a high-level overview giving a rough comparison.
 For full details, see the reference manual for the CPU of interest.
@@ -3839,15 +3843,15 @@ code.
 Parenthesized CPU names indicate modes that are architecturally allowed,
 but rarely used in practice.
 
-The common ``just say no'' approach to memory barriers
+The common ``just say no'' approach to memory-ordering operations
 can be eminently reasonable where it applies,
 but there are environments, such as the Linux kernel, where direct
-use of memory barriers is required.
+use of memory-ordering operations is required.
 Therefore,
 Linux provides a carefully chosen least-common-denominator
-set of memory-barrier primitives, which are as follows:
+set of memory-ordering primitives, which are as follows:
 \begin{description}
-\item	[\tco{smp_mb()}] (memory barrier) that orders both loads and
+\item	[\tco{smp_mb()}] (full memory barrier) that orders both loads and
 	stores.
 	This means that loads and stores preceding the memory barrier
 	will be committed to memory before any loads and stores
@@ -3887,12 +3891,12 @@ and \co{read_barrier_depends()},
 respectively) that generate a memory barrier even in UP kernels. The \co{smp_}
 versions should be used in most cases. However, these latter primitives
 are useful when writing drivers, because MMIO accesses must remain
-ordered even in UP kernels. In absence of memory-barrier instructions,
+ordered even in UP kernels. In absence of memory-ordering operations,
 both CPUs and compilers would happily rearrange these accesses, which at
 best would make the device act strangely, and could crash your kernel or,
 in some cases, even damage your hardware.
 
-So most kernel programmers need not worry about the memory-barrier
+So most kernel programmers need not worry about the memory-ordering
 peculiarities of each and every CPU, as long as they stick to these
 interfaces.
 If you are working deep in a given CPU's architecture-specific code,
@@ -3900,7 +3904,7 @@ of course, all bets are off.
 
 Furthermore,
 all of Linux's locking primitives (spinlocks, reader-writer locks,
-semaphores, RCU, \ldots) include any needed barrier primitives.
+semaphores, RCU, \ldots) include any needed ordering primitives.
 So if you are working with code that uses these primitives, you don't
 even need to worry about Linux's memory-ordering primitives.
 
@@ -4609,6 +4613,11 @@ Never forget to carefully review
 Sections~\ref{sec:memorder:Address- and Data-Dependency Restrictions}
 and~\ref{sec:memorder:Control-Dependency Restrictions}.
 A dependency broken by your compiler is no help at all!
+The two threads sharing the sole non-store-to-load link can
+usually substitute \co{smp_wmb()} and \co{WRITE_ONCE()} for
+\co{smp_store_release()} on the one hand,
+and \co{smp_rmb()} and \co{READ_ONCE()} for \co{smp_load_acquire()}
+on the other.
 
 If two or more of your thread-to-thread communications use something other
 than store-to-load links, you will need at least one strong barrier
@@ -4627,7 +4636,7 @@ but they may \emph{not}
 be relied upon outside of code specifically designed to run only on
 the corresponding architecture.
 
-One final word of advice: Again, use of raw memory-barrier primitives is
+One final word of advice: Again, use of raw memory-ordering primitives is
 a last resort.
 It is almost always better to use existing primitives, such as locking
 or RCU, that take care of memory ordering for you.
