@@ -4582,7 +4582,7 @@ This section revisits
 Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 in light of the intervening discussion.
 
-Memory-ordering operations are only required where there's a possibility
+Memory-ordering operations are only required where there is a possibility
 of interaction involving at least two variables between at least two
 threads.
 As always, if a single-threaded program will provide sufficient
@@ -4592,34 +4592,35 @@ performance, why bother with parallelism?\footnote{
 After all, avoiding parallelism also avoids the added cost of
 memory-ordering operations.
 
-If all your thread-to-thread communication uses store-to-load links
-(that is, one thread's load returning the value that some other thread
+If all thread-to-thread communication in a given cycle use store-to-load links
+(that is, the next thread's load returning the value that the previous thread
 stored), minimal ordering suffices.
-Minimal ordering includes dependencies, acquires, and any stronger
-ordering operation.
+Minimal ordering includes dependencies, acquires, and all stronger
+ordering operations.
 
-If all but one of your thread-to-thread communications use store-to-load
-links, release-acquire links for all the store-to-load
-links suffice.
-You can replace acquire with a dependency in environments permitting
-this, keeping in mind that the C11 standard memory model does \emph{not}
+If all but one of the links in a given cycle is a store-to-load
+link, it is sufficient to use release-acquire pairs for each of
+those store-to-load links.
+You can replace a given acquire with a a dependency in environments permitting
+this, keeping in mind that the C11 standard's memory model does \emph{not}
 permit this.
 Note also that a dependency leading to a load must be headed by
 a \co{lockless_dereference()} or an \co{rcu_dereference()}:
 \co{READ_ONCE()} is not sufficient.
 Never forget to carefully review
 Sections~\ref{sec:memorder:Address- and Data-Dependency Restrictions}
-and~\ref{sec:memorder:Control-Dependency Restrictions}.
-A dependency broken by your compiler is no help at all!
+and~\ref{sec:memorder:Control-Dependency Restrictions}, because
+a dependency broken by your compiler is no help at all!
 The two threads sharing the sole non-store-to-load link can
-usually substitute \co{smp_wmb()} and \co{WRITE_ONCE()} for
+usually substitute \co{WRITE_ONCE()} plus \co{smp_wmb()} for
 \co{smp_store_release()} on the one hand,
-and \co{smp_rmb()} and \co{READ_ONCE()} for \co{smp_load_acquire()}
+and \co{READ_ONCE()} plus \co{smp_rmb()} for \co{smp_load_acquire()}
 on the other.
 
-If two or more of your thread-to-thread communications use something other
-than store-to-load links, you will need at least one strong barrier
-for each load-to-store and for each store-to-store link.
+If a given cycle contains two or more non-store-to-load links (that is,
+a total of two or more load-to-store and store-to-store links), you will
+need at least one strong barrier between each pair of non-store-to-load
+links in that cycle.
 Strong barriers include \co{smp_mb()}, successful full-strength non-\co{void}
 atomic RMW operations, and other atomic RMW operations in conjunction with
 either \co{smp_mb__before_atomic()} or \co{smp_mb__after_atomic()}.
@@ -4629,7 +4630,7 @@ usually hurts performance more than it hurts scalability.
 Note that these are the \emph{minimum} guarantees.
 Different architectures may give
 more substantial guarantees,
-\IfInBook{as discussed in Appendix~\ref{chp:app:whymb:Why Memory Barriers?},}{}
+as discussed in Section~\ref{sec:memorder:Hardware Specifics},
 but they may \emph{not}
 be relied upon outside of code specifically designed to run only on
 the corresponding architecture.
