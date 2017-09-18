@@ -464,7 +464,7 @@ instances straighten things out in the end.
 	\tco{smp_wmb()} &   &
 		     &   & Y &   W &      &   & Y &    &  Y &   W &    \\
 	\hline
-	\tco{smp_mb()} & CP &
+	\tco{smp_mb()} and \tco{synchronize_rcu()} & CP &
 		     & Y & Y &   Y &      & Y & Y &  Y &  Y &   Y &    \\
 	\hline
 	Successful full-strength non-\tco{void} RMW & CP &
@@ -501,8 +501,8 @@ instances straighten things out in the end.
 \label{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 \end{table*}
 
-Although \co{smp_mb()} has extremely strong ordering guarantees, its strength
-comes at a high price.
+Although full barriers such as \co{smp_mb()} have extremely strong
+ordering guarantees, their strength comes at a high price.
 A great many situations can be handled with much weaker ordering guarantees
 that use much cheaper memory-ordering instructions, or, in some case, no
 memory-ordering instructions at all.
@@ -4635,12 +4635,15 @@ on the other.
 
 If a given cycle contains two or more non-store-to-load links (that is,
 a total of two or more load-to-store and store-to-store links), you will
-need at least one strong barrier between each pair of non-store-to-load
+need at least one full barrier between each pair of non-store-to-load
 links in that cycle.
-Strong barriers include \co{smp_mb()}, successful full-strength non-\co{void}
+Full barriers include \co{smp_mb()}, successful full-strength non-\co{void}
 atomic RMW operations, and other atomic RMW operations in conjunction with
 either \co{smp_mb__before_atomic()} or \co{smp_mb__after_atomic()}.
-With strength comes expense, though the overhead of strong barriers
+Any of RCU's grace-period-wait primitives (\co{synchronize_rcu()} and
+friends) also act as full barriers, but at even greater expense than
+\co{smp_mb()}.
+With strength comes expense, though the overhead of full barriers
 usually hurts performance more than it hurts scalability.
 
 Note that these are the \emph{minimum} guarantees.
