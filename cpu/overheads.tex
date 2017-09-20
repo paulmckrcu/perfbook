@@ -314,6 +314,64 @@ cycles, as shown in the ``Global Comms'' row.
 	those you live with when appropriating toilet paper!
 } \QuickQuizEnd
 
+\subsection{Hardware Optimizations}
+\label{sec:cpu:Hardware Optimizations}
+
+It is only natural to ask how the hardware is helping, and the answer
+is ``Quite a bit!''
+
+One hardware optimization is large cachelines.
+This can provide a big performance boost, especially when software is
+accessing memory sequentially.
+For example, given a 64-byte cacheline and software accessing 64-bit
+variables, seven of eight accesses will access the cacheline fetched
+by the eighth access.
+However, this optimization has a dark side, namely false sharing,
+which happens when different variables in the same cacheline are
+being updated by different CPUs, resulting in a high cache-miss rate.
+Software can use the alignment directives available in many compilers
+to avoid false sharing, and adding such directives is a common step
+in tuning parallel software.
+
+A second related hardware optimization is cache prefetching, in which
+the hardware reacts to consecutive accesses by prefetching subsequent
+cachelines.
+Of course, the hardware must use simple heuristics to determine when
+to prefetch, and these heuristics can be fooled by the complex data-access
+patterns in many applications.
+Fortunately, some CPU families allow for this by providing special
+prefetch instructions.
+Unfortunately, the effectiveness of these instructions in the general
+case is subject to some dispute.
+
+A third hardware optimization is the store buffer, which allows a string
+of store instructions to execute quickly even when the stores are to
+non-consecutive addresses and when none of the needed cachelines are
+present in the CPU's cache.
+The dark side of this optimization is memory misordering, for which see
+Chapter~\ref{chp:memorder:Memory Ordering}.
+
+A fourth hardware optimization is speculative execution, which can
+allow the hardware to make good use of the store buffers without
+resulting in memory misordering.
+The dark side of this optimization can be energy inefficiency and
+lowered performance if the speculative execution goes awry and must
+be rolled back and retried.
+
+A fifth hardware optimization is large caches, allowing individual
+CPUs to operate on larger datasets without incuring expensive cache
+misses.
+Although large caches can degrade energy efficiency and cache-miss
+latency, the ever-growing cache sizes on production microprocessors
+attests to the power of this optimization.
+
+A final hardware optimization is read-mostly replication, in which
+data that is frequently read but rarely updated is present in all
+CPUs' caches.
+This optimization allows the read-mostly data to be accessed
+exceedingly efficiently, and is the subject of
+Chapter~\ref{chp:Deferred Processing}.
+
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{cartoons/Data-chasing-light-wave}}
@@ -326,7 +384,8 @@ side, trying to make computers go fast despite the best efforts of the
 laws of physics, as fancifully depicted in
 Figure~\ref{fig:cpu:Hardware and Software: On Same Side}
 where our data stream is trying its best to exceed the speed of light.
-The next section discusses some of the things that the hardware engineers
-might (or might not) be able to do.
+The next section discusses some additional things that the hardware engineers
+might (or might not) be able to do, depending on how well recent
+research translates to practice.
 Software's contribution to this fight is outlined in the remaining chapters
 of this book.
