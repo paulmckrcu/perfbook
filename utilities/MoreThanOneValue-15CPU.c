@@ -146,6 +146,9 @@ int draw_diagram(int n, int m, const struct color_table_s *col_table, int y_offs
 	       (ruler_tick * i)/tim_width);
 	i++;
     } while (ruler_tick * i < fig_width);
+    printf("4 1 0 50 0 16 9 0.0000 4 90 375 %d %d %s\\001\n",
+	   fig_base + ruler_tick * i - 150, bar_height * CPU_NUM + 400 + y_offset,
+	   "(tick)");
     /* label CPU */
     for (i = 0; i < CPU_NUM; i++) {
 	printf("4 2 0 50 0 16 8.5 0.0000 4 105 420 %d %d CPU %2d\\001\n",
