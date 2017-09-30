@@ -134,7 +134,7 @@ perfbook-msnt.tex: perfbook.tex
 perfbook-1csf.tex: perfbook-1c.tex
 	sed -e 's/setboolean{sansserif}{false}/setboolean{sansserif}{true}/' \
 	    -e 's/%msfontstub/\\usepackage[var0]{inconsolata}[2013\/07\/17]/' < $< > $@
-	@echo "## This target requires recent version (>= 1.3i) of mathastext. ##"
+	@echo "## This target requires math font package newtxsf. ##"
 
 # Rules related to perfbook_html are removed as of May, 2016
 
