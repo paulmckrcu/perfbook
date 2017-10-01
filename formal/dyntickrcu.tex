@@ -1829,7 +1829,7 @@ This effort provided some lessons (re)learned:
 	is buggy.
 \item	{\bf Use of atomic instructions can simplify verification.}
 	Unfortunately, use of the \co{cmpxchg} atomic instruction
-	would also slow down the critical irq fastpath, so they
+	would also slow down the critical \IRQ\ fastpath, so they
 	are not appropriate in this case.
 \item	{\bf The need for complex formal verification often indicates
 	a need to re-think your design.}
@@ -1842,10 +1842,10 @@ the dynticks problem, which is presented in the next section.
 \label{sec:formal:Simplicity Avoids Formal Verification}
 
 The complexity of the dynticks interface for preemptible RCU is primarily
-due to the fact that both irqs and NMIs use the same code path and the
+due to the fact that both \IRQ s and NMIs use the same code path and the
 same state variables.
 This leads to the notion of providing separate code paths and variables
-for irqs and NMIs, as has been done for
+for \IRQ s and NMIs, as has been done for
 hierarchical RCU~\cite{PaulEMcKenney2008HierarchicalRCU}
 as indirectly suggested by
 Manfred Spraul~\cite{ManfredSpraul2008StateMachineRCU}.
@@ -1884,7 +1884,7 @@ and efficiently share dynticks state.
 In what follows, they can be thought of as independent per-CPU variables.
 
 The \co{dynticks_nesting}, \co{dynticks}, and \co{dynticks_snap} variables
-are for the irq code paths, and the \co{dynticks_nmi} and
+are for the \IRQ\ code paths, and the \co{dynticks_nmi} and
 \co{dynticks_nmi_snap} variables are for the NMI code paths, although
 the NMI code path will also reference (but not modify) the
 \co{dynticks_nesting} variable.
@@ -1895,18 +1895,18 @@ These variables are used as follows:
 	This counts the number of reasons that the corresponding
 	CPU should be monitored for RCU read-side critical sections.
 	If the CPU is in dynticks-idle mode, then this counts the
-	irq nesting level, otherwise it is one greater than the
-	irq nesting level.
+	\IRQ\ nesting level, otherwise it is one greater than the
+	\IRQ\ nesting level.
 \item	[\tco{dynticks}]
 	This counter's value is even if the corresponding CPU is
-	in dynticks-idle mode and there are no irq handlers currently
+	in dynticks-idle mode and there are no \IRQ\ handlers currently
 	running on that CPU, otherwise the counter's value is odd.
 	In other words, if this counter's value is odd, then the
 	corresponding CPU might be in an RCU read-side critical section.
 \item	[\tco{dynticks_nmi}]
 	This counter's value is odd if the corresponding CPU is
 	in an NMI handler, but only if the NMI arrived while this
-	CPU was in dyntick-idle mode with no irq handlers running.
+	CPU was in dyntick-idle mode with no \IRQ\ handlers running.
 	Otherwise, the counter's value will be even.
 \item	[\tco{dynticks_snap}]
 	This will be a snapshot of the \co{dynticks} counter, but
@@ -1924,11 +1924,11 @@ passed through a quiescent state during that interval.
 
 \QuickQuiz{}
 	But what happens if an NMI handler starts running before
-	an irq handler completes, and if that NMI handler continues
-	running until a second irq handler starts?
+	an \IRQ\ handler completes, and if that NMI handler continues
+	running until a second \IRQ\ handler starts?
 \QuickQuizAnswer{
 	This cannot happen within the confines of a single CPU.
-	The first irq handler cannot complete until the NMI handler
+	The first \IRQ\ handler cannot complete until the NMI handler
 	returns.
 	Therefore, if each of the \co{dynticks} and \co{dynticks_nmi}
 	variables have taken on an even value during a given time
@@ -1985,7 +1985,7 @@ These two functions are invoked from process context.
 Line~6 ensures that any prior memory accesses (which might
 include accesses from RCU read-side critical sections) are seen
 by other CPUs before those marking entry to dynticks-idle mode.
-Lines~7 and~12 disable and reenable irqs.
+Lines~7 and~12 disable and reenable \IRQ s.
 Line~8 acquires a pointer to the current CPU's \co{rcu_dynticks}
 structure, and
 line~9 increments the current CPU's \co{dynticks} counter, which
@@ -2038,7 +2038,7 @@ Figure~\ref{fig:formal:NMIs From Dynticks-Idle Mode}
 shows the \co{rcu_nmi_enter()} and \co{rcu_nmi_exit()} functions,
 which inform RCU of NMI entry and exit, respectively, from dynticks-idle
 mode.
-However, if the NMI arrives during an irq handler, then RCU will already
+However, if the NMI arrives during an \IRQ\ handler, then RCU will already
 be on the lookout for RCU read-side critical sections from this CPU,
 so lines~6 and~7 of \co{rcu_nmi_enter()} and lines~18 and~19
 of \co{rcu_nmi_exit()} silently return if \co{dynticks} is odd.
@@ -2091,7 +2091,7 @@ respectively.
 
 Figure~\ref{fig:formal:Interrupts From Dynticks-Idle Mode}
 shows \co{rcu_irq_enter()} and \co{rcu_irq_exit()}, which
-inform RCU of entry to and exit from, respectively, irq context.
+inform RCU of entry to and exit from, respectively, \IRQ\ context.
 Line~6 of \co{rcu_irq_enter()} increments \co{dynticks_nesting},
 and if this variable was already non-zero, line~7 silently returns.
 Otherwise, line~8 increments \co{dynticks}, which will then have
@@ -2099,18 +2099,18 @@ an odd value, consistent with the fact that this CPU can now
 execute RCU read-side critical sections.
 Line~10 therefore executes a memory barrier to ensure that
 the increment of \co{dynticks} is seen before any
-RCU read-side critical sections that the subsequent irq handler
+RCU read-side critical sections that the subsequent \IRQ\ handler
 might execute.
 
 Line~18 of \co{rcu_irq_exit()} decrements \co{dynticks_nesting}, and
 if the result is non-zero, line~19 silently returns.
 Otherwise, line~20 executes a memory barrier to ensure that the
 increment of \co{dynticks} on line~21 is seen after any RCU
-read-side critical sections that the prior irq handler might have executed.
+read-side critical sections that the prior \IRQ\ handler might have executed.
 Line~22 verifies that \co{dynticks} is now even, consistent with
 the fact that no RCU read-side critical sections may appear in
 dynticks-idle mode.
-Lines~23-25 check to see if the prior irq handlers enqueued any
+Lines~23-25 check to see if the prior \IRQ\ handlers enqueued any
 RCU callbacks, forcing this CPU out of dynticks-idle mode via
 a reschedule API if so.
 
@@ -2159,7 +2159,7 @@ Figures~\ref{fig:formal:Entering and Exiting Dynticks-Idle Mode},
 Lines~11 and~12 record the snapshots for later calls to
 \co{rcu_implicit_dynticks_qs()},
 and lines~13 and~14 check to see if the CPU is in dynticks-idle mode with
-neither irqs nor NMIs in progress (in other words, both snapshots
+neither \IRQ s nor NMIs in progress (in other words, both snapshots
 have even values), hence in an extended quiescent state.
 If so, lines~15 and~16 count this event, and line~17 returns
 true if the CPU was in a quiescent state.
@@ -2225,15 +2225,15 @@ waiting for a CPU that is offline.
 	This is still pretty complicated.
 	Why not just have a \co{cpumask_t} that has a bit set for
 	each CPU that is in dyntick-idle mode, clearing the bit
-	when entering an irq or NMI handler, and setting it upon
+	when entering an \IRQ\ or NMI handler, and setting it upon
 	exit?
 \QuickQuizAnswer{
 	Although this approach would be functionally correct, it
-	would result in excessive irq entry/exit overhead on
+	would result in excessive \IRQ\ entry/exit overhead on
 	large machines.
 	In contrast, the approach laid out in this section allows
-	each CPU to touch only per-CPU data on irq and NMI entry/exit,
-	resulting in much lower irq entry/exit overhead, especially
+	each CPU to touch only per-CPU data on \IRQ\ and NMI entry/exit,
+	resulting in much lower \IRQ\ entry/exit overhead, especially
 	on large machines.
 } \QuickQuizEnd
 
@@ -2243,9 +2243,9 @@ waiting for a CPU that is offline.
 A slight shift in viewpoint resulted in a substantial simplification
 of the dynticks interface for RCU.
 The key change leading to this simplification was minimizing of
-sharing between irq and NMI contexts.
+sharing between \IRQ\ and NMI contexts.
 The only sharing in this simplified interface is references from NMI
-context to irq variables (the \co{dynticks} variable).
+context to \IRQ\ variables (the \co{dynticks} variable).
 This type of sharing is benign, because the NMI functions never update
 this variable, so that its value remains constant through the lifetime
 of the NMI handler.
@@ -2254,6 +2254,6 @@ understood one at a time, in happy contrast to the situation
 described in
 Section~\ref{sec:formal:Promela Parable: dynticks and Preemptible RCU},
 where an NMI might change shared state at any point during execution of
-the irq functions.
+the \IRQ\ functions.
 
 Verification can be a good thing, but simplicity is even better.
