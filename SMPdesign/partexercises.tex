@@ -656,6 +656,38 @@ the lock.
 The \co{pdeq_enqueue_r()} implementation (shown on lines~49-56)
 is quite similar.
 
+\QuickQuiz{}
+	But in the case where data is flowing in only one direction,
+	the algorithm shown in
+	Figure~\ref{fig:SMPdesign:Compound Parallel Double-Ended Queue Implementation}
+	will have both ends attempting to acquire the same lock
+	whenever the consuming end empties its underlying
+	double-ended queue.
+	Doesn't that mean that sometimes this algorithm fails to
+	provide concurrent access to both ends of the queue even
+	when the queue contains an arbitrarily large number of elements?
+\QuickQuizAnswer{
+	Indeed it does!
+
+	But the same is true of other algorithms claiming this property.
+	For example, in solutions using software transactional memory
+	mechanisms based on hashed arrays of locks,
+	the leftmost and rightmost elements' addresses will sometimes
+	happen to hash to the same lock.
+	These hash collisions will also prevent concurrent access.
+	For another example, solutions using hardware transactional
+	memory mechanisms with software
+	fallbacks~\cite{Yoo:2013:PEI:2503210.2503232,RickMerrit2011PowerTM,ChristianJacobi2012MainframeTM}
+	often use locking within those software fallbacks, and thus
+	suffer (albeit hopefully rarely) from whatever concurrency
+	limitations that these locking solutions suffer from.
+
+	Therefore, as of last 2017, all practical solutions to the
+	concurrent double-ended queue problem fail to provide full
+	concurrency in at least some circumstances, including the
+	compound double-ended queue.
+} \QuickQuizEnd
+
 \subsubsection{Double-Ended Queue Discussion}
 \label{sec:SMPdesign:Double-Ended Queue Discussion}
 
