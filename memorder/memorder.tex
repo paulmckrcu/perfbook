@@ -2830,7 +2830,22 @@ actual load:
 
 This optimization might come as a fatal surprise to code elsewhere
 that expected to terminate this loop by storing a zero to \co{a}.
-Prevent this by using \co{READ_ONCE()}, for example, as follows:
+Fortunately, there are several ways of avoiding this sort of problem:
+
+\begin{enumerate}
+\item	Volatile accesses.
+\item	Atomic variables.
+\item	Prohibitions against introducing data races.
+\end{enumerate}
+
+The \co{volatile} restrictions are necessary to write reliable
+device drivers, and the atomic variables and prohibitions against
+introducing data races are necessary to write reliable concurrent
+code.
+
+Starting with volatile accesses, the following code
+relies on the \co{volatile} casts in \co{READ_ONCE()} to prevent
+the unfortunate infinite-loop optimization:
 
 \vspace{5pt}
 \begin{minipage}[t]{\columnwidth}
@@ -2986,15 +3001,35 @@ perfectly within its rights to reorder normal accesses with unrelated
 \co{volatile} accesses.
 
 Oddly enough, the compiler is within its rights to use a variable
-as temporary storage just before a store to that variable, thus
+as temporary storage just before a normal store to that variable, thus
 inventing stores to that variable.
 Fortunately, most compilers avoid this sort of thing, at least outside
 of stack variables.
-Nevertheless, using \co{WRITE_ONCE()} (or declaring the variable
-\co{volatile}) should prevent this sort of thing.
-But take care: If you have a translation unit that uses that variable,
-and never makes a volatile access to it, the compiler has no way of
-knowing that it needs to be careful.
+In any case, using \co{WRITE_ONCE()}, declaring the variable
+\co{volatile}, or declaring the variable atomic (in recent C and C++
+compilers supporting atomics) will prevent this sort of thing.
+
+\QuickQuiz{}
+	Why can't the compiler invent a store to a normal variable
+	any time it likes?
+\QuickQuizAnswer{
+	Because the compiler is forbidden from introducing data races.
+	The case of inventing a store just before a normal store is
+	quite special:  It is not possible for some other entity,
+	be it CPU, thread, signal handler, or interrupt handler, to be
+	able to see the invented store unless the code already has
+	a data race, even without the invented store.
+
+	But if the original store is volatile, as in \co{WRITE_ONCE()},
+	for all the compiler knows, there might be a side effect
+	associated with the store that could signal some other thread,
+	allowing data-race-free access to the variable.
+	By inventing the store, the compiler might be introducing a
+	data race, which it is not permitted to do.
+
+	In the case of \co{volatile} and atomic variables, the compiler
+	is specifically forbidden from inventing writes.
+} \QuickQuizEnd
 
 The previous examples involved compiler optimizations that
 changed the number of accesses.
@@ -3007,7 +3042,9 @@ appear to have happened at a specific place in the instruction
 stream, so that the handler will see the effect of all prior
 instructions, but won't see the effect of any subsequent instructions.
 \co{READ_ONCE()} and \co{WRITE_ONCE()} can therefore be used to
-control communication between interrupted code and interrupt handlers.
+control communication between interrupted code and interrupt handlers.\footnote{
+	That said, the various standards committees would prefer that
+	you instead use atomics or variables of type \co{sig_atomic_t}.}
 
 This leaves changes to the size of accesses, which is known as
 \emph{load tearing} and \emph{store tearing} when the actual size
