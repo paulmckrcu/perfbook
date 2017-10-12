@@ -53,7 +53,7 @@ presents future directions and concluding remarks.
 \subsection{Work-Queue Parallel Maze Solver}
 \label{sec:SMPdesign:Work-Queue Parallel Maze Solver}
 
-\begin{figure}[tbp]
+\begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}
   1 int maze_solve(maze *mp, cell sc, cell ec)
@@ -83,11 +83,11 @@ presents future directions and concluding remarks.
 \centering
 \theverbbox
 \caption{SEQ Pseudocode}
-\label{fig:SMPdesign:SEQ Pseudocode}
-\end{figure}
+\label{lst:SMPdesign:SEQ Pseudocode}
+\end{listing}
 
 PWQ is based on SEQ, which is shown in
-Figure~\ref{fig:SMPdesign:SEQ Pseudocode}
+Listing~\ref{lst:SMPdesign:SEQ Pseudocode}
 (\path{maze_seq.c}).
 The maze is represented by a 2D array of cells and
 a linear-array-based work queue named \co{->visited}.
@@ -99,7 +99,7 @@ visited cell with an unvisited neighbor, and the loop spanning
 lines~14-19 traverses one fork of the submaze headed by that neighbor.
 Line~20 initializes for the next pass through the outer loop.
 
-\begin{figure}[tbp]
+\begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}
   1 int maze_try_visit_cell(struct maze *mp, cell c, cell t,
@@ -135,11 +135,11 @@ Line~20 initializes for the next pass through the outer loop.
 \centering
 \theverbbox
 \caption{SEQ Helper Pseudocode}
-\label{fig:SMPdesign:SEQ Helper Pseudocode}
-\end{figure}
+\label{lst:SMPdesign:SEQ Helper Pseudocode}
+\end{listing}
 
 The pseudocode for \co{maze_try_visit_cell()} is shown on lines~1-12
-of Figure~\ref{fig:SMPdesign:SEQ Helper Pseudocode}
+of Listing~\ref{lst:SMPdesign:SEQ Helper Pseudocode}
 (\path{maze.c}).
 Line~4 checks to see if cells \co{c} and \co{n} are adjacent and connected,
 while line~5 checks to see if cell \co{n} has not yet been visited.
@@ -151,7 +151,7 @@ is now full, and line~10 marks this cell as visited and also records
 the distance from the maze start.  Line~11 then returns success.
 
 The pseudocode for \co{maze_find_any_next_cell()} is shown on lines~14-28
-of Figure~\ref{fig:SMPdesign:SEQ Helper Pseudocode}
+of Listing~\ref{lst:SMPdesign:SEQ Helper Pseudocode}
 (\path{maze.c}).
 Line~17 picks up the current cell's distance plus 1,
 while lines~19, 21, 23, and~25
@@ -185,13 +185,13 @@ consecutively decreasing cell numbers traverses the solution.
 
 The parallel work-queue solver is a straightforward parallelization
 of the algorithm shown in
-Figures~\ref{fig:SMPdesign:SEQ Pseudocode} and ~\ref{fig:SMPdesign:SEQ Helper Pseudocode}.
-Line~10 of Figure~\ref{fig:SMPdesign:SEQ Pseudocode} must use fetch-and-add,
+Listings~\ref{lst:SMPdesign:SEQ Pseudocode} and~\ref{lst:SMPdesign:SEQ Helper Pseudocode}.
+Line~10 of Listing~\ref{lst:SMPdesign:SEQ Pseudocode} must use fetch-and-add,
 and the local variable \co{vi} must be shared among the various threads.
-Lines~5 and~10 of Figure~\ref{fig:SMPdesign:SEQ Helper Pseudocode} must be
+Lines~5 and~10 of Listing~\ref{lst:SMPdesign:SEQ Helper Pseudocode} must be
 combined into a CAS loop, with CAS failure indicating a loop in the
 maze.
-Lines~8-9 of this figure must use fetch-and-add to arbitrate concurrent
+Lines~8-9 of this listing must use fetch-and-add to arbitrate concurrent
 attempts to record cells in the \co{->visited[]} array.
 
 This approach does provide significant speedups on a dual-CPU
@@ -227,7 +227,7 @@ This section applies this strategy, using two child threads that start
 at opposite ends of the solution path, and takes a brief look at the
 performance and scalability consequences.
 
-\begin{figure}[tbp]
+\begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}
   1 int maze_solve_child(maze *mp, cell *visited, cell sc)
@@ -260,11 +260,11 @@ performance and scalability consequences.
 \centering
 \theverbbox
 \caption{Partitioned Parallel Solver Pseudocode}
-\label{fig:SMPdesign:Partitioned Parallel Solver Pseudocode}
-\end{figure}
+\label{lst:SMPdesign:Partitioned Parallel Solver Pseudocode}
+\end{listing}
 
 The partitioned parallel algorithm (PART), shown in
-Figure~\ref{fig:SMPdesign:Partitioned Parallel Solver Pseudocode}
+Listing~\ref{lst:SMPdesign:Partitioned Parallel Solver Pseudocode}
 (\path{maze_part.c}),
 is similar to SEQ, but has a few important differences.
 First, each child thread has its own \co{visited} array, passed in by
@@ -290,7 +290,7 @@ compare-and-swap to mark a cell as visited, however
 no constraints on ordering are required beyond those provided by
 thread creation and join.
 
-\begin{figure}[tbp]
+\begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}
   1 int maze_try_visit_cell(struct maze *mp, int c, int t,
@@ -321,14 +321,14 @@ thread creation and join.
 \centering
 \theverbbox
 \caption{Partitioned Parallel Helper Pseudocode}
-\label{fig:SMPdesign:Partitioned Parallel Helper Pseudocode}
-\end{figure}
+\label{lst:SMPdesign:Partitioned Parallel Helper Pseudocode}
+\end{listing}
 
 The pseudocode for \co{maze_find_any_next_cell()} is identical to that shown in
-Figure~\ref{fig:SMPdesign:SEQ Helper Pseudocode},
+Listing~\ref{lst:SMPdesign:SEQ Helper Pseudocode},
 but the pseudocode for \co{maze_try_visit_cell()} differs, and
 is shown in
-Figure~\ref{fig:SMPdesign:Partitioned Parallel Helper Pseudocode}.
+Listing~\ref{lst:SMPdesign:Partitioned Parallel Helper Pseudocode}.
 Lines~8-9 check to see if the cells are connected, returning failure
 if not.
 The loop spanning lines~11-18 attempts to mark the new cell visited.
@@ -500,7 +500,7 @@ please proceed to the next section.
 The presence of algorithmic superlinear speedups suggests simulating
 parallelism via co-routines, for example, manually switching context
 between threads on each pass through the main do-while loop in
-Figure~\ref{fig:SMPdesign:Partitioned Parallel Solver Pseudocode}.
+Listing~\ref{lst:SMPdesign:Partitioned Parallel Solver Pseudocode}.
 This context switching is straightforward because the context
 consists only of the variables \co{c} and \co{vi}: Of the numerous
 ways to achieve the effect, this is a good tradeoff between
