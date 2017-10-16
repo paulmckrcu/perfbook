@@ -4302,11 +4302,10 @@ the {\tt rel}.
 These half-memory fences are useful for critical sections, since
 it is safe to push operations into a critical section, but can be
 fatal to allow them to bleed out.
-However, as one of the only CPUs with this property,\footnote{
-	ARMv8 has recently added load-acquire and store-release instructions.}
-Itanium defines
-Linux's semantics of memory ordering associated with lock acquisition
-and release.
+However, as one of the few CPUs with this property, Itanium at one
+time defined Linux's semantics of memory ordering associated with lock
+acquisition and release.\footnote{
+	PowerPC is now the architecture having this dubious privilege.}
 Oddly enough, actual Itanium hardware is rumored to implement
 both load-acquire and store-release instructions as full barriers.
 Nevertheless, Itanium was the first mainstream CPU to introduce the concept
@@ -4328,7 +4327,7 @@ memory barriers.
 
 \subsection{MIPS}
 
-The MIPS memory model~\cite[Table 6.6]{MIPSvII-A-2015}
+The MIPS memory model~\cite[Table 6.6]{MIPSvII-A-2017}
 appears to resemble that of ARM, Itanium, and \Power{},
 being weakly ordered by default, but respecting dependencies.
 MIPS has a wide variety of memory-barrier instructions, but ties them
@@ -4339,25 +4338,40 @@ in a manner similar to the ARM64 additions:
 \begin{description}[style=nextline]
 \item[\tco{SYNC}]
 	Full barrier for a number of hardware operations in addition
-	to memory references.
+	to memory references, which is used to implement the v4.13
+	Linux kernel's \co{smp_mb()} for OCTEON systems.
 \item[\tco{SYNC_WMB}]
-	Write memory barrier, which can be used to implement the
-	\co{smp_wmb()} primitive in the Linux kernel.
+	Write memory barrier, which can be used on OCTEON systems
+	to implement the
+	\co{smp_wmb()} primitive in the v4.13 Linux kernel via the
+	\co{syncw} mnemonic.
+	Other systems use plain \co{sync}.
 \item[\tco{SYNC_MB}]
 	Full memory barrier, but only for memory operations.
-	This may be used to implement the Linux-kernel \co{smp_mb()}
-	and the C++ \co{atomic_thread_fence(memory_order_seq_cst)}.
+	This may be used to implement the 
+	C++ \co{atomic_thread_fence(memory_order_seq_cst)}.
 \item[\tco{SYNC_ACQUIRE}]
-	Acquire memory barrier, which may be used to implement the
-	Linux-kernel \co{smp_load_acquire()} and the C++
-	\co{atomic_load_explicit(..., memory_order_acquire)}.
+	Acquire memory barrier, which could be used to implement
+	C++'s \co{atomic_thread_fence(memory_order_acquire)}.
+	In theory, it could also be used to implement the v4.13 Linux-kernel
+	\co{smp_load_acquire()} primitive, but in practice
+	\co{sync} is used instead.
 \item[\tco{SYNC_RELEASE}]
-	Release memory barrier, which may be used to implement the
-	Linux-kernel \co{smp_store_release()} and the C++
-	\co{atomic_store_explicit(..., memory_order_release)}.
+	Release memory barrier, which may be used to implement
+	C++'s \co{atomic_thread_fence(memory_order_release)}.
+	In theory, it could also be used to implement the v4.13 Linux-kernel
+	\co{smp_store_release()} primitive, but in practice
+	\co{sync} is used instead.
 \item[\tco{SYNC_RMB}]
-	Read memory barrier, which can be used to implement the
-	\co{smp_rmb()} primitive in the Linux kernel.
+	Read memory barrier, which could in theory be used to implement the
+	\co{smp_rmb()} primitive in the Linux kernel, except that current
+	MIPS implementations supported by the v4.13 Linux kernel do not
+	need an explicit instruction to force ordering.
+	Therefore, \co{smp_rmb()} instead simply constrains the compiler.
+\item[\tco{SYNCI}]
+	Instruction-cache synchronization, which is used in conjunction with
+	other instructions to allow self-modifying code, such as that produced
+	by just-in-time (JIT) compilers.
 \end{description}
 
 Informal discussions with MIPS architects indicates that MIPS has a
