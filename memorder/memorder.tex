@@ -958,8 +958,7 @@ not if performance and scalability are at all important to you.
 Unfortunately, memory ordering has many other ways of insulting your
 intuition, and not all of these ways conflict with performance and
 scalability.
-The next section will give an overview of reordering of unrelated
-memory reference.
+The next section overviews reordering of unrelated memory reference.
 
 \subsection{Memory-Reference Reordering}
 \label{sec:memorder:Memory-Reference Reordering}
@@ -970,8 +969,6 @@ can reorder prior stores with later loads, at least when the
 store and load are to different variables.
 This section builds on that result, looking at the other combinations of
 loads and stores.
-
-% @@@ Rationale for further reordering.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -1025,6 +1022,27 @@ not~\cite{JadeAlglave2011ppcmem}.
 Therefore, the \co{exists} clause on line~25 of the listing \emph{can}
 trigger.
 
+One rationale for reordering loads from different locations is that doing
+so allows execution to proceed when an earlier load misses the cache,
+but the values for later loads are already present.
+
+\QuickQuiz{}
+	But why make load-load reordering visible to the user?
+	Why not just use speculative execution to allow execution to
+	proceed in the common case where there are no intervening
+	stores, in which case the reordering cannot be visible anyway?
+\QuickQuizAnswer{
+	They can and many do, otherwise systems containing
+	strongly ordered CPUs would be slow indeed.
+	However, speculative execution does have its downsides, especially
+	if speculation must be rolled back frequently, and especially
+	on battery-powered systems.
+	But perhaps future systems will be able to overcome these
+	disadvantages.
+	Until then, we can expect vendors to continue producing
+	weakly ordered CPUs.
+} \QuickQuizEnd
+
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}[\LstLineNo]
@@ -1061,7 +1079,7 @@ exists (1:r2=2 /\ 1:r3=0)
 \label{lst:memorder:Enforcing Order of Message-Passing Litmus Test}
 \end{listing}
 
-Thus, portable code relying on ordering in this case must
+Thus, portable code relying on ordered loads must
 add explicit ordering, for example, the \co{smp_rmb()} shown on
 line~20 of
 Listing~\ref{lst:memorder:Enforcing Order of Message-Passing Litmus Test}
@@ -1148,11 +1166,15 @@ exists (1:r2=2 /\ 0:r2=2)
 
 Although it is rare for actual hardware to
 exhibit this reordering~\cite{LucMaranget2017aarch64},
-portable code must nevertheless enforce any required ordering, for example,
+one situation where it might be desirable to do so is when a load
+misses the cache, the store buffer is nearly full, and the cacheline for
+a subsequent store is ready at hand.
+Therefore, portable code must enforce any required ordering, for example,
 as shown in
 Listing~\ref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test}
 (\path{C-LB+o-r+a-o.litmus}).
-This guarantees that the \co{exists} clause on line~22 never triggers.
+The \co{smp_store_release()} and \co{smp_load_acquire()} guarantee that
+the \co{exists} clause on line~22 never triggers.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -1194,17 +1216,36 @@ exists (1:r2=2 /\ 1:r3=0)
 
 Listing~\ref{lst:memorder:Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
 (\path{C-MP+o-o+o-rmb-o.litmus})
-once again shows the classic message-passing litmus test, but without
-explicit ordering for \co{P0()}'s stores and with the \co{smp_rmb()}
-providing ordering for \co{P1()}'s loads.
+once again shows the classic message-passing litmus test, with the
+\co{smp_rmb()} providing ordering for \co{P1()}'s loads, but without
+any ordering for \co{P0()}'s stores.
 Again, the relatively strongly ordered architectures do enforce ordering,
 but weakly ordered architectures do not necessarily do
 so~\cite{JadeAlglave2011ppcmem}, which means that the
 \co{exists} clause can trigger.
+One situation in which such reordering could be beneficial is when
+the store buffer is full, another store is ready to execute, but the
+cacheline needed by the oldest store still stuck in the store buffer is
+not yet available.
+In this situation, allowing stores to complete out of order would
+allow execution to proceed.
 Therefore, portable code must explicitly order the stores, for
 example, as shown in
 Listing~\ref{lst:memorder:Enforcing Order of Message-Passing Litmus Test},
 thus preventing the \co{exists} clause from triggering.
+
+\QuickQuiz{}
+	Why should strongly ordered systems pay the performance price
+	of unnecessary \co{smp_rmb()} and \co{smp_wmb()} invocations?
+	Shouldn't weakly ordered systems shoulder the full cost of
+	their misordering choices???
+\QuickQuizAnswer{
+	That is in fact exactly what happens.
+	On strongly ordered systems, \co{smp_rmb()} and \co{smp_wmb()}
+	emit no instructions, but instead just constrain the compiler.
+	Thus, in this case, weakly ordered systems do in fact shoulder
+	the full cost of their memory-ordering choices.
+} \QuickQuizEnd
 
 \subsection{Address Dependencies}
 \label{sec:memorder:Address Dependencies}
