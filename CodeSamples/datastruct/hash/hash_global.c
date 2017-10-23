@@ -77,6 +77,13 @@ static void hashtab_unlock_mod(struct hashtab *htp, unsigned long hash)
 }
 
 /*
+ * Finished using a looked up hashtable element.
+ */
+void hashtab_lookup_done(struct ht_elem *htep)
+{
+}
+
+/*
  * Look up a key.  Caller must have acquired either a read-side or update-side
  * lock via either hashtab_lock_lookup() or hashtab_lock_mod().  Note that
  * the return is a pointer to the ht_elem: Use offset_of() or equivalent

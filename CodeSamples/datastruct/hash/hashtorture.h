@@ -90,13 +90,24 @@ int testcmp(struct ht_elem *htep, void *key)
 	return ((unsigned long)key) == thep->data;
 }
 
+struct testhe *smoketest_malloc(int key)
+{
+	struct testhe *ep;
+
+	ep = malloc(sizeof(*ep));
+	BUG_ON(!ep);
+	ep->data = key;
+	return ep;
+}
+
 void smoketest(void)
 {
-	struct testhe e1 = { .data = 1 };
-	struct testhe e2 = { .data = 2 };
-	struct testhe e3 = { .data = 3 };
-	struct testhe e4 = { .data = 4 };
+	struct testhe *e1p;
+	struct testhe *e2p;
+	struct testhe *e3p;
+	struct testhe *e4p;
 	struct hashtab *htp;
+	struct ht_elem *htep;
 	long i;
 
 	htp = hashtab_alloc(5, testcmp);
@@ -112,45 +123,59 @@ void smoketest(void)
 	}
 
 	/* Add one by one and check. */
+	e1p = smoketest_malloc(1);
 	hashtab_lock_mod(htp, 1);
-	hashtab_add(htp, 1, &e1.the_e);
-	BUG_ON(!hashtab_lookup(htp, 1, (void *)1));
+	hashtab_add(htp, 1, &e1p->the_e);
+	htep = hashtab_lookup(htp, 1, (void *)1);
+	BUG_ON(!htep);
 	hashtab_unlock_mod(htp, 1);
+	hashtab_lookup_done(htep);
+	e2p = smoketest_malloc(2);
 	hashtab_lock_mod(htp, 2);
-	hashtab_add(htp, 2, &e2.the_e);
-	BUG_ON(!hashtab_lookup(htp, 2, (void *)2));
+	hashtab_add(htp, 2, &e2p->the_e);
+	htep = hashtab_lookup(htp, 2, (void *)2);
+	BUG_ON(!htep);
 	hashtab_unlock_mod(htp, 2);
+	hashtab_lookup_done(htep);
+	e3p = smoketest_malloc(3);
 	hashtab_lock_mod(htp, 3);
-	hashtab_add(htp, 3, &e3.the_e);
-	BUG_ON(!hashtab_lookup(htp, 3, (void *)3));
+	hashtab_add(htp, 3, &e3p->the_e);
+	htep = hashtab_lookup(htp, 3, (void *)3);
+	BUG_ON(!htep);
 	hashtab_unlock_mod(htp, 3);
+	hashtab_lookup_done(htep);
+	e4p = smoketest_malloc(4);
 	hashtab_lock_mod(htp, 4);
-	hashtab_add(htp, 4, &e4.the_e);
-	BUG_ON(!hashtab_lookup(htp, 4, (void *)4));
+	hashtab_add(htp, 4, &e4p->the_e);
+	htep = hashtab_lookup(htp, 4, (void *)4);
+	BUG_ON(!htep);
 	hashtab_unlock_mod(htp, 4);
+	hashtab_lookup_done(htep);
 
 	/* Should be full. */
 	for (i = 1; i <= 4; i++) {
 		hashtab_lock_lookup(htp, i);
-		BUG_ON(!hashtab_lookup(htp, (unsigned long)i, (void *)i));
+		htep = hashtab_lookup(htp, (unsigned long)i, (void *)i);
+		BUG_ON(!htep);
 		hashtab_unlock_lookup(htp, i);
+		hashtab_lookup_done(htep);
 	}
 
 	/* Delete all and check one by one. */
 	hashtab_lock_mod(htp, 1);
-	hashtab_del(&e1.the_e);
+	hashtab_del(&e1p->the_e);
 	BUG_ON(hashtab_lookup(htp, 1, (void *)1));
 	hashtab_unlock_mod(htp, 1);
 	hashtab_lock_mod(htp, 2);
-	hashtab_del(&e2.the_e);
+	hashtab_del(&e2p->the_e);
 	BUG_ON(hashtab_lookup(htp, 2, (void *)2));
 	hashtab_unlock_mod(htp, 2);
 	hashtab_lock_mod(htp, 3);
-	hashtab_del(&e3.the_e);
+	hashtab_del(&e3p->the_e);
 	BUG_ON(hashtab_lookup(htp, 3, (void *)3));
 	hashtab_unlock_mod(htp, 3);
 	hashtab_lock_mod(htp, 4);
-	hashtab_del(&e4.the_e);
+	hashtab_del(&e4p->the_e);
 	BUG_ON(hashtab_lookup(htp, 4, (void *)4));
 	hashtab_unlock_mod(htp, 4);
 
@@ -672,6 +697,7 @@ int perftest_lookup(long i)
 	thep = container_of(htep, struct testhe, the_e);
 	BUG_ON(thep && thep->data != i);
 	hashtab_unlock_lookup(perftest_htp, i);
+	hashtab_lookup_done(htep);
 	return !!htep;
 }
 
@@ -947,6 +973,7 @@ int zoo_lookup(char *key)
 	       (htep->hte_hash != hash ||
 	        strncmp(zhep->name, (char *)key, ZOO_NAMELEN) != 0));
 	hashtab_unlock_lookup(perftest_htp, hash);
+	hashtab_lookup_done(htep);
 	return !!htep;
 }
 
