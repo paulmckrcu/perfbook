@@ -1507,33 +1507,37 @@ asserted the event, the first CPU drops out of the competition.
 This acquire-then-release sequence continues until either the
 \co{gp_flags} variable indicates that someone else won the tournament,
 one of the attempts to acquire an \co{->fqslock} fails, or
-the root \co{rcu_node} structure's \co{->fqslock} as been acquired.
+the root \co{rcu_node} structure's \co{->fqslock} has been acquired.
+If the root \co{rcu_node} structure's \co{->fqslock} is acquired,
+a function named \co{do_force_quiescent_state()} is invoked, but this
+function should be invoked at most once every 100\,milliseconds.
 
 \begin{listing}[tbp]
 { \scriptsize
 \begin{verbbox}
-  1 void force_quiescent_state(struct rcu_node *rnp_leaf)
-  2 {
-  3   int ret;
-  4   struct rcu_node *rnp = rnp_leaf;
-  5   struct rcu_node *rnp_old = NULL;
-  6 
-  7   for (; rnp != NULL; rnp = rnp->parent) {
-  8     ret = (ACCESS_ONCE(gp_flags)) ||
-  9           !raw_spin_trylock(&rnp->fqslock);
- 10     if (rnp_old != NULL)
- 11       raw_spin_unlock(&rnp_old->fqslock);
- 12     if (ret)
- 13       return;
- 14     rnp_old = rnp;
- 15   }
- 16   if (!ACCESS_ONCE(gp_flags)) {
- 17     ACCESS_ONCE(gp_flags) = 1;
- 18     do_force_quiescent_state();
- 19     ACCESS_ONCE(gp_flags) = 0;
- 20   }
- 21   raw_spin_unlock(&rnp_old->fqslock);
- 22 }
+ 1  void force_quiescent_state(struct rcu_node *rnp_leaf)
+ 2  {
+ 3    int ret;
+ 4    struct rcu_node *rnp = rnp_leaf;
+ 5    struct rcu_node *rnp_old = NULL;
+ 6
+ 7    for (; rnp != NULL; rnp = rnp->parent) {
+ 8      ret = (ACCESS_ONCE(gp_flags)) ||
+ 9            !raw_spin_trylock(&rnp->fqslock);
+10      if (rnp_old != NULL)
+11        raw_spin_unlock(&rnp_old->fqslock);
+12      if (ret)
+13        return;
+14      rnp_old = rnp;
+15    }
+16    if (!ACCESS_ONCE(gp_flags)) {
+17      ACCESS_ONCE(gp_flags) = 1;
+18      do_force_quiescent_state();
+19      schedule_timeout_interruptible(HZ / 10);
+20      ACCESS_ONCE(gp_flags) = 0;
+21    }
+22    raw_spin_unlock(&rnp_old->fqslock);
+23  }
 \end{verbbox}
 }
 \centering
@@ -1551,6 +1555,8 @@ At any given time, it only makes sense for one instance of
 concurrent callers, we need at most one of them to actually invoke
 \co{do_force_quiescent_state()}, and we need the rest to (as quickly and
 painlessly as possible) give up and leave.
+Furthermore, if \co{do_force_quiescent_state()} has been invoked within
+the past 100\,milliseconds, there is no need to invoke it again.
 
 To this end, each pass through the loop spanning lines~7-15 attempts
 to advance up one level in the \co{rcu_node} hierarchy.
@@ -1571,9 +1577,9 @@ If control reaches line~16, we won the tournament, and now holds the
 root \co{rcu_node} structure's \co{->fqslock}.
 If line~16 still sees that the global variable \co{gp_flags} is zero,
 line~17 sets \co{gp_flags} to one, line~18 invokes
-\co{do_force_quiescent_state()}, and line~19 resets \co{gp_flags}
-back to zero.
-Either way, line~21 releases the root \co{rcu_node} structure's
+\co{do_force_quiescent_state()}, line~19 waits for 100\,milliseconds,
+and line~20 resets \co{gp_flags} back to zero.
+Either way, line~22 releases the root \co{rcu_node} structure's
 \co{->fqslock}.
 
 \QuickQuiz{}
@@ -1605,9 +1611,9 @@ Either way, line~21 releases the root \co{rcu_node} structure's
 
 This function illustrates the not-uncommon pattern of hierarchical
 locking.
-This pattern is quite difficult to implement using RAII locking,
+This pattern is quite difficult to implement using strict RAII locking,
 just like the iterator encapsulation noted earlier,
-and so the lock/unlock primitives will be needed for the foreseeable
+and so explicit lock/unlock primitives will be needed for the foreseeable
 future.
 
 \section{Locking Implementation Issues}
