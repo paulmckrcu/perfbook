@@ -3329,7 +3329,14 @@ ordering is lost.
 		Kudos to Linus Torvalds for providing this example.}
 } \QuickQuizEnd
 
-% @@@ Quick quiz showing other ways to break dependencies by comparison
+Note that a series of inequality comparisons might, when taken together,
+give the compiler enough information to determine the exact value of
+the pointer, at which point, you should consider the dependency broken.
+Furthermore, the compiler might be able to combine information from
+even a single inequality comparison with other information to learn
+the exact value, again breaking the dependency.
+Pointers to elements in arrays are especially susceptible to this latter
+form of dependency breakage.
 
 \subsubsection{Safe comparison of dependent pointers}
 It turns out that there are several safe ways to compare dependent
@@ -3344,12 +3351,120 @@ pointers:
 	after the comparison.
 \item	The dependent pointer is compared to a pointer that references
 	objects that were last modified a very long time ago, where
-	the safest value of ``a very long time ago'' is at compile time.
+	the only unconditionally safe value of ``a very long time ago'' is
+	``at compile time''.
+	The key point is that there absolutely must be something other
+	than the address or data dependency that guarantees ordering.
+\item	Comparisons between two pointers, each of which is carrying
+	a good-enough dependency.
+	For example, you have a pair of pointers, each carrying a
+	dependency, and you want to avoid deadlock by acquiring locks
+	of the pointed-to data elements in address order.
+\item	The comparison is not-equal, and the compiler does not have
+	enough other information to deduce the value of the
+	pointer carrying the dependency.
 \end{enumerate}
 
-% @@@ convert to \co{uintptr_t} to set/clear bits and convert back.
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 struct foo {
+ 2   int a;
+ 3   int b;
+ 4   int c;
+ 5 };
+ 6 struct foo *gp1;
+ 7 struct foo *gp2;
+ 8
+ 9 void updater(void)
+10 {
+11   struct foo *p;
+12
+13   p = malloc(sizeo(*p));
+14   BUG_ON(!p);
+15   p->a = 42;
+16   p->b = 43;
+17   p->c = 44;
+18   rcu_assign_pointer(gp1, p);
+19   p->b = 143;
+20   p->c = 144;
+21   rcu_assign_pointer(gp2, p);
+22 }
+23
+24 void reader(void)
+25 {
+26   struct foo *p;
+27   struct foo *q;
+28   int r1, r2 = 0;
+29
+30   p = rcu_dereference(gp2);
+31   if (p == NULL)
+32     return;
+33   r1 = p->b;
+34   q = rcu_dereference(gp1);
+35   if (p == q) {
+36     r2 = p->c;
+37   }
+38   do_something_with(r1, r2);
+39 }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Broken Dependencies With Pointer Comparisons}
+\label{lst:memorder:Broken Dependencies With Pointer Comparisons}
+\end{listing}
 
-% @@@ More here
+Pointer comparisons can be quite tricky, and so it is well worth working
+through the example shown in
+Figure~\ref{lst:memorder:Broken Dependencies With Pointer Comparisons}.
+This example uses a simple \co{struct foo} shown on lines~1-5 and
+two global pointers, \co{gp1} and \co{gp2}, shown on lines~6 and~7,
+respectively.
+This example uses two threads, namely \co{updater()} on lines~9-22 and
+\co{reader()} on lines~24-39.
+
+The \co{updater()} thread allocates memory on line~13, and complains
+bitterly on line~14 if none is available.
+Lines~15-17 initialize the newly allocated structure, and then line~18
+assigns the pointer to \co{gp1}.
+Lines~19 and~20 then update two of the structure's fields, and does
+so \co{after} line~18 has made those fields visible to readers.
+Please note that unsynchronized update of reader-visible fields
+often constitutes a but.
+Although there are legitmate use cases doing just this, such use cases
+require more care than is exercised in this example.
+
+Finally, line~21 assigns the pointer to \co{gp2}.
+
+The \co{reader()} thread first fetches \co{gp2} on line~30, with
+lines~31 and~32 checking for \co{NULL} and returning if so.
+Line~33 then fetches field \co{->b}.
+Now line~34 fetches \co{gp1}, and if line~35 sees that the pointers
+fetched on lines~30 and~34 are equal, line~36 fetches \co{p->c}.
+Note that line~36 uses pointer \co{p} fetched on line~30, not
+pointer \co{q} fetched on line~34.
+
+But this difference might not matter.
+An equals comparison on line~35 might lead the compiler to (incorrectly)
+conclude that both pointers are equivalent, when in fact they carry
+different dependencies.
+This means that the compiler might well transform line~36 to instead
+be \co{r2 = q->c}, which might well cause the value 44 to be loaded
+instead of the expected value 144.
+
+\QuickQuiz{}
+	But doesn't the condition in line~35 supply a control dependency
+	that would keep line~36 ordered after line~34?
+\QuickQuizAnswer{
+	Yes, but no.
+	Yes, there is a control dependency, but control dependencies do
+	not order later loads, only later stores.
+	If you really need ordering, you could place an \co{smp_rmb()}
+	between lines~35 and~36.
+	Or considerably better, have \co{update()}
+	allocate two structures instead of reusing the structure.
+} \QuickQuizEnd
 
 In short, some care is required in order to ensure that dependency
 chains in your source code are still dependency chains once the
