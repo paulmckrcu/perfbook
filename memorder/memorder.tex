@@ -2796,8 +2796,70 @@ prevents the \co{exists} clause on line~36 from triggering.
 But beware: Adding a second store-to-store step would allow the correspondingly
 updated \co{exists} clause to trigger.
 
-% @@@ QQ on having a release-acquire chain with one load-to-store and
-% @@@ one store-to-store link.
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-Z6.2+o-r+a-o+o-mb-o
+
+{
+int x = 0;
+int y = 0;
+int z = 0;
+}
+
+P0(int *x, int *y)
+{
+	WRITE_ONCE(*x, 1);
+	smp_store_release(y, 1);
+}
+
+P1(int *y, int *z)
+{
+	int r1;
+
+	r1 = smp_load_acquire(y);
+	WRITE_ONCE(*z, 1);
+}
+
+P2(int *z, int *x)
+{
+	int r3;
+
+	WRITE_ONCE(*z, 2);
+	smp_mb();
+	r2 = READ_ONCE(*x);
+}
+
+exists(1:r1=1 /\ 2:r2=0 /\ z=2)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Z6.0 Release-Acquire Chain (Ordering?)}
+\label{lst:memorder:Z6.0 Release-Acquire Chain (Ordering?)}
+\end{listing}
+
+\QuickQuiz{}
+	Suppose we have a short release-acquire chain along with one
+	load-to-store link and one store-to-store link, like that shown in
+	Listing~\ref{lst:memorder:Z6.0 Release-Acquire Chain (Ordering?)}.
+	Given that there is only one of each type of non-store-to-load
+	link, the \co{exists} cannot trigger, right?
+\QuickQuizAnswer{
+	Wrong.
+	It is the number of non-store-to-load links that matters.
+	If there is only one non-store-to-load link, a release-acquire
+	chain can prevent the \co{exists} clause from triggering.
+	However, if there is more than one non-store-to-load link,
+	be they store-to-store, load-to-store, or any combination
+	thereof, it is necessary to have at least one full barrier
+	(\co{smp_mb()} or better) between each non-store-to-load link.
+	In
+	Figure~\ref{lst:memorder:Z6.0 Release-Acquire Chain (Ordering?)},
+	preventing the \co{exists} clause from triggering therefore requires
+	an additional full barrier between either \co{P0()}'s or
+	\co{P1()}'s accesses.
+} \QuickQuizEnd
 
 \QuickQuiz{}
 	There are store-to-load links, load-to-store links, and
