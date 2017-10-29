@@ -1,0 +1,509 @@
+% formal/regression.tex
+% SPDX-License-Identifier: CC-BY-SA-3.0
+
+\section{Formal Regression Testing?}
+\label{sec:formal:Formal Regression Testing?}
+
+Formal verification has proven useful in some cases, but a pressing
+open question is whether hard-core formal verification will ever be
+included in automated regression-test suites for complex concurrent
+code bases, such as the Linux kernel.
+Although there is already a proof of concept for Linux-kernel
+SRCU~\cite{LanceRoy2017CBMC-SRCU}, this test is for a small portion
+of one of the simplest RCU implementations, and has proven difficult
+to keep it caught up with the ever-changing Linux kernel.
+It is therefore worth asking what would be required to incorporate
+formal verification as first-class members of the Linux kernel's
+regression tests.
+
+The following list is a good
+start~\cite[slide 34]{PaulEMcKenney2015DagstuhlVerification}:
+
+\begin{enumerate}
+\item	Any required translation must be automated.
+\item	The environment (including memory ordering) must be correctly
+	handled.
+\item	The memory and CPU overhead must be acceptably modest.
+\item	Specific information leading to the location of the bug
+	must be provided.
+\item	Information beyond the source code and inputs must be
+	modest in scope.
+\item	The bugs located must be relevant to the code's users.
+\end{enumerate}
+
+This list builds on, but is somewhat more modest than, Richard Bornat's
+dictum: ``Formal-verification researchers should verify the code that
+developers write, in the language they write it in, running in the
+environment that it runs in, as they write it.''
+The following sections discuss each of the above requirements.
+
+\subsection{Automatic Translation}
+\label{sec:formal:Automatic Translation}
+
+Although Promela and \co{spin}
+are invaluable design aids, if you need to formally regression-test
+your C-language program, you must hand-translate to Promela each time
+you would like to re-verify your code.
+If your code happens to be in the Linux kernel, which releases every
+60-90 days, you will need to hand-translate from four to six times
+each year.
+Over time, human error will creep in, which means that the verification
+won't match the source code, rendering the verification useless.
+Repeated verification clearly requires either that the formal-verification
+tooling input your code directly, or that there be automatic translation
+of your code to the form required for verification.
+
+PPCMEM and \co{herd} can in theory directly input assembly language
+and C++ code, but these tools work only on very small litmus tests,
+which normally means that you must extract the core of your
+mechanism---by hand.
+As with Promela and \co{spin}, both PPCMEM and \co{herd} are
+extremely useful, but they are well-suited for regression suites.
+
+In contrast, \co{cbmc} and Nidhugg can input C programs of reasonable
+(though still quite limited) size, and if their capabilities continue
+to grow, could well become excellent additions to regression suites.
+
+One shortcoming of taking C code as input is that it assumes that the
+compiler is correct.
+An alternative approach is to take the binary produced by the C compiler
+as input, thereby accounting for any relevant compiler bugs.
+This approach has been used in a number of verification efforts,
+perhaps most notably by the SEL4
+project~\cite{ThomasSewell2013L4binaryVerification}.
+
+\QuickQuiz{}
+	Given the groundbreaking nature of the various verifiers used
+	in the SEL4 project, why doesn't this chapter cover them in
+	more depth?
+\QuickQuizAnswer{
+	There can be no doubt that the verifiers used by the SEL4
+	project are quite capable.
+	However, it has been only in the past couple of years
+	(as of 2017) that SEL4 has been anything other than
+	a single-CPU project.
+	And although SEL4 is starting to gain multi-processor
+	capabilities, it is currently using very coarse-grained
+	locking that is similar to the Linux kernel's old
+	Big Kernel Lock (BKL).
+	There will hopefully come a day when it makes sense to add
+	SEL4's verifiers to a book on parallel programming, but
+	unfortunately, this is not yet that day.
+} \QuickQuizEnd
+
+However, verifying directly from either the source or binary both have the
+advantage of eliminating human translation errors, which is critically
+important for reliable regression testing.
+
+\subsection{Environment}
+\label{sec:formal:Environment}
+
+It is critically important that formal-verification tools correctly
+model their environment.
+One all-too-common omission is the memory model, where a great
+many formal-verification tools, including Promela/spin, are
+restricted to sequential consistency.
+The QRCU experience related in
+Section~\ref{sec:formal:Is QRCU Really Correct?}
+is an important cautionary tale.
+
+Promela and \co{spin} assume sequential consistency, which is not a
+good match for modern computer systems, as will be seen in
+Chapter~\ref{chp:Advanced Synchronization: Memory Ordering}.
+In contrast, one of the great strengths of PPCMEM and \co{herd}
+is their detailed modeling of various CPU families memory models,
+including x86, ARM, Power, and, in the case of \co{herd},
+even a prototype Linux-kernel memory
+model~\cite{JadeAlglave2017LWN-LKMM-1,JadeAlglave2017LWN-LKMM-2}.
+
+The \co{cbmc} and Nidhugg tools provide some ability to select
+memory models, but do not provide the variety that PPCMEM and
+\co{herd} do.
+However, it is likely that the larger-scale tools will adopt
+a greater variety of memory models as time goes on.
+
+In the longer term, it would be helpful for formal-verification
+tools to include I/O~\cite{PaulEMcKenney2016LinuxKernelMMIO},
+but it may be some time before this comes to pass.
+
+\subsection{Overhead}
+\label{sec:formal:Overhead}
+
+Almost all hard-core formal-verification tools are exponential
+in nature, however, there are differences in degree.
+
+PPCMEM by design is unoptimized, in order to provide greater assurance
+that the memory models of interest are in fact accurately represented.
+The \co{herd} tool optimizes more aggressively, and so as described in
+Section~\ref{sec:formal:Axiomatic Approaches}, is orders of magnitude
+faster than PPCMEM.
+Nevertheless, both PPCMEM and \co{herd} target very small litmus tests
+rather than larger bodies of code.
+
+In contrast, Promela/\co{spin}, \co{cbmc}, and Nidhugg are designed for
+(somewhat) larger bodies of code.
+Promela/\co{spin} was used to verify the Curiosity rover's
+filesystem~\cite{DBLP:journals/amai/GroceHHJX14} and, as noted earlier,
+both \co{cbmc} and Nidhugg were appled to Linux-kernel RCU.
+
+If advances in heuristics continue at the rate of the past quarter
+century, we can look forward to large reductions in overhead for
+formal verification.
+That said, combinatorial explosion is still combinatorial explosion,
+which would be expected to sharply limit the size of programs that
+could be verified, with or without continued improvements in
+heuristics.
+
+However, the flip side of combinatorial explosion is Philip II of
+Macedon's timeless advice: ``Divide and rule.''
+If a large program can be divided and the pieces verified, the result
+can be combinatorial \emph{implosion}~\cite{PaulEMcKenney2011Verico}.
+One natural place to divide is on API boundaries, for example, those
+of locking primitives.
+One verification pass can then verify that the locking implementation
+is correct, and additional verification passes can verify correct
+use of the locking APIs.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-SB+l-o-o-u+l-o-o-u-C
+
+{
+}
+
+P0(int *sl, int *x0, int *x1)
+{
+	int r2;
+	int r1;
+
+	r2 = cmpxchg_acquire(sl, 0, 1);
+	WRITE_ONCE(*x0, 1);
+	r1 = READ_ONCE(*x1);
+	smp_store_release(sl, 0);
+}
+
+P1(int *sl, int *x0, int *x1)
+{
+	int r2;
+	int r1;
+
+	r2 = cmpxchg_acquire(sl, 0, 1);
+	WRITE_ONCE(*x1, 1);
+	r1 = READ_ONCE(*x0);
+	smp_store_release(sl, 0);
+}
+
+filter (0:r2=0 /\ 1:r2=0)
+exists (0:r1=0 /\ 1:r1=0)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Emulating Locking with \tco{cmpxchg_acquire()}}
+\label{lst:formal:Emulating Locking with cmpxchg}
+\end{listing}
+
+\begin{table}[tbh]
+\rowcolors{6}{}{lightgray}
+\renewcommand*{\arraystretch}{1.1}
+\small
+\centering\OneColumnHSpace{-0.1in}
+\begin{tabular}{rrr}
+	\toprule
+	\# Threads & Locking & \tco{cmpxchg_acquire} \\
+	\cmidrule{1-1} \cmidrule{2-2} \cmidrule{3-3}
+	2 & 0.004 &  0.022 \\
+	3 & 0.041 &  0.743 \\
+	4 & 0.374 & 59.565 \\
+	5 & 4.905 &        \\
+	\bottomrule
+\end{tabular}
+\caption{Emulating Locking: Performance (s)}
+\label{tab:formal:Emulating Locking: Performance (s)}
+\end{table}
+
+The performance benefits of this approach can be demonstrated using
+the Linux-kernel memory
+model~\cite{JadeAlglave2017LWN-LKMM-1,JadeAlglave2017LWN-LKMM-2}.
+This model provides \co{spin_lock()} and \co{spin_unlock()}
+primitives, but these primitives can also be emulated using
+\co{cmpxchg_acquire()} and \co{smp_store_release()}, as shown in
+Listing~\ref{lst:formal:Emulating Locking with cmpxchg}
+(\path{C-SB+l-o-o-u+l-o-o-u-C.litmus}).
+Table~\ref{tab:formal:Emulating Locking: Performance (s)}
+compares the performance and scalability of using the model's
+\co{spin_lock()} and \co{spin_unlock()} against emulating these
+primitives as shown in the figure.
+The difference is not insignificant: At four processes, the model
+is more than two orders of magnitude faster than emulation!
+
+\QuickQuiz{}
+	Why bother with a separate \co{filter} command on line~28 of
+	Listing~\ref{lst:formal:Emulating Locking with cmpxchg}
+	instead of just adding the condition to the \co{exists} clause?
+	And wouldn't it be simpler to use \co{xchg_acquire} instead
+	of \co{cmpxchg_acquire()}?
+\QuickQuizAnswer{
+	The \co{filter} clause causes the \co{herd} tool to discard
+	executions at an earlier stage of processing than does
+	the \co{exists} clause, which provides significant speedups.
+
+\begin{table}[tbh]
+\rowcolors{6}{}{lightgray}
+\renewcommand*{\arraystretch}{1.1}
+\small
+\centering\OneColumnHSpace{-0.1in}
+\begin{tabular}{rrrrrr}
+	\toprule
+	& & \multicolumn{2}{c}{\tco{cmpxchg_acquire}}
+		& \multicolumn{2}{c}{\tco{xchg_acquire}} \\
+	\cmidrule(l){3-4} \cmidrule(l){5-6}
+	\# & Locking & \tco{filter} & \tco{exists}
+		& \tco{filter} & \tco{exists} \\
+	\cmidrule(l){1-1} \cmidrule(l){2-2} \cmidrule(l){3-3} \cmidrule(l){4-4}
+		\cmidrule(l){5-5} \cmidrule(l){6-6}
+	2 & 0.004 &  0.022 &   0.039 &  0.027 &  0.058 \\
+	3 & 0.041 &  0.743 &   1.653 &  0.968 &  3.203 \\
+	4 & 0.374 & 59.565 & 151.962 & 74.818 & 500.96 \\
+	5 & 4.905 &        &         &        &        \\
+	\bottomrule
+\end{tabular}
+\caption{Emulating Locking: Performance Comparison (s)}
+\label{tab:formal:Emulating Locking: Performance Comparison (s)}
+\end{table}
+
+	As for \co{xchg_acquire()}, this atomic operation will do a
+	write whether or not lock acquisition succeeds, which means
+	that a model using \co{xchg_acquire()} will have more operations
+	than one using \co{cmpxchg_acquire()}, which won't do a write
+	in the failed-acquisition case.
+	More writes means more combinatorial to explode, as shown in
+	Table~\ref{tab:formal:Emulating Locking: Performance Comparison (s)}.
+	This table clearly shows that \co{cmpxchg_acquire()}
+	outperforms \co{xchg_acquire()} and that use of the
+	\co{filter} clause outperforms use of the \co{exists} clause.
+} \QuickQuizEnd
+
+It would of course be quite useful for tools to automatically divide
+up large programs, verify the pieces, and then verify the combinations
+of pieces.
+In the meantime, verification of large programs will require significant
+manual intervention.
+This intervention will preferably mediated by scripting, the better to
+reliably carry out repeated verifications on each release, and
+preferably eventually in a manner well-suited for continuous integration.
+
+In any case, we can expect formal-verification capabilities to continue
+to increase over time.
+
+\subsection{Locate Bugs}
+\label{sec:formal:Locate Bugs}
+
+Any software artifact of any size contains bugs.
+Therefore, a formal-verification tool that reports only the
+presence or absence of bugs is not particularly useful.
+What is needed is a tool that gives at least \emph{some} information
+as to where the bug is located and the nature of that bug.
+
+The \co{cbmc} output includes a traceback mapping back to the source
+code, similar to Promela/spin's, as does Nidhugg.
+Of course, these tracebacks can be quite long, however, it is almost
+always worthwhile to analyze them.
+Although doing so can be tedious, it is usually quite a bit faster
+and more pleasant than locating bugs the old-fashioned way.
+
+\subsection{Minimal Scaffolding}
+\label{sec:formal:Minimal Scaffolding}
+
+In the old days, formal-verification researchers demanded a full
+specification against which the software would be verified.
+Unfortunately, a mathematically rigorous specification might well
+be larger than the actual code, and each line of specification
+is just as likely to contain bugs as is each line of code.
+A formal verification effort proving that the code faithfully
+implemented the specification would be a proof of bug-for-bug
+compatibility between the two, which might not be the intended
+result.
+
+Worse yet, the requirements for a number of software artifacts,
+including Linux-kernel RCU, are empirical in
+nature~\cite{PaulEMcKenney2015RCUreqts1,PaulEMcKenney2015RCUreqts2,PaulEMcKenney2015RCUreqts3}.
+For this common type of software, a complete specification is a
+polite fiction.
+
+This situation might cause one to give up all hope of formal verification
+of real-world software artifacts, but it turns out that there is
+quite a bit that can be done.
+For example, design and coding rules can act as a partial specification,
+as can assertions contained in the code.
+And in fact formal-verification tools such as \co{cbmc} and Nidhugg
+both check for assertions that can be triggered, implicitly treating
+these assertions as part of the specification.
+However, the assertions are also part of the code, which makes it less
+likely that they will become obsolete, especially if the code is
+also subjected to stress tests.\footnote{
+	And you \emph{do} stress-test your code, don't you?}
+The \co{cbmc} tool also checks for array-out-of-bound references,
+thus implicitly adding this to the specification.
+
+This implicit-specification approach makes quite a bit of sense, particularly
+if you look at formal verification not as a full proof of correctness,
+but rather an alternative form of validation with a different set of
+strengths and weaknesses that other forms of validation, such as testing.
+From this viewpoint, software will always have bugs, and therefore any
+tool of any kind that helps to find those bugs is a very good thing
+indeed.
+
+\subsection{Relevant Bugs}
+\label{sec:formal:Relevant Bugs}
+
+Finding bugs---and fixing them---is of course the whole point of any
+type of validation effort.
+Clearly, false positives are to be avoided.
+But even in the absense of false postives, there are bugs and there are bugs.
+
+For example, suppose that a software artifact had exactly 24 remaining
+bugs, each of which manifested on average once every million years
+of runtime.
+Suppose further that an omniscient formal-verification tool located
+all 24 bugs, which the developers duly fixed.
+What happens to the reliability of this software artifact?
+
+The reliability \emph{decreases}.
+
+To see this, keep in mind that on average, every six fixes introduces
+a bug.
+Therefore, fixing the 24 bugs, which had a combine mean time to failure
+of about 40,000 years, will introduce three more bugs.
+These three bugs most likely fail more often than once per 13,000 years,
+so the reliability of the software has decreased.
+
+Worse yet, imagine another software artifact with one bug that fails
+once every day on average and 24 more that fail every million years
+each.
+Suppose that a formal-verification tool located the 24 million-year
+bugs, but failed to fined the one-day bug.
+Fixing the 24 bugs located will take time and effort, likely slightly
+decrease reliability, and do nothing at all about the pressing
+each-day failure that is likely causing much embarrassment and perhaps
+much worse besides.
+
+Therefore, it would be best to have a validation tool that
+preferentially located the most troublesome bugs.
+
+This might sound like too much to ask, but it is what is really
+required if we are to actually increase software reliability.
+
+\subsection{Formal Regression Scorcard}
+\label{sec:formal:Formal Regression Scorcard}
+
+\begin{table*}[tbh]
+% \rowcolors{6}{}{lightgray}
+\renewcommand*{\arraystretch}{1.1}
+\small
+\centering\OneColumnHSpace{-0.1in}
+\begin{tabular}{l|c|c|c|c|c}
+	\toprule
+	& Promela & PPCMEM & \tco{herd} & \tco{cbmc} & Nidhugg \\
+	\hline
+	(1) Automated
+		& \cellcolor{red!50}
+			& \cellcolor{orange!50}
+				& \cellcolor{orange!50}
+					& \cellcolor{blue!50}
+						& \cellcolor{blue!50} \\
+	\hline
+	(2) Environment
+		& \cellcolor{red!50} (MM)
+			& \cellcolor{green!50}
+				& \cellcolor{blue!50}
+					& \cellcolor{yellow!50} (MM)
+						& \cellcolor{orange!50} (MM) \\
+	\hline
+	(3) Overhead
+		& \cellcolor{yellow!50}
+			& \cellcolor{red!50}
+				& \cellcolor{yellow!50}
+					& \cellcolor{yellow!50} (SAT)
+						& \cellcolor{green!50} \\
+	\hline
+	(4) Locate Bugs
+		& \cellcolor{yellow!50}
+			& \cellcolor{yellow!50}
+				& \cellcolor{yellow!50}
+					& \cellcolor{green!50}
+						& \cellcolor{green!50} \\
+	\hline
+	(5) Minimal Scaffolding
+		& \cellcolor{green!50}
+			& \cellcolor{yellow!50}
+				& \cellcolor{yellow!50}
+					& \cellcolor{blue!50}
+						& \cellcolor{blue!50} \\
+	\hline
+	(6) Relevant Bugs
+		& \cellcolor{yellow!50} ???
+			& \cellcolor{yellow!50} ???
+				& \cellcolor{yellow!50} ???
+					& \cellcolor{yellow!50} ???
+						& \cellcolor{yellow!50} ??? \\
+	\bottomrule
+\end{tabular}
+\caption{Formal Regression Scorecard}
+\label{tab:formal:Formal Regression Scorecard}
+\end{table*}
+
+Table~\ref{tab:formal:Formal Regression Scorecard}
+shows a rough-and-ready scorecard for the formal-verification tools
+covered in this chapter.
+Shorter wavelengths are better than longer wavelengths.
+
+Promela requires hand translation and supports only sequential
+consistency, so its first two cells are red.
+It has reasonable overhead (for a formal-verification tool, anyway)
+and provides a traceback, so its next two cells are yellow.
+Despite requiring hand translation, Promela handles assertions
+in a natural way, so its fifth cell is green.
+
+PPCMEM usually requires hand translation due to the small size of litmus
+tests that it support, so its first cell is orange.
+It accurately handles several memory models, so its second cell is green.
+Its overhead is quite high, so its third cell is red.
+It provides a graphical display of relations among operations, which
+is not quite as helpful as a traceback, but is still quite useful, so its
+fourth cell is yellow.
+It requires constructing an \co{exists} clause, but cannot take
+intra-process assertion, so its fifth cell is also yellow.
+
+The \co{herd} tool has size restrictions similar to those of PPCMEM,
+so \co{herd}'s first cell is also orange.
+It supports a wide variety of memory models, so its second cell is blue.
+It has reasonable overhead, so its third cell is yellow.
+Its bug-location and assertion capabilities are quite similar to those
+of \co{cbmc}, so \co{herd} gets the same color for the next two cells.
+
+The \co{cbmc} tool inputs C code directly, so its first cell is blue.
+It supports a few memory models, so its second cell is yellow.
+It has reasonable overhead, so its third cell is also yellow, however,
+perhaps SAT-solver performance will continue improving.
+It provides a traceback, so its fourth cell is green.
+It takes assertions directly from the C code, so its fifth cell is blue.
+
+Nidhugg also inputs C code directly, so its first cell is also blue.
+It supports only a couple of memory models, so its second cell is orange.
+Its overhead is quite low (for a formal-verification tool), so its
+third cell is green.
+It provides a traceback, so its fourth cell is green.
+It takes assertions directly from the C code, so its fifth cell is blue.
+
+So what about the sixth and final row?
+It is too early to tell how any of the tools do at finding the right bugs,
+so they are all yellow with question marks.
+
+Once again, please note that this table rates these tools for use in
+regression testing.
+Just because many of them area poor fit for regression testing does
+not at all mean that they are useless, in fact,
+many of them have proven their worth many times over.
+Just not for regression testing.
