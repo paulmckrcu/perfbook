@@ -16,7 +16,7 @@
 
 include ../../Makefile.arch
 
-PROGS =	hash_bkt hash_bkt_ref hash_bkt_hazptr hash_bkt_rcu hash_global hash_resize
+PROGS =	hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global hash_resize
 
 top := ../..
 include $(top)/depends.mk
