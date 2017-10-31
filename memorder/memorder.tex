@@ -4214,16 +4214,14 @@ these sections give a good overview.
 \label{sec:memorder:Alpha}
 
 It may seem strange to say much of anything about a CPU whose end of life
-has long since past, but Alpha is interesting because, with one of
-the weakest memory ordering models, it reorders memory operations quite
-aggressively.
-It therefore has defined many of the Linux-kernel memory-ordering primitives,
-which must work on all CPUs, including Alpha.
+has long since past, but Alpha is interesting because it is the only
+mainstream CPU that reorders dependent loads, and has thus had outsized
+influence on concurrency APIs, including within the Linux kernel.
 Understanding Alpha is therefore surprisingly important to the Linux kernel
 hacker.
 
-The difference between Alpha and the other CPUs is illustrated by the
-code shown in
+The dependent-load difference between Alpha and the other CPUs is
+illustrated by the code shown in
 Listing~\ref{lst:memorder:Insert and Lock-Free Search}.
 This \co{smp_wmb()} on line~9 of this figure
 guarantees that the element initialization
@@ -4268,8 +4266,7 @@ That is, it makes this guarantee on all CPUs {\em except} Alpha.
 \label{lst:memorder:Insert and Lock-Free Search}
 \end{listing}
 
-Alpha has extremely weak memory ordering
-such that the code on line~20 of
+Alpha actually allows the code on line~20 of
 Listing~\ref{lst:memorder:Insert and Lock-Free Search} could see the old
 garbage values that were present before the initialization on lines~6-8.
 
@@ -4331,25 +4328,21 @@ but it is better to use the \co{rcu_dereference()} wrapper macro
 as shown on lines~17 and~22 of
 Listing~\ref{lst:memorder:Safe Insert and Lock-Free Search}.
 
-It is also possible to implement a software barrier
-that could be used in place of \co{smp_wmb()}, which would force
+It is also possible to implement a software mechanism
+that could be used in place of \co{smp_wmb()} to force
 all reading CPUs to see the writing CPU's writes in order.
-However, this approach was deemed by the Linux community
-to impose excessive overhead
-on extremely weakly ordered CPUs such as Alpha, and furthermore would
-not be considered a reasonable approach by those whose systems must meet
-aggressive real-time response requirements.
 This software barrier could be implemented by sending inter-processor
 interrupts (IPIs) to all other CPUs.
 Upon receipt of such an IPI, a CPU would execute a memory-barrier
-instruction, implementing a memory-barrier shootdown.
+instruction, implementing a memory-barrier shootdown similar to that
+provided by the Linux kernel's \co{sys_membarrier()} system call.
 Additional logic is required to avoid deadlocks.
 Of course, CPUs that respect data dependencies would define such a barrier
 to simply be \co{smp_wmb()}.
-Perhaps this decision should be revisited in the future as Alpha
-fades off into the sunset, but as of 2017 there is a surprisingly
-large number of people who run recent Linux kernels on their lovingly
-preserved DEC Alpha systems.
+However, this approach was deemed by the Linux community
+to impose excessive overhead, and furthermore would
+not be considered a reasonable approach by those whose systems must meet
+aggressive real-time response requirements.
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -4397,28 +4390,29 @@ an \co{smp_mb()} rather than a no-op.
 	Why is Alpha's \co{smp_read_barrier_depends()} an
 	\co{smp_mb()} rather than \co{smp_rmb()}?
 \QuickQuizAnswer{
-	First, Alpha has only \co{mb} and \co{wmb} instructions,
+	Alpha has only \co{mb} and \co{wmb} instructions,
 	so \co{smp_rmb()} would be implemented by the Alpha \co{mb}
 	instruction in either case.
+	In addition, at the time that \co{smp_read_barrier_depends()}
+	was added to the Linux kernel, it was not clear that
+	Alpha ordered dependent stores, and thus \co{smp_mb()}
+	was the safe choice in any case.
 
-	More importantly, \co{smp_read_barrier_depends()} must
-	order subsequent stores.
-	For example, consider the following code:
+	By the time you read this, it is quite possible that the Linux
+	kernel will have added \co{smp_read_barrier_depends()}
+	to \co{READ_ONCE()} and a few of Alpha's atomic
+	read-modify-write operations, thus making it unnecessary to use
+	\co{smp_read_barrier_depends()} anywhere else in the core kernel.
+} \QuickQuizEnd
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1 p = global_pointer;
-  2 smp_read_barrier_depends();
-  3 if (do_something_with(p->a, p->b) == 0)
-  4   p->hey_look = 1;
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-	Here the store to \co{p->hey_look} must be ordered,
-	not just the loads from \co{p->a} and \co{p->b}.
+\QuickQuiz{}
+	Isn't DEC Alpha significant as having the weakest possible
+	memory ordering?
+\QuickQuizAnswer{
+	Although DEC Alpha does take considerable flak, it does avoid
+	reordering reads from the same CPU to the same variable.
+	It also avoids the out-of-thin-air problem that plagues
+	the Java and C11 memory models.
 } \QuickQuizEnd
 
 For more on Alpha, see its reference manual~\cite{ALPHA2002}.
