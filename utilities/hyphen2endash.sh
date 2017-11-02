@@ -23,6 +23,10 @@
 # nn-mm~microsecond -> nn--mm~microsecond
 # nn-mm~millisecond -> nn--mm~millisecond
 # nn-mm~\emp -> nn--mm~\emp
+# nn-mm days -> nn--mm~days
+# nn-mm~days -> nn--mm~days
+# nn-mm sheets -> nn--mm~sheets
+# nn-mm~sheets -> nn--mm~sheets
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -54,6 +58,8 @@ cat $1 |
 	    -e 's/\([0-9]\+\)-\([0-9]\+\)~microsecond/\1--\2~microsecond/g' \
 	    -e 's/\([0-9]\+\)-\([0-9]\+\)~millisecond/\1--\2~millisecond/g' \
 	    -e 's/\([0-9]\+\)-\([0-9]\+\)~\\emp/\1--\2~\\emp/g' \
+	    -e 's/\([0-9]\+\)-\([0-9]\+\)[ ~]days/\1--\2~days/g' \
+	    -e 's/\([0-9]\+\)-\([0-9]\+\)[ ~]sheets/\1--\2~sheets/g' \
 	    -e 's/\/\* Lines~\([0-9]\+\)--\([0-9]\+\) \*\//\/\* Lines \1-\2 \*\//g'
 
 # Last pattern is to preserve "Lines n-m" in comments within code snippet
