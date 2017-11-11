@@ -2455,7 +2455,97 @@ same variable is not necessarily the store that started last.
 This should not come as a surprise to anyone who carefully examined
 Figure~\ref{fig:memorder:A Variable With More Simultaneous Values}.
 
-But sometimes time is on our side, as shown in the next section.
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-2+2W+o-wmb-o+o-wmb-o
+{
+}
+
+P0(int *x0, int *x1)
+{
+  WRITE_ONCE(*x0, 1);
+  smp_wmb();
+  WRITE_ONCE(*x1, 2);
+}
+
+
+P1(int *x0, int *x1)
+{
+  WRITE_ONCE(*x1, 1);
+  smp_wmb();
+  WRITE_ONCE(*x0, 2);
+}
+
+exists (x0=1 /\ x1=1)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{2+2W Litmus Test With Write Barriers}
+\label{lst:memorder:2+2W Litmus Test With Write Barriers}
+\end{listing}
+
+\QuickQuiz{}
+	But for litmus tests having only ordered stores, as shown in
+	Listing~\ref{lst:memorder:2+2W Litmus Test With Write Barriers}
+	(\path{C-2+2W+o-wmb-o+o-wmb-o.litmus}),
+	research shows that the cycle is prohibited, even in weakly
+	ordered systems such as ARM and Power~\cite{test6-pdf}.
+	Given that, are store-to-store really \emph{always}
+	counter-temporal???
+\QuickQuizAnswer{
+	This litmus test is indeed a very interesting curiosity.
+	Its ordering apparently occurs naturally given typical
+	weakly ordered hardware design, which would normally be
+	considered a great gift from the relevant laws of physics
+	and cache-coherency-protocol mathematics.
+
+	Unfortunately, no one has been able to come up with a software use
+	case for this gift that does not have a much better alternative
+	implementation.
+	Therefore, neither the C11 nor the Linux kernel memory models
+	provide any guarantee corresponding to
+	Listing~\ref{lst:memorder:2+2W Litmus Test With Write Barriers}.
+	This means that the \co{exists} clause on line~20 can
+	trigger.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+C C-2+2W+o-o+o-o
+{
+}
+
+P0(int *x0, int *x1)
+{
+  WRITE_ONCE(*x0, 1);
+  WRITE_ONCE(*x1, 2);
+}
+
+
+P1(int *x0, int *x1)
+{
+  WRITE_ONCE(*x1, 1);
+  WRITE_ONCE(*x0, 2);
+}
+
+exists (x0=1 /\ x1=1)
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{2+2W Litmus Test Without Write Barriers}
+\label{lst:memorder:2+2W Litmus Test Without Write Barriers}
+\end{listing}
+
+	Of course, without the barrier, there are no ordering
+	guarantees, even on real weakly ordered hardware, as shown in
+	Listing~\ref{lst:memorder:2+2W Litmus Test Without Write Barriers}
+	(\path{C-2+2W+o-o+o-o.litmus}).
+} \QuickQuizEnd
+
+But sometimes time really is on our side.  Read on!
 
 \subsubsection{Happens-Before}
 \label{sec:memorder:Happens-Before}
