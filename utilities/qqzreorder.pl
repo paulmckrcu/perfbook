@@ -2,8 +2,8 @@
 #
 # Move line of \QuickE{} below \end{enumerate} to just above
 # the \end{enumerate}.
-# Move line of \QuickE{} below \end{figure} to above
-# \begin{figure} corresponding to it.
+# Move line of \QuickE{} below \end{listing} to above
+# \begin{listing} corresponding to it.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,8 +25,8 @@
 
 my $line;
 my $after_end_enum = 0;
-my $in_figure = 0;
-my $after_figure = 0;
+my $in_listing = 0;
+my $after_listing = 0;
 my $line_idx = 1;
 my @line_buf;
 
@@ -42,15 +42,15 @@ while($line = <>) {
 	$after_end_enum = 0;
 	next;
     }
-    if ($in_figure) {
-	if ($line =~ /\\end\{figure\}/) {
-	    $after_figure = 1;
-	    $in_figure = 0;
+    if ($in_listing) {
+	if ($line =~ /\\end\{listing\}/) {
+	    $after_listing = 1;
+	    $in_listing = 0;
 	}
 	$line_buf[++$line_idx] = $line;
 	next;
     }
-    if ($after_figure) {
+    if ($after_listing) {
 	if ($line =~ /%/) {
 	    $line_buf[++$line_idx] = $line;
 	    next;
@@ -68,7 +68,7 @@ while($line = <>) {
 	    $line_buf[1] = $line;
 	}
 	$line_idx = 1;
-	$after_figure = 0;
+	$after_listing = 0;
 	next;
     }
     if ($line =~ /\\end\{enumerate\}/) {
@@ -77,8 +77,8 @@ while($line = <>) {
 	$after_end_enum = 1;
 	next;
     }
-    if ($line =~ /\\begin\{figure\}/) {
-	$in_figure = 1;
+    if ($line =~ /\\begin\{listing\}/) {
+	$in_listing = 1;
 	$line_buf[++$line_idx] = $line;
 	next;
     }
