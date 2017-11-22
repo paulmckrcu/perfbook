@@ -9,14 +9,24 @@
 #
 # run-herd7-bench: Run benchmark tests of herd7 itself
 #
-# Note: LKMM model is assumed to reside in a directory next to perfbook's
-#       local repository.
+# Note: There need to be a symbolic link "memory-model" under
+#       CodeSamples/formal/herd for herd7 to work.
+#       The memory model is available at the git archive:
+#           https://github.com/aparri/memory-model.git.
+#       Make sure the symbolic link points to the actual directory.
+#       Alternatively, you can copy the files listed in LKMM_FILES to
+#       a subdirectory "memory-model".
+#
+#       klitmus7 doesn't require the memory model.
 #
 # Copyright (C) Akira Yokosawa, 2017
 #
 # Authors: Akira Yokosawa <akiyks@gmail.com>
 
-LKMM_DIR     := ../../../../memory-model
+LKMM_DIR     := memory-model
+LKMM_FILES   := linux-kernel.bell linux-kernel.cat linux-kernel.cfg \
+		linux-kernel.def linux-kernel-hardware.cat lock.cat
+LKMM_LIST    := $(addprefix $(LKMM_DIR)/,$(LKMM_FILES))
 HERD_DIR     := $(shell pwd)
 HERD7_CMD    := $(shell which herd7)
 KLITMUS7_CMD := $(shell which klitmus7)
@@ -40,6 +50,18 @@ $(LITMUS7_HERD_TEST): %.herd: ../litmus/%
 run-herd7: $(LITMUS7_HERD_OUT)
 
 run-herd7-bench: $(HERD_BENCH_OUT)
+
+$(LKMM_LIST):
+	@echo "#####################################################"
+	@echo "### Please prepare Linux Kernel Memory Model.     ###"
+	@echo "### You can get it at the git archive:            ###"
+	@echo "###   https://github.com/aparri/memory-model.git  ###"
+	@echo "###                                               ###"
+	@echo "### Refer to comment in Makefile for more info.   ###"
+	@echo "#####################################################"
+	@exit 1
+
+$(LITMUS7_HERD_OUT) $(HERD_BENCH_OUT): $(LKMM_LIST)
 
 $(LITMUS7_HERD_OUT): %.out: %.herd
 	cd $(LKMM_DIR); herd7 -conf linux-kernel.cfg $(HERD_DIR)/$< > $(HERD_DIR)/$@
