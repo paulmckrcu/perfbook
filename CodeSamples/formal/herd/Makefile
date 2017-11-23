@@ -73,7 +73,7 @@ cross-klitmus: klitmus.tar
 
 klitmus.tar: litmus2herd
 	mkdir -p klitmus
-	cd $(LKMM_DIR); klitmus7 -o $(HERD_DIR)/klitmus $(addprefix $(HERD_DIR)/,$(LITMUS7_HERD_TEST))
+	klitmus7 -o klitmus $(LITMUS7_HERD_TEST)
 	tar cf klitmus.tar ./klitmus
 
 clean:
