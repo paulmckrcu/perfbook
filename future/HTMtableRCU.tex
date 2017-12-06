@@ -3,145 +3,119 @@
 
 \begin{table*}[p]
 \centering
-\small\OneColumnHSpace{-.8in}
-%\raggedright
-\begin{tabular}{p{1.0in}||c|p{2.0in}||c|p{2.0in}}
-& \multicolumn{2}{c||}{Locking with Userspace RCU or Hazard Pointers} & \multicolumn{2}{c}{Hardware Transactional Memory} \\
-\hline
-\hline
-Basic Idea
-	& \multicolumn{2}{p{2.2in}||}{
-	  Allow only one thread at a time to access a given set of objects.}
-		& \multicolumn{2}{p{2.2in}}{
-		  Cause a given operation over a set of objects to execute
-		  atomically.} \\
-\hline
-\hline
-Scope
-	& $+$
-	& Handles all operations.
-		& $+$
-		& Handles revocable operations. \\
-\cline{4-5}
-	& &
-		& $-$
-		& Irrevocable operations force fallback (typically
-		  to locking). \\
-\hline
-Composability
-	& $+$
-	& Readers limited only by grace-period-wait operations.
-		& $\Downarrow$
-		& Limited by irrevocable operations, transaction size,
-		  and deadlock. \\
-\cline{2-3}
-	& $-$
-	& Updaters limited by deadlock.  Readers reduce deadlock.
-		&
-		& (Assuming lock-based fallback code.) \\
-\hline
-Scalability \& Performance
-	& $-$
-	& Data must be partitionable to avoid lock contention among
-	  updaters.
-		& $-$
-		& Data must be partionable to avoid conflicts. \\
-\cline{2-3}
-	& $+$
-	& Partitioning not needed for readers.
-		&
-		& \\
-\cline{2-5}
-	& $\Downarrow$
-	& Partioning for updaters must typically be fixed at design time.
-		& $+$
-		& Dynamic adjustment of partitioning carried out
-		  automatically down to cacheline boundaries. \\
-\cline{2-5}
-	& $+$
-	& Partitioning not needed for readers.
-		& $-$
-		& Partitioning required for fallbacks (less important
-		  for rare fallbacks). \\
-\cline{2-5}
-	& $\Downarrow$
-	& Updater locking primitives typically result in expensive cache
-	  misses and memory-barrier instructions.
-		& $-$
-		& Transactions begin/end instructions typically do not
-		  result in cache misses, but do have memory-ordering
-		  consequences. \\
-\cline{2-5}
-	& $+$
-	& Update-side contention effects are focused on acquisition and
-	  release, so that the critical section runs at full speed.
-		& $-$
-		& Contention aborts conflicting transactions, even
-		  if they have been running for a long time. \\
-\cline{2-3}
-	& $+$
-	& Readers do not contend with updaters or with each other.
-		&
-		& \\
-\cline{2-5}
-	& $+$
-	& Read-side primitives are typically wait-free with low
-	  overhead.  (Lock-free for hazard pointers.)
-		& $-$
-		& Read-only transactions subject to conflicts and rollbacks.
-		  No forward-progress guarantees other than those supplied
-		  by fallback code. \\
-\cline{2-5}
-	& $+$
-	& Privatization operations are simple, intuitive, performant,
-	  and scalable when data is visible only to updaters.
-		& $-$
-		& Privatized data contributes to transaction size. \\
-\cline{2-3}
-	& $-$
-	& Privitization operations are expensive (though still intuitive
-	  and scalable) for reader-visible data.
-		&
-		& \\
-\hline
-Hardware Support
-	& $+$
-	& Commodity hardware suffices.
-		& $-$
-		& New hardware required (and is starting to become
-		  available). \\
-\cline{2-5}
-	& $+$
-	& Performance is insensitive to cache-geometry details.
-		& $-$
-		& Performance depends critically on cache geometry. \\
-\hline
-Software Support
-	& $+$
-	& APIs exist, large body of code and experience, debuggers operate
-	  naturally.
-		& $-$
-		& APIs emerging, little experience outside of DBMS,
-		  breakpoints mid-transaction can be problematic. \\
-\hline
-Interaction With Other Mechanisms
-	& $+$
-	& Long experience of successful interaction.
-		& $\Downarrow$
-		& Just beginning investigation of interaction. \\
-\hline
-Practical Apps
-	& $+$
-	& Yes.
-		& $+$
-		& Yes. \\
-\hline
-Wide Applicability
-	& $+$
-	& Yes.
-		& $-$
-		& Jury still out, but likely to win significant use. \\
-\end{tabular}
-\caption{Comparison of Locking (Augmented by RCU or Hazard Pointers) and HTM (``$+$'' is Advantage, ``$-$'' is Disadvantage, ``$\Downarrow$'' is Strong Disadvantage)}
+\small
+\input{future/HTMtableColor}
+\setstretch{0.95}
+\setlength{\tabcolsep}{4pt}\OneColumnHSpace{-.9in}
+\resizebox{6.5in}{!}{
+\begin{tabularx}{6.8in}{p{0.95in}cXcX}
+\toprule
+  &
+    & \multicolumn{1}{c}{Locking with Userspace RCU or Hazard Pointers} &
+      & \multicolumn{1}{c}{Hardware Transactional Memory} \\
+\midrule
+  Basic Idea &
+    & Allow only one thread at a time to access a given set of objects. &
+      & Cause a given operation over a set of objects to execute atomically. \\
+\midrule
+  Scope &
+    & \Pl Handles all operations. &
+      & \Pl Handles revocable operations. \\
+\addlinespace[4pt]
+  &
+    & &
+      & \Mn Irrevocable operations force fallback (typically to locking). \\
+\midrule
+  Composability &
+    & \Pl Readers limited only by grace-period-wait operations. &
+      & \Dw Limited by irrevocable operations, transaction size, and deadlock.
+        (Assuming lock-based fallback code.)\\
+\addlinespace[4pt]
+  &
+    & \Mn Updaters limited by deadlock.  Readers reduce deadlock. &
+      & \\
+\midrule
+  Scalability \& Performance &
+    & \Mn Data must be partitionable to avoid lock contention among updaters. &
+      & \Mn Data must be partitionable to avoid conflicts. \\
+\addlinespace[4pt]
+  &
+    & \Pl Partitioning not needed for readers. &
+      & \\
+\cmidrule{3-5}
+  &
+    & \Dw Partitioning for updaters must typically be fixed at design time. &
+      & \Pl Dynamic adjustment of partitioning carried out automatically down
+        to cacheline boundaries. \\
+\cmidrule{3-5}
+  &
+    & \Pl Partitioning not needed for readers. &
+      & \Mn Partitioning required for fallbacks (less important for rare
+        fallbacks). \\
+\cmidrule{3-5}
+  &
+    & \Dw Updater locking primitives typically result in expensive cache misses
+      and memory-barrier instructions. &
+      & \Mn Transactions begin/end instructions typically do not result in
+        cache misses, but do have memory-ordering consequences. \\
+\cmidrule{3-5}
+  &
+    & \Pl Update-side contention effects are focused on acquisition and release,
+      so that the critical section runs at full speed. &
+      & \Mn Contention aborts conflicting transactions, even if they have been
+        running for a long time. \\
+\addlinespace[4pt]
+  &
+    & \Pl Readers do not contend with updaters or with each other. &
+      & \\
+\cmidrule{3-5}
+  &
+    & \Pl Read-side primitives are typically wait-free with low overhead.
+      (Lock-free for hazard pointers.) &
+      & \Mn Read-only transactions subject to conflicts and rollbacks.
+        No forward-progress guarantees other than those supplied by fallback
+        code. \\
+\cmidrule{3-5}
+  &
+    & \Pl Privatization operations are simple, intuitive, performant, and
+      scalable when data is visible only to updaters. &
+      & \Mn Privatized data contributes to transaction size. \\
+\addlinespace[4pt]
+  &
+    & \Mn Privatization operations are expensive (though still intuitive
+      and scalable) for reader-visible data. &
+      & \\
+\midrule
+  Hardware Support &
+    & \Pl Commodity hardware suffices. &
+      & \Mn New hardware required (and is starting to become available). \\
+\cmidrule{3-5}
+  &
+    & \Pl Performance is insensitive to cache-geometry details. &
+      & \Mn Performance depends critically on cache geometry. \\
+\midrule
+  Software Support &
+    & \Pl APIs exist, large body of code and experience, debuggers operate
+      naturally. &
+      & \Mn APIs emerging, little experience outside of DBMS, breakpoints
+        mid-transaction can be problematic. \\
+\midrule
+  Interaction With Other Mechanisms &
+    & \Pl Long experience of successful interaction. &
+      & \Dw Just beginning investigation of interaction. \\
+\midrule
+  Practical Apps &
+    & \Pl Yes. &
+      & \Pl Yes. \\
+\midrule
+  Wide Applicability &
+    & \Pl Yes. &
+      & \Mn Jury still out, but likely to win significant use. \\
+\bottomrule
+\end{tabularx}
+}
+\caption{Comparison of Locking (Augmented by RCU or Hazard Pointers) and HTM
+  (\colorbox{plus}{Advantage}, \colorbox{minus}{Disadvantage},
+  \colorbox{down}{Strong Disadvantage})}
 \label{tab:future:Comparison of Locking (Augmented by RCU or Hazard Pointers) and HTM}
 \end{table*}
