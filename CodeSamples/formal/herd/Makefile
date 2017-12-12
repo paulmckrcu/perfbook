@@ -79,6 +79,7 @@ absperf.out: ABSPERF_LIST = $(ABSPERF_SHORT)
 absperf.out: $(ABSPERF_SHORT)
 absperf-all.out: ABSPERF_LIST = $(ABSPERF_TEST)
 absperf-all.out: $(ABSPERF_TEST)
+$(ABSPERF_OUT): export LC_ALL = C
 
 $(ABSPERF_OUT):
 	mkdir -p absperf
