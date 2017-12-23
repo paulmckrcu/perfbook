@@ -2719,12 +2719,12 @@ and \co{theft} variables, respectively.
   8 
   9 static void flush_local_count_sig(int unused)
  10 {
- 11   if (ACCESS_ONCE(theft) != THEFT_REQ)
+ 11   if (READ_ONCE(theft) != THEFT_REQ)
  12     return;
  13   smp_mb();
- 14   ACCESS_ONCE(theft) = THEFT_ACK;
+ 14   WRITE_ONCE(theft, THEFT_ACK);
  15   if (!counting) {
- 16     ACCESS_ONCE(theft) = THEFT_READY;
+ 16     WRITE_ONCE(theft, THEFT_READY);
  17   }
  18   smp_mb();
  19 }
@@ -2737,25 +2737,25 @@ and \co{theft} variables, respectively.
  26   for_each_tid(t, tid)
  27     if (theftp[t] != NULL) {
  28       if (*countermaxp[t] == 0) {
- 29         ACCESS_ONCE(*theftp[t]) = THEFT_READY;
+ 29         WRITE_ONCE(*theftp[t], THEFT_READY);
  30         continue;
  31       }
- 32       ACCESS_ONCE(*theftp[t]) = THEFT_REQ;
+ 32       WRITE_ONCE(*theftp[t], THEFT_REQ);
  33       pthread_kill(tid, SIGUSR1);
  34     }
  35   for_each_tid(t, tid) {
  36     if (theftp[t] == NULL)
  37       continue;
- 38     while (ACCESS_ONCE(*theftp[t]) != THEFT_READY) {
+ 38     while (READ_ONCE(*theftp[t]) != THEFT_READY) {
  39       poll(NULL, 0, 1);
- 40       if (ACCESS_ONCE(*theftp[t]) == THEFT_REQ)
+ 40       if (READ_ONCE(*theftp[t]) == THEFT_REQ)
  41         pthread_kill(tid, SIGUSR1);
  42     }
  43     globalcount += *counterp[t];
  44     *counterp[t] = 0;
  45     globalreserve -= *countermaxp[t];
  46     *countermaxp[t] = 0;
- 47     ACCESS_ONCE(*theftp[t]) = THEFT_IDLE;
+ 47     WRITE_ONCE(*theftp[t], THEFT_IDLE);
  48   }
  49 }
  50 
@@ -2907,16 +2907,16 @@ earlier examples.
   5   counting = 1;
   6   barrier();
   7   if (countermax - counter >= delta &&
-  8       ACCESS_ONCE(theft) <= THEFT_REQ) {
+  8       READ_ONCE(theft) <= THEFT_REQ) {
   9     counter += delta;
  10     fastpath = 1;
  11   }
  12   barrier();
  13   counting = 0;
  14   barrier();
- 15   if (ACCESS_ONCE(theft) == THEFT_ACK) {
+ 15   if (READ_ONCE(theft) == THEFT_ACK) {
  16     smp_mb();
- 17     ACCESS_ONCE(theft) = THEFT_READY;
+ 17     WRITE_ONCE(theft, THEFT_READY);
  18   }
  19   if (fastpath)
  20     return 1;
@@ -2954,16 +2954,16 @@ earlier examples.
  42   counting = 1;
  43   barrier();
  44   if (counter >= delta &&
- 45       ACCESS_ONCE(theft) <= THEFT_REQ) {
+ 45       READ_ONCE(theft) <= THEFT_REQ) {
  46     counter -= delta;
  47     fastpath = 1;
  48   }
  49   barrier();
  50   counting = 0;
  51   barrier();
- 52   if (ACCESS_ONCE(theft) == THEFT_ACK) {
+ 52   if (READ_ONCE(theft) == THEFT_ACK) {
  53     smp_mb();
- 54     ACCESS_ONCE(theft) = THEFT_READY;
+ 54     WRITE_ONCE(theft, THEFT_READY);
  55   }
  56   if (fastpath)
  57     return 1;

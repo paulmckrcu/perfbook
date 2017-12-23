@@ -89,7 +89,7 @@ void *count_updown_limit(void *arg)
 	run_on(me);
 	count_register_thread();
 	atomic_inc(&nthreadsrunning);
-	while (ACCESS_ONCE(goflag) != GOFLAG_RUN_UP)
+	while (READ_ONCE(goflag) != GOFLAG_RUN_UP)
 		poll(NULL, 0, 1);
 	while (add_count(1)) {
 		n_updates_local++;
@@ -97,7 +97,7 @@ void *count_updown_limit(void *arg)
 	__get_thread_var(n_updates_pt) += n_updates_local;
 	smp_mb();
 	atomic_inc(&n_threads_run_up);
-	while (ACCESS_ONCE(goflag) != GOFLAG_RUN_DOWN)
+	while (READ_ONCE(goflag) != GOFLAG_RUN_DOWN)
 		poll(NULL, 0, 1);
 	n_updates_local = 0LL;
 	while (sub_count(1)) {
@@ -106,7 +106,7 @@ void *count_updown_limit(void *arg)
 	__get_thread_var(n_updates_pt) += n_updates_local;
 	smp_mb();
 	atomic_inc(&n_threads_run_down);
-	while (ACCESS_ONCE(goflag) != GOFLAG_STOP)
+	while (READ_ONCE(goflag) != GOFLAG_STOP)
 		poll(NULL, 0, 1);
 	count_unregister_thread(nthreadsexpected);
 	return NULL;
@@ -120,7 +120,7 @@ void *count_updown_hog(void *arg)
 	run_on(me);
 	count_register_thread();
 	atomic_inc(&nthreadsrunning);
-	while (ACCESS_ONCE(goflag) == GOFLAG_INIT)
+	while (READ_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);
 	delta = num_online_threads() * 20;
 	if (!add_count(delta)) {
@@ -130,7 +130,7 @@ void *count_updown_hog(void *arg)
 	__get_thread_var(n_updates_pt) += delta;
 	smp_mb();
 	atomic_inc(&n_threads_hog);
-	while (ACCESS_ONCE(goflag) != GOFLAG_STOP)
+	while (READ_ONCE(goflag) != GOFLAG_STOP)
 		poll(NULL, 0, 1);
 	count_unregister_thread(nthreadsexpected);
 	return NULL;
@@ -209,9 +209,9 @@ void *count_read_perf_test(void *arg)
 	run_on(me);
 	count_register_thread();
 	atomic_inc(&nthreadsrunning);
-	while (ACCESS_ONCE(goflag) == GOFLAG_INIT)
+	while (READ_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);
-	while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
+	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		for (i = COUNT_READ_RUN; i > 0; i--) {
 			j += read_count();
 			barrier();
@@ -232,9 +232,9 @@ void *count_update_perf_test(void *arg)
 
 	count_register_thread();
 	atomic_inc(&nthreadsrunning);
-	while (ACCESS_ONCE(goflag) == GOFLAG_INIT)
+	while (READ_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);
-	while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
+	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		for (i = COUNT_UPDATE_RUN; i > 0; i--) {
 			add_count(1);
 			sub_count(1);
