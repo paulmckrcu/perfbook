@@ -1236,6 +1236,16 @@ for a wider set of atomic operations, though the more elaborate of
 these often suffer from complexity, scalability, and performance
 problems~\cite{MauriceHerlihy90a}.
 
+\QuickQuiz{}
+	Given that these atomic operations will often be able to
+	generate single atomic instructions that are directly
+	supported by the underlying instruction set, shouldn't
+	they be the fastest possible way to get things done?
+\QuickQuizAnswer{
+	Unfortunately, no.
+	See Chapter~\ref{chp:Counting} for some stark counterexamples.
+} \QuickQuizEnd
+
 The \co{__sync_synchronize()} primitive issues a ``memory barrier'',
 which constrains both the compiler's and the CPU's ability to reorder
 operations, as discussed in
@@ -1252,30 +1262,24 @@ Listing~\ref{lst:toolsoftrade:Demonstration of Exclusive Locks}.
 Similarly, the \co{WRITE_ONCE()} primitive may be used to prevent the
 compiler from optimizing away a given memory write.
 These last three primitives are not provided directly by \GCC,
-but may be implemented straightforwardly as follows:
+but may be implemented straightforwardly as shown in
+Listing~\ref{lst:toolsoftrade:Compiler Barrier Primitive (for GCC)}.
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
+\begin{listing}[tb]
+{ \scriptsize
+\begin{verbbox}
 #define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
 #define READ_ONCE(x) \
             ({ typeof(x) ___x = ACCESS_ONCE(x); ___x; })
 #define WRITE_ONCE(x, val) ({ ACCESS_ONCE(x) = (val); })
 #define barrier() __asm__ __volatile__("": : :"memory")
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-\QuickQuiz{}
-	Given that these atomic operations will often be able to
-	generate single atomic instructions that are directly
-	supported by the underlying instruction set, shouldn't
-	they be the fastest possible way to get things done?
-\QuickQuizAnswer{
-	Unfortunately, no.
-	See Chapter~\ref{chp:Counting} for some stark counterexamples.
-} \QuickQuizEnd
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Compiler Barrier Primitive (for \GCC)}
+\label{lst:toolsoftrade:Compiler Barrier Primitive (for GCC)}
+\end{listing}
 
 \subsection{Atomic Operations (C11)}
 \label{sec:toolsoftrade:Atomic Operations (C11)}
