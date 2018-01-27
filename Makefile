@@ -39,6 +39,12 @@ EPSSOURCES := $(sort $(EPSSOURCES_DUP))
 
 PDFTARGETS_OF_EPS := $(EPSSOURCES:%.eps=%.pdf)
 
+EPSORIGIN := $(filter-out $(EPSSOURCES_FROM_TEX) $(EPSSOURCES_FROM_DOT) $(EPSSOURCES_FROM_FIG),$(EPSSOURCES))
+
+PDFTARGETS_OF_EPSORIG := $(EPSORIGIN:%.eps=%.pdf)
+
+PDFTARGETS_OF_EPSOTHER := $(filter-out $(PDFTARGETS_OF_EPSORIG),$(PDFTARGETS_OF_EPS))
+
 BIBSOURCES := bib/*.bib alphapf.bst
 
 SVGSOURCES := $(wildcard */*.svg)
@@ -164,7 +170,17 @@ endif
 	@fig2eps --nogv $< > /dev/null 2>&1
 	@sh utilities/fixanepsfonts.sh $@
 
-$(PDFTARGETS_OF_EPS): %.pdf: %.eps
+$(PDFTARGETS_OF_EPSORIG): %.pdf: %.eps
+	@echo "$< --> $@"
+	@cp $< $<i
+	@sh utilities/fixanepsfonts.sh $<i
+ifndef A2PING
+	$(error "$< --> $@: a2ping not found. Please install it.")
+endif
+	@a2ping --below --hires --bboxfrom=compute-gs $<i $@ > /dev/null 2>&1
+	@rm -f $<i
+
+$(PDFTARGETS_OF_EPSOTHER): %.pdf: %.eps
 	@echo "$< --> $@"
 ifndef A2PING
 	$(error "$< --> $@: a2ping not found. Please install it.")
@@ -176,7 +192,9 @@ $(PDFTARGETS_OF_SVG): %.pdf: %.svg
 ifndef INKSCAPE
 	$(error "$< --> $@: inkscape not found. Please install it.")
 endif
-	@inkscape --export-pdf=$@ $<
+	@sh utilities/fixsvgfonts.sh < $< > $<i
+	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
+	@rm -f $<i
 
 help:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
