@@ -31,7 +31,7 @@
 
 LKMM_DIR     := memory-model
 LKMM_FILES   := linux-kernel.bell linux-kernel.cat linux-kernel.cfg \
-		linux-kernel.def linux-kernel-hardware.cat lock.cat
+		linux-kernel.def lock.cat
 LKMM_LIST    := $(addprefix $(LKMM_DIR)/,$(LKMM_FILES))
 HERD_DIR     := $(shell pwd)
 HERD7_CMD    := $(shell which herd7)
