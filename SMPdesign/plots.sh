@@ -24,8 +24,9 @@ fontsize=10
 plotsize=0.5
 
 gnuplot << ---EOF---
-set term pbm medium
-set output "clockfreq.pbm"
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "|../utilities/gnuplotepsfix > clockfreq.eps"
 set xlabel "Year"
 set ylabel "CPU Clock Frequency / MIPS"
 set logscale y
@@ -39,18 +40,14 @@ set xtics rotate
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
 #plot "clockfreq.dat", "clockfreqP4.dat", "clockfreqP3.dat"
-plot "clockfreq80x86.dat", "clockfreqPPro.dat", "clockfreqP1.dat", "clockfreqP2.dat", "clockfreqP3.dat", "clockfreqP4.dat", "clockfreqXeonDC.dat", "clockfreqAtom.dat", "clockfreqNehalem.dat"
+plot "clockfreq80x86.dat", "clockfreqPPro.dat", "clockfreqP1.dat", "clockfreqP2.dat", "clockfreqP3.dat", "clockfreqP4.dat", "clockfreqXeonDC.dat", "clockfreqAtom.dat", "clockfreqNehalem.dat", "clockfreqSandyBridge.dat", "clockfreqIvyBridge.dat", "clockfreqHaswell.dat", "clockfreqBroadwell.dat", "clockfreqSkylake.dat"
 # plot "clockfreqP4.dat", "clockfreqP3.dat", "clockfreqP2.dat"
-set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
-set size square ${plotsize},${plotsize}
-set output "|../utilities/gnuplotepsfix > clockfreq.eps"
-replot
 ---EOF---
-ppmtogif clockfreq.pbm > clockfreq.gif 2> /dev/null
 
 gnuplot << ---EOF---
-set term pbm medium
-set output "CPUvsEnet.pbm"
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "|../utilities/gnuplotepsfix > CPUvsEnet.eps"
 set xlabel "Year"
 set ylabel "Relative Performance"
 set logscale y
@@ -64,18 +61,14 @@ set label 2 "x86 CPUs" at 2001,100 left
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
 #plot "clockfreq.dat", "clockfreqP4.dat", "clockfreqP3.dat"
-plot "enet.dat" w l, "clockfreq80x86.dat", "clockfreqPPro.dat", "clockfreqP1.dat", "clockfreqP2.dat", "clockfreqP3.dat", "clockfreqP4.dat", "clockfreqXeonDC.dat", "clockfreqAtom.dat", "clockfreqNehalem.dat"
+plot "enet.dat" w l, "clockfreq80x86.dat", "clockfreqPPro.dat", "clockfreqP1.dat", "clockfreqP2.dat", "clockfreqP3.dat", "clockfreqP4.dat", "clockfreqXeonDC.dat", "clockfreqAtom.dat", "clockfreqNehalem.dat", "clockfreqSandyBridge.dat", "clockfreqIvyBridge.dat", "clockfreqHaswell.dat", "clockfreqBroadwell.dat", "clockfreqSkylake.dat"
 # plot "clockfreqP4.dat", "clockfreqP3.dat", "clockfreqP2.dat"
-set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
-set size square ${plotsize},${plotsize}
-set output "|../utilities/gnuplotepsfix > CPUvsEnet.eps"
-replot
 ---EOF---
-ppmtogif CPUvsEnet.pbm > CPUvsEnet.gif 2> /dev/null
 
 gnuplot << ---EOF---
-set term pbm medium
-set output "mipsperbuck.pbm"
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "|../utilities/gnuplotepsfix > mipsperbuck.eps"
 set xlabel "Year"
 set ylabel "MIPS per Die"
 set logscale y
@@ -90,12 +83,7 @@ set xtics rotate
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "mipsperbuck.dat"
 # plot "clockfreqP4.dat", "clockfreqP3.dat", "clockfreqP2.dat"
-set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../fonts/uhvr8a.pfb"
-set size square ${plotsize},${plotsize}
-set output "|../utilities/gnuplotepsfix > mipsperbuck.eps"
-replot
 ---EOF---
-ppmtogif mipsperbuck.pbm > mipsperbuck.gif 2> /dev/null
 
 gnuplot << ---EOF---
 set term gif
