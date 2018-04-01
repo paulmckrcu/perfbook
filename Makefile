@@ -3,7 +3,7 @@ LATEXSOURCES = \
 	legal.tex \
 	glossary.tex \
 	qqz.sty origpub.sty \
-	book.cls \
+	pfbook.cls \
 	ushyphex.tex pfhyphex.tex \
 	*/*.tex \
 	*/*/*.tex
