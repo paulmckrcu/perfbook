@@ -48,8 +48,10 @@ PDFTARGETS_OF_EPSOTHER := $(filter-out $(PDFTARGETS_OF_EPSORIG),$(PDFTARGETS_OF_
 BIBSOURCES := bib/*.bib alphapf.bst
 
 SVGSOURCES := $(wildcard */*.svg)
-
-PDFTARGETS_OF_SVG := $(SVGSOURCES:%.svg=%.pdf)
+SVG_LARGE_BITMAP := future/ibmqx2-labeled.svg
+PDFTARGETS_OF_SVG := $(filter-out $(SVG_LARGE_BITMAP:%.svg=%.pdf),$(SVGSOURCES:%.svg=%.pdf))
+PNGTARGETS_OF_SVG := $(SVG_LARGE_BITMAP:%.svg=%.png)
+TARGETS_OF_SVG :=  $(PDFTARGETS_OF_SVG) $(PNGTARGETS_OF_SVG)
 
 DOT := $(shell which dot 2>/dev/null)
 
@@ -102,7 +104,7 @@ $(PDFTARGETS:.pdf=.aux): $(LATEXGENERATED) $(LATEXSOURCES)
 autodate.tex: $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES)
 	sh utilities/autodate.sh >autodate.tex
 
-perfbook_flat.tex: perfbook.tex $(LATEXSOURCES) $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG)
+perfbook_flat.tex: perfbook.tex $(LATEXSOURCES) $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG)
 	echo > qqz.tex
 	echo > contrib.tex
 	echo > origpub.tex
@@ -206,6 +208,15 @@ endif
 	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
 	@rm -f $<i
 
+$(PNGTARGETS_OF_SVG): %.png: %.svg
+	@echo "$< --> $@"
+ifndef INKSCAPE
+	$(error "$< --> $@: inkscape not found. Please install it.")
+endif
+	@sh $(FIXSVGFONTS) < $< > $<i
+	@inkscape --export-dpi=200 --export-png=$@ $<i > /dev/null 2>&1
+	@rm -f $<i
+
 help:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
 	@echo "  Full,              Abbr."
@@ -238,6 +249,7 @@ clean:
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook*.out perfbook-*.tex
 	rm -f $(LATEXGENERATED)
+	rm -f $(SVG_LARGE_BITMAP:%.svg=%.pdf) $(PNGTARGETS_OF_SVG)
 	rm -f extraction
 
 distclean: clean
@@ -251,7 +263,6 @@ ls-unused:
 	find . -name .unused | xargs ls
 
 neatfreak: distclean
-	# Don't forget to regenerate the .pdf from each .svg file
 	find . -name '*.pdf' | xargs rm -f
 
 .SECONDEXPANSION:
