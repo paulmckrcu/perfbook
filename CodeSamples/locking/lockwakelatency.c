@@ -66,6 +66,8 @@ int n_rounds;
 atomic_t acqctr;
 atomic_t relctr;
 atomic_t donectr;
+unsigned long long tend;
+int woke;
 
 #define GOFLAG_INIT 0
 #define GOFLAG_RUN  1
@@ -74,12 +76,17 @@ atomic_t donectr;
 int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_RUN;
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t condlock = PTHREAD_MUTEX_INITIALIZER;
 
 /*
  * Locking wakeup latency test.
  */
 void *lock_wake_latency_test(void *arg)
 {
+	intptr_t me = (intptr_t)arg;
+
+	//run_on(me);
 	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		atomic_dec(&acqctr);
 		if (pthread_mutex_lock(&lock) != 0) {
@@ -90,7 +97,19 @@ void *lock_wake_latency_test(void *arg)
 			perror("lock_wake_latency_test:pthread_mutex_unlock");
 			abort();
 		}
-		atomic_dec(&relctr);
+		if (atomic_dec_and_test(&relctr)) {
+			tend = current_time();
+			if (pthread_mutex_lock(&condlock) != 0) {
+				perror("lock_wake_latency_test:pthread_mutex_lock cond");
+				abort();
+			}
+			woke = 1;
+			pthread_cond_signal(&cond);
+			if (pthread_mutex_unlock(&condlock) != 0) {
+				perror("lock_wake_latency_test:pthread_mutex_unlock cond");
+				abort();
+			}
+		}
 	}
 	atomic_dec(&donectr);
 	return (NULL);
@@ -109,6 +128,7 @@ void perftest(int nlockers)
 	atomic_set(&donectr, nlockers);
 	for (i = 0; i < nlockers; i++)
 		create_thread(lock_wake_latency_test, (void *)i);
+	//run_on(i);
 	while (atomic_read(&acqctr) > 0)
 		poll(NULL, 0, 1);
 	smp_mb();
@@ -116,7 +136,7 @@ void perftest(int nlockers)
 	tstart = current_time();
 	do {
 		if (pthread_mutex_lock(&lock) != 0) {
-			perror("lock_wake_latency_test:pthread_mutex_lock");
+			perror("perftest:pthread_mutex_lock");
 			abort();
 		}
 		smp_mb();
@@ -125,19 +145,28 @@ void perftest(int nlockers)
 		smp_mb();
 		atomic_set(&acqctr, nlockers);
 		atomic_set(&relctr, nlockers);
+		woke = 0;
 		poll(NULL, 0, 10);
 		t = current_time();
 		smp_mb();
 		if (pthread_mutex_unlock(&lock) != 0) {
-			perror("lock_wake_latency_test:pthread_mutex_unlock");
+			perror("perftest:pthread_mutex_unlock");
 			abort();
 		}
-		while (atomic_read(&relctr) > 0)
-			continue;
+		if (pthread_mutex_lock(&condlock) != 0) {
+			perror("perftest:pthread_mutex_lock cond");
+			abort();
+		}
+		if (atomic_read(&relctr) > 0 || !woke)
+			pthread_cond_wait(&cond, &condlock);
+		if (pthread_mutex_unlock(&condlock) != 0) {
+			perror("perftest:pthread_mutex_unlock cond");
+			abort();
+		}
 		smp_mb();
-		tdelta = current_time() - t;
+		tdelta = tend - t;
 		ttot += tdelta;
-/*&&&&*/	printf("delta = %lld ns\n", tdelta);
+		//printf("delta = %lld ns\n", tdelta);
 		n_rounds++;
 	} while (tstart + duration * 1000000000ULL > t);
 	WRITE_ONCE(goflag, GOFLAG_STOP);
