@@ -221,12 +221,12 @@ help:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
 	@echo "  Full,              Abbr."
 	@echo "  perfbook.pdf,      2c:   (default) 2-column layout"
-	@echo "  perfbook-tcb,      tct:  2-column layout with table caption at bottom"
 	@echo "  perfbook-1c.pdf,   1c:   1-column layout"
 	@echo "  perfbook-hb.pdf,   hb:   For hardcover books (2-column)"
 	@echo
 	@echo "Experimental targets:"
 	@echo "  Full,              Abbr."
+	@echo "  perfbook-tcb,      tcb:  2c with table caption at bottom (prev default)"
 	@echo "  perfbook-msnt.pdf, msnt: 2c with newtxtt as monospace (non-slashed 0)"
 	@echo "  perfbook-mstx.pdf, mstx: 2c with txtt as monospace"
 	@echo "  perfbook-msr.pdf,  msr:  2c with regular thickness courier clone"
@@ -238,9 +238,9 @@ help:
 	@echo "  \"msnt\" requires \"newtxtt\". \"mstx\" is fallback target for older TeX env."
 	@echo "  \"msr\" and \"msn\" require \"nimbus15\"."
 	@echo "  \"msn\" doesn't cover bold face for monospace."
-	@echo "  \"1csf\" requires recent version (>=1.3i) of \"mathastext\"."
+	@echo "  \"1csf\" requires \"newtxsf\"."
 	@echo
-	@echo "All targets except for \"msns\" and \"mss\" use \"Latin Modern Typewriter font"
+	@echo "All targets except for \"msns\" and \"mss\" use \"Latin Modern Typewriter\" font"
 	@echo "for code snippets."
 
 clean:
