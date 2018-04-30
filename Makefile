@@ -101,14 +101,14 @@ $(PDFTARGETS:.pdf=.bbl): %.bbl: %.aux $(BIBSOURCES)
 $(PDFTARGETS:.pdf=.aux): $(LATEXGENERATED) $(LATEXSOURCES)
 	sh utilities/runfirstlatex.sh $(basename $@)
 
-autodate.tex: $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES)
+autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN)
 	sh utilities/autodate.sh >autodate.tex
 
-perfbook_flat.tex: perfbook.tex $(LATEXSOURCES) $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG)
+perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG)
 	echo > qqz.tex
 	echo > contrib.tex
 	echo > origpub.tex
-	texexpand perfbook.tex > $@
+	latexpand --empty-comments perfbook.tex 1> $@ 2> /dev/null
 
 qqz.tex: perfbook_flat.tex
 	sh utilities/extractqqz.sh < $< | perl utilities/qqzreorder.pl > $@
