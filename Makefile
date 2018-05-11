@@ -71,6 +71,8 @@ FIXSVGFONTS   = utilities/fixsvgfonts-urwps.sh
 FIXANEPSFONTS = utilities/fixanepsfonts-urwps.sh
 endif
 
+STEELFONTID := $(shell fc-list | grep -i steel | grep -c Steel)
+
 default = $(PERFBOOK_DEFAULT)
 
 ifeq ($(default),)
@@ -204,7 +206,11 @@ $(PDFTARGETS_OF_SVG): %.pdf: %.svg
 ifndef INKSCAPE
 	$(error "$< --> $@: inkscape not found. Please install it.")
 endif
+ifeq ($(STEELFONTID),0)
+	@sh $(FIXSVGFONTS) < $< | sed -e 's/Steel City Comic/Test/g' > $<i
+else
 	@sh $(FIXSVGFONTS) < $< > $<i
+endif
 	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
 	@rm -f $<i
 
@@ -213,7 +219,11 @@ $(PNGTARGETS_OF_SVG): %.png: %.svg
 ifndef INKSCAPE
 	$(error "$< --> $@: inkscape not found. Please install it.")
 endif
+ifeq ($(STEELFONTID),0)
+	@sh $(FIXSVGFONTS) < $< | sed -e 's/Steel City Comic/Test/g' > $<i
+else
 	@sh $(FIXSVGFONTS) < $< > $<i
+endif
 	@inkscape --export-dpi=200 --export-png=$@ $<i > /dev/null 2>&1
 	@rm -f $<i
 
