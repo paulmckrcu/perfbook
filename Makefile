@@ -54,13 +54,10 @@ PNGTARGETS_OF_SVG := $(SVG_LARGE_BITMAP:%.svg=%.png)
 TARGETS_OF_SVG :=  $(PDFTARGETS_OF_SVG) $(PNGTARGETS_OF_SVG)
 
 DOT := $(shell which dot 2>/dev/null)
-
 FIG2EPS := $(shell which fig2eps 2>/dev/null)
-
 A2PING := $(shell which a2ping 2>/dev/null)
-
 INKSCAPE := $(shell which inkscape 2>/dev/null)
-
+LATEXPAND := $(shell which latexpand 2>/dev/null)
 URWPS := $(shell fc-list | grep "Nimbus Mono PS" | wc -l)
 
 ifeq ($(URWPS),0)
@@ -107,6 +104,9 @@ autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOUR
 	sh utilities/autodate.sh >autodate.tex
 
 perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG)
+ifndef LATEXPAND
+	$(error "--> $@: latexpand not found. Please install it.")
+endif
 	echo > qqz.tex
 	echo > contrib.tex
 	echo > origpub.tex
