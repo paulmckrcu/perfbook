@@ -116,7 +116,7 @@ autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOUR
 
 perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG)
 ifndef LATEXPAND
-	$(error "--> $@: latexpand not found. Please install it.")
+	$(error --> $@: latexpand not found. Please install it)
 endif
 	echo > qqz.tex
 	echo > contrib.tex
@@ -182,7 +182,7 @@ $(EPSSOURCES_FROM_TEX): %.eps: %.tex
 $(EPSSOURCES_FROM_DOT): %.eps: %.dot
 	@echo "$< --> $@"
 ifndef DOT
-	$(error "$< --> $@: dot not found. Please install graphviz")
+	$(error $< --> $@: dot not found. Please install graphviz)
 endif
 	@dot -Tps -o $@ $<
 	@sh $(FIXANEPSFONTS) $@
@@ -190,38 +190,38 @@ endif
 $(EPSSOURCES_FROM_FIG): %.eps: %.fig
 	@echo "$< --> $@"
 ifndef FIG2EPS
-	$(error "$< --> $@: fig2eps not found. Please install fig2ps")
+	$(error $< --> $@: fig2eps not found. Please install fig2ps)
 endif
 	@fig2eps --nogv $< > /dev/null 2>&1
 	@sh $(FIXANEPSFONTS) $@
 
 $(PDFTARGETS_OF_EPSORIG): %.pdf: %.eps
 	@echo "$< --> $@"
-	@cp $< $<i
-	@sh $(FIXANEPSFONTS) $<i
 ifndef A2PING
-	$(error "$< --> $@: a2ping not found. Please install it.")
+	$(error $< --> $@: a2ping not found. Please install it)
 endif
 ifeq ($(A2PING_GSCNFL),1)
-	$(error "a2ping conflict detected. See #7 in FAQ-BUILD.txt.")
+	$(error a2ping version conflict. See #7 in FAQ-BUILD.txt)
 endif
+	@cp $< $<i
+	@sh $(FIXANEPSFONTS) $<i
 	@a2ping --below --hires --bboxfrom=compute-gs $<i $@ > /dev/null 2>&1
 	@rm -f $<i
 
 $(PDFTARGETS_OF_EPSOTHER): %.pdf: %.eps
 	@echo "$< --> $@"
 ifndef A2PING
-	$(error "$< --> $@: a2ping not found. Please install it.")
+	$(error $< --> $@: a2ping not found. Please install it)
 endif
 ifeq ($(A2PING_GSCNFL),1)
-	$(error "a2ping conflict detected. See #7 in FAQ-BUILD.txt.")
+	$(error a2ping version conflict. See #7 in FAQ-BUILD.txt)
 endif
 	@a2ping --below --hires --bboxfrom=compute-gs $< $@ > /dev/null 2>&1
 
 $(PDFTARGETS_OF_SVG): %.pdf: %.svg
 	@echo "$< --> $@"
 ifndef INKSCAPE
-	$(error "$< --> $@: inkscape not found. Please install it.")
+	$(error $< --> $@ inkscape not found. Please install it)
 endif
 ifeq ($(STEELFONTID),0)
 	@sh $(FIXSVGFONTS) < $< | sed -e 's/Steel City Comic/Test/g' > $<i
@@ -234,7 +234,7 @@ endif
 $(PNGTARGETS_OF_SVG): %.png: %.svg
 	@echo "$< --> $@"
 ifndef INKSCAPE
-	$(error "$< --> $@: inkscape not found. Please install it.")
+	$(error $< --> $@: inkscape not found. Please install it)
 endif
 ifeq ($(STEELFONTID),0)
 	@sh $(FIXSVGFONTS) < $< | sed -e 's/Steel City Comic/Test/g' > $<i
