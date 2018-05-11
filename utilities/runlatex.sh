@@ -129,13 +129,5 @@ echo "'$basename.pdf' is ready."
 # to avoid redundant run of bibtex and pdflatex
 touch $basename.bbl
 touch $basename.pdf
-if ! strings cartoons/r-2014-Old-man-and-Brat.pdf | grep -q -i -e "Steel City Comic" -e "Test"
-then
-	echo "#######################################################################"
-	echo "## Steel City Comic font is not found in the resulting PDF!          ##"
-	echo "## Some speech balloons in the cartoons have been rendered awkwardly.##"
-	echo "## See item 1 in FAQ.txt and FAQ-BUILD.txt to fix the font issue.    ##"
-	echo "#######################################################################"
-fi
 sh utilities/mpostcheck.sh
 exit 0

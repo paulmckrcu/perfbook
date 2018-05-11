@@ -58,6 +58,7 @@ FIG2EPS := $(shell which fig2eps 2>/dev/null)
 A2PING := $(shell which a2ping 2>/dev/null)
 INKSCAPE := $(shell which inkscape 2>/dev/null)
 LATEXPAND := $(shell which latexpand 2>/dev/null)
+STEELFONT := $(shell fc-list | grep -c -i steel)
 URWPS := $(shell fc-list | grep "Nimbus Mono PS" | wc -l)
 
 ifeq ($(URWPS),0)
@@ -220,6 +221,9 @@ endif
 
 $(PDFTARGETS_OF_SVG): %.pdf: %.svg
 	@echo "$< --> $@"
+ifeq ($(STEELFONT),0)
+	$(error "Steel City Comic" font not found. See #1 in FAQ.txt)
+endif
 ifndef INKSCAPE
 	$(error $< --> $@ inkscape not found. Please install it)
 endif
