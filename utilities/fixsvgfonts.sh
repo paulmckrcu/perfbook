@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 #
 # fixsvgfonts.sh: Convert an .svg file to use embeddable fonts, taking from
-#	standard input and putting on standar output.
+#	standard input and putting on standard output.
 #
 # Copyright (c) 2018 Akira Yokosawa
 
