@@ -547,18 +547,70 @@ normal loads suffice, and no special atomic instructions are required.
 	It turns out that the C standard really has no other choice,
 	given that C must support (for example) eight-bit architectures
 	which are incapable of atomically loading a \co{long}.
-	An upcoming version of the C standard aims to fill this gap,
-	but until then, we depend on the kindness of the \GCC\ developers.
+	Recent versions of the C standard have introduced atomics, which
+	are intended to fill this gap.
+	However, an attempt to apply them to the Linux kernel gave
+	at best mixed results~\cite{JonathanCorbet2016C11atomics},
+	in part due to the poor quality of code emitted for atomics.
+	In addition, the Linux kernel expects much more from its
+	memory model than C11 atomics provide, including control
+	dependencies, full barriers/fences, and low-overhead address
+	and data dependencies~\cite{PaulEMcKenney2016P0124R5-LKMM}.
 
-	Alternatively, use of volatile accesses such as those provided
-	by \co{READ_ONCE()} and \co{WRITE_ONCE()} can help constrain
-	the compiler,\footnote{
+	At some point, C11 atomics might close these gaps,
+	but until then, the Linux kernel uses a combination of
+	volatile accesses, inline assembly, compiler directives,
+	and coding standards to safely access shared variables.
+	This approach allows the Linux kernel to maintain excellent
+	performance and also to make good use of older compilers
+	that do not support C11 atomics, however, it also requires
+	some effort to port the Linux kernel to a new CPU architecture.
+	That said, significant effort would be required even if C11
+	atomics could be used directly due to the need to handle context
+	switches, interrupts, exceptions, memory-management units,
+	power control for energy efficiency, and much else besides.
+	It is therefore reasonable to expect that any Linux-kernel
+	adoption of C11 atomics will be incremental at best.
+
+	So why not just use plain old C-language assignment statements
+	to access shared variables?
+	The problem is that the compiler is within its rights to assume
+	that no other thread is modifying the variable being accessed.
+	Given a plain old C-language load, the compiler would therefore
+	be within its rights to do the load byte at a time
+	(``load tearing''), repeat the load (popular if register
+	pressure is high), or fuse a pair of consecutive loads from
+	the same variable.
+	Given a plain old C-language store, the compiler would be within
+	its rights to do the store byte at a time (``store tearing''),
+	invent a store (for example, using the stored-to variable as
+	a temporary just prior to the intended store), or omit a store
+	in favor of a later store to the same variable.
+	Although each of these actions would preserve the correctness
+	of a single-threaded algorithm, any of them could easily destroy
+	the correctness of a concurrent algorithm.
+	Given a major tenet of shared-memory concurrency is to support
+	such conflicting accesses, it is quite unwise to use normal
+	C-language loads and stores when accessing variables that might
+	be concurrently updated by other threads.
+	Further, given that current C11 atomics are not (yet?) a good
+	match for the Linux kernel, something else is required.
+
+	One approach is to prevent concurrent updates by using
+	blocking synchronization primitives such as locking
+	(see Chapter~\ref{chp:Locking}).
+	Alternatively, volatile accesses may be used, such as those provided
+	by \co{READ_ONCE()} and \co{WRITE_ONCE()},\footnote{
 		Simple definitions of \co{READ_ONCE()} and
 		\co{WRITE_ONCE()} are shown in
 		Listing~\ref{lst:toolsoftrade:Compiler Barrier Primitive (for GCC)}.}
-	at least
-	in cases where the hardware is capable of accessing the value
-	with a single memory-reference instruction.
+	at least in cases where the hardware is capable of accessing
+	the value with a single memory-reference instruction.
+	However, volatile accesses do not by themselves suffice for
+	high-performance and reliable synchronization mechanisms.
+	The Linux kernel therefore combines volatile accesses with
+	the aforementioned inline assembly, compiler directives, and
+	coding standards.
 } \QuickQuizEnd
 
 \QuickQuiz{}
