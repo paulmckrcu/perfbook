@@ -93,7 +93,7 @@ void rcu_init(void)
 	sa.sa_flags = 0;
 	if (sigaction(SIGUSR1, &sa, NULL) != 0) {
 		perror("sigaction");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 }
 

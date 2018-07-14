@@ -172,7 +172,7 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 	        (double)n_reads),
 	       ((duration * 1000*1000*1000.*(double)nupdaters) /
 	        (double)n_updates));
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
 
 void perftest(int nreaders, int cpustride)
@@ -363,7 +363,7 @@ void stresstest(int nreaders)
 			printf(" %d:%lld", i, sum);
 	}
 	printf("\n");
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
 
 /*
@@ -373,7 +373,7 @@ void stresstest(int nreaders)
 void usage(int argc, char *argv[])
 {
 	fprintf(stderr, "Usage: %s [nreaders [ perf | stress ] ]\n", argv[0]);
-	exit(-1);
+	exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[])

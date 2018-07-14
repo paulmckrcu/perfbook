@@ -33,7 +33,7 @@ void hazptr_init(void)
 	HP = (hazard_pointer *)malloc(sizeof(hazard_pointer) * K * NR_THREADS);
 	if (HP == NULL) {
 		fprintf(stderr, "SMR hazptr_init: out of memory\n");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 
 	/* Initialize the hazard pointers. */
@@ -101,7 +101,7 @@ void hazptr_scan()
 		plist = (hazptr_head_t **)malloc(sizeof(hazptr_head_t *) * K * NR_THREADS);
 		if (plist == NULL) {
 			fprintf(stderr, "hazptr_scan: out of memory\n");
-			exit(1);
+			exit(EXIT_FAILURE);
 		}
 	}
 

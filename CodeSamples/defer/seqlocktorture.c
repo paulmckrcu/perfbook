@@ -180,7 +180,7 @@ void perftestrun(int nthreads, int nreaders, int nwriters)
 	        (double)n_reads),
 	       ((duration * 1000*1000.*(double)nwriters) /
 	        (double)n_writes));
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
 
 void perftest(int nreaders, int nwriters, int cpustride)
@@ -209,7 +209,7 @@ void usage(int argc, char *argv[])
 	fprintf(stderr,
 		"Usage: %s [nreaders [ nwriters [ nelems [ cpustride ] ] ] ]\n",
 		argv[0]);
-	exit(-1);
+	exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[])

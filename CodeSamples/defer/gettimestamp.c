@@ -56,5 +56,5 @@ int main(int argc, char *argv[])
 			printf(" %lld", ts[i] - ts[i - 1]);
 		printf("\n");
 	}
-	exit(0);
+	return EXIT_SUCCESS;
 }

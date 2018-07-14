@@ -356,7 +356,7 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t\tdefaults to 1.\n");
 	fprintf(stderr, "\t--duration\n");
 	fprintf(stderr, "\t\tDuration of test, in milliseconds.\n");
-	exit(-1);
+	exit(EXIT_FAILURE);
 }
 
 /*
@@ -376,7 +376,7 @@ int main(int argc, char *argv[])
 				usage(argv[0],
 				      "Excess arguments for %s\n", argv[i]);
 			smoketest();
-			exit(0);
+			exit(EXIT_SUCCESS);
 		} else if (strcmp(argv[i], "--perftest") == 0) {
 			test_to_do = perftest;
 			if (i != 1)
