@@ -58,7 +58,7 @@ void count_init(void)
 	countarrayp = malloc(sizeof(*countarrayp));
 	if (countarrayp == NULL) {
 		fprintf(stderr, "Out of memory\n");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	memset(countarrayp, '\0', sizeof(*countarrayp));
 }
@@ -81,7 +81,7 @@ void count_unregister_thread(int nthreadsexpected)
 	cap = malloc(sizeof(*countarrayp));
 	if (cap == NULL) {
 		fprintf(stderr, "Out of memory\n");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	spin_lock(&final_mutex);
 	*cap = *countarrayp;

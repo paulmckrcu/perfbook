@@ -57,11 +57,12 @@ void *eventual(void *arg)
 
 void count_init(void)
 {
+	int en;
 	thread_id_t tid;
 
-	if (pthread_create(&tid, NULL, eventual, NULL) != 0) {
-		perror("count_init:pthread_create");
-		exit(-1);
+	if ((en = pthread_create(&tid, NULL, eventual, NULL)) != 0) {
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 }
 

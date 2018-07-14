@@ -125,7 +125,7 @@ void *count_updown_hog(void *arg)
 	delta = num_online_threads() * 20;
 	if (!add_count(delta)) {
 		fprintf(stderr, "count_updown_hog(): add_count() failed!\n");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	__get_thread_var(n_updates_pt) += delta;
 	smp_mb();
@@ -192,7 +192,7 @@ void hogtest(int nreaders, int cpustride)
 	goflag = GOFLAG_STOP;
 	smp_mb();
 	wait_all_threads();
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
 
 /*
@@ -285,7 +285,7 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 	        (double)n_reads),
 	       ((duration * 1000*1000.*(double)nupdaters) /
 	        (double)n_updates));
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
 
 void perftest(int nreaders, int cpustride)
@@ -345,7 +345,7 @@ void usage(int argc, char *argv[])
 		"Usage: %s [nreaders [ uperf [ cpustride ] ] ]\n", argv[0]);
 	fprintf(stderr,
 		"Usage: %s [nreaders [ hog [ cpustride ] ] ]\n", argv[0]);
-	exit(-1);
+	exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[])
