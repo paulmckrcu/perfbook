@@ -39,6 +39,7 @@ char goflag = GOFLAG_INIT;
 
 void *reader(void *arg)
 {
+	int en;
 	int i;
 	long long loopcnt = 0;
 	long me = (long)arg;
@@ -48,16 +49,16 @@ void *reader(void *arg)
 		continue;
 	}
 	while (READ_ONCE(goflag) == GOFLAG_RUN) {
-		if (pthread_rwlock_rdlock(&rwl) != 0) {
+		if ((en = pthread_rwlock_rdlock(&rwl)) != 0) {
 			perror("pthread_rwlock_rdlock");
-			exit(-1);
+			exit(EXIT_FAILURE);
 		}
 		for (i = 1; i < holdtime; i++) {
 			barrier();
 		}
-		if (pthread_rwlock_unlock(&rwl) != 0) {
+		if ((en = pthread_rwlock_unlock(&rwl)) != 0) {
 			perror("pthread_rwlock_unlock");
-			exit(-1);
+			exit(EXIT_FAILURE);
 		}
 		for (i = 1; i < thinktime; i++) {
 			barrier();
@@ -70,6 +71,7 @@ void *reader(void *arg)
 
 int main(int argc, char *argv[])
 {
+	int en;
 	long i;
 	int nthreads;
 	long long sum = 0LL;
@@ -79,7 +81,7 @@ int main(int argc, char *argv[])
 	if (argc != 4) {
 		fprintf(stderr,
 			"Usage: %s nthreads holdloops thinkloops\n", argv[0]);
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	nthreads = strtoul(argv[1], NULL, 0);
 	holdtime = strtoul(argv[2], NULL, 0);
@@ -88,12 +90,13 @@ int main(int argc, char *argv[])
 	tid = malloc(nthreads * sizeof(tid[0]));
 	if (readcounts == NULL || tid == NULL) {
 		fprintf(stderr, "Out of memory\n");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	for (i = 0; i < nthreads; i++) {
-		if (pthread_create(&tid[i], NULL, reader, (void *)i) != 0) {
+		en = pthread_create(&tid[i], NULL, reader, (void *)i);
+		if (en != 0) {
 			perror("pthread_create");
-			exit(-1);
+			exit(EXIT_FAILURE);
 		}
 	}
 	while (READ_ONCE(nreadersrunning) < nthreads) {
@@ -104,9 +107,9 @@ int main(int argc, char *argv[])
 	goflag = GOFLAG_STOP;
 
 	for (i = 0; i < nthreads; i++) {
-		if (pthread_join(tid[i], &vp) != 0) {
+		if ((en = pthread_join(tid[i], &vp)) != 0) {
 			perror("pthread_join");
-			exit(-1);
+			exit(EXIT_FAILURE);
 		}
 	}
 	for (i = 0; i < nthreads; i++) {
@@ -116,5 +119,5 @@ int main(int argc, char *argv[])
 	printf("%s n: %d  h: %d t: %d  sum: %lld\n",
 	       argv[0], nthreads, holdtime, thinktime, sum);
 
-	return 0;
+	return EXIT_SUCCESS;
 }

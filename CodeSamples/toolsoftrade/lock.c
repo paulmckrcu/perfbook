@@ -33,14 +33,16 @@ int x = 0;
 
 void *lock_reader(void *arg)
 {
+	int en;
 	int i;
 	int newx = -1;
 	int oldx = -1;
 	pthread_mutex_t *pmlp = (pthread_mutex_t *)arg;
 
-	if (pthread_mutex_lock(pmlp) != 0) {
-		perror("lock_reader:pthread_mutex_lock");
-		exit(-1);
+	if ((en = pthread_mutex_lock(pmlp)) != 0) {
+		fprintf(stderr, "lock_reader:pthread_mutex_lock: %s\n",
+			strerror(en));
+		exit(EXIT_FAILURE);
 	}
 	for (i = 0; i < 100; i++) {
 		newx = READ_ONCE(x);
@@ -50,75 +52,80 @@ void *lock_reader(void *arg)
 		oldx = newx;
 		poll(NULL, 0, 1);
 	}
-	if (pthread_mutex_unlock(pmlp) != 0) {
-		perror("lock_reader:pthread_mutex_unlock");
-		exit(-1);
+	if ((en = pthread_mutex_unlock(pmlp)) != 0) {
+		fprintf(stderr, "lock_reader:pthread_mutex_lock: %s\n",
+			strerror(en));
+		exit(EXIT_FAILURE);
 	}
 	return NULL;
 }
 
 void *lock_writer(void *arg)
 {
+	int en;
 	int i;
 	pthread_mutex_t *pmlp = (pthread_mutex_t *)arg;
 
-	if (pthread_mutex_lock(pmlp) != 0) {
-		perror("lock_writer:pthread_mutex_lock");
-		exit(-1);
+	if ((en = pthread_mutex_lock(pmlp)) != 0) {
+		fprintf(stderr, "lock_writer:pthread_mutex_lock: %s\n",
+			strerror(en));
+		exit(EXIT_FAILURE);
 	}
 	for (i = 0; i < 3; i++) {
 		WRITE_ONCE(x, READ_ONCE(x) + 1);
 		poll(NULL, 0, 5);
 	}
-	if (pthread_mutex_unlock(pmlp) != 0) {
-		perror("lock_writer:pthread_mutex_unlock");
-		exit(-1);
+	if ((en = pthread_mutex_unlock(pmlp)) != 0) {
+		fprintf(stderr, "lock_writer:pthread_mutex_lock: %s\n",
+			strerror(en));
+		exit(EXIT_FAILURE);
 	}
 	return NULL;
 }
 
 int main(int argc, char *argv[])
 {
+	int en; 
 	pthread_t tid1;
 	pthread_t tid2;
 	void *vp;
 
 	printf("Creating two threads using same lock:\n");
-	if (pthread_create(&tid1, NULL, lock_reader, &lock_a) != 0) {
-		perror("pthread_create");
-		exit(-1);
+	if ((en = pthread_create(&tid1, NULL, lock_reader, &lock_a)) != 0) {
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
-	if (pthread_create(&tid2, NULL, lock_writer, &lock_a) != 0) {
-		perror("pthread_create");
-		exit(-1);
+	if ((en = pthread_create(&tid2, NULL, lock_writer, &lock_a)) != 0) {
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
-	if (pthread_join(tid1, &vp) != 0) {
-		perror("pthread_join");
-		exit(-1);
+	if ((en = pthread_join(tid1, &vp)) != 0) {
+		fprintf(stderr, "pthread_join: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
-	if (pthread_join(tid2, &vp) != 0) {
-		perror("pthread_join");
-		exit(-1);
+	if ((en = pthread_join(tid2, &vp)) != 0) {
+		fprintf(stderr, "pthread_join: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 
 	printf("Creating two threads w/different locks:\n");
 	x = 0;
-	if (pthread_create(&tid1, NULL, lock_reader, &lock_a) != 0) {
-		perror("pthread_create");
-		exit(-1);
+	if ((en = pthread_create(&tid1, NULL, lock_reader, &lock_a)) != 0) {
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
-	if (pthread_create(&tid2, NULL, lock_writer, &lock_b) != 0) {
-		perror("pthread_create");
-		exit(-1);
+	if ((en = pthread_create(&tid2, NULL, lock_writer, &lock_b)) != 0) {
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
-	if (pthread_join(tid1, &vp) != 0) {
-		perror("pthread_join");
-		exit(-1);
+	if ((en = pthread_join(tid1, &vp)) != 0) {
+		fprintf(stderr, "pthread_join: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
-	if (pthread_join(tid2, &vp) != 0) {
-		perror("pthread_join");
-		exit(-1);
+	if ((en = pthread_join(tid2, &vp)) != 0) {
+		fprintf(stderr, "pthread_join: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }

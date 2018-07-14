@@ -34,11 +34,11 @@ int main(int argc, char *argv[])
 	if (pid == 0) { /* child */
 		x = 1;
 		printf("Child process set x=1\n");
-		exit(0);
+		exit(EXIT_SUCCESS);
 	}
 	if (pid < 0) { /* parent, upon error */
 		perror("fork");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 
 	/* parent */
@@ -46,5 +46,5 @@ int main(int argc, char *argv[])
 	waitall();
 	printf("Parent process sees x=%d\n", x);
 
-	return 0;
+	return EXIT_SUCCESS;
 }

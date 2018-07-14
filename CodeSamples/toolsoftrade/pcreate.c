@@ -37,21 +37,22 @@ void *mythread(void *arg)
 
 int main(int argc, char *argv[])
 {
+	int en;
 	pthread_t tid;
 	void *vp;
 
-	if (pthread_create(&tid, NULL, mythread, NULL) != 0) {
-		perror("pthread_create");
-		exit(-1);
+	if ((en = pthread_create(&tid, NULL, mythread, NULL)) != 0) {
+		fprintf(stderr, "pthread_join: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 
 	/* parent */
 
-	if (pthread_join(tid, &vp) != 0) {
-		perror("pthread_join");
-		exit(-1);
+	if ((en = pthread_join(tid, &vp)) != 0) {
+		fprintf(stderr, "pthread_join: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 	printf("Parent process sees x=%d\n", x);
 
-	return 0;
+	return EXIT_SUCCESS;
 }
