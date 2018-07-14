@@ -32,7 +32,7 @@ void bakerylock_init(bakerylock_t *blp, int n)
 	blp->label = malloc(sizeof(*label) * n);
 	if (blp->flag == NULL || blp->label == NULL) {
 		printf("out of memory\n");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 }
 
