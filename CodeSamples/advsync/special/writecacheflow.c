@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #define __USE_GNU
 #include <sched.h>
 #include <pthread.h>
@@ -64,21 +65,21 @@ void dump_config(void)
 {
 	int error = 0;
 
-	printf("CPU offset: %d\n", cpuoffset);
+	printf("CPU offset: %ld\n", cpuoffset);
 	printf("Cache-line size: %d bytes\n", CACHE_LINE_SIZE);
 	printf("Store-buffer noise size: %d cache lines\n", NOISE_SIZE);
 	printf("Maximum number of CPUs: %d\n", MAX_CPUS);
-	printf("Start each rep when these bits of TB are zero: %x\n",
+	printf("Start each rep when these bits of TB are zero: %lx\n",
 	       test_cycle_tb_mask);
 	if ((test_cycle_tb_mask & (test_cycle_tb_mask + 1)) != 0) {
 		printf("test_cycle_tb_mask must be consecutive low-order bits"
 		       " (e.g., 0xff)\n");
 		error = 1;
 	}
-	printf("Number of recorders: %d\n", nrecorders);
+	printf("Number of recorders: %ld\n", nrecorders);
 	fflush(stdout);
 	if (error != 0)
-		exit(-1);
+		exit(EXIT_FAILURE);
 }
 
 /*
@@ -135,38 +136,44 @@ spinlock_t threadlock = PTHREAD_MUTEX_INITIALIZER;
 
 void spin_lock(pthread_mutex_t *lp)
 {
-	if (pthread_mutex_lock(lp) != 0) {
-		perror("pthread_mutex_lock");
-		exit(-1);
+	int en;
+
+	if ((en = pthread_mutex_lock(lp)) != 0) {
+		fprintf(stderr, "pthread_mutex_lock: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 }
 
 void spin_unlock(pthread_mutex_t *lp)
 {
-	if (pthread_mutex_unlock(lp) != 0) {
-		perror("pthread_mutex_unlock");
-		exit(-1);
+	int en;
+
+	if ((en = pthread_mutex_unlock(lp)) != 0) {
+		fprintf(stderr, "pthread_mutex_unlock: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 }
 
 pthread_t create_thread(void *(*func)(void *), void *arg)
 {
+	int en;
 	pthread_t id;
 
-	if (pthread_create(&id, NULL, func, arg) != 0) {
-		perror("pthread_create");
-		exit(-1);
+	if ((en = pthread_create(&id, NULL, func, arg)) != 0) {
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 	return id;
 }
 
 void *wait_thread(pthread_t id)
 {
+	int en;
 	void *retval;
 
-	if (pthread_join(id, &retval) != 0) {
-		perror("pthread_join");
-		exit(-1);
+	if ((en = pthread_join(id, &retval)) != 0) {
+		fprintf(stderr, "pthread_join: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 	return (retval);
 }
@@ -182,7 +189,7 @@ void runon(int cpu)
 	CPU_SET(cpu, &cset);
 	if (sched_setaffinity(0, sizeof(cpu_set_t), &cset) < 0) {
 		perror("setaffinity");
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 }
 
@@ -210,7 +217,7 @@ void startyourengines(int mycpu)
 
 void setstarttime(void *me_in)
 {
-	int mycpu = (int)me_in;
+	long mycpu = (long)me_in;
 
 	startyourengines(mycpu);
 	hwsync();
@@ -237,7 +244,7 @@ void *recorder(void *me_in)
 	int i;
 	int j;
 	long lasttb;
-	int mycpu = (int)me_in;
+	long mycpu = (long)me_in;
 	long oldtb;
 	struct valuerange vr[MAX_CPUS];
 
@@ -271,7 +278,7 @@ timeout:
 	vr[i].lasttb = lasttb;
 	spin_lock(&threadlock);
 	for (j = 0; j <= i; j++)
-		printf("%2d %2d: %d - %d = %d\n",
+		printf("%2ld %2d: %ld - %ld = %ld\n",
 		       mycpu,
 		       vr[j].value,
 		       vr[j].firsttb - state.starttime,
@@ -286,7 +293,7 @@ void usage(char *prog)
 	fprintf(stderr,
 		"Usage: %s [ --cpuoffset n ] [ --nrecorders n ] "
 		    "[ --test_cycle_tb_mask 0xhh ] [ --v ]\n", prog);
-	exit(-1);
+	exit(EXIT_FAILURE);
 }
 
 void parse_args(int argc, char *argv[])
@@ -341,7 +348,7 @@ int main(int argc, char *argv[])
 					  sizeof(*recorder_id));
 	if (recorder_id == NULL) {
 		fprintf(stderr, "Out of memory!\n");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	for (i = 0; i < nrecorders; i++) {
 		num_threads_created++;
@@ -359,5 +366,5 @@ int main(int argc, char *argv[])
 		(void)wait_thread(recorder_id[i]);
 	}
 
-	return (0);
+	return EXIT_SUCCESS;
 }
