@@ -42,23 +42,26 @@ int producer_done = 0;
 
 void *producer(void *ignored)
 {
+	int en;
 	int i = 0;
 
 	producer_ready = 1;
 	while (!goflag)
 		sched_yield();
 	while (goflag) {
-		if (pthread_mutex_lock(&snaplock) != 0) {
-			perror("producer pthread_mutex_lock");
-			exit(-1);
+		if ((en = pthread_mutex_lock(&snaplock)) != 0) {
+			fprintf(stderr,
+				"pthread_mutex_lock: %s\n", strerror(en));
+			exit(EXIT_FAILURE);
 		}
 		ss.t = dgettimeofday();
 		ss.a = ss.c + 1;
 		ss.b = ss.a + 1;
 		ss.c = ss.b + 1;
-		if (pthread_mutex_unlock(&snaplock) != 0) {
-			perror("producer pthread_mutex_unlock");
-			exit(-1);
+		if ((en = pthread_mutex_unlock(&snaplock)) != 0) {
+			fprintf(stderr,
+				"pthread_mutex_unlock: %s\n", strerror(en));
+			exit(EXIT_FAILURE);
 		}
 		i++;
 	}
@@ -87,6 +90,7 @@ int consumer_done = 0;
 void *consumer(void *ignored)
 {
 	struct snapshot_consumer curssc;
+	int en;
 	int i = 0;
 	int j = 0;
 
@@ -95,18 +99,20 @@ void *consumer(void *ignored)
 		sched_yield();
 	}
 	while (goflag) {
-		if (pthread_mutex_lock(&snaplock) != 0) {
-			perror("consumer pthread_mutex_lock");
-			exit(-1);
+		if ((en = pthread_mutex_lock(&snaplock)) != 0) {
+			fprintf(stderr,
+				"pthread_mutex_lock: %s\n", strerror(en));
+			exit(EXIT_FAILURE);
 		}
 		curssc.tc = dgettimeofday();
 		curssc.t = ss.t;
 		curssc.a = ss.a;
 		curssc.b = ss.b;
 		curssc.c = ss.c;
-		if (pthread_mutex_unlock(&snaplock) != 0) {
-			perror("consumer pthread_mutex_unlock");
-			exit(-1);
+		if ((en = pthread_mutex_unlock(&snaplock)) != 0) {
+			fprintf(stderr,
+				"pthread_mutex_unlock: %s\n", strerror(en));
+			exit(EXIT_FAILURE);
 		}
 		curssc.sequence = curseq;
 		curssc.iserror = 0;
@@ -158,22 +164,24 @@ void *watcher(void *ignored)
 
 int main(int argc, char *argv[])
 {
+	int en;
 	long i;
 	pthread_t id;
 	double starttime;
 
-	if (pthread_create(&id, NULL, producer, NULL) != 0) {
+	if ((en = pthread_create(&id, NULL, producer, NULL)) != 0) {
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
 		perror("pthread_create producer");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
-	if (pthread_create(&id, NULL, consumer, NULL) != 0) {
-		perror("pthread_create consumer");
-		exit(-1);
+	if ((en = pthread_create(&id, NULL, consumer, NULL)) != 0) {
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 	for (i = 0; i < NWATCHERS; i++)
-		if (pthread_create(&id, NULL, watcher, (void *)i) != 0) {
-			perror("pthread_create watcher");
-			exit(-1);
+		if ((en = pthread_create(&id, NULL, watcher, (void *)i)) != 0) {
+			fprintf(stderr, "pthread_create: %s\n", strerror(en));
+			exit(EXIT_FAILURE);
 		}
 	while (!producer_ready || !consumer_ready)
 		sched_yield();
@@ -184,5 +192,5 @@ int main(int argc, char *argv[])
 	goflag = 0;
 	while (!consumer_done || !producer_done)
 		poll(NULL, 0, 1);
-	exit(0);
+	return EXIT_SUCCESS;
 }

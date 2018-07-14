@@ -142,22 +142,23 @@ void *watcher(void *ignored)
 
 int main(int argc, char *argv[])
 {
+	int en;
 	long i;
 	pthread_t id;
 	double starttime;
 
-	if (pthread_create(&id, NULL, producer, NULL) != 0) {
-		perror("pthread_create producer");
-		exit(-1);
+	if ((en = pthread_create(&id, NULL, producer, NULL)) != 0) {
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
-	if (pthread_create(&id, NULL, consumer, NULL) != 0) {
-		perror("pthread_create consumer");
-		exit(-1);
+	if ((en = pthread_create(&id, NULL, consumer, NULL)) != 0) {
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
+		exit(EXIT_FAILURE);
 	}
 	for (i = 0; i < NWATCHERS; i++)
-		if (pthread_create(&id, NULL, watcher, (void *)i) != 0) {
-			perror("pthread_create watcher");
-			exit(-1);
+		if ((en = pthread_create(&id, NULL, watcher, (void *)i)) != 0) {
+			fprintf(stderr, "pthread_create: %s\n", strerror(en));
+			exit(EXIT_FAILURE);
 		}
 	while (!producer_ready || !consumer_ready)
 		sched_yield();
@@ -168,5 +169,5 @@ int main(int argc, char *argv[])
 	goflag = 0;
 	while (!consumer_done || !producer_done)
 		poll(NULL, 0, 1);
-	exit(0);
+	return EXIT_SUCCESS;
 }
