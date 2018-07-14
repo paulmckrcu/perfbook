@@ -150,7 +150,7 @@ void usage(char *progname)
 {
 	fprintf(stderr,
 		"Usage: %s [ #threads [ alloc runlength ] ]\n", progname);
-	exit(-1);
+	exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[])
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 		       totbefore, memblocks_available());
 	}
 
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
 
 #endif /* #ifdef TEST */

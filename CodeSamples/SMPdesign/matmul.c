@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
 	c = malloc(sizeof(c[0]) * dim * dim);
 	if (a == NULL || b == NULL || c == NULL) {
 		printf("Out of memory\n");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 
 	for (i = 0; i < dim; i++)
@@ -97,5 +97,5 @@ int main(int argc, char *argv[])
 	endtime = get_microseconds();
 	printf("dim = %ld, nthread = %d, duration = %lld : %lld us\n",
 	       dim, nthread, endtime - startcreatetime, endtime - starttime);
-	return 0;
+	return EXIT_SUCCESS;
 }
