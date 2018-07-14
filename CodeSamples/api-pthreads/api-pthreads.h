@@ -88,7 +88,11 @@ retry:
 
 static __inline__ void spin_lock(spinlock_t *sp)
 {
-	if (pthread_mutex_lock(sp) != 0) {
+	int en;
+
+	en = pthread_mutex_lock(sp);
+	if (en != 0) {
+		fprintf(stderr, "pthread_mutex_lock: %s\n", strerror(en));
 		perror("spin_lock:pthread_mutex_lock");
 		abort();
 	}
@@ -102,14 +106,17 @@ static __inline__ int spin_trylock(spinlock_t *sp)
 		return 1;
 	if (retval == EBUSY)
 		return 0;
-	perror("spin_trylock:pthread_mutex_trylock");
+	fprintf(stderr, "pthread_mutex_trylock: %s\n", strerror(retval));
 	abort();
 }
 
 static __inline__ void spin_unlock(spinlock_t *sp)
 {
-	if (pthread_mutex_unlock(sp) != 0) {
-		perror("spin_unlock:pthread_mutex_unlock");
+	int en;
+
+	en = pthread_mutex_unlock(sp);
+	if (en != 0) {
+		fprintf(stderr, "pthread_mutex_unlock: %s\n", strerror(en));
 		abort();
 	}
 }
@@ -186,7 +193,7 @@ static __inline__ int __smp_thread_id(void)
 
 			if (pthread_setspecific(thread_id_key, (void *)v) != 0) {
 				perror("pthread_setspecific");
-				exit(-1);
+				exit(EXIT_FAILURE);
 			}
 			return i;
 		}
@@ -201,7 +208,7 @@ static __inline__ int __smp_thread_id(void)
 	spin_unlock(&__thread_id_map_mutex);
 	fprintf(stderr, "smp_thread_id: Rogue thread, id: %d(%#x)\n",
 		(int)tid, (int)tid);
-	exit(-1);
+	exit(EXIT_FAILURE);
 }
 
 static __inline__ int smp_thread_id(void)
@@ -227,12 +234,12 @@ static __inline__ thread_id_t create_thread(void *(*func)(void *), void *arg)
 	if (i >= NR_THREADS) {
 		spin_unlock(&__thread_id_map_mutex);
 		fprintf(stderr, "Thread limit of %d exceeded!\n", NR_THREADS);
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	__thread_id_map[i] = __THREAD_ID_MAP_WAITING;
 	if (pthread_create(&tid, NULL, func, arg) != 0) {
 		perror("create_thread:pthread_create");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	__thread_id_map[i] = tid;
 	spin_unlock(&__thread_id_map_mutex);
@@ -251,11 +258,11 @@ static __inline__ void *wait_thread(thread_id_t tid)
 	if (i >= NR_THREADS){
 		fprintf(stderr, "wait_thread: bad tid = %d(%#x)\n",
 			(int)tid, (int)tid);
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	if (pthread_join(tid, &vp) != 0) {
 		perror("wait_thread:pthread_join");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	__thread_id_map[i] = __THREAD_ID_MAP_EMPTY;
 	return vp;
@@ -288,7 +295,7 @@ static __inline__ void waitall(void)
 			if (errno == ECHILD)
 				break;
 			perror("wait");
-			exit(-1);
+			exit(EXIT_FAILURE);
 		}
 		poll(NULL, 0, 1);
 	}
@@ -469,6 +476,6 @@ static __inline__ void smp_init(void)
 	init_per_thread(smp_processor_id, 0);
 	if (pthread_key_create(&thread_id_key, NULL) != 0) {
 		perror("pthread_key_create");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 }
