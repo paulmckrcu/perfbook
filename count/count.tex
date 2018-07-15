@@ -838,21 +838,22 @@ eventually consistent.
 34
 35 void count_init(void)
 36 {
-37   thread_id_t tid;
-38
-39   if (pthread_create(&tid, NULL, eventual, NULL) != 0) {
-40     perror("count_init:pthread_create");
-41     exit(-1);
-42   }
-43 }
-44
-45 void count_cleanup(void)
-46 {
-47   WRITE_ONCE(stopflag, 1);
-48   while (READ_ONCE(stopflag) < 3)
-49     poll(NULL, 0, 1);
-50   smp_mb();
-51 }
+37   int en;
+38   thread_id_t tid;
+39
+40   if ((en = pthread_create(&tid, NULL, eventual, NULL)) != 0) {
+41     fprintf(stderr, "pthread_create: %s\n", strerror(en));
+42     exit(-1);
+43   }
+44 }
+45
+46 void count_cleanup(void)
+47 {
+48   WRITE_ONCE(stopflag, 1);
+49   while (READ_ONCE(stopflag) < 3)
+50     poll(NULL, 0, 1);
+51   smp_mb();
+52 }
 \end{verbbox}
 }
 \centering
@@ -874,14 +875,14 @@ Listing~\ref{lst:count:Array-Based Per-Thread Statistical Counters}.
 The \co{read_count()} function shown on lines~11-14 simply returns the
 value of the \co{global_count} variable.
 
-However, the \co{count_init()} function on lines~35-43
+However, the \co{count_init()} function on lines~35-44
 creates the \co{eventual()} thread shown on lines~16-33, which
 cycles through all the threads,
 summing the per-thread local \co{counter} and storing the
 sum to the \co{global_count} variable.
 The \co{eventual()} thread waits an arbitrarily chosen one millisecond
 between passes.
-The \co{count_cleanup()} function on lines~45-51 coordinates termination.
+The \co{count_cleanup()} function on lines~46-52 coordinates termination.
 
 This approach gives extremely fast counter read-out while still
 supporting linear counter-update performance.
