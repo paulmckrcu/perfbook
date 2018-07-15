@@ -113,13 +113,13 @@ void *consumer(void *ignored)
 	printf("consumer exited loop, collected %d items out of %d\n",
 	       i, curseq);
 	if (ssc[0].iserror)
-		printf("0/%d: %.6f %.6f (%.3f) %d %d %d\n",
+		printf("0/%ld: %.6f %.6f (%.3f) %ld %ld %ld\n",
 		       ssc[0].sequence, 
 		       ssc[j].t, ssc[j].tc, (ssc[j].tc - ssc[j].t) * 1000000,
 		       ssc[j].a, ssc[j].b, ssc[j].c);
 	for (j = 0; j <= i; j++)
 		if (ssc[j].iserror)
-			printf("%d/%d: %.6f (%.3f) %d %d %d\n",
+			printf("%d/%ld: %.6f (%.3f) %ld %ld %ld\n",
 			       j, ssc[j].sequence,
 			       ssc[j].t, (ssc[j].tc - ssc[j].t) * 1000000,
 			       ssc[j].a - ssc[j - 1].a,
@@ -132,7 +132,7 @@ int watcher_ready = 0;
 
 void *watcher(void *ignored)
 {
-	int sum = 0;
+	long sum = 0;
 
 	watcher_ready++;
 	while (!goflag)
@@ -142,7 +142,7 @@ void *watcher(void *ignored)
 
 int main(int argc, char *argv[])
 {
-	int i;
+	long i;
 	pthread_t id;
 	double starttime;
 
