@@ -50,14 +50,16 @@ void *reader(void *arg)
 	}
 	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		if ((en = pthread_rwlock_rdlock(&rwl)) != 0) {
-			perror("pthread_rwlock_rdlock");
+			fprintf(stderr,
+				"pthread_rwlock_rdlock: %s\n", strerror(en));
 			exit(EXIT_FAILURE);
 		}
 		for (i = 1; i < holdtime; i++) {
 			barrier();
 		}
 		if ((en = pthread_rwlock_unlock(&rwl)) != 0) {
-			perror("pthread_rwlock_unlock");
+			fprintf(stderr,
+				"pthread_rwlock_unlock: %s\n", strerror(en));
 			exit(EXIT_FAILURE);
 		}
 		for (i = 1; i < thinktime; i++) {
@@ -95,7 +97,7 @@ int main(int argc, char *argv[])
 	for (i = 0; i < nthreads; i++) {
 		en = pthread_create(&tid[i], NULL, reader, (void *)i);
 		if (en != 0) {
-			perror("pthread_create");
+			fprintf(stderr, "pthread_create: %s\n", strerror(en));
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -108,7 +110,7 @@ int main(int argc, char *argv[])
 
 	for (i = 0; i < nthreads; i++) {
 		if ((en = pthread_join(tid[i], &vp)) != 0) {
-			perror("pthread_join");
+			fprintf(stderr, "pthread_join: %s\n", strerror(en));
 			exit(EXIT_FAILURE);
 		}
 	}
