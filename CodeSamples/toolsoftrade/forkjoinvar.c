@@ -24,6 +24,7 @@
 #include <errno.h>
 #include "../api.h"
 
+// \begin{snippet}[labelbase=ln:toolsoftrade:forkjoinvar:main,commandchars=\$\@\^]
 int x = 0;
 
 int main(int argc, char *argv[])
@@ -32,9 +33,9 @@ int main(int argc, char *argv[])
 
 	pid = fork();
 	if (pid == 0) { /* child */
-		x = 1;
-		printf("Child process set x=1\n");
-		exit(EXIT_SUCCESS);
+		x = 1;					//\lnlbl{setx}
+		printf("Child process set x=1\n");	//\lnlbl{print:c}
+		exit(EXIT_SUCCESS);			//\lnlbl{exit:s}
 	}
 	if (pid < 0) { /* parent, upon error */
 		perror("fork");
@@ -43,8 +44,9 @@ int main(int argc, char *argv[])
 
 	/* parent */
 
-	waitall();
-	printf("Parent process sees x=%d\n", x);
+	waitall();					//\lnlbl{waitall}
+	printf("Parent process sees x=%d\n", x);	//\lnlbl{print:p}
 
 	return EXIT_SUCCESS;
 }
+// \end{snippet}

@@ -26,6 +26,7 @@
 #include <errno.h>
 #include "../api.h"
 
+// \begin{snippet}[labelbase=ln:toolsoftrade:pcreate:mythread,commandchars=\$\@\^]
 int x = 0;
 
 void *mythread(void *arg)
@@ -41,14 +42,15 @@ int main(int argc, char *argv[])
 	pthread_t tid;
 	void *vp;
 
-	if ((en = pthread_create(&tid, NULL, mythread, NULL)) != 0) {
+	if ((en = pthread_create(&tid, NULL,		//\lnlbl{create:a}
+	                         mythread, NULL)) != 0) {//\lnlbl{create:b}
 		fprintf(stderr, "pthread_join: %s\n", strerror(en));
 		exit(EXIT_FAILURE);
 	}
 
 	/* parent */
 
-	if ((en = pthread_join(tid, &vp)) != 0) {
+	if ((en = pthread_join(tid, &vp)) != 0) {	//\lnlbl{join}
 		fprintf(stderr, "pthread_join: %s\n", strerror(en));
 		exit(EXIT_FAILURE);
 	}
@@ -56,3 +58,4 @@ int main(int argc, char *argv[])
 
 	return EXIT_SUCCESS;
 }
+// \end{snippet}

@@ -286,19 +286,21 @@ static __inline__ void wait_all_threads(void)
  */
 static __inline__ void waitall(void)
 {
+// \begin{snippet}[labelbase=ln:api-pthreads:api-pthreads:waitall,commandchars=\%\[\]]
 	int pid;
 	int status;
 
-	for (;;) {
-		pid = wait(&status);
+	for (;;) {				//\lnlbl{loopa}
+		pid = wait(&status);		//\lnlbl{wait}
 		if (pid == -1) {
-			if (errno == ECHILD)
-				break;
-			perror("wait");
-			exit(EXIT_FAILURE);
+			if (errno == ECHILD)	//\lnlbl{ECHILD}
+				break;		//\lnlbl{break}
+			perror("wait");		//\lnlbl{perror}
+			exit(EXIT_FAILURE);	//\lnlbl{exit}
 		}
-		poll(NULL, 0, 1);
-	}
+		poll(NULL, 0, 1);		//\fcvexclude
+	}					//\lnlbl{loopb}
+// \end{snippet}
 }
 
 static __inline__ void run_on(int cpu)
