@@ -7,6 +7,8 @@
 # Lines nn-mm -> Lines~nn--mm
 # lines~nn-mm -> lines~nn--mm
 # lines nn-mm -> lines~nn--mm
+# Lines~\lnref{foo}-\lnref{bar} -> Lines~\lnref{foo}--\lnref{bar}
+# lines~\lnref{foo}-\lnref{bar} -> lines~\lnref{foo}--\lnref{bar}
 # line nn-mm -> lines~nn--mm  -- includes typo fix
 # Line nn-mm -> Lines~nn--mm  -- includes typo fix
 # line~nn-mm -> lines~nn--mm  -- includes typo fix
@@ -48,6 +50,7 @@
 
 cat $1 |
 	sed -e 's/\([Ll]ines\?\)[ ~]\([0-9]\+\)-\([0-9]\+\)/\1~\2--\3/g' \
+	    -e 's/\([Ll]ines~\\lnref{[^}]*}\)-\(\\lnref{[^}]*}\)/\1--\2/g' \
 	    -e 's/Slides \([0-9]\+\)-\([0-9]\+\)/Slides~\1--\2/g' \
 	    -e 's/Figures~\(\\ref{[^}]*}\)-\(\\ref{[^}]*}\)/Figures~\1--\2/g' \
 	    -e 's/CPUs[ ~]\([0-9]\+\)-\([0-9]\+\)/CPUs~\1--\2/g' \
