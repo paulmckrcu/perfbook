@@ -164,19 +164,19 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 	exit(EXIT_SUCCESS);
 }
 
-void perftest(int nreaders, int cpustride)
+void perftest(int nwriters, int cpustride)
 {
 	int i;
 	long arg;
 
-	perftestinit(nreaders + 1);
-	for (i = 0; i < nreaders; i++) {
+	perftestinit(nwriters + 1);
+	for (i = 0; i < nwriters; i++) {
 		arg = (long)(i * cpustride);
-		create_thread(count_read_perf_test, (void *)arg);
+		create_thread(count_update_perf_test, (void *)arg);
 	}
 	arg = (long)(i * cpustride);
-	create_thread(count_update_perf_test, (void *)arg);
-	perftestrun(i + 1, nreaders, 1);
+	create_thread(count_read_perf_test, (void *)arg);
+	perftestrun(i + 1, 1, nwriters);
 }
 
 void rperftest(int nreaders, int cpustride)
