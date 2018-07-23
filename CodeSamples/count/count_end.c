@@ -26,9 +26,10 @@ unsigned long *counterp[NR_THREADS] = { NULL };
 unsigned long finalcount = 0;
 DEFINE_SPINLOCK(final_mutex);
 
-void inc_count(void)
+__inline__ void inc_count(void)
 {
-	counter++;
+	WRITE_ONCE(counter,
+		   READ_ONCE(counter) + 1);
 }
 
 unsigned long read_count(void)
@@ -45,7 +46,7 @@ unsigned long read_count(void)
 	return sum;
 }
 
-void count_init(void)
+__inline__ void count_init(void)
 {
 }
 
@@ -68,7 +69,7 @@ void count_unregister_thread(int nthreadsexpected)
 	spin_unlock(&final_mutex);
 }
 
-void count_cleanup(void)
+__inline__ void count_cleanup(void)
 {
 }
 

@@ -27,7 +27,7 @@ void inc_count(void)
 	__get_thread_var(counter)++;
 }
 
-unsigned long read_count(void)
+__inline__ unsigned long read_count(void)
 {
 	int t;
 	unsigned long sum = 0;
@@ -37,11 +37,11 @@ unsigned long read_count(void)
 	return sum;
 }
 
-void count_init(void)
+__inline__ void count_init(void)
 {
 }
 
-void count_cleanup(void)
+__inline__ void count_cleanup(void)
 {
 }
 

@@ -29,7 +29,8 @@ DEFINE_SPINLOCK(final_mutex);
 
 void inc_count(void)
 {
-	counter++;
+	WRITE_ONCE(counter,
+		   READ_ONCE(counter) + 1);
 }
 
 unsigned long read_count(void)  /* known failure with counttorture! */

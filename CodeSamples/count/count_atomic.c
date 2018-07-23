@@ -27,16 +27,16 @@ void inc_count(void)
 	atomic_inc(&counter);
 }
 
-long read_count(void)
+__inline__ long read_count(void)
 {
 	return atomic_read(&counter);
 }
 
-void count_init(void)
+__inline__ void count_init(void)
 {
 }
 
-void count_cleanup(void)
+__inline__ void count_cleanup(void)
 {
 }
 

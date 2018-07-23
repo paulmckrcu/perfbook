@@ -32,9 +32,10 @@ unsigned long __thread counter = 0;
 struct countarray *countarrayp = NULL;
 DEFINE_SPINLOCK(final_mutex);
 
-void inc_count(void)
+__inline__ void inc_count(void)
 {
-	counter++;
+	WRITE_ONCE(counter,
+		   READ_ONCE(counter) + 1);
 }
 
 unsigned long read_count(void)
@@ -94,7 +95,7 @@ void count_unregister_thread(int nthreadsexpected)
 	free(capold);
 }
 
-void count_cleanup(void)
+__inline__ void count_cleanup(void)
 {
 }
 

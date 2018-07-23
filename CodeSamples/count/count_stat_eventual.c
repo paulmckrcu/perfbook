@@ -31,7 +31,7 @@ void inc_count(void)
 		   READ_ONCE(__get_thread_var(counter)) + 1);
 }
 
-unsigned long read_count(void)
+__inline__ unsigned long read_count(void)
 {
 	return READ_ONCE(global_count);
 }

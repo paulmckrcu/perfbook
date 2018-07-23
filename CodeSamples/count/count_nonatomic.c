@@ -23,21 +23,21 @@
 
 unsigned long counter = 0;
 
-void inc_count(void)
+__inline__ void inc_count(void)
 {
 	counter++;
 }
 
-unsigned long read_count(void)
+__inline__ unsigned long read_count(void)
 {
 	return counter;
 }
 
-void count_init(void)
+__inline__ void count_init(void)
 {
 }
 
-void count_cleanup(void)
+__inline__ void count_cleanup(void)
 {
 }
 

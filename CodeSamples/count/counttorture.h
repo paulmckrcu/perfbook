@@ -86,7 +86,6 @@ void *count_read_perf_test(void *arg)
 	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		for (i = COUNT_READ_RUN; i > 0; i--) {
 			j += read_count();
-			barrier();
 		}
 		n_reads_local += COUNT_READ_RUN;
 	}
@@ -110,7 +109,6 @@ void *count_update_perf_test(void *arg)
 	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		for (i = COUNT_UPDATE_RUN; i > 0; i--) {
 			inc_count();
-			barrier();
 		}
 		n_updates_local += COUNT_UPDATE_RUN;
 	}
