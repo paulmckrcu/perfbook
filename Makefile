@@ -82,6 +82,8 @@ A2PING_GSCNFL := 0
 endif
 endif
 
+include CodeSamples/snippets.depend
+
 default = $(PERFBOOK_DEFAULT)
 
 ifeq ($(default),)
@@ -112,7 +114,7 @@ $(PDFTARGETS:.pdf=.bbl): %.bbl: %.aux $(BIBSOURCES)
 $(PDFTARGETS:.pdf=.aux): $(LATEXGENERATED) $(LATEXSOURCES)
 	sh utilities/runfirstlatex.sh $(basename $@)
 
-autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN)
+autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET)
 	sh utilities/autodate.sh >autodate.tex
 
 perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG)
@@ -122,6 +124,7 @@ endif
 	echo > qqz.tex
 	echo > contrib.tex
 	echo > origpub.tex
+	$(MAKE) -C CodeSamples -f snippets.mk
 	latexpand --empty-comments perfbook.tex 1> $@ 2> /dev/null
 
 qqz.tex: perfbook_flat.tex
@@ -282,6 +285,7 @@ clean:
 	rm -f $(LATEXGENERATED)
 	rm -f $(SVG_LARGE_BITMAP:%.svg=%.pdf) $(PNGTARGETS_OF_SVG)
 	rm -f extraction
+	$(MAKE) -C CodeSamples -f snippets.mk clean
 
 distclean: clean
 	sh utilities/cleanpdf.sh
