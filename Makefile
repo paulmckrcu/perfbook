@@ -82,7 +82,8 @@ A2PING_GSCNFL := 0
 endif
 endif
 
-include CodeSamples/snippets.depend
+#include CodeSamples/snippets.depend
+SOURCES_OF_SNIPPET := $(shell grep -r -l -F '\begin{snippet}' CodeSamples)
 
 default = $(PERFBOOK_DEFAULT)
 
@@ -117,7 +118,7 @@ $(PDFTARGETS:.pdf=.aux): $(LATEXGENERATED) $(LATEXSOURCES)
 autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET)
 	sh utilities/autodate.sh >autodate.tex
 
-perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG)
+perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG) CodeSamples/snippets.mk
 ifndef LATEXPAND
 	$(error --> $@: latexpand not found. Please install it)
 endif
@@ -251,6 +252,9 @@ endif
 	@inkscape --export-dpi=200 --export-png=$@ $<i > /dev/null 2>&1
 	@rm -f $<i
 
+CodeSamples/snippets.mk: $(SOURCES_OF_SNIPPET)
+	./utilities/gen_snippet_mk.pl > $@
+
 help:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
 	@echo "  Full,              Abbr."
@@ -277,7 +281,7 @@ help:
 	@echo "All targets except for \"msns\" and \"mss\" use \"Latin Modern Typewriter\" font"
 	@echo "for code snippets."
 
-clean:
+clean: CodeSamples/snippets.mk
 	find . -name '*.aux' -o -name '*.blg' \
 		-o -name '*.dvi' -o -name '*.log' \
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
