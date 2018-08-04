@@ -253,7 +253,7 @@ endif
 	@rm -f $<i
 
 CodeSamples/snippets.mk: $(SOURCES_OF_SNIPPET)
-	./utilities/gen_snippet_mk.pl > $@
+	sh ./utilities/gen_snippet_mk.sh
 
 help:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
@@ -281,15 +281,16 @@ help:
 	@echo "All targets except for \"msns\" and \"mss\" use \"Latin Modern Typewriter\" font"
 	@echo "for code snippets."
 
-clean: CodeSamples/snippets.mk
+clean:
 	find . -name '*.aux' -o -name '*.blg' \
 		-o -name '*.dvi' -o -name '*.log' \
-		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' | xargs rm -f
+		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' \
+		-o -name '*.fcv' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook*.out perfbook-*.tex
 	rm -f $(LATEXGENERATED)
 	rm -f $(SVG_LARGE_BITMAP:%.svg=%.pdf) $(PNGTARGETS_OF_SVG)
 	rm -f extraction
-	$(MAKE) -C CodeSamples -f snippets.mk clean
+	rm -f CodeSamples/snippets.mk
 
 distclean: clean
 	sh utilities/cleanpdf.sh
