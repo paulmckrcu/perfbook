@@ -82,8 +82,8 @@ A2PING_GSCNFL := 0
 endif
 endif
 
-#include CodeSamples/snippets.depend
 SOURCES_OF_SNIPPET := $(shell grep -r -l -F '\begin{snippet}' CodeSamples)
+GEN_SNIPPET_MK = utilities/gen_snippet_mk.pl utilities/gen_snippet_mk.sh
 
 default = $(PERFBOOK_DEFAULT)
 
@@ -115,7 +115,7 @@ $(PDFTARGETS:.pdf=.bbl): %.bbl: %.aux $(BIBSOURCES)
 $(PDFTARGETS:.pdf=.aux): $(LATEXGENERATED) $(LATEXSOURCES)
 	sh utilities/runfirstlatex.sh $(basename $@)
 
-autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET)
+autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET) utilities/fcvextract.pl
 	sh utilities/autodate.sh >autodate.tex
 
 perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG) CodeSamples/snippets.mk
@@ -252,7 +252,7 @@ endif
 	@inkscape --export-dpi=200 --export-png=$@ $<i > /dev/null 2>&1
 	@rm -f $<i
 
-CodeSamples/snippets.mk: $(SOURCES_OF_SNIPPET)
+CodeSamples/snippets.mk: $(SOURCES_OF_SNIPPET) $(GEN_SNIPPET_MK)
 	sh ./utilities/gen_snippet_mk.sh
 
 help:
