@@ -83,7 +83,14 @@ endif
 endif
 
 SOURCES_OF_SNIPPET := $(shell grep -r -l -F '\begin{snippet}' CodeSamples)
-GEN_SNIPPET_MK = utilities/gen_snippet_mk.pl utilities/gen_snippet_mk.sh
+GEN_SNIPPET_D  = utilities/gen_snippet_d.pl utilities/gen_snippet_d.sh
+
+ifeq ($(MAKECMDGOALS),clean)
+else ifeq ($(MAKECMDGOALS),distclean)
+else ifeq ($(MAKECMDGOALS),neatfreak)
+else
+-include CodeSamples/snippets.d
+endif
 
 default = $(PERFBOOK_DEFAULT)
 
@@ -118,14 +125,13 @@ $(PDFTARGETS:.pdf=.aux): $(LATEXGENERATED) $(LATEXSOURCES)
 autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET) utilities/fcvextract.pl
 	sh utilities/autodate.sh >autodate.tex
 
-perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG) CodeSamples/snippets.mk
+perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(TARGETS_OF_SVG) $(FCVSNIPPETS)
 ifndef LATEXPAND
 	$(error --> $@: latexpand not found. Please install it)
 endif
 	echo > qqz.tex
 	echo > contrib.tex
 	echo > origpub.tex
-	$(MAKE) -C CodeSamples -f snippets.mk
 	latexpand --empty-comments perfbook.tex 1> $@ 2> /dev/null
 
 qqz.tex: perfbook_flat.tex
@@ -252,8 +258,12 @@ endif
 	@inkscape --export-dpi=200 --export-png=$@ $<i > /dev/null 2>&1
 	@rm -f $<i
 
-CodeSamples/snippets.mk: $(SOURCES_OF_SNIPPET) $(GEN_SNIPPET_MK)
-	sh ./utilities/gen_snippet_mk.sh
+CodeSamples/snippets.d: $(SOURCES_OF_SNIPPET) $(GEN_SNIPPET_D)
+	sh ./utilities/gen_snippet_d.sh
+
+$(FCVSNIPPETS):
+	@echo "$< --> $@"
+	@utilities/fcvextract.pl $< $(subst @,:,$(basename $(notdir $@))) > $@
 
 help:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
@@ -290,7 +300,7 @@ clean:
 	rm -f $(LATEXGENERATED)
 	rm -f $(SVG_LARGE_BITMAP:%.svg=%.pdf) $(PNGTARGETS_OF_SVG)
 	rm -f extraction
-	rm -f CodeSamples/snippets.mk
+	rm -f CodeSamples/snippets.mk CodeSamples/snippets.d
 
 distclean: clean
 	sh utilities/cleanpdf.sh
