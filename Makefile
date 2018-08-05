@@ -85,13 +85,6 @@ endif
 SOURCES_OF_SNIPPET := $(shell grep -r -l -F '\begin{snippet}' CodeSamples)
 GEN_SNIPPET_D  = utilities/gen_snippet_d.pl utilities/gen_snippet_d.sh
 
-ifeq ($(MAKECMDGOALS),clean)
-else ifeq ($(MAKECMDGOALS),distclean)
-else ifeq ($(MAKECMDGOALS),neatfreak)
-else
--include CodeSamples/snippets.d
-endif
-
 default = $(PERFBOOK_DEFAULT)
 
 ifeq ($(default),)
@@ -102,6 +95,13 @@ endif
 
 .PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mslm perfbook-mslm.pdf mslmmsg help
 all: $(targ)
+
+ifeq ($(MAKECMDGOALS),clean)
+else ifeq ($(MAKECMDGOALS),distclean)
+else ifeq ($(MAKECMDGOALS),neatfreak)
+else
+-include CodeSamples/snippets.d
+endif
 
 2c: perfbook.pdf
 
