@@ -17,4 +17,6 @@
 
 grep -n -A1 -B1 "api.h" $1 | \
 sed -n 's/^\([0-9]\{1,\}\).*/\1d/p' | \
-sed -f - $1 > $2
+sed -f - $1 | \
+sed -e '/\\begin\[snippet\]/d' | \
+sed -e '/\\end\[snippet\]/d' > $2
