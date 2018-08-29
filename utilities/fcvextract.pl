@@ -127,8 +127,8 @@ if ($src_file =~ /.*\.h$/ ) {
     $lnlbl_re = qr!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!;
 } elsif ($src_file =~ /.*\.sh$/ ) {
     $lnlbl_re = qr!(.*?)(\s*#\s*)\\lnlbl\{(.*)}\s*$!;
-} elsif ($src_file =~ /.\.litmus$/ ) {
-    $lnlbl_re = qr!(.*?)(\s*\(\*\s*)\\lnlbl\{(.*)}\s*\*\)\s*$!;
+} elsif ($src_file =~ /.\.ltms$/ ) {
+    $lnlbl_re = qr!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!;
 } else {
     die ("unkown file suffix!");
 }
