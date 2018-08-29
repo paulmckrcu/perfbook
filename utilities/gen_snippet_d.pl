@@ -15,7 +15,6 @@ use warnings;
 my @fcvsources;
 my $snippet_key;
 my $source;
-my $src_under_sub;
 
 $snippet_key = '\\begin\{snippet\}' ;
 @fcvsources = `grep -l -r -F $snippet_key CodeSamples` ;
@@ -30,13 +29,13 @@ foreach $source (@fcvsources) {
     my $snippet ;
     @snippet_commands1 = `grep -F $snippet_key $source` ;
     chomp @snippet_commands1 ;
-    $source =~ m!.*/([^/]+)/[^/]+! ;
+    $source =~ m!(.*/[^/]+)/[^/]+! ;
     $subdir = $1 ;
     foreach $snippet (@snippet_commands1) {
 	$snippet =~ /labelbase=.*:(.+:[^,\]]+)[,\]]/ ;
 	$_ = $1;
 	s/:/@/g ;
-	print "\\\n\tCodeSamples/$subdir/$_.fcv ";
+	print "\\\n\t$subdir/$_.fcv ";
     }
 }
 

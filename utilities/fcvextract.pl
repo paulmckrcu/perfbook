@@ -96,6 +96,8 @@
 use strict;
 use warnings;
 
+my $src_file;
+my $lnlbl_re;
 my $line;
 my $edit_line;
 my $extract_labelbase;
@@ -111,13 +113,25 @@ my $file_name;
 my $func_name;
 my $label;
 
+$src_file = $ARGV[0];
 $extract_labelbase = $ARGV[1];
 
-$begin_re = '\\\begin\\{snippet\\}.*labelbase=[^,\\]]*' . $extract_labelbase . '[,\\]]' ;
-$end_re = '\\\end\\{snippet\\}';
+$begin_re = qr/\\begin\{snippet\}.*labelbase=[^,\]]*$extract_labelbase[,\]]/ ;
+$end_re = qr/\\end\{snippet\}/;
 
-#print $begin_re;
-#print "\n";
+if ($src_file =~ /.*\.h$/ ) {
+    $lnlbl_re = qr!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!;
+} elsif ($src_file =~ /.*\.c$/ ) {
+    $lnlbl_re = qr!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!;
+} elsif ($src_file =~ /.*\.spin$/ ) {
+    $lnlbl_re = qr!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!;
+} elsif ($src_file =~ /.*\.sh$/ ) {
+    $lnlbl_re = qr!(.*?)(\s*#\s*)\\lnlbl\{(.*)}\s*$!;
+} elsif ($src_file =~ /.\.litmus$/ ) {
+    $lnlbl_re = qr!(.*?)(\s*\(\*\s*)\\lnlbl\{(.*)}\s*\*\)\s*$!;
+} else {
+    die ("unkown file suffix!");
+}
 
 while($line = <>) {
     if ($line =~ /$begin_re/) {
@@ -132,7 +146,7 @@ while($line = <>) {
 	}
 	if ($line =~ /\\fcvexclude/) {
 	    # skip this line
-	} elsif ($line =~ m!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!) {
+	} elsif ($line =~ m!$lnlbl_re!) {
 	    $edit_line = $1 . $esc_bsl . "lnlbl" . $esc_open . $3 . $esc_close ;
 	    print $edit_line . "\n" ;
 	} else {
@@ -146,7 +160,7 @@ while($line = <>) {
 	    print "\\begin\{linelabel}\[$1\]\n" ;
 	}
 	print "\\begin\{VerbatimL\}" ;
-	if ($line =~ /commandchars=([^,]+).*\]$/) {
+	if ($line =~ /commandchars=([^,]+).*\]/) {
 	    $esc_char = $1 ;
 	    print "\[commandchars=" . $esc_char . "\]\n" ;
 	    $esc_bsl = substr $esc_char, 1, 1;

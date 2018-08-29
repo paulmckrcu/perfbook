@@ -264,7 +264,7 @@ CodeSamples/snippets.d: $(SOURCES_OF_SNIPPET) $(GEN_SNIPPET_D)
 
 $(FCVSNIPPETS):
 	@echo "$< --> $@"
-	@utilities/fcvextract.pl $< $(subst @,:,$(basename $(notdir $@))) > $@
+	utilities/fcvextract.pl $< $(subst +,\\+,$(subst @,:,$(basename $(notdir $@)))) > $@
 
 help:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
