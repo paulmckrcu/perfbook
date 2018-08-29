@@ -45,11 +45,22 @@ my $edit_line;
 my $first_line;
 my $end_command;
 my $lnlbl_command;
+my $lnlbl_on_exists = "";
+my $lnlbl_on_filter = "";
 my $status = 0;	# 0: just started, 1: first_line read; 2: begin line output,
 		# 3: end line read
 
 while($line = <>) {
     if (eof) {
+	if ($line =~ /exists/) {
+	    chomp $line;
+	    print $line . $lnlbl_on_exists . "\n";
+	} elsif ($line =~ /filter/) {
+	    chomp $line;
+	    print $line . $lnlbl_on_filter . "\n";
+	} else {
+	    print $line;
+	}
 	last;
     }
     if ($status == 0) {
@@ -70,6 +81,12 @@ while($line = <>) {
 	    $_ = $line ;
 	    s/\\end\[snippet\]/\\end\{snippet\}/ ;
 	    $end_command = $_ ;
+	    if ($line =~ /existslabel=([^\],]+)/) {
+		$lnlbl_on_exists = "//\\lnlbl\{$1\}";
+	    }
+	    if ($line =~ /filterlabel=([^\],]+)/) {
+		$lnlbl_on_filter = "//\\lnlbl\{$1\}";
+	    }
 	    $status = 3;
 	    next;
 	} else {
@@ -81,7 +98,15 @@ while($line = <>) {
 	    print $line ;
 	}
     } elsif ($status == 3) {
-	print $line ;
+	if ($line =~ /exists/) {
+	    chomp $line;
+	    print $line . $lnlbl_on_exists . "\n";
+	} elsif ($line =~ /filter/) {
+	    chomp $line;
+	    print $line . $lnlbl_on_filter . "\n";
+	} else {
+	    print $line ;
+	}
     }
 }
 
