@@ -3,6 +3,7 @@ LATEXSOURCES = \
 	legal.tex \
 	glossary.tex \
 	qqz.sty origpub.sty \
+	noindentafter.sty \
 	pfbook.cls \
 	ushyphex.tex pfhyphex.tex \
 	*/*.tex \
