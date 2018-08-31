@@ -1,0 +1,189 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% \iffalse %%%%
+%                                                                              %
+%  Copyright (c) 2014 - Michiel Helvensteijn - www.mhelvens.net                %
+%                                                                              %
+%  http://latex-noindentafter.googlecode.com                                   %
+%                                                                              %
+%  This work may be distributed and/or modified under the conditions           %
+%  of the LaTeX Project Public License, either version 1.3 of this             %
+%  license or (at your option) any later version. The latest version           %
+%  of this license is in     http://www.latex-project.org/lppl.txt             %
+%  and version 1.3 or later is part of all distributions of LaTeX              %
+%  version 2005/12/01 or later.                                                %
+%                                                                              %
+%  This work has the LPPL maintenance status `maintained'.                     %
+%                                                                              %
+%  The Current Maintainer of this work is Michiel Helvensteijn.                %
+%                                                                              %
+%  This work consists of the files noindentafter.tex and noindentafter.sty.    %
+%                                                                              %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% \fi %%%%
+
+% \CheckSum{50}
+%
+% \CharacterTable
+%  {Upper-case    \A\B\C\D\E\F\G\H\I\J\K\L\M\N\O\P\Q\R\S\T\U\V\W\X\Y\Z
+%   Lower-case    \a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
+%   Digits        \0\1\2\3\4\5\6\7\8\9
+%   Exclamation   \!     Double quote  \"     Hash (number) \#
+%   Dollar        \$     Percent       \%     Ampersand     \&
+%   Acute accent  \'     Left paren    \(     Right paren   \)
+%   Asterisk      \*     Plus          \+     Comma         \,
+%   Minus         \-     Point         \.     Solidus       \/
+%   Colon         \:     Semicolon     \;     Less than     \<
+%   Equals        \=     Greater than  \>     Question mark \?
+%   Commercial at \@     Left bracket  \[     Backslash     \\
+%   Right bracket \]     Circumflex    \^     Underscore    \_
+%   Grave accent  \`     Left brace    \{     Vertical bar  \|
+%   Right brace   \}     Tilde         \~}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \subsection{Package Info}                                                    %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%    \begin{macrocode}
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{noindentafter}[2014/11/30 0.2.2
+  prevent paragraph indentation after specific environments or macros]
+%    \end{macrocode}
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \subsection{Packages}                                                        %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%    \begin{macrocode}
+\RequirePackage{etoolbox}
+%    \end{macrocode}
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \subsection{Patches}                                                         %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% \needspace{5\baselineskip}\begin{macro}{\end}
+%
+%  The package |etoolbox| provides the command
+%  |\AfterEndEnvironment| which creates a hook executed at a
+%  very late point inside the |\end| command. However, this
+%  hook is still located before |\ignorespaces|, which is
+%  too early to properly suppress the indention after an
+%  environment. Therefore another hook is now added to |\end|
+%  using |\patchcmd|. This new hook puts new code at the very
+%  end.
+%
+%    \begin{macrocode}
+\patchcmd\end{%
+  \if@ignore\@ignorefalse\ignorespaces\fi%
+}{%
+  \if@ignore\@ignorefalse\ignorespaces\fi%
+  \csuse{@noindent@#1@hook}%
+}{}{%
+  \PackageWarningNoLine{noindentafter}{%
+    Patching `\string\end' failed!\MessageBreak%
+    `\string\NoIndentAfter...' commands won't work%
+  }%
+}
+%    \end{macrocode}
+%
+%\end{macro}%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \subsection{Macros}                                                          %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% \needspace{5\baselineskip}\begin{macro}{\@NoIndentAfter}
+%
+%  \noindent This command implements the main principle
+%  behind this package. It checks whether it is followed by
+%  a paragraph. If so, the command |\par| is temporarily
+%  changed using |\everypar|, so that the following paragraph
+%  is not indented. Immediately afterwards, default paragraph
+%  behavior is restored with |\@restorepar| (from the \LaTeX{}
+%  base).
+%
+%    \begin{macrocode}
+\newcommand*\@NoIndentAfter{%
+  \@ifnextchar\par{%
+    \def\par{%
+      \everypar{\setbox\z@\lastbox\everypar{}}%
+      \@restorepar%
+    }%
+  }{}%
+}
+%    \end{macrocode}
+%
+%\end{macro}%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% \needspace{5\baselineskip}\begin{macro}{\NoIndentAfterThis}
+%
+%  \noindent Enforce a paragraph break and suppress
+%  indentation for whatever follows.
+% 
+%    \begin{macrocode}
+\newrobustcmd*{\NoIndentAfterThis}{\@NoIndentAfter\par\par}
+%    \end{macrocode}
+% 
+%\end{macro}%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % \needspace{5\baselineskip}\begin{macro}{\NoIndentAfterEnv}
+%%% \marg{environment}\\
+%
+%  \noindent Append |\@NoIndentAfter| to the output of
+%  \meta{environment} by using the new environment hook.
+% 
+%    \begin{macrocode}
+\newrobustcmd{\NoIndentAfterEnv}[1]{%
+  \csdef{@noindent@#1@hook}{\@NoIndentAfter}%
+}
+%    \end{macrocode}
+% 
+%\end{macro}%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % \needspace{5\baselineskip}\begin{macro}{\NoIndentAfterCmd}
+%%% \marg{command}\\
+%
+%  \noindent Append |\NoIndentAfterThis| to the output of
+%  \meta{command}.
+% 
+%    \begin{macrocode}
+\newrobustcmd*{\NoIndentAfterCmd}[1]{%
+  \apptocmd{#1}{\NoIndentAfterThis}{}{%
+    \PackageWarning{noindentafter}{%
+      Patching `\string#1' failed!\MessageBreak%
+      `\string\NoIndentAfterCmd' won't work%
+    }%
+  }%
+}
+%    \end{macrocode}
+% 
+%\end{macro}%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
