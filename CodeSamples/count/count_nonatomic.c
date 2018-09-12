@@ -25,12 +25,12 @@ unsigned long counter = 0;
 
 __inline__ void inc_count(void)
 {
-	counter++;
+	WRITE_ONCE(counter, READ_ONCE(counter) + 1);
 }
 
 __inline__ unsigned long read_count(void)
 {
-	return counter;
+	return READ_ONCE(counter);
 }
 
 __inline__ void count_init(void)
