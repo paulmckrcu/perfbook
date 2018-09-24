@@ -75,9 +75,7 @@ STEELFONTID := $(shell fc-list | grep -i steel | grep -c Steel)
 ifdef A2PING
 A2PING_277P := $(shell a2ping --help 2>&1 | grep -c "2.77p,")
 ifeq ($(A2PING_277P),1)
-GS_VER := $(shell gs --version)
-A2PING_GSCNFL := $(shell env printf "%05.2f\n%05.2f\n" $(GS_VER) 9.22 | \
-	sort | head -1 | grep -c "09.22")
+A2PING_GSCNFL := 1
 else
 A2PING_GSCNFL := 0
 endif
@@ -216,7 +214,7 @@ ifndef A2PING
 	$(error $< --> $@: a2ping not found. Please install it)
 endif
 ifeq ($(A2PING_GSCNFL),1)
-	$(error a2ping version conflict. See #7 in FAQ-BUILD.txt)
+	$(error You need to update a2ping. See #7 in FAQ-BUILD.txt)
 endif
 	@cp $< $<i
 	@sh $(FIXANEPSFONTS) $<i
