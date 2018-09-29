@@ -18,10 +18,10 @@ my $snippet_key;
 my $snippet_key_ltms;
 my $source;
 
-$snippet_key = '\\begin\{snippet\}' ;
-$snippet_key_ltms = '\\begin\[snippet\]' ;
-@fcvsources = `grep -l -r -F $snippet_key CodeSamples` ;
-@fcvsources_ltms = `grep -l -r -F $snippet_key_ltms CodeSamples` ;
+$snippet_key = '\begin{snippet}' ;
+$snippet_key_ltms = '\begin[snippet]' ;
+@fcvsources = `grep -l -r -F '$snippet_key' CodeSamples` ;
+@fcvsources_ltms = `grep -l -r -F '$snippet_key_ltms' CodeSamples` ;
 chomp @fcvsources ;
 chomp @fcvsources_ltms ;
 
@@ -35,7 +35,7 @@ foreach $source (@fcvsources) {
     if ($source =~ /\.ltms$/) {
 	next;
     }
-    @snippet_commands1 = `grep -F $snippet_key $source` ;
+    @snippet_commands1 = `grep -F '$snippet_key' $source` ;
     chomp @snippet_commands1 ;
     $source =~ m!(.*/[^/]+)/[^/]+! ;
     $subdir = $1 ;
@@ -51,7 +51,7 @@ foreach $source (@fcvsources_ltms) {
     my @snippet_commands1 ;
     my $subdir ;
     my $snippet ;
-    @snippet_commands1 = `grep -F $snippet_key_ltms $source` ;
+    @snippet_commands1 = `grep -F '$snippet_key_ltms' $source` ;
     chomp @snippet_commands1 ;
     $source =~ m!(.*/[^/]+)/[^/]+! ;
     $subdir = $1 ;
@@ -80,7 +80,7 @@ foreach $source (@fcvsources) {
     if ($source =~ /\.ltms$/) {
 	next;
     }
-    @snippet_commands2 = `grep -F $snippet_key $source` ;
+    @snippet_commands2 = `grep -F '$snippet_key' $source` ;
     chomp @snippet_commands2 ;
     $src_under_sub = $source ;
     $source =~ m!(.*/[^/]+)/[^/]+! ;
@@ -101,7 +101,7 @@ foreach $source (@fcvsources_ltms) {
     my $src_under_sub ;
     my $subdir ;
     my $snippet ;
-    @snippet_commands2 = `grep -F $snippet_key_ltms $source` ;
+    @snippet_commands2 = `grep -F '$snippet_key_ltms' $source` ;
     chomp @snippet_commands2 ;
     $src_under_sub = $source ;
     $source =~ m!(.*/[^/]+)/[^/]+! ;

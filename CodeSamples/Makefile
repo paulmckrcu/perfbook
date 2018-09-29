@@ -33,7 +33,9 @@ ifneq ($(strip $(target)),)
 	cat arch-$(target)/arch-$(target).h >> api.h
 	echo "" >> api.h
 endif
-	cat api-pthreads/api-pthreads.h >> api.h
+	cat api-pthreads/api-pthreads.h | \
+		sed '/begin{snippet}/d' | \
+		sed '/end{snippet}/d' >> api.h
 	echo "" >> api.h
 	cat api-pthreads/api-gcc.h >> api.h
 	echo "" >> api.h

@@ -1,3 +1,5 @@
+SHELL = /bin/bash
+
 LATEXSOURCES = \
 	perfbook.tex \
 	legal.tex \
@@ -83,7 +85,7 @@ endif
 
 SOURCES_OF_SNIPPET_ALL := $(shell grep -r -l -F '\begin{snippet}' CodeSamples)
 SOURCES_OF_LITMUS      := $(shell grep -r -l -F '\begin[snippet]' CodeSamples)
-SOURCES_OF_LTMS        := $(patsubst %.litmus,&.ltms,$(SOURCES_OF_LITMUS))
+SOURCES_OF_LTMS        := $(patsubst %.litmus,%.ltms,$(SOURCES_OF_LITMUS))
 SOURCES_OF_SNIPPET     := $(filter-out $(SOURCES_OF_LTMS),$(SOURCES_OF_SNIPPET_ALL)) $(SOURCES_OF_LITMUS)
 GEN_SNIPPET_D  = utilities/gen_snippet_d.pl utilities/gen_snippet_d.sh
 
