@@ -20,28 +20,32 @@
 
 #include "../api.h"
 
-DEFINE_PER_THREAD(unsigned long, counter);
+//\begin{snippet}[labelbase=ln:count:count_stat:inc-read,commandchars=\\\[\]]
+DEFINE_PER_THREAD(unsigned long, counter);		//\lnlbl{define}
 
-void inc_count(void)
+static __inline__ void inc_count(void)			//\lnlbl{inc:b}
 {
-	__get_thread_var(counter)++;
-}
+	unsigned long *p_counter = &__get_thread_var(counter);
 
-__inline__ unsigned long read_count(void)
+	WRITE_ONCE(*p_counter, *p_counter + 1);
+}							//\lnlbl{inc:e}
+
+static __inline__ unsigned long read_count(void)	//\lnlbl{read:b}
 {
 	int t;
 	unsigned long sum = 0;
 
 	for_each_thread(t)
-		sum += per_thread(counter, t);
+		sum += READ_ONCE(per_thread(counter, t));
 	return sum;
-}
+}							//\lnlbl{read:e}
+//\end{snippet}
 
-__inline__ void count_init(void)
+void count_init(void)
 {
 }
 
-__inline__ void count_cleanup(void)
+void count_cleanup(void)
 {
 }
 
