@@ -495,23 +495,22 @@ show a function that increments the counters, using the
 thread's element of the \co{counter} array.
 Because this element is modified only by the corresponding thread,
 non-atomic increment suffices.
-
-Lines~\lnref{read:b}-\lnref{read:e}
-show a function that reads out the aggregate value of the counter,
-using the \co{for_each_thread()} primitive to iterate over the list of
-currently running threads, and using the \co{per_thread()} primitive
-to fetch the specified thread's counter.
-Because the hardware can fetch and store a properly aligned \co{unsigned long}
-atomically, and because \GCC\ is kind enough to make use of this capability,
-normal loads suffice, and no special atomic instructions are required.
-\end{lineref}
+However, this code uses \co{WRITE_ONCE()} to prevent destructive compiler
+optimizations.
+For but one example, the compiler is within its rights to use a
+to-be-stored-to location as temporary storage, thus writing what
+would be for all intents and purposes garbage to that location
+just before doing the desired store.
+This could of course be rather confusing to anything attempting to
+read out the count.
+The use of \co{WRITE_ONCE()} prevents this optimization and others besides.
 
 \QuickQuiz{}
-	What other choice does \GCC\ have, anyway???
+	What other nasty optimizations could \GCC\ apply?
 \QuickQuizAnswer{
-	According to the C standard, the effects of fetching a variable
-	that might be concurrently modified by some other thread are
-	undefined.
+	According to the C standard, the effects of doing a normal store
+	to a variable that might be concurrently loaded by some other
+	thread are undefined.
 	It turns out that the C standard really has no other choice,
 	given that C must support (for example) eight-bit architectures
 	which are incapable of atomically loading a \co{long}.
@@ -540,8 +539,10 @@ normal loads suffice, and no special atomic instructions are required.
 	It is therefore reasonable to expect that any Linux-kernel
 	adoption of C11 atomics will be incremental at best.
 
-	So why not just use plain old C-language assignment statements
-	to access shared variables?
+	But if the code is doing loads and stores that the underlying
+	hardware can implement with single instructions, why not just
+	use plain old C-language assignment statements to access shared
+	variables?
 	The problem is that the compiler is within its rights to assume
 	that no other thread is modifying the variable being accessed.
 	Given a plain old C-language load, the compiler would therefore
@@ -580,6 +581,22 @@ normal loads suffice, and no special atomic instructions are required.
 	the aforementioned inline assembly, compiler directives, and
 	coding standards.
 } \QuickQuizEnd
+
+Lines~\lnref{read:b}-\lnref{read:e}
+show a function that reads out the aggregate value of the counter,
+using the \co{for_each_thread()} primitive to iterate over the list of
+currently running threads, and using the \co{per_thread()} primitive
+to fetch the specified thread's counter.
+This code also uses \co{READ_ONCE()} to ensure that the compiler doesn't
+optimize these loads into oblivion.
+For but one example, a pair of consecutive calls to \co{read_count()}
+might be inlined, and an intrepid optimizer might notice that the same
+locations were being summed and thus incorrectly conclude that it would
+be simply wonderful to sum them once and use the resulting value twice.
+This sort of optimization might be rather frustrating to people expecting
+later \co{read_count()} calls to return larger values.
+The use of \co{READ_ONCE()} prevents this optimization and others besides.
+\end{lineref}
 
 \QuickQuiz{}
 	How does the per-thread \co{counter} variable in
