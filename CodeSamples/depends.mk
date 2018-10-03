@@ -4,18 +4,25 @@ endif
 
 ifeq ($(arch),i686)
 target := x86
+subdir_ub := i386-linux-gnu
 else ifeq ($(arch),x86_64)
 target := x86
+subdir_ub := x86_64-linux-gnu
 else ifeq ($(arch),ppc64)
 target := ppc64
+subdir_ub :=
 else ifeq ($(arch),ppc64le)
 target := ppc64
+subdir_ub := powerpc64le-linux-gnu
 else ifeq ($(arch),aarch64)
 target := arm64
+subdir_ub := aarch64-linux-gnu
 else ifneq (,$(findstring arm,$(arch)))
 target := arm
+subdir_ub := arm-linux-gnueabihf
 else
 target :=
+subdir_ub :=
 endif
 
 api_depend_common := $(top)/linux/common.h \
