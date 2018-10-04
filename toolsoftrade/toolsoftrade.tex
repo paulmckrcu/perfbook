@@ -1650,6 +1650,348 @@ However, the \co{spin_lock()} and \co{spin_unlock()} primitives
 do have performance consequences, as will be seen in
 Section~\ref{sec:toolsoftrade:Performance}.
 
+\subsection{Accessing Shared Variables}
+\label{sec:toolsoftrade:Accessing Shared Variables}
+
+The C standard defined semantics for concurrent read/write access to
+shared variables only in 2011, but concurrent C code was being
+written at least a quarter century earlier~\cite{Beck85,Inman85}.
+This raises the question as to what today's greybeards did back
+in long-past pre-C11 days.
+A short answer to this question is ``they lived dangerously''.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 ptr = global_ptr;
+ 2 if (ptr != NULL && ptr < high_address)
+ 3   do_low(ptr);
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Living Dangerously Early 1990s Style}
+\label{lst:toolsoftrade:Living Dangerously Early 1990s Style}
+\end{listing}
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 if (global_ptr != NULL &&
+ 2     global_ptr < high_address)
+ 3   do_low(global_ptr);
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{C Compilers Can Invent Loads}
+\label{lst:toolsoftrade:C Compilers Can Invent Loads}
+\end{listing}
+
+At least it would have been living dangerously given 2018 compilers.
+In (say) the early 1990s, compilers were less capable in part because
+much less work had been done on them and in part because they were
+confined to the relatively small memories of that day.
+Nevertheless, problems did arise, as shown in
+Listing~\ref{lst:toolsoftrade:Living Dangerously Early 1990s Style},
+which the compiler is within its rights to transform into
+Listing~\ref{lst:toolsoftrade:C Compilers Can Invent Loads}.
+As you can, the temporary on line~1 of
+Listing~\ref{lst:toolsoftrade:Living Dangerously Early 1990s Style}
+has been optimized away, so that \co{global_ptr} will been loaded
+up to three times.
+
+\QuickQuiz{}
+	What is wrong with loading
+	Listing~\ref{lst:toolsoftrade:Living Dangerously Early 1990s Style}'s
+	\co{global_ptr} up to three times?
+\QuickQuizAnswer{
+	Suppose that \co{global_ptr} is initially non-\co{NULL},
+	but that some other thread sets \co{global_ptr} to \co{NULL}.
+	Suppose further that line~1 of the transformed code
+	(Listing~\ref{lst:toolsoftrade:C Compilers Can Invent Loads})
+	executes just before \co{global_ptr} is set to \co{NULL} and
+	line~2 just after.
+	Then line~1 will conclude that \co{global_ptr} is non-\co{NULL},
+	line~2 will conclude that it is less than \co{high_address},
+	so that line~3 passes \co{do_low()} a \co{NULL} pointer,
+	which \co{do_low()} just might not be prepared to deal with.
+} \QuickQuizEnd
+
+Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
+describes additional problems caused by plain accesses,
+Sections~\ref{sec:toolsoftrade:A Volatile Solution}
+and~\ref{sec:toolsoftrade:Assembling the Rest of a Solution}
+describe some pre-C11 solutions.
+Of course, where practical, the primitives described in
+Section~\ref{sec:toolsoftrade:Atomic Operations (gcc Classic)}
+or (especially)
+Section~\ref{sec:toolsoftrade:Atomic Operations (C11)}
+should be instead be used to avoid data races, that is, to ensure
+that if there are multiple concurrent accesses to a given
+variable, all of those accesses are loads.
+
+\subsubsection{Shared-Variable Shenanigans}
+\label{sec:toolsoftrade:Shared-Variable Shenanigans}
+
+Given code that does plain loads and stores,\footnote{
+	That is, normal loads and stores instead of C11 atomics, inline
+	assembly, or volatile accesses.}
+the compiler is within
+its rights to assume that the affected variables are neither accessed
+nor modified by any other thread.
+This assumption allows the compiler to carry out a large number of
+transformations, including load tearing, store tearing,
+load fusing, store fusing, code reordering, invented loads, and
+invented stores, all of which work just fine in single-threaded code.
+But concurrent code can be broken by each of these transformations,
+or shared-variable shenanigans, as described below.
+
+{\bf Load tearing} occurs when the compiler uses multiple load
+instructions for a single access.
+For example, the compiler could in theory compile the load from
+\co{global_ptr} (see line~1 of
+Listing~\ref{lst:toolsoftrade:Living Dangerously Early 1990s Style})
+as a series of one-byte loads.
+If some other thread was concurrently setting \co{global_ptr} to
+\co{NULL}, the result might have all but one byte of the pointer
+set to zero, thus forming a ``wild pointer''.
+Stores using such a wild pointer could could corrupt arbitrary
+regions of memory, resulting in rare and difficult-to-debug crashes.
+
+Worse yet, on (say) an 8-bit system with 16-bit pointers, the compiler
+might have no choice but to use a pair of 8-bit instructions to access
+a given pointer.
+Because the C standard must support all manner of systems, the standard
+cannot rule out load tearing in the general case.
+
+{\bf Store tearing} occurs when the compiler uses multiple store
+instructions for a single access.
+For example, one thread might store \co{0x1234} to a four-byte integer
+variable at the same time another thread stored \co{0xabcd}.
+If the compiler used 16-bit stores for either access, the result
+might well be \co{0x12cd}, which could come as quite a surprise to
+code loading from this integer.
+Again, the C standard simply has no choice in the general case, given
+the possibility of code using 32-bit integers running on a 16-bit system.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 if (!need_to_stop)
+ 2   for (;;) {
+ 3     do_something_quickly();
+ 4     do_something_quickly();
+ 5     do_something_quickly();
+ 6     do_something_quickly();
+ 7     do_something_quickly();
+ 8     do_something_quickly();
+ 9     do_something_quickly();
+10     do_something_quickly();
+11     do_something_quickly();
+12     do_something_quickly();
+13     do_something_quickly();
+14     do_something_quickly();
+15     do_something_quickly();
+16     do_something_quickly();
+17     do_something_quickly();
+18     do_something_quickly();
+19   }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{C Compilers Can Fuse Loads}
+\label{lst:toolsoftrade:C Compilers Can Fuse Loads}
+\end{listing}
+
+{\bf Load fusing} occurs when the compiler uses the result of a
+prior load from a given variable instead of repeating the load.
+Not only is this sort of optimization just fine in single-threaded
+code, it is often just fine in multithreaded code.
+Unfortunately, the word ``often'' hides some truly annoying exceptions.
+
+For example, suppose that a real-time system needs to invoke a
+function named \co{do_something_quickly()} repeatedly until the
+variable \co{need_to_stop} was set, and that the compiler can see
+that \co{do_something_quickly()} does not store to \co{need_to_stop}.
+The compiler might reasonably unroll this loop sixteen times in order
+to reduce the per-invocation of the backwards branch at the end of the
+loop.
+Worse yet, because the compiler knows that \co{do_something_quickly()}
+does not store to \co{need_to_stop}, the compiler could quite reasonably
+decide to check this variable only once, resulting in the code shown in
+Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Loads}.
+Once entered, the loop on lines~2-19 will never stop, regardless of how
+many times some other thread stores a non-zero value to \co{need_to_stop}.
+The result will at best be disappointment, and might well also
+include severe physical damage.
+
+{\bf Store fusing} can occur when the compiler notices a pair of successive
+stores to a given variable with no intervening loads from that variable.
+In this case, the compiler is within its rights to omit the first store.
+This is never a problem in single-threaded code, and in fact it is usually
+the case that it is not a problem in correctly written concurrent code.
+After all, if the two stores are executed in quick succession, there is
+very little chance that some other thread could load the value from the
+first store.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 void shut_it_down(void)
+ 2 {
+ 3   status = SHUTTING_DOWN; /* BUGGY!!! */
+ 4   start_shutdown();
+ 5   while (!other_task_ready)
+ 6     continue;
+ 7   finish_shutdown();
+ 8   status = SHUT_DOWN;
+ 9   do_something_else();
+10 }
+11
+12 void work_until_shut_down(void)
+13 {
+14   while (status != SHUTTING_DOWN)
+15     do_more_work();
+16   other_task_ready = 1; /* BUGGY!!! */
+17 }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{C Compilers Can Fuse Stores}
+\label{lst:toolsoftrade:C Compilers Can Fuse Stores}
+\end{listing}
+
+However, there are exceptions, for example as shown in
+Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Stores}.
+The function \co{shut_it_down(void)()} stores to the shared
+variable \co{status} on lines~3 and~8, and so assuming that neither
+\co{start_shutdown()} nor \co{finish_shutdown()} access \co{status},
+the compiler could reasonably remove the store to \co{status} on
+line~3.
+Unfortunately, this would mean that \co{work_until_shut_down()} would
+never exit its loop spanning lines~14 and~15, and thus would never set
+\co{other_task_ready}, which would in turn mean that \co{shut_it_down()}
+would never exit its loop spanning lines~5 and~6, even if
+the compiler chooses not to fuse the successive loads from
+\co{(!other_task_ready} on line~5.
+
+And there are more problems with the code in
+Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Stores},
+including code reordering.
+
+{\bf Code reordering} is a common compilation technique used to
+combine common subexpressions, reduce register pressure, and
+improve utilization of the many functional units available on
+modern superscalar microprocessors.
+It is also another reason why the code in
+Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Stores}
+is buggy.
+For example, suppose that the \co{do_more_work()} function on line~15
+does not access \co{other_task_ready}.
+Then the compiler would be within its rights to move the assignment
+to \co{other_task_ready} on line~16 to precede line~14, which might
+be a great disappointment for anyone hoping that the last call to
+\co{do_more_work()} on line~15 happens before the call to
+\co{finish_shutdown()} on line~7.
+
+{\bf Invented loads} were illustrated by the code in
+Listings~\ref{lst:toolsoftrade:Living Dangerously Early 1990s Style})
+and~\ref{lst:toolsoftrade:C Compilers Can Invent Loads},
+in which the compiler optimized away a temporary variable,
+thus loading from a shared variable more often than intended.
+
+Invented loads can also be a performance hazard.
+These hazards can occur when a load of variable in a ``hot''
+cacheline is hoisted out of an \co{if} statement.
+These hoisting optimizations are not uncommon, and can cause significant
+increases in cache misses, and thus significant degradation of
+both performance and scalability.
+
+{\bf Invented stores} can occur in a number of situations.
+For example, a compiler emitting code for \co{work_until_shut_down()} in
+Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Stores}
+might notice that \co{other_task_ready} is not accessed by
+\co{do_more_work()}, and stored to on line~16.
+If \co{do_more_work()} was a complex inline function, it might be
+necessary to do a register spill, in which case one attractive
+place to use for temporary storage is \co{other_task_ready}.
+After all, there are no accesses to it, so what is the harm?
+
+Of course, a non-zero store to this variable at just the wrong time
+would result in the \co{while} loop on line~5 terminating
+prematurely, again allowing \co{finish_shutdown()} to run
+concurrently with \co{do_more_work()}.
+Given that the entire point of this \co{while} appears to be to
+prevent such concurrency, this is not a good thing.
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 if (condition)
+ 2   a = 1;
+ 3 else
+ 4   do_a_bunch_of_stuff();
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Inviting an Invented Store}
+\label{lst:toolsoftrade:Inviting an Invented Store}
+\end{listing}
+
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}
+ 1 a = 1;
+ 2 if (!condition) {
+ 3   a = 0;
+ 4   do_a_bunch_of_stuff();
+ 5 }
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Compiler Invents an Invited Store}
+\label{lst:toolsoftrade:Compiler Invents an Invited Store}
+\end{listing}
+
+Using a stored-to variable as a temporary might seem outlandish,
+but it is permitted by the standard.
+Nevertheless, readers might be justified in wanting a less
+outlandish example, which is provided by
+Listings~\ref{lst:toolsoftrade:Inviting an Invented Store}
+and~\ref{lst:toolsoftrade:Compiler Invents an Invited Store}.
+
+A compiler emitting code for
+Listing~\ref{lst:toolsoftrade:Inviting an Invented Store}
+might know that the value of \co{a} is initially zero,
+which might be a strong temptation to optimize away one branch
+by transforming this code to that in
+Listing~\ref{lst:toolsoftrade:Compiler Invents an Invited Store}.
+Here, line~1 unconditionally stores \co{1} to \co{1}, then
+resets the value back to zero on line~3 if \co{condition} was not set.
+This transforms the if-then-else into an if-then, saving one branch.
+
+Finally, pre-C11 compilers could invent writes to unrelated
+variables that happened to be adjacent to written-to
+variables~\cite{Boehm:2005:TCI:1064978.1065042}.
+
+Reliable concurrent code clearly needs a way to cause the compiler to
+preserve both the number and order of important accesses, a topic taken
+up by
+Sections~\ref{sec:toolsoftrade:A Volatile Solution}
+and~\ref{sec:toolsoftrade:Assembling the Rest of a Solution},
+which are up next.
+
+\subsubsection{A Volatile Solution}
+\label{sec:toolsoftrade:A Volatile Solution}
+
+\subsubsection{Assembling the Rest of a Solution}
+\label{sec:toolsoftrade:Assembling the Rest of a Solution}
+
 \subsection{Atomic Operations}
 \label{sec:toolsoftrade:Atomic Operations}
 
