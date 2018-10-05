@@ -21,22 +21,24 @@
 
 #include "../api.h"
 
-DEFINE_PER_THREAD(unsigned long, counter);
-unsigned long global_count;
-int stopflag;
+//\begin{snippet}[labelbase=ln:count:count_stat_eventual:whole,commandchars=\$\[\]]
+DEFINE_PER_THREAD(unsigned long, counter);		//\lnlbl{per_thr_cnt}
+unsigned long global_count;				//\lnlbl{glb_cnt}
+int stopflag;						//\lnlbl{stopflag}
 
-void inc_count(void)
+static __inline__ void inc_count(void)			//\lnlbl{inc:b}
 {
-	WRITE_ONCE(__get_thread_var(counter),
-		   READ_ONCE(__get_thread_var(counter)) + 1);
-}
+	unsigned long *p_counter = &__get_thread_var(counter);
 
-__inline__ unsigned long read_count(void)
+	WRITE_ONCE(*p_counter, *p_counter + 1);
+}							//\lnlbl{inc:e}
+
+static __inline__ unsigned long read_count(void)	//\lnlbl{read:b}
 {
 	return READ_ONCE(global_count);
-}
+}							//\lnlbl{read:e}
 
-void *eventual(void *arg)
+void *eventual(void *arg)				//\lnlbl{eventual:b}
 {
 	int t;
 	unsigned long sum;
@@ -49,29 +51,31 @@ void *eventual(void *arg)
 		poll(NULL, 0, 1);
 		if (READ_ONCE(stopflag)) {
 			smp_mb();
-			WRITE_ONCE(stopflag, READ_ONCE(stopflag) + 1);
+			WRITE_ONCE(stopflag, stopflag + 1);
 		}
 	}
 	return NULL;
-}
+}							//\lnlbl{eventual:e}
 
-void count_init(void)
+void count_init(void)					//\lnlbl{init:b}
 {
 	int en;
 	thread_id_t tid;
 
-	if ((en = pthread_create(&tid, NULL, eventual, NULL)) != 0) {
+	en = pthread_create(&tid, NULL, eventual, NULL);
+	if (en != 0) {
 		fprintf(stderr, "pthread_create: %s\n", strerror(en));
 		exit(EXIT_FAILURE);
 	}
-}
+}							//\lnlbl{init:e}
 
-void count_cleanup(void)
+void count_cleanup(void)				//\lnlbl{cleanup:b}
 {
 	WRITE_ONCE(stopflag, 1);
 	while (READ_ONCE(stopflag) < 3)
 		poll(NULL, 0, 1);
 	smp_mb();
-}
+}							//\lnlbl{cleanup:e}
+//\end{snippet}
 
 #include "counttorture.h"
