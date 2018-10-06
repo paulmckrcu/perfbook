@@ -21,53 +21,55 @@
 
 #include "../api.h"
 
-unsigned long __thread counter = 0;
+//\begin{snippet}[labelbase=ln:count:count_end:whole,commandchars=\\\@\$]
+unsigned long __thread counter = 0;		//\lnlbl{var:b}
 unsigned long *counterp[NR_THREADS] = { NULL };
 unsigned long finalcount = 0;
-DEFINE_SPINLOCK(final_mutex);
+DEFINE_SPINLOCK(final_mutex);			//\lnlbl{var:e}
 
-__inline__ void inc_count(void)
+static __inline__ void inc_count(void)		//\lnlbl{inc:b}
 {
 	WRITE_ONCE(counter,
 		   READ_ONCE(counter) + 1);
-}
+}						//\lnlbl{inc:e}
 
-unsigned long read_count(void)
+static __inline__ unsigned long read_count(void)
 {
 	int t;
 	unsigned long sum;
 
-	spin_lock(&final_mutex);
-	sum = finalcount;
-	for_each_thread(t)
-		if (counterp[t] != NULL)
-			sum += *counterp[t];
-	spin_unlock(&final_mutex);
-	return sum;
+	spin_lock(&final_mutex);			//\lnlbl{read:acquire}
+	sum = finalcount;				//\lnlbl{read:sum:init}
+	for_each_thread(t)				//\lnlbl{read:loop:b}
+		if (counterp[t] != NULL)		//\lnlbl{read:check}
+			sum += *counterp[t];		//\lnlbl{read:loop:e}
+	spin_unlock(&final_mutex);			//\lnlbl{read:release}
+	return sum;					//\lnlbl{read:return}
 }
 
-__inline__ void count_init(void)
-{
-}
-
-void count_register_thread(unsigned long *p)
+__inline__ void count_init(void)		//\fcvexclude
+{						//\fcvexclude
+}						//\fcvexclude
+						//\fcvexclude
+void count_register_thread(unsigned long *p)	//\lnlbl{reg:b}
 {
 	int idx = smp_thread_id();
 
 	spin_lock(&final_mutex);
 	counterp[idx] = &counter;
 	spin_unlock(&final_mutex);
-}
+}						//\lnlbl{reg:e}
 
-void count_unregister_thread(int nthreadsexpected)
+void count_unregister_thread(int nthreadsexpected)	//\lnlbl{unreg:b}
 {
 	int idx = smp_thread_id();
 
-	spin_lock(&final_mutex);
-	finalcount += counter;
-	counterp[idx] = NULL;
-	spin_unlock(&final_mutex);
-}
+	spin_lock(&final_mutex);			//\lnlbl{unreg:acquire}
+	finalcount += counter;				//\lnlbl{unreg:add}
+	counterp[idx] = NULL;				//\lnlbl{unreg:NULL}
+	spin_unlock(&final_mutex);			//\lnlbl{unreg:release}
+}							//\lnlbl{unreg:e}
+//\end{snippet}
 
 __inline__ void count_cleanup(void)
 {

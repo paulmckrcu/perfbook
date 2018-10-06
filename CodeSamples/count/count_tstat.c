@@ -22,18 +22,20 @@
 
 #include "../api.h"
 
+//\begin{snippet}[labelbase=ln:count:count_tstat:whole,commandchars=\\\@\$]
 unsigned long __thread counter = 0;
 unsigned long *counterp[NR_THREADS] = { NULL };
 int finalthreadcount = 0;
 DEFINE_SPINLOCK(final_mutex);
 
-void inc_count(void)
+static __inline__ void inc_count(void)
 {
 	WRITE_ONCE(counter,
 		   READ_ONCE(counter) + 1);
 }
 
-unsigned long read_count(void)  /* known failure with counttorture! */
+static __inline__ unsigned long read_count(void)
+                  /* known failure with counttorture! */
 {
 	int t;
 	unsigned long sum = 0;
@@ -44,10 +46,10 @@ unsigned long read_count(void)  /* known failure with counttorture! */
 	return sum;
 }
 
-void count_init(void)
-{
-}
-
+void count_init(void)		//\fcvexclude
+{				//\fcvexclude
+}				//\fcvexclude
+				//\fcvexclude
 void count_register_thread(unsigned long *p)
 {
 	counterp[smp_thread_id()] = &counter;
@@ -61,6 +63,7 @@ void count_unregister_thread(int nthreadsexpected)
 	while (finalthreadcount < nthreadsexpected)
 		poll(NULL, 0, 1);
 }
+//\end{snippet}
 
 void count_cleanup(void)
 {
