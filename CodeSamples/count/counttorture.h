@@ -64,6 +64,20 @@ int goflag __attribute__((__aligned__(CACHE_LINE_SIZE))) = GOFLAG_INIT;
 #define count_unregister_thread(n)	do ; while (0)
 #endif /* #ifndef NEED_REGISTER_THREAD */
 
+#ifndef KEEP_GCC_THREAD_LOCAL
+#define _wait_all_threads() wait_all_threads()
+#define _count_unregister_thread(n) count_unregister_thread(n)
+#define final_wait_all_threads()
+#else  /* #ifndef KEEP_GCC_THREAD_LOCAL */
+#define _wait_all_threads() { \
+	while (READ_ONCE(finalthreadcount) < nthreadsexpected) \
+		poll(NULL, 0, 1);}
+#define _count_unregister_thread(n) count_unregister_thread(n + 1)
+#define final_wait_all_threads() { \
+	WRITE_ONCE(finalthreadcount, nthreadsexpected + 1); \
+	wait_all_threads();}
+#endif /* #ifndef KEEP_GCC_THREAD_LOCAL */
+
 unsigned long garbage = 0; /* disable compiler optimizations. */
 
 /*
@@ -90,7 +104,7 @@ void *count_read_perf_test(void *arg)
 		n_reads_local += COUNT_READ_RUN;
 	}
 	__get_thread_var(n_reads_pt) += n_reads_local;
-	count_unregister_thread(nthreadsexpected);
+	_count_unregister_thread(nthreadsexpected);
 	garbage += j;
 
 	return (NULL);
@@ -113,7 +127,7 @@ void *count_update_perf_test(void *arg)
 		n_updates_local += COUNT_UPDATE_RUN;
 	}
 	__get_thread_var(n_updates_pt) += n_updates_local;
-	count_unregister_thread(nthreadsexpected);
+	_count_unregister_thread(nthreadsexpected);
 	return NULL;
 }
 
@@ -139,7 +153,7 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 	smp_mb();
 	goflag = GOFLAG_STOP;
 	smp_mb();
-	wait_all_threads();
+	_wait_all_threads();
 	count_cleanup();
 	for_each_thread(t) {
 		n_reads += per_thread(n_reads_pt, t);
@@ -159,6 +173,7 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 	        (double)n_reads),
 	       ((duration * 1000*1000.*(double)nupdaters) /
 	        (double)n_updates));
+	final_wait_all_threads();
 	exit(EXIT_SUCCESS);
 }
 

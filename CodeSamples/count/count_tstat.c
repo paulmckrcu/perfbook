@@ -34,7 +34,7 @@ static __inline__ void inc_count(void)
 }
 
 static __inline__ unsigned long read_count(void)
-                  /* known failure with counttorture! */
+                  /* need to tweak counttorture! */
 {
 	int t;
 	unsigned long sum = 0;
@@ -69,4 +69,5 @@ void count_cleanup(void)
 }
 
 #define NEED_REGISTER_THREAD
+#define KEEP_GCC_THREAD_LOCAL
 #include "counttorture.h"
