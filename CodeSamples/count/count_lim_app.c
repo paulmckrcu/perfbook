@@ -21,6 +21,7 @@
 
 #include "../api.h"
 
+//\begin{snippet}[labelbase=ln:count:count_lim_app:variable,commandchars=\\\@\$]
 unsigned long __thread counter = 0;
 unsigned long __thread countermax = 0;
 unsigned long globalcountmax = 10000;
@@ -29,6 +30,7 @@ unsigned long globalreserve = 0;
 unsigned long *counterp[NR_THREADS] = { NULL };
 DEFINE_SPINLOCK(gblcnt_mutex);
 #define MAX_COUNTERMAX 100
+//\end{snippet}
 
 static void globalize_count(void)
 {
@@ -38,18 +40,21 @@ static void globalize_count(void)
 	countermax = 0;
 }
 
+//\begin{snippet}[labelbase=ln:count:count_lim_app:balance,commandchars=\\\[\]]
 static void balance_count(void)
 {
-	countermax = globalcountmax - globalcount - globalreserve;
+	countermax = globalcountmax -
+	             globalcount - globalreserve;
 	countermax /= num_online_threads();
-	if (countermax > MAX_COUNTERMAX)
-		countermax = MAX_COUNTERMAX;
+	if (countermax > MAX_COUNTERMAX)	//\lnlbl{enforce:b}
+		countermax = MAX_COUNTERMAX;	//\lnlbl{enforce:e}
 	globalreserve += countermax;
 	counter = countermax / 2;
 	if (counter > globalcount)
 		counter = globalcount;
 	globalcount -= counter;
 }
+//\end{snippet}
 
 int add_count(unsigned long delta)
 {
