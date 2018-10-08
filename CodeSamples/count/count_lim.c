@@ -20,105 +20,116 @@
 
 #include "../api.h"
 
+static __inline__ void globalize_count(void);
+static __inline__ void balance_count(void);
+
+//\begin{snippet}[labelbase=ln:count:count_lim:variable,commandchars=\\\@\$]
 unsigned long __thread counter = 0;
 unsigned long __thread countermax = 0;
-unsigned long globalcountmax = 10000;
-unsigned long globalcount = 0;
-unsigned long globalreserve = 0;
+unsigned long globalcountmax = 10000;		//\lnlbl{globalcountmax}
+unsigned long globalcount = 0;			//\lnlbl{globalcount}
+unsigned long globalreserve = 0;		//\lnlbl{globalreserve}
 unsigned long *counterp[NR_THREADS] = { NULL };
 DEFINE_SPINLOCK(gblcnt_mutex);
+//\end{snippet}
 
-static void globalize_count(void)
+//\begin{snippet}[labelbase=ln:count:count_lim:add_sub_read,commandchars=\\\@\$]
+static __inline__ int add_count(unsigned long delta)	//\lnlbl{add:b}
 {
-	globalcount += counter;
-	counter = 0;
-	globalreserve -= countermax;
-	countermax = 0;
-}
+	if (countermax - counter >= delta) {		//\lnlbl{add:checklocal}
+		counter += delta);			//\lnlbl{add:add}
+		return 1;				//\lnlbl{add:return:ls}
+	}
+	spin_lock(&gblcnt_mutex);			//\lnlbl{add:acquire}
+	globalize_count();				//\lnlbl{add:globalize}
+	if (globalcountmax -				//\lnlbl{add:checkglb:b}
+	    globalcount - globalreserve < delta) {	//\lnlbl{add:checkglb:e}
+		spin_unlock(&gblcnt_mutex);		//\lnlbl{add:release:f}
+		return 0;				//\lnlbl{add:return:gf}
+	}
+	globalcount += delta;				//\lnlbl{add:addglb}
+	balance_count();				//\lnlbl{add:balance}
+	spin_unlock(&gblcnt_mutex);			//\lnlbl{add:release:s}
+	return 1;					//\lnlbl{add:return:gs}
+}							//\lnlbl{add:e}
 
-static void balance_count(void)
+static __inline__ int sub_count(unsigned long delta)	//\lnlbl{sub:b}
 {
-	countermax = globalcountmax - globalcount - globalreserve;
-	countermax /= num_online_threads();
-	globalreserve += countermax;
-	counter = countermax / 2;
-	if (counter > globalcount)
-		counter = globalcount;
-	globalcount -= counter;
-}
+	if (counter >= delta) {				//\lnlbl{sub:checklocal}
+		counter -= delta;			//\lnlbl{sub:sub}
+		return 1;				//\lnlbl{sub:return:ls}
+	}
+	spin_lock(&gblcnt_mutex);			//\lnlbl{sub:acquire}
+	globalize_count();				//\lnlbl{sub:globalize}
+	if (globalcount < delta) {			//\lnlbl{sub:checkglb}
+		spin_unlock(&gblcnt_mutex);		//\lnlbl{sub:release:f}
+		return 0;				//\lnlbl{sub:return:gf}
+	}
+	globalcount -= delta;				//\lnlbl{sub:subglb}
+	balance_count();				//\lnlbl{sub:balance}
+	spin_unlock(&gblcnt_mutex);			//\lnlbl{sub:release:s}
+	return 1;					//\lnlbl{sub:return:gs}
+}							//\lnlbl{sub:e}
 
-int add_count(unsigned long delta)
-{
-	if (countermax - counter >= delta) {
-		counter += delta;
-		return 1;
-	}
-	spin_lock(&gblcnt_mutex);
-	globalize_count();
-	if (globalcountmax - globalcount - globalreserve < delta) {
-		spin_unlock(&gblcnt_mutex);
-		return 0;
-	}
-	globalcount += delta;
-	balance_count();
-	spin_unlock(&gblcnt_mutex);
-	return 1;
-}
-
-int sub_count(unsigned long delta)
-{
-	if (counter >= delta) {
-		counter -= delta;
-		return 1;
-	}
-	spin_lock(&gblcnt_mutex);
-	globalize_count();
-	if (globalcount < delta) {
-		spin_unlock(&gblcnt_mutex);
-		return 0;
-	}
-	globalcount -= delta;
-	balance_count();
-	spin_unlock(&gblcnt_mutex);
-	return 1;
-}
-
-unsigned long read_count(void)
+static __inline__ unsigned long read_count(void)	//\lnlbl{read:b}
 {
 	int t;
 	unsigned long sum;
 
-	spin_lock(&gblcnt_mutex);
-	sum = globalcount;
-	for_each_thread(t)
+	spin_lock(&gblcnt_mutex);			//\lnlbl{read:acquire}
+	sum = globalcount;				//\lnlbl{read:initsum}
+	for_each_thread(t)				//\lnlbl{read:loop:b}
 		if (counterp[t] != NULL)
-			sum += *counterp[t];
-	spin_unlock(&gblcnt_mutex);
-	return sum;
-}
+			sum += *counterp[t];		//\lnlbl{read:loop:e}
+	spin_unlock(&gblcnt_mutex);			//\lnlbl{read:release}
+	return sum;					//\lnlbl{read:return}
+}							//\lnlbl{read:e}
+//\end{snippet}
 
-void count_init(void)
+//\begin{snippet}[labelbase=ln:count:count_lim:utility,commandchars=\\\@\$]
+static __inline__ void globalize_count(void)	//\lnlbl{globalize:b}
 {
-}
+	globalcount += counter;			//\lnlbl{globalize:add}
+	counter = 0;				//\lnlbl{globalize:zero}
+	globalreserve -= countermax;		//\lnlbl{globalize:sub}
+	countermax = 0;			//\lnlbl{globalize:zeromax}
+}						//\lnlbl{globalize:e}
 
-void count_register_thread(void)
+static __inline__ void balance_count(void)	//\lnlbl{balance:b}
+{
+	countermax = globalcountmax -		//\lnlbl{balance:share:b}
+	             globalcount - globalreserve;
+	countermax /= num_online_threads();	//\lnlbl{balance:share:e}
+	globalreserve += countermax;		//\lnlbl{balance:adjreserve}
+	counter = countermax / 2;		//\lnlbl{balance:middle}
+	if (counter > globalcount)		//\lnlbl{balance:check}
+		counter = globalcount;		//\lnlbl{balance:adjcounter}
+	globalcount -= counter;			//\lnlbl{balance:adjglobal}
+}						//\lnlbl{balance:e}
+
+void count_init(void)			//\fcvexclude
+{					//\fcvexclude
+}					//\fcvexclude
+					//\fcvexclude
+void count_register_thread(void)	//\lnlbl{register:b}
 {
 	int idx = smp_thread_id();
 
 	spin_lock(&gblcnt_mutex);
 	counterp[idx] = &counter;
 	spin_unlock(&gblcnt_mutex);
-}
+}					//\lnlbl{register:e}
 
-void count_unregister_thread(int nthreadsexpected)
+void count_unregister_thread(int nthreadsexpected)	//\lnlbl{unregister:b}
 {
 	int idx = smp_thread_id();
 
-	spin_lock(&gblcnt_mutex);
-	globalize_count();
-	counterp[idx] = NULL;
-	spin_unlock(&gblcnt_mutex);
-}
+	spin_lock(&gblcnt_mutex);		//\lnlbl{unregister:acquire}
+	globalize_count();			//\lnlbl{unregister:globalize}
+	counterp[idx] = NULL;			//\lnlbl{unregister:clear}
+	spin_unlock(&gblcnt_mutex);		//\lnlbl{unregister:release}
+}						//\lnlbl{unregister:e}
+//\end{snippet}
 
 void count_cleanup(void)
 {
