@@ -37,7 +37,7 @@ DEFINE_SPINLOCK(gblcnt_mutex);
 static __inline__ int add_count(unsigned long delta)	//\lnlbl{add:b}
 {
 	if (countermax - counter >= delta) {		//\lnlbl{add:checklocal}
-		counter += delta);			//\lnlbl{add:add}
+		WRITE_ONCE(counter, counter + delta);	//\lnlbl{add:add}
 		return 1;				//\lnlbl{add:return:ls}
 	}
 	spin_lock(&gblcnt_mutex);			//\lnlbl{add:acquire}
@@ -56,7 +56,7 @@ static __inline__ int add_count(unsigned long delta)	//\lnlbl{add:b}
 static __inline__ int sub_count(unsigned long delta)	//\lnlbl{sub:b}
 {
 	if (counter >= delta) {				//\lnlbl{sub:checklocal}
-		counter -= delta;			//\lnlbl{sub:sub}
+		WRITE_ONCE(counter, counter - delta);	//\lnlbl{sub:sub}
 		return 1;				//\lnlbl{sub:return:ls}
 	}
 	spin_lock(&gblcnt_mutex);			//\lnlbl{sub:acquire}
@@ -80,7 +80,7 @@ static __inline__ unsigned long read_count(void)	//\lnlbl{read:b}
 	sum = globalcount;				//\lnlbl{read:initsum}
 	for_each_thread(t)				//\lnlbl{read:loop:b}
 		if (counterp[t] != NULL)
-			sum += *counterp[t];		//\lnlbl{read:loop:e}
+			sum += READ_ONCE(*counterp[t]);	//\lnlbl{read:loop:e}
 	spin_unlock(&gblcnt_mutex);			//\lnlbl{read:release}
 	return sum;					//\lnlbl{read:return}
 }							//\lnlbl{read:e}
