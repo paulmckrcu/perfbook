@@ -1684,10 +1684,11 @@ if (global_ptr != NULL &&\lnlbl{if:a}
 \label{lst:toolsoftrade:C Compilers Can Invent Loads}
 \end{listing}
 
-At least it would have been living dangerously given 2018 compilers.
+At least they would have been living dangerously had they been using
+2018 compilers.
 In (say) the early 1990s, compilers were less capable in part because
 much less work had been done on them and in part because they were
-confined to the relatively small memories of that day.
+confined to the relatively small memories of the day.
 Nevertheless, problems did arise, as shown in
 Listing~\ref{lst:toolsoftrade:Living Dangerously Early 1990s Style},
 which the compiler is within its rights to transform into
@@ -2001,8 +2002,187 @@ which are up next.
 \subsubsection{A Volatile Solution}
 \label{sec:toolsoftrade:A Volatile Solution}
 
+Although it is now much maligned, before the advent of C11 and
+C++11~\cite{PeteBecker2011N3242}, the \co{volatile} keyword was an
+indispensible tool in the parallel programmer's toolbox.
+This raises the question of exactly what \co{volatile} means,
+a question that is not answered with excessive precision even
+by more recent versions of this standard~\cite{RichardSmith2018N4762}.
+This version guarantees that ``Accesses through \co{volatile}
+\co{glvalues} are evaluated strictly according to the rules of the
+abstract machine'',
+that \co{volatile} accesses are side effects,
+that they are one of the four forward-progress indicators,
+and that their exact semantics are implementation-defined.
+Perhaps the most clear guidance is provided by this non-normative note:
+
+\begin{quote}
+	\co{volatile} is a hint to the implementation to avoid
+	aggressive optimization involving the object because the value
+	of the object might be changed by means undetectable by an
+	implementation.
+	Furthermore, for some implementations, volatile might indicate
+	that special hardware instructions are required to access
+	the object.
+	See 6.8.1 for detailed semantics.
+	In general, the semantics of volatile are intended to be the
+	same in C ++ as they are in C.
+\end{quote}
+
+This wording might be reassuring to those writing low-level code, except
+for the fact that compiler writers are free to completely ignore
+non-normative notes.
+Parallel programmers might instead reassure themselves that compiler
+writers would like to avoid breaking device drivers (though perhaps
+only after a few ``frank and open'' discussions with device-driver
+developers), and device drivers impose at least the following
+constraints @@@ citation once LinuxMM.html appears @@@:
+
+\begin{enumerate}
+\item	Implementations are forbidden from tearing an aligned volatile
+	access when machine instructions of the access's size and type
+	are available.\footnote{
+		Note that this leaves unspecified what to do with 128-bit
+		loads and stores on CPUs having 128-bit CAS but not
+		128-bit loads and stores.}
+	Concurrent code relies on this constraint to avoid unnecessary
+	load and store tearing.
+\item	Implementations must not assume anything about the semantics of
+	a volatile access, nor, for any volatile access that returns a
+	value, about the possible set of values that might be
+	returned.\footnote{
+		This is strongly implied by the implementation-defined
+		semantics called out above.}
+	Concurrent code relies on this constraint to avoid optimizations
+	that are inapplicable given that other processors might be
+	concurrently accessing the location in question.
+\item	Aligned machine-sized non-mixed-size volatile accesses interact
+	naturally with volatile assembly-code sequences before and after.
+	This is necessary because some devices must be accessed using
+	a combination of volatile MMIO accesses and special-purpose
+	assembly-language instructions.
+	Concurrent code relies on this constraint in order to achieve
+	the desired ordering properties from combinations of volatile
+	Section~\ref{sec:toolsoftrade:Assembling the Rest of a Solution}.
+\end{enumerate}
+
+Concurrent code also relies on the first two constraints to avoid
+undefined behavior that could result due to data races if any of the
+accesses to a given object was either non-atomic or non-volatile,
+assuming that all accesses are aligned and machine-sized.
+The semantics of mixed-size accesses to the same locations are more
+complex, and are left aside for the time being.
+
+So how does =\co{volatile} stack up against the earlier examples?
+
+\begin{listing}[tbp]
+\begin{linelabel}[ln:toolsoftrade:Avoiding Danger, 2018 Style]
+\begin{VerbatimL}[commandchars=\\\{\}]
+ptr = READ_ONCE(global_ptr);\lnlbl{temp}
+if (ptr != NULL && ptr < high_address)
+	do_low(ptr);
+\end{VerbatimL}
+\end{linelabel}
+\caption{Avoiding Danger, 2018 Style}
+\label{lst:toolsoftrade:Avoiding Danger, 2018 Style}
+\end{listing}
+
+Using \co{READ_ONCE()} on
+line~~\ref{ln:toolsoftrade:Living Dangerously Early 1990s Style:temp} of
+Listing~\ref{lst:toolsoftrade:Living Dangerously Early 1990s Style}
+avoids invented loads,
+resulting in the code shown in
+List~\ref{lst:toolsoftrade:Avoiding Danger, 2018 Style}.
+
+\begin{listing}[tbp]
+\begin{linelabel}[ln:toolsoftrade:Preventing Load Fusing]
+\begin{VerbatimL}[commandchars=\\\{\}]
+while (!READ_ONCE((!need_to_stop))
+	do_something_quickly();
+\end{VerbatimL}
+\end{linelabel}
+\caption{Preventing Load Fusing}
+\label{lst:toolsoftrade:Preventing Load Fusing}
+\end{listing}
+
+As shown in
+Listing~\ref{lst:toolsoftrade:Preventing Load Fusing},
+\co{READ_ONCE()} can also prevent the loop unrolling in
+Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Loads}.
+
+\begin{listing}[tbp]
+\begin{linelabel}[ln:toolsoftrade:Preventing Store Fusing and Invented Stores]
+\begin{VerbatimL}[commandchars=\\\[\]]
+void shut_it_down(void)
+{
+	WRITE_ONCE(status, SHUTTING_DOWN); /* BUGGY!!! */\lnlbl[store:a]
+	start_shutdown();
+	while (!READ_ONCE(other_task_ready)) /* BUGGY!!! */\lnlbl[loop:b]
+		continue;\lnlbl[loop:e]
+	finish_shutdown();\lnlbl[finish]
+	WRITE_ONCE(status, SHUT_DOWN);\lnlbl[store:b]
+	do_something_else();
+}
+
+void work_until_shut_down(void)
+{
+	while (READ_ONCE(status) != SHUTTING_DOWN)\lnlbl[until:loop:b]
+		do_more_work();\lnlbl[until:loop:e]
+	WRITE_ONCE(other_task_ready, 1); /* BUGGY!!! */\lnlbl[other:store]
+}
+\end{VerbatimL}
+\end{linelabel}
+\caption{Preventing Store Fusing and Invented Stores}
+\label{lst:toolsoftrade:Preventing Store Fusing and Invented Stores}
+\end{listing}
+
+\co{READ_ONCE()} and \co{WRITE_ONCE()} can also be used to prevent the
+store fusing and invented stores that were shown in
+Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Stores},
+with the result shown in
+Listing~\ref{lst:toolsoftrade:Preventing Store Fusing and Invented Stores}.
+However, this does nothing to prevent code reordering, which requires
+some additional tricks taught in
+Section~\ref{sec:toolsoftrade:Assembling the Rest of a Solution}.
+
+\begin{listing}[tbp]
+\begin{linelabel}[ln:toolsoftrade:Disinviting an Invented Store]
+\begin{VerbatimL}[commandchars=\\\{\}]
+if (condition)
+	WRITE_ONCE(a, 1);
+else
+	do_a_bunch_of_stuff();
+\end{VerbatimL}
+\end{linelabel}
+\caption{Disinviting an Invented Store}
+\label{lst:toolsoftrade:Disinviting an Invented Store}
+\end{listing}
+
+Finally, \co{WRITE_ONCE()} can be used to prevent the store invention
+shown in
+Listing~\ref{lst:toolsoftrade:Inviting an Invented Store},
+with the resulting code shown in
+Listing~\ref{lst:toolsoftrade:Disinviting an Invented Store}.
+
+To summarize, the \co{volatile} keyword can prevent prevent load
+tearing and store tearing in cases where the loads and stores are
+machine-sized and properly aligned.
+It can also prevent load fusing, store fusing, invented loads, and
+invented stores.
+However, although it does prevent the compiler from reordering \co{volatile}
+accesses with each other, does nothing to prevent the CPU from reordering
+these accesses.
+Furthermore, it does nothing to prevent either compiler or CPU from
+reordering non-\co{volatile} accesses with each other or with
+\co{volatile} accesses.
+Preventing these types of reordering requires the techniques described
+in the next section.
+
 \subsubsection{Assembling the Rest of a Solution}
 \label{sec:toolsoftrade:Assembling the Rest of a Solution}
+
+\subsubsection{Avoiding Data Races}
+\label{sec:toolsoftrade:Avoiding Data Races}
 
 \subsection{Atomic Operations}
 \label{sec:toolsoftrade:Atomic Operations}
@@ -2183,10 +2363,6 @@ but per-thread variables combine convenience and high performance.
 
 It is instructive to compare the performance of the locked increment
 shown in
-Section~\ref{sec:toolsoftrade:Atomic Operations}
-to that of per-CPU (or per-thread) variables
-(see Section~\ref{sec:toolsoftrade:Per-CPU Variables}),
-as well as to conventional increment (as in ``\co{counter++}'').
 
 % \emph{@@@ need parable on cache thrashing.}
 
