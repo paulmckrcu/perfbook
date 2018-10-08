@@ -59,7 +59,7 @@ static void balance_count(void)
 int add_count(unsigned long delta)
 {
 	if (countermax - counter >= delta) {
-		counter += delta;
+		WRITE_ONCE(counter, counter + delta);
 		return 1;
 	}
 	spin_lock(&gblcnt_mutex);
@@ -77,7 +77,7 @@ int add_count(unsigned long delta)
 int sub_count(unsigned long delta)
 {
 	if (counter >= delta) {
-		counter -= delta;
+		WRITE_ONCE(counter, counter - delta);
 		return 1;
 	}
 	spin_lock(&gblcnt_mutex);
@@ -101,7 +101,7 @@ unsigned long read_count(void)
 	sum = globalcount;
 	for_each_thread(t)
 		if (counterp[t] != NULL)
-			sum += *counterp[t];
+			sum += READ_ONCE(*counterp[t]);
 	spin_unlock(&gblcnt_mutex);
 	return sum;
 }
