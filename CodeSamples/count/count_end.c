@@ -29,8 +29,7 @@ DEFINE_SPINLOCK(final_mutex);			//\lnlbl{var:e}
 
 static __inline__ void inc_count(void)		//\lnlbl{inc:b}
 {
-	WRITE_ONCE(counter,
-		   READ_ONCE(counter) + 1);
+	WRITE_ONCE(counter, counter + 1);
 }						//\lnlbl{inc:e}
 
 static __inline__ unsigned long read_count(void)
@@ -42,7 +41,7 @@ static __inline__ unsigned long read_count(void)
 	sum = finalcount;				//\lnlbl{read:sum:init}
 	for_each_thread(t)				//\lnlbl{read:loop:b}
 		if (counterp[t] != NULL)		//\lnlbl{read:check}
-			sum += *counterp[t];		//\lnlbl{read:loop:e}
+			sum += READ_ONCE(*counterp[t]);	//\lnlbl{read:loop:e}
 	spin_unlock(&final_mutex);			//\lnlbl{read:release}
 	return sum;					//\lnlbl{read:return}
 }
