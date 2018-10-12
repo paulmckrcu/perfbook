@@ -113,15 +113,15 @@ int add_count(unsigned long delta)			//\lnlbl{b}
 {
 	int fastpath = 0;
 
-	counting = 1;					//\lnlbl{fast:b}
+	WRITE_ONCE(counting, 1);			//\lnlbl{fast:b}
 	barrier();					//\lnlbl{barrier:1}
-	if (countermax - counter >= delta &&		//\lnlbl{check:b}
-	    READ_ONCE(theft) <= THEFT_REQ) {		//\lnlbl{check:e}
-		counter += delta;			//\lnlbl{add:f}
+	if (READ_ONCE(theft) <= THEFT_REQ &&		//\lnlbl{check:b}
+	    countermax - counter >= delta) {		//\lnlbl{check:e}
+		WRITE_ONCE(counter, counter + delta);	//\lnlbl{add:f}
 		fastpath = 1;				//\lnlbl{fasttaken}
 	}
 	barrier();					//\lnlbl{barrier:2}
-	counting = 0;					//\lnlbl{clearcnt}
+	WRITE_ONCE(counting, 0);			//\lnlbl{clearcnt}
 	barrier();					//\lnlbl{barrier:3}
 	if (READ_ONCE(theft) == THEFT_ACK) {		//\lnlbl{check:ACK}
 		smp_mb();				//\lnlbl{mb}
@@ -152,14 +152,15 @@ int sub_count(unsigned long delta)
 {
 	int fastpath = 0;
 
-	counting = 1;
+	WRITE_ONCE(counting, 1);
 	barrier();
-	if (counter >= delta && theft <= THEFT_REQ) {
-		counter -= delta;
+	if (READ_ONCE(theft) <= THEFT_REQ &&
+	    counter >= delta) {
+		WRITE_ONCE(counter, counter - delta);
 		fastpath = 1;
 	}
 	barrier();
-	counting = 0;
+	WRITE_ONCE(counting, 0);
 	barrier();
 	if (READ_ONCE(theft) == THEFT_ACK) {
 		smp_mb();
@@ -193,7 +194,7 @@ unsigned long read_count(void)
 	sum = globalcount;
 	for_each_thread(t)
 		if (counterp[t] != NULL)
-			sum += *counterp[t];
+			sum += READ_ONCE(*counterp[t]);
 	spin_unlock(&gblcnt_mutex);
 	return sum;
 }
