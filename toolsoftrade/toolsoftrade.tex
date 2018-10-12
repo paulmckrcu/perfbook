@@ -1209,7 +1209,9 @@ Similarly, the \co{WRITE_ONCE()} primitive may be used to prevent the
 compiler from optimizing away a given memory write.
 These last three primitives are not provided directly by \GCC,
 but may be implemented straightforwardly as shown in
-Listing~\ref{lst:toolsoftrade:Compiler Barrier Primitive (for GCC)}.
+Listing~\ref{lst:toolsoftrade:Compiler Barrier Primitive (for GCC)},
+and all three are discussed at length in
+Section~\ref{sec:toolsoftrade:Accessing Shared Variables}.
 
 \begin{listing}[tb]
 { \scriptsize
@@ -2073,7 +2075,7 @@ assuming that all accesses are aligned and machine-sized.
 The semantics of mixed-size accesses to the same locations are more
 complex, and are left aside for the time being.
 
-So how does =\co{volatile} stack up against the earlier examples?
+So how does \co{volatile} stack up against the earlier examples?
 
 \begin{listing}[tbp]
 \begin{linelabel}[ln:toolsoftrade:Avoiding Danger, 2018 Style]
@@ -2180,6 +2182,122 @@ in the next section.
 
 \subsubsection{Assembling the Rest of a Solution}
 \label{sec:toolsoftrade:Assembling the Rest of a Solution}
+
+Additional ordering has traditionally been provided by recourse to
+assembly language, for example, \GCC\ asm directives.
+Oddly enough, these directives need not actually contain assembly language,
+as exemplified by the \co{barrier()} macro shown in
+Listing~\ref{lst:toolsoftrade:Compiler Barrier Primitive (for GCC)}.
+
+\begin{listing}[tbp]
+\begin{linelabel}[ln:toolsoftrade:Preventing C Compilers From Fusing Loads]
+\begin{VerbatimL}[commandchars=\\\[\]]
+while (!need_to_stop) {
+	barrier(); \lnlbl[b1]
+	do_something_quickly();
+	barrier(); \lnlbl[b2]
+}
+\end{VerbatimL}
+\end{linelabel}
+\caption{Preventing C Compilers From Fusing Loads}
+\label{lst:toolsoftrade:Preventing C Compilers From Fusing Loads}
+\end{listing}
+
+In the \co{barrier()} macro, the \co{__asm__} introduces the asm
+directive, the \co{__volatile__} prevents the compiler from optimizing
+the asm away, the empty string specifies that no actual instructions
+are to be emitted, and the final \co{"memory"} tells the compiler that
+this do-nothing asm can arbitrarily change memory.
+In response, the compiler will avoid moving any memory references across
+the \co{barrier()} macro.
+This means that the real-time-destroying loop unrolling shown in
+Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Loads}
+can be prevented by adding \co{barrier()} calls as shown on
+lines~\ref{ln:toolsoftrade:Preventing C Compilers From Fusing Loads:b1}
+and~\ref{ln:toolsoftrade:Preventing C Compilers From Fusing Loads:b2}
+of
+Listing~\ref{lst:toolsoftrade:Preventing C Compilers From Fusing Loads}.
+These two lines of code prevent the compiler from pushing the load from
+\co{need_to_stop} into or past \co{do_something_quickly()} from either
+direction.
+
+\begin{listing}[tbp]
+\begin{linelabel}[ln:toolsoftrade:Preventing Reordering]
+\begin{VerbatimL}[commandchars=\\\[\]]
+void shut_it_down(void)
+{
+	WRITE_ONCE(status, SHUTTING_DOWN);
+	smp_mb(); \lnlbl[mb1]
+	start_shutdown();
+	while (!READ_ONCE(other_task_ready)) /* BUGGY!!! */\lnlbl[loop:b]
+		continue;
+	smp_mb(); \lnlbl[mb2]
+	finish_shutdown();
+	smp_mb(); \lnlbl[mb3]
+	WRITE_ONCE(status, SHUT_DOWN);
+	do_something_else();
+}
+
+void work_until_shut_down(void)
+{
+	while (READ_ONCE(status) != SHUTTING_DOWN) {
+		smp_mb(); \lnlbl[mb4]
+		do_more_work();
+	}
+	smp_mb(); \lnlbl[mb5]
+	WRITE_ONCE(other_task_ready, 1); /* BUGGY!!! */\lnlbl[other:store]
+}
+\end{VerbatimL}
+\end{linelabel}
+\caption{Preventing Reordering}
+\label{lst:toolsoftrade:Preventing Reordering}
+\end{listing}
+
+However, this does nothing to prevent the CPU from reordering the
+references.
+In many cases, this is not a problem because the hardware can only do
+a certain amount of reordering.
+However, there are cases such as
+Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Stores} where the
+hardware must be constrained.
+Listing~\ref{lst:toolsoftrade:Preventing Store Fusing and Invented Stores}
+prevented store fusing and invention, and
+Listing~\ref{lst:toolsoftrade:Preventing Reordering}
+further prevents the remaining reordering by addition of
+\co{smp_mb()} on
+lines~\ref{ln:toolsoftrade:Preventing Reordering:mb1},
+lines~\ref{ln:toolsoftrade:Preventing Reordering:mb2},
+lines~\ref{ln:toolsoftrade:Preventing Reordering:mb3},
+lines~\ref{ln:toolsoftrade:Preventing Reordering:mb4}, and
+lines~\ref{ln:toolsoftrade:Preventing Reordering:mb5}.
+The \co{smp_mb()} macro is similar to \co{barrier()} shown in
+Listing~\ref{lst:toolsoftrade:Compiler Barrier Primitive (for GCC)},
+but with the empty string replaced by a string containing the
+instruction for a full memory barrier, for example, \co{"mfence"}
+on x86 or \co{"sync"} on PowerPC.
+
+\QuickQuiz{}
+	But aren't full memory barriers very heavyweight?
+	Isn't there a cheaper way to enforce the ordering needed in
+	Listing~\ref{lst:toolsoftrade:Preventing Reordering}?
+\QuickQuizAnswer{
+	As is often the case, the answer is ``it depends''.
+	However, if only two threads are accessing the \co{status}
+	and \co{other_task_ready} variables, then the
+	\co{smp_store_release()} and \co{smp_load_acquire()}
+	functions discussed in
+	Section~\ref{sec:toolsoftrade:Atomic Operations}
+	will suffice.
+} \QuickQuizEnd
+
+Ordering is also provided by some read-modify-write atomic
+operations, some of which are presented in
+Section~\ref{sec:toolsoftrade:Atomic Operations}.
+In the general case, memory ordering can be quite subtle, as
+discussed in
+Chapter~\ref{chp:Advanced Synchronization: Memory Ordering}.
+The next section covers an alternative to memory ordering, namely
+limiting or even entirely avoiding data races.
 
 \subsubsection{Avoiding Data Races}
 \label{sec:toolsoftrade:Avoiding Data Races}
