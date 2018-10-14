@@ -20,14 +20,16 @@
 
 #include "../api.h"
 
+//\begin{snippet}[labelbase=ln:intro:threadcreate:thread_test,commandchars=\@\[\]]
 void *thread_test(void *arg)
 {
 	int myarg = (intptr_t)arg;
 
 	printf("child thread %d: smp_thread_id() = %d\n",
 	       myarg, smp_thread_id());
-	return NULL;
+	return NULL;				//\lnlbl{return}
 }
+//\end{snippet}
 
 void usage(char *progname)
 {
@@ -36,29 +38,31 @@ void usage(char *progname)
 	exit(-1);
 }
 
+//\begin{snippet}[labelbase=ln:intro:threadcreate:main,commandchars=\@\^\$]
 int main(int argc, char *argv[])
 {
 	int i;
 	int nkids = 1;
 
-	smp_init();
+	smp_init();					//\lnlbl{smp_init}
 
-	if (argc > 1) {
+	if (argc > 1) {					//\lnlbl{parse:b}
 		nkids = strtoul(argv[1], NULL, 0);
 		if (nkids > NR_THREADS) {
 			fprintf(stderr, "nkids = %d too large, max = %d\n",
 				nkids, NR_THREADS);
 			usage(argv[0]);
 		}
-	}
-	printf("Parent thread spawning %d threads.\n", nkids);
+	}						//\lnlbl{parse:e}
+	printf("Parent thread spawning %d threads.\n", nkids); //\lnlbl{announce}
 
-	for (i = 0; i < nkids; i++)
-		create_thread(thread_test, (void *)(intptr_t)i);
+	for (i = 0; i < nkids; i++)			//\lnlbl{create:b}
+		create_thread(thread_test, (void *)(intptr_t)i); //\lnlbl{create:e}
 
-	wait_all_threads();
+	wait_all_threads();				//\lnlbl{wait}
 
 	printf("All spawned threads completed.\n");
 
 	exit(0);
 }
+//\end{snippet}
