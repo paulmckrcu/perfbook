@@ -53,7 +53,6 @@
 	const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
 	(type *)( (char *)__mptr - offsetof(type,member) );})
 #endif /* #ifndef offsetof */
-#define barrier() __asm__ __volatile__("": : :"memory")
 
 /*
  * Default machine parameters.
@@ -133,9 +132,13 @@ static __inline__ int spin_is_locked(spinlock_t *sp)
 #define spin_lock_irqsave(l, f) do { f = 1; spin_lock(l); } while (0)
 #define spin_unlock_irqrestore(l, f) do { f = 0; spin_unlock(l); } while (0)
 
+//\begin{snippet}[labelbase=ln:api-pthreads:api-pthreads:compiler_barrier,commandchars=\@\[\],numbers=none]
 #define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
-#define READ_ONCE(x) ({ typeof(x) ___x = ACCESS_ONCE(x); ___x; })
+#define READ_ONCE(x) \
+            ({ typeof(x) ___x = ACCESS_ONCE(x); ___x; })
 #define WRITE_ONCE(x, val) ({ ACCESS_ONCE(x) = (val); })
+#define barrier() __asm__ __volatile__("": : :"memory")
+//\end{snippet}
 #ifndef unlikely
 #define unlikely(x) x
 #endif /* #ifndef unlikely */
