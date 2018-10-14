@@ -26,50 +26,52 @@
 #include <errno.h>
 #include "../api.h"
 
-pthread_rwlock_t rwl = PTHREAD_RWLOCK_INITIALIZER;
-int holdtime = 0;	/* # loops holding lock. */
-int thinktime = 0;	/* # loops not holding lock. */
-long long *readcounts;
-int nreadersrunning = 0;
+//\begin{snippet}[labelbase=ln:toolsoftrade:rwlockscale:reader,commandchars=\@\^\$]
+pthread_rwlock_t rwl = PTHREAD_RWLOCK_INITIALIZER;	//\lnlbl{rwlock}
+int holdtime = 0;	/* # loops holding lock. */	//\lnlbl{holdtm}
+int thinktime = 0;	/* # loops not holding lock. */	//\lnlbl{thinktm}
+long long *readcounts;					//\lnlbl{rdcnts}
+int nreadersrunning = 0;				//\lnlbl{nrdrun}
 
-#define GOFLAG_INIT 0
+#define GOFLAG_INIT 0					//\lnlbl{goflag:b}
 #define GOFLAG_RUN  1
 #define GOFLAG_STOP 2
-char goflag = GOFLAG_INIT;
+char goflag = GOFLAG_INIT;				//\lnlbl{goflag:e}
 
-void *reader(void *arg)
+void *reader(void *arg)					//\lnlbl{reader:b}
 {
 	int en;
 	int i;
 	long long loopcnt = 0;
 	long me = (long)arg;
 
-	__sync_fetch_and_add(&nreadersrunning, 1);
-	while (READ_ONCE(goflag) == GOFLAG_INIT) {
+	__sync_fetch_and_add(&nreadersrunning, 1);	//\lnlbl{reader:atmc_inc}
+	while (READ_ONCE(goflag) == GOFLAG_INIT) {	//\lnlbl{reader:wait:b}
 		continue;
-	}
-	while (READ_ONCE(goflag) == GOFLAG_RUN) {
-		if ((en = pthread_rwlock_rdlock(&rwl)) != 0) {
+	}						//\lnlbl{reader:wait:e}
+	while (READ_ONCE(goflag) == GOFLAG_RUN) {	//\lnlbl{reader:loop:b}
+		if ((en = pthread_rwlock_rdlock(&rwl)) != 0) {	//\lnlbl{reader:acq:b}
 			fprintf(stderr,
-				"pthread_rwlock_rdlock: %s\n", strerror(en));
+			        "pthread_rwlock_rdlock: %s\n", strerror(en));
 			exit(EXIT_FAILURE);
-		}
-		for (i = 1; i < holdtime; i++) {
+		}						//\lnlbl{reader:acq:e}
+		for (i = 1; i < holdtime; i++) {	//\lnlbl{reader:hold:b}
 			barrier();
-		}
-		if ((en = pthread_rwlock_unlock(&rwl)) != 0) {
+		}					//\lnlbl{reader:hold:e}
+		if ((en = pthread_rwlock_unlock(&rwl)) != 0) {	//\lnlbl{reader:rel:b}
 			fprintf(stderr,
 				"pthread_rwlock_unlock: %s\n", strerror(en));
 			exit(EXIT_FAILURE);
-		}
-		for (i = 1; i < thinktime; i++) {
+		}						//\lnlbl{reader:rel:e}
+		for (i = 1; i < thinktime; i++) {	//\lnlbl{reader:think:b}
 			barrier();
-		}
-		loopcnt++;
-	}
-	readcounts[me] = loopcnt;
-	return NULL;
-}
+		}					//\lnlbl{reader:think:e}
+		loopcnt++;				//\lnlbl{reader:count}
+	}						//\lnlbl{reader:loop:e}
+	readcounts[me] = loopcnt;			//\lnlbl{reader:mov_cnt}
+	return NULL;					//\lnlbl{reader:return}
+}							//\lnlbl{reader:e}
+//\end{snippet}
 
 int main(int argc, char *argv[])
 {

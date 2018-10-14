@@ -722,87 +722,47 @@ However, in practice, we need to know how much additional scalability is
 provided by reader-writer locks.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 pthread_rwlock_t rwl = PTHREAD_RWLOCK_INITIALIZER;
-  2 int holdtime = 0;
-  3 int thinktime = 0;
-  4 long long *readcounts;
-  5 int nreadersrunning = 0;
-  6 
-  7 #define GOFLAG_INIT 0
-  8 #define GOFLAG_RUN  1
-  9 #define GOFLAG_STOP 2
- 10 char goflag = GOFLAG_INIT;
- 11 
- 12 void *reader(void *arg)
- 13 {
- 14   int i;
- 15   long long loopcnt = 0;
- 16   long me = (long)arg;
- 17 
- 18   __sync_fetch_and_add(&nreadersrunning, 1);
- 19   while (READ_ONCE(goflag) == GOFLAG_INIT) {
- 20     continue;
- 21   }
- 22   while (READ_ONCE(goflag) == GOFLAG_RUN) {
- 23     if (pthread_rwlock_rdlock(&rwl) != 0) {
- 24       perror("pthread_rwlock_rdlock");
- 25       exit(EXIT_FAILURE);
- 26     }
- 27     for (i = 1; i < holdtime; i++) {
- 28       barrier();
- 29     }
- 30     if (pthread_rwlock_unlock(&rwl) != 0) {
- 31       perror("pthread_rwlock_unlock");
- 32       exit(EXIT_FAILURE);
- 33     }
- 34     for (i = 1; i < thinktime; i++) {
- 35       barrier();
- 36     }
- 37     loopcnt++;
- 38   }
- 39   readcounts[me] = loopcnt;
- 40   return NULL;
- 41 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/toolsoftrade/rwlockscale@reader.fcv}
 \caption{Measuring Reader-Writer Lock Scalability}
 \label{lst:toolsoftrade:Measuring Reader-Writer Lock Scalability}
 \end{listing}
 
+\begin{lineref}[ln:toolsoftrade:rwlockscale:reader]
 Listing~\ref{lst:toolsoftrade:Measuring Reader-Writer Lock Scalability}
 (\path{rwlockscale.c})
 shows one way of measuring reader-writer lock scalability.
-Line~1 shows the definition and initialization of the reader-writer
-lock, line~2 shows the \co{holdtime} argument controlling the
+Line~\lnref{rwlock} shows the definition and initialization of the reader-writer
+lock, line~\lnref{holdtm} shows the \co{holdtime} argument controlling the
 time each thread holds the reader-writer lock,
-line~3 shows the \co{thinktime} argument controlling the time between
+line~\lnref{thinktm} shows the \co{thinktime} argument controlling the time between
 the release of the reader-writer lock and the next acquisition,
-line~4 defines the \co{readcounts} array into which each reader thread
+line~\lnref{rdcnts} defines the \co{readcounts} array into which each reader thread
 places the number of times it acquired the lock, and
-line~5 defines the \co{nreadersrunning} variable, which
+line~\lnref{nrdrun} defines the \co{nreadersrunning} variable, which
 determines when all reader threads have started running.
 
-Lines~7-10 define \co{goflag}, which synchronizes the start and the
+Lines~\lnref{goflag:b}-\lnref{goflag:e} define \co{goflag},
+which synchronizes the start and the
 end of the test.
 This variable is initially set to \co{GOFLAG_INIT}, then set to
 \co{GOFLAG_RUN} after all the reader threads have started, and finally
 set to \co{GOFLAG_STOP} to terminate the test run.
+\end{lineref}
 
-Lines~12-41 define \co{reader()}, which is the reader thread.
-Line~18 atomically increments the \co{nreadersrunning} variable
+\begin{lineref}[ln:toolsoftrade:rwlockscale:reader:reader]
+Lines~\lnref{b}-\lnref{e} define \co{reader()}, which is the reader thread.
+Line~\lnref{atmc_inc} atomically increments the \co{nreadersrunning} variable
 to indicate that this thread is now running, and
-lines~19-21 wait for the test to start.
+lines~\lnref{wait:b}-\lnref{wait:e} wait for the test to start.
 The \co{READ_ONCE()} primitive forces the compiler to fetch \co{goflag}
 on each pass through the loop---the compiler would otherwise be within its
 rights to assume that the value of \co{goflag} would never change.
+\end{lineref}
 
 \QuickQuiz{}
 	Instead of using \co{READ_ONCE()} everywhere, why not just
-	declare \co{goflag} as \co{volatile} on line~10 of
+	declare \co{goflag} as \co{volatile} on
+        line~\ref{ln:toolsoftrade:rwlockscale:reader:goflag:e} of
 	Listing~\ref{lst:toolsoftrade:Measuring Reader-Writer Lock Scalability}?
 \QuickQuizAnswer{
 	A \co{volatile} declaration is in fact a reasonable alternative in
@@ -867,16 +827,21 @@ rights to assume that the value of \co{goflag} would never change.
 	\co{__thread} variable in the corresponding element.
 } \QuickQuizEnd
 
-The loop spanning lines~22-38 carries out the performance test.
-Lines~23-26 acquire the lock, lines~27-29 hold the lock for the specified
+\begin{lineref}[ln:toolsoftrade:rwlockscale:reader:reader]
+The loop spanning lines~\lnref{loop:b}-\lnref{loop:e} carries out the performance test.
+Lines~\lnref{acq:b}-\lnref{acq:e} acquire the lock,
+lines~\lnref{hold:b}-\lnref{hold:e} hold the lock for the specified
 duration (and the \co{barrier()} directive prevents the compiler from
-optimizing the loop out of existence), lines~30-33 release the lock,
-and lines~34-36 wait for the specified duration before re-acquiring the
+optimizing the loop out of existence),
+lines~\lnref{rel:b}-\lnref{rel:e} release the lock,
+and lines~\lnref{think:b}-\lnref{think:e} wait for the specified
+duration before re-acquiring the
 lock.
-Line~37 counts this lock acquisition.
+Line~\lnref{count} counts this lock acquisition.
 
-Line~39 moves the lock-acquisition count to this thread's element of the
-\co{readcounts[]} array, and line~40 returns, terminating this thread.
+Line~\lnref{mov_cnt} moves the lock-acquisition count to this thread's element of the
+\co{readcounts[]} array, and line~\lnref{return} returns, terminating this thread.
+\end{lineref}
 
 \begin{figure}[tb]
 \centering
