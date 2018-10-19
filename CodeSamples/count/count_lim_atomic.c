@@ -137,7 +137,7 @@ int sub_count(unsigned long delta)			//\lnlbl{sub:b}
 	do {						//\lnlbl{sub:fast:b}
 		split_counterandmax(&counterandmax, &old, &c, &cm);
 		if (delta > c)
-		  goto slowpath;
+			goto slowpath;
 		new = merge_counterandmax(c - delta, cm);
 	} while (atomic_cmpxchg(&counterandmax,
 	                        old, new) != old);
