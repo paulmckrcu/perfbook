@@ -168,9 +168,8 @@ struct __xchg_dummy {
 ({ \
 	typeof(*ptr) _____actual = (o); \
 	\
-	(void)__atomic_compare_exchange_n(ptr, (void *)&_____actual, (n), 1, \
-					  __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); \
-	_____actual; \
+	__atomic_compare_exchange_n(ptr, (void *)&_____actual, (n), 1, \
+			__ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) ? (o) : (o)+1; \
 })
 
 static __inline__ int atomic_cmpxchg(atomic_t *v, int old, int new)
