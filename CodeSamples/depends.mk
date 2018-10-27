@@ -26,7 +26,9 @@ subdir_ub :=
 endif
 
 api_depend_common := $(top)/linux/common.h \
-	$(top)/api-pthreads/api-pthreads.h
+	$(top)/api-pthreads/api-pthreads.h \
+	$(top)/api-pthreads/api-gcc.h
+
 ifeq ($(target),x86)
 api_depend := $(top)/arch-x86/arch-x86.h
 arch_depend := $(top)/arch-x86/Makefile.arch
