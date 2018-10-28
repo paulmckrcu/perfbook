@@ -129,15 +129,20 @@ void deq_push_r(struct cds_list_head *e, struct deq *p)
 
 #define PDEQ_N_BKTS 4
 
+//\begin{snippet}[labelbase=ln:SMPdesign:lockhdeq:struct_pdeq,commandchars=\\\@\$]
 struct pdeq {
-	spinlock_t llock;
-	int lidx;
-	/* char pad1[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */
-	spinlock_t rlock ____cacheline_internodealigned_in_smp;
-	int ridx;
-	/* char pad2[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */
-	struct deq bkt[PDEQ_N_BKTS];
+	spinlock_t llock;				//\lnlbl{llock}
+	int lidx;					//\lnlbl{lidx}
+	/* char pad1[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */	//\fcvexclude
+	spinlock_t rlock ____cacheline_internodealigned_in_smp;			//\fcvexclude
+/* -- begin alternative code for snippet \fcvexclude
+	spinlock_t rlock;				//\lnlbl{rlock}
+   -- end alternative code for snippet \fcvexclude */
+	int ridx;					//\lnlbl{ridx}
+	/* char pad2[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */	//\fcvexclude
+	struct deq bkt[PDEQ_N_BKTS];			//\lnlbl{bkt}
 };
+//\end{snippet}
 
 static int moveleft(int idx)
 {
