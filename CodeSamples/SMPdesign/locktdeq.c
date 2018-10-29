@@ -99,58 +99,60 @@ void init_pdeq(struct pdeq *d)
 	init_deq(&d->rdeq);
 }
 
-struct cds_list_head *pdeq_pop_l(struct pdeq *d)
+//\begin{snippet}[labelbase=ln:SMPdesign:locktdeq:pop_push,commandchars=\\\@\$]
+struct cds_list_head *pdeq_pop_l(struct pdeq *d)		//\lnlbl{popl:b}
 {
 	struct cds_list_head *e;
 
-	spin_lock(&d->llock);
-	e = deq_pop_l(&d->ldeq);
+	spin_lock(&d->llock);					//\lnlbl{popl:acq:l}
+	e = deq_pop_l(&d->ldeq);				//\lnlbl{popl:deq:ll}
 	if (e == NULL) {
-		spin_lock(&d->rlock);
-		e = deq_pop_l(&d->rdeq);
-		cds_list_splice(&d->rdeq.chain, &d->ldeq.chain);
-		CDS_INIT_LIST_HEAD(&d->rdeq.chain);
-		spin_unlock(&d->rlock);
-	}
-	spin_unlock(&d->llock);
+		spin_lock(&d->rlock);				//\lnlbl{popl:acq:r}
+		e = deq_pop_l(&d->rdeq);			//\lnlbl{popl:deq:lr}
+		cds_list_splice(&d->rdeq.chain, &d->ldeq.chain);//\lnlbl{popl:move}
+		CDS_INIT_LIST_HEAD(&d->rdeq.chain);		//\lnlbl{popl:init:r}
+		spin_unlock(&d->rlock);				//\lnlbl{popl:rel:r}
+	}							//\lnlbl{popl:skip}
+	spin_unlock(&d->llock);					//\lnlbl{popl:rel:l}
 	return e;
-}
+}								//\lnlbl{popl:e}
 
-struct cds_list_head *pdeq_pop_r(struct pdeq *d)
+struct cds_list_head *pdeq_pop_r(struct pdeq *d)		//\lnlbl{popr:b}
 {
 	struct cds_list_head *e;
 
-	spin_lock(&d->rlock);
-	e = deq_pop_r(&d->rdeq);
-	if (e == NULL) {
-		spin_unlock(&d->rlock);
-		spin_lock(&d->llock);
-		spin_lock(&d->rlock);
-		e = deq_pop_r(&d->rdeq);
-		if (e == NULL) {
-			e = deq_pop_r(&d->ldeq);
-			cds_list_splice(&d->ldeq.chain, &d->rdeq.chain);
-			CDS_INIT_LIST_HEAD(&d->ldeq.chain);
+	spin_lock(&d->rlock);					//\lnlbl{popr:acq:r1}
+	e = deq_pop_r(&d->rdeq);				//\lnlbl{popr:deq:rr1}
+	if (e == NULL) {					//\lnlbl{popr:check1}
+		spin_unlock(&d->rlock);				//\lnlbl{popr:rel:r1}
+		spin_lock(&d->llock);				//\lnlbl{popr:acq:l}
+		spin_lock(&d->rlock);				//\lnlbl{popr:acq:r2}
+		e = deq_pop_r(&d->rdeq);			//\lnlbl{popr:deq:rr2}
+		if (e == NULL) {				//\lnlbl{popr:check2}
+			e = deq_pop_r(&d->ldeq);			//\lnlbl{popr:deq:rl}
+			cds_list_splice(&d->ldeq.chain, &d->rdeq.chain);//\lnlbl{popr:move}
+			CDS_INIT_LIST_HEAD(&d->ldeq.chain);		//\lnlbl{popr:init:l}
 		}
-		spin_unlock(&d->llock);
-	}
-	spin_unlock(&d->rlock);
+		spin_unlock(&d->llock);				//\lnlbl{popr:rel:l}
+	}							//\lnlbl{popr:skip2}
+	spin_unlock(&d->rlock);					//\lnlbl{popr:rel:r2}
 	return e;
-}
+}								//\lnlbl{popr:e}
 
-void pdeq_push_l(struct cds_list_head *e, struct pdeq *d)
+void pdeq_push_l(struct cds_list_head *e, struct pdeq *d)	//\lnlbl{pushl:b}
 {
-	spin_lock(&d->llock);
-	deq_push_l(e, &d->ldeq);
-	spin_unlock(&d->llock);
-}
+	spin_lock(&d->llock);					//\lnlbl{pushl:acq:l}
+	deq_push_l(e, &d->ldeq);				//\lnlbl{pushl:que:l}
+	spin_unlock(&d->llock);					//\lnlbl{pushl:rel:l}
+}								//\lnlbl{pushl:e}
 
-void pdeq_push_r(struct cds_list_head *e, struct pdeq *d)
+void pdeq_push_r(struct cds_list_head *e, struct pdeq *d)	//\lnlbl{pushr:b}
 {
 	spin_lock(&d->rlock);
 	deq_push_r(e, &d->rdeq);
 	spin_unlock(&d->rlock);
-}
+}								//\lnlbl{pushr:e}
+//\end{snippet}
 
 #ifdef TEST
 #include "deqtorture.h"
