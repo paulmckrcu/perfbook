@@ -471,9 +471,9 @@ instances straighten things out in the end.
 	Store, for example, \tco{WRITE_ONCE()} &  &
 		   Y &   &   &     &      &   &   &    &    &     &  Y \\
 	Load, for example, \tco{READ_ONCE()} &  &
-		   Y &   &   &     &      &   &   &    &  Y &     &  Y \\
+		   Y &   &   &     &      &   &   &  Y &  Y &     &  Y \\
 	Unsuccessful RMW operation &  &
-		   Y &   &   &     &      &   &   &    &  Y &     &  Y \\
+		   Y &   &   &     &      &   &   &  Y &  Y &     &  Y \\
 	\tco{smp_read_barrier_depends()} &  &
 		     & Y &   &     &      &   &   &  Y &  Y &     &    \\
 	\tco{*_dereference()} &  &
@@ -513,6 +513,7 @@ instances straighten things out in the end.
 		& Self: & Orders self, as opposed to accesses both before
 			  and after \\
 		& SV: & Orders later accesses to the same variable \\
+	\multicolumn{3}{l}{\emph{Applies to Linux kernel v4.15 and later.}} \\
 \end{tabular}
 }\OneColumnHSpace{-0.9in}
 \caption{Linux-Kernel Memory-Ordering Cheat Sheet}
@@ -1364,11 +1365,12 @@ addition, subtraction, and array indexing.\footnote{
 	array index.}
 
 One might hope that line~21's load from the head pointer would be ordered
-before line~22's dereference.
-However, this is not the case on DEC Alpha, which can in effect use
-a speculated value for the dependent load, as described in more detail in
-Section~\ref{sec:memorder:Alpha}.
-Therefore,
+before line~22's dereference, which is in fact the case on Linux v4.15
+and later.
+However, prior to v4.15, this is not the case on DEC Alpha, which can
+in effect use a speculated value for the dependent load, as described
+in more detail in Section~\ref{sec:memorder:Alpha}.
+Therefore, on older versions of Linux,
 Listing~\ref{lst:memorder:Message-Passing Address-Dependency Litmus Test (No Ordering)}'s
 \co{exists} clause \emph{can} trigger.
 
@@ -1411,8 +1413,11 @@ exists (1:r2=x0 /\ 1:r3=1)
 
 Listing~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
 (\path{C-MP+o-wmb-o+ld-addr-o.litmus})
-shows how to make this work portably, even on DEC Alpha, by
-replacing line~21's \co{READ_ONCE()} with \co{lockless_dereference()},
+shows how to make this work reliably on old Linux kernels running on
+DEC Alpha, by
+replacing line~21's \co{READ_ONCE()} with \co{lockless_dereference()},\footnote{
+	Note that \co{lockless_dereference()} is not needed on v4.15 and
+	later, and therefore is not available in these later Linux kernels.}
 which acts like \co{READ_ONCE()} on all platforms other than DEC Alpha,
 where it acts like a \co{READ_ONCE()} followed by an \co{smp_mb()},
 thereby forcing the required ordering on all platforms, in turn
@@ -4319,7 +4324,9 @@ Sections~\ref{sec:memorder:Address Dependencies}--\ref{sec:memorder:Control Depe
 and which is explained in more detail in
 Section~\ref{sec:memorder:Alpha}.
 The short version is that Alpha requires memory barriers for readers
-as well as updaters of linked data structures.
+as well as updaters of linked data structures, however, these memory
+barriers are provided by the Alpha architecture-specific code in
+v4.15 and later Linux kernels.
 
 The next row, ``Non-Sequentially Consistent'', indicates whether
 the CPU's normal load and store instructions are constrained by
@@ -4439,7 +4446,10 @@ This \co{smp_wmb()} on line~9 of this listing
 guarantees that the element initialization
 in lines~6-8 is executed before the element is added to the
 list on line~10, so that the lock-free search will work correctly.
-That is, it makes this guarantee on all CPUs {\em except} Alpha.
+That is, it makes this guarantee on all CPUs {\em except} Alpha.\footnote{
+	But Linux kernel versions v4.15 and later cause \co{READ_ONCE()}
+	to emit a memory barrier on Alpha, so this discussion applies
+	only to older versions of the Linux kernel.}
 
 \begin{listing}[tbp]
 { \scriptsize
@@ -4462,7 +4472,7 @@ That is, it makes this guarantee on all CPUs {\em except} Alpha.
  16     struct el *p;
  17     p = READ_ONCE(head.next);
  18     while (p != &head) {
- 19         /* BUG ON ALPHA!!! */
+ 19         /* Prior to v4.15, BUG ON ALPHA!!! */
  20         if (p->key == key) {
  21             return (p);
  22         }
@@ -4534,8 +4544,11 @@ to order the pointer fetch with the later dependent load.
 However, this imposes unneeded overhead on systems (such as ARM,
 Itanium, PPC, and SPARC) that respect data dependencies on the read side.
 A \co{smp_read_barrier_depends()} primitive has therefore been added to the
-Linux kernel to eliminate overhead on these systems.
-This primitive could be inserted in place of line~19 of
+Linux kernel to eliminate overhead on these systems, and was also added
+to \co{READ_ONCE()} in v4.15 of the Linux kernel so that core kernel
+code no longer needs to concern itself with this aspect of DEC Alpha.
+This \co{smp_read_barrier_depends()} primitive could be inserted in
+place of line~19 of
 Listing~\ref{lst:memorder:Insert and Lock-Free Search (No Ordering)},
 but it is better to use the \co{rcu_dereference()} wrapper macro
 as shown on lines~17 and~22 of
