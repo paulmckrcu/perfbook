@@ -1,0 +1,47 @@
+C C-RomanPenyaev-list-rcu-rr
+//\begin[snippet][labelbase=ln:formal:C-RomanPenyaev-list-rcu-rr:whole,commandchars=\%\@\$]
+
+{
+	int *z=1;			(* \lnlbl[listtail] *)
+	int *y=z;
+	int *x=y;
+	int *w=x;
+	int *v=w;			(* \lnlbl[listhead] *)
+	int *c=w;			(* \lnlbl[rrcache] *)
+}
+
+P0(int *c, int *v)			//\lnlbl[P0start]
+{
+	rcu_read_lock();		//\lnlbl[rl1]
+	r1 = READ_ONCE(*c);		//\lnlbl[rdcache]
+	if (r1 == 0) {			//\lnlbl[rdckcache]
+		r1 = READ_ONCE(*v);	//\lnlbl[rdinitcache]
+	}
+	r2 = rcu_dereference(*r1);	//\lnlbl[rdnext]
+	smp_store_release(c, r2);	//\lnlbl[rdupdcache]
+	rcu_read_unlock();		//\lnlbl[rul1]
+	rcu_read_lock();		//\lnlbl[rl2]
+	r3 = READ_ONCE(*c);
+	if (r3 == 0) {
+		r3 = READ_ONCE(*v);
+	}
+	r4 = rcu_dereference(*r3);
+	smp_store_release(c, r4);
+	rcu_read_unlock();		//\lnlbl[rul2]
+}					//\lnlbl[P0end]
+
+P1(int *c, int *v, int *w, int *x, int *y)//\lnlbl[P1start]
+{
+	rcu_assign_pointer(*w, y);	//\lnlbl[updremove]
+	synchronize_rcu();		//\lnlbl[updsync1]
+	r1 = READ_ONCE(*c);		//\lnlbl[updrdcache]
+	if (r1 == x) {			//\lnlbl[updckcache]
+		WRITE_ONCE(*c, 0);	//\lnlbl[updinitcache]
+		synchronize_rcu();	//\lnlbl[updsync2]
+	}
+	smp_store_release(x, 0);	//\lnlbl[updfree]
+}					//\lnlbl[P1end]
+
+//\end[snippet][locationslabel=locations_,existslabel=exists_]
+locations [0:r1; 1:r1; 1:r3; c; v; w; x; y]
+exists (0:r1=0 \/ 0:r2=0 \/ 0:r3=0 \/ 0:r4=0)
