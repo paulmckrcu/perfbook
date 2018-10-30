@@ -17,15 +17,16 @@
 #
 # Note: There need to be a symbolic link "memory-model" under
 #       CodeSamples/formal/herd for herd7 to work.
-#       The memory model is available at the git archive:
-#           https://github.com/aparri/memory-model.git.
+#       The memory model is available at tools/memory-model in
+#       the source tree of Linux kernel v4.17 (or later).
+#
 #       Make sure the symbolic link points to the actual directory.
 #       Alternatively, you can copy the files listed in LKMM_FILES to
 #       a subdirectory "memory-model".
 #
 #       klitmus7 doesn't require the memory model.
 #
-# Copyright (C) Akira Yokosawa, 2017
+# Copyright (C) Akira Yokosawa, 2017, 2018
 #
 # Authors: Akira Yokosawa <akiyks@gmail.com>
 
@@ -39,12 +40,15 @@ KLITMUS7_CMD := $(shell which klitmus7)
 LITMUS7_TEST := $(notdir $(wildcard ../litmus/*.litmus))
 LITMUS7_HERD_TEST := $(addsuffix .herd,$(LITMUS7_TEST))
 LITMUS7_HERD_OUT  := $(addsuffix .out,$(LITMUS7_TEST))
+HERD7_LITMUS   := $(wildcard *.litmus)
 TIMEOUT = 15m
 ITER    = 10
 ABSPERF_TEST   := $(wildcard C-SB+l-*.litmus)
 ABSPERF_LONG   := $(wildcard C-SB+l-o-o-u+l-o-o-u+l-o-o-u+l-o-o-u+l-o-o-u-*.litmus)
 ABSPERF_SHORT  := $(filter-out $(ABSPERF_LONG),$(ABSPERF_TEST))
 ABSPERF_OUT    = absperf.out absperf-all.out
+HERD7_TEST     := $(filter-out $(ABSPERF_TEST),$(HERD7_LITMUS))
+HERD7_OUT      := $(HERD7_TEST:%.litmus=%.out)
 
 .PHONY: all clean litmus2herd run-herd7 run-absperf run-absperf-all cross-klitmus
 .PHONY: help
@@ -56,23 +60,26 @@ litmus2herd: $(LITMUS7_HERD_TEST)
 $(LITMUS7_HERD_TEST): %.herd: ../litmus/%
 	sh ./litmus2herd.sh $< $@
 
-run-herd7: $(LITMUS7_HERD_OUT)
+run-herd7: $(LITMUS7_HERD_OUT) $(HERD7_OUT)
 run-absperf: absperf.out
 run-absperf-all: absperf-all.out
 
 $(LKMM_LIST):
 	@echo "#####################################################"
 	@echo "### Please prepare Linux Kernel Memory Model.     ###"
-	@echo "### You can get it at the git archive:            ###"
-	@echo "###   https://github.com/aparri/memory-model.git  ###"
+	@echo "### It is available at tools/memory-model in      ###"
+	@echo "### the source of Linux kernel v4.17 (or later).  ###"
 	@echo "###                                               ###"
 	@echo "### Refer to comment in Makefile for more info.   ###"
 	@echo "#####################################################"
 	@exit 1
 
-$(LITMUS7_HERD_OUT) $(ABSPERF_OUT): $(LKMM_LIST)
+$(LITMUS7_HERD_OUT) $(ABSPERF_OUT) $(HERD7_OUT): $(LKMM_LIST)
 
 $(LITMUS7_HERD_OUT): %.out: %.herd
+	cd $(LKMM_DIR); herd7 -conf linux-kernel.cfg $(HERD_DIR)/$< > $(HERD_DIR)/$@
+
+$(HERD7_OUT): %.out: %.litmus
 	cd $(LKMM_DIR); herd7 -conf linux-kernel.cfg $(HERD_DIR)/$< > $(HERD_DIR)/$@
 
 absperf.out: ABSPERF_LIST = $(ABSPERF_SHORT)
