@@ -47,6 +47,7 @@ my $end_command;
 my $lnlbl_command;
 my $lnlbl_on_exists = "";
 my $lnlbl_on_filter = "";
+my $lnlbl_on_locations = "";
 my $status = 0;	# 0: just started, 1: first_line read; 2: begin line output,
 		# 3: end line read
 
@@ -58,6 +59,9 @@ while($line = <>) {
 	} elsif ($line =~ /filter/) {
 	    chomp $line;
 	    print $line . $lnlbl_on_filter . "\n";
+	} elsif ($line =~ /locations/) {
+	    chomp $line;
+	    print $line . $lnlbl_on_locations . "\n";
 	} else {
 	    print $line;
 	}
@@ -87,12 +91,20 @@ while($line = <>) {
 	    if ($line =~ /filterlabel=([^\],]+)/) {
 		$lnlbl_on_filter = "//\\lnlbl\{$1\}";
 	    }
+	    if ($line =~ /locationslabel=([^\],]+)/) {
+		$lnlbl_on_locations = "//\\lnlbl\{$1\}";
+	    }
 	    $status = 3;
 	    next;
 	} else {
 	    if ($line =~ /\\lnlbl\[[^\]]*\]/) {
 		$_ = $line ;
 		s/\\lnlbl\[([^\]]*)\]/\\lnlbl\{$1\}/ ;
+		$line = $_ ;
+	    }
+	    if ($line =~ /\(\*\s*\\lnlbl\{[^\}]*\}\s*\*\)/) {
+		$_ = $line ;
+		s/\(\*\s*(\\lnlbl\{[^\}]*\})\s*\*\)/\/\/$1/ ;
 		$line = $_ ;
 	    }
 	    print $line ;
@@ -104,6 +116,9 @@ while($line = <>) {
 	} elsif ($line =~ /filter/) {
 	    chomp $line;
 	    print $line . $lnlbl_on_filter . "\n";
+	} elsif ($line =~ /locations/) {
+	    chomp $line;
+	    print $line . $lnlbl_on_locations . "\n";
 	} else {
 	    print $line ;
 	}
