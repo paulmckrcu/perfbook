@@ -1,0 +1,27 @@
+C C-RCU-remove
+//\begin[snippet][labelbase=ln:formal:C-RCU-remove:whole,commandchars=\\\@\$]
+
+{
+	int *z=1; (* \lnlbl[tail:2] *)
+	int *y=2; (* \lnlbl[tail:1] *)
+	int *x=y; (* \lnlbl[head] *)
+}
+
+P0(int *x, int *y, int *z)		//\lnlbl[P0start]
+{
+	rcu_assign_pointer(*x, z);	//\lnlbl[assignnewtail]
+	synchronize_rcu();		//\lnlbl[sync]
+	WRITE_ONCE(*y, 0);		//\lnlbl[free]
+}					//\lnlbl[P0end]
+
+P1(int *x, int *y, int *z)		//\lnlbl[P1start]
+{
+	rcu_read_lock();		//\lnlbl[rl]
+	r1 = rcu_dereference(*x);	//\lnlbl[rderef]
+	r2 = READ_ONCE(*r1);		//\lnlbl[read]
+	rcu_read_unlock();		//\lnlbl[rul]
+}					//\lnlbl[P1end]
+
+//\end[snippet][locationslabel=locations_,existslabel=exists_]
+locations [0:r1; 1:r1; x; y; z]
+exists (1:r2=0)
