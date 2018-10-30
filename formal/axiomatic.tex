@@ -140,6 +140,97 @@ This is now possible, as will be described in the following sections.
 \subsection{Axiomatic Approaches and Locking}
 \label{sec:formal:Axiomatic Approaches and Locking}
 
+\begin{listing}[tb]
+\begin{linelabel}[ln:formal:Locking Example]
+\begin{VerbatimL}[commandchars=\\\[\]]
+C Lock1
+
+{
+}
+
+P0(int *x, spinlock_t *sp)
+{
+	spin_lock(sp);
+	WRITE_ONCE(*x, 1);
+	WRITE_ONCE(*x, 0);
+	spin_unlock(sp);
+}
+
+P1(int *x, spinlock_t *sp)
+{
+	spin_lock(sp);
+	r1 = READ_ONCE(*x);
+	spin_unlock(sp);
+}
+
+exists (1:r1=1)
+\end{VerbatimL}
+\end{linelabel}
+\caption{Locking Example}
+\label{lst:formal:Locking Example}
+\end{listing}
+
+Axiomatic approaches may also be applied to higher-level
+languages and also to higher-level synchronization primitives, as
+exemplified by the lock-based litmus test shown in
+Listing~\ref{lst:formal:Locking Example}.
+As expected, the \co{herd} tool's output features the string \co{Never},
+correctly indicating that \co{P1()} cannot see \co{x} having a value
+of one.\footnote{
+	The output of the \co{herd} tool is compatible with that
+	of PPCMEM, so feel free to look at
+	Listings~\ref{lst:formal:PPCMEM Detects an Error}
+	and~\ref{lst:formal:PPCMEM on Repaired Litmus Test}
+	for examples showing the output format.}
+
+\QuickQuiz{}
+	What do you have to do to run \co{herd} on litmus tests like
+	that shown in Listing~\ref{lst:formal:Locking Example}?
+\QuickQuizAnswer{
+	Get version v4.17 (or later) of the Linux-kernel source code,
+	then follow the instructions in \path{tools/memory-model/README}
+	to install the needed tools.
+	Then follow the further instructions to run these tools on the
+	litmus test of your choice.
+} \QuickQuizEnd
+
+\begin{listing}[tb]
+\begin{linelabel}[ln:formal:Broken Locking Example]
+\begin{VerbatimL}[commandchars=\\\[\]]
+C Lock2
+
+{
+}
+
+P0(int *x, spinlock_t *sp1)
+{
+	spin_lock(sp1);
+	WRITE_ONCE(*x, 1);
+	WRITE_ONCE(*x, 0);
+	spin_unlock(sp1);
+}
+
+P1(int *x, spinlock_t *sp2) // Buggy!
+{
+	spin_lock(sp2);
+	r1 = READ_ONCE(*x);
+	spin_unlock(sp2);
+}
+
+exists (1:r1=1)
+\end{VerbatimL}
+\end{linelabel}
+\caption{Broken Locking Example}
+\label{lst:formal:Broken Locking Example}
+\end{listing}
+
+Of course, if \co{P0()} and \co{P1()} use different locks, as shown in
+Listing~\ref{lst:formal:Broken Locking Example},
+then all bets are off.
+And in this case, the \co{herd} tool's output features the string
+\co{Sometimes}, correctly indicating that use of different locks allows
+\co{P1()} to see \co{x} having a value of one.
+
 \subsection{Axiomatic Approaches and RCU}
 \label{sec:formal:Axiomatic Approaches and RCU}
 
@@ -178,6 +269,8 @@ exists (1:r2=0)\lnlbl[exists]
 \end{listing}
 
 \begin{lineref}[ln:formal:Canonical RCU Removal Litmus Test]
+Axiomatic approaches can also analyze litmus tests involving RCU.
+To that end,
 Listing~\ref{lst:formal:Canonical RCU Removal Litmus Test}
 shows a litmus test corresponding to the canonical RCU-mediated
 removal from a linked list.
@@ -338,7 +431,7 @@ in the \co{herd} output.
 	\begin{lineref}[ln:formal:Complex RCU Litmus Test]
 	In Listing~\ref{lst:formal:Complex RCU Litmus Test},
 	why not have just one call to \co{synchronize_rcu()}
-	just before line~\lnref{updfree}?
+	immediately before line~\lnref{updfree}?
 	\end{lineref}
 \QuickQuizAnswer{
 	\begin{lineref}[ln:formal:Complex RCU Litmus Test]
@@ -365,7 +458,8 @@ in the \co{herd} output.
 } \QuickQuizEnd
 
 These sections have shown how axiomatic approaches can successfully
-model synchronization primitives such as locking and RCU.
+model synchronization primitives such as locking and RCU in C-language
+litmus tests.
 Longer term, the hope is that the axiomatic approaches incorporate
 axioms describing even higher-level software artifacts.
 This could potentially allow axiomatic verification of much larger
