@@ -131,7 +131,7 @@ was ongoing.
 It would be helpful if the litmus tests could be written in C
 (as in Listing~\ref{lst:formal:Meaning of PPCMEM Litmus Test})
 rather than assembly
-(as in Listing~\ref{lst:formal:PPCMEM Litmus Test}.
+(as in Listing~\ref{lst:formal:PPCMEM Litmus Test}).
 This is now possible, as will be described in the following sections.
 
 \subsection{Axiomatic Approaches and Locking}
@@ -293,9 +293,12 @@ readers.
 	Isn't leaking pointers out of an RCU read-side critical
 	section a critical bug???
 \QuickQuizAnswer{
-	Yes, it usually is a bug.
+	Yes, it usually is a critical bug.
 	However, in this case, the updater has been cleverly constructed
 	to properly handle such pointer leaks.
+	But please don't make a habit of doing this sort of thing, and
+	especially don't do this without having put a lot of thought
+	into making some more conventional approach work.
 } \QuickQuizEnd
 
 Lines~\lnref{listtail}--\lnref{listhead} define the initial linked
@@ -339,6 +342,22 @@ and line~\lnref{updsync2} again waits for readers, after which no
 subsequent reader can fetch \co{x} from \co{c}.
 In either case, line~\lnref{updfree} emulates \co{free()} by storing
 zero to \co{x}.
+
+\QuickQuiz{}
+	\begin{lineref}[ln:formal:C-RomanPenyaev-list-rcu-rr:whole]
+	In Listing~\ref{lst:formal:Complex RCU Litmus Test},
+	why couldn't a reader fetch \co{c} just before \co{P1()}
+	zeroed it on line~\lnref{updinitcache}, and then later
+	store this same value back into \co{c} just after it was
+	zeroed, thus defeating the zeroing operation?
+	\end{lineref}
+\QuickQuizAnswer{
+	\begin{lineref}[ln:formal:C-RomanPenyaev-list-rcu-rr:whole]
+	Because the reader advances to the next element on
+	line~\lnref{rdnext}, thus avoiding storing a pointer to the
+	same element as was fetched.
+	\end{lineref}
+} \QuickQuizEnd
 
 The output of the \co{herd} tool when running this litmus test features
 \co{Never}, indicating that \co{P0()} never accesses a freed element,
