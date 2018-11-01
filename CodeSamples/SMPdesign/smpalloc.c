@@ -21,13 +21,14 @@
 
 #include "../api.h"
 
+//\begin{snippet}[labelbase=ln:SMPdesign:smpalloc:data_struct,commandchars=\\\@\$]
 #define TARGET_POOL_SIZE 3
 #define GLOBAL_POOL_SIZE 40
 
-struct memblock {
-	char *bytes[CACHE_LINE_SIZE];
-} memblocks[GLOBAL_POOL_SIZE];
-
+struct memblock {				//\fcvexclude
+	char *bytes[CACHE_LINE_SIZE];		//\fcvexclude
+} memblocks[GLOBAL_POOL_SIZE];			//\fcvexclude
+						//\fcvexclude
 struct globalmempool {
 	spinlock_t mutex;
 	int cur;
@@ -40,46 +41,54 @@ struct perthreadmempool {
 };
 
 DEFINE_PER_THREAD(struct perthreadmempool, perthreadmem);
+//\end{snippet}
 
+//\begin{snippet}[labelbase=ln:SMPdesign:smpalloc:alloc,commandchars=\\\@\$]
 struct memblock *memblock_alloc(void)
 {
 	int i;
 	struct memblock *p;
-	struct perthreadmempool *pcpp = &__get_thread_var(perthreadmem);
+	struct perthreadmempool *pcpp;
 
-	if (pcpp->cur < 0) {
-		spin_lock(&globalmem.mutex);
-		for (i = 0; i < TARGET_POOL_SIZE && globalmem.cur >= 0; i++) {
+	pcpp = &__get_thread_var(perthreadmem);			//\lnlbl{pick}
+	if (pcpp->cur < 0) {					//\lnlbl{chk:empty}
+		spin_lock(&globalmem.mutex);			//\lnlbl{ack}
+		for (i = 0; i < TARGET_POOL_SIZE &&		//\lnlbl{loop:b}
+		            globalmem.cur >= 0; i++) {
 			pcpp->pool[i] = globalmem.pool[globalmem.cur];
 			globalmem.pool[globalmem.cur--] = NULL;
-		}
-		pcpp->cur = i - 1;
-		spin_unlock(&globalmem.mutex);
+		}						//\lnlbl{loop:e}
+		pcpp->cur = i - 1;				//\lnlbl{set}
+		spin_unlock(&globalmem.mutex);			//\lnlbl{rel}
 	}
-	if (pcpp->cur >= 0) {
-		p = pcpp->pool[pcpp->cur];
+	if (pcpp->cur >= 0) {					//\lnlbl{chk:notempty}
+		p = pcpp->pool[pcpp->cur];			//\lnlbl{rem:b}
 		pcpp->pool[pcpp->cur--] = NULL;
-		return p;
+		return p;					//\lnlbl{rem:e}
 	}
-	return NULL;
+	return NULL;						//\lnlbl{ret:NULL}
 }
+//\end{snippet}
 
+//\begin{snippet}[labelbase=ln:SMPdesign:smpalloc:free,commandchars=\\\@\$]
 void memblock_free(struct memblock *p)
 {
 	int i;
-	struct perthreadmempool *pcpp = &__get_thread_var(perthreadmem);
+	struct perthreadmempool *pcpp;
 
-	if (pcpp->cur >= 2 * TARGET_POOL_SIZE - 1) {
-		spin_lock(&globalmem.mutex);
-		for (i = pcpp->cur; i >= TARGET_POOL_SIZE; i--) {
+	pcpp = &__get_thread_var(perthreadmem);			//\lnlbl{get}
+	if (pcpp->cur >= 2 * TARGET_POOL_SIZE - 1) {		//\lnlbl{chk:full}
+		spin_lock(&globalmem.mutex);			//\lnlbl{acq}
+		for (i = pcpp->cur; i >= TARGET_POOL_SIZE; i--) {//\lnlbl{loop:b}
 			globalmem.pool[++globalmem.cur] = pcpp->pool[i];
 			pcpp->pool[i] = NULL;
-		}
-		pcpp->cur = i;
-		spin_unlock(&globalmem.mutex);
-	}
-	pcpp->pool[++pcpp->cur] = p;
+		}						//\lnlbl{loop:e}
+		pcpp->cur = i;					//\lnlbl{set}
+		spin_unlock(&globalmem.mutex);			//\lnlbl{rel}
+	}							//\lnlbl{empty:e}
+	pcpp->pool[++pcpp->cur] = p;				//\lnlbl{place}
 }
+//\end{snippet}
 
 void initpools(void)
 {
