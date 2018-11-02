@@ -75,7 +75,7 @@ int maze_try_visit_cell(struct maze *mp, int cr, int cc, int tr, int tc,
 		return -1;
 	tp = maze_get_cell_addr(mp, tr, tc);
 	do {
-		t = ACCESS_ONCE(*tp);
+		t = READ_ONCE(*tp);
 		if (t & VISITED)
 			return 1;
 	} while (!__sync_bool_compare_and_swap(tp, t, t | VISITED | myid));
@@ -85,7 +85,7 @@ int maze_try_visit_cell(struct maze *mp, int cr, int cc, int tr, int tc,
 	vi = __sync_add_and_fetch(&mp->vi, 1);
 	mp->visited[vi].row = tr;
 	__sync_synchronize();
-	ACCESS_ONCE(mp->visited[vi].col) = tc;
+	WRITE_ONCE(mp->visited[vi].col, tc);
 	return 0;
 }
 
@@ -121,8 +121,8 @@ void *maze_solve_child(void *arg)
 			 * cell to be added to the visited list, we
 			 * are done and the maze has no solution.
 			 */
-			if (vi >= ACCESS_ONCE(mp->vi) + nthreads) {
-				ACCESS_ONCE(mcsp->done) = -1;
+			if (vi >= READ_ONCE(mp->vi) + nthreads) {
+				WRITE_ONCE(mcsp->done, -1);
 				return NULL;
 			}
 
@@ -131,11 +131,11 @@ void *maze_solve_child(void *arg)
 			 * for one of the other threads to find the
 			 * end cell.
 			 */
-			while ((vi > ACCESS_ONCE(mp->vi) ||
-			        ACCESS_ONCE(mp->visited[vi].col) < 0) &&
-			       !ACCESS_ONCE(mcsp->done))
+			while ((vi > READ_ONCE(mp->vi) ||
+			        READ_ONCE(mp->visited[vi].col) < 0) &&
+			       !READ_ONCE(mcsp->done))
 			       	continue;
-			if (ACCESS_ONCE(mcsp->done))
+			if (READ_ONCE(mcsp->done))
 				return NULL;
 
 			/* check of .col before read of .row. */
@@ -151,7 +151,7 @@ void *maze_solve_child(void *arg)
 		do {
 			/* Did we find the solution? */
 			if (nr == mcsp->endrow && nc == mcsp->endcol) {
-				ACCESS_ONCE(mcsp->done) = 1;
+				WRITE_ONCE(mcsp->done, 1);
 				return NULL;
 			}
 

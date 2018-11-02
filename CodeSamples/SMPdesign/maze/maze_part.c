@@ -85,12 +85,12 @@ void maze_solve_propagate(struct maze_child *mcp1, struct maze_child *mcp2)
 	if (__sync_fetch_and_add(&mcp1->see_start, 0)) {
 		(void)__sync_lock_test_and_set(&mcp2->see_start, 1);
 		if (__sync_fetch_and_add(&mcp2->see_end, 0))
-			ACCESS_ONCE(mcsp->done) = 1;
+			WRITE_ONCE(mcsp->done, 1);
 	}
 	if (__sync_fetch_and_add(&mcp1->see_end, 0)) {
 		(void)__sync_lock_test_and_set(&mcp2->see_end, 1);
 		if (__sync_fetch_and_add(&mcp2->see_start, 0))
-			ACCESS_ONCE(mcsp->done) = 1;
+			WRITE_ONCE(mcsp->done, 1);
 	}
 }
 
@@ -111,7 +111,7 @@ void record_encounter(struct maze *mp, int cr, int cc, int tr, int tc)
 	mymcp->adj[theirtid].tr = tr;
 	mymcp->adj[theirtid].tc = tc;
 	if (nthreads == 2)
-		ACCESS_ONCE(mcsp->done) = 1;
+		WRITE_ONCE(mcsp->done, 1);
 	maze_solve_propagate(mymcp, &mymcp->mcp0[theirtid]);
 	maze_solve_propagate(&mymcp->mcp0[theirtid], mymcp);
 }
@@ -128,7 +128,7 @@ int maze_try_visit_cell(struct maze *mp, int cr, int cc, int tr, int tc,
 		return -1;
 	tp = maze_get_cell_addr(mp, tr, tc);
 	do {
-		t = ACCESS_ONCE(*tp);
+		t = READ_ONCE(*tp);
 		if (t & VISITED) {
 			record_encounter(mp, cr, cc, tr, tc);
 			return 1;
@@ -496,7 +496,7 @@ int maze_solve_child_done_check(void)
 	struct maze_child *theirmcp;
 
 	if (nthreads <= 2)
-		return ACCESS_ONCE(mcsp->done);
+		return READ_ONCE(mcsp->done);
 	if (!mymcp->see_start_snap &&
 	    __sync_fetch_and_add(&mymcp->see_start, 0)) {
 		mymcp->see_start_snap = 1;
@@ -508,7 +508,7 @@ int maze_solve_child_done_check(void)
 		need_propagate = 1;
 	}
 	if (!need_propagate)
-		return ACCESS_ONCE(mcsp->done);
+		return READ_ONCE(mcsp->done);
 	for (i = 0; i < nthreads; i++) {
 		if (i == mymcp->myid)
 			continue;
@@ -517,7 +517,7 @@ int maze_solve_child_done_check(void)
 		    __sync_fetch_and_add(&theirmcp->adj[myid].mr, 0) != -1)
 			maze_solve_propagate(mymcp, theirmcp);
 	}
-	return ACCESS_ONCE(mcsp->done);
+	return READ_ONCE(mcsp->done);
 }
 
 /*
@@ -555,7 +555,7 @@ void *maze_solve_child(void *arg)
 		 * go to the following loop to do the exploration.
 		 */
 		while (!maze_find_any_next_cell(mp, cr, cc, &nr, &nc)) {
-			if (++vi >= mcp->vi || ACCESS_ONCE(mcsp->done))
+			if (++vi >= mcp->vi || READ_ONCE(mcsp->done))
 				goto done;
 			cr = mcp->visited[vi].row;
 			cc = mcp->visited[vi].col;
@@ -566,7 +566,7 @@ void *maze_solve_child(void *arg)
 		 * the current path one cell.
 		 */
 		do {
-			if (ACCESS_ONCE(mcsp->done))
+			if (READ_ONCE(mcsp->done))
 				goto done;
 			cr = nr;
 			cc = nc;

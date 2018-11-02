@@ -79,6 +79,10 @@ struct maze {
 };
 
 #define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+#define READ_ONCE(x) \
+            ({ typeof(x) ___x = ACCESS_ONCE(x); ___x; })
+#define WRITE_ONCE(x, val) ({ ACCESS_ONCE(x) = (val); })
+
 
 /* CLOCK_MONOTONIC_RAW prefered, but the older CLOCK_MONOTONIC will do. */
 #ifdef CLOCK_MONOTONIC_RAW
@@ -190,8 +194,10 @@ int maze_same_tids(struct maze *mp, int r1, int c1, int r2, int c2);
 void new_empty_maze_solve(struct maze *mp);
 int maze_try_visit_cell(struct maze *mp, int cr, int cc, int tr, int tc,
 			int *nextrow, int *nextcol, int distance);
+int maze_row_col_frac(int rc, int num, int den);
 int maze_solve(struct maze *mp, int startrow, int startcol,
 	       int endrow, int endcol, unsigned long long *t);
+void usage(char *progname, const char *format, ...);
 void maze_solve_usage(void);
 int maze_solve_parse(int i, int argc, char *argv[]);
 
