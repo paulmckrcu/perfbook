@@ -2841,49 +2841,7 @@ from the passage of time, so that no matter how many threads are
 involved, the corresponding \co{exists} clause cannot trigger.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-ISA2+o-r+a-r+a-r+a-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  WRITE_ONCE(*x0, 2);
-  smp_store_release(x1, 2);
-}
-
-
-P1(int *x1, int *x2)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x1);
-  smp_store_release(x2, 2);
-}
-
-P2(int *x2, int *x3)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x2);
-  smp_store_release(x3, 2);
-}
-
-P3(int *x3, int *x0)
-{
-  int r1;
-  int r2;
-
-  r1 = smp_load_acquire(x3);
-  r2 = READ_ONCE(*x0);
-}
-
-exists (1:r2=2 /\ 2:r2=2 /\ 3:r1=2 /\ 3:r2=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-ISA2+o-r+a-r+a-r+a-o@whole.fcv}
 \caption{Long ISA2 Release-Acquire Chain}
 \label{lst:memorder:Long ISA2 Release-Acquire Chain}
 \end{listing}
@@ -2899,16 +2857,20 @@ shows a three-step release-acquire chain, but where \co{P3()}'s
 final access is a \co{READ_ONCE()} from \co{x0}, which is
 accessed via \co{WRITE_ONCE()} by \co{P0()}, forming a non-temporal
 load-to-store link between these two processes.
-However, because \co{P0()}'s \co{smp_store_release()} (line~12)
+\begin{lineref}[ln:formal:litmus:C-ISA2+o-r+a-r+a-r+a-o:whole]
+However, because \co{P0()}'s \co{smp_store_release()} (line~\lnref{P0:rel})
 is cumulative, if \co{P3()}'s \co{READ_ONCE()} returns zero,
 this cumulativity will force the \co{READ_ONCE()} to be ordered
 before \co{P0()}'s \co{smp_store_release()}.
-In addition, the release-acquire chain (lines~12, 20, 21, 28, 29, and~37)
+In addition, the release-acquire chain
+(lines~\lnref{P0:rel}, \lnref{P1:acq}, \lnref{P1:rel}, \lnref{P2:acq},
+\lnref{P2:rel}, and~\lnref{P3:acq})
 forces \co{P3()}'s \co{READ_ONCE()} to be ordered after \co{P0()}'s
 \co{smp_store_release()}.
 Because \co{P3()}'s \co{READ_ONCE()} cannot be both before and after
 \co{P0()}'s \co{smp_store_release()}, either or both of two things must
 be true:
+\end{lineref}
 
 \begin{enumerate}
 \item	\co{P3()}'s \co{READ_ONCE()} came after \co{P0()}'s
