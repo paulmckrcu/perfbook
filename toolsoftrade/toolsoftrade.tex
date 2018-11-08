@@ -1636,6 +1636,73 @@ many times some other thread stores a non-zero value to \co{need_to_stop}.
 The result will at best be disappointment, and might well also
 include severe physical damage.
 
+\begin{listing}[tbp]
+\begin{linelabel}[ln:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads]
+\begin{VerbatimL}[commandchars=\\\[\]]
+int *gp; \lnlbl[gp]
+
+void t0(void)
+{
+	WRITE_ONCE(gp, &myvar); \lnlbl[wgp]
+}
+
+void t1(void)
+{
+	p1 = gp; \lnlbl[p1]
+	do_something(p1);
+	p2 = READ_ONCE(gp); \lnlbl[p2]
+	if (p2) { \lnlbl[if]
+		do_something_else();
+		p3 = *gp; \lnlbl[p3]
+	}
+}
+\end{VerbatimL}
+\end{linelabel}
+\caption{C Compilers Can Non-Adjacent Fuse Loads}
+\label{lst:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads}
+\end{listing}
+
+\begin{lineref}[ln:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads]
+The compiler can fuse loads across surprisingly large spans of code.
+For example, in
+Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads},
+\co{t0()} and \co{t1()} run concurrently, and \co{do_something()} and
+\co{do_something_else()} are inline functions.
+Line~\lnref{gp} declares pointer \co{gp}, which C initializes to \co{NULL}
+by default.
+At some point, line~\lnref{wgp} of \co{t0()} stores a non-\co{NULL}
+pointer to \co{gp}.
+Meanwhile, \co{t1()} loads from \co{gp} three times on
+lines~\lnref{p1}, \lnref{p2}, and~\lnref{p3}.
+Given that line~\lnref{if} finds that \co{gp} is non-\co{NULL}, one might
+hope that the dereference on line~\lnref{p3} would be guaranteed never
+to fault.
+Unfortunately, the compiler is within its rights to fuse the read on
+lines~\lnref{p1} and~\lnref{p3}, which means that if line~\lnref{p1}
+loads \co{NULL} and line~\lnref{p2} loads \co{&myvar}, line~\lnref{p3}
+could load \co{NULL}, resulting in a fault.\footnote{
+	Will Deacon reports that this happened in the Linux kernel.}
+Note that the intervening \co{READ_ONCE()} does not prevent the other
+two loads from being fused, despite the fact that all three are loading
+from the same variable.
+\end{lineref}
+
+\QuickQuiz{}
+	Why does it matter whether \co{do_something()} and
+	\co{do_something_else()} in
+	Listing~\ref{lst:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads}
+	are inline functions?
+\QuickQuizAnswer{
+	\begin{lineref}[ln:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads]
+	Because \co{gp} is not a static variable, if either
+	\co{do_something()} or \co{do_something_else()} were separately
+	compiled, the compiler would have to assume that either or both
+	of these two functions might change the value of \co{gp}.
+	This possibility would force the compiler to reload \co{gp}
+	on line~\lnref{p3}, thus avoiding the \co{NULL}-pointer dereference.
+	\end{lineref}
+} \QuickQuizEnd
+
 {\bf Store fusing} can occur when the compiler notices a pair of successive
 stores to a given variable with no intervening loads from that variable.
 In this case, the compiler is within its rights to omit the first store.
