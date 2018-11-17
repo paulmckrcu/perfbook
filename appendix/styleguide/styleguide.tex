@@ -322,13 +322,31 @@ This section explains the use cases of such macros and environments.
 \subsubsection{Code Snippet}
 \label{sec:app:styleguide:Code Snippet}
 
-Because the \qco{verbatim} environment is a primitve way to include
+Because the \qco{verbatim} environment is a primitive way to include
 listings, we are transitioning to a new scheme which uses
 the \qco{fancyvrb} package for code snippets.
 
-Three customized environments of \qco{Verbatim} are defined
-for perfbook.
+The goal of the new scheme is to extract \LaTeX\ sources of
+code snippets directly from code samples under \path{CodeSamples}
+directory.
+It also makes it possible to embed line labels in the code samples,
+which can be referred from the text.
+This reduces the burden of keeping line numbers
+in the text consistent with those in code snippets.
 
+Code-snippet extraction is handled by a couple of
+perl scripts and recipes in Makefile.
+We use the \co{fancyvrb} package's escaping feature
+to embed line labels in comments.
+
+We used to use the \qco{verbbox} environment provided
+by the \qco{verbatimbox} package.
+Section~\ref{sec:app:styleguide:Code Snippet (Obsolete)} describes how
+\co{verbbox} can automatically generate line numbers,
+but these line numbers cannot be referenced from the text.
+
+Let's start by looking at how code snippets are coded in the new scheme.
+There are three customized environments of \qco{Verbatim}.
 \qco{VerbatimL} is for floating snippets within the \qco{listing}
 environment. \qco{VerbatimN} is for inline snippets with line count
 enabled. \qco{VerbatimU} is for inline snippets without line count.
@@ -348,20 +366,6 @@ They are defined in the preamble as shown below:
     xrightmargin=5pt,obeytabs=true,tabsize=2,%
     samepage=true,frame=single}
 \end{VerbatimU}
-
-We used to use the \qco{verbbox} environment provided
-by the \qco{verbatimbox} package. As will be described later in
-Section~\ref{sec:app:styleguide:Code Snippet (Obsolete)},
-\co{verbbox} has the capability of automatic
-line numbering. However, it is not possible to embed labels on lines
-in the snippet to refer from the text.
-
-The \co{fancyvrb} package allows us to do that by the help of
-escaping feature.
-And the \LaTeX\ sources of snippets can be extracted from code samples under
-the \path{CodeSamples} directory of perfbook tree.
-
-Conversion to the new scheme is currently underway.
 
 % Another option would be the ``lstlisting'' environment provided
 %  by the ``listings'' package. We are already using its ``lstinline''
@@ -410,13 +414,39 @@ to from text.
 \end{lineref}
 \end{quote}
 
-\LaTeX\ source shown in
+Macros \qco{\\lnlbl\{\}} and \qco{\\lnref\{\}} are defined in
+the preamble as follows:
+
+\begin{VerbatimU}
+\newcommand{\lnlblbase}{}
+\newcommand{\lnlbl}[1]{%
+  \phantomsection\label{\lnlblbase:#1}}
+\newcommand{\lnrefbase}{}
+\newcommand{\lnref}[1]{\ref{\lnrefbase:#1}}
+\end{VerbatimU}
+
+Environments \qco{linelabel} and \qco{lineref} are defined as
+shown below:
+
+\begin{VerbatimU}
+\newenvironment{linelabel}[1][]{%
+  \renewcommand{\lnlblbase}{#1}%
+  \ignorespaces}{\ignorespacesafterend}
+\newenvironment{lineref}[1][]{%
+  \renewcommand{\lnrefbase}{#1}%
+  \ignorespaces}{\ignorespacesafterend}
+\end{VerbatimU}
+
+\begin{lineref}[ln:app:styleguide:LaTeX Source of Sample Code Snippet (Current)]
+The main part of \LaTeX\ source shown on
+Lines~\lnref{beg:linelabel}-\lnref{end:linelabel} in
 Listing~\ref{lst:app:styleguide:LaTeX Source of Sample Code Snippet (Current)}
 can be extracted from a code sample of
 Listing~\ref{lst:app:styleguide:Source of Code Sample} by a perl script
 \path{utilities/fcvextract.pl}. All the relevant rules of extraction
 are described as recipes in the top level \path{Makefile} and
 a script to generate dependencies (\path{utilities/gen_snippet_d.pl}).
+\end{lineref}
 
 \begin{listing}[tb]
 \fvset{fontsize=\scriptsize,numbers=left,numbersep=5pt,xleftmargin=9pt,obeytabs=true,tabsize=8}
@@ -427,7 +457,7 @@ a script to generate dependencies (\path{utilities/gen_snippet_d.pl}).
 \end{listing}
 
 As you can see, Listing ~\ref{lst:app:styleguide:Source of Code Sample}
-has meta commands in comments of C (C++ style). These meta commands
+has meta commands in comments of C (C++ style). Those meta commands
 are interpreted by \path{utilities/fcvextract.pl}, which distinguishes
 the type of comment style by the suffix of code sample's file name.
 
@@ -446,15 +476,17 @@ labelbase=<label base string>
 commandchars=\X\Y\Z
 \end{VerbatimU}
 
-The string given to \qco{labelbase} will be converted to
+The string given to \qco{labelbase} will be passed to
 ``\co{\\begin\{linelabel\}[<label base string>]}'' command as shown on
-line~\ref{ln:app:styleguide:LaTeX Source of Sample Code Snippet (Current):linelabel} of
+line~\ref{ln:app:styleguide:LaTeX Source of Sample Code Snippet (Current):beg:linelabel} of
 Listing~\ref{lst:app:styleguide:LaTeX Source of Sample Code Snippet (Current)}.
 \qco{commandchars} option is given to the \co{VerbatimL} environment as is.
 Other types of options, if any, are also passed to the \co{VerbatimL}
 environment.
-The \qco{lnlbl} commands are converted to reflect the escape-character choice
-along the way.
+The \qco{lnlbl} commands are converted along the way to reflect
+the escape-character choice.\footnote{
+	Characters forming comments are also gobbled up.
+}
 
 There can be multiple pairs of \co{\\begin\{snippet\}} and \co{\\end\{snippet\}}
 as long as they have unique \qco{labelbase} strings.
@@ -492,7 +524,7 @@ Comments in this part should be of the form \qco{(* ... *)}.
 
 You can't use \qco{\{} and \qco{\}} in comments in litmus tests, either.
 
-Example of disallowed comments in a litmus test are shown below:
+Examples of disallowed comments in a litmus test are shown below:
 
 \begin{linelabel}[ln:app:styleguide:Bad comments in Litmus Test]
 \begin{VerbatimN}[tabsize=8]
