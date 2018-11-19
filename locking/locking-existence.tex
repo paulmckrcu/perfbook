@@ -4,27 +4,25 @@
 \label{sec:locking:Lock-Based Existence Guarantees}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 int delete(int key)
-  2 {
-  3   int b;
-  4   struct element *p;
-  5
-  6   b = hashfunction(key);
-  7   p = hashtable[b];
-  8   if (p == NULL || p->key != key)
-  9     return 0;
- 10   spin_lock(&p->lock);
- 11   hashtable[b] = NULL;
- 12   spin_unlock(&p->lock);
- 13   kfree(p);
- 14   return 1;
- 15 }
-\end{verbbox}
+\begin{linelabel}[ln:locking:Per-Element Locking Without Existence Guarantees]
+\begin{VerbatimL}[commandchars=\\\@\$]
+int delete(int key)
+{
+	int b;
+	struct element *p;
+
+	b = hashfunction(key);
+	p = hashtable[b];
+	if (p == NULL || p->key != key)		\lnlbl@chk_first$
+		return 0;
+	spin_lock(&p->lock);			\lnlbl@acq$
+	hashtable[b] = NULL;			\lnlbl@NULL$
+	spin_unlock(&p->lock);
+	kfree(p);
+	return 1;				\lnlbl@return1$
 }
-\centering
-\theverbbox
+\end{VerbatimL}
+\end{linelabel}
 \caption{Per-Element Locking Without Existence Guarantees}
 \label{lst:locking:Per-Element Locking Without Existence Guarantees}
 \end{listing}
@@ -98,9 +96,11 @@ as shown in
 Listing~\ref{lst:locking:Per-Element Locking Without Existence Guarantees}.
 
 \QuickQuiz{}
+	\begin{lineref}[ln:locking:Per-Element Locking Without Existence Guarantees]
 	What if the element we need to delete is not the first element
-	of the list on line~8 of
+	of the list on line~\lnref{chk_first} of
 	Listing~\ref{lst:locking:Per-Element Locking Without Existence Guarantees}?
+        \end{lineref}
 \QuickQuizAnswer{
 	This is a very simple hash table with no chaining, so the only
 	element in a given bucket is the first element.
@@ -112,13 +112,14 @@ Listing~\ref{lst:locking:Per-Element Locking Without Existence Guarantees}.
 	What race condition can occur in
 	Listing~\ref{lst:locking:Per-Element Locking Without Existence Guarantees}?
 \QuickQuizAnswer{
+	\begin{lineref}[ln:locking:Per-Element Locking Without Existence Guarantees]
 	Consider the following sequence of events:
 	\begin{enumerate}
-	\item	Thread~0 invokes \co{delete(0)}, and reaches line~10 of
+	\item	Thread~0 invokes \co{delete(0)}, and reaches line~\lnref{acq} of
 		the figure, acquiring the lock.
 	\item	Thread~1 concurrently invokes \co{delete(0)}, reaching
-		line~10, but spins on the lock because Thread~0 holds it.
-	\item	Thread~0 executes lines~11-14, removing the element from
+		line~\lnref{acq}, but spins on the lock because Thread~0 holds it.
+	\item	Thread~0 executes lines~\lnref{NULL}-\lnref{return1}, removing the element from
 		the hashtable, releasing the lock, and then freeing the
 		element.
 	\item	Thread~0 continues execution, and allocates memory, getting
@@ -131,44 +132,44 @@ Listing~\ref{lst:locking:Per-Element Locking Without Existence Guarantees}.
 	\end{enumerate}
 	Because there is no existence guarantee, the identity of the
 	data element can change while a thread is attempting to acquire
-	that element's lock on line~10!
+	that element's lock on line~\lnref{acq}!
+	\end{lineref}
 } \QuickQuizEnd
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 int delete(int key)
-  2 {
-  3   int b;
-  4   struct element *p;
-  5   spinlock_t *sp;
-  6
-  7   b = hashfunction(key);
-  8   sp = &locktable[b];
-  9   spin_lock(sp);
- 10   p = hashtable[b];
- 11   if (p == NULL || p->key != key) {
- 12     spin_unlock(sp);
- 13     return 0;
- 14   }
- 15   hashtable[b] = NULL;
- 16   spin_unlock(sp);
- 17   kfree(p);
- 18   return 1;
- 19 }
-\end{verbbox}
+\begin{linelabel}[ln:locking:Per-Element Locking With Lock-Based Existence Guarantees]
+\begin{VerbatimL}[commandchars=\\\@\$]
+int delete(int key)
+{
+	int b;
+	struct element *p;
+	spinlock_t *sp;
+
+	b = hashfunction(key);
+	sp = &locktable[b];
+	spin_lock(sp);				\lnlbl@acq$
+	p = hashtable[b];			\lnlbl@getp$
+	if (p == NULL || p->key != key) {
+		spin_unlock(sp);
+		return 0;
+	}
+	hashtable[b] = NULL;
+	spin_unlock(sp);
+	kfree(p);
+	return 1;
 }
-\centering
-\theverbbox
+\end{VerbatimL}
+\end{linelabel}
 \caption{Per-Element Locking With Lock-Based Existence Guarantees}
 \label{lst:locking:Per-Element Locking With Lock-Based Existence Guarantees}
 \end{listing}
 
+\begin{lineref}[ln:locking:Per-Element Locking With Lock-Based Existence Guarantees]
 One way to fix this example is to use a hashed set of global locks, so
 that each hash bucket has its own lock, as shown in
 Listing~\ref{lst:locking:Per-Element Locking With Lock-Based Existence Guarantees}.
-This approach allows acquiring the proper lock (on line~9) before
-gaining a pointer to the data element (on line~10).
+This approach allows acquiring the proper lock (on line~\lnref{acq}) before
+gaining a pointer to the data element (on line~\lnref{getp}).
 Although this approach works quite well for elements contained in a
 single partitionable data structure such as the hash table shown in the
 figure, it can be problematic if a given data element can be a member
@@ -180,3 +181,4 @@ implementations~\cite{Shavit95,DaveDice2006DISC}.
 However,
 Chapter~\ref{chp:Deferred Processing}
 describes simpler---and faster---ways of providing existence guarantees.
+\end{lineref}

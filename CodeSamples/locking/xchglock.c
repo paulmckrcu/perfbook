@@ -20,22 +20,24 @@
 
 #include "../api.h"
 
-typedef int xchglock_t;
+//\begin{snippet}[labelbase=ln:locking:xchglock:lock_unlock,commandchars=\\\[\]]
+typedef int xchglock_t;				//\lnlbl{typedef}
+						//\fcvexclude
+#define DEFINE_XCHG_LOCK(n) xchglock_t n = 0	//\lnlbl{initval}
 
-#define DEFINE_XCHG_LOCK(n) xchglock_t n = 0
-
-void xchg_lock(xchglock_t *xp)
+void xchg_lock(xchglock_t *xp)			//\lnlbl{lock:b}
 {
-	while (xchg(xp, 1) == 1) {
-		while (*xp == 1)
-			continue;
+	while (xchg(xp, 1) == 1) {		//\lnlbl{lock:atmxchg}
+		while (*xp == 1)		//\lnlbl{lock:inner:b}
+			continue;		//\lnlbl{lock:inner:e}
 	}
-}
+}						//\lnlbl{lock:e}
 
-void xchg_unlock(xchglock_t *xp)
+void xchg_unlock(xchglock_t *xp)		//\lnlbl{unlock:b}
 {
-	(void)xchg(xp, 0);
-}
+	(void)xchg(xp, 0);			//\lnlbl{unlock:atmxchg}
+}						//\lnlbl{unlock:e}
+//\end{snippet}
 
 DEFINE_XCHG_LOCK(testlock);
 

@@ -20,14 +20,15 @@
 
 #include "../api.h"
 
+//\begin{snippet}[labelbase=ln:locking:locked_list:start_next,commandchars=\\\[\]]
 struct locked_list {
 	spinlock_t s;
 	struct cds_list_head h;
 };
 
-struct cds_list_head *list_next(struct locked_list *lp,
-				struct cds_list_head *np);
-
+struct cds_list_head *list_next(struct locked_list *lp,		//\fcvexclude
+				struct cds_list_head *np);	//\fcvexclude
+								//\fcvexclude
 struct cds_list_head *list_start(struct locked_list *lp)
 {
 	spin_lock(&lp->s);
@@ -35,7 +36,7 @@ struct cds_list_head *list_start(struct locked_list *lp)
 }
 
 struct cds_list_head *list_next(struct locked_list *lp,
-				struct cds_list_head *np)
+                                struct cds_list_head *np)
 {
 	struct cds_list_head *ret;
 
@@ -46,29 +47,33 @@ struct cds_list_head *list_next(struct locked_list *lp,
 	}
 	return ret;
 }
+//\end{snippet}
+
 
 void list_stop(struct locked_list *lp)
 {
 	spin_unlock(&lp->s);
 }
 
-struct list_ints {
+//\begin{snippet}[labelbase=ln:locking:locked_list:list_print,commandchars=\@\[\]]
+struct list_ints {			//\lnlbl{ints:b}
 	struct cds_list_head n;
 	int a;
-};
+};					//\lnlbl{ints:e}
 
-void list_print(struct locked_list *lp)
+void list_print(struct locked_list *lp)	//\lnlbl{print:b}
 {
 	struct cds_list_head *np;
 	struct list_ints *ip;
 
-	np = list_start(lp);
+	np = list_start(lp);		//\lnlbl{print:start}
 	while (np != NULL) {
-		ip = cds_list_entry(np, struct list_ints, n);
-		printf("\t%d\n", ip->a);
-		np = list_next(lp, np);
+		ip = cds_list_entry(np, struct list_ints, n); //\lnlbl{print:entry}
+		printf("\t%d\n", ip->a);//\lnlbl{print:print}
+		np = list_next(lp, np);	//\lnlbl{print:next}
 	}
-}
+}					//\lnlbl{print:e}
+//\end{snippet}
 
 struct locked_list head;
 
