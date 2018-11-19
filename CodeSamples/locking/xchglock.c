@@ -28,7 +28,7 @@ typedef int xchglock_t;				//\lnlbl{typedef}
 void xchg_lock(xchglock_t *xp)			//\lnlbl{lock:b}
 {
 	while (xchg(xp, 1) == 1) {		//\lnlbl{lock:atmxchg}
-		while (*xp == 1)		//\lnlbl{lock:inner:b}
+		while (READ_ONCE(*xp) == 1)	//\lnlbl{lock:inner:b}
 			continue;		//\lnlbl{lock:inner:e}
 	}
 }						//\lnlbl{lock:e}
@@ -59,9 +59,9 @@ void *test_xchg_lock(void *arg)
 
 	run_on(me);
 	atomic_inc(&nthreadsrunning);
-	while (ACCESS_ONCE(goflag) == GOFLAG_INIT)
+	while (READ_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);
-	while (ACCESS_ONCE(goflag) == GOFLAG_RUN) {
+	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		xchg_lock(&testlock);
 		if (owner != -1)
 			lockerr++;
@@ -86,11 +86,11 @@ int main(int argc, char *argv[])
 	smp_mb();
 	while (atomic_read(&nthreadsrunning) < nthreads)
 		poll(NULL, 0, 1);
-	goflag = GOFLAG_RUN;
+	WRITE_ONCE(goflag, GOFLAG_RUN);
 	smp_mb();
 	poll(NULL, 0, 10000);
 	smp_mb();
-	goflag = GOFLAG_STOP;
+	WRITE_ONCE(goflag, GOFLAG_STOP);
 	smp_mb();
 	wait_all_threads();
 	printf("lockacqs = %lu, lockerr = %lu\n", lockacqs, lockerr);

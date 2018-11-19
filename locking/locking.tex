@@ -1463,7 +1463,7 @@ void force_quiescent_state(struct rcu_node *rnp_leaf)
 	struct rcu_node *rnp_old = NULL;
 
 	for (; rnp != NULL; rnp = rnp->parent) {	\lnlbl[loop:b]
-		ret = (ACCESS_ONCE(gp_flags)) ||	\lnlbl[flag_set]
+		ret = (READ_ONCE(gp_flags)) ||		\lnlbl[flag_set]
 		       !raw_spin_trylock(&rnp->fqslock);\lnlbl[trylock]
 		if (rnp_old != NULL)			\lnlbl[non_NULL]
 			raw_spin_unlock(&rnp_old->fqslock);\lnlbl[rel1]
@@ -1471,11 +1471,11 @@ void force_quiescent_state(struct rcu_node *rnp_leaf)
 			return;				\lnlbl[return]
 		rnp_old = rnp;				\lnlbl[save]
 	}						\lnlbl[loop:e]
-	if (!ACCESS_ONCE(gp_flags)) {			\lnlbl[flag_not_set]
-		ACCESS_ONCE(gp_flags) = 1;		\lnlbl[set_flag]
+	if (!READ_ONCE(gp_flags)) {			\lnlbl[flag_not_set]
+		WRITE_ONCE(gp_flags, 1);		\lnlbl[set_flag]
 		do_force_quiescent_state();		\lnlbl[invoke]
 		schedule_timeout_interruptible(HZ / 10);\lnlbl[wait]
-		ACCESS_ONCE(gp_flags) = 0;		\lnlbl[clr_flag]
+		WRITE_ONCE(gp_flags, 0);		\lnlbl[clr_flag]
 	}
 	raw_spin_unlock(&rnp_old->fqslock);		\lnlbl[rel2]
 }
@@ -1649,7 +1649,7 @@ the lock, thus marking it as having been released.
 \QuickQuizAnswer{
 	This can be a legitimate implementation, but only if
 	this store is preceded by a memory barrier and makes use
-	of \co{ACCESS_ONCE()}.
+	of \co{WRITE_ONCE()}.
 	The memory barrier is not required when the \co{xchg()}
 	operation is used because this operation implies a
 	full memory barrier due to the fact that it returns
