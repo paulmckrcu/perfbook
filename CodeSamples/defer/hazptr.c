@@ -53,6 +53,8 @@ void hazptr_thread_exit(void)
 		hazptr_scan();
 		poll(NULL, 0, 1);
 	}
+
+	free(gplist);
 }
 
 void hazptr_reinitialize()
@@ -103,6 +105,7 @@ void hazptr_scan()
 			fprintf(stderr, "hazptr_scan: out of memory\n");
 			exit(EXIT_FAILURE);
 		}
+		gplist = plist;
 	}
 
 	/*
