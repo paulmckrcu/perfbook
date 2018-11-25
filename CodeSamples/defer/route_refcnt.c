@@ -22,26 +22,27 @@
 #include "../api.h"
 
 /* Route-table entry to be included in the routing list. */
+//\begin{snippet}[labelbase=ln:defer:route_refcnt:lookup,commandchars=\\\[\]]
 struct route_entry {
-	atomic_t re_refcnt;
+	atomic_t re_refcnt;				//\lnlbl{entry:refcnt}
 	struct route_entry *re_next;
 	unsigned long addr;
 	unsigned long iface;
-	int re_freed;
+	int re_freed;					//\lnlbl{entry:freed}
 };
-
+							//\fcvexclude
 struct route_entry route_list;
-DEFINE_SPINLOCK(routelock);
+DEFINE_SPINLOCK(routelock);				//\lnlbl{entry:routelock}
 
-static void re_free(struct route_entry *rep)
+static void re_free(struct route_entry *rep)		//\lnlbl{re_free:b}
 {
 	WRITE_ONCE(rep->re_freed, 1);
 	free(rep);
-}
+}							//\lnlbl{re_free:e}
 
-/*
- * Look up a route entry, return the corresponding interface. 
- */
+/*								\fcvexclude
+ * Look up a route entry, return the corresponding interface. 	\fcvexclude
+ */							      //\fcvexclude
 unsigned long route_lookup(unsigned long addr)
 {
 	int old;
@@ -54,23 +55,24 @@ retry:
 	repp = &route_list.re_next;
 	rep = NULL;
 	do {
-		if (rep && atomic_dec_and_test(&rep->re_refcnt))
-			re_free(rep);
+		if (rep && atomic_dec_and_test(&rep->re_refcnt)) //\lnlbl{lookup:relprev:b}
+			re_free(rep);				//\lnlbl{lookup:relprev:e}
 		rep = READ_ONCE(*repp);
-		if (rep == NULL)
+		if (rep == NULL)				//\lnlbl{lookup:check_NULL}
 			return ULONG_MAX;
-
-		/* Acquire a reference if the count is non-zero. */
-		do {
-			if (READ_ONCE(rep->re_freed))
-				abort();
+								//\fcvexclude
+		/* Acquire a reference if the count is non-zero. */ //\fcvexclude
+		do {						//\lnlbl{lookup:acq:b}
+			if (READ_ONCE(rep->re_freed))		//\lnlbl{lookup:check_uaf}
+				abort();			//\lnlbl{lookup:abort}
 			old = atomic_read(&rep->re_refcnt);
 			if (old <= 0)
 				goto retry;
 			new = old + 1;
-		} while (atomic_cmpxchg(&rep->re_refcnt, old, new) != old);
-
-		/* Advance to next. */
+		} while (atomic_cmpxchg(&rep->re_refcnt,
+		                        old, new) != old);	//\lnlbl{lookup:acq:e}
+								//\fcvexclude
+		/* Advance to next. */				//\fcvexclude
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
 	ret = rep->iface;
@@ -78,10 +80,12 @@ retry:
 		re_free(rep);
 	return ret;
 }
+//\end{snippet}
 
 /*
  * Add an element to the route table.
  */
+//\begin{snippet}[labelbase=ln:defer:route_refcnt:add_del,commandchars=\\\[\]]
 int route_add(unsigned long addr, unsigned long interface)
 {
 	struct route_entry *rep;
@@ -92,23 +96,23 @@ int route_add(unsigned long addr, unsigned long interface)
 	atomic_set(&rep->re_refcnt, 1);
 	rep->addr = addr;
 	rep->iface = interface;
-	spin_lock(&routelock);
+	spin_lock(&routelock);				//\lnlbl{acq1}
 	rep->re_next = route_list.re_next;
-	rep->re_freed = 0;
+	rep->re_freed = 0;				//\lnlbl{init:freed}
 	route_list.re_next = rep;
-	spin_unlock(&routelock);
+	spin_unlock(&routelock);			//\lnlbl{rel1}
 	return 0;
 }
 
-/*
- * Remove the specified element from the route table.
- */
+/*								\fcvexclude
+ * Remove the specified element from the route table.		\fcvexclude
+ */							      //\fcvexclude
 int route_del(unsigned long addr)
 {
 	struct route_entry *rep;
 	struct route_entry **repp;
 
-	spin_lock(&routelock);
+	spin_lock(&routelock);				//\lnlbl{acq2}
 	repp = &route_list.re_next;
 	for (;;) {
 		rep = *repp;
@@ -116,16 +120,17 @@ int route_del(unsigned long addr)
 			break;
 		if (rep->addr == addr) {
 			*repp = rep->re_next;
-			spin_unlock(&routelock);
-			if (atomic_dec_and_test(&rep->re_refcnt))
-				re_free(rep);
+			spin_unlock(&routelock);	//\lnlbl{rel2}
+			if (atomic_dec_and_test(&rep->re_refcnt)) //\lnlbl{re_free:b}
+				re_free(rep);		//\lnlbl{re_free:e}
 			return 0;
 		}
 		repp = &rep->re_next;
 	}
-	spin_unlock(&routelock);
+	spin_unlock(&routelock);			//\lnlbl{rel3}
 	return -ENOENT;
 }
+//\end{snippet}
 
 /*
  * Clear all elements from the route table.
