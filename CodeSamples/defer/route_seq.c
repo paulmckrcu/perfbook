@@ -23,18 +23,19 @@
 #include "../api.h"
 
 /* Route-table entry to be included in the routing list. */
-struct route_entry {
+//\begin{snippet}[labelbase=ln:defer:route_seq:lookup_add_del,commandchars=\\\[\]]
+struct route_entry {					//\lnlbl{entry:b}
 	struct cds_list_head re_next;
 	unsigned long addr;
 	unsigned long iface;
-};
+};							//\lnlbl{entry:e}
+							//\fcvexclude
+CDS_LIST_HEAD(route_list);				//\lnlbl{entry:header}
 
-CDS_LIST_HEAD(route_list);
-
-/*
- * Look up a route entry, return the corresponding interface. 
- */
-unsigned long route_lookup(unsigned long addr)
+/*								\fcvexclude
+ * Look up a route entry, return the corresponding interface. 	\fcvexclude
+ */							      //\fcvexclude
+unsigned long route_lookup(unsigned long addr)		//\lnlbl{lookup:b}
 {
 	struct route_entry *rep;
 	unsigned long ret;
@@ -46,12 +47,12 @@ unsigned long route_lookup(unsigned long addr)
 		}
 	}
 	return ULONG_MAX;
-}
+}							//\lnlbl{lookup:e}
 
-/*
- * Add an element to the route table.
- */
-int route_add(unsigned long addr, unsigned long interface)
+/*								\fcvexclude
+ * Add an element to the route table.				\fcvexclude
+ */							      //\fcvexclude
+int route_add(unsigned long addr, unsigned long interface)//\lnlbl{add:b}
 {
 	struct route_entry *rep;
 
@@ -62,12 +63,12 @@ int route_add(unsigned long addr, unsigned long interface)
 	rep->iface = interface;
 	cds_list_add(&rep->re_next, &route_list);
 	return 0;
-}
+}							//\lnlbl{add:e}
 
-/*
- * Remove the specified element from the route table.
- */
-int route_del(unsigned long addr)
+/*								\fcvexclude
+ * Remove the specified element from the route table.		\fcvexclude
+ */							      //\fcvexclude
+int route_del(unsigned long addr)			//\lnlbl{del:b}
 {
 	struct route_entry *rep;
 
@@ -79,7 +80,8 @@ int route_del(unsigned long addr)
 		}
 	}
 	return -ENOENT;
-}
+}							//\lnlbl{del:e}
+//\end{snippet}
 
 /*
  * Clear all elements from the route table.
