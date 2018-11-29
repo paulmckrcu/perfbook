@@ -45,26 +45,23 @@ my $edit_line;
 my $first_line;
 my $end_command;
 my $lnlbl_command;
-my $lnlbl_on_exists = "";
-my $lnlbl_on_filter = "";
-my $lnlbl_on_locations = "";
 my $status = 0;	# 0: just started, 1: first_line read; 2: begin line output,
-		# 3: end line read
+		# 3: final line
 
 while($line = <>) {
     if (eof) {
-	if ($line =~ /exists/) {
-	    chomp $line;
-	    print $line . $lnlbl_on_exists . "\n";
-	} elsif ($line =~ /filter/) {
-	    chomp $line;
-	    print $line . $lnlbl_on_filter . "\n";
-	} elsif ($line =~ /locations/) {
-	    chomp $line;
-	    print $line . $lnlbl_on_locations . "\n";
-	} else {
-	    print $line;
+	if ($line =~ /\\lnlbl\[[^\]]*\]/) {
+	    $_ = $line ;
+	    s/\\lnlbl\[([^\]]*)\]/\\lnlbl\{$1\}/ ;
+	    $line = $_ ;
 	}
+	if ($line =~ /\(\*\s*\\lnlbl\{[^\}]*\}\s*\*\)/) {
+	    $_ = $line ;
+	    s/\(\*\s*(\\lnlbl\{[^\}]*\})\s*\*\)/\/\/$1/ ;
+	    $line = $_ ;
+	}
+	print $line ;
+	$status = 3;
 	last;
     }
     if ($status == 0) {
@@ -85,16 +82,6 @@ while($line = <>) {
 	    $_ = $line ;
 	    s/\\end\[snippet\]/\\end\{snippet\}/ ;
 	    $end_command = $_ ;
-	    if ($line =~ /existslabel=([^\],]+)/) {
-		$lnlbl_on_exists = "//\\lnlbl\{$1\}";
-	    }
-	    if ($line =~ /filterlabel=([^\],]+)/) {
-		$lnlbl_on_filter = "//\\lnlbl\{$1\}";
-	    }
-	    if ($line =~ /locationslabel=([^\],]+)/) {
-		$lnlbl_on_locations = "//\\lnlbl\{$1\}";
-	    }
-	    $status = 3;
 	    next;
 	} else {
 	    if ($line =~ /\\lnlbl\[[^\]]*\]/) {
@@ -107,19 +94,6 @@ while($line = <>) {
 		s/\(\*\s*(\\lnlbl\{[^\}]*\})\s*\*\)/\/\/$1/ ;
 		$line = $_ ;
 	    }
-	    print $line ;
-	}
-    } elsif ($status == 3) {
-	if ($line =~ /exists/) {
-	    chomp $line;
-	    print $line . $lnlbl_on_exists . "\n";
-	} elsif ($line =~ /filter/) {
-	    chomp $line;
-	    print $line . $lnlbl_on_filter . "\n";
-	} elsif ($line =~ /locations/) {
-	    chomp $line;
-	    print $line . $lnlbl_on_locations . "\n";
-	} else {
 	    print $line ;
 	}
     }
