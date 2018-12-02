@@ -456,6 +456,12 @@ Note that variables \co{x0} and \co{x1} each still have more than one
 value on row~2, however, as promised earlier, the \co{smp_mb()}
 instances straighten things out in the end.
 
+Although full barriers such as \co{smp_mb()} have extremely strong
+ordering guarantees, their strength comes at a high price.
+A great many situations can be handled with much weaker ordering guarantees
+that use much cheaper memory-ordering instructions, or, in some case, no
+memory-ordering instructions at all.
+
 \begin{table*}[tbh]
 \small
 \centering\OneColumnHSpace{-0.7in}
@@ -472,7 +478,7 @@ instances straighten things out in the end.
 		   Y &   &   &     &      &   &   &    &    &     &  Y \\
 	Load, for example, \tco{READ_ONCE()} &  &
 		   Y &   &   &     &      &   &   &  Y &  Y &     &  Y \\
-	Unsuccessful RMW operation &  &
+	\tco{_relaxed()} RMW operation &  &
 		   Y &   &   &     &      &   &   &  Y &  Y &     &  Y \\
 	\tco{smp_read_barrier_depends()} &  &
 		     & Y &   &     &      &   &   &  Y &  Y &     &    \\
@@ -520,11 +526,6 @@ instances straighten things out in the end.
 \label{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 \end{table*}
 
-Although full barriers such as \co{smp_mb()} have extremely strong
-ordering guarantees, their strength comes at a high price.
-A great many situations can be handled with much weaker ordering guarantees
-that use much cheaper memory-ordering instructions, or, in some case, no
-memory-ordering instructions at all.
 Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 provides a cheatsheet of the Linux kernel's ordering primitives and their
 guarantees.
@@ -537,6 +538,18 @@ while other characters indicate that ordering is supplied only partially or
 conditionally.
 Blank cells indicate that no ordering is supplied.
 
+The ``Store'' row also covers the store portion of an atomic RMW operation.
+In addition, the ``Load'' row covers the load
+component of a successful value-returning \co{_relaxed()} RMW atomic
+operation, although the combined ``\co{_relaxed()} RMW Operations''
+line provides a convenient combined reference in the value-returning case.
+A CPU executing unsuccessful value-returning atomic RMW operations must
+invalidate the corresponding variable from all other CPUs' caches.
+Therefore, oddly enough, unsuccessful value-returning atomic RMW
+operations have many of the properties of a store, which means that the
+``\co{_relaxed()} RMW Operations'' line also applies to unsuccessful
+value-returning atomic RMW operations.
+
 The \co{*_acquire} row covers \co{smp_load_acquire()},
 \co{cmpxchg_acquire()}, \co{xchg_acquire()}, and so on;
 the \co{*_release} row covers \co{smp_store_release()},
@@ -547,7 +560,7 @@ the ``Successful full-strength non-\co{void} RMW'' row covers
 The ``Successful'' qualifiers apply to primitives such as
 \co{atomic_add_unless()}, \co{cmpxchg_acquire()}, and \co{cmpxchg_release()},
 which have no effect on either memory or on ordering when they indicate
-failure, as indicated by the earlier ``Unsuccessful RMW operation'' row.
+failure, as indicated by the earlier ``\co{_relaxed()} RMW operation'' row.
 
 Column ``C'' indicates cumulativity and propagation, as explained in
 Sections~\ref{sec:memorder:Cumulativity}
@@ -570,24 +583,28 @@ are at most two threads involved.
 	Note that all other operations providing ordering against accesses
 	to multiple variables also provide this same-variable ordering.
 
-	The \co{READ_ONCE()} row captures the fact that (as of 2017) compilers
+	The \co{READ_ONCE()} row captures the fact that (as of 2018) compilers
 	and CPUs do not indulge in user-visible speculative stores, so that
 	any store whose address, data, or execution depends on a prior load
-	will happen after that load completes.
-	At least assuming that these dependencies have been constructed
-	carefully as described in
+	is guaranteed to happen after that load completes.
+	However, this guarantee assumes that these dependencies have
+	been constructed carefully as described in
 	Sections~\ref{sec:memorder:Address- and Data-Dependency Difficulties}
 	and~\ref{sec:memorder:Control-Dependency Calamities}.
 
-	The ``Unsuccessful RMW operation'' row captures the fact that
-	even an unsuccessful RMW has done a read, and that read is
-	every bit as good as a \co{READ_ONCE()}.
+	The ``\co{_relaxed()} RMW operation'' row captures the fact
+	that a value-returning \co{_relaxed()} RMW has done a load and a
+	store, which are every bit as good as a \co{READ_ONCE()} and a
+	\co{WRITE_ONCE()}, respectively.
 
 	The \co{smp_read_barrier_depends()} row captures the fact that, with the
 	notable exception of DEC Alpha, compilers and CPUs do not indulge
 	in user-visible breakage of address dependencies, again assuming
 	that these dependencies have been constructed carefully as described in
 	Section~\ref{sec:memorder:Address- and Data-Dependency Difficulties}.
+	However, as of version v4.15 of the Linux kernel, the fact that
+	\co{READ_ONCE()} provides dependency ordering should mean that
+	there is little further need for \co{smp_read_barrier_depends()}.
 
 	The \co{*_dereference()} row captures the address and data
 	dependency ordering provided by \co{rcu_dereference()} and friends.
@@ -627,6 +644,9 @@ are at most two threads involved.
 	The \co{smp_mb()} row corresponds to the full memory barrier
 	available on most platforms, with Itanium being the exception
 	that proves the rule.
+	However, even on Itanium, \co{smp_mb()} provides full ordering
+	with respect to \co{READ_ONCE()} and \co{WRITE_ONCE()},
+	as discussed in Section~\ref{sec:memorder:Itanium}.
 
 	The ``Successful full-strength non-\co{void} RMW'' row captures
 	the fact that on some platforms (such as x86) atomic RMW instructions
@@ -636,10 +656,12 @@ are at most two threads involved.
 	operations succeed.
 	(Full-strength atomic RMW operation's names do not end in
 	\co{_relaxed}, \co{_acquire}, or \co{_release}.)
+	As noted earlier, the case where these operations do not succeed
+	is covered by the ``\co{_relaxed()} RMW operation'' row.
 
-	However, the Linux kernel does not require that \co{void} atomic
-	RMW operations provide any ordering whatsoever, with the
-	canonical example being \co{atomic_inc()}.
+	However, the Linux kernel does not require that either \co{void}
+	or \co{_relaxed()} atomic RMW operations provide any ordering
+	whatsoever, with the canonical example being \co{atomic_inc()}.
 	Therefore, these operations, along with failing non-\co{void}
 	atomic RMW operations may be preceded by \co{smp_mb__before_atomic()}
 	and followed by \co{smp_mb__after_atomic()} to provide full
@@ -652,9 +674,9 @@ are at most two threads involved.
 
 	In short, any randomness in the table is due to the properties
 	of the underlying hardware, which are constrained by nothing other
-	than the laws of physics, as was explained back in
+	than the laws of physics, which were covered back in
 	Chapter~\ref{chp:Hardware and its Habits}.
-	% forward reference to rf co fr section
+	% @@@ forward reference to rf co fr section
 } \QuickQuizEnd
 
 \QuickQuiz{}
