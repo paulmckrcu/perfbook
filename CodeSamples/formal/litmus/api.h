@@ -1,7 +1,12 @@
 #ifndef __API_H__
 #define __API_H__
 #ifndef READ_ONCE
-#define READ_ONCE(x) __atomic_load_n((typeof(x) *)&(x), __ATOMIC_RELAXED)
+#define __READ_ONCE(x) __atomic_load_n((typeof(x) *)&(x), __ATOMIC_RELAXED)
+#ifdef __alpha__
+#define READ_ONCE(x) ({ typeof(x) ___x = __READ_ONCE(x); smp_mb(); ___x; })
+#else
+#define READ_ONCE(x) __READ_ONCE(x)
+#endif
 #define WRITE_ONCE(x, v) __atomic_store_n((typeof(x) *)&(x), (v), __ATOMIC_RELAXED)
 #define smp_mb() __atomic_thread_fence(__ATOMIC_SEQ_CST)
 #define smp_rmb() __atomic_thread_fence(__ATOMIC_ACQUIRE) /* outside std. */
@@ -14,10 +19,5 @@
 	__atomic_compare_exchange_n((x), &__old, (n), 1, __ATOMIC_SEQ_CST, __ATOMIC_RELAXED); \
 	__old; \
 })
-#ifdef __alpha__
-#define lockless_dereference(x) ({ typeof(x) ___x = READ_ONCE(x); smp_mb(); ___x; })
-#else
-#define lockless_dereference(x) READ_ONCE(x)
-#endif
 #endif
 #endif

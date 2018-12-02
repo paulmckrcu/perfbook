@@ -590,8 +590,7 @@ are at most two threads involved.
 	Section~\ref{sec:memorder:Address- and Data-Dependency Difficulties}.
 
 	The \co{*_dereference()} row captures the address and data
-	dependency ordering provided by \co{lockless_dereference()},
-	\co{rcu_dereference()}, and friends.
+	dependency ordering provided by \co{rcu_dereference()} and friends.
 
 	The ``Successful \co{*_acquire()}'' row captures the fact that many
 	CPUs have special ``acquire'' forms of loads and of atomic RMW
@@ -1411,7 +1410,7 @@ P1(int** x1) {
   int *r2;
   int r3;
 
-  r2 = lockless_dereference(*x1);
+  r2 = lockless_dereference(*x1); // Obsolete
   r3 = READ_ONCE(*r2);
 
 }
@@ -1426,12 +1425,14 @@ exists (1:r2=x0 /\ 1:r3=1)
 \end{listing}
 
 Listing~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}
-(\path{C-MP+o-wmb-o+ld-addr-o.litmus})
-shows how to make this work reliably on old Linux kernels running on
+% \path{C-MP+o-wmb-o+ld-addr-o.litmus} available at commit bc4b1c3f3b35
+% ("styleguide: Loosen restriction on comment in litmus test")
+shows how to make this work reliably on pre-v4.15 Linux kernels running on
 DEC Alpha, by
 replacing line~21's \co{READ_ONCE()} with \co{lockless_dereference()},\footnote{
 	Note that \co{lockless_dereference()} is not needed on v4.15 and
-	later, and therefore is not available in these later Linux kernels.}
+	later, and therefore is not available in these later Linux kernels.
+	Nor is it needed in versions of this book containing this sentence.}
 which acts like \co{READ_ONCE()} on all platforms other than DEC Alpha,
 where it acts like a \co{READ_ONCE()} followed by an \co{smp_mb()},
 thereby forcing the required ordering on all platforms, in turn
@@ -1482,8 +1483,7 @@ Because no production-quality platform speculates stores,
 it is not possible for the \co{WRITE_ONCE()} on line~10 to overwrite
 the \co{WRITE_ONCE()} on line~21, meaning that the \co{exists}
 clause on line~25 cannot trigger, even on DEC Alpha, even
-without the \co{lockless_dereference()} that is required in the
-dependent-load case.
+in pre-v4.15 Linux kernels.
 
 \QuickQuiz{}
 	But how do we know that \emph{all} platforms really avoid
@@ -1520,19 +1520,23 @@ dependent-load case.
 	There is one (famous) exception to this rule for weakly ordered
 	platforms, and that exception is DEC Alpha for load-to-load
 	address dependencies.
-	And this is why DEC Alpha requires the explicit memory barrier
-	supplied for it by the \co{lockless_dereference()} on line~21 of
+	And this is why, in Linux kernels predating v4.15, DEC Alpha
+	requires the explicit memory barrier supplied for it by the
+	now-obsolete \co{lockless_dereference()} on line~21 of
 	Listing~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test}.
 	However, DEC Alpha does track load-to-store address dependencies,
 	which is why line~20 of
 	Listing~\ref{lst:memorder:S Address-Dependency Litmus Test}
-	does not have a \co{lockless_dereference()}.
+	does not need a \co{lockless_dereference()}, even in Linux
+	kernels predating v4.15.
 
 	To sum up, current platforms either respect address dependencies
 	implicitly, as is the case for TSO platforms (x86, mainframe,
 	SPARC,~...), have hardware tracking for address dependencies
-	(ARM, PowerPC, MIPS,~...), or have the required memory barriers
-	supplied by \co{lockless_dereference()} (DEC Alpha).
+	(ARM, PowerPC, MIPS,~...), have the required memory barriers
+	supplied by \co{READ_ONCE()} (DEC Alpha in Linux kernel v4.15 and
+	later), or require the memory barriers supplied by
+	\co{rcu_dereference()} (DEC Alpha in Linux kernel v4.14 and earlier).
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -1604,16 +1608,6 @@ enforced not by an acquire load, but instead by a data dependency:
 The value loaded by line~18 is what line~19 stores.
 The ordering provided by this data dependency is sufficient to prevent
 the \co{exists} clause from triggering.
-
-\QuickQuiz{}
-	Why doesn't line~18 of
-	Listing~\ref{lst:memorder:Load-Buffering Data-Dependency Litmus Test}
-	need a \co{lockless_dereference()}?
-\QuickQuizAnswer{
-	Data dependencies are always load-to-store dependencies, and
-	so all platforms respect them, even DEC Alpha, and for the
-	same reasons that they respect load-to-store address dependencies.
-} \QuickQuizEnd
 
 Just as with address dependencies, data dependencies are
 fragile and can be easily broken by compiler optimizations, as discussed in
@@ -3388,9 +3382,7 @@ your compiler from breaking your dependencies.
 
 \subsubsection{Give your dependency chain a good start}
 The load that heads your dependency chain must use proper
-ordering, for example, \co{lockless_dereference()},
-\co{rcu_dereference()}, or
-a \co{READ_ONCE()} followed by \co{smp_read_barrier_depends()}.
+ordering, for example \co{rcu_dereference()} or \co{READ_ONCE()}.
 Failure to follow this rule can have serious side effects:
 
 \begin{enumerate}
@@ -4353,8 +4345,7 @@ set of memory-ordering primitives, which are as follows:
 	that depend on prior operations to be ordered.
 	This primitive is a no-op on all platforms except Alpha, but
 	is normally not used directly, but rather as part of
-	something like \co{lockless_dereference()} or
-	\co{rcu_dereference()}.
+	something like \co{READ_ONCE()} or \co{rcu_dereference()}.
 \item	[\tco{smp_mb__before_atomic()}] that forces ordering of accesses
 	preceding the \co{smp_mb__before_atomic()} against accesses following
 	a later RMW atomic operation.
@@ -5133,8 +5124,8 @@ You can replace a given acquire with a a dependency in environments permitting
 this, keeping in mind that the C11 standard's memory model does \emph{not}
 permit this.
 Note also that a dependency leading to a load must be headed by
-a \co{lockless_dereference()} or an \co{rcu_dereference()}:
-\co{READ_ONCE()} is not sufficient.
+a \co{READ_ONCE()} or an \co{rcu_dereference()}:
+a plain C-language load is not sufficient.
 Never forget to carefully review
 Sections~\ref{sec:memorder:Address- and Data-Dependency Difficulties}
 and~\ref{sec:memorder:Control-Dependency Calamities}, because
