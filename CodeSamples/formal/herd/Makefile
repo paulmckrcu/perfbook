@@ -37,7 +37,7 @@ LKMM_LIST    := $(addprefix $(LKMM_DIR)/,$(LKMM_FILES))
 HERD_DIR     := $(shell pwd)
 HERD7_CMD    := $(shell which herd7)
 KLITMUS7_CMD := $(shell which klitmus7)
-LITMUS7_TEST := $(notdir $(wildcard ../litmus/*.litmus))
+LITMUS7_TEST := $(sort $(notdir $(wildcard ../litmus/*.litmus)))
 LITMUS7_HERD_TEST := $(addsuffix .herd,$(LITMUS7_TEST))
 LITMUS7_HERD_OUT  := $(addsuffix .out,$(LITMUS7_TEST))
 HERD7_LITMUS   := $(wildcard *.litmus)
@@ -49,7 +49,7 @@ ABSPERF_SHORT  := $(filter-out $(ABSPERF_LONG),$(ABSPERF_TEST))
 ABSPERF_OUT    = absperf.out absperf-all.out
 HERD7_TEST     := $(filter-out $(ABSPERF_TEST),$(HERD7_LITMUS))
 HERD7_OUT      := $(HERD7_TEST:%.litmus=%.out)
-KLITMUS_READY = C-RCU-remove C-RomanPenyaev-list-rcu-rr
+KLITMUS_READY = C-Lock1 C-Lock2 C-RCU-remove C-RomanPenyaev-list-rcu-rr
 KLITMUS_TEST   := $(addsuffix .litmus,$(KLITMUS_READY))
 
 .PHONY: all clean litmus2herd run-herd7 run-absperf run-absperf-all cross-klitmus
