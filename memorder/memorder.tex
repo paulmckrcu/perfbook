@@ -5095,26 +5095,34 @@ among others.
 
 This section revisits
 Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
-in light of the intervening discussion.
+and Section~\ref{sec:memorder:Basic Rules of Thumb},
+summarizing the intervening discussion with a more sophisticated
+set of rules of thumb.
 
-Memory-ordering operations are only required where there is a possibility
-of interaction involving at least two variables between at least two
-threads.
-As always, if a single-threaded program will provide sufficient
+The first rule of thumb is that memory-ordering operations are only
+required where there is a possibility of interaction involving at least
+two variables shared among at least two threads.
+In light of the intervening material, this single sentence encapsulates much of
+Section~\ref{sec:memorder:Basic Rules of Thumb}'s basic rules of thumb,
+for example, keeping in mind that ``memory-barrier pairing'' is a
+two-thread special case of ``cycle''.
+And, as always, if a single-threaded program will provide sufficient
 performance, why bother with parallelism?\footnote{
 	Hobbyists and researchers should of course feel free to ignore
 	this and other cautions.}
 After all, avoiding parallelism also avoids the added cost of
 memory-ordering operations.
 
+The second rule of thumb involves load-buffering situations:
 If all thread-to-thread communication in a given cycle use store-to-load links
 (that is, the next thread's load returning the value that the previous thread
 stored), minimal ordering suffices, as illustrated by
 Listings~\ref{lst:memorder:Load-Buffering Data-Dependency Litmus Test}
 and~\ref{lst:memorder:Load-Buffering Control-Dependency Litmus Test}.
-Minimal ordering includes dependencies, acquires, and all stronger
+Minimal ordering includes dependencies and acquires as well as all stronger
 ordering operations.
 
+The third rule of thumb involves release-acquire chains:
 If all but one of the links in a given cycle is a store-to-load
 link, it is sufficient to use release-acquire pairs for each of
 those store-to-load links, as illustrated by
@@ -5122,11 +5130,11 @@ Listings~\ref{lst:memorder:Long ISA2 Release-Acquire Chain}
 and~\ref{lst:memorder:Long Z6.2 Release-Acquire Chain}.
 You can replace a given acquire with a a dependency in environments permitting
 this, keeping in mind that the C11 standard's memory model does \emph{not}
-permit this.
-Note also that a dependency leading to a load must be headed by
+fully respect dependencies.
+Therefore, a dependency leading to a load must be headed by
 a \co{READ_ONCE()} or an \co{rcu_dereference()}:
 a plain C-language load is not sufficient.
-Never forget to carefully review
+In addition, never forget to carefully review
 Sections~\ref{sec:memorder:Address- and Data-Dependency Difficulties}
 and~\ref{sec:memorder:Control-Dependency Calamities}, because
 a dependency broken by your compiler is no help at all!
@@ -5135,7 +5143,12 @@ usually substitute \co{WRITE_ONCE()} plus \co{smp_wmb()} for
 \co{smp_store_release()} on the one hand,
 and \co{READ_ONCE()} plus \co{smp_rmb()} for \co{smp_load_acquire()}
 on the other.
+However, the wise developer will check such substitutions carefully,
+for example, using the herd tool as described in
+Section~\ref{sec:formal:Axiomatic Approaches}.
 
+The fourth and final rule of thumb identifies where full memory barriers
+(or stronger) are required:
 If a given cycle contains two or more non-store-to-load links (that is,
 a total of two or more load-to-store and store-to-store links), you will
 need at least one full barrier between each pair of non-store-to-load
@@ -5147,12 +5160,12 @@ Full barriers include \co{smp_mb()}, successful full-strength non-\co{void}
 atomic RMW operations, and other atomic RMW operations in conjunction with
 either \co{smp_mb__before_atomic()} or \co{smp_mb__after_atomic()}.
 Any of RCU's grace-period-wait primitives (\co{synchronize_rcu()} and
-friends) also act as full barriers, but at even greater expense than
+friends) also act as full barriers, but at far greater expense than
 \co{smp_mb()}.
-With strength comes expense, though the overhead of full barriers
-usually hurts performance more than it hurts scalability.
+With strength comes expense, though full barriers
+usually hurt performance more than they hurt scalability.
 
-Note that these are the \emph{minimum} guarantees.
+Note that these four rules of thumb encapsulate \emph{minimum} guarantees.
 Different architectures may give
 more substantial guarantees,
 as discussed in Section~\ref{sec:memorder:Hardware Specifics},
@@ -5166,4 +5179,4 @@ expense of somewhat greater complexity.
 One final word of advice: Use of raw memory-ordering primitives is
 a last resort.
 It is almost always better to use existing primitives, such as locking
-or RCU, and to let those primitives take care of memory ordering for you.
+or RCU, thus letting those primitives do the memory ordering for you.
