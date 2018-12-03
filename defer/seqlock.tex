@@ -263,100 +263,13 @@ increment of the sequence number on line~\lnref{inc}, then releases the lock.
 } \QuickQuizEnd
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 struct route_entry {
- 2   struct route_entry *re_next;
- 3   unsigned long addr;
- 4   unsigned long iface;
- 5   int re_freed;
- 6 };
- 7 struct route_entry route_list;
- 8 DEFINE_SEQ_LOCK(sl);
- 9
-10 unsigned long route_lookup(unsigned long addr)
-11 {
-12   struct route_entry *rep;
-13   struct route_entry **repp;
-14   unsigned long ret;
-15   unsigned long s;
-16
-17 retry:
-18   s = read_seqbegin(&sl);
-19   repp = &route_list.re_next;
-20   do {
-21     rep = READ_ONCE(*repp);
-22     if (rep == NULL) {
-23       if (read_seqretry(&sl, s))
-24         goto retry;
-25       return ULONG_MAX;
-26     }
-27     repp = &rep->re_next;
-28   } while (rep->addr != addr);
-29   if (READ_ONCE(rep->re_freed))
-30     abort();
-31   ret = rep->iface;
-32   if (read_seqretry(&sl, s))
-33     goto retry;
-34   return ret;
-35 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/defer/route_seqlock@lookup.fcv}
 \caption{Sequence-Locked Pre-BSD Routing Table Lookup (BUGGY!!!)}
 \label{lst:defer:Sequence-Locked Pre-BSD Routing Table Lookup}
 \end{listing}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 int route_add(unsigned long addr,
- 2               unsigned long interface)
- 3 {
- 4   struct route_entry *rep;
- 5
- 6   rep = malloc(sizeof(*rep));
- 7   if (!rep)
- 8     return -ENOMEM;
- 9   rep->addr = addr;
-10   rep->iface = interface;
-11   rep->re_freed = 0;
-12   write_seqlock(&sl);
-13   rep->re_next = route_list.re_next;
-14   route_list.re_next = rep;
-15   write_sequnlock(&sl);
-16   return 0;
-17 }
-18
-19 int route_del(unsigned long addr)
-20 {
-21   struct route_entry *rep;
-22   struct route_entry **repp;
-23
-24   write_seqlock(&sl);
-25   repp = &route_list.re_next;
-26   for (;;) {
-27     rep = *repp;
-28     if (rep == NULL)
-29       break;
-30     if (rep->addr == addr) {
-31       *repp = rep->re_next;
-32       write_sequnlock(&sl);
-33       smp_mb();
-34       rep->re_freed = 1;
-35       free(rep);
-36       return 0;
-37     }
-38     repp = &rep->re_next;
-39   }
-40   write_sequnlock(&sl);
-41   return -ENOENT;
-42 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/defer/route_seqlock@add_del.fcv}
 \caption{Sequence-Locked Pre-BSD Routing Table Add/Delete (BUGGY!!!)}
 \label{lst:defer:Sequence-Locked Pre-BSD Routing Table Add/Delete}
 \end{listing}
@@ -370,19 +283,29 @@ shows \co{route_add()} and \co{route_del()} (\path{route_seqlock.c}).
 This implementation is once again similar to its counterparts in earlier
 sections, so only the differences will be highlighted.
 
+\begin{lineref}[ln:defer:route_seqlock:lookup]
 In
 Listing~\ref{lst:defer:Sequence-Locked Pre-BSD Routing Table Lookup},
-line~5 adds \co{->re_freed}, which is checked on lines~29 and~30.
-Line~8 adds a sequence lock, which is used by \co{route_lookup()}
-on lines~18, 23, and~32, with lines~24 and~33 branching back to
-the \co{retry} label on line~17.
+line~\lnref{struct:re_freed} adds \co{->re_freed}, which is checked on
+lines~\lnref{lookup:chk_freed} and~\lnref{lookup:abort}.
+Line~\lnref{struct:sl} adds a sequence lock, which is used by \co{route_lookup()}
+\end{lineref}
+\begin{lineref}[ln:defer:route_seqlock:lookup:lookup]
+on lines~\lnref{r_sqbegin}, \lnref{r_sqretry1}, and~\lnref{r_sqretry2},
+with lines~\lnref{goto_retry1} and~\lnref{goto_retry2} branching back to
+the \co{retry} label on line~\lnref{retry}.
 The effect is to retry any lookup that runs concurrently with an update.
+\end{lineref}
 
+\begin{lineref}[ln:defer:route_seqlock:add_del]
 In
 Listing~\ref{lst:defer:Sequence-Locked Pre-BSD Routing Table Add/Delete},
-lines~12, 15, 24, and~40 acquire and release the sequence lock,
-while lines~11, 33, and~44 handle \co{->re_freed}.
+lines~\lnref{add:w_sqlock}, \lnref{add:w_squnlock}, \lnref{del:w_sqlock},
+\lnref{del:w_squnlock1}, and~\lnref{del:w_squnlock2}
+acquire and release the sequence lock,
+while lines~\lnref{add:clr_freed} and~\lnref{del:set_freed} handle \co{->re_freed}.
 This implementation is therefore quite straightforward.
+\end{lineref}
 
 \begin{figure}[tb]
 \centering

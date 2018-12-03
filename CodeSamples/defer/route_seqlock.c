@@ -23,19 +23,20 @@
 #include "seqlock.h"
 
 /* Route-table entry to be included in the routing list. */
+//\begin{snippet}[labelbase=ln:defer:route_seqlock:lookup,commandchars=\\\[\]]
 struct route_entry {
 	struct route_entry *re_next;
 	unsigned long addr;
 	unsigned long iface;
-	int re_freed;
+	int re_freed;					//\lnlbl{struct:re_freed}
 };
-
+								//\fcvexclude
 struct route_entry route_list;
-DEFINE_SEQ_LOCK(sl);
+DEFINE_SEQ_LOCK(sl);					//\lnlbl{struct:sl}
 
-/*
- * Look up a route entry, return the corresponding interface. 
- */
+/*								  \fcvexclude
+ * Look up a route entry, return the corresponding interface. 	  \fcvexclude
+ */								//\fcvexclude
 unsigned long route_lookup(unsigned long addr)
 {
 	struct route_entry *rep;
@@ -43,31 +44,33 @@ unsigned long route_lookup(unsigned long addr)
 	unsigned long ret;
 	unsigned long s;
 
-retry:
-	s = read_seqbegin(&sl);
+retry:							//\lnlbl{lookup:retry}
+	s = read_seqbegin(&sl);				//\lnlbl{lookup:r_sqbegin}
 	repp = &route_list.re_next;
 	do {
 		rep = READ_ONCE(*repp);
 		if (rep == NULL) {
-			if (read_seqretry(&sl, s))
-				goto retry;
+			if (read_seqretry(&sl, s))	//\lnlbl{lookup:r_sqretry1}
+				goto retry;		//\lnlbl{lookup:goto_retry1}
 			return ULONG_MAX;
 		}
-
-		/* Advance to next. */
+								//\fcvexclude
+		/* Advance to next. */				//\fcvexclude
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
-	if (READ_ONCE(rep->re_freed))
-		abort();
+	if (READ_ONCE(rep->re_freed))			//\lnlbl{lookup:chk_freed}
+		abort();				//\lnlbl{lookup:abort}
 	ret = rep->iface;
-	if (read_seqretry(&sl, s))
-		goto retry;
+	if (read_seqretry(&sl, s))			//\lnlbl{lookup:r_sqretry2}
+		goto retry;				//\lnlbl{lookup:goto_retry2}
 	return ret;
 }
+//\end{snippet}
 
 /*
  * Add an element to the route table.
  */
+//\begin{snippet}[labelbase=ln:defer:route_seqlock:add_del,commandchars=\\\[\]]
 int route_add(unsigned long addr, unsigned long interface)
 {
 	struct route_entry *rep;
@@ -77,23 +80,23 @@ int route_add(unsigned long addr, unsigned long interface)
 		return -ENOMEM;
 	rep->addr = addr;
 	rep->iface = interface;
-	rep->re_freed = 0;
-	write_seqlock(&sl);
+	rep->re_freed = 0;			//\lnlbl{add:clr_freed}
+	write_seqlock(&sl);			//\lnlbl{add:w_sqlock}
 	rep->re_next = route_list.re_next;
 	route_list.re_next = rep;
-	write_sequnlock(&sl);
+	write_sequnlock(&sl);			//\lnlbl{add:w_squnlock}
 	return 0;
 }
 
-/*
- * Remove the specified element from the route table.
- */
+/*								  \fcvexclude
+ * Remove the specified element from the route table.		  \fcvexclude
+ */								//\fcvexclude
 int route_del(unsigned long addr)
 {
 	struct route_entry *rep;
 	struct route_entry **repp;
 
-	write_seqlock(&sl);
+	write_seqlock(&sl);				//\lnlbl{del:w_sqlock}
 	repp = &route_list.re_next;
 	for (;;) {
 		rep = *repp;
@@ -101,17 +104,18 @@ int route_del(unsigned long addr)
 			break;
 		if (rep->addr == addr) {
 			*repp = rep->re_next;
-			write_sequnlock(&sl);
+			write_sequnlock(&sl);		//\lnlbl{del:w_squnlock1}
 			smp_mb();
-			rep->re_freed = 1;
+			rep->re_freed = 1;		//\lnlbl{del:set_freed}
 			free(rep);
 			return 0;
 		}
 		repp = &rep->re_next;
 	}
-	write_sequnlock(&sl);
+	write_sequnlock(&sl);				//\lnlbl{del:w_squnlock2}
 	return -ENOENT;
 }
+//\end{snippet}
 
 /*
  * Clear all elements from the route table.
