@@ -31,48 +31,51 @@
 #include "../api.h"
 
 /* Route-table entry to be included in the routing list. */
+//\begin{snippet}[labelbase=ln:defer:route_rcu:lookup,commandchars=\\\[\]]
 struct route_entry {
-	struct rcu_head rh;
+	struct rcu_head rh;			//\lnlbl{rh}
 	struct cds_list_head re_next;
 	unsigned long addr;
 	unsigned long iface;
-	int re_freed;
+	int re_freed;				//\lnlbl{re_freed}
 };
-
+								//\fcvexclude
 CDS_LIST_HEAD(route_list);
 DEFINE_SPINLOCK(routelock);
 
-static void re_free(struct route_entry *rep)
-{
-	WRITE_ONCE(rep->re_freed, 1);
-	free(rep);
-}
-
-/*
- * Look up a route entry, return the corresponding interface. 
- */
+static void re_free(struct route_entry *rep)			//\fcvexclude
+{								//\fcvexclude
+	WRITE_ONCE(rep->re_freed, 1);				//\fcvexclude
+	free(rep);						//\fcvexclude
+}								//\fcvexclude
+								//\fcvexclude
+/*								  \fcvexclude
+ * Look up a route entry, return the corresponding interface.	  \fcvexclude
+ */								//\fcvexclude
 unsigned long route_lookup(unsigned long addr)
 {
 	struct route_entry *rep;
 	unsigned long ret;
 
-	rcu_read_lock();
+	rcu_read_lock();				//\lnlbl{lock}
 	cds_list_for_each_entry_rcu(rep, &route_list, re_next) {
 		if (rep->addr == addr) {
 			ret = rep->iface;
-			if (READ_ONCE(rep->re_freed))
-				abort();
-			rcu_read_unlock();
+			if (READ_ONCE(rep->re_freed))	//\lnlbl{chk_freed}
+				abort();		//\lnlbl{abort}
+			rcu_read_unlock();		//\lnlbl{unlock1}
 			return ret;
 		}
 	}
-	rcu_read_unlock();
+	rcu_read_unlock();				//\lnlbl{unlock2}
 	return ULONG_MAX;
 }
+//\end{snippet}
 
 /*
  * Add an element to the route table.
  */
+//\begin{snippet}[labelbase=ln:defer:route_rcu:add_del,commandchars=\\\[\]]
 int route_add(unsigned long addr, unsigned long interface)
 {
 	struct route_entry *rep;
@@ -83,38 +86,46 @@ int route_add(unsigned long addr, unsigned long interface)
 	rep->addr = addr;
 	rep->iface = interface;
 	rep->re_freed = 0;
-	spin_lock(&routelock);
-	cds_list_add_rcu(&rep->re_next, &route_list);
-	spin_unlock(&routelock);
+	spin_lock(&routelock);				//\lnlbl{add:lock}
+	cds_list_add_rcu(&rep->re_next, &route_list);	//\lnlbl{add:add_rcu}
+	spin_unlock(&routelock);			//\lnlbl{add:unlock}
 	return 0;
 }
 
-static void route_cb(struct rcu_head *rhp)
+static void route_cb(struct rcu_head *rhp)		//\lnlbl{cb:b}
 {
-	struct route_entry *rep = container_of(rhp, struct route_entry, rh);
+	struct route_entry *rep = container_of(rhp, struct route_entry, rh); //\fcvexclude
+								//\fcvexclude
+	re_free(rep);						//\fcvexclude
+/* --- Alternative code for code snippet: begin ---		  \fcvexclude
+	struct route_entry *rep;
 
-	re_free(rep);
-}
+	rep = container_of(rhp, struct route_entry, rh);
+	WRITE_ONCE(rep->re_freed, 1);
+	free(rep);
+   --- Alternative code for code snippet: end --- */		//\fcvexclude
+}							//\lnlbl{cb:e}
 
-/*
- * Remove the specified element from the route table.
- */
+/*								  \fcvexclude
+ * Remove the specified element from the route table.		  \fcvexclude
+ */								//\fcvexclude
 int route_del(unsigned long addr)
 {
 	struct route_entry *rep;
 
-	spin_lock(&routelock);
+	spin_lock(&routelock);				//\lnlbl{del:lock}
 	cds_list_for_each_entry(rep, &route_list, re_next) {
 		if (rep->addr == addr) {
-			cds_list_del_rcu(&rep->re_next);
-			spin_unlock(&routelock);
-			call_rcu(&rep->rh, route_cb);
+			cds_list_del_rcu(&rep->re_next);//\lnlbl{del:del_rcu}
+			spin_unlock(&routelock);	//\lnlbl{del:unlock1}
+			call_rcu(&rep->rh, route_cb);	//\lnlbl{del:call_rcu}
 			return 0;
 		}
 	}
-	spin_unlock(&routelock);
+	spin_unlock(&routelock);			//\lnlbl{del:unlock2}
 	return -ENOENT;
 }
+//\end{snippet}
 
 /*
  * Clear all elements from the route table.
