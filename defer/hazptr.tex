@@ -181,101 +181,13 @@ Chapter~\ref{chp:Data Structures}
 and in other publications~\cite{ThomasEHart2007a,McKenney:2013:SDS:2483852.2483867,MagedMichael04a}.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 struct route_entry {
- 2   struct hazptr_head hh;
- 3   struct route_entry *re_next;
- 4   unsigned long addr;
- 5   unsigned long iface;
- 6   int re_freed;
- 7 };
- 8 struct route_entry route_list;
- 9 DEFINE_SPINLOCK(routelock);
-10 hazard_pointer __thread *my_hazptr;
-11
-12 unsigned long route_lookup(unsigned long addr)
-13 {
-14   int offset = 0;
-15   struct route_entry *rep;
-16   struct route_entry **repp;
-17
-18 retry:
-19   repp = &route_list.re_next;
-20   do {
-21     rep = READ_ONCE(*repp);
-22     if (rep == NULL)
-23       return ULONG_MAX;
-24     if (rep == (struct route_entry *)HAZPTR_POISON)
-25       goto retry;
-26     my_hazptr[offset].p = &rep->hh;
-27     offset = !offset;
-28     smp_mb();
-29     if (READ_ONCE(*repp) != rep)
-30       goto retry;
-31     repp = &rep->re_next;
-32   } while (rep->addr != addr);
-33   if (READ_ONCE(rep->re_freed))
-34     abort();
-35   return rep->iface;
-36 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/defer/route_hazptr@lookup.fcv}
 \caption{Hazard-Pointer Pre-BSD Routing Table Lookup}
 \label{lst:defer:Hazard-Pointer Pre-BSD Routing Table Lookup}
 \end{listing}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 int route_add(unsigned long addr,
- 2               unsigned long interface)
- 3 {
- 4   struct route_entry *rep;
- 5
- 6   rep = malloc(sizeof(*rep));
- 7   if (!rep)
- 8     return -ENOMEM;
- 9   rep->addr = addr;
-10   rep->iface = interface;
-11   rep->re_freed = 0;
-12   spin_lock(&routelock);
-13   rep->re_next = route_list.re_next;
-14   route_list.re_next = rep;
-15   spin_unlock(&routelock);
-16   return 0;
-17 }
-18
-19 int route_del(unsigned long addr)
-20 {
-21   struct route_entry *rep;
-22   struct route_entry **repp;
-23
-24   spin_lock(&routelock);
-25   repp = &route_list.re_next;
-26   for (;;) {
-27     rep = *repp;
-28     if (rep == NULL)
-29       break;
-30     if (rep->addr == addr) {
-31       *repp = rep->re_next;
-32       rep->re_next =
-33           (struct route_entry *)HAZPTR_POISON;
-34       spin_unlock(&routelock);
-35       hazptr_free_later(&rep->hh);
-36       return 0;
-37     }
-38     repp = &rep->re_next;
-39   }
-40   spin_unlock(&routelock);
-41   return -ENOENT;
-42 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/defer/route_hazptr@add_del.fcv}
 \caption{Hazard-Pointer Pre-BSD Routing Table Add/Delete}
 \label{lst:defer:Hazard-Pointer Pre-BSD Routing Table Add/Delete}
 \end{listing}
@@ -293,24 +205,28 @@ on
 page~\pageref{lst:defer:Sequential Pre-BSD Routing Table},
 so only differences will be discussed.
 
+\begin{lineref}[ln:defer:route_hazptr:lookup]
 Starting with
 Listing~\ref{lst:defer:Hazard-Pointer Pre-BSD Routing Table Lookup},
-line~2 shows the \co{->hh} field used to queue objects pending
+line~\lnref{hh} shows the \co{->hh} field used to queue objects pending
 hazard-pointer free,
-line~6 shows the \co{->re_freed} field used to detect use-after-free bugs,
-and lines~24-30 attempt to acquire a hazard pointer, branching
-to line~18's \co{retry} label on failure.
+line~\lnref{re_freed} shows the \co{->re_freed} field used to detect use-after-free bugs,
+and lines~\lnref{acq:b}-\lnref{acq:e} attempt to acquire a hazard pointer, branching
+to line~\lnref{retry}'s \co{retry} label on failure.
+\end{lineref}
 
+\begin{lineref}[ln:defer:route_hazptr:add_del]
 In
 Listing~\ref{lst:defer:Hazard-Pointer Pre-BSD Routing Table Add/Delete},
-line~11 initializes \co{->re_freed},
-lines~32 and~33 poison the \co{->re_next} field of the newly removed
+line~\lnref{init_freed} initializes \co{->re_freed},
+line~\lnref{poison} poisons the \co{->re_next} field of the newly removed
 object, and
-line~35 passes that object to the hazard pointers's
+line~\lnref{free_later} passes that object to the hazard pointers's
 \co{hazptr_free_later()} function, which will free that object once it
 is safe to do so.
 The spinlocks work the same as in
 Listing~\ref{lst:defer:Reference-Counted Pre-BSD Routing Table Add/Delete}.
+\end{lineref}
 
 \begin{figure}[tb]
 \centering
