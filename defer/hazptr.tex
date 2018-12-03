@@ -22,33 +22,30 @@ and there are no longer any hazard pointers referencing it, that element
 may safely be freed.
 
 \begin{listing}[btp]
-{ \scriptsize
-\begin{verbbox}
- 1 int hp_store(void **p, void **hp)
- 2 {
- 3   void *tmp;
- 4 
- 5   tmp = READ_ONCE(*p);
- 6   WRITE_ONCE(*hp, tmp);
- 7   smp_mb();
- 8   if (tmp != READ_ONCE(*p) ||
- 9       tmp == HAZPTR_POISON) {
-10     WRITE_ONCE(*hp, NULL);
-11     return 0;
-12   }
-13   return 1;
-14 }
-15 
-16 void hp_erase(void **hp)
-17 {
-18   smp_mb();
-19   WRITE_ONCE(*hp, NULL);
-20   hp_free(hp);
-21 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{linelabel}[ln:defer:Hazard-Pointer Storage and Erasure]
+\begin{VerbatimL}[commandchars=\\\[\]]
+int hp_store(void **p, void **hp)	\lnlbl[store:b]
+{
+	void *tmp;
+
+	tmp = READ_ONCE(*p);
+	WRITE_ONCE(*hp, tmp);
+	smp_mb();
+	if (tmp != READ_ONCE(*p) || tmp == HAZPTR_POISON) {
+		WRITE_ONCE(*hp, NULL);
+		return 0;
+	}
+	return 1;
+}					\lnlbl[store:e]
+
+void hp_erase(void **hp)		\lnlbl[erase:b]
+{
+	smp_mb();
+	WRITE_ONCE(*hp, NULL);
+	hp_free(hp);
+}					\lnlbl[erase:e]
+\end{VerbatimL}
+\end{linelabel}
 \caption{Hazard-Pointer Storage and Erasure}
 \label{lst:defer:Hazard-Pointer Storage and Erasure}
 \end{listing}
@@ -56,13 +53,16 @@ may safely be freed.
 Of course, this means that hazard-pointer acquisition must be carried
 out quite carefully in order to avoid destructive races with concurrent
 deletion.
+\begin{lineref}[ln:defer:Hazard-Pointer Storage and Erasure]
 One implementation is shown in
 Listing~\ref{lst:defer:Hazard-Pointer Storage and Erasure},
-which shows \co{hp_store()} on lines~1-14 and \co{hp_erase()} on
-lines~16-21.
+which shows \co{hp_store()} on
+lines~\lnref{store:b}-\lnref{store:e} and \co{hp_erase()} on
+lines~\lnref{erase:b}-\lnref{erase:e}.
 The \co{smp_mb()} primitive will be described in detail in
 Chapter~\ref{chp:Advanced Synchronization: Memory Ordering}, but may be ignored for
 the purposes of this brief overview.
+\end{lineref}
 
 The \co{hp_store()} function records a hazard pointer at \co{hp} for the data
 element whose pointer is referenced by \co{p}, while checking for
