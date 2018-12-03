@@ -18,50 +18,53 @@
  * Copyright (c) 2008 Paul E. McKenney, IBM Corporation.
  */
 
-typedef struct {
-	unsigned long seq;
+//\begin{snippet}[labelbase=ln:defer:seqlock:impl,commandchars=\\\[\]]
+typedef struct {				//\lnlbl{typedef:b}
+	unsigned long seq;			//\lnlbl{typedef:seq}
 	spinlock_t lock;
-} seqlock_t;
+} seqlock_t;					//\lnlbl{typedef:e}
 
-#define DEFINE_SEQ_LOCK(name) seqlock_t name = { \
-	.seq = 0, \
-	.lock = __SPIN_LOCK_UNLOCKED(name.lock), \
-};
-
-static inline void seqlock_init(seqlock_t *slp)
+#define DEFINE_SEQ_LOCK(name) seqlock_t name = { 	/* \fcvexclude */ \
+	.seq = 0,					/* \fcvexclude */ \
+	.lock = __SPIN_LOCK_UNLOCKED(name.lock),	/* \fcvexclude */ \
+};							/* \fcvexclude */
+							/* \fcvexclude */
+static inline void seqlock_init(seqlock_t *slp)		//\lnlbl{init:b}
 {
 	slp->seq = 0;
 	spin_lock_init(&slp->lock);
-}
+}							//\lnlbl{init:e}
 
-static inline unsigned long read_seqbegin(seqlock_t *slp)
+static inline unsigned long read_seqbegin(seqlock_t *slp) //\lnlbl{read_seqbegin:b}
 {
 	unsigned long s;
 
-	s = READ_ONCE(slp->seq);
-	smp_mb();
-	return s & ~0x1UL;
-}
+	s = READ_ONCE(slp->seq);			//\lnlbl{read_seqbegin:fetch}
+	smp_mb();					//\lnlbl{read_seqbegin:mb}
+	return s & ~0x1UL;				//\lnlbl{read_seqbegin:ret}
+}							//\lnlbl{read_seqbegin:e}
 
-static inline int read_seqretry(seqlock_t *slp, unsigned long oldseq)
+static inline int read_seqretry(seqlock_t *slp,		//\lnlbl{read_seqretry:b}
+                                unsigned long oldseq)
 {
 	unsigned long s;
 
-	smp_mb();
-	s = READ_ONCE(slp->seq);
-	return s != oldseq;
-}
+	smp_mb();					//\lnlbl{read_seqretry:mb}
+	s = READ_ONCE(slp->seq);			//\lnlbl{read_seqretry:fetch}
+	return s != oldseq;				//\lnlbl{read_seqretry:ret}
+}							//\lnlbl{read_seqretry:e}
 
-static inline void write_seqlock(seqlock_t *slp)
+static inline void write_seqlock(seqlock_t *slp)	//\lnlbl{write_seqlock:b}
 {
 	spin_lock(&slp->lock);
 	++slp->seq;
 	smp_mb();
-}
+}							//\lnlbl{write_seqlock:e}
 
-static inline void write_sequnlock(seqlock_t *slp)
+static inline void write_sequnlock(seqlock_t *slp)	//\lnlbl{write_sequnlock:b}
 {
-	smp_mb();
-	++slp->seq;
+	smp_mb();					//\lnlbl{write_sequnlock:mb}
+	++slp->seq;					//\lnlbl{write_sequnlock:inc}
 	spin_unlock(&slp->lock);
-}
+}							//\lnlbl{write_sequnlock:e}
+//\end{snippet}

@@ -50,30 +50,22 @@ very rarely need to retry.
 } \QuickQuizEnd
 
 \begin{listing}[bp]
-{ \scriptsize
-\begin{verbbox}
-  1 do {
-  2   seq = read_seqbegin(&test_seqlock);
-  3   /* read-side access. */
-  4 } while (read_seqretry(&test_seqlock, seq));
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{VerbatimL}
+do {
+	seq = read_seqbegin(&test_seqlock);
+	/* read-side access. */
+} while (read_seqretry(&test_seqlock, seq));
+\end{VerbatimL}
 \caption{Sequence-Locking Reader}
 \label{lst:defer:Sequence-Locking Reader}
 \end{listing}
 
 \begin{listing}[bp]
-{ \scriptsize
-\begin{verbbox}
-  1 write_seqlock(&test_seqlock);
-  2 /* Update */
-  3 write_sequnlock(&test_seqlock);
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{VerbatimL}
+write_seqlock(&test_seqlock);
+/* Update */
+write_sequnlock(&test_seqlock);
+\end{VerbatimL}
 \caption{Sequence-Locking Writer}
 \label{lst:defer:Sequence-Locking Writer}
 \end{listing}
@@ -101,55 +93,7 @@ quantities used for timekeeping.
 It is also used in pathname traversal to detect concurrent rename operations.
 
 \begin{listing}[tb]
-{ \scriptsize
-\begin{verbbox}
- 1  typedef struct {
- 2    unsigned long seq;
- 3    spinlock_t lock;
- 4  } seqlock_t;
- 5
- 6  static void seqlock_init(seqlock_t *slp)
- 7  {
- 8    slp->seq = 0;
- 9    spin_lock_init(&slp->lock);
-10  }
-11
-12  static unsigned long read_seqbegin(seqlock_t *slp)
-13  {
-14    unsigned long s;
-15
-16    s = READ_ONCE(slp->seq);
-17    smp_mb();
-18    return s & ~0x1UL;
-19  }
-20
-21  static int read_seqretry(seqlock_t *slp,
-22                           unsigned long oldseq)
-23  {
-24    unsigned long s;
-25
-26    smp_mb();
-27    s = READ_ONCE(slp->seq);
-28    return s != oldseq;
-29  }
-30
-31  static void write_seqlock(seqlock_t *slp)
-32  {
-33    spin_lock(&slp->lock);
-34    ++slp->seq;
-35    smp_mb();
-36  }
-37
-38  static void write_sequnlock(seqlock_t *slp)
-39  {
-40    smp_mb();
-41    ++slp->seq;
-42    spin_unlock(&slp->lock);
-43  }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/defer/seqlock@impl.fcv}
 \caption{Sequence-Locking Implementation}
 \label{lst:defer:Sequence-Locking Implementation}
 \end{listing}
@@ -157,18 +101,26 @@ It is also used in pathname traversal to detect concurrent rename operations.
 A simple implementation of sequence locks is shown in
 Listing~\ref{lst:defer:Sequence-Locking Implementation}
 (\path{seqlock.h}).
-The \co{seqlock_t} data structure is shown on lines~1-4, and contains
+\begin{lineref}[ln:defer:seqlock:impl:typedef]
+The \co{seqlock_t} data structure is shown on
+lines~\lnref{b}-\lnref{e}, and contains
 the sequence number along with a lock to serialize writers.
-Lines~6-10 show \co{seqlock_init()}, which, as the name indicates,
+\end{lineref}
+\begin{lineref}[ln:defer:seqlock:impl:init]
+Lines~\lnref{b}-\lnref{e} show \co{seqlock_init()}, which, as the name indicates,
 initializes a \co{seqlock_t}.
+\end{lineref}
 
-Lines~12-19 show \co{read_seqbegin()}, which begins a sequence-lock
+\begin{lineref}[ln:defer:seqlock:impl:read_seqbegin]
+Lines~\lnref{b}-\lnref{e} show \co{read_seqbegin()}, which begins a sequence-lock
 read-side critical section.
-Line~16 takes a snapshot of the sequence counter, and line~17 orders
+Line~\lnref{fetch} takes a snapshot of the sequence counter, and
+line~\lnref{mb} orders
 this snapshot operation before the caller's critical section.
-Finally, line~18 returns the value of the snapshot (with the least-significant
+Finally, line~\lnref{ret} returns the value of the snapshot (with the least-significant
 bit cleared), which the caller
 will pass to a later call to \co{read_seqretry()}.
+\end{lineref}
 
 \QuickQuiz{}
 	Why not have \co{read_seqbegin()} in
@@ -185,17 +137,20 @@ will pass to a later call to \co{read_seqretry()}.
 	check internal to \co{read_seqbegin()} might be preferable.
 } \QuickQuizEnd
 
-Lines~21-29 show \co{read_seqretry()}, which returns true if there
+\begin{lineref}[ln:defer:seqlock:impl:read_seqretry]
+Lines~\lnref{b}-\lnref{e} show \co{read_seqretry()}, which returns true if there
 was at least one writer since the time of the corresponding
 call to \co{read_seqbegin()}.
-Line~26 orders the caller's prior critical section before line~27's
+Line~\lnref{mb} orders the caller's prior critical section before line~\lnref{fetch}'s
 fetch of the new snapshot of the sequence counter.
-Finally, line~28 checks whether the sequence counter has changed,
+Finally, line~\lnref{ret} checks whether the sequence counter has changed,
 in other words, whether there has been at least one writer, and returns
 true if so.
+\end{lineref}
 
 \QuickQuiz{}
-	Why is the \co{smp_mb()} on line~26 of
+	Why is the \co{smp_mb()} on
+	line~\ref{ln:defer:seqlock:impl:read_seqretry:mb} of
 	Listing~\ref{lst:defer:Sequence-Locking Implementation}
 	needed?
 \QuickQuizAnswer{
@@ -213,19 +168,23 @@ true if so.
 \QuickQuizAnswer{
 	In older versions of the Linux kernel, no.
 
-	In very new versions of the Linux kernel, line~16 could use
+	\begin{lineref}[ln:defer:seqlock:impl]
+	In very new versions of the Linux kernel,
+        line~\lnref{read_seqbegin:fetch} could use
 	\co{smp_load_acquire()} instead of \co{READ_ONCE()}, which
-	in turn would allow the \co{smp_mb()} on line~17 to be dropped.
-	Similarly, line~41 could use an \co{smp_store_release()}, for
+	in turn would allow the \co{smp_mb()} on
+        line~\lnref{read_seqbegin:mb} to be dropped.
+	Similarly, line~\lnref{write_sequnlock:inc} could use an
+        \co{smp_store_release()}, for
 	example, as follows:
 
-\begin{minipage}[c][5ex][c]{\columnwidth}\scriptsize
-\begin{verbatim}
+\begin{VerbatimU}
 smp_store_release(&slp->seq, READ_ONCE(slp->seq) + 1);
-\end{verbatim}
-\end{minipage}
+\end{VerbatimU}
 
-	This would allow the \co{smp_mb()} on line~40 to be dropped.
+	This would allow the \co{smp_mb()} on
+	line~\lnref{write_sequnlock:mb} to be dropped.
+	\end{lineref}
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -239,12 +198,16 @@ smp_store_release(&slp->seq, READ_ONCE(slp->seq) + 1);
 	situation, in which case, go wild with the sequence-locking updates!
 } \QuickQuizEnd
 
-Lines~31-36 show \co{write_seqlock()}, which simply acquires the lock,
+\begin{lineref}[ln:defer:seqlock:impl:write_seqlock]
+Lines~\lnref{b}-\lnref{e} show \co{write_seqlock()}, which simply acquires the lock,
 increments the sequence number, and executes a memory barrier to ensure
 that this increment is ordered before the caller's critical section.
-Lines~38-43 show \co{write_sequnlock()}, which executes a memory barrier
+\end{lineref}
+\begin{lineref}[ln:defer:seqlock:impl:write_sequnlock]
+Lines~\lnref{b}-\lnref{e} show \co{write_sequnlock()}, which executes a memory barrier
 to ensure that the caller's critical section is ordered before the
-increment of the sequence number on line~44, then releases the lock.
+increment of the sequence number on line~\lnref{inc}, then releases the lock.
+\end{lineref}
 
 \QuickQuiz{}
 	What if something else serializes writers, so that the lock
@@ -255,7 +218,8 @@ increment of the sequence number on line~44, then releases the lock.
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	Why isn't \co{seq} on line~2 of
+	Why isn't \co{seq} on
+	line~\ref{ln:defer:seqlock:impl:typedef:seq} of
 	Listing~\ref{lst:defer:Sequence-Locking Implementation}
 	\co{unsigned} rather than \co{unsigned long}?
 	After all, if \co{unsigned} is good enough for the Linux
@@ -266,7 +230,9 @@ increment of the sequence number on line~44, then releases the lock.
 	it to ignore the following sequence of events:
 	\begin{enumerate}
 	\item	Thread~0 executes \co{read_seqbegin()}, picking up
-		\co{->seq} in line~16, noting that the value is even,
+		\co{->seq} in
+		line~\ref{ln:defer:seqlock:impl:read_seqbegin:fetch},
+		noting that the value is even,
 		and thus returning to the caller.
 	\item	Thread~0 starts executing its read-side critical section,
 		but is then preempted for a long time.
