@@ -16,7 +16,7 @@
 #define smp_load_acquire(x) __atomic_load_n(x, __ATOMIC_ACQUIRE)
 #define cmpxchg(x, o, n) ({ \
 	typeof(o) __old = (o); \
-	__atomic_compare_exchange_n((x), &__old, (n), 1, __ATOMIC_SEQ_CST, __ATOMIC_RELAXED); \
+	__atomic_compare_exchange_n((x), &__old, (n), 0, __ATOMIC_SEQ_CST, __ATOMIC_RELAXED); \
 	__old; \
 })
 #endif
