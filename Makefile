@@ -12,6 +12,7 @@ LATEXSOURCES = \
 	*/*/*.tex
 
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
+OBSOLETE_FILES = intro/PPGrelation.eps extraction
 
 ABBREVTARGETS := tcb 1c hb msns mss mstx msr msn msnt 1csf
 
@@ -38,7 +39,7 @@ EPSSOURCES_DUP := \
 	$(EPSSOURCES_FROM_DOT) \
 	$(EPSSOURCES_FROM_FIG)
 
-EPSSOURCES := $(sort $(EPSSOURCES_DUP))
+EPSSOURCES := $(sort $(filter-out $(OBSOLETE_FILES),$(EPSSOURCES_DUP)))
 
 PDFTARGETS_OF_EPS := $(EPSSOURCES:%.eps=%.pdf)
 
@@ -293,8 +294,7 @@ clean:
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' \
 		-o -name '*.fcv' -o -name '*.ltms' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook*.out perfbook-*.tex
-	rm -f $(LATEXGENERATED)
-	rm -f extraction
+	rm -f $(LATEXGENERATED) $(OBSOLETE_FILES)
 	rm -f CodeSamples/snippets.mk CodeSamples/snippets.d
 
 distclean: clean
