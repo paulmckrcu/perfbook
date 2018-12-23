@@ -262,7 +262,7 @@ void hashtab_del(struct hashtab *htp_master,		//\lnlbl{del:b}
 }							//\lnlbl{del:e}
 //\end{snippet}
 
-//\begin{snippet}[labelbase=ln:datastruct:hash_resize:resize,commandchars=\\\@\$]
+//\begin{snippet}[labelbase=ln:datastruct:hash_resize:resize,commandchars=\\\@\$,tabsize=6]
 /* Resize a hash table. */
 int hashtab_resize(struct hashtab *htp_master,
                    unsigned long nbuckets, void *hash_private,
