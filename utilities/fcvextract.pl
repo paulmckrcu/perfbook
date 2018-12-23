@@ -90,8 +90,8 @@
 # on the line.
 #
 # By default, comment blocks of the form "/* ... */" in C language
-# code will be kept in the extracted snippet. To omit those blocks,
-# put an option "keepcomment=no" to \begin{snippet} meta command.
+# code will be removed in the extracted snippet. To keep those blocks,
+# put an option "keepcomment=yes" to \begin{snippet} meta command.
 #
 # Also, this script recognizes #ifndef -- #else -- #endif conditional
 # of the following form to allow alternative code for snippet:
@@ -130,7 +130,7 @@ my $file_name;
 my $func_name;
 my $label;
 my $env_name = "VerbatimL" ;
-my $keepcomment = 1;
+my $keepcomment = 0;
 my $incomment = 0;
 my $ifndef = 0;
 my $other_opts;
@@ -256,8 +256,8 @@ while($line = <>) {
 	    $esc_close = "\}" ;
 	}
 	if ($line =~ /keepcomment=([^,\]]+).\]/) {
-	    if ($1 eq "no") {
-		$keepcomment = 0;
+	    if ($1 eq "yes") {
+		$keepcomment = 1;
 	    }
 	    $_ = $line;
 	    s/keepcomment=[^,\]]+,?// ;
