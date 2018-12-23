@@ -94,16 +94,17 @@ int route_add(unsigned long addr, unsigned long interface)
 
 static void route_cb(struct rcu_head *rhp)		//\lnlbl{cb:b}
 {
-	struct route_entry *rep = container_of(rhp, struct route_entry, rh); //\fcvexclude
-								//\fcvexclude
-	re_free(rep);						//\fcvexclude
-/* --- Alternative code for code snippet: begin ---		  \fcvexclude
+#ifndef FCV_SNIPPET
+	struct route_entry *rep = container_of(rhp, struct route_entry, rh);
+
+	re_free(rep);
+#else /* FCV_SNIPPET */
 	struct route_entry *rep;
 
 	rep = container_of(rhp, struct route_entry, rh);
 	WRITE_ONCE(rep->re_freed, 1);
 	free(rep);
-   --- Alternative code for code snippet: end --- */		//\fcvexclude
+#endif /* FCV_SNIPPET */
 }							//\lnlbl{cb:e}
 
 /*								  \fcvexclude

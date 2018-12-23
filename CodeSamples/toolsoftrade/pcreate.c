@@ -26,7 +26,7 @@
 #include <errno.h>
 #include "../api.h"
 
-// \begin{snippet}[labelbase=ln:toolsoftrade:pcreate:mythread,commandchars=\$\@\^]
+// \begin{snippet}[labelbase=ln:toolsoftrade:pcreate:mythread,keepcomment=yes,commandchars=\$\@\^]
 int x = 0;
 
 void *mythread(void *arg)

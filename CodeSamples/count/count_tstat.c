@@ -22,7 +22,7 @@
 
 #include "../api.h"
 
-//\begin{snippet}[labelbase=ln:count:count_tstat:whole,commandchars=\\\@\$]
+//\begin{snippet}[labelbase=ln:count:count_tstat:whole,keepcomment=yes,commandchars=\\\@\$]
 unsigned long __thread counter = 0;
 unsigned long *counterp[NR_THREADS] = { NULL };
 int finalthreadcount = 0;

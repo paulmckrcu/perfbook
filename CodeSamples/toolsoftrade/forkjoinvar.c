@@ -24,7 +24,7 @@
 #include <errno.h>
 #include "../api.h"
 
-// \begin{snippet}[labelbase=ln:toolsoftrade:forkjoinvar:main,commandchars=\$\@\^]
+// \begin{snippet}[labelbase=ln:toolsoftrade:forkjoinvar:main,keepcomment=yes,commandchars=\$\@\^]
 int x = 0;
 
 int main(int argc, char *argv[])
