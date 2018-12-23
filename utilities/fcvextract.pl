@@ -115,6 +115,7 @@ use warnings;
 my $src_file;
 my $c_src = 0;
 my $lnlbl_re;
+my $lnlbl_re2;
 my $line;
 my $edit_line;
 my $extract_labelbase;
@@ -143,6 +144,7 @@ $end_re = qr/\\end\{snippet\}/;
 
 if ($src_file =~ /.*\.[ch]$/ ) {
     $lnlbl_re = qr!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!;
+    $lnlbl_re2 = qr!(.*?)(s*/\*\s*)\\lnlbl\{(.*)}\s*\*/(.*)$!;
     $c_src = 1;
 } elsif ($src_file =~ /.*\.c$/ ) {
     $lnlbl_re = qr!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!;
@@ -169,6 +171,9 @@ while($line = <>) {
 	}
 	if ($line =~ /\\fcvexclude/) {
 	    next; # skip this line
+	}
+	if ($c_src && $line =~ m!$lnlbl_re2!) {
+	    $line = $1 . $esc_bsl . "lnlbl" . $esc_open . $3 . $esc_close . $4 . "\n" ;
 	}
 	if ($c_src && !$keepcomment) {
 	    if ($incomment) {
