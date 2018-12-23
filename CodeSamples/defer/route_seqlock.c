@@ -34,9 +34,9 @@ struct route_entry {
 struct route_entry route_list;
 DEFINE_SEQ_LOCK(sl);					//\lnlbl{struct:sl}
 
-/*								  \fcvexclude
- * Look up a route entry, return the corresponding interface. 	  \fcvexclude
- */								//\fcvexclude
+/*
+ * Look up a route entry, return the corresponding interface.
+ */
 unsigned long route_lookup(unsigned long addr)
 {
 	struct route_entry *rep;
@@ -55,7 +55,7 @@ retry:							//\lnlbl{lookup:retry}
 			return ULONG_MAX;
 		}
 								//\fcvexclude
-		/* Advance to next. */				//\fcvexclude
+		/* Advance to next. */
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
 	if (READ_ONCE(rep->re_freed))			//\lnlbl{lookup:chk_freed}
@@ -88,9 +88,9 @@ int route_add(unsigned long addr, unsigned long interface)
 	return 0;
 }
 
-/*								  \fcvexclude
- * Remove the specified element from the route table.		  \fcvexclude
- */								//\fcvexclude
+/*
+ * Remove the specified element from the route table.
+ */
 int route_del(unsigned long addr)
 {
 	struct route_entry *rep;

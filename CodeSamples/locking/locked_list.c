@@ -26,8 +26,10 @@ struct locked_list {
 	struct cds_list_head h;
 };
 
-struct cds_list_head *list_next(struct locked_list *lp,		//\fcvexclude
-				struct cds_list_head *np);	//\fcvexclude
+#ifndef FCV_SNIPPET
+struct cds_list_head *list_next(struct locked_list *lp,
+				struct cds_list_head *np);
+#endif /* FCV_SNIPPET */
 								//\fcvexclude
 struct cds_list_head *list_start(struct locked_list *lp)
 {

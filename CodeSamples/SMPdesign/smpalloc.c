@@ -25,9 +25,11 @@
 #define TARGET_POOL_SIZE 3
 #define GLOBAL_POOL_SIZE 40
 
-struct memblock {				//\fcvexclude
-	char *bytes[CACHE_LINE_SIZE];		//\fcvexclude
-} memblocks[GLOBAL_POOL_SIZE];			//\fcvexclude
+#ifndef FCV_SNIPPET
+struct memblock {
+	char *bytes[CACHE_LINE_SIZE];
+} memblocks[GLOBAL_POOL_SIZE];
+#endif /* FCV_SNIPPET */
 						//\fcvexclude
 struct globalmempool {
 	spinlock_t mutex;

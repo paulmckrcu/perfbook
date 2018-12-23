@@ -107,9 +107,11 @@ static __inline__ void balance_count(void)	//\lnlbl{balance:b}
 	globalcount -= counter;			//\lnlbl{balance:adjglobal}
 }						//\lnlbl{balance:e}
 
-void count_init(void)			//\fcvexclude
-{					//\fcvexclude
-}					//\fcvexclude
+#ifndef FCV_SNIPPET
+void count_init(void)
+{
+}
+#endif /* FCV_SNIPPET */
 					//\fcvexclude
 void count_register_thread(void)	//\lnlbl{register:b}
 {

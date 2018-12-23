@@ -40,9 +40,9 @@ static void re_free(struct route_entry *rep)		//\lnlbl{re_free:b}
 	free(rep);
 }							//\lnlbl{re_free:e}
 
-/*								\fcvexclude
- * Look up a route entry, return the corresponding interface. 	\fcvexclude
- */							      //\fcvexclude
+/*
+ * Look up a route entry, return the corresponding interface.
+ */
 unsigned long route_lookup(unsigned long addr)
 {
 	int old;
@@ -61,7 +61,7 @@ retry:
 		if (rep == NULL)				//\lnlbl{lookup:check_NULL}
 			return ULONG_MAX;
 								//\fcvexclude
-		/* Acquire a reference if the count is non-zero. */ //\fcvexclude
+		/* Acquire a reference if the count is non-zero. */
 		do {						//\lnlbl{lookup:acq:b}
 			if (READ_ONCE(rep->re_freed))		//\lnlbl{lookup:check_uaf}
 				abort();			//\lnlbl{lookup:abort}
@@ -72,7 +72,7 @@ retry:
 		} while (atomic_cmpxchg(&rep->re_refcnt,
 		                        old, new) != old);	//\lnlbl{lookup:acq:e}
 								//\fcvexclude
-		/* Advance to next. */				//\fcvexclude
+		/* Advance to next. */
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
 	ret = rep->iface;
@@ -104,9 +104,9 @@ int route_add(unsigned long addr, unsigned long interface)
 	return 0;
 }
 
-/*								\fcvexclude
- * Remove the specified element from the route table.		\fcvexclude
- */							      //\fcvexclude
+/*
+ * Remove the specified element from the route table.
+ */
 int route_del(unsigned long addr)
 {
 	struct route_entry *rep;

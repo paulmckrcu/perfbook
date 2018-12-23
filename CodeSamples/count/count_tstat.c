@@ -45,9 +45,11 @@ static __inline__ unsigned long read_count(void)
 	return sum;
 }
 
-void count_init(void)		//\fcvexclude
-{				//\fcvexclude
-}				//\fcvexclude
+#ifndef FCV_SNIPPET
+void count_init(void)
+{
+}
+#endif /* FCV_SNIPPET */
 				//\fcvexclude
 void count_register_thread(unsigned long *p)
 {

@@ -42,16 +42,17 @@ struct route_entry {
 								//\fcvexclude
 CDS_LIST_HEAD(route_list);
 DEFINE_SPINLOCK(routelock);
+#ifndef FCV_SNIPPET
+static void re_free(struct route_entry *rep)
+{
+	WRITE_ONCE(rep->re_freed, 1);
+	free(rep);
+}
+#endif /* FCV_SNIPPET */
 
-static void re_free(struct route_entry *rep)			//\fcvexclude
-{								//\fcvexclude
-	WRITE_ONCE(rep->re_freed, 1);				//\fcvexclude
-	free(rep);						//\fcvexclude
-}								//\fcvexclude
-								//\fcvexclude
-/*								  \fcvexclude
- * Look up a route entry, return the corresponding interface.	  \fcvexclude
- */								//\fcvexclude
+/*
+ * Look up a route entry, return the corresponding interface.
+ */
 unsigned long route_lookup(unsigned long addr)
 {
 	struct route_entry *rep;
@@ -107,9 +108,9 @@ static void route_cb(struct rcu_head *rhp)		//\lnlbl{cb:b}
 #endif /* FCV_SNIPPET */
 }							//\lnlbl{cb:e}
 
-/*								  \fcvexclude
- * Remove the specified element from the route table.		  \fcvexclude
- */								//\fcvexclude
+/*
+ * Remove the specified element from the route table.
+ */
 int route_del(unsigned long addr)
 {
 	struct route_entry *rep;

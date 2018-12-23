@@ -35,12 +35,12 @@ struct route_entry {
 struct route_entry route_list;
 DEFINE_SPINLOCK(routelock);
 								//\fcvexclude
-/* This thread's fixed-sized set of hazard pointers. */		//\fcvexclude
+/* This thread's fixed-sized set of hazard pointers. */
 hazard_pointer __thread *my_hazptr;
 
-/*								  \fcvexclude
- * Look up a route entry, return the corresponding interface. 	  \fcvexclude
- */								//\fcvexclude
+/*
+ * Look up a route entry, return the corresponding interface.
+ */
 unsigned long route_lookup(unsigned long addr)
 {
 	int offset = 0;
@@ -56,16 +56,16 @@ retry:							//\lnlbl{retry}
 		if (rep == (struct route_entry *)HAZPTR_POISON)	//\lnlbl{acq:b}
 			goto retry; /* element deleted. */
 								//\fcvexclude
-		/* Store a hazard pointer. */			//\fcvexclude
+		/* Store a hazard pointer. */
 		my_hazptr[offset].p = &rep->hh;
 		offset = !offset;
 		smp_mb(); /* Force pointer loads in order. */
 								//\fcvexclude
-		/* Recheck the hazard pointer against the original. */ //\fcvexclude
+		/* Recheck the hazard pointer against the original. */
 		if (READ_ONCE(*repp) != rep)
 			goto retry;			//\lnlbl{acq:e}
 								//\fcvexclude
-		/* Advance to next. */				//\fcvexclude
+		/* Advance to next. */
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
 	if (READ_ONCE(rep->re_freed))
@@ -95,9 +95,9 @@ int route_add(unsigned long addr, unsigned long interface)
 	return 0;
 }
 
-/*								  \fcvexclude
- * Remove the specified element from the route table.		  \fcvexclude
- */								//\fcvexclude
+/*
+ * Remove the specified element from the route table.
+ */
 int route_del(unsigned long addr)
 {
 	struct route_entry *rep;

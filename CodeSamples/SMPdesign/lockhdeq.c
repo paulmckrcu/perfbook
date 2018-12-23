@@ -133,14 +133,14 @@ void deq_push_r(struct cds_list_head *e, struct deq *p)
 struct pdeq {
 	spinlock_t llock;				//\lnlbl{llock}
 	int lidx;					//\lnlbl{lidx}
-	/* char pad1[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */	//\fcvexclude
+	/* char pad1[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */
 #ifndef FCV_SNIPPET
 	spinlock_t rlock ____cacheline_internodealigned_in_smp;
 #else /* FCV_SNIPPET */
 	spinlock_t rlock;				//\lnlbl{rlock}
 #endif /* FCV_SNIPPET */
 	int ridx;					//\lnlbl{ridx}
-	/* char pad2[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */	//\fcvexclude
+	/* char pad2[CACHE_LINE_SIZE - sizeof(spinlock_t) - sizeof(int)]; */
 	struct deq bkt[PDEQ_N_BKTS];			//\lnlbl{bkt}
 };
 //\end{snippet}

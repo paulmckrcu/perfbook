@@ -24,11 +24,13 @@ typedef struct {				//\lnlbl{typedef:b}
 	spinlock_t lock;
 } seqlock_t;					//\lnlbl{typedef:e}
 
-#define DEFINE_SEQ_LOCK(name) seqlock_t name = { 	/* \fcvexclude */ \
-	.seq = 0,					/* \fcvexclude */ \
-	.lock = __SPIN_LOCK_UNLOCKED(name.lock),	/* \fcvexclude */ \
-};							/* \fcvexclude */
-							/* \fcvexclude */
+#ifndef FCV_SNIPPET
+#define DEFINE_SEQ_LOCK(name) seqlock_t name = { \
+	.seq = 0,                                \
+	.lock = __SPIN_LOCK_UNLOCKED(name.lock), \
+};
+#endif /* FCV_SNIPPET */
+							//\fcvexclude
 static inline void seqlock_init(seqlock_t *slp)		//\lnlbl{init:b}
 {
 	slp->seq = 0;

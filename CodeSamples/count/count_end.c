@@ -46,9 +46,11 @@ static __inline__ unsigned long read_count(void)
 	return sum;					//\lnlbl{read:return}
 }
 
-__inline__ void count_init(void)		//\fcvexclude
-{						//\fcvexclude
-}						//\fcvexclude
+#ifndef FCV_SNIPPET
+__inline__ void count_init(void)
+{
+}
+#endif /* FCV_SNIPPET */
 						//\fcvexclude
 void count_register_thread(unsigned long *p)	//\lnlbl{reg:b}
 {
