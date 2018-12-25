@@ -298,13 +298,14 @@ int hashtab_resize(struct hashtab *htp_master,
 	for (i = 0; i < htp->ht_nbuckets; i++) {		//\lnlbl{loop:b}
 		htbp = &htp->ht_bkt[i];				//\lnlbl{get_oldcur}
 		spin_lock(&htbp->htb_lock);			//\lnlbl{acq_oldcur}
-		htp->ht_resize_cur = i;				//\lnlbl{update_resize}
 		cds_list_for_each_entry(htep, &htbp->htb_head, hte_next[idx]) { //\lnlbl{loop_list:b}
 			htbp_new = ht_get_bucket_single(htp_new, htp_new->ht_getkey(htep), &b);
 			spin_lock(&htbp_new->htb_lock);
 			cds_list_add_rcu(&htep->hte_next[!idx], &htbp_new->htb_head);
 			spin_unlock(&htbp_new->htb_lock);
 		}						//\lnlbl{loop_list:e}
+		smp_mb(); /* Fill new buckets before claiming them. */
+		htp->ht_resize_cur = i;				//\lnlbl{update_resize}
 		spin_unlock(&htbp->htb_lock);			//\lnlbl{rel_oldcur}
 	}							//\lnlbl{loop:e}
 	rcu_assign_pointer(htp_master->ht_cur, htp_new);	//\lnlbl{rcu_assign}

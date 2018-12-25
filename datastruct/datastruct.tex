@@ -1246,10 +1246,8 @@ each other's linked lists.
 
 Each pass through the loop spanning lines~\lnref{loop:b}-\lnref{loop:e} distributes the contents
 of one of the old hash table's buckets into the new hash table.
-Line~\lnref{get_oldcur} picks up a reference to the old table's current bucket,
-line~\lnref{acq_oldcur} acquires that bucket's spinlock, and
-line~\lnref{update_resize} updates
-\co{->ht_resize_cur} to indicate that this bucket is being distributed.
+Line~\lnref{get_oldcur} picks up a reference to the old table's current bucket
+and line~\lnref{acq_oldcur} acquires that bucket's spinlock.
 \end{lineref}
 
 \QuickQuiz{}
@@ -1281,7 +1279,30 @@ Each pass through the loop spanning
 lines~\lnref{loop_list:b}-\lnref{loop_list:e} adds one data element
 from the current old-table bucket to the corresponding new-table bucket,
 holding the new-table bucket's lock during the add operation.
+Line~\lnref{update_resize} updates
+\co{->ht_resize_cur} to indicate that this bucket has been distributed,
+and is preceded by a full memory barrier that pairs with the one in
+\co{ht_get_bucket()} shown in
+Listing~\ref{lst:datastruct:Resizable Hash-Table Bucket Selection}.
 Finally, line~\lnref{rel_oldcur} releases the old-table bucket lock.
+
+\QuickQuiz{}
+	Why the memory barriers in \co{ht_get_bucket()} in
+	Listing~\ref{lst:datastruct:Resizable Hash-Table Bucket Selection}
+	and in \co{hashtab_resize()} in
+	Listing~\ref{lst:datastruct:Resizable Hash-Table Resizing}?
+\QuickQuizAnswer{
+	Because \co{ht_get_bucket()} can be called without holding
+	the update-side locks, there is no mutual exclusion.
+	It would be bad for \co{ht_get_bucket()} to refer to the
+	new hash table before the data element of interest appeared
+	there, and the two memory barriers prevent this from happening.
+	That is, \co{hashtab_resize()} will have fully moved the
+	data elements in the old bucket before updating
+	\co{->ht_resize_cur}, and \co{ht_get_bucket()} won't access
+	the new hash table until after it sees the updated value
+	from \co{->ht_resize_cur}.
+} \QuickQuizEnd
 
 Execution reaches line~\lnref{rcu_assign} once all old-table buckets have been distributed
 across the new table.
