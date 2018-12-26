@@ -1258,6 +1258,9 @@ and line~\lnref{acq_oldcur} acquires that bucket's spinlock.
 	will be seen as happening before the update to \co{->ht_resize_cur}
 	on line~\lnref{update_resize} from the perspective of \co{hashtab_lookup()},
 	\co{hashtab_add()}, and \co{hashtab_del()}?
+	In other words, what prevents \co{hashtab_lookup()},
+	\co{hashtab_add()}, and \co{hashtab_del()}, from dereferencing
+	a NULL pointer loaded from \co{->ht_new}?
 	\end{lineref}
 \QuickQuizAnswer{
 	\begin{lineref}[ln:datastruct:hash_resize:resize]
@@ -1271,6 +1274,13 @@ and line~\lnref{acq_oldcur} acquires that bucket's spinlock.
 	of \co{->ht_resize_cur} cannot have started before the
 	assignment to \co{->ht_new}, and thus must be able to see
 	the reference to the new hash table.
+
+	And this is why the update-side \co{hashtab_add()} and
+	\co{hashtab_del()} functions must nevertheless be enclosed
+	in RCU read-side critical sections, courtesy of
+	\co{hashtab_lock_mod()} and \co{hashtab_unlock_mod()} in
+	Listing{lst:datastruct:Resizable Hash-Table Update-Side Concurrency
+	Control}.
 	\end{lineref}
 } \QuickQuizEnd
 
