@@ -17,11 +17,19 @@ my @fcvsources_ltms;
 my $snippet_key;
 my $snippet_key_ltms;
 my $source;
+my @ignore_re;
+my $re;
 
 $snippet_key = '\begin{snippet}' ;
 $snippet_key_ltms = '\begin[snippet]' ;
+@ignore_re = ('\.swp$', '~$', '\#$') ;  # to ignore backup of vim and emacs
 @fcvsources = `grep -l -r -F '$snippet_key' CodeSamples` ;
+@fcvsources = grep { not /\.ltms$/ } @fcvsources ;
 @fcvsources_ltms = `grep -l -r -F '$snippet_key_ltms' CodeSamples` ;
+foreach $re (@ignore_re) {
+    @fcvsources = grep { not /$re/ } @fcvsources ;
+    @fcvsources_ltms = grep { not /$re/ } @fcvsources_ltms ;
+}
 chomp @fcvsources ;
 chomp @fcvsources_ltms ;
 
@@ -32,9 +40,6 @@ foreach $source (@fcvsources) {
     my @snippet_commands1 ;
     my $subdir ;
     my $snippet ;
-    if ($source =~ /\.ltms$/) {
-	next;
-    }
     @snippet_commands1 = `grep -F '$snippet_key' $source` ;
     chomp @snippet_commands1 ;
     $source =~ m!(.*/[^/]+)/[^/]+! ;
@@ -51,6 +56,7 @@ foreach $source (@fcvsources_ltms) {
     my @snippet_commands1 ;
     my $subdir ;
     my $snippet ;
+
     @snippet_commands1 = `grep -F '$snippet_key_ltms' $source` ;
     chomp @snippet_commands1 ;
     $source =~ m!(.*/[^/]+)/[^/]+! ;
@@ -77,9 +83,7 @@ foreach $source (@fcvsources) {
     my $src_under_sub ;
     my $subdir ;
     my $snippet ;
-    if ($source =~ /\.ltms$/) {
-	next;
-    }
+
     @snippet_commands2 = `grep -F '$snippet_key' $source` ;
     chomp @snippet_commands2 ;
     $src_under_sub = $source ;
