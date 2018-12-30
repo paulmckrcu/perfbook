@@ -55,6 +55,7 @@ void (*defer_del_done)(struct ht_elem *htep) = NULL;
 #ifndef quiescent_state
 #define quiescent_state() do ; while (0)
 #define synchronize_rcu() do ; while (0)
+#define rcu_barrier() do ; while (0)
 #endif /* #ifndef quiescent_state */
 
 /*
@@ -765,6 +766,7 @@ void *perftest_reader(void *arg)
 		if (i >= ne)
 			i = i % ne + offset;
 	}
+
 	pap->nlookups = nlookups;
 	pap->nlookupfails = nlookupfails;
 	hash_unregister_thread();
@@ -839,6 +841,7 @@ void *perftest_updater(void *arg)
 			quiescent_state();
 	}
 
+	rcu_barrier();
 	/* Test over, so remove all our elements from the hash table. */
 	for (i = 0; i < elperupdater; i++) {
 		if (thep[i].in_table != 1)
@@ -846,10 +849,7 @@ void *perftest_updater(void *arg)
 		BUG_ON(!perftest_lookup(thep[i].data));
 		perftest_del(&thep[i]);
 	}
-	/* Really want rcu_barrier(), but missing from old liburcu versions. */
-	synchronize_rcu();
-	poll(NULL, 0, 100);
-	synchronize_rcu();
+	rcu_barrier();
 
 	hash_unregister_thread();
 	free(thep);
@@ -1048,10 +1048,6 @@ void *zoo_reader(void *arg)
 		if (i >= ne)
 			i = i % ne + offset;
 	}
-	/* Really want rcu_barrier(), but missing from old liburcu versions. */
-	synchronize_rcu();
-	poll(NULL, 0, 100);
-	synchronize_rcu();
 
 	pap->nlookups = nlookups;
 	pap->nlookupfails = nlookupfails;
@@ -1136,15 +1132,19 @@ void *zoo_updater(void *arg)
 			quiescent_state();
 	}
 
+	rcu_barrier();
 	/* Test over, so remove all our elements from the hash table. */
 	for (i = 0; i < elperupdater; i++) {
 		if (!zheplist[i])
 			continue;
 		zoo_del(zheplist[i]);
 	}
+	rcu_barrier();
+
 	hash_unregister_thread();
 	pap->nadds = nadds;
 	pap->ndels = ndels;
+	free(zheplist);
 	return NULL;
 }
 
