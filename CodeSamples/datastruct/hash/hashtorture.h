@@ -673,12 +673,15 @@ void *perftest_resize(void *arg)
 	run_on(0);
 	els[0]= nbuckets;
 	els[1] = els[0] * resizemult / resizediv;
-	while (goflag == GOFLAG_INIT)
+	while (READ_ONCE(goflag) == GOFLAG_INIT)
 		poll(NULL, 0, 1);
-	while (goflag == GOFLAG_RUN) {
+	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		smp_mb();
-		if (resizewait != 0)
+		if (resizewait != 0) {
 			poll(NULL, 0, resizewait);
+			if (READ_ONCE(goflag) != GOFLAG_RUN)
+				break;
+		}
 		i++;
 		hash_resize_test(perftest_htp, els[i & 0x1]);
 	}
@@ -749,7 +752,7 @@ void *perftest_reader(void *arg)
 	/* Run the test code. */
 	i = 0;
 	for (;;) {
-		gf = ACCESS_ONCE(goflag);
+		gf = READ_ONCE(goflag);
 		if (gf != GOFLAG_RUN) {
 			if (gf == GOFLAG_STOP)
 				break;
@@ -808,7 +811,7 @@ void *perftest_updater(void *arg)
 	atomic_inc(&nthreads_running);
 	i = 0;
 	for (;;) {
-		gf = ACCESS_ONCE(goflag);
+		gf = READ_ONCE(goflag);
 		if (gf != GOFLAG_RUN) {
 			if (gf == GOFLAG_STOP)
 				break;
@@ -899,9 +902,9 @@ void perftest(void)
 
 	/* Run the test. */
 	starttime = get_microseconds();
-	ACCESS_ONCE(goflag) = GOFLAG_RUN;
+	WRITE_ONCE(goflag, GOFLAG_RUN);
 	poll(NULL, 0, duration);
-	ACCESS_ONCE(goflag) = GOFLAG_STOP;
+	WRITE_ONCE(goflag, GOFLAG_STOP);
 	starttime = get_microseconds() - starttime;
 	wait_all_threads();
 
@@ -1027,7 +1030,7 @@ void *zoo_reader(void *arg)
 	/* Run the test code. */
 	i = 0;
 	for (;;) {
-		gf = ACCESS_ONCE(goflag);
+		gf = READ_ONCE(goflag);
 		if (gf != GOFLAG_RUN) {
 			if (gf == GOFLAG_STOP)
 				break;
@@ -1093,7 +1096,7 @@ void *zoo_updater(void *arg)
 	atomic_inc(&nthreads_running);
 	i = 0;
 	for (;;) {
-		gf = ACCESS_ONCE(goflag);
+		gf = READ_ONCE(goflag);
 		if (gf != GOFLAG_RUN) {
 			if (gf == GOFLAG_STOP)
 				break;
@@ -1209,9 +1212,9 @@ void zoo_test(void)
 
 	/* Run the test. */
 	starttime = get_microseconds();
-	ACCESS_ONCE(goflag) = GOFLAG_RUN;
+	WRITE_ONCE(goflag, GOFLAG_RUN);
 	poll(NULL, 0, duration);
-	ACCESS_ONCE(goflag) = GOFLAG_STOP;
+	WRITE_ONCE(goflag, GOFLAG_STOP);
 	starttime = get_microseconds() - starttime;
 	wait_all_threads();
 
