@@ -36,6 +36,7 @@
 
 #ifndef hash_resize_test
 #define hash_resize_test(htp, n) do { } while (0)
+#define hashtab_lock_mod_state
 #endif /* #ifndef hash_register_test */
 
 #ifndef other_init
@@ -103,6 +104,7 @@ struct testhe *smoketest_malloc(int key)
 
 void smoketest(void)
 {
+	hashtab_lock_mod_state;
 	struct testhe *e1p;
 	struct testhe *e2p;
 	struct testhe *e3p;
@@ -708,6 +710,8 @@ int perftest_lookup(long i)
 /* Add an element to the hash table. */
 void perftest_add(struct testhe *thep)
 {
+	hashtab_lock_mod_state;
+
 	BUG_ON(thep->in_table);
 	hashtab_lock_mod(perftest_htp, thep->data);
 	BUG_ON(hashtab_lookup(perftest_htp, thep->data, (void *)thep->data));
@@ -719,6 +723,8 @@ void perftest_add(struct testhe *thep)
 /* Remove an element from the hash table. */
 void perftest_del(struct testhe *thep)
 {
+	hashtab_lock_mod_state;
+
 	BUG_ON(thep->in_table != 1);
 	hashtab_lock_mod(perftest_htp, thep->data);
 	hashtab_del(&thep->the_e);
@@ -983,6 +989,7 @@ int zoo_lookup(char *key)
 /* Add an element to the hash table. */
 void zoo_add(struct zoo_he *zhep)
 {
+	hashtab_lock_mod_state;
 	unsigned long hash = zoo_hash(zhep->name);
 
 	hashtab_lock_mod(perftest_htp, hash);
@@ -994,6 +1001,7 @@ void zoo_add(struct zoo_he *zhep)
 /* Remove an element from the hash table. */
 void zoo_del(struct zoo_he *zhep)
 {
+	hashtab_lock_mod_state;
 	unsigned long hash = zoo_hash(zhep->name);
 
 	hashtab_lock_mod(perftest_htp, hash);

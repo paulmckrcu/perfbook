@@ -161,10 +161,11 @@ static void hashtab_unlock_lookup(struct hashtab *htp_master, void *key)
 //\begin{snippet}[labelbase=ln:datastruct:hash_resize:lock_unlock_mod,commandchars=\\\[\]]
 /* Update-side lock/unlock functions. */
 static void						//\lnlbl{lock:b}
-hashtab_lock_mod(struct hashtab *htp_master, void *key)
+resize_lock_mod(struct hashtab *htp_master, void *key, struct ht_bucket *ls[2])
 {
 	long b;
 	struct ht *htp;
+	struct ht *htp_new;
 	struct ht_bucket *htbp;
 	struct ht_bucket *htbp_new;
 
@@ -172,24 +173,28 @@ hashtab_lock_mod(struct hashtab *htp_master, void *key)
 	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{lock:refhashtbl}
 	htbp = ht_get_bucket_single(htp, key, &b);	//\lnlbl{lock:refbucket}
 	spin_lock(&htbp->htb_lock);			//\lnlbl{lock:acq_bucket}
-	if (b > htp->ht_resize_cur)			//\lnlbl{lock:chk_resz_dist}
+	ls[0] = htbp;
+	if (b > htp->ht_resize_cur) {			//\lnlbl{lock:chk_resz_dist}
+		ls[1] = NULL;
 		return;					//\lnlbl{lock:fastret}
-	htp = htp->ht_new;				//\lnlbl{lock:new_hashtbl}
-	htbp_new = ht_get_bucket_single(htp, key, &b);	//\lnlbl{lock:get_newbucket}
+	}
+	htp_new = htp->ht_new;				//\lnlbl{lock:new_hashtbl}
+	if (htp == htp_new) {				//\lnlbl{lock:chk_newoldeq}
+		ls[1] = NULL;
+		return;					//\lnlbl{lock:fastret}
+	}
+	htbp_new = ht_get_bucket_single(htp_new, key, &b); //\lnlbl{lock:get_newbucket}
 	spin_lock(&htbp_new->htb_lock);			//\lnlbl{lock:acq_newbucket}
-	spin_unlock(&htbp->htb_lock);			//\lnlbl{lock:rel_oldbucket}
+	ls[1] = htbp_new;
 }							//\lnlbl{lock:e}
 
 static void						//\lnlbl{unlock:b}
-hashtab_unlock_mod(struct hashtab *htp_master, void *key)
+resize_unlock_mod(struct ht_bucket *ls[2])
 {
-	long b;
-	struct ht *htp;
-	struct ht_bucket *htbp;
-
-	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{unlock:get_curtbl}
-	htbp = ht_get_bucket(&htp, key, &b, NULL);	//\lnlbl{unlock:get_curbucket}
-	spin_unlock(&htbp->htb_lock);			//\lnlbl{unlock:rel_curbucket}
+	if (ls[0])
+		spin_unlock(&ls[0]->htb_lock);		//\lnlbl{unlock:rel_curbucket1}
+	if (ls[1])
+		spin_unlock(&ls[1]->htb_lock);		//\lnlbl{unlock:rel_curbucket2}
 	rcu_read_unlock();				//\lnlbl{unlock:rcu_unlock}
 }							//\lnlbl{unlock:e}
 //\end{snippet}
@@ -204,7 +209,7 @@ void hashtab_lookup_done(struct ht_elem *htep)
 //\begin{snippet}[labelbase=ln:datastruct:hash_resize:access,commandchars=\\\@\$]
 /*
  * Look up a key.  Caller must have acquired either a read-side or update-side
- * lock via either hashtab_lock_lookup() or hashtab_lock_mod().  Note that
+ * lock via either hashtab_lock_lookup() or resize_lock_mod().  Note that
  * the return is a pointer to the ht_elem: Use offset_of() or equivalent
  * to get a pointer to the full data structure.
  */
@@ -230,7 +235,7 @@ hashtab_lookup(struct hashtab *htp_master, void *key)
 
 /*
  * Add an element to the hash table.  Caller must have acquired the
- * update-side lock via hashtab_lock_mod().
+ * update-side lock via resize_lock_mod().
  */
 void hashtab_add(struct hashtab *htp_master,		//\lnlbl{add:b}
                  struct ht_elem *htep)
@@ -247,7 +252,7 @@ void hashtab_add(struct hashtab *htp_master,		//\lnlbl{add:b}
 
 /*
  * Remove the specified element from the hash table.  Caller must have
- * acquired the update-side lock via hashtab_lock_mod().
+ * acquired the update-side lock via resize_lock_mod().
  */
 void hashtab_del(struct hashtab *htp_master,		//\lnlbl{del:b}
                  struct ht_elem *htep)
@@ -337,8 +342,9 @@ struct hashtab *test_htp;
 #define hash_unregister_thread() rcu_unregister_thread()
 #define hashtab_lock_lookup(htp, i) hashtab_lock_lookup((htp), (void *)(i))
 #define hashtab_unlock_lookup(htp, i) hashtab_unlock_lookup((htp), (void *)(i))
-#define hashtab_lock_mod(htp, i) hashtab_lock_mod((htp), (void *)(i))
-#define hashtab_unlock_mod(htp, i) hashtab_unlock_mod((htp), (void *)(i))
+#define hashtab_lock_mod_state struct ht_bucket *_hlms_[2]
+#define hashtab_lock_mod(htp, i) resize_lock_mod((htp), (void *)(i), _hlms_)
+#define hashtab_unlock_mod(htp, i) resize_unlock_mod(_hlms_)
 #define hashtab_lookup(htp, h, k) hashtab_lookup((htp), (k))
 #define hashtab_add(htp, h, htep) hashtab_add((htp), (htep))
 #define hashtab_del(htep) hashtab_del(test_htp, (htep))
