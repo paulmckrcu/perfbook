@@ -35,8 +35,10 @@
 #endif /* #ifndef hash_register_test */
 
 #ifndef hash_resize_test
+#define hashtab_alloc(n, cmp, tgh, testgk) hashtab_alloc(n, cmp)
 #define hash_resize_test(htp, n) do { } while (0)
 #define hashtab_lock_mod_state
+#define hashtab_lock_mod_zoo(htp, k, h) hashtab_lock_mod(htp, h)
 #endif /* #ifndef hash_register_test */
 
 #ifndef other_init
@@ -84,6 +86,11 @@ void *testgk(struct ht_elem *htep)
 	return (void *)thep->data;
 }
 
+unsigned long tgh(void *key)
+{
+	return (unsigned long)key;
+}
+
 int testcmp(struct ht_elem *htep, void *key)
 {
 	struct testhe *thep;
@@ -113,7 +120,7 @@ void smoketest(void)
 	struct ht_elem *htep;
 	long i;
 
-	htp = hashtab_alloc(5, testcmp);
+	htp = hashtab_alloc(5, testcmp, tgh, testgk);
 	BUG_ON(htp == NULL);
 	hash_register_test(htp);
 	hash_register_thread();
@@ -880,7 +887,7 @@ void perftest(void)
 	long long starttime;
 
 	BUG_ON(maxcpus <= 0);
-	perftest_htp = hashtab_alloc(nbuckets, testcmp);
+	perftest_htp = hashtab_alloc(nbuckets, testcmp, tgh, testgk);
 	BUG_ON(perftest_htp == NULL);
 	hash_register_test(perftest_htp);
 	defer_del_done = defer_del_done_perftest;
@@ -957,7 +964,7 @@ int zoo_cmp(struct ht_elem *htep, void *key)
 	return strncmp((char *)key, zhep->name, ZOO_NAMELEN) == 0;
 }
 
-unsigned long zoo_hash(char *key)
+unsigned long zoo_hash(void *key)
 {
 	char *cp = (char *)key;
 	int i;
@@ -990,9 +997,9 @@ int zoo_lookup(char *key)
 void zoo_add(struct zoo_he *zhep)
 {
 	hashtab_lock_mod_state;
-	unsigned long hash = zoo_hash(zhep->name);
+	unsigned long hash __attribute__((__unused__)) = zoo_hash(zhep->name);
 
-	hashtab_lock_mod(perftest_htp, hash);
+	hashtab_lock_mod_zoo(perftest_htp, zhep->name, hash);
 	BUG_ON(hashtab_lookup(perftest_htp, hash, (void *)zhep->name));
 	hashtab_add(perftest_htp, hash, &zhep->zhe_e);
 	hashtab_unlock_mod(perftest_htp, hash);
@@ -1002,9 +1009,9 @@ void zoo_add(struct zoo_he *zhep)
 void zoo_del(struct zoo_he *zhep)
 {
 	hashtab_lock_mod_state;
-	unsigned long hash = zoo_hash(zhep->name);
+	unsigned long hash __attribute__((__unused__)) = zoo_hash(zhep->name);
 
-	hashtab_lock_mod(perftest_htp, hash);
+	hashtab_lock_mod_zoo(perftest_htp, zhep->name, hash);
 	hashtab_del(&zhep->zhe_e);
 	hashtab_unlock_mod(perftest_htp, hash);
 	defer_del(&zhep->zhe_e);
@@ -1182,7 +1189,7 @@ void zoo_test(void)
 	struct zoo_he *zhep;
 
 	BUG_ON(maxcpus <= 0);
-	perftest_htp = hashtab_alloc(nbuckets, zoo_cmp);
+	perftest_htp = hashtab_alloc(nbuckets, zoo_cmp, zoo_hash, zoo_gk);
 	BUG_ON(perftest_htp == NULL);
 	hash_register_test(perftest_htp);
 	defer_del_done = defer_del_free;

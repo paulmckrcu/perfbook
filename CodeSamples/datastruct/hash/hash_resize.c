@@ -47,7 +47,7 @@ struct ht {						//\lnlbl{ht:b}
 	int ht_idx;					//\lnlbl{ht:idx}
 	int (*ht_cmp)(struct ht_elem *htep,
 	              void *key);
-	long (*ht_gethash)(void *key);
+	unsigned long (*ht_gethash)(void *key);
 	void *(*ht_getkey)(struct ht_elem *htep);	//\lnlbl{ht:getkey}
 	struct ht_bucket ht_bkt[0];			//\lnlbl{ht:bkt}
 };							//\lnlbl{ht:e}
@@ -63,7 +63,7 @@ struct hashtab {					//\lnlbl{hashtab:b}
 struct ht *
 ht_alloc(unsigned long nbuckets,
 	 int (*cmp)(struct ht_elem *htep, void *key),
-	 long (*gethash)(void *key),
+	 unsigned long (*gethash)(void *key),
 	 void *(*getkey)(struct ht_elem *htep))
 {
 	struct ht *htp;
@@ -90,7 +90,7 @@ ht_alloc(unsigned long nbuckets,
 struct hashtab *
 hashtab_alloc(unsigned long nbuckets,
 	      int (*cmp)(struct ht_elem *htep, void *key),
-	      long (*gethash)(void *key),
+	      unsigned long (*gethash)(void *key),
 	      void *(*getkey)(struct ht_elem *htep))
 {
 	struct hashtab *htp_master;
@@ -268,7 +268,7 @@ void hashtab_del(struct hashtab *htp_master,		//\lnlbl{del:b}
 int hashtab_resize(struct hashtab *htp_master,
                    unsigned long nbuckets,
                    int (*cmp)(struct ht_elem *htep, void *key),
-                   long (*gethash)(void *key),
+                   unsigned long (*gethash)(void *key),
                    void *(*getkey)(struct ht_elem *htep))
 {
 	struct ht *htp;
@@ -316,22 +316,8 @@ int hashtab_resize(struct hashtab *htp_master,
 }
 //\end{snippet}
 
-/* Test functions. */
-long tgh(void *key)
-{
-	return (long)key;
-}
-
-int testcmp(struct ht_elem *htep, void *key);
-
-int tc(struct ht_elem *htep, void *key)
-{
-	return testcmp(htep, key);
-}
-
 struct hashtab *test_htp;
 
-#define hashtab_alloc(n, cmp) hashtab_alloc((n), tc, tgh, testgk)
 #define hash_register_test(htp) do test_htp = (htp); while (0)
 #define hash_register_thread() rcu_register_thread()
 #define hash_unregister_thread() rcu_unregister_thread()
@@ -339,6 +325,7 @@ struct hashtab *test_htp;
 #define hashtab_unlock_lookup(htp, i) hashtab_unlock_lookup((htp), (void *)(i))
 #define hashtab_lock_mod_state struct ht_bucket *_hlms_[2]
 #define hashtab_lock_mod(htp, i) resize_lock_mod((htp), (void *)(i), _hlms_)
+#define hashtab_lock_mod_zoo(htp, k, i) resize_lock_mod((htp), k, _hlms_)
 #define hashtab_unlock_mod(htp, i) resize_unlock_mod(_hlms_)
 #define hashtab_lookup(htp, h, k) hashtab_lookup((htp), (k))
 #define hashtab_add(htp, h, htep) hashtab_add((htp), (htep))
