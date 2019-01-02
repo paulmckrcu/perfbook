@@ -240,9 +240,12 @@ void hashtab_add(struct hashtab *htp_master,		//\lnlbl{add:b}
 	int i;
 	struct ht *htp;
 	struct ht_bucket *htbp;
+	void *k;
 
 	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{add:get_curtbl}
-	htbp = ht_get_bucket(&htp, htp->ht_getkey(htep), &b, &i); //\lnlbl{add:get_curbucket}
+	k = htp->ht_getkey(htep);
+	htep->hte_hash = htp->ht_gethash(k);
+	htbp = ht_get_bucket(&htp, k, &b, &i);		//\lnlbl{add:get_curbucket}
 	cds_list_add_rcu(&htep->hte_next[i], &htbp->htb_head); //\lnlbl{add:add}
 }							//\lnlbl{add:e}
 
