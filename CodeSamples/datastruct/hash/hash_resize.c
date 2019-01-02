@@ -45,11 +45,9 @@ struct ht {						//\lnlbl{ht:b}
 	long ht_resize_cur;				//\lnlbl{ht:resize_cur}
 	struct ht *ht_new;				//\lnlbl{ht:new}
 	int ht_idx;					//\lnlbl{ht:idx}
-	void *ht_hash_private;				//\lnlbl{ht:hash_private}
-	int (*ht_cmp)(void *hash_private,
-	              struct ht_elem *htep,
+	int (*ht_cmp)(struct ht_elem *htep,
 	              void *key);
-	long (*ht_gethash)(void *hash_private, void *key);
+	long (*ht_gethash)(void *key);
 	void *(*ht_getkey)(struct ht_elem *htep);	//\lnlbl{ht:getkey}
 	struct ht_bucket ht_bkt[0];			//\lnlbl{ht:bkt}
 };							//\lnlbl{ht:e}
@@ -63,9 +61,9 @@ struct hashtab {					//\lnlbl{hashtab:b}
 
 /* Allocate a hash-table instance. */
 struct ht *
-ht_alloc(unsigned long nbuckets, void *hash_private,
-	 int (*cmp)(void *hash_private, struct ht_elem *htep, void *key),
-	 long (*gethash)(void *hash_private, void *key),
+ht_alloc(unsigned long nbuckets,
+	 int (*cmp)(struct ht_elem *htep, void *key),
+	 long (*gethash)(void *key),
 	 void *(*getkey)(struct ht_elem *htep))
 {
 	struct ht *htp;
@@ -78,7 +76,6 @@ ht_alloc(unsigned long nbuckets, void *hash_private,
 	htp->ht_resize_cur = -1;
 	htp->ht_new = NULL;
 	htp->ht_idx = 0;
-	htp->ht_hash_private = hash_private;
 	htp->ht_cmp = cmp;
 	htp->ht_gethash = gethash;
 	htp->ht_getkey = getkey;
@@ -91,9 +88,9 @@ ht_alloc(unsigned long nbuckets, void *hash_private,
 
 /* Allocate a full hash table, master plus instance. */
 struct hashtab *
-hashtab_alloc(unsigned long nbuckets, void *hash_private,
-	      int (*cmp)(void *hash_private, struct ht_elem *htep, void *key),
-	      long (*gethash)(void *hash_private, void *key),
+hashtab_alloc(unsigned long nbuckets,
+	      int (*cmp)(struct ht_elem *htep, void *key),
+	      long (*gethash)(void *key),
 	      void *(*getkey)(struct ht_elem *htep))
 {
 	struct hashtab *htp_master;
@@ -102,7 +99,7 @@ hashtab_alloc(unsigned long nbuckets, void *hash_private,
 	if (htp_master == NULL)
 		return NULL;
 	htp_master->ht_cur =
-		ht_alloc(nbuckets, hash_private, cmp, gethash, getkey);
+		ht_alloc(nbuckets, cmp, gethash, getkey);
 	if (htp_master->ht_cur == NULL) {
 		free(htp_master);
 		return NULL;
@@ -123,8 +120,7 @@ void hashtab_free(struct hashtab *htp_master)
 static struct ht_bucket *				//\lnlbl{single:b}
 ht_get_bucket_single(struct ht *htp, void *key, long *b)
 {
-	*b = htp->ht_gethash(htp->ht_hash_private,	//\lnlbl{single:gethash:b}
-	                     key) % htp->ht_nbuckets;	//\lnlbl{single:gethash:e}
+	*b = htp->ht_gethash(key) % htp->ht_nbuckets;	//\lnlbl{single:gethash}
 	return &htp->ht_bkt[*b];			//\lnlbl{single:return}
 }							//\lnlbl{single:e}
 
@@ -227,7 +223,7 @@ hashtab_lookup(struct hashtab *htp_master, void *key)
 	cds_list_for_each_entry_rcu(htep,		//\lnlbl{lookup:loop:b}
 	                            &htbp->htb_head,
 	                            hte_next[i]) {
-		if (htp->ht_cmp(htp->ht_hash_private, htep, key)) //\lnlbl{lookup:match}
+		if (htp->ht_cmp(htep, key)) 		//\lnlbl{lookup:match}
 			return htep;			//\lnlbl{lookup:ret_match}
 	}						//\lnlbl{lookup:loop:e}
 	return NULL;					//\lnlbl{lookup:ret_NULL}
@@ -270,9 +266,9 @@ void hashtab_del(struct hashtab *htp_master,		//\lnlbl{del:b}
 //\begin{snippet}[labelbase=ln:datastruct:hash_resize:resize,commandchars=\\\@\$,tabsize=6]
 /* Resize a hash table. */
 int hashtab_resize(struct hashtab *htp_master,
-                   unsigned long nbuckets, void *hash_private,
-                   int (*cmp)(void *hash_private, struct ht_elem *htep, void *key),
-                   long (*gethash)(void *hash_private, void *key),
+                   unsigned long nbuckets,
+                   int (*cmp)(struct ht_elem *htep, void *key),
+                   long (*gethash)(void *key),
                    void *(*getkey)(struct ht_elem *htep))
 {
 	struct ht *htp;
@@ -288,7 +284,6 @@ int hashtab_resize(struct hashtab *htp_master,
 		return -EBUSY;					//\lnlbl{ret_busy}
 	htp = htp_master->ht_cur;				//\lnlbl{get_curtbl}
 	htp_new = ht_alloc(nbuckets,				//\lnlbl{alloc:b}
-	                   hash_private ? hash_private : htp->ht_hash_private,
 	                   cmp ? cmp : htp->ht_cmp,
 	                   gethash ? gethash : htp->ht_gethash,
 	                   getkey ? getkey : htp->ht_getkey);	//\lnlbl{alloc:e}
@@ -322,21 +317,21 @@ int hashtab_resize(struct hashtab *htp_master,
 //\end{snippet}
 
 /* Test functions. */
-long tgh(void *hash_private, void *key)
+long tgh(void *key)
 {
 	return (long)key;
 }
 
 int testcmp(struct ht_elem *htep, void *key);
 
-int tc(void *hash_private, struct ht_elem *htep, void *key)
+int tc(struct ht_elem *htep, void *key)
 {
 	return testcmp(htep, key);
 }
 
 struct hashtab *test_htp;
 
-#define hashtab_alloc(n, cmp) hashtab_alloc((n), NULL, tc, tgh, testgk)
+#define hashtab_alloc(n, cmp) hashtab_alloc((n), tc, tgh, testgk)
 #define hash_register_test(htp) do test_htp = (htp); while (0)
 #define hash_register_thread() rcu_register_thread()
 #define hash_unregister_thread() rcu_unregister_thread()
@@ -348,7 +343,7 @@ struct hashtab *test_htp;
 #define hashtab_lookup(htp, h, k) hashtab_lookup((htp), (k))
 #define hashtab_add(htp, h, htep) hashtab_add((htp), (htep))
 #define hashtab_del(htep) hashtab_del(test_htp, (htep))
-#define hash_resize_test(htp, n) hashtab_resize((htp), (n), (void *)1, NULL, NULL, NULL)
+#define hash_resize_test(htp, n) hashtab_resize((htp), (n), NULL, NULL, NULL)
 
 void (*defer_del_done)(struct ht_elem *htep) = NULL;
 
