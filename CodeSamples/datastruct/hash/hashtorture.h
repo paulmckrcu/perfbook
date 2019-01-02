@@ -1098,6 +1098,7 @@ void *zoo_updater(void *arg)
 		strcpy(zhep->name, &zoo_names[ZOO_NAMELEN * (j + mylowkey)]);
 		zoo_add(zhep);
 		zheplist[j] = zhep;
+		BUG_ON(!zoo_lookup(zhep->name));
 	}
 
 	/* Announce our presence and enter the test loop. */
@@ -1195,6 +1196,7 @@ void zoo_test(void)
 	BUG_ON(!zhep);
 	strcpy(zhep->name, "cat");
 	zoo_add(zhep);
+	BUG_ON(!zoo_lookup("cat"));
 
 	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
 	BUG_ON(pap == NULL);
