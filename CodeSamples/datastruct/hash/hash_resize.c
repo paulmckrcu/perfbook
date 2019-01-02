@@ -187,8 +187,7 @@ resize_lock_mod(struct hashtab *htp_master, void *key, struct ht_bucket *ls[2])
 static void						//\lnlbl{unlock:b}
 resize_unlock_mod(struct ht_bucket *ls[2])
 {
-	if (ls[0])
-		spin_unlock(&ls[0]->htb_lock);		//\lnlbl{unlock:rel_curbucket1}
+	spin_unlock(&ls[0]->htb_lock);			//\lnlbl{unlock:rel_curbucket1}
 	if (ls[1])
 		spin_unlock(&ls[1]->htb_lock);		//\lnlbl{unlock:rel_curbucket2}
 	rcu_read_unlock();				//\lnlbl{unlock:rcu_unlock}
