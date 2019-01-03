@@ -39,6 +39,11 @@ struct ht_bucket {
 	spinlock_t htb_lock;
 };
 
+struct ht_lock_state {
+	struct ht_bucket *hbp;
+	int hls_idx;
+};
+
 /* Hash-table instance, duplicated at resize time. */
 struct ht {						//\lnlbl{ht:b}
 	long ht_nbuckets;				//\lnlbl{ht:nbuckets}
@@ -157,7 +162,8 @@ static void hashtab_unlock_lookup(struct hashtab *htp_master, void *key)
 //\begin{snippet}[labelbase=ln:datastruct:hash_resize:lock_unlock_mod,commandchars=\\\[\]]
 /* Update-side lock/unlock functions. */
 static void						//\lnlbl{lock:b}
-resize_lock_mod(struct hashtab *htp_master, void *key, struct ht_bucket *ls[2])
+resize_lock_mod(struct hashtab *htp_master, void *key,
+		struct ht_lock_state *lsp)
 {
 	long b;
 	struct ht *htp;
@@ -169,27 +175,29 @@ resize_lock_mod(struct hashtab *htp_master, void *key, struct ht_bucket *ls[2])
 	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{lock:refhashtbl}
 	htbp = ht_get_bucket_single(htp, key, &b);	//\lnlbl{lock:refbucket}
 	spin_lock(&htbp->htb_lock);			//\lnlbl{lock:acq_bucket}
-	ls[0] = htbp;
+	lsp[0].hbp = htbp;
+	lsp[0].hls_idx = htp->ht_idx;
 	if (b > htp->ht_resize_cur) {			//\lnlbl{lock:chk_resz_dist}
-		ls[1] = NULL;
+		lsp[1].hbp = NULL;
 		return;					//\lnlbl{lock:fastret}
 	}
 	htp_new = htp->ht_new;				//\lnlbl{lock:new_hashtbl}
 	if (htp == htp_new) {				//\lnlbl{lock:chk_newoldeq}
-		ls[1] = NULL;
+		lsp[1].hbp = NULL;
 		return;					//\lnlbl{lock:fastret}
 	}
 	htbp_new = ht_get_bucket_single(htp_new, key, &b); //\lnlbl{lock:get_newbucket}
 	spin_lock(&htbp_new->htb_lock);			//\lnlbl{lock:acq_newbucket}
-	ls[1] = htbp_new;
+	lsp[1].hbp = htbp_new;
+	lsp[1].hls_idx = htp->ht_idx;
 }							//\lnlbl{lock:e}
 
 static void						//\lnlbl{unlock:b}
-resize_unlock_mod(struct ht_bucket *ls[2])
+resize_unlock_mod(struct ht_lock_state *lsp)
 {
-	spin_unlock(&ls[0]->htb_lock);			//\lnlbl{unlock:rel_curbucket1}
-	if (ls[1])
-		spin_unlock(&ls[1]->htb_lock);		//\lnlbl{unlock:rel_curbucket2}
+	spin_unlock(&lsp[0].hbp->htb_lock);			//\lnlbl{unlock:rel_curbucket1}
+	if (lsp[1].hbp)
+		spin_unlock(&lsp[1].hbp->htb_lock);		//\lnlbl{unlock:rel_curbucket2}
 	rcu_read_unlock();				//\lnlbl{unlock:rcu_unlock}
 }							//\lnlbl{unlock:e}
 //\end{snippet}
@@ -325,10 +333,9 @@ struct hashtab *test_htp;
 #define hash_unregister_thread() rcu_unregister_thread()
 #define hashtab_lock_lookup(htp, i) hashtab_lock_lookup((htp), (void *)(i))
 #define hashtab_unlock_lookup(htp, i) hashtab_unlock_lookup((htp), (void *)(i))
-#define hashtab_lock_mod_state struct ht_bucket *_hlms_[2]
-#define hashtab_lock_mod(htp, i) resize_lock_mod((htp), (void *)(i), _hlms_)
-#define hashtab_lock_mod_zoo(htp, k, i) resize_lock_mod((htp), k, _hlms_)
-#define hashtab_unlock_mod(htp, i) resize_unlock_mod(_hlms_)
+#define hashtab_lock_mod(htp, i, h) resize_lock_mod((htp), (void *)(i), h)
+#define hashtab_lock_mod_zoo(htp, k, i, h) resize_lock_mod((htp), k, h)
+#define hashtab_unlock_mod(htp, i, h) resize_unlock_mod(h)
 #define hashtab_lookup(htp, h, k) hashtab_lookup((htp), (k))
 #define hashtab_add(htp, h, htep) hashtab_add((htp), (htep))
 #define hashtab_del(htep) hashtab_del(test_htp, (htep))

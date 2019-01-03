@@ -37,8 +37,11 @@
 #ifndef hash_resize_test
 #define hashtab_alloc(n, cmp, tgh, testgk) hashtab_alloc(n, cmp)
 #define hash_resize_test(htp, n) do { } while (0)
-#define hashtab_lock_mod_state
-#define hashtab_lock_mod_zoo(htp, k, h) hashtab_lock_mod(htp, h)
+#define hashtab_lock_mod(htp, k, h) hashtab_lock_mod(htp, k)
+#define hashtab_unlock_mod(htp, k, h) hashtab_unlock_mod(htp, k)
+#define hashtab_lock_mod_zoo(htp, k, h, s) hashtab_lock_mod(htp, h, s)
+struct ht_lock_state {
+};
 #endif /* #ifndef hash_register_test */
 
 #ifndef other_init
@@ -111,11 +114,11 @@ struct testhe *smoketest_malloc(int key)
 
 void smoketest(void)
 {
-	hashtab_lock_mod_state;
 	struct testhe *e1p;
 	struct testhe *e2p;
 	struct testhe *e3p;
 	struct testhe *e4p;
+	struct ht_lock_state __attribute__((__unused__)) hlms[2];
 	struct hashtab *htp;
 	struct ht_elem *htep;
 	long i;
@@ -134,32 +137,32 @@ void smoketest(void)
 
 	/* Add one by one and check. */
 	e1p = smoketest_malloc(1);
-	hashtab_lock_mod(htp, 1);
+	hashtab_lock_mod(htp, 1, hlms);
 	hashtab_add(htp, 1, &e1p->the_e);
 	htep = hashtab_lookup(htp, 1, (void *)1);
 	BUG_ON(!htep);
-	hashtab_unlock_mod(htp, 1);
+	hashtab_unlock_mod(htp, 1, hlms);
 	hashtab_lookup_done(htep);
 	e2p = smoketest_malloc(2);
-	hashtab_lock_mod(htp, 2);
+	hashtab_lock_mod(htp, 2, hlms);
 	hashtab_add(htp, 2, &e2p->the_e);
 	htep = hashtab_lookup(htp, 2, (void *)2);
 	BUG_ON(!htep);
-	hashtab_unlock_mod(htp, 2);
+	hashtab_unlock_mod(htp, 2, hlms);
 	hashtab_lookup_done(htep);
 	e3p = smoketest_malloc(3);
-	hashtab_lock_mod(htp, 3);
+	hashtab_lock_mod(htp, 3, hlms);
 	hashtab_add(htp, 3, &e3p->the_e);
 	htep = hashtab_lookup(htp, 3, (void *)3);
 	BUG_ON(!htep);
-	hashtab_unlock_mod(htp, 3);
+	hashtab_unlock_mod(htp, 3, hlms);
 	hashtab_lookup_done(htep);
 	e4p = smoketest_malloc(4);
-	hashtab_lock_mod(htp, 4);
+	hashtab_lock_mod(htp, 4, hlms);
 	hashtab_add(htp, 4, &e4p->the_e);
 	htep = hashtab_lookup(htp, 4, (void *)4);
 	BUG_ON(!htep);
-	hashtab_unlock_mod(htp, 4);
+	hashtab_unlock_mod(htp, 4, hlms);
 	hashtab_lookup_done(htep);
 
 	/* Should be full. */
@@ -172,22 +175,22 @@ void smoketest(void)
 	}
 
 	/* Delete all and check one by one. */
-	hashtab_lock_mod(htp, 1);
+	hashtab_lock_mod(htp, 1, hlms);
 	hashtab_del(&e1p->the_e);
 	BUG_ON(hashtab_lookup(htp, 1, (void *)1));
-	hashtab_unlock_mod(htp, 1);
-	hashtab_lock_mod(htp, 2);
+	hashtab_unlock_mod(htp, 1, hlms);
+	hashtab_lock_mod(htp, 2, hlms);
 	hashtab_del(&e2p->the_e);
 	BUG_ON(hashtab_lookup(htp, 2, (void *)2));
-	hashtab_unlock_mod(htp, 2);
-	hashtab_lock_mod(htp, 3);
+	hashtab_unlock_mod(htp, 2, hlms);
+	hashtab_lock_mod(htp, 3, hlms);
 	hashtab_del(&e3p->the_e);
 	BUG_ON(hashtab_lookup(htp, 3, (void *)3));
-	hashtab_unlock_mod(htp, 3);
-	hashtab_lock_mod(htp, 4);
+	hashtab_unlock_mod(htp, 3, hlms);
+	hashtab_lock_mod(htp, 4, hlms);
 	hashtab_del(&e4p->the_e);
 	BUG_ON(hashtab_lookup(htp, 4, (void *)4));
-	hashtab_unlock_mod(htp, 4);
+	hashtab_unlock_mod(htp, 4, hlms);
 
 	/* Should be empty. */
 	for (i = 1; i <= 4; i++) {
@@ -717,26 +720,26 @@ int perftest_lookup(long i)
 /* Add an element to the hash table. */
 void perftest_add(struct testhe *thep)
 {
-	hashtab_lock_mod_state;
+	struct ht_lock_state __attribute__((__unused__)) hlms[2];
 
 	BUG_ON(thep->in_table);
-	hashtab_lock_mod(perftest_htp, thep->data);
+	hashtab_lock_mod(perftest_htp, thep->data, hlms);
 	BUG_ON(hashtab_lookup(perftest_htp, thep->data, (void *)thep->data));
 	thep->in_table = 1;
 	hashtab_add(perftest_htp, thep->data, &thep->the_e);
-	hashtab_unlock_mod(perftest_htp, thep->data);
+	hashtab_unlock_mod(perftest_htp, thep->data, hlms);
 }
 
 /* Remove an element from the hash table. */
 void perftest_del(struct testhe *thep)
 {
-	hashtab_lock_mod_state;
+	struct ht_lock_state __attribute__((__unused__)) hlms[2];
 
 	BUG_ON(thep->in_table != 1);
-	hashtab_lock_mod(perftest_htp, thep->data);
+	hashtab_lock_mod(perftest_htp, thep->data, hlms);
 	hashtab_del(&thep->the_e);
 	thep->in_table = 2;
-	hashtab_unlock_mod(perftest_htp, thep->data);
+	hashtab_unlock_mod(perftest_htp, thep->data, hlms);
 	defer_del(&thep->the_e);
 }
 
@@ -996,24 +999,24 @@ int zoo_lookup(char *key)
 /* Add an element to the hash table. */
 void zoo_add(struct zoo_he *zhep)
 {
-	hashtab_lock_mod_state;
 	unsigned long hash __attribute__((__unused__)) = zoo_hash(zhep->name);
+	struct ht_lock_state __attribute__((__unused__)) hlms[2];
 
-	hashtab_lock_mod_zoo(perftest_htp, zhep->name, hash);
+	hashtab_lock_mod_zoo(perftest_htp, zhep->name, hash, hlms);
 	BUG_ON(hashtab_lookup(perftest_htp, hash, (void *)zhep->name));
 	hashtab_add(perftest_htp, hash, &zhep->zhe_e);
-	hashtab_unlock_mod(perftest_htp, hash);
+	hashtab_unlock_mod(perftest_htp, hash, hlms);
 }
 
 /* Remove an element from the hash table. */
 void zoo_del(struct zoo_he *zhep)
 {
-	hashtab_lock_mod_state;
 	unsigned long hash __attribute__((__unused__)) = zoo_hash(zhep->name);
+	struct ht_lock_state __attribute__((__unused__)) hlms[2];
 
-	hashtab_lock_mod_zoo(perftest_htp, zhep->name, hash);
+	hashtab_lock_mod_zoo(perftest_htp, zhep->name, hash, hlms);
 	hashtab_del(&zhep->zhe_e);
-	hashtab_unlock_mod(perftest_htp, hash);
+	hashtab_unlock_mod(perftest_htp, hash, hlms);
 	defer_del(&zhep->zhe_e);
 }
 
