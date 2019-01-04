@@ -41,6 +41,7 @@
 #define hashtab_unlock_mod(htp, k, h) hashtab_unlock_mod(htp, k)
 #define hashtab_lock_mod_zoo(htp, k, h, s) hashtab_lock_mod(htp, h, s)
 #define hashtab_add(htp, h, htep, s) hashtab_add((htp), (h), (htep))
+#define hashtab_del(htep,s) hashtab_del(htep)
 struct ht_lock_state {
 };
 #endif /* #ifndef hash_register_test */
@@ -177,19 +178,19 @@ void smoketest(void)
 
 	/* Delete all and check one by one. */
 	hashtab_lock_mod(htp, 1, &hlms);
-	hashtab_del(&e1p->the_e);
+	hashtab_del(&e1p->the_e, &hlms);
 	BUG_ON(hashtab_lookup(htp, 1, (void *)1));
 	hashtab_unlock_mod(htp, 1, &hlms);
 	hashtab_lock_mod(htp, 2, &hlms);
-	hashtab_del(&e2p->the_e);
+	hashtab_del(&e2p->the_e, &hlms);
 	BUG_ON(hashtab_lookup(htp, 2, (void *)2));
 	hashtab_unlock_mod(htp, 2, &hlms);
 	hashtab_lock_mod(htp, 3, &hlms);
-	hashtab_del(&e3p->the_e);
+	hashtab_del(&e3p->the_e, &hlms);
 	BUG_ON(hashtab_lookup(htp, 3, (void *)3));
 	hashtab_unlock_mod(htp, 3, &hlms);
 	hashtab_lock_mod(htp, 4, &hlms);
-	hashtab_del(&e4p->the_e);
+	hashtab_del(&e4p->the_e, &hlms);
 	BUG_ON(hashtab_lookup(htp, 4, (void *)4));
 	hashtab_unlock_mod(htp, 4, &hlms);
 
@@ -738,7 +739,7 @@ void perftest_del(struct testhe *thep)
 
 	BUG_ON(thep->in_table != 1);
 	hashtab_lock_mod(perftest_htp, thep->data, &hlms);
-	hashtab_del(&thep->the_e);
+	hashtab_del(&thep->the_e, &hlms);
 	thep->in_table = 2;
 	hashtab_unlock_mod(perftest_htp, thep->data, &hlms);
 	defer_del(&thep->the_e);
@@ -1016,7 +1017,7 @@ void zoo_del(struct zoo_he *zhep)
 	struct ht_lock_state __attribute__((__unused__)) hlms;
 
 	hashtab_lock_mod_zoo(perftest_htp, zhep->name, hash, &hlms);
-	hashtab_del(&zhep->zhe_e);
+	hashtab_del(&zhep->zhe_e, &hlms);
 	hashtab_unlock_mod(perftest_htp, hash, &hlms);
 	defer_del(&zhep->zhe_e);
 }
