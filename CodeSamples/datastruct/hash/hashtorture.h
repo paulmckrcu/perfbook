@@ -40,6 +40,7 @@
 #define hashtab_lock_mod(htp, k, h) hashtab_lock_mod(htp, k)
 #define hashtab_unlock_mod(htp, k, h) hashtab_unlock_mod(htp, k)
 #define hashtab_lock_mod_zoo(htp, k, h, s) hashtab_lock_mod(htp, h, s)
+#define hashtab_add(htp, h, htep, s) hashtab_add((htp), (h), (htep))
 struct ht_lock_state {
 };
 #endif /* #ifndef hash_register_test */
@@ -138,28 +139,28 @@ void smoketest(void)
 	/* Add one by one and check. */
 	e1p = smoketest_malloc(1);
 	hashtab_lock_mod(htp, 1, &hlms);
-	hashtab_add(htp, 1, &e1p->the_e);
+	hashtab_add(htp, 1, &e1p->the_e, &hlms);
 	htep = hashtab_lookup(htp, 1, (void *)1);
 	BUG_ON(!htep);
 	hashtab_unlock_mod(htp, 1, &hlms);
 	hashtab_lookup_done(htep);
 	e2p = smoketest_malloc(2);
 	hashtab_lock_mod(htp, 2, &hlms);
-	hashtab_add(htp, 2, &e2p->the_e);
+	hashtab_add(htp, 2, &e2p->the_e, &hlms);
 	htep = hashtab_lookup(htp, 2, (void *)2);
 	BUG_ON(!htep);
 	hashtab_unlock_mod(htp, 2, &hlms);
 	hashtab_lookup_done(htep);
 	e3p = smoketest_malloc(3);
 	hashtab_lock_mod(htp, 3, &hlms);
-	hashtab_add(htp, 3, &e3p->the_e);
+	hashtab_add(htp, 3, &e3p->the_e, &hlms);
 	htep = hashtab_lookup(htp, 3, (void *)3);
 	BUG_ON(!htep);
 	hashtab_unlock_mod(htp, 3, &hlms);
 	hashtab_lookup_done(htep);
 	e4p = smoketest_malloc(4);
 	hashtab_lock_mod(htp, 4, &hlms);
-	hashtab_add(htp, 4, &e4p->the_e);
+	hashtab_add(htp, 4, &e4p->the_e, &hlms);
 	htep = hashtab_lookup(htp, 4, (void *)4);
 	BUG_ON(!htep);
 	hashtab_unlock_mod(htp, 4, &hlms);
@@ -726,7 +727,7 @@ void perftest_add(struct testhe *thep)
 	hashtab_lock_mod(perftest_htp, thep->data, &hlms);
 	BUG_ON(hashtab_lookup(perftest_htp, thep->data, (void *)thep->data));
 	thep->in_table = 1;
-	hashtab_add(perftest_htp, thep->data, &thep->the_e);
+	hashtab_add(perftest_htp, thep->data, &thep->the_e, &hlms);
 	hashtab_unlock_mod(perftest_htp, thep->data, &hlms);
 }
 
@@ -1004,7 +1005,7 @@ void zoo_add(struct zoo_he *zhep)
 
 	hashtab_lock_mod_zoo(perftest_htp, zhep->name, hash, &hlms);
 	BUG_ON(hashtab_lookup(perftest_htp, hash, (void *)zhep->name));
-	hashtab_add(perftest_htp, hash, &zhep->zhe_e);
+	hashtab_add(perftest_htp, hash, &zhep->zhe_e, &hlms);
 	hashtab_unlock_mod(perftest_htp, hash, &hlms);
 }
 

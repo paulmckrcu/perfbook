@@ -249,7 +249,7 @@ hashtab_lookup(struct hashtab *htp_master, void *key)
  * update-side lock via resize_lock_mod().
  */
 void hashtab_add(struct hashtab *htp_master,		//\lnlbl{add:b}
-                 struct ht_elem *htep)
+                 struct ht_elem *htep, struct ht_lock_state *lsp)
 {
 	long b;
 	int i;
@@ -345,7 +345,7 @@ struct hashtab *test_htp;
 #define hashtab_lock_mod_zoo(htp, k, i, h) resize_lock_mod((htp), k, h)
 #define hashtab_unlock_mod(htp, i, h) resize_unlock_mod(h)
 #define hashtab_lookup(htp, h, k) hashtab_lookup((htp), (k))
-#define hashtab_add(htp, h, htep) hashtab_add((htp), (htep))
+#define hashtab_add(htp, h, htep, s) hashtab_add((htp), (htep), (s))
 #define hashtab_del(htep) hashtab_del(test_htp, (htep))
 #define hash_resize_test(htp, n) hashtab_resize((htp), (n), NULL, NULL, NULL)
 
