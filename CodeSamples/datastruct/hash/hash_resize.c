@@ -196,7 +196,7 @@ resize_lock_mod(struct hashtab *htp_master, void *key,
 	htbp_new = ht_get_bucket_single(htp_new, key, &b, &h); //\lnlbl{lock:get_newbucket}
 	spin_lock(&htbp_new->htb_lock);			//\lnlbl{lock:acq_newbucket}
 	lsp->hbp[1] = htbp_new;
-	lsp->hls_idx[1] = htp->ht_idx;
+	lsp->hls_idx[1] = htp_new->ht_idx;
 	lsp->hls_hash[1] = h;
 }							//\lnlbl{lock:e}
 
