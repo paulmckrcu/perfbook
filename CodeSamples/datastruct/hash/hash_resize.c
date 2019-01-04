@@ -325,9 +325,7 @@ int hashtab_resize(struct hashtab *htp_master,
 }
 //\end{snippet}
 
-struct hashtab *test_htp;
 
-#define hash_register_test(htp) do test_htp = (htp); while (0)
 #define hash_register_thread() rcu_register_thread()
 #define hash_unregister_thread() rcu_unregister_thread()
 #define hashtab_lock_lookup(htp, i) hashtab_lock_lookup((htp), (void *)(i))

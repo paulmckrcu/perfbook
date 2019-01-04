@@ -30,10 +30,6 @@
 #include <sched.h>
 #include <string.h>
 
-#ifndef hash_register_test
-#define hash_register_test(htp) do { } while (0)
-#endif /* #ifndef hash_register_test */
-
 #ifndef hash_resize_test
 #define hashtab_alloc(n, cmp, tgh, testgk) hashtab_alloc(n, cmp)
 #define hash_resize_test(htp, n) do { } while (0)
@@ -44,7 +40,7 @@
 #define hashtab_del(htep,s) hashtab_del(htep)
 struct ht_lock_state {
 };
-#endif /* #ifndef hash_register_test */
+#endif /* #ifndef hash_resize_test */
 
 #ifndef other_init
 #define other_init() do { } while (0)
@@ -127,7 +123,6 @@ void smoketest(void)
 
 	htp = hashtab_alloc(5, testcmp, tgh, testgk);
 	BUG_ON(htp == NULL);
-	hash_register_test(htp);
 	hash_register_thread();
 
 	/* Should be empty. */
@@ -894,7 +889,6 @@ void perftest(void)
 	BUG_ON(maxcpus <= 0);
 	perftest_htp = hashtab_alloc(nbuckets, testcmp, tgh, testgk);
 	BUG_ON(perftest_htp == NULL);
-	hash_register_test(perftest_htp);
 	defer_del_done = defer_del_done_perftest;
 	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
 	BUG_ON(pap == NULL);
@@ -1196,7 +1190,6 @@ void zoo_test(void)
 	BUG_ON(maxcpus <= 0);
 	perftest_htp = hashtab_alloc(nbuckets, zoo_cmp, zoo_hash, zoo_gk);
 	BUG_ON(perftest_htp == NULL);
-	hash_register_test(perftest_htp);
 	defer_del_done = defer_del_free;
 	zoo_names = malloc(ZOO_NAMELEN * nupdaters * elperupdater);
 	BUG_ON(zoo_names == NULL);
