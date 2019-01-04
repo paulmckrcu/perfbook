@@ -313,10 +313,10 @@ int hashtab_resize(struct hashtab *htp_master,
 		spin_unlock(&htp_master->ht_lock);		//\lnlbl{rel_nomem}
 		return -ENOMEM;					//\lnlbl{ret_nomem}
 	}
-	htp->ht_new = htp_new;					//\lnlbl{set_newtbl}
-	synchronize_rcu();					//\lnlbl{sync_rcu}
 	idx = htp->ht_idx;					//\lnlbl{get_curidx}
 	htp_new->ht_idx = !idx;
+	smp_store_release(&htp->ht_new, htp_new);		//\lnlbl{set_newtbl}
+	synchronize_rcu();					//\lnlbl{sync_rcu}
 	for (i = 0; i < htp->ht_nbuckets; i++) {		//\lnlbl{loop:b}
 		htbp = &htp->ht_bkt[i];				//\lnlbl{get_oldcur}
 		spin_lock(&htbp->htb_lock);			//\lnlbl{acq_oldcur}
