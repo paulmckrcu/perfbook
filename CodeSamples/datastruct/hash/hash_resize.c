@@ -124,7 +124,8 @@ void hashtab_free(struct hashtab *htp_master)
 //\begin{snippet}[labelbase=ln:datastruct:hash_resize:get_bucket,commandchars=\\\@\$]
 /* Get hash bucket corresponding to key, ignoring the possibility of resize. */
 static struct ht_bucket *				//\lnlbl{single:b}
-ht_get_bucket_single(struct ht *htp, void *key, long *b, unsigned long *h)
+ht_get_bucket_single(struct ht *htp, void *key, long *b,
+                     unsigned long *h)
 {
 	unsigned long hash = htp->ht_gethash(key);
 
