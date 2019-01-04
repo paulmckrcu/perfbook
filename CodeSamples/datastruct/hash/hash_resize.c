@@ -248,8 +248,8 @@ hashtab_lookup(struct hashtab *htp_master, void *key)
  * Add an element to the hash table.  Caller must have acquired the
  * update-side lock via resize_lock_mod().
  */
-void hashtab_add(struct hashtab *htp_master,		//\lnlbl{add:b}
-                 struct ht_elem *htep, struct ht_lock_state *lsp)
+void hashtab_add(struct ht_elem *htep,			//\lnlbl{add:b}
+		 struct ht_lock_state *lsp)
 {
 	int new = !!lsp->hbp[1];
 	struct ht_bucket *htbp = lsp->hbp[new];
@@ -336,7 +336,7 @@ struct hashtab *test_htp;
 #define hashtab_lock_mod_zoo(htp, k, i, h) resize_lock_mod((htp), k, h)
 #define hashtab_unlock_mod(htp, i, h) resize_unlock_mod(h)
 #define hashtab_lookup(htp, h, k) hashtab_lookup((htp), (k))
-#define hashtab_add(htp, h, htep, s) hashtab_add((htp), (htep), (s))
+#define hashtab_add(htp, h, htep, s) hashtab_add((htep), (s))
 #define hashtab_del(htep,s) hashtab_del((htep), (s))
 #define hash_resize_test(htp, n) hashtab_resize((htp), (n), NULL, NULL, NULL)
 
