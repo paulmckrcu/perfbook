@@ -179,12 +179,12 @@ resize_lock_mod(struct hashtab *htp_master, void *key,
 	lsp[0].hls_idx = htp->ht_idx;
 	if (b > htp->ht_resize_cur) {			//\lnlbl{lock:chk_resz_dist}
 		lsp[1].hbp = NULL;
-		return;					//\lnlbl{lock:fastret}
+		return;					//\lnlbl{lock:fastret1}
 	}
 	htp_new = htp->ht_new;				//\lnlbl{lock:new_hashtbl}
 	if (htp == htp_new) {				//\lnlbl{lock:chk_newoldeq}
 		lsp[1].hbp = NULL;
-		return;					//\lnlbl{lock:fastret}
+		return;					//\lnlbl{lock:fastret2}
 	}
 	htbp_new = ht_get_bucket_single(htp_new, key, &b); //\lnlbl{lock:get_newbucket}
 	spin_lock(&htbp_new->htb_lock);			//\lnlbl{lock:acq_newbucket}
