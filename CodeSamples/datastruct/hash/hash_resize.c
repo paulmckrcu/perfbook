@@ -266,12 +266,8 @@ void hashtab_add(struct hashtab *htp_master,		//\lnlbl{add:b}
 void hashtab_del(struct hashtab *htp_master,		//\lnlbl{del:b}
                  struct ht_elem *htep, struct ht_lock_state *lsp)
 {
-	long b;
-	int i;
-	struct ht *htp;
+	int i = lsp->hls_idx[!!lsp->hbp[1]];
 
-	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{del:get_curtbl}
-	(void)ht_get_bucket(&htp, htp->ht_getkey(htep), &b, &i); //\lnlbl{del:get_curidx}
 	cds_list_del_rcu(&htep->hte_next[i]);		//\lnlbl{del:del}
 }							//\lnlbl{del:e}
 //\end{snippet}
