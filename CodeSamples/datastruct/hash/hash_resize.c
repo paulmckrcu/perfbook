@@ -40,8 +40,8 @@ struct ht_bucket {
 };
 
 struct ht_lock_state {
-	struct ht_bucket *hbp;
-	int hls_idx;
+	struct ht_bucket *hbp[2];
+	int hls_idx[2];
 };
 
 /* Hash-table instance, duplicated at resize time. */
@@ -175,29 +175,29 @@ resize_lock_mod(struct hashtab *htp_master, void *key,
 	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{lock:refhashtbl}
 	htbp = ht_get_bucket_single(htp, key, &b);	//\lnlbl{lock:refbucket}
 	spin_lock(&htbp->htb_lock);			//\lnlbl{lock:acq_bucket}
-	lsp[0].hbp = htbp;
-	lsp[0].hls_idx = htp->ht_idx;
+	lsp->hbp[0] = htbp;
+	lsp->hls_idx[0] = htp->ht_idx;
 	if (b > htp->ht_resize_cur) {			//\lnlbl{lock:chk_resz_dist}
-		lsp[1].hbp = NULL;
+		lsp->hbp[1] = NULL;
 		return;					//\lnlbl{lock:fastret1}
 	}
 	htp_new = htp->ht_new;				//\lnlbl{lock:new_hashtbl}
 	if (htp == htp_new) {				//\lnlbl{lock:chk_newoldeq}
-		lsp[1].hbp = NULL;
+		lsp->hbp[1] = NULL;
 		return;					//\lnlbl{lock:fastret2}
 	}
 	htbp_new = ht_get_bucket_single(htp_new, key, &b); //\lnlbl{lock:get_newbucket}
 	spin_lock(&htbp_new->htb_lock);			//\lnlbl{lock:acq_newbucket}
-	lsp[1].hbp = htbp_new;
-	lsp[1].hls_idx = htp->ht_idx;
+	lsp->hbp[1] = htbp_new;
+	lsp->hls_idx[1] = htp->ht_idx;
 }							//\lnlbl{lock:e}
 
 static void						//\lnlbl{unlock:b}
 resize_unlock_mod(struct ht_lock_state *lsp)
 {
-	spin_unlock(&lsp[0].hbp->htb_lock);			//\lnlbl{unlock:rel_curbucket1}
-	if (lsp[1].hbp)
-		spin_unlock(&lsp[1].hbp->htb_lock);		//\lnlbl{unlock:rel_curbucket2}
+	spin_unlock(&lsp->hbp[0]->htb_lock);			//\lnlbl{unlock:rel_curbucket1}
+	if (lsp->hbp[1])
+		spin_unlock(&lsp->hbp[1]->htb_lock);	//\lnlbl{unlock:rel_curbucket2}
 	rcu_read_unlock();				//\lnlbl{unlock:rcu_unlock}
 }							//\lnlbl{unlock:e}
 //\end{snippet}
