@@ -159,7 +159,7 @@ static void hashtab_unlock_lookup(struct hashtab *htp_master, void *key)
 	rcu_read_unlock();
 }
 
-//\begin{snippet}[labelbase=ln:datastruct:hash_resize:lock_unlock_mod,commandchars=\\\[\]]
+//\begin{snippet}[labelbase=ln:datastruct:hash_resize:lock_unlock_mod,commandchars=\\\@\$]
 /* Update-side lock/unlock functions. */
 static void						//\lnlbl{lock:b}
 resize_lock_mod(struct hashtab *htp_master, void *key,
