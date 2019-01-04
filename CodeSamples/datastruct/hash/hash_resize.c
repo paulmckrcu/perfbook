@@ -252,19 +252,10 @@ void hashtab_add(struct hashtab *htp_master,		//\lnlbl{add:b}
                  struct ht_elem *htep, struct ht_lock_state *lsp)
 {
 	int new = !!lsp->hbp[1];
-	long b;
-	int i;
-	struct ht *htp;
-	struct ht_bucket *htbp;
-	void *k;
+	struct ht_bucket *htbp = lsp->hbp[new];
+	int i = lsp->hls_idx[new];
 
-	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{add:get_curtbl}
-	k = htp->ht_getkey(htep);
-	htep->hte_hash = htp->ht_gethash(k);
-	BUG_ON(htep->hte_hash != lsp->hls_hash[new]);
-	htbp = ht_get_bucket(&htp, k, &b, &i);		//\lnlbl{add:get_curbucket}
-	BUG_ON(htbp != lsp->hbp[new]);
-	BUG_ON(i != lsp->hls_idx[new]);
+	htep->hte_hash = lsp->hls_hash[new];
 	cds_list_add_rcu(&htep->hte_next[i], &htbp->htb_head); //\lnlbl{add:add}
 }							//\lnlbl{add:e}
 
