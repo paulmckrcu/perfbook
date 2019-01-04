@@ -169,7 +169,7 @@ static void hashtab_unlock_lookup(struct hashtab *htp_master, void *key)
 /* Update-side lock/unlock functions. */
 static void						//\lnlbl{lock:b}
 resize_lock_mod(struct hashtab *htp_master, void *key,
-		struct ht_lock_state *lsp)
+                struct ht_lock_state *lsp)
 {
 	long b;
 	unsigned long h;
