@@ -195,14 +195,14 @@ hashtab_lock_mod(struct hashtab *htp_master, void *key,
 	lsp->hls_hash[1] = h;				//\lnlbl{l:lsp1e}
 }							//\lnlbl{l:e}
 
-static void						//\lnlbl{unlock:b}
+static void						//\lnlbl{ul:b}
 hashtab_unlock_mod(struct ht_lock_state *lsp)
 {
-	spin_unlock(&lsp->hbp[0]->htb_lock);		//\lnlbl{unlock:relbkt0}
-	if (lsp->hbp[1])				//\lnlbl{unlock:ifbkt1}
-		spin_unlock(&lsp->hbp[1]->htb_lock);	//\lnlbl{unlock:relbkt1}
-	rcu_read_unlock();				//\lnlbl{unlock:rcu_unlock}
-}							//\lnlbl{unlock:e}
+	spin_unlock(&lsp->hbp[0]->htb_lock);		//\lnlbl{ul:relbkt0}
+	if (lsp->hbp[1])				//\lnlbl{ul:ifbkt1}
+		spin_unlock(&lsp->hbp[1]->htb_lock);	//\lnlbl{ul:relbkt1}
+	rcu_read_unlock();				//\lnlbl{ul:rcu_unlock}
+}							//\lnlbl{ul:e}
 //\end{snippet}
 
 /*
