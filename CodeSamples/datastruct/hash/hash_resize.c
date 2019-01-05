@@ -167,7 +167,7 @@ static void hashtab_unlock_lookup(struct hashtab *htp_master, void *key)
 
 //\begin{snippet}[labelbase=ln:datastruct:hash_resize:lock_unlock_mod,commandchars=\\\@\$]
 /* Update-side lock/unlock functions. */
-static void						//\lnlbl{lock:b}
+static void						//\lnlbl{l:b}
 hashtab_lock_mod(struct hashtab *htp_master, void *key,
                  struct ht_lock_state *lsp)
 {
@@ -176,24 +176,24 @@ hashtab_lock_mod(struct hashtab *htp_master, void *key,
 	struct ht *htp;
 	struct ht_bucket *htbp;
 
-	rcu_read_lock();				//\lnlbl{lock:rcu_lock}
-	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{lock:refhashtbl}
-	htbp = ht_get_bucket_single(htp, key, &b, &h);	//\lnlbl{lock:refbucket}
-	spin_lock(&htbp->htb_lock);			//\lnlbl{lock:acq_bucket}
-	lsp->hbp[0] = htbp;				//\lnlbl{lock:lsp0b}
+	rcu_read_lock();				//\lnlbl{l:rcu_lock}
+	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{l:refhashtbl}
+	htbp = ht_get_bucket_single(htp, key, &b, &h);	//\lnlbl{l:refbucket}
+	spin_lock(&htbp->htb_lock);			//\lnlbl{l:acq_bucket}
+	lsp->hbp[0] = htbp;				//\lnlbl{l:lsp0b}
 	lsp->hls_idx[0] = htp->ht_idx;
-	lsp->hls_hash[0] = h;				//\lnlbl{lock:lsp0e}
-	if (b > READ_ONCE(htp->ht_resize_cur)) {	//\lnlbl{lock:chk_resz_dist}
-		lsp->hbp[1] = NULL;			//\lnlbl{lock:lsp1_1}
-		return;					//\lnlbl{lock:fastret1}
+	lsp->hls_hash[0] = h;				//\lnlbl{l:lsp0e}
+	if (b > READ_ONCE(htp->ht_resize_cur)) {	//\lnlbl{l:ifresized}
+		lsp->hbp[1] = NULL;			//\lnlbl{l:lsp1_1}
+		return;					//\lnlbl{l:fastret1}
 	}
-	htp = rcu_dereference(htp->ht_new);		//\lnlbl{lock:new_hashtbl}
-	htbp = ht_get_bucket_single(htp, key, &b, &h);	//\lnlbl{lock:get_newbucket}
-	spin_lock(&htbp->htb_lock);			//\lnlbl{lock:acq_newbucket}
-	lsp->hbp[1] = htbp;				//\lnlbl{lock:lsp1b}
+	htp = rcu_dereference(htp->ht_new);		//\lnlbl{l:new_hashtbl}
+	htbp = ht_get_bucket_single(htp, key, &b, &h);	//\lnlbl{l:get_newbkt}
+	spin_lock(&htbp->htb_lock);			//\lnlbl{l:acq_newbkt}
+	lsp->hbp[1] = htbp;				//\lnlbl{l:lsp1b}
 	lsp->hls_idx[1] = htp->ht_idx;
-	lsp->hls_hash[1] = h;				//\lnlbl{lock:lsp1e}
-}							//\lnlbl{lock:e}
+	lsp->hls_hash[1] = h;				//\lnlbl{l:lsp1e}
+}							//\lnlbl{l:e}
 
 static void						//\lnlbl{unlock:b}
 hashtab_unlock_mod(struct ht_lock_state *lsp)
