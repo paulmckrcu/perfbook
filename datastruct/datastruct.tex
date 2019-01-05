@@ -934,6 +934,12 @@ the \co{->ht_gethash()} calculates the specified key's hash,
 and \co{->ht_getkey()} extracts the key from the enclosing data
 element.
 
+The \co{ht_lock_state} shown on lines~\lnref{hls:b}-\lnref{hls:e}
+is used to communicate lock state from a new \co{hashtab_lock_mod()}
+to \co{hashtab_add()}, \co{hashtab_del()}, and \co{hashtab_unlock_mod()}.
+This state prevents the algorithm from being redirected to the wrong
+bucket during concurrent resize operations.
+
 The \co{ht_bucket} structure is the same as before, and the
 \co{ht_elem} structure differs from that of previous implementations
 only in providing a two-element array of list pointer sets in place of
@@ -1017,7 +1023,7 @@ Finally, line~\lnref{return} returns a reference to the selected hash bucket.
 
 This implementation of
 \co{ht_get_bucket_single()} and \co{ht_get_bucket()}
-will permit lookups and modifications to run concurrently
+permit lookups and modifications to run concurrently
 with a resize operation.
 
 \begin{listing}[tb]
@@ -1044,51 +1050,45 @@ line~\lnref{refbucket} obtains a reference to the bucket in this hash table
 corresponding to the key.
 Line~\lnref{acq_bucket} acquires that bucket's lock, which will prevent any concurrent
 resizing operation from distributing that bucket, though of course it
-will have no effect if the resizing operation has already distributed
-this bucket.
-Line~\lnref{chk_resz_dist} then checks to see if a concurrent resize operation has
-already distributed this bucket across the new hash table, and if not,
-line~\lnref{fastret} returns with the selected hash bucket's lock held (and also
-within an RCU read-side critical section).
+will have no effect if that bucket has already been distributed.
+Lines~\lnref{lsp0b}-\lnref{lsp0e} store the bucket pointer,
+pointer-set index, and hash value into their respective fields in the
+\co{ht_lock_state} structure, which communicates ths information to
+\co{hashtab_add()}, \co{hashtab_del()}, and \co{hashtab_unlock_mod()}.
+Line~\lnref{chk_resz_dist} then checks to see if a concurrent resize
+operation has already distributed this bucket across the new hash table,
+and if not, line~\lnref{lsp1_1} indicates that there is no
+already-resized hash bucket and
+line~\lnref{fastret1} returns with the selected hash bucket's
+lock held (and also within an RCU read-side critical section).
 
 Otherwise, a concurrent resize operation has already distributed this
-bucket, so line~\lnref{new_hashtbl} proceeds to the new hash table and
-line~\lnref{get_newbucket}
-selects the bucket corresponding to the key.
-Finally, line~\lnref{acq_newbucket} acquires the bucket's lock and
-line~\lnref{rel_oldbucket} releases the
-lock for the old hash table's bucket.
+bucket, so line~\lnref{new_hashtbl} proceeds to the new hash table,
+line~\lnref{get_newbucket} selects the bucket corresponding to the key,
+and line~\lnref{acq_newbucket} acquires the bucket's lock.
+Lines~\lnref{lsp1b}-\lnref{lsp1e} store the bucket pointer,
+pointer-set index, and hash value into their respective fields in the
+\co{ht_lock_state} structure, which communicates ths information to
+\co{hashtab_add()}, \co{hashtab_del()}, and \co{hashtab_unlock_mod()}.
+Note that in this case, two locks are held, one in the old \co{ht_bucket}
+structure to prevent resizing that bucket (if not already resized),
+and one in the new \co{ht_bucket} structure to synchronize with
+concurrent \co{hashtab_add()} and \co{hashtab_del()} invocations.
 Once again, \co{hashtab_lock_mod()} exits within an RCU read-side critical
 section.
 \end{lineref}
 
-\QuickQuiz{}
-	The code in
-	Listing~\ref{lst:datastruct:Resizable Hash-Table Bucket Selection}
-	and~\ref{lst:datastruct:Resizable Hash-Table Update-Side Concurrency Control}
-	computes the hash and executes the bucket-selection logic twice for
-	updates!
-	Why this blatant inefficiency?
-\QuickQuizAnswer{
-	This approach allows the \path{hashtorture.h} testing infrastructure
-	to be reused.
-	That said, a production-quality resizable hash table would likely
-	be optimized to avoid this double computation.
-	Carrying out this optimization is left as an exercise for the reader.
-} \QuickQuizEnd
-
 \begin{lineref}[ln:datastruct:hash_resize:lock_unlock_mod:unlock]
-The \co{hashtab_unlock_mod()} function releases the lock acquired by
+The \co{hashtab_unlock_mod()} function releases the lock(s) acquired by
 \co{hashtab_lock_mod()}.
-Line~\lnref{get_curtbl} picks up the current hash table, and then
-line~\lnref{get_curbucket} invokes
-\co{ht_get_bucket()} in order to gain a reference to the bucket that
-corresponds to the key---and of course this bucket might well be in a
-new hash table.
-Line~\lnref{rel_curbucket} releases the bucket's lock and finally
-line~\lnref{rcu_unlock} exits the
-RCU read-side critical section.
-\end{lineref}
+Line~\lnref{relbkt0} releases the lock on the old \co{ht_bucket}
+structure, which is the only such structure in the common case
+where there is no resize operation in progress.
+If line~\lnref{ifbkt1} determines that there was a resize operation
+in progress, then line~\lnref{relbkt1} releases the lock on the new
+\co{ht_bucket} structure.
+Either way, line~\lnref{rcu_unlock} exits the RCU read-side critical
+section.  \end{lineref}
 
 \QuickQuiz{}
 	Suppose that one thread is inserting an element into the
