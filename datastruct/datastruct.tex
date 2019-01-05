@@ -1088,7 +1088,8 @@ If line~\lnref{ifbkt1} determines that there was a resize operation
 in progress, then line~\lnref{relbkt1} releases the lock on the new
 \co{ht_bucket} structure.
 Either way, line~\lnref{rcu_unlock} exits the RCU read-side critical
-section.  \end{lineref}
+section.
+\end{lineref}
 
 \QuickQuiz{}
 	Suppose that one thread is inserting an element into the
@@ -1104,10 +1105,9 @@ section.  \end{lineref}
 	Furthermore, the insertion operation takes place within an
 	RCU read-side critical section.
 	As we will see when we examine the \co{hashtab_resize()}
-	function, this means that the first resize operation will
-	use
-	\co{synchronize_rcu()} to wait for the insertion's read-side
-	critical section to complete.
+	function, this means that the each resize operation uses
+	\co{synchronize_rcu()} invocations to wait for the insertion's
+	read-side critical section to complete.
 } \QuickQuizEnd
 
 \begin{listing}[tb]
@@ -1165,17 +1165,18 @@ failure.
 \begin{lineref}[ln:datastruct:hash_resize:access:add]
 The \co{hashtab_add()} function on lines~\lnref{b}-\lnref{e} of the figure adds
 new data elements to the hash table.
-Lines~\lnref{get_curtbl}-\lnref{get_curbucket} obtain a pointer to
-the hash bucket corresponding to
-the key (and provide the index), as before, and line~\lnref{add} adds the new
-element to the table.
+Line~\lnref{new} determines whether a resize was in progress and the
+corresponding old bucket has already been distributed (value of one)
+or not (value of zero).
+Line~\lnref{htbp} picks up the \co{ht_bucket} structure into which the
+new element is to be added, and line~\lnref{i} picks up the index of
+the pointer pair.
+Line~\lnref{hash} stores the hash value in the to-be-added element
+for debug purposes,
+Finally, line~\lnref{add} adds the new element to the proper hash bucket.
 The caller is required to handle concurrency, for example, by invoking
 \co{hashtab_lock_mod()} before the call to \co{hashtab_add()} and invoking
 \co{hashtab_unlock_mod()} afterwards.
-These two concurrency-control functions will correctly synchronize with
-a concurrent resize operation:  If the resize operation has already
-progressed beyond the bucket that this data element would have been added to,
-then the element is added to the new table.
 \end{lineref}
 
 \begin{lineref}[ln:datastruct:hash_resize:access:del]

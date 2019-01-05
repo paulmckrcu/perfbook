@@ -244,13 +244,13 @@ hashtab_lookup(struct hashtab *htp_master, void *key)
  * update-side lock via hashtab_lock_mod().
  */
 void hashtab_add(struct ht_elem *htep,			//\lnlbl{add:b}
-		 struct ht_lock_state *lsp)
+                 struct ht_lock_state *lsp)
 {
-	int new = !!lsp->hbp[1];
-	struct ht_bucket *htbp = lsp->hbp[new];
-	int i = lsp->hls_idx[new];
+	int new = !!lsp->hbp[1];			//\lnlbl{add:new}
+	struct ht_bucket *htbp = lsp->hbp[new];		//\lnlbl{add:htbp}
+	int i = lsp->hls_idx[new];			//\lnlbl{add:i}
 
-	htep->hte_hash = lsp->hls_hash[new];
+	htep->hte_hash = lsp->hls_hash[new];		//\lnlbl{add:hash}
 	cds_list_add_rcu(&htep->hte_next[i], &htbp->htb_head); //\lnlbl{add:add}
 }							//\lnlbl{add:e}
 
