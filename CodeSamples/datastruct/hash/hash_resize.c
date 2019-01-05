@@ -143,9 +143,9 @@ ht_get_bucket(struct ht **htp, void *key, long *b, int *i)
 
 	htbp = ht_get_bucket_single(*htp, key, b, NULL); //\lnlbl{call_single}
 								//\fcvexclude
-	if (*b <= (*htp)->ht_resize_cur) {		//\lnlbl{resized}
+	if (*b <= READ_ONCE((*htp)->ht_resize_cur)) {	//\lnlbl{resized}
 		smp_mb(); /* order ->ht_resize_cur before ->ht_new. */
-		*htp = (*htp)->ht_new;			//\lnlbl{newtable}
+		*htp = rcu_dereference((*htp)->ht_new);	//\lnlbl{newtable}
 		htbp = ht_get_bucket_single(*htp, key, b, NULL); //\lnlbl{newbucket}
 	}
 	if (i)						//\lnlbl{chk_i}
@@ -185,7 +185,7 @@ resize_lock_mod(struct hashtab *htp_master, void *key,
 	lsp->hbp[0] = htbp;
 	lsp->hls_idx[0] = htp->ht_idx;
 	lsp->hls_hash[0] = h;
-	if (b > htp->ht_resize_cur) {			//\lnlbl{lock:chk_resz_dist}
+	if (b > READ_ONCE(htp->ht_resize_cur)) {	//\lnlbl{lock:chk_resz_dist}
 		lsp->hbp[1] = NULL;
 		return;					//\lnlbl{lock:fastret1}
 	}
@@ -303,7 +303,7 @@ int hashtab_resize(struct hashtab *htp_master,
 	}
 	idx = htp->ht_idx;					//\lnlbl{get_curidx}
 	htp_new->ht_idx = !idx;
-	smp_store_release(&htp->ht_new, htp_new);		//\lnlbl{set_newtbl}
+	rcu_assign_pointer(htp->ht_new, htp_new);		//\lnlbl{set_newtbl}
 	synchronize_rcu();					//\lnlbl{sync_rcu}
 	for (i = 0; i < htp->ht_nbuckets; i++) {		//\lnlbl{loop:b}
 		htbp = &htp->ht_bkt[i];				//\lnlbl{get_oldcur}
@@ -315,7 +315,7 @@ int hashtab_resize(struct hashtab *htp_master,
 			spin_unlock(&htbp_new->htb_lock);
 		}						//\lnlbl{loop_list:e}
 		smp_mb(); /* Fill new buckets before claiming them. */
-		htp->ht_resize_cur = i;				//\lnlbl{update_resize}
+		WRITE_ONCE(htp->ht_resize_cur, i);		//\lnlbl{update_resize}
 		spin_unlock(&htbp->htb_lock);			//\lnlbl{rel_oldcur}
 	}							//\lnlbl{loop:e}
 	rcu_assign_pointer(htp_master->ht_cur, htp_new);	//\lnlbl{rcu_assign}
