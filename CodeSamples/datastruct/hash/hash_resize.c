@@ -284,34 +284,34 @@ int hashtab_resize(struct hashtab *htp_master,
 	struct ht_bucket *htbp_new;
 	long b;
 
-	if (!spin_trylock(&htp_master->ht_lock))		//\lnlbl{trylock}
-		return -EBUSY;					//\lnlbl{ret_busy}
-	htp = htp_master->ht_cur;				//\lnlbl{get_curtbl}
-	htp_new = ht_alloc(nbuckets,				//\lnlbl{alloc:b}
+	if (!spin_trylock(&htp_master->ht_lock))	//\lnlbl{trylock}
+		return -EBUSY;				//\lnlbl{ret_busy}
+	htp = htp_master->ht_cur;			//\lnlbl{get_curtbl}
+	htp_new = ht_alloc(nbuckets,			//\lnlbl{alloc:b}
 	                   cmp ? cmp : htp->ht_cmp,
 	                   gethash ? gethash : htp->ht_gethash,
-	                   getkey ? getkey : htp->ht_getkey);	//\lnlbl{alloc:e}
-	if (htp_new == NULL) {					//\lnlbl{chk_nomem}
-		spin_unlock(&htp_master->ht_lock);		//\lnlbl{rel_nomem}
-		return -ENOMEM;					//\lnlbl{ret_nomem}
+	                   getkey ? getkey : htp->ht_getkey); //\lnlbl{alloc:e}
+	if (htp_new == NULL) {				//\lnlbl{chk_nomem}
+		spin_unlock(&htp_master->ht_lock);	//\lnlbl{rel_nomem}
+		return -ENOMEM;				//\lnlbl{ret_nomem}
 	}
-	idx = htp->ht_idx;					//\lnlbl{get_curidx}
-	htp_new->ht_idx = !idx;					//\lnlbl{put_curidx}
-	rcu_assign_pointer(htp->ht_new, htp_new);		//\lnlbl{set_newtbl}
-	synchronize_rcu();					//\lnlbl{sync_rcu}
-	for (i = 0; i < htp->ht_nbuckets; i++) {		//\lnlbl{loop:b}
-		htbp = &htp->ht_bkt[i];				//\lnlbl{get_oldcur}
-		spin_lock(&htbp->htb_lock);			//\lnlbl{acq_oldcur}
+	idx = htp->ht_idx;				//\lnlbl{get_curidx}
+	htp_new->ht_idx = !idx;				//\lnlbl{put_curidx}
+	rcu_assign_pointer(htp->ht_new, htp_new);	//\lnlbl{set_newtbl}
+	synchronize_rcu();				//\lnlbl{sync_rcu}
+	for (i = 0; i < htp->ht_nbuckets; i++) {	//\lnlbl{loop:b}
+		htbp = &htp->ht_bkt[i];			//\lnlbl{get_oldcur}
+		spin_lock(&htbp->htb_lock);		//\lnlbl{acq_oldcur}
 		cds_list_for_each_entry(htep, &htbp->htb_head, hte_next[idx]) { //\lnlbl{loop_list:b}
 			htbp_new = ht_get_bucket_single(htp_new, htp_new->ht_getkey(htep), &b, NULL);
 			spin_lock(&htbp_new->htb_lock);
 			cds_list_add_rcu(&htep->hte_next[!idx], &htbp_new->htb_head);
 			spin_unlock(&htbp_new->htb_lock);
-		}						//\lnlbl{loop_list:e}
+		}					//\lnlbl{loop_list:e}
 		smp_mb(); /* Fill new buckets before claiming them. */
-		WRITE_ONCE(htp->ht_resize_cur, i);		//\lnlbl{update_resize}
-		spin_unlock(&htbp->htb_lock);			//\lnlbl{rel_oldcur}
-	}							//\lnlbl{loop:e}
+		WRITE_ONCE(htp->ht_resize_cur, i);	//\lnlbl{update_resize}
+		spin_unlock(&htbp->htb_lock);		//\lnlbl{rel_oldcur}
+	}						//\lnlbl{loop:e}
 	rcu_assign_pointer(htp_master->ht_cur, htp_new);	//\lnlbl{rcu_assign}
 	synchronize_rcu();					//\lnlbl{sync_rcu_2}
 	spin_unlock(&htp_master->ht_lock);			//\lnlbl{rel_master}
