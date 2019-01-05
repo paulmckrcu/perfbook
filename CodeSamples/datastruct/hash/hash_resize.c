@@ -219,7 +219,7 @@ void hashtab_lookup_done(struct ht_elem *htep)
  * the return is a pointer to the ht_elem: Use offset_of() or equivalent
  * to get a pointer to the full data structure.
  */
-struct ht_elem *					//\lnlbl{lookup:b}
+struct ht_elem *					//\lnlbl{lkp:b}
 hashtab_lookup(struct hashtab *htp_master, void *key)
 {
 	long b;
@@ -228,16 +228,16 @@ hashtab_lookup(struct hashtab *htp_master, void *key)
 	struct ht_elem *htep;
 	struct ht_bucket *htbp;
 
-	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{lookup:get_curtbl}
-	htbp = ht_get_bucket(&htp, key, &b, &i);	//\lnlbl{lookup:get_curbucket}
-	cds_list_for_each_entry_rcu(htep,		//\lnlbl{lookup:loop:b}
+	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{lkp:get_curtbl}
+	htbp = ht_get_bucket(&htp, key, &b, &i);	//\lnlbl{lkp:get_curbkt}
+	cds_list_for_each_entry_rcu(htep,		//\lnlbl{lkp:loop:b}
 	                            &htbp->htb_head,
 	                            hte_next[i]) {
-		if (htp->ht_cmp(htep, key)) 		//\lnlbl{lookup:match}
-			return htep;			//\lnlbl{lookup:ret_match}
-	}						//\lnlbl{lookup:loop:e}
-	return NULL;					//\lnlbl{lookup:ret_NULL}
-}							//\lnlbl{lookup:e}
+		if (htp->ht_cmp(htep, key)) 		//\lnlbl{lkp:match}
+			return htep;			//\lnlbl{lkp:ret_match}
+	}						//\lnlbl{lkp:loop:e}
+	return NULL;					//\lnlbl{lkp:ret_NULL}
+}							//\lnlbl{lkp:e}
 
 /*
  * Add an element to the hash table.  Caller must have acquired the
