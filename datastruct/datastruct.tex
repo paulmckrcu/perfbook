@@ -1183,9 +1183,8 @@ The caller is required to handle concurrency, for example, by invoking
 The \co{hashtab_del()} function on
 lines~\lnref{b}-\lnref{e} of the figure removes
 an existing element from the hash table.
-Lines~\lnref{get_curtbl}-\lnref{get_curidx} provide the index as before,
-and line~\lnref{del} removes
-the specified element.
+Line~\lnref{i} picks up the index of the pointer pair
+and line~\lnref{del} removes the specified element.
 As with \co{hashtab_add()}, the caller is responsible for concurrency
 control and this concurrency control suffices for synchronizing with
 a concurrent resize operation.
@@ -1194,7 +1193,7 @@ a concurrent resize operation.
 \QuickQuiz{}
 	The \co{hashtab_del()} function in
 	Listing~\ref{lst:datastruct:Resizable Hash-Table Access Functions}
-	does not always remove the element from the old hash table.
+	might not remove the element from the old hash table.
 	Doesn't this mean that readers might access this newly removed
 	element after it has been freed?
 \QuickQuizAnswer{
@@ -1234,13 +1233,15 @@ If line~\lnref{chk_nomem} detects memory-allocation failure,
 line~\lnref{rel_nomem} releases \co{->ht_lock}
 and line~\lnref{ret_nomem} returns a failure indication.
 
-Line~\lnref{set_newtbl} starts the bucket-distribution process by installing a reference
-to the new table into the \co{->ht_new} field of the old table.
-Line~\lnref{sync_rcu} ensures that all readers who are not aware of the new table
-complete before the resize operation continues.
-Line~\lnref{get_curidx} picks up the current table's index and stores its inverse to
+Line~\lnref{get_curidx} picks up the current table's index and
+line~\lnref{put_curidx} stores its inverse to
 the new hash table, thus ensuring that the two hash tables avoid overwriting
 each other's linked lists.
+Line~\lnref{set_newtbl} then starts the bucket-distribution process by
+installing a reference to the new table into the \co{->ht_new} field of
+the old table.
+Line~\lnref{sync_rcu} ensures that all readers who are not aware of the
+new table complete before the resize operation continues.
 
 Each pass through the loop spanning lines~\lnref{loop:b}-\lnref{loop:e} distributes the contents
 of one of the old hash table's buckets into the new hash table.

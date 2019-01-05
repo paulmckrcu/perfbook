@@ -261,7 +261,7 @@ void hashtab_add(struct ht_elem *htep,			//\lnlbl{add:b}
 void hashtab_del(struct ht_elem *htep,			//\lnlbl{del:b}
                  struct ht_lock_state *lsp)
 {
-	int i = lsp->hls_idx[!!lsp->hbp[1]];
+	int i = lsp->hls_idx[!!lsp->hbp[1]];		//\lnlbl{del:i}
 
 	cds_list_del_rcu(&htep->hte_next[i]);		//\lnlbl{del:del}
 }							//\lnlbl{del:e}
@@ -296,7 +296,7 @@ int hashtab_resize(struct hashtab *htp_master,
 		return -ENOMEM;					//\lnlbl{ret_nomem}
 	}
 	idx = htp->ht_idx;					//\lnlbl{get_curidx}
-	htp_new->ht_idx = !idx;
+	htp_new->ht_idx = !idx;					//\lnlbl{put_curidx}
 	rcu_assign_pointer(htp->ht_new, htp_new);		//\lnlbl{set_newtbl}
 	synchronize_rcu();					//\lnlbl{sync_rcu}
 	for (i = 0; i < htp->ht_nbuckets; i++) {		//\lnlbl{loop:b}
