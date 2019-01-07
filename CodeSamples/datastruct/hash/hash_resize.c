@@ -312,11 +312,11 @@ int hashtab_resize(struct hashtab *htp_master,
 		WRITE_ONCE(htp->ht_resize_cur, i);	//\lnlbl{update_resize}
 		spin_unlock(&htbp->htb_lock);		//\lnlbl{rel_oldcur}
 	}						//\lnlbl{loop:e}
-	rcu_assign_pointer(htp_master->ht_cur, htp_new);	//\lnlbl{rcu_assign}
-	synchronize_rcu();					//\lnlbl{sync_rcu_2}
-	spin_unlock(&htp_master->ht_lock);			//\lnlbl{rel_master}
-	free(htp);						//\lnlbl{free}
-	return 0;						//\lnlbl{ret_success}
+	rcu_assign_pointer(htp_master->ht_cur, htp_new); //\lnlbl{rcu_assign}
+	synchronize_rcu();				//\lnlbl{sync_rcu_2}
+	spin_unlock(&htp_master->ht_lock);		//\lnlbl{rel_master}
+	free(htp);					//\lnlbl{free}
+	return 0;					//\lnlbl{ret_success}
 }
 //\end{snippet}
 
