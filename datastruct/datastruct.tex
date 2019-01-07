@@ -966,10 +966,8 @@ the old table.
 \begin{lineref}[ln:datastruct:hash_resize:get_bucket]
 Bucket selection is shown in
 Listing~\ref{lst:datastruct:Resizable Hash-Table Bucket Selection},
-which shows \co{ht_get_bucket_single()} on
-lines~\lnref{single:b}-\lnref{single:e} and
-\co{ht_get_bucket()} on lines~\lnref{b}-\lnref{e}.
-The \co{ht_get_bucket_single()} function returns a reference to the bucket
+which shows \co{ht_get_bucket()}.
+This function returns a reference to the bucket
 corresponding to the specified key in the specified hash table, without
 making any allowances for resizing.
 It also stores the bucket index corresponding to the key into the location
@@ -978,36 +976,6 @@ line~\lnref{single:gethash}, and the corresponding
 hash value corresponding to the key into the location
 referenced by parameter~\co{h} (if non-\co{NULL}) on line~\lnref{single:h}.
 Line~\lnref{single:return} then returns a reference to the corresponding bucket.
-
-The \co{ht_get_bucket()} function handles hash-table selection, invoking
-\co{ht_get_bucket_single()} on
-line~\lnref{call_single} to select the bucket
-corresponding to the hash in the current
-hash table, storing the hash value through parameter~\co{b}.
-If line~\lnref{resized} determines that the table is being resized and that
-line~\lnref{call_single}'s bucket has already been distributed across the new hash
-table, then line~\lnref{newtable} selects the new hash table and
-line~\lnref{newbucket}
-selects the bucket corresponding to the hash in the new hash table,
-again storing the hash value through parameter~\co{b}.
-\end{lineref}
-
-\QuickQuiz{}
-	The code in
-	Listing~\ref{lst:datastruct:Resizable Hash-Table Bucket Selection}
-	computes the hash twice!
-	Why this blatant inefficiency?
-\QuickQuizAnswer{
-	The reason is that the old and new hash tables might have
-	completely different hash functions, so that a hash computed
-	for the old table might be completely irrelevant to the
-	new table.
-} \QuickQuizEnd
-
-\begin{lineref}[ln:datastruct:hash_resize:get_bucket]
-If line~\lnref{chk_i} finds that parameter~\co{i} is non-\co{NULL}, then
-line~\lnref{set_idx} stores the pointer-set index for the selected hash table.
-Finally, line~\lnref{return} returns a reference to the selected hash bucket.
 \end{lineref}
 
 \QuickQuiz{}
@@ -1021,10 +989,8 @@ Finally, line~\lnref{return} returns a reference to the selected hash bucket.
 	functions described next.
 } \QuickQuizEnd
 
-This implementation of
-\co{ht_get_bucket_single()} and \co{ht_get_bucket()}
-permit lookups and modifications to run concurrently
-with a resize operation.
+This implementation of \co{ht_get_bucket()} permits lookups and
+modifications to run concurrently with a resize operation.
 
 \begin{listing}[tb]
 \input{CodeSamples/datastruct/hash/hash_resize@lock_unlock_mod.fcv}
@@ -1129,11 +1095,6 @@ hash lookups.
 Line~\lnref{get_curtbl} fetches the current hash table and
 line~\lnref{get_curbkt} obtains a reference
 to the bucket corresponding to the specified key.
-This bucket will be located in a new resized hash table when a
-resize operation has progressed past the bucket in the old hash
-table that contained the desired data element.
-Note that line~\lnref{get_curbkt} also passes back the index that will be
-used to select the correct set of pointers from the pair in each element.
 The loop spanning lines~\lnref{loop:b}-\lnref{loop:e} searches the bucket,
 so that if line~\lnref{match}
 detects a match,
@@ -1144,22 +1105,17 @@ failure.
 \end{lineref}
 
 \QuickQuiz{}
-	In the \co{hashtab_lookup()} function in
-	Listing~\ref{lst:datastruct:Resizable Hash-Table Access Functions},
-	the code carefully finds the right bucket in the new hash table
-	if the element to be looked up has already been distributed
-	by a concurrent resize operation.
-	This seems wasteful for RCU-protected lookups.
-	Why not just stick with the old hash table in this case?
+	\begin{lineref}[ln:datastruct:hash_resize:access:lkp]
+	What if execution reaches line~\lnref{loop:b}
+	of \co{hashtab_lookup()} in
+	Listing~\ref{lst:datastruct:Resizable Hash-Table Access Functions}
+	just after this bucket has been resized.
+	Won't that result in lookup failures?
+	\end{lineref}
 \QuickQuizAnswer{
-	Suppose that a resize operation begins and distributes half of
-	the old table's buckets to the new table.
-	Suppose further that a thread adds a new element that goes into
-	one of the already-distributed buckets, and that this same thread
-	now looks up this newly added element.
-	If lookups unconditionally traversed only the old hash table,
-	this thread would get a lookup failure for the element that it
-	just added, which certainly sounds like a bug to me!
+	No, it won't.
+	Resizing into the new hash table leaves the old hash table
+	intact, courtesy of the pointer pairs.
 } \QuickQuizEnd
 
 \begin{lineref}[ln:datastruct:hash_resize:access:add]

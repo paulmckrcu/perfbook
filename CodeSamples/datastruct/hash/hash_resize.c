@@ -124,8 +124,7 @@ void hashtab_free(struct hashtab *htp_master)
 //\begin{snippet}[labelbase=ln:datastruct:hash_resize:get_bucket,commandchars=\\\@\$]
 /* Get hash bucket corresponding to key, ignoring the possibility of resize. */
 static struct ht_bucket *				//\lnlbl{single:b}
-ht_get_bucket_single(struct ht *htp, void *key, long *b,
-                     unsigned long *h)
+ht_get_bucket(struct ht *htp, void *key, long *b, unsigned long *h)
 {
 	unsigned long hash = htp->ht_gethash(key);
 
@@ -134,24 +133,6 @@ ht_get_bucket_single(struct ht *htp, void *key, long *b,
 		*h = hash;				//\lnlbl{single:h}
 	return &htp->ht_bkt[*b];			//\lnlbl{single:return}
 }							//\lnlbl{single:e}
-
-/* Get hash bucket correesponding to key, accounting for resize. */
-static struct ht_bucket *				//\lnlbl{b}
-ht_get_bucket(struct ht **htp, void *key, long *b, int *i)
-{
-	struct ht_bucket *htbp;
-
-	htbp = ht_get_bucket_single(*htp, key, b, NULL); //\lnlbl{call_single}
-								//\fcvexclude
-	if (*b <= READ_ONCE((*htp)->ht_resize_cur)) {	//\lnlbl{resized}
-		smp_mb(); /* order ->ht_resize_cur before ->ht_new. */
-		*htp = rcu_dereference((*htp)->ht_new);	//\lnlbl{newtable}
-		htbp = ht_get_bucket_single(*htp, key, b, NULL); //\lnlbl{newbucket}
-	}
-	if (i)						//\lnlbl{chk_i}
-		*i = (*htp)->ht_idx;			//\lnlbl{set_idx}
-	return htbp;					//\lnlbl{return}
-}							//\lnlbl{e}
 //\end{snippet}
 
 /* Read-side lock/unlock functions. */
@@ -178,7 +159,7 @@ hashtab_lock_mod(struct hashtab *htp_master, void *key,
 
 	rcu_read_lock();				//\lnlbl{l:rcu_lock}
 	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{l:refhashtbl}
-	htbp = ht_get_bucket_single(htp, key, &b, &h);	//\lnlbl{l:refbucket}
+	htbp = ht_get_bucket(htp, key, &b, &h);		//\lnlbl{l:refbucket}
 	spin_lock(&htbp->htb_lock);			//\lnlbl{l:acq_bucket}
 	lsp->hbp[0] = htbp;				//\lnlbl{l:lsp0b}
 	lsp->hls_idx[0] = htp->ht_idx;
@@ -188,7 +169,7 @@ hashtab_lock_mod(struct hashtab *htp_master, void *key,
 		return;					//\lnlbl{l:fastret1}
 	}
 	htp = rcu_dereference(htp->ht_new);		//\lnlbl{l:new_hashtbl}
-	htbp = ht_get_bucket_single(htp, key, &b, &h);	//\lnlbl{l:get_newbkt}
+	htbp = ht_get_bucket(htp, key, &b, &h);		//\lnlbl{l:get_newbkt}
 	spin_lock(&htbp->htb_lock);			//\lnlbl{l:acq_newbkt}
 	lsp->hbp[1] = htbp;				//\lnlbl{l:lsp1b}
 	lsp->hls_idx[1] = htp->ht_idx;
@@ -223,16 +204,15 @@ struct ht_elem *					//\lnlbl{lkp:b}
 hashtab_lookup(struct hashtab *htp_master, void *key)
 {
 	long b;
-	int i;
 	struct ht *htp;
 	struct ht_elem *htep;
 	struct ht_bucket *htbp;
 
 	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{lkp:get_curtbl}
-	htbp = ht_get_bucket(&htp, key, &b, &i);	//\lnlbl{lkp:get_curbkt}
+	htbp = ht_get_bucket(htp, key, &b, NULL);	//\lnlbl{lkp:get_curbkt}
 	cds_list_for_each_entry_rcu(htep,		//\lnlbl{lkp:loop:b}
 	                            &htbp->htb_head,
-	                            hte_next[i]) {
+	                            hte_next[htp->ht_idx]) {
 		if (htp->ht_cmp(htep, key)) 		//\lnlbl{lkp:match}
 			return htep;			//\lnlbl{lkp:ret_match}
 	}						//\lnlbl{lkp:loop:e}
@@ -303,7 +283,7 @@ int hashtab_resize(struct hashtab *htp_master,
 		htbp = &htp->ht_bkt[i];			//\lnlbl{get_oldcur}
 		spin_lock(&htbp->htb_lock);		//\lnlbl{acq_oldcur}
 		cds_list_for_each_entry(htep, &htbp->htb_head, hte_next[idx]) { //\lnlbl{loop_list:b}
-			htbp_new = ht_get_bucket_single(htp_new, htp_new->ht_getkey(htep), &b, NULL);
+			htbp_new = ht_get_bucket(htp_new, htp_new->ht_getkey(htep), &b, NULL);
 			spin_lock(&htbp_new->htb_lock);
 			cds_list_add_rcu(&htep->hte_next[!idx], &htbp_new->htb_head);
 			spin_unlock(&htbp_new->htb_lock);
