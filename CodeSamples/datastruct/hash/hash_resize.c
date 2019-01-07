@@ -288,7 +288,6 @@ int hashtab_resize(struct hashtab *htp_master,
 			cds_list_add_rcu(&htep->hte_next[!idx], &htbp_new->htb_head);
 			spin_unlock(&htbp_new->htb_lock);
 		}					//\lnlbl{loop_list:e}
-		smp_mb(); /* Fill new buckets before claiming them. */
 		WRITE_ONCE(htp->ht_resize_cur, i);	//\lnlbl{update_resize}
 		spin_unlock(&htbp->htb_lock);		//\lnlbl{rel_oldcur}
 	}						//\lnlbl{loop:e}
