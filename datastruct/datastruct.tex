@@ -966,8 +966,10 @@ the old table.
 \begin{lineref}[ln:datastruct:hash_resize:get_bucket]
 Bucket selection is shown in
 Listing~\ref{lst:datastruct:Resizable Hash-Table Bucket Selection},
-which shows \co{ht_get_bucket()}.
-This function returns a reference to the bucket
+which shows \co{ht_get_bucket()} on
+lines~\lnref{single:b}-\lnref{single:e} and \co{ht_search_bucket()} on
+lines~\lnref{hsb:b}-\lnref{hsb:e}.
+The \co{ht_get_bucket()} function returns a reference to the bucket
 corresponding to the specified key in the specified hash table, without
 making any allowances for resizing.
 It also stores the bucket index corresponding to the key into the location
@@ -976,6 +978,17 @@ line~\lnref{single:gethash}, and the corresponding
 hash value corresponding to the key into the location
 referenced by parameter~\co{h} (if non-\co{NULL}) on line~\lnref{single:h}.
 Line~\lnref{single:return} then returns a reference to the corresponding bucket.
+
+The \co{ht_search_bucket()} function searches for the specified key
+within the specified hash-table version.
+Line~\lnref{hsb:get_curbkt} obtains a reference to the bucket corresponding
+to the specified key.
+The loop spanning lines~\lnref{hsb:loop:b}-\lnref{hsb:loop:e} searches
+that bucket, so that if line~\lnref{hsb:match} detects a match,
+line~\lnref{hsb:ret_match} returns a pointer to the enclosing data element.
+Otherwise, if there is no match,
+line~\lnref{hsb:ret_NULL} returns \co{NULL} to indicate
+failure.
 \end{lineref}
 
 \QuickQuiz{}
@@ -1093,30 +1106,17 @@ The \co{hashtab_lookup()} function on
 lines~\lnref{b}-\lnref{e} of the listing does
 hash lookups.
 Line~\lnref{get_curtbl} fetches the current hash table and
-line~\lnref{get_curbkt} obtains a reference
-to the bucket corresponding to the specified key.
-The loop spanning lines~\lnref{loop:b}-\lnref{loop:e} searches the bucket,
-so that if line~\lnref{match}
-detects a match,
-line~\lnref{ret_match} returns a pointer to the enclosing data element.
-Otherwise, if there is no match,
-line~\lnref{ret_NULL} returns \co{NULL} to indicate
-failure.
+line~\lnref{get_curbkt} searches the bucket corresponding to the
+specified key.
+If line~\lnref{entchk} determines that the search was successful,
+line~\lnref{ret_match} returns a pointer to the element that was located.
+Otherwise, line~\lnref{get_nxttbl} picks up a pointer to the next version,
+and if line~\lnref{htpchk} determines that there is no resize in progress,
+line~\lnref{noresize} returns \co{NULL}.
+When there is a resize in progress, execution reaches
+line~\lnref{ret_nxtbkt}, which returns the result of searching the
+bucket corresponding to \co{key} in the new version.
 \end{lineref}
-
-\QuickQuiz{}
-	\begin{lineref}[ln:datastruct:hash_resize:access:lkp]
-	What if execution reaches line~\lnref{loop:b}
-	of \co{hashtab_lookup()} in
-	Listing~\ref{lst:datastruct:Resizable Hash-Table Access Functions}
-	just after this bucket has been resized.
-	Won't that result in lookup failures?
-	\end{lineref}
-\QuickQuizAnswer{
-	No, it won't.
-	Resizing into the new hash table leaves the old hash table
-	intact, courtesy of the pointer pairs.
-} \QuickQuizEnd
 
 \begin{lineref}[ln:datastruct:hash_resize:access:add]
 The \co{hashtab_add()} function on lines~\lnref{b}-\lnref{e} of the listing adds

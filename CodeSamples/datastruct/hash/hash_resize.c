@@ -124,7 +124,8 @@ void hashtab_free(struct hashtab *htp_master)
 //\begin{snippet}[labelbase=ln:datastruct:hash_resize:get_bucket,commandchars=\\\@\$]
 /* Get hash bucket corresponding to key, ignoring the possibility of resize. */
 static struct ht_bucket *				//\lnlbl{single:b}
-ht_get_bucket(struct ht *htp, void *key, long *b, unsigned long *h)
+ht_get_bucket(struct ht *htp, void *key,
+              long *b, unsigned long *h)
 {
 	unsigned long hash = htp->ht_gethash(key);
 
@@ -133,6 +134,24 @@ ht_get_bucket(struct ht *htp, void *key, long *b, unsigned long *h)
 		*h = hash;				//\lnlbl{single:h}
 	return &htp->ht_bkt[*b];			//\lnlbl{single:return}
 }							//\lnlbl{single:e}
+
+/* Search the bucket for the specfied key in the specified ht structure. */
+static struct ht_elem *					//\lnlbl{hsb:b}
+ht_search_bucket(struct ht *htp, void *key)
+{
+	long b;
+	struct ht_elem *htep;
+	struct ht_bucket *htbp;
+
+	htbp = ht_get_bucket(htp, key, &b, NULL);	//\lnlbl{hsb:get_curbkt}
+	cds_list_for_each_entry_rcu(htep,		//\lnlbl{hsb:loop:b}
+	                            &htbp->htb_head,
+	                            hte_next[htp->ht_idx]) {
+		if (htp->ht_cmp(htep, key)) 		//\lnlbl{hsb:match}
+			return htep;			//\lnlbl{hsb:ret_match}
+	}						//\lnlbl{hsb:loop:e}
+	return NULL;					//\lnlbl{hsb:ret_NULL}
+}							//\lnlbl{hsb:e}
 //\end{snippet}
 
 /* Read-side lock/unlock functions. */
@@ -203,20 +222,17 @@ void hashtab_lookup_done(struct ht_elem *htep)
 struct ht_elem *					//\lnlbl{lkp:b}
 hashtab_lookup(struct hashtab *htp_master, void *key)
 {
-	long b;
 	struct ht *htp;
 	struct ht_elem *htep;
-	struct ht_bucket *htbp;
 
 	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{lkp:get_curtbl}
-	htbp = ht_get_bucket(htp, key, &b, NULL);	//\lnlbl{lkp:get_curbkt}
-	cds_list_for_each_entry_rcu(htep,		//\lnlbl{lkp:loop:b}
-	                            &htbp->htb_head,
-	                            hte_next[htp->ht_idx]) {
-		if (htp->ht_cmp(htep, key)) 		//\lnlbl{lkp:match}
-			return htep;			//\lnlbl{lkp:ret_match}
-	}						//\lnlbl{lkp:loop:e}
-	return NULL;					//\lnlbl{lkp:ret_NULL}
+	htep = ht_search_bucket(htp, key);		//\lnlbl{lkp:get_curbkt}
+	if (htep)					//\lnlbl{lkp:entchk}
+		return htep;				//\lnlbl{lkp:ret_match}
+	htp = rcu_dereference(htp->ht_new);		//\lnlbl{lkp:get_nxttbl}
+	if (!htp)					//\lnlbl{lkp:htpchk}
+		return NULL;				//\lnlbl{lkp:noresize}
+	return ht_search_bucket(htp, key);		//\lnlbl{lkp:ret_nxtbkt}
 }							//\lnlbl{lkp:e}
 
 /*
