@@ -818,6 +818,7 @@ void *perftest_updater(void *arg)
 			if (++j >= elperupdater)
 				j = 0;
 		perftest_add(&thep[j]);
+		BUG_ON(!perftest_lookup(thep[j].data));
 	}
 
 	/* Announce our presence and enter the test loop. */
@@ -838,9 +839,11 @@ void *perftest_updater(void *arg)
 			poll(NULL, 0, 10);  /* No actual updating wanted. */
 		} else if (thep[i].in_table == 1) {
 			perftest_del(&thep[i]);
+			BUG_ON(perftest_lookup(thep[i].data));
 			ndels++;
 		} else if (thep[i].in_table == 0) {
 			perftest_add(&thep[i]);
+			BUG_ON(!perftest_lookup(thep[i].data));
 			nadds++;
 		}
 
@@ -1125,6 +1128,7 @@ void *zoo_updater(void *arg)
 			poll(NULL, 0, 10);  /* No actual updating wanted. */
 		} else if (zheplist[i]) {
 			zoo_del(zheplist[i]);
+			BUG_ON(zoo_lookup(zheplist[i]->name));
 			zheplist[i] = NULL;
 			ndels++;
 		} else {
@@ -1133,6 +1137,7 @@ void *zoo_updater(void *arg)
 			strcpy(zhep->name,
 			       &zoo_names[ZOO_NAMELEN * (i + mylowkey)]);
 			zoo_add(zhep);
+			BUG_ON(!zoo_lookup(zhep->name));
 			zheplist[i] = zhep;
 			nadds++;
 		}
