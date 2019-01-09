@@ -247,6 +247,7 @@ void hashtab_add(struct ht_elem *htep,			//\lnlbl{add:b}
 	int i = lsp->hls_idx[new];			//\lnlbl{add:i}
 
 	htep->hte_hash = lsp->hls_hash[new];		//\lnlbl{add:hash}
+	htep->hte_next[!i].prev = NULL;			//\lnlbl{add:initp}
 	cds_list_add_rcu(&htep->hte_next[i], &htbp->htb_head); //\lnlbl{add:add}
 }							//\lnlbl{add:e}
 
@@ -257,12 +258,16 @@ void hashtab_add(struct ht_elem *htep,			//\lnlbl{add:b}
 void hashtab_del(struct ht_elem *htep,			//\lnlbl{del:b}
                  struct ht_lock_state *lsp)
 {
-	int new = !!lsp->hbp[1];			//\lnlbl{del:new}
-	int i = lsp->hls_idx[new];			//\lnlbl{del:i}
+	int i = lsp->hls_idx[0];			//\lnlbl{del:i}
 
-	cds_list_del_rcu(&htep->hte_next[i]);		//\lnlbl{del:del}
-	if (new)
-		cds_list_del_rcu(&htep->hte_next[!i]);	//\lnlbl{del:del}
+	if (htep->hte_next[i].prev) {			//\lnlbl{del:if}
+		cds_list_del_rcu(&htep->hte_next[i]);	//\lnlbl{del:del}
+		htep->hte_next[i].prev = NULL;		//\lnlbl{del:init}
+	}
+	if (lsp->hbp[1] && htep->hte_next[!i].prev) {	//\lnlbl{del:ifnew}
+		cds_list_del_rcu(&htep->hte_next[!i]);	//\lnlbl{del:delnew}
+		htep->hte_next[!i].prev = NULL;		//\lnlbl{del:initnew}
+	}
 }							//\lnlbl{del:e}
 //\end{snippet}
 
