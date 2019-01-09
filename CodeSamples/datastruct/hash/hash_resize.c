@@ -257,9 +257,12 @@ void hashtab_add(struct ht_elem *htep,			//\lnlbl{add:b}
 void hashtab_del(struct ht_elem *htep,			//\lnlbl{del:b}
                  struct ht_lock_state *lsp)
 {
-	int i = lsp->hls_idx[!!lsp->hbp[1]];		//\lnlbl{del:i}
+	int new = !!lsp->hbp[1];			//\lnlbl{del:new}
+	int i = lsp->hls_idx[new];			//\lnlbl{del:i}
 
 	cds_list_del_rcu(&htep->hte_next[i]);		//\lnlbl{del:del}
+	if (new)
+		cds_list_del_rcu(&htep->hte_next[!i]);	//\lnlbl{del:del}
 }							//\lnlbl{del:e}
 //\end{snippet}
 
