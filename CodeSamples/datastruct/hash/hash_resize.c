@@ -190,9 +190,12 @@ hashtab_lock_mod(struct hashtab *htp_master, void *key,
 	htp = rcu_dereference(htp->ht_new);		//\lnlbl{l:new_hashtbl}
 	htbp = ht_get_bucket(htp, key, &b, &h);		//\lnlbl{l:get_newbkt}
 	spin_lock(&htbp->htb_lock);			//\lnlbl{l:acq_newbkt}
-	lsp->hbp[1] = htbp;				//\lnlbl{l:lsp1b}
-	lsp->hls_idx[1] = htp->ht_idx;
-	lsp->hls_hash[1] = h;				//\lnlbl{l:lsp1e}
+	lsp->hbp[1] = lsp->hbp[0];			//\lnlbl{l:lsp1b}
+	lsp->hls_idx[1] = lsp->hls_idx[0];
+	lsp->hls_hash[1] = lsp->hls_hash[0];
+	lsp->hbp[0] = htbp;
+	lsp->hls_idx[0] = htp->ht_idx;
+	lsp->hls_hash[0] = h;				//\lnlbl{l:lsp1e}
 }							//\lnlbl{l:e}
 
 static void						//\lnlbl{ul:b}
@@ -242,11 +245,10 @@ hashtab_lookup(struct hashtab *htp_master, void *key)
 void hashtab_add(struct ht_elem *htep,			//\lnlbl{add:b}
                  struct ht_lock_state *lsp)
 {
-	int new = !!lsp->hbp[1];			//\lnlbl{add:new}
-	struct ht_bucket *htbp = lsp->hbp[new];		//\lnlbl{add:htbp}
-	int i = lsp->hls_idx[new];			//\lnlbl{add:i}
+	struct ht_bucket *htbp = lsp->hbp[0];		//\lnlbl{add:htbp}
+	int i = lsp->hls_idx[0];			//\lnlbl{add:i}
 
-	htep->hte_hash = lsp->hls_hash[new];		//\lnlbl{add:hash}
+	htep->hte_hash = lsp->hls_hash[0];		//\lnlbl{add:hash}
 	htep->hte_next[!i].prev = NULL;			//\lnlbl{add:initp}
 	cds_list_add_rcu(&htep->hte_next[i], &htbp->htb_head); //\lnlbl{add:add}
 }							//\lnlbl{add:e}
