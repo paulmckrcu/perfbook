@@ -6,14 +6,15 @@
 The approaches discussed in the preceding sections have provided
 some scalability but decidedly non-ideal performance for the
 Pre-BSD routing table.
-It would be nice if the overhead of Pre-BSD lookups was the same as
-that of a single-threaded lookup, so that the parallel lookups would
-execute the same sequence of assembly language instructions as would a
-single-threaded lookup.
-Although this is a nice goal, it does raise some serious implementability
-questions.
-But let's see what happens if we try, treating insertion and deletion
-separately.
+Therefore, in the spirit of ``only those who have gone too far
+know how far you can go'',\footnote{
+	With apologies to T.~S.~Eliot.}
+we will go all the way, looking into algorithms in which concurrent
+readers execute the same sequence of assembly language instructions as
+would a single-threaded lookup, despite the presence of concurrent
+updates.
+Of course, this laudable goal does raise a few serious implementability
+questions, but we cannot possibly succeed if we don't even try!
 
 \begin{figure}[tb]
 \centering
@@ -22,102 +23,171 @@ separately.
 \label{fig:defer:Insertion With Concurrent Readers}
 \end{figure}
 
+We compensate for the implementability concerns by focusing on a minimal
+data structure, which consists of a single global pointer that is either
+\co{NULL} or references a single structure.
+Interestingly enough, this simple data structure is used in
+production~\cite{GeoffRomer2018C++DeferredReclamationP0561R4}.
 A classic approach for insertion is shown in
 Figure~\ref{fig:defer:Insertion With Concurrent Readers}.
-The first row shows the default state, with \co{gptr} equal to \co{NULL}.
+The first row shows the initial state, with \co{gptr} equal to \co{NULL}.
 In the second row, we have allocated a structure which is uninitialized,
 as indicated by the question marks.
 In the third row, we have initialized the structure.
-Next, we assign \co{gptr} to reference this new element.\footnote{
-	On many computer systems, simple assignment is insufficient
-	due to interference from both the compiler and the CPU.
-	These issues will be covered in
-	Section~\ref{sec:defer:RCU Fundamentals}.}
-On modern general-purpose systems, this assignment is atomic in the
-sense that concurrent readers will see either a \co{NULL} pointer
-or a pointer to the new structure \co{p}, but not some mash-up
-containing bits from both values.
-Each reader is therefore guaranteed to either get the
-default value of \co{NULL} or to get the newly installed
-non-default values, but either way each reader will see
-a consistent result.
-Even better, readers need not use any expensive synchronization
-primitives, so this approach is quite suitable for real-time use.\footnote{
-	Again, on many computer systems, additional work is required
-	to prevent interference from the compiler, and, on DEC Alpha
-	systems, the CPU as well.
-	This will be covered in
-	Section~\ref{sec:defer:RCU Fundamentals}.}
+We might hope to assign \co{gptr} to reference this new element
+using a simple C-language assignment statement, resulting in the
+state shown in the fourth and final row.
+Unfortunately, a quick review of
+Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
+dashes these hopes.
+Therefore, the updater cannot use a simple C-language assignment, but
+must instead use something like \co{WRITE_ONCE()}, or, as will be seen,
+\co{rcu_assign_pointer()}.
+
+Similarly, one might hope that readers could use a single C-language
+assignment statement to fetch the value of \co{gptr}, and be guaranteed
+to either get the old value of \co{NULL} or to get the newly installed
+pointer, but either way see a valid result.
+Unfortunately, Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
+also dashes these hopes.
+To obtain this guarantee, readers must instead use \co{READ_ONCE()},
+or, as will be seen, \co{rcu_dereference()}.
+However, on most modern computer systems, each of these two primitives
+can be implemented with a single load instruction, exactly the instruction
+that would be used in single-threaded code.
+
+Therefore, despite the serious implementability questions, it really
+is possible to add new data to linked data structures while allowing
+concurrent readers to execute the same sequence of machine instructions
+that is required in single-threaded code.
+This no-cost approach to concurrent reading provides excellent performance
+and scalability, and also is eminently suitable for real-time use.
 
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{defer/RCUListDeleteClassic}}
-\caption{Deletion From Linked List With Concurrent Readers}
-\label{fig:defer:Deletion From Linked List With Concurrent Readers}
+\caption{Deletion With Concurrent Readers}
+\label{fig:defer:Deletion With Concurrent Readers}
 \end{figure}
 
 But sooner or later, it will be necessary to remove data that is
 being referenced by concurrent readers.
-Let us move to a more complex example where we are removing an element
-from a linked list, as shown in
-Figure~\ref{fig:defer:Deletion From Linked List With Concurrent Readers}.
-This list initially contains elements~\co{A}, \co{B}, and \co{C},
-and we need to remove element~\co{B}.
-First, we use \co{list_del()} to carry out the removal,\footnote{
-	And yet again, this approximates reality, which will be expanded
-	on in Section~\ref{sec:defer:RCU Fundamentals}.}
-at which point all new readers will see element~\co{B} as having been
-deleted from the list.
-However, there might be old readers still referencing this element.
-Once all these old readers have finished, we can safely free
-element~\co{B}, resulting in the situation shown at the bottom of
-the figure.
+As can be seen in
+Figure~\ref{fig:defer:Deletion With Concurrent Readers},
+the first step is easy.
+Taking the lessons from
+Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
+to heart, use \co{WRITE_ONCE()} to \co{NULL} the pointer,
+thus moving from the first row to the second in the figure.
+At this point, pre-existing readers will see the old structure with
+\co{->addr} of 42 and \co{->iface} of 1, but new readers will see
+a \co{NULL} pointer, that is, concurrent readers can disagree on
+the state, as indicated by the ``2 Versions'' in the figure.
 
-But how can we tell when the readers are finished?
+We get back to a single version simply by waiting for all the
+pre-existing readers to complete, as shown in row~3.
+At that point, all the pre-existing readers are done, and no later
+reader has a path to the old data item, so there can no longer be
+any readers referencing it.
+It may therefore be safely freed, as shown on row~4.
 
-It is tempting to consider a reference-counting scheme, but
+Thus, given a way to wait for pre-existing readers to complete,
+it is possible to both add data to and remove data from a linked
+data structure, despite the readers executing the same sequence
+of machine instructions that would be appropriate for single-threaded
+execution!
+So perhaps going too far was not too far after all.
+
+But how can we tell when all of the pre-existing readers have in
+fact completed?
+
+It is tempting to consider reference-counting, but
 Figure~\ref{fig:count:Atomic Increment Scalability on Nehalem}
 in
 Chapter~\ref{chp:Counting}
-shows that this can also result in long delays, just as can
-the locking and sequence-locking approaches that we already rejected.
+shows that concurrent reference counting results in extreme overhead,
+as we already saw in
+Section~\ref{sec:defer:Reference Counting}.
+Hazard pointers profoundly reduces this overhead, but, as we saw in
+Section~\ref{sec:defer:Hazard Pointers}, not to zero.
 
-Let's consider the logical extreme where the readers do absolutely
-nothing to announce their presence.
-This approach clearly allows optimal performance for readers
-(after all, free is a very good price),
-but leaves open the question of how the updater can possibly
-determine when all the old readers are done.
-We clearly need some additional constraints if we are to provide
-a reasonable answer to this question.
+Another approach is to simply wait for a fixed period of time that is
+long enough to comfortably exceed the lifetime of any reasonable
+reader~\cite{Jacobson93,AjuJohn95}.
+This can work quite well in hard real-time systems, but in less exotic
+settings, Murphy says that it is critically important to be prepared
+even for unreasonably long-lived readers.
+To see this, consider the consequences of failing to wait long enough:
+A data item will be freed while the unreasonable reader is still
+referencing it, and that item might well be immediately reallocated,
+possibly even as a data item of some other type.
+The ensuing mess will at best be exceedingly difficult to debug.
 
-One constraint that fits well with some operating-system kernels is to
-consider the case where threads are not subject to preemption.
-In such non-preemptible environments, each thread runs until it
-explicitly and voluntarily blocks.
-This means that an infinite loop without blocking will render a CPU
-useless for any other purpose from the start of the infinite loop
-onwards.\footnote{
-	In contrast, an infinite loop in a preemptible environment
-	might be preempted.
-	This infinite loop might still waste considerable CPU time,
-	but the CPU in question would nevertheless be able to do
-	other work.}
-Non-preemptibility also requires that threads be prohibited from blocking
-while holding spinlocks.
+A second approach is to wait forever, secure in the knowledge that
+doing so will outwait even the most unreasonable reader.
+This approach is also called ``leaking memory'', and has a bad reputation
+due to the fact that memory leaks often require untimely reboots.
+However, reputation notwithstanding, this is a viable strategy when
+the update rate and the uptime are both sharply bounded.
+For example, this approach could work well in a high-availability
+cluster where systems were periodically crashed in order to ensure
+that cluster really remained highly available.\footnote{
+	The program that forces the periodic crashing is sometimes
+	known as a ``chaos monkey'':
+	\url{https://netflix.github.io/chaosmonkey/}.}
+
+A third approach avoids the period crashes in favor of periodically
+``stopping the world'', as exemplified by the traditional stop-the-world
+garbage collector.
+Stopping the world can gravely degrade response times, which has been
+one motivation for the development of concurrent garbage
+collectors~\cite{DavidFBacon2003RTGC}.
+Furthermore, we only need all pre-existing readers to complete, not to
+complete all at the same time.
+
+This observation leads to the fourth approach, which is that stopping
+one CPU or thread at a time suffices, and that this approach need not
+degrade response times at all, let alone gravely.
+Furthermore, numerous applications already have states (termed
+\emph{quiescent states}) that can be
+reached only after all pre-existing readers are done.
+In transaction-processing systems, the time between a pair of
+successive transactions might be a quiescent state.
+In reactive systems, the state between a pair of successive events
+might be a quiescent state.
+Within non-preemptive operating-systems kernels, a context switch can be
+a quiescent state~\cite{McKenney98}.
+Either way, one all CPUs and/or threads have passed through a quiescent
+state, the system is said to have completed a \emph{grace period},
+such that all pre-existing readers have completed, and it is now
+safe to free any previously-removed data items.\footnote{
+	It is possible to do much more with RCU than simply defer
+	reclamation of memory, but deferred reclamation is an
+	excellent place to start.}
+
+Within a non-preemptive operating-system kernel, for context switch to be
+a valid quiescent state, readers must be prohibited from blocking while
+referencing a given instance data structure obtained via the \co{gptr}
+pointer shown in
+Figures~\ref{fig:defer:Insertion With Concurrent Readers}
+and~\ref{fig:defer:Deletion With Concurrent Readers}.
+This no-blocking constraint is consistent with similar constraints
+on pure spinlocks, where a CPU is forbidden from blocking while
+holding a spinlock.
 Without this prohibition, all CPUs might be consumed by threads
 spinning attempting to acquire a spinlock held by a blocked thread.
 The spinning threads will not relinquish their CPUs until they acquire
 the lock, but the thread holding the lock cannot possibly release it
 until one of the spinning threads relinquishes a CPU.
-This is a classic deadlock situation.
+This is a classic deadlock situation, and this deadlock is avoided
+by prohibiting blocking while holding a spinlock.
 
-Let us impose this same constraint on reader threads traversing the
-linked list: such threads are not allowed to block until after
-completing their traversal.
+Again, this same constraint is imposed on reader threads dereferencing
+\co{gptr}: such threads are not allowed to block until after
+they are done using the pointed-to data item.
 Returning to the second row of
-Figure~\ref{fig:defer:Deletion From Linked List With Concurrent Readers},
-where the updater has just completed executing \co{list_del()},
+Figure~\ref{fig:defer:Deletion With Concurrent Readers},
+where the updater has just completed executing the \co{WRITE_ONCE()},
 imagine that CPU~0 executes a context switch.
 Because readers are not permitted to block while traversing the linked
 list, we are guaranteed that all prior readers that might have been running on
@@ -125,30 +195,35 @@ CPU~0 will have completed.
 Extending this line of reasoning to the other CPUs, once each CPU has
 been observed executing a context switch, we are guaranteed that all
 prior readers have completed, and that there are no longer any reader
-threads referencing element~\co{B}.
-The updater can then safely free element~\co{B}, resulting in the
+threads referencing the newly removed data element.
+The updater can then safely free that data element, resulting in the
 state shown at the bottom of
-Figure~\ref{fig:defer:Deletion From Linked List With Concurrent Readers}.
+Figure~\ref{fig:defer:Deletion With Concurrent Readers}.
 
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{defer/QSBRGracePeriod}}
-\caption{RCU QSBR: Waiting for Pre-Existing Readers}
-\label{fig:defer:RCU QSBR: Waiting for Pre-Existing Readers}
+\caption{QSBR: Waiting for Pre-Existing Readers}
+\label{fig:defer:QSBR: Waiting for Pre-Existing Readers}
 \end{figure}
 
 This approach is termed \emph{quiescent state based reclamation}
 (QSBR)~\cite{ThomasEHart2006a}.
 A QSBR schematic is shown in
-Figure~\ref{fig:defer:RCU QSBR: Waiting for Pre-Existing Readers},
+Figure~\ref{fig:defer:QSBR: Waiting for Pre-Existing Readers},
 with time advancing from the top of the figure to the bottom.
 
 Although production-quality implementations of this approach can be
 quite complex, a toy implementation is exceedingly simple:
 
 \begin{VerbatimN}[samepage=true]
-for_each_online_cpu(cpu)
-	run_on(cpu);
+void synchronize_rcu(void)
+{
+	int cpu;
+
+	for_each_online_cpu(cpu)
+		run_on(cpu);
+}
 \end{VerbatimN}
 
 The \co{for_each_online_cpu()} primitive iterates over all CPUs, and
