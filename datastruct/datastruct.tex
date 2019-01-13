@@ -887,7 +887,8 @@ which is the subject of the next section.
 Resizing is accomplished by the classic approach of inserting a level
 of indirection, in this case, the \co{ht} structure shown on
 lines~\lnref{ht:b}-\lnref{ht:e} of
-Listing~\ref{lst:datastruct:Resizable Hash-Table Data Structures}.
+Listing~\ref{lst:datastruct:Resizable Hash-Table Data Structures}
+(\path{hash_resize.c}).
 The \co{hashtab} structure shown on
 lines~\lnref{hashtab:b}-\lnref{hashtab:e} contains only a
 pointer to the current \co{ht} structure along with a spinlock that
@@ -1030,8 +1031,8 @@ corresponding to the key.
 Line~\lnref{acq_bucket} acquires that bucket's lock, which will prevent any concurrent
 resizing operation from distributing that bucket, though of course it
 will have no effect if that bucket has already been distributed.
-Lines~\lnref{lsp0b}-\lnref{lsp0e} store the bucket pointer,
-pointer-set index, and hash value into their respective fields in the
+Lines~\lnref{lsp0b}-\lnref{lsp0e} store the bucket pointer and
+pointer-set index into their respective fields in the
 \co{ht_lock_state} structure, which communicates the information to
 \co{hashtab_add()}, \co{hashtab_del()}, and \co{hashtab_unlock_mod()}.
 Line~\lnref{ifresized} then checks to see if a concurrent resize
@@ -1045,8 +1046,8 @@ Otherwise, a concurrent resize operation has already distributed this
 bucket, so line~\lnref{new_hashtbl} proceeds to the new hash table,
 line~\lnref{get_newbkt} selects the bucket corresponding to the key,
 and line~\lnref{acq_newbkt} acquires the bucket's lock.
-Lines~\lnref{lsp1b}-\lnref{lsp1e} store the bucket pointer,
-pointer-set index, and hash value into their respective fields in the
+Lines~\lnref{lsp1b}-\lnref{lsp1e} store the bucket pointer and
+pointer-set index into their respective fields in the
 \co{ht_lock_state} structure, which communicates the information to
 \co{hashtab_add()}, \co{hashtab_del()}, and \co{hashtab_unlock_mod()}.
 Note that in this case, two locks are held, one in the old \co{ht_bucket}
@@ -1108,28 +1109,20 @@ hash lookups.
 Line~\lnref{get_curtbl} fetches the current hash table and
 line~\lnref{get_curbkt} searches the bucket corresponding to the
 specified key.
-If line~\lnref{entchk} determines that the search was successful,
-line~\lnref{ret_match} returns a pointer to the element that was located.
-Otherwise, line~\lnref{get_nxttbl} picks up a pointer to the next version,
-and if line~\lnref{htpchk} determines that there is no resize in progress,
-line~\lnref{noresize} returns \co{NULL}.
-When there is a resize in progress, execution reaches
-line~\lnref{ret_nxtbkt}, which returns the result of searching the
-bucket corresponding to \co{key} in the new version.
+Line~\lnref{ret} returns a pointer to the element that was located
+or \co{NULL} when the search failed.
 \end{lineref}
 
 \begin{lineref}[ln:datastruct:hash_resize:access:add]
 The \co{hashtab_add()} function on lines~\lnref{b}-\lnref{e} of the listing adds
 new data elements to the hash table.
-Line~\lnref{new} determines whether a resize was in progress and the
-corresponding old bucket has already been distributed (value of one)
-or not (value of zero).
-Line~\lnref{htbp} picks up the \co{ht_bucket} structure into which the
+Line~\lnref{htbp} picks up the current \co{ht_bucket} structure into which the
 new element is to be added, and line~\lnref{i} picks up the index of
 the pointer pair.
-Line~\lnref{hash} stores the hash value in the to-be-added element
-for debug purposes,
-Finally, line~\lnref{add} adds the new element to the proper hash bucket.
+Line~\lnref{add} adds the new element to the current hash bucket.
+Then line~\lnref{ifnew} determines if the bucket has been distributed to
+a new hash table, and if so,
+line~\lnref{addnew} adds the new element to the bucket in the new hash table.
 The caller is required to handle concurrency, for example, by invoking
 \co{hashtab_lock_mod()} before the call to \co{hashtab_add()} and invoking
 \co{hashtab_unlock_mod()} afterwards.
@@ -1140,33 +1133,15 @@ The \co{hashtab_del()} function on
 lines~\lnref{b}-\lnref{e} of the listing removes
 an existing element from the hash table.
 Line~\lnref{i} picks up the index of the pointer pair
-and line~\lnref{del} removes the specified element.
+and line~\lnref{del} removes the specified element from the current table.
+Then line~\lnref{ifnew} determines if the bucket has been distributed to
+a new hash table, and if so,
+line~\lnref{delnew} removes the sepcified element from the bucket in
+the new table.
 As with \co{hashtab_add()}, the caller is responsible for concurrency
 control and this concurrency control suffices for synchronizing with
 a concurrent resize operation.
 \end{lineref}
-
-\QuickQuiz{}
-	The \co{hashtab_del()} function in
-	Listing~\ref{lst:datastruct:Resizable Hash-Table Access Functions}
-	might not remove the element from the old hash table.
-	Doesn't this mean that readers might access this newly removed
-	element after it has been freed?
-\QuickQuizAnswer{
-	No.
-	The \co{hashtab_del()} function omits removing the element
-	from the old hash table only if the resize operation has
-	already progressed beyond the bucket containing the just-deleted
-	element.
-	But this means that new \co{hashtab_lookup()} operations will
-	use the new hash table when looking up that element.
-	Therefore, only old \co{hashtab_lookup()} operations that started
-	before the \co{hashtab_del()} might encounter the newly
-	removed element.
-	This means that \co{hashtab_del()} need only wait for an
-	RCU grace period to avoid inconveniencing
-	\co{hashtab_lookup()} operations.
-} \QuickQuizEnd
 
 \begin{listing*}[tb]
 \input{CodeSamples/datastruct/hash/hash_resize@resize.fcv}
@@ -1211,10 +1186,10 @@ and line~\lnref{acq_oldcur} acquires that bucket's spinlock.
 	Listing~\ref{lst:datastruct:Resizable Hash-Table Resizing},
 	what guarantees that the update to \co{->ht_new} on line~\lnref{set_newtbl}
 	will be seen as happening before the update to \co{->ht_resize_cur}
-	on line~\lnref{update_resize} from the perspective of \co{hashtab_lookup()},
-	\co{hashtab_add()}, and \co{hashtab_del()}?
-	In other words, what prevents \co{hashtab_lookup()},
-	\co{hashtab_add()}, and \co{hashtab_del()}, from dereferencing
+	on line~\lnref{update_resize} from the perspective of
+	\co{hashtab_add()} and \co{hashtab_del()}?
+	In other words, what prevents \co{hashtab_add()}
+	and \co{hashtab_del()} from dereferencing
 	a NULL pointer loaded from \co{->ht_new}?
 	\end{lineref}
 \QuickQuizAnswer{

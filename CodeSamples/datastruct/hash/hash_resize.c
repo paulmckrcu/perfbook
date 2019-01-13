@@ -30,7 +30,9 @@
 struct ht_elem {
 	struct rcu_head rh;
 	struct cds_list_head hte_next[2];		//\lnlbl{ht_elem:next}
-	unsigned long hte_hash;
+#ifndef FCV_SNIPPET
+	unsigned long hte_hash[2];
+#endif /* #ifndef FCV_SNIPPET */
 };
 
 /* Hash-table bucket element. */
@@ -41,7 +43,9 @@ struct ht_bucket {
 
 struct ht_lock_state {					//\lnlbl{hls:b}
 	struct ht_bucket *hbp[2];
+#ifndef FCV_SNIPPET
 	unsigned long hls_hash[2];
+#endif /* #ifndef FCV_SNIPPET */
 	int hls_idx[2];
 };							//\lnlbl{hls:e}
 
@@ -181,8 +185,10 @@ hashtab_lock_mod(struct hashtab *htp_master, void *key,
 	htbp = ht_get_bucket(htp, key, &b, &h);		//\lnlbl{l:refbucket}
 	spin_lock(&htbp->htb_lock);			//\lnlbl{l:acq_bucket}
 	lsp->hbp[0] = htbp;				//\lnlbl{l:lsp0b}
-	lsp->hls_idx[0] = htp->ht_idx;
-	lsp->hls_hash[0] = h;				//\lnlbl{l:lsp0e}
+	lsp->hls_idx[0] = htp->ht_idx;			//\lnlbl{l:lsp0e}
+#ifndef FCV_SNIPPET
+	lsp->hls_hash[0] = h;
+#endif /* #ifndef FCV_SNIPPET */
 	if (b > READ_ONCE(htp->ht_resize_cur)) {	//\lnlbl{l:ifresized}
 		lsp->hbp[1] = NULL;			//\lnlbl{l:lsp1_1}
 		return;					//\lnlbl{l:fastret1}
@@ -190,12 +196,11 @@ hashtab_lock_mod(struct hashtab *htp_master, void *key,
 	htp = rcu_dereference(htp->ht_new);		//\lnlbl{l:new_hashtbl}
 	htbp = ht_get_bucket(htp, key, &b, &h);		//\lnlbl{l:get_newbkt}
 	spin_lock(&htbp->htb_lock);			//\lnlbl{l:acq_newbkt}
-	lsp->hbp[1] = lsp->hbp[0];			//\lnlbl{l:lsp1b}
-	lsp->hls_idx[1] = lsp->hls_idx[0];
-	lsp->hls_hash[1] = lsp->hls_hash[0];
-	lsp->hbp[0] = htbp;
-	lsp->hls_idx[0] = htp->ht_idx;
-	lsp->hls_hash[0] = h;				//\lnlbl{l:lsp1e}
+	lsp->hbp[1] = htbp;				//\lnlbl{l:lsp1b}
+	lsp->hls_idx[1] = htp->ht_idx;			//\lnlbl{l:lsp1e}
+#ifndef FCV_SNIPPET
+	lsp->hls_hash[1] = h;
+#endif /* #ifndef FCV_SNIPPET */
 }							//\lnlbl{l:e}
 
 static void						//\lnlbl{ul:b}
@@ -230,12 +235,7 @@ hashtab_lookup(struct hashtab *htp_master, void *key)
 
 	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{lkp:get_curtbl}
 	htep = ht_search_bucket(htp, key);		//\lnlbl{lkp:get_curbkt}
-	if (htep)					//\lnlbl{lkp:entchk}
-		return htep;				//\lnlbl{lkp:ret_match}
-	htp = rcu_dereference(htp->ht_new);		//\lnlbl{lkp:get_nxttbl}
-	if (!htp)					//\lnlbl{lkp:htpchk}
-		return NULL;				//\lnlbl{lkp:noresize}
-	return ht_search_bucket(htp, key);		//\lnlbl{lkp:ret_nxtbkt}
+	return htep;					//\lnlbl{lkp:ret}
 }							//\lnlbl{lkp:e}
 
 /*
@@ -248,9 +248,16 @@ void hashtab_add(struct ht_elem *htep,			//\lnlbl{add:b}
 	struct ht_bucket *htbp = lsp->hbp[0];		//\lnlbl{add:htbp}
 	int i = lsp->hls_idx[0];			//\lnlbl{add:i}
 
-	htep->hte_hash = lsp->hls_hash[0];		//\lnlbl{add:hash}
-	htep->hte_next[!i].prev = NULL;			//\lnlbl{add:initp}
+#ifndef FCV_SNIPPET
+	htep->hte_hash[0] = lsp->hls_hash[0];
+#endif /* #ifndef FCV_SNIPPET */
 	cds_list_add_rcu(&htep->hte_next[i], &htbp->htb_head); //\lnlbl{add:add}
+	if ((htbp = lsp->hbp[1])) {			//\lnlbl{add:ifnew}
+#ifndef FCV_SNIPPET
+		htep->hte_hash[1] = lsp->hls_hash[1];
+#endif /* #ifndef FCV_SNIPPET */
+		cds_list_add_rcu(&htep->hte_next[!i], &htbp->htb_head); //\lnlbl{add:addnew}
+	}
 }							//\lnlbl{add:e}
 
 /*
@@ -262,14 +269,9 @@ void hashtab_del(struct ht_elem *htep,			//\lnlbl{del:b}
 {
 	int i = lsp->hls_idx[0];			//\lnlbl{del:i}
 
-	if (htep->hte_next[i].prev) {			//\lnlbl{del:if}
-		cds_list_del_rcu(&htep->hte_next[i]);	//\lnlbl{del:del}
-		htep->hte_next[i].prev = NULL;		//\lnlbl{del:init}
-	}
-	if (lsp->hbp[1] && htep->hte_next[!i].prev) {	//\lnlbl{del:ifnew}
+	cds_list_del_rcu(&htep->hte_next[i]);		//\lnlbl{del:del}
+	if (lsp->hbp[1])				//\lnlbl{del:ifnew}
 		cds_list_del_rcu(&htep->hte_next[!i]);	//\lnlbl{del:delnew}
-		htep->hte_next[!i].prev = NULL;		//\lnlbl{del:initnew}
-	}
 }							//\lnlbl{del:e}
 //\end{snippet}
 
@@ -349,6 +351,12 @@ void defer_del_rcu(struct rcu_head *rhp)
 #define defer_del(p)	call_rcu(&(p)->rh, defer_del_rcu)
 
 #define quiescent_state() rcu_quiescent_state()
+
+#ifndef FCV_SNIPPET
+#define check_hash() (htep->hte_hash[0] != hash && htep->hte_hash[1] != hash)
+#else
+#define check_hash() (0)
+#endif /* #ifndef FCV_SNIPPET */
 
 #include "hashtorture.h"
 #endif /* #ifdef TEST_HASH */

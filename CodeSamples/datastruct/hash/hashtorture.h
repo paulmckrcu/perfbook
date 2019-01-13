@@ -62,6 +62,10 @@ void (*defer_del_done)(struct ht_elem *htep) = NULL;
 #define rcu_barrier() do ; while (0)
 #endif /* #ifndef quiescent_state */
 
+#ifndef check_hash
+#define check_hash() (htep->hte_hash != hash)
+#endif /* #ifndef check_hash */
+
 /*
  * Test variables.
  */
@@ -988,7 +992,7 @@ int zoo_lookup(char *key)
 	htep = hashtab_lookup(perftest_htp, hash, key);
 	zhep = container_of(htep, struct zoo_he, zhe_e);
 	BUG_ON(htep &&
-	       (htep->hte_hash != hash ||
+	       (check_hash() ||
 	        strncmp(zhep->name, (char *)key, ZOO_NAMELEN) != 0));
 	hashtab_unlock_lookup(perftest_htp, hash);
 	hashtab_lookup_done(htep);
