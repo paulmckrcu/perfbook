@@ -1,6 +1,6 @@
 /*
- * hash_resize.c: Resizable hash table protected by a per-bucket lock for
- *	updates and RCU for lookups.
+ * hash_resize_s.c: Resizable hash table protected by a per-bucket lock for
+ *	updates and RCU for lookups (less bucket updates).
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
  * Copyright (c) 2013-2019 Paul E. McKenney, IBM Corporation.
- * Copyright (c) 2019 Akira Yokosawa
  */
 
 #define _GNU_SOURCE
@@ -26,13 +25,12 @@
 #include <urcu.h>
 #include "../../api.h"
 
-//\begin{snippet}[labelbase=ln:datastruct:hash_resize:data,commandchars=\\\@\$]
 /* Hash-table element to be included in structures in a hash table. */
 struct ht_elem {
 	struct rcu_head rh;
 	struct cds_list_head hte_next[2];		//\lnlbl{ht_elem:next}
 #ifndef FCV_SNIPPET
-	unsigned long hte_hash[2];
+	unsigned long hte_hash;
 #endif /* #ifndef FCV_SNIPPET */
 };
 
@@ -68,7 +66,6 @@ struct hashtab {					//\lnlbl{hashtab:b}
 	struct ht *ht_cur;
 	spinlock_t ht_lock;
 };							//\lnlbl{hashtab:e}
-//\end{snippet}
 
 /* Allocate a hash-table instance. */
 struct ht *
@@ -126,7 +123,6 @@ void hashtab_free(struct hashtab *htp_master)
 	free(htp_master);
 }
 
-//\begin{snippet}[labelbase=ln:datastruct:hash_resize:get_bucket,commandchars=\\\@\$]
 /* Get hash bucket corresponding to key, ignoring the possibility of resize. */
 static struct ht_bucket *				//\lnlbl{single:b}
 ht_get_bucket(struct ht *htp, void *key,
@@ -157,7 +153,6 @@ ht_search_bucket(struct ht *htp, void *key)
 	}						//\lnlbl{hsb:loop:e}
 	return NULL;					//\lnlbl{hsb:ret_NULL}
 }							//\lnlbl{hsb:e}
-//\end{snippet}
 
 /* Read-side lock/unlock functions. */
 static void hashtab_lock_lookup(struct hashtab *htp_master, void *key)
@@ -170,7 +165,7 @@ static void hashtab_unlock_lookup(struct hashtab *htp_master, void *key)
 	rcu_read_unlock();
 }
 
-//\begin{snippet}[labelbase=ln:datastruct:hash_resize:lock_unlock_mod,commandchars=\\\@\$]
+//\begin{snippet}[labelbase=ln:datastruct:hash_resize_s:lock_mod,commandchars=\\\@\$]
 /* Update-side lock/unlock functions. */
 static void						//\lnlbl{l:b}
 hashtab_lock_mod(struct hashtab *htp_master, void *key,
@@ -186,9 +181,9 @@ hashtab_lock_mod(struct hashtab *htp_master, void *key,
 	htbp = ht_get_bucket(htp, key, &b, &h);		//\lnlbl{l:refbucket}
 	spin_lock(&htbp->htb_lock);			//\lnlbl{l:acq_bucket}
 	lsp->hbp[0] = htbp;				//\lnlbl{l:lsp0b}
-	lsp->hls_idx[0] = htp->ht_idx;			//\lnlbl{l:lsp0e}
+	lsp->hls_idx[0] = htp->ht_idx;
 #ifndef FCV_SNIPPET
-	lsp->hls_hash[0] = h;
+	lsp->hls_hash[0] = h;				//\lnlbl{l:lsp0e}
 #endif /* #ifndef FCV_SNIPPET */
 	if (b > READ_ONCE(htp->ht_resize_cur)) {	//\lnlbl{l:ifresized}
 		lsp->hbp[1] = NULL;			//\lnlbl{l:lsp1_1}
@@ -197,12 +192,18 @@ hashtab_lock_mod(struct hashtab *htp_master, void *key,
 	htp = rcu_dereference(htp->ht_new);		//\lnlbl{l:new_hashtbl}
 	htbp = ht_get_bucket(htp, key, &b, &h);		//\lnlbl{l:get_newbkt}
 	spin_lock(&htbp->htb_lock);			//\lnlbl{l:acq_newbkt}
-	lsp->hbp[1] = htbp;				//\lnlbl{l:lsp1b}
-	lsp->hls_idx[1] = htp->ht_idx;			//\lnlbl{l:lsp1e}
+	lsp->hbp[1] = lsp->hbp[0];			//\lnlbl{l:lsp1b}
+	lsp->hls_idx[1] = lsp->hls_idx[0];
 #ifndef FCV_SNIPPET
-	lsp->hls_hash[1] = h;
+	lsp->hls_hash[1] = lsp->hls_hash[0];
+#endif /* #ifndef FCV_SNIPPET */
+	lsp->hbp[0] = htbp;
+	lsp->hls_idx[0] = htp->ht_idx;
+#ifndef FCV_SNIPPET
+	lsp->hls_hash[0] = h;				//\lnlbl{l:lsp1e}
 #endif /* #ifndef FCV_SNIPPET */
 }							//\lnlbl{l:e}
+//\end{snippet}
 
 static void						//\lnlbl{ul:b}
 hashtab_unlock_mod(struct ht_lock_state *lsp)
@@ -212,7 +213,6 @@ hashtab_unlock_mod(struct ht_lock_state *lsp)
 		spin_unlock(&lsp->hbp[1]->htb_lock);	//\lnlbl{ul:relbkt1}
 	rcu_read_unlock();				//\lnlbl{ul:rcu_unlock}
 }							//\lnlbl{ul:e}
-//\end{snippet}
 
 /*
  * Finished using a looked up hashtable element.
@@ -221,7 +221,7 @@ void hashtab_lookup_done(struct ht_elem *htep)
 {
 }
 
-//\begin{snippet}[labelbase=ln:datastruct:hash_resize:access,commandchars=\\\@\$]
+//\begin{snippet}[labelbase=ln:datastruct:hash_resize_s:access,commandchars=\\\@\$]
 /*
  * Look up a key.  Caller must have acquired either a read-side or update-side
  * lock via either hashtab_lock_lookup() or hashtab_lock_mod().  Note that
@@ -236,7 +236,12 @@ hashtab_lookup(struct hashtab *htp_master, void *key)
 
 	htp = rcu_dereference(htp_master->ht_cur);	//\lnlbl{lkp:get_curtbl}
 	htep = ht_search_bucket(htp, key);		//\lnlbl{lkp:get_curbkt}
-	return htep;					//\lnlbl{lkp:ret}
+	if (htep)					//\lnlbl{lkp:entchk}
+		return htep;				//\lnlbl{lkp:ret_match}
+	htp = rcu_dereference(htp->ht_new);		//\lnlbl{lkp:get_nxttbl}
+	if (!htp)					//\lnlbl{lkp:htpchk}
+		return NULL;				//\lnlbl{lkp:noresize}
+	return ht_search_bucket(htp, key);		//\lnlbl{lkp:ret_nxtbkt}
 }							//\lnlbl{lkp:e}
 
 /*
@@ -250,15 +255,10 @@ void hashtab_add(struct ht_elem *htep,			//\lnlbl{add:b}
 	int i = lsp->hls_idx[0];			//\lnlbl{add:i}
 
 #ifndef FCV_SNIPPET
-	htep->hte_hash[0] = lsp->hls_hash[0];
+	htep->hte_hash = lsp->hls_hash[0];		//\lnlbl{add:hash}
 #endif /* #ifndef FCV_SNIPPET */
+	htep->hte_next[!i].prev = NULL;			//\lnlbl{add:initp}
 	cds_list_add_rcu(&htep->hte_next[i], &htbp->htb_head); //\lnlbl{add:add}
-	if ((htbp = lsp->hbp[1])) {			//\lnlbl{add:ifnew}
-#ifndef FCV_SNIPPET
-		htep->hte_hash[1] = lsp->hls_hash[1];
-#endif /* #ifndef FCV_SNIPPET */
-		cds_list_add_rcu(&htep->hte_next[!i], &htbp->htb_head); //\lnlbl{add:addnew}
-	}
 }							//\lnlbl{add:e}
 
 /*
@@ -270,13 +270,17 @@ void hashtab_del(struct ht_elem *htep,			//\lnlbl{del:b}
 {
 	int i = lsp->hls_idx[0];			//\lnlbl{del:i}
 
-	cds_list_del_rcu(&htep->hte_next[i]);		//\lnlbl{del:del}
-	if (lsp->hbp[1])				//\lnlbl{del:ifnew}
+	if (htep->hte_next[i].prev) {			//\lnlbl{del:if}
+		cds_list_del_rcu(&htep->hte_next[i]);	//\lnlbl{del:del}
+		htep->hte_next[i].prev = NULL;		//\lnlbl{del:init}
+	}
+	if (lsp->hbp[1] && htep->hte_next[!i].prev) {	//\lnlbl{del:ifnew}
 		cds_list_del_rcu(&htep->hte_next[!i]);	//\lnlbl{del:delnew}
+		htep->hte_next[!i].prev = NULL;		//\lnlbl{del:initnew}
+	}
 }							//\lnlbl{del:e}
 //\end{snippet}
 
-//\begin{snippet}[labelbase=ln:datastruct:hash_resize:resize,commandchars=\\\@\$,tabsize=6]
 /* Resize a hash table. */
 int hashtab_resize(struct hashtab *htp_master,
                    unsigned long nbuckets,
@@ -326,7 +330,6 @@ int hashtab_resize(struct hashtab *htp_master,
 	free(htp);					//\lnlbl{free}
 	return 0;					//\lnlbl{ret_success}
 }
-//\end{snippet}
 
 
 #define hash_register_thread() rcu_register_thread()
@@ -354,8 +357,7 @@ void defer_del_rcu(struct rcu_head *rhp)
 #define quiescent_state() rcu_quiescent_state()
 
 #ifndef FCV_SNIPPET
-#define check_hash() (htep->hte_hash[0] != hash && htep->hte_hash[1] != hash)
-#else
+#else /* #ifndef FCV_SNIPPET */
 #define check_hash() (0)
 #endif /* #ifndef FCV_SNIPPET */
 

@@ -1113,6 +1113,20 @@ Line~\lnref{ret} returns a pointer to the element that was located
 or \co{NULL} when the search failed.
 \end{lineref}
 
+\QuickQuiz{}
+	The \co{hashtab_lookup()} function in
+	Listing~\ref{lst:datastruct:Resizable Hash-Table Access Functions}
+	searches only the current hash bucket.
+	Doesn't this mean that readers might miss a newly added
+	element?
+\QuickQuizAnswer{
+	No.
+	As will be described soon,
+	The \co{hashtab_add()} and \co{hashtab_del()} functions
+	keep updating the current hash table while resizing is
+	progressing.
+} \QuickQuizEnd
+
 \begin{lineref}[ln:datastruct:hash_resize:access:add]
 The \co{hashtab_add()} function on lines~\lnref{b}-\lnref{e} of the listing adds
 new data elements to the hash table.
@@ -1142,6 +1156,52 @@ As with \co{hashtab_add()}, the caller is responsible for concurrency
 control and this concurrency control suffices for synchronizing with
 a concurrent resize operation.
 \end{lineref}
+
+\QuickQuiz{}
+	The \co{hashtab_add()} and \co{hashtab_del()} functions in
+	Listing~\ref{lst:datastruct:Resizable Hash-Table Access Functions}
+	can update two hash buckets while a resize operation is progressing.
+	This might cause a poor performance if the frequency of resize operation
+	is not negligible.
+	Isn't it possible to reduce the cost of updates in such cases?
+\QuickQuizAnswer{
+	Yes.
+	If you can tollerate a slight increase in the cost of
+	\co{hashtab_lookup()}, there are several approaches
+	to reduce the number of updates in \co{hashtab_add()} and
+	\co{hashtab_del()}.
+	An alternative implementation of these three functions and the
+	update-side locking function is shown in
+	Listings~\ref{lst:datastruct:Resizable Hash-Table Access Functions
+	(Less Updates)}
+	and~\ref{lst:datastruct:Resizable Hash-Table Update-Side Locking
+	Function (Less Updates)} (\path{hash_resize_s.c}).
+
+\begin{listing}[tbh]
+\input{CodeSamples/datastruct/hash/hash_resize_s@access.fcv}
+\caption{Resizable Hash-Table Access Functions (Less Updates)}
+\label{lst:datastruct:Resizable Hash-Table Access Functions (Less Updates)}
+\end{listing}
+
+\begin{listing}[tbh]
+\input{CodeSamples/datastruct/hash/hash_resize_s@lock_mod.fcv}
+\caption{Resizable Hash-Table Update-Side Locking Function (Less Updates)}
+\label{lst:datastruct:Resizable Hash-Table Update-Side Locking Function (Less Updates)}
+\end{listing}
+
+	This version of \co{hashtab_add()} adds an element to
+	either the old bucket if it is not resized yet, or to the new
+	bucket if it has been resized. \co{hashtab_del()} removes
+	the specified element from the buckets it has been inserted.
+	\co{hashtab_lookup()} searches the new bucket if the search
+	of the old bucket fails.
+	The alternative \co{hashtab_lock_mod()} returns the locking
+	state of the new bucket in \co{->hbp[0]} and \co{->hls_idx[0]}
+	if resize operation is in progress. This reordering simplifies
+	\co{hashtab_add()}.
+
+	Further analysis of the code is left as an exercise for the reader.
+} \QuickQuizEnd
 
 \begin{listing*}[tb]
 \input{CodeSamples/datastruct/hash/hash_resize@resize.fcv}
