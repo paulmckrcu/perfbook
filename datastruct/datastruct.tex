@@ -1115,15 +1115,15 @@ or \co{NULL} when the search failed.
 \QuickQuiz{}
 	The \co{hashtab_lookup()} function in
 	Listing~\ref{lst:datastruct:Resizable Hash-Table Access Functions}
-	searches only the current hash bucket.
-	Doesn't this mean that readers might miss a newly added
-	element?
+	does not take account of concurrent resize operations.
+	Doesn't this mean that readers might miss an element
+	added while resizing is progressing?
 \QuickQuizAnswer{
 	No.
-	As will be described soon,
-	The \co{hashtab_add()} and \co{hashtab_del()} functions
-	keep updating the current hash table while resizing is
-	progressing.
+	As we will see soon,
+	the \co{hashtab_add()} and \co{hashtab_del()} functions
+	keep the current hash table up-to-date until a resize operation
+	completes.
 } \QuickQuizEnd
 
 \begin{lineref}[ln:datastruct:hash_resize:access:add]
@@ -1291,6 +1291,24 @@ Then line~\lnref{rel_master} releases the resize-serialization lock,
 line~\lnref{free} frees
 the old hash table, and finally line~\lnref{ret_success} returns success.
 \end{lineref}
+
+\QuickQuiz{}
+	\begin{lineref}[ln:datastruct:hash_resize:resize]
+	Why is there a \co{WRITE_ONCE()} on line~\lnref{update_resize}
+	in Listing~\ref{lst:datastruct:Resizable Hash-Table Resizing}?
+	\end{lineref}
+\QuickQuizAnswer{
+	\begin{lineref}[ln:datastruct:hash_resize:lock_unlock_mod]
+	Together with the \co{READ_ONCE()}
+	on line~\lnref{l:ifresized} in \co{hashtab_lock_mod()}
+	of Listing~\ref{lst:datastruct:Resizable Hash-Table Update-Side
+	Concurrency Control},
+	it tells the compiler that the non-initialization accesses
+	to \co{->ht_resize_cur} must remain because reads
+	from \co{->ht_resize_cur} really can race with writes,
+	just not in a way to change the ``if'' conditions.
+	\end{lineref}
+} \QuickQuizEnd
 
 \subsection{Resizable Hash Table Discussion}
 \label{sec:datastruct:Resizable Hash Table Discussion}
