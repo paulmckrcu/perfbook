@@ -56,8 +56,7 @@ struct ht {						//\lnlbl{ht:b}
 	long ht_resize_cur;				//\lnlbl{ht:resize_cur}
 	struct ht *ht_new;				//\lnlbl{ht:new}
 	int ht_idx;					//\lnlbl{ht:idx}
-	int (*ht_cmp)(struct ht_elem *htep,		//\lnlbl{ht:cmp}
-	              void *key);
+	int (*ht_cmp)(struct ht_elem *htep, void *key);	//\lnlbl{ht:cmp}
 	unsigned long (*ht_gethash)(void *key);
 	void *(*ht_getkey)(struct ht_elem *htep);	//\lnlbl{ht:getkey}
 	struct ht_bucket ht_bkt[0];			//\lnlbl{ht:bkt}
