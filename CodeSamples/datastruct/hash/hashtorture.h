@@ -60,6 +60,11 @@ void (*defer_del_done)(struct ht_elem *htep) = NULL;
 #define quiescent_state() do ; while (0)
 #define synchronize_rcu() do ; while (0)
 #define rcu_barrier() do ; while (0)
+#else /* #ifndef quiescent_state */
+# ifndef rcu_barrier
+#  error You need a modern version of liburcu which has "rcu_barrier()".
+#  define rcu_barrier() do ; while (0)
+# endif /* #ifndef rcu_barrier */
 #endif /* #ifndef quiescent_state */
 
 #ifndef check_hash
