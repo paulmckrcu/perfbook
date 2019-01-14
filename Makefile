@@ -12,7 +12,6 @@ LATEXSOURCES = \
 	*/*/*.tex
 
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
-OBSOLETE_FILES = intro/PPGrelation.eps extraction
 
 ABBREVTARGETS := tcb 1c hb msns mss mstx msr msn msnt 1csf
 
@@ -32,6 +31,12 @@ FIGSOURCES := $(wildcard */*.fig) $(wildcard */*/*.fig)
 
 EPSSOURCES_FROM_FIG := $(FIGSOURCES:%.fig=%.eps)
 
+SVGSOURCES := $(wildcard */*.svg)
+FAKE_EPS_FROM_SVG := $(SVGSOURCES:%.svg=%.eps)
+PDFTARGETS_OF_SVG := $(SVGSOURCES:%.svg=%.pdf)
+
+OBSOLETE_FILES = extraction $(FAKE_EPS_FROM_SVG)
+
 EPSSOURCES_DUP := \
 	$(wildcard */*.eps) \
 	$(wildcard */*/*.eps) \
@@ -50,9 +55,6 @@ PDFTARGETS_OF_EPSORIG := $(EPSORIGIN:%.eps=%.pdf)
 PDFTARGETS_OF_EPSOTHER := $(filter-out $(PDFTARGETS_OF_EPSORIG),$(PDFTARGETS_OF_EPS))
 
 BIBSOURCES := bib/*.bib alphapf.bst
-
-SVGSOURCES := $(wildcard */*.svg)
-PDFTARGETS_OF_SVG := $(SVGSOURCES:%.svg=%.pdf)
 
 DOT := $(shell which dot 2>/dev/null)
 FIG2EPS := $(shell which fig2eps 2>/dev/null)
@@ -294,8 +296,9 @@ clean:
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' \
 		-o -name '*.fcv' -o -name '*.ltms' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook*.out perfbook-*.tex
-	rm -f $(LATEXGENERATED) $(OBSOLETE_FILES)
+	rm -f $(LATEXGENERATED)
 	rm -f CodeSamples/snippets.mk CodeSamples/snippets.d
+	@rm -f $(OBSOLETE_FILES)
 
 distclean: clean
 	sh utilities/cleanpdf.sh
