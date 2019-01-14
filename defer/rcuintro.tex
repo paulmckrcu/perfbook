@@ -121,6 +121,8 @@ To see this, consider the consequences of failing to wait long enough:
 A data item will be freed while the unreasonable reader is still
 referencing it, and that item might well be immediately reallocated,
 possibly even as a data item of some other type.
+The unreasonable reader and the unwitting reallocator would then
+be attempting to use the same memory for two very different purposes.
 The ensuing mess will at best be exceedingly difficult to debug.
 
 A second approach is to wait forever, secure in the knowledge that
@@ -135,12 +137,19 @@ that cluster really remained highly available.\footnote{
 	The program that forces the periodic crashing is sometimes
 	known as a ``chaos monkey'':
 	\url{https://netflix.github.io/chaosmonkey/}.}
+Leaking the memory is also a viable strategy in environments having
+garbage collectors, in which case the garbage collector can be thought
+of as plugging the leak~\cite{Kung80}.
+However, if your environment lacks a garbage collector, read on!
 
 A third approach avoids the period crashes in favor of periodically
 ``stopping the world'', as exemplified by the traditional stop-the-world
 garbage collector.
-Stopping the world can gravely degrade response times, which has been
-one motivation for the development of concurrent garbage
+This approach was also heavily used during the decades before
+ubiquitous connectivity, when it was common practice to power systems
+off at the end of each working day.
+However, stopping the world can gravely degrade response times, which
+has been one motivation for the development of concurrent garbage
 collectors~\cite{DavidFBacon2003RTGC}.
 Furthermore, we only need all pre-existing readers to complete, not to
 complete all at the same time.
@@ -212,6 +221,34 @@ This approach is termed \emph{quiescent state based reclamation}
 A QSBR schematic is shown in
 Figure~\ref{fig:defer:QSBR: Waiting for Pre-Existing Readers},
 with time advancing from the top of the figure to the bottom.
+CPU~1 does the \co{WRITE_ONCE()} that removes the current data
+item (presumably having previously read the pointer value and
+availed itself of appropriate synchronization), then waits
+for readers.
+This wait operation results in an immediate context switch, which is
+a quiescent state, which in turn means that all prior reads on CPU~1
+have completed.
+Next, CPU~2 does a context switch, so that all readers on CPUs~1 and~2
+are now known to have completed.
+Finally, CPU~3 does a context switch.
+At this point, all readers throughout the entire system are known to
+have completed, so the grace period ends, permitting CPU~1 to free
+the old data item.
+
+\QuickQuiz{}
+	In Figure~\ref{fig:defer:QSBR: Waiting for Pre-Existing Readers},
+	the last of CPU~3's readers that could possibly have
+	access to the old data item ended before the grace period
+	even started!
+	So why would any one want to wait until CPU~3's later context
+	switch???
+\QuickQuizAnswer{
+	Because that wait is exactly what enables readers to use
+	the same sequence of instructions that is appropriate for
+	single-theaded situations.
+	In other words, waiting enables excellent read-side performance,
+	scalability, and real-time response.
+} \QuickQuizEnd
 
 Although production-quality implementations of this approach can be
 quite complex, a toy implementation is exceedingly simple:
@@ -241,5 +278,8 @@ have significant additional complexity.
 In addition, RCU implementations for preemptible environments
 require that readers actually do something.
 However, this simple non-preemptible approach is conceptually complete,
-and forms a good initial basis for understanding the RCU fundamentals
-covered in the following section.
+and demonstrates that it really is possible to provide read-side
+synchronization at zero cost, even in the face of concurrent updates.
+
+This example forms a good basis for understanding the RCU fundamentals
+presented in the following section.
