@@ -13,8 +13,11 @@ we will go all the way, looking into algorithms in which concurrent
 readers execute the same sequence of assembly language instructions as
 would a single-threaded lookup, despite the presence of concurrent
 updates.
-Of course, this laudable goal does raise a few serious implementability
+Of course, this laudable goal might raise serious implementability
 questions, but we cannot possibly succeed if we don't even try!
+
+\subsubsection{Minimal Insertion and Deletion}
+\label{sec:defer:Minimal Insertion and Deletion}
 
 \begin{figure}[tb]
 \centering
@@ -23,7 +26,7 @@ questions, but we cannot possibly succeed if we don't even try!
 \label{fig:defer:Insertion With Concurrent Readers}
 \end{figure}
 
-We compensate for the implementability concerns by focusing on a minimal
+To minimize implementability concerns, we focus on a minimal
 data structure, which consists of a single global pointer that is either
 \co{NULL} or references a single structure.
 Interestingly enough, this simple data structure is used in
@@ -41,7 +44,7 @@ Unfortunately, a quick review of
 Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
 dashes these hopes.
 Therefore, the updater cannot use a simple C-language assignment, but
-must instead use something like \co{WRITE_ONCE()}, or, as will be seen,
+must instead use something like \co{smp_store_release()}, or, as will be seen,
 \co{rcu_assign_pointer()}.
 
 Similarly, one might hope that readers could use a single C-language
@@ -84,6 +87,64 @@ At this point, pre-existing readers will see the old structure with
 a \co{NULL} pointer, that is, concurrent readers can disagree on
 the state, as indicated by the ``2 Versions'' in the figure.
 
+\QuickQuiz{}
+	Shouldn't
+	Figure~\ref{fig:defer:Deletion With Concurrent Readers}'s
+	\co{WRITE_ONCE()} instead be \co{smp_store_release()}?
+\QuickQuizAnswer{
+	No, it need not be.
+
+	Because a \co{NULL} pointer is being assigned, there is nothing
+	to order against, so no need for \co{smp_store_release()}.
+	In contrast, when assigning a non-\co{NULL} pointer, it is
+	necessary to use \co{smp_store_release()} in order to ensure
+	that initialization of the pointed-to structure is carried
+	out before assignment of the pointer.
+	But in this case, the \co{NULL} pointer means that there is
+	no pointed-to structure, and thus no need for ordering.
+
+	In short, \co{smp_store_release()} would work, but could
+	incur unnecessary overhead.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Readers running concurrently each other and with the procedure
+	outlined in
+	Figure~\ref{fig:defer:Deletion With Concurrent Readers}
+	can disagree on the value of \co{gptr}.
+	Isn't that just a wee bit problematic???
+\QuickQuizAnswer{
+	Not necessarily.
+
+	As hinted at in Sections~\ref{sec:cpu:Hardware Optimizations}
+	and~\ref{sec:cpu:Hardware Free Lunch?},
+	speed-of-light delays mean that a computer's data is always
+	stale compared to whatever external reality that data is intended
+	to model.
+
+	Real-world algorithms therefore absolutely must tolerate
+	inconsistancies between external reality and the in-computer
+	data reflecting that reality.
+	A significant fraction of those algorithms are also able to
+	tolerate some degree of inconsistency within the in-computer
+	data.
+	Section~\ref{sec:datastruct:RCU-Protected Hash Table Discussion}
+	discusses this point in more detail.
+
+	Please note that this need to tolerate inconsistent and stale
+	data is not limited to RCU.
+	It also applies to reference counting, hazard pointers, sequence
+	locks, and even to some locking use cases.
+	For example, if you compute some quantity while holding a lock,
+	but use that computed quantity after releasing that lock,
+	you might well be using stale data.
+	After all, the data from which that quantity was computed could
+	change arbitrarily as soon as the lock was released.
+
+	So yes, RCU readers can see stale and inconsistent data, but no,
+	this is not necessarily problematic.
+} \QuickQuizEnd
+
 We get back to a single version simply by waiting for all the
 pre-existing readers to complete, as shown in row~3.
 At that point, all the pre-existing readers are done, and no later
@@ -100,8 +161,12 @@ So perhaps going too far was not too far after all.
 
 But how can we tell when all of the pre-existing readers have in
 fact completed?
+This question is the topic of the next section.
 
-It is tempting to consider reference-counting, but
+\subsubsection{Waiting for Readers}
+\label{sec:defer:Waiting for Readers}
+
+It is tempting to base reader waiting on reference counting, but
 Figure~\ref{fig:count:Atomic Increment Scalability on Nehalem}
 in
 Chapter~\ref{chp:Counting}
@@ -111,7 +176,23 @@ Section~\ref{sec:defer:Reference Counting}.
 Hazard pointers profoundly reduces this overhead, but, as we saw in
 Section~\ref{sec:defer:Hazard Pointers}, not to zero.
 
-Another approach is to simply wait for a fixed period of time that is
+A second approach observes that memory synchronization is expensive,
+and therefore uses registers instead, namely each CPU's or thread's
+program counter (PC), thus imposing no overhead on readers, at least
+in the absence of concurrent updates.
+The updater polls each relevant PC, and if that PC is not within read-side
+code, then the corresponding CPU or thread is within a quiescent state,
+in turn signalling the completion of any reader that might have access
+to the newly removed data element.
+Once all CPU's or thread's PCs have been observed to be outside of any
+reader, the grace period has completed.
+Please note that this approach poses some serious challenges, including
+memory ordering, functions that are \emph{sometimes} invoked from readers,
+and ever-exciting code-motion optimizations.
+Nevertheless, this approach is said to be used in
+production~\cite{MikeAsh2015Apple}.
+
+A third approach is to simply wait for a fixed period of time that is
 long enough to comfortably exceed the lifetime of any reasonable
 reader~\cite{Jacobson93,AjuJohn95}.
 This can work quite well in hard real-time systems, but in less exotic
@@ -125,10 +206,11 @@ The unreasonable reader and the unwitting reallocator would then
 be attempting to use the same memory for two very different purposes.
 The ensuing mess will at best be exceedingly difficult to debug.
 
-A second approach is to wait forever, secure in the knowledge that
+A fourth approach is to wait forever, secure in the knowledge that
 doing so will outwait even the most unreasonable reader.
 This approach is also called ``leaking memory'', and has a bad reputation
-due to the fact that memory leaks often require untimely reboots.
+due to the fact that memory leaks often require untimely and
+highly inconvenient reboots.
 However, reputation notwithstanding, this is a viable strategy when
 the update rate and the uptime are both sharply bounded.
 For example, this approach could work well in a high-availability
@@ -142,21 +224,22 @@ garbage collectors, in which case the garbage collector can be thought
 of as plugging the leak~\cite{Kung80}.
 However, if your environment lacks a garbage collector, read on!
 
-A third approach avoids the period crashes in favor of periodically
+A fifth approach avoids the period crashes in favor of periodically
 ``stopping the world'', as exemplified by the traditional stop-the-world
 garbage collector.
 This approach was also heavily used during the decades before
 ubiquitous connectivity, when it was common practice to power systems
 off at the end of each working day.
-However, stopping the world can gravely degrade response times, which
-has been one motivation for the development of concurrent garbage
-collectors~\cite{DavidFBacon2003RTGC}.
+However, in today's always-connected always-on world, stopping the world
+can gravely degrade response times, which has been one motivation for the
+development of concurrent garbage collectors~\cite{DavidFBacon2003RTGC}.
 Furthermore, we only need all pre-existing readers to complete, not to
 complete all at the same time.
 
-This observation leads to the fourth approach, which is that stopping
-one CPU or thread at a time suffices, and that this approach need not
-degrade response times at all, let alone gravely.
+This observation leads to the sixth approach, which is stopping
+one CPU or thread at a time.
+This approach has the advantage of not degrading reader response times
+at all, let alone gravely.
 Furthermore, numerous applications already have states (termed
 \emph{quiescent states}) that can be
 reached only after all pre-existing readers are done.
@@ -240,18 +323,21 @@ the old data item.
 	the last of CPU~3's readers that could possibly have
 	access to the old data item ended before the grace period
 	even started!
-	So why would any one want to wait until CPU~3's later context
+	So why would any anyone bother waiting until CPU~3's later context
 	switch???
 \QuickQuizAnswer{
-	Because that wait is exactly what enables readers to use
+	Because that waiting is exactly what enables readers to use
 	the same sequence of instructions that is appropriate for
 	single-theaded situations.
 	In other words, waiting enables excellent read-side performance,
 	scalability, and real-time response.
 } \QuickQuizEnd
 
-Although production-quality implementations of this approach can be
-quite complex, a toy implementation is exceedingly simple:
+\subsubsection{Toy Implementation}
+\label{sec:defer:Toy Implementation}
+
+Although production-quality QSBR implementations can be quite complex,
+a toy non-preemptive Linux-kernel implementation is exceedingly simple:
 
 \begin{VerbatimN}[samepage=true]
 void synchronize_rcu(void)
@@ -271,6 +357,54 @@ Therefore, once the \co{for_each_online_cpu()} has completed, each CPU
 has executed a context switch, which in turn guarantees that
 all pre-existing reader threads have completed.
 
+\begin{listing}[tbp]
+{ \scriptsize
+\begin{verbbox}[\LstLineNo]
+struct route *gptr;
+
+int read_gptr(int (*f)(struct route *rp))
+{
+  int ret = -1;
+  struct route *rp;
+
+  rcu_read_lock();
+  rp = rcu_dereference(gptr);
+  if (rp)
+  	ret = f(rp);
+  rcu_read_unlock();
+  return ret;
+}
+
+struct route *ins_route(struct route *rp)
+{
+  struct route *old_rp;
+
+  spin_lock(&route_lock);
+  old_rp = gptr;
+  rcu_assign_pointer(gptr, rp);
+  spin_unlock(&route_lock);
+}
+
+int del_route(void)
+{
+  struct route *old_rp;
+
+  spin_lock(&route_lock);
+  old_rp = gptr;
+  RCU_INIT_POINTER(gptr, NULL);
+  spin_unlock(&route_lock);
+  synchronize_rcu();
+  free(old_rp);
+  return !!old_rp;
+}
+\end{verbbox}
+}
+\centering
+\theverbbox
+\caption{Insertion and Deletion With Concurrent Readers}
+\label{lst:defer:Insertion and Deletion With Concurrent Readers}
+\end{listing}
+
 Please note that this approach is \emph{not} production quality.
 Correct handling of a number of corner cases and the need for a number
 of powerful optimizations mean that production-quality implementations
@@ -280,6 +414,114 @@ require that readers actually do something.
 However, this simple non-preemptible approach is conceptually complete,
 and demonstrates that it really is possible to provide read-side
 synchronization at zero cost, even in the face of concurrent updates.
+In fact,
+Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}
+shows how reading (\co{read_gptr()}),
+Figure~\ref{fig:defer:Insertion With Concurrent Readers}'s
+insertion (\co{ins_route()}) and
+Figure~\ref{fig:defer:Deletion With Concurrent Readers}'s
+deletion (\co{del_route()}) can
+be implemented.
 
-This example forms a good basis for understanding the RCU fundamentals
-presented in the following section.
+\QuickQuiz{}
+	What is the point of \co{rcu_read_lock()} and \co{rcu_read_unlock()} in
+	Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}?
+	Why not just let the quiescent states speak for themselves?
+\QuickQuizAnswer{
+	Recall that readers are not permitted to pass through a quiescent
+	state.
+	For example, within the Linux kernel, RCU readers are not permitted
+	to execute a context switch.
+	Use of \co{rcu_read_lock()} and \co{rcu_read_unlock()} enables
+	debug checks for improperly placed quiescent states, making it
+	easy to find bugs that would otherwise be difficult to find,
+	intermittent, and quite destructive.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	What is the point of \co{rcu_dereference()}, \co{rcu_assign_pointer()}
+	and \co{RCU_INIT_POINTER()} in
+	Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}?
+	Why not just use \co{READ_ONCE()}, \co{smp_store_release()}, and
+	\co{WRITE_ONCE()}, respectively?
+\QuickQuizAnswer{
+	The RCU-specific APIs do have similar semantics to the suggested
+	replacements, but also enable static-analysis debugging checks
+	that complain if an RCU-specific API is invoked on a non-RCU
+	pointer and vice versa.
+} \QuickQuizEnd
+
+Referring back to
+Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers},
+note that \co{route_lock} is used to synchronize between concurrent updaters
+invoking \co{ins_route()} and \co{del_route()}.
+However, this lock is not acquired by readers invoking \co{read_gptr()}:
+Readers are instead protected by the QSBR techniques described in this section.
+
+Note that \co{ins_route()} simply returns the old value of \co{gptr}, which
+Figure~\ref{fig:defer:Insertion With Concurrent Readers} assumed would
+always be \co{NULL}.
+This means that it is the caller's responsibility to figure out what to
+do with a non-\co{NULL} value, a task complicated by the fact that
+readers might still be referencing it for an indeterminate period of time.
+Callers might use one of the following approaches:
+
+\begin{enumerate}
+\item	Use \co{synchronize_rcu()} to safely free the pointed-to structure.
+	Although this approach is correct from an RCU perspective, it
+	arguably has software-engineering leaky-API problems.
+\item	Trip an assertion if the returned pointer is non-\co{NULL}.
+\item	Pass the returned pointer to a later invocation of
+	\co{ins_route()} to restore the earlier value.
+\end{enumerate}
+
+In contrast, \co{del_route()} uses \co{synchronize_rcu()} and
+\co{free()} to safely free the newly deleted data item.
+
+This example shows one general approach to reading and updating
+RCU-protected data structures, however, there is quite a variety
+of use cases, several of which are covered in
+Section~\ref{sec:defer:RCU Usage}.
+
+In summary, it is in fact possible to create concurrent linked data
+structures that can be traversed by readers executing the same sequence
+of machine instructions that would be executed by single-threaded readers.
+But is this capability useful in practice?
+This question is taken up by the next section.
+
+\subsubsection{Practical Applicability}
+\label{sec:defer:Practical Applicability}
+
+\begin{figure}[tb]
+\centering
+\resizebox{3in}{!}{\includegraphics{defer/linux-RCU}}
+\caption{RCU Usage in the Linux Kernel}
+\label{fig:defer:RCU Usage in the Linux Kernel}
+\end{figure}
+
+It turns out that RCU has been used in the Linux kernel since
+October 2002~\cite{Torvalds2.5.43}.
+Use of the RCU API has increased substantially since that time,
+as can be seen in
+Figure~\ref{fig:defer:RCU Usage in the Linux Kernel}.
+In fact, code very similar to that in
+Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}
+could be used in the Linux kernel.
+
+Prior to that, RCU was used in production in Sequent Computer Systems's
+DYNIX/ptx operating system from the early 1990s~\cite{McKenney98},
+and prior to that, a similar mechanism was used in IBM's
+VM/XA, possibly as early as the mid-1980s~\cite{Hennessy89}.
+Finally, as discussed in
+Section~\ref{sec:defer:RCU Related Work},
+mechanisms roughly similar to RCU have also been used
+in academic and industrial-research projects, as well as in production
+by a number of userspace applications.
+
+It is therefore safe to say that RCU enjoys wide practical applicability.
+
+The minimal example discussed in this section is a good introduction to RCU.
+However, effective use of RCU often requires that you think differently
+about your problem.
+It is therefore useful to examine RCU's fundamentals, a task taken up
+by the following section.
