@@ -1467,8 +1467,8 @@ Chapter~\ref{chp:Data Structures}.
 \subsection{Accessing Shared Variables}
 \label{sec:toolsoftrade:Accessing Shared Variables}
 
-The C standard defined semantics for concurrent read/write access to
-shared variables only in 2011, but concurrent C code was being
+It was not until 2011 that the C standard defined semantics for concurrent
+read/write access to shared variables but concurrent C code was being
 written at least a quarter century earlier~\cite{Beck85,Inman85}.
 This raises the question as to what today's greybeards did back
 in long-past pre-C11 days.
@@ -1532,6 +1532,13 @@ up to three times.
 	so that line~\lnref{do_low} passes \co{do_low()} a \co{NULL} pointer,
 	which \co{do_low()} just might not be prepared to deal with.
 	\end{lineref}
+
+	Your editor made exactly this mistake in the DYNIX/ptx
+	kernel's memory allocator in the early 1990s.
+	Tracking down the bug consumed a holiday weekend not just
+	for your editor, but also for several of his colleagues.
+	In short, this is not a new problem, nor is it likely to
+	go away on its own.
 } \QuickQuizEnd
 
 Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
@@ -1589,8 +1596,13 @@ variable at the same time another thread stored \co{0xabcd}.
 If the compiler used 16-bit stores for either access, the result
 might well be \co{0x12cd}, which could come as quite a surprise to
 code loading from this integer.
-Again, the C standard simply has no choice in the general case, given
-the possibility of code using 32-bit integers running on a 16-bit system.
+Nor is this a strictly theoretical issue.
+For example, there are CPUs that can store small immediate values
+directly into memory, and on such CPUs, the compiler can be expected
+to split this into two 16-bit stores in order to avoid the overhead
+of explicitly forming the 32-bit constant.
+Furthermore, the C standard simply has no choice in the general case, given
+the possibility of code using 64-bit integers running on a 32-bit system.
 
 \begin{listing}[tbp]
 \begin{linelabel}[ln:toolsoftrade:C Compilers Can Fuse Loads]
@@ -1787,13 +1799,28 @@ be a great disappointment for anyone hoping that the last call to
 \co{finish_shutdown()} on line~\lnref{finish}.
 \end{lineref}
 
+It might seem futile to prevent the compiler from changing the order of
+accesses in cases where the underlying hardware is free to reorder them.
+However, modern machines have \emph{exact exceptions} and
+\emph{exact interrupts}, meaning that any interrupt or exception will
+appear to have happened at a specific place in the instruction
+stream.
+This means that the handler will see the effect of all prior
+instructions, but won't see the effect of any subsequent instructions.
+\co{READ_ONCE()} and \co{WRITE_ONCE()} can therefore be used to
+control communication between interrupted code and interrupt handlers,
+independent of the ordering provided by the underlying hardware.\footnote{
+	That said, the various standards committees would prefer that
+	you use atomics or variables of type \co{sig_atomic_t}, instead
+	of \co{READ_ONCE()} and \co{WRITE_ONCE()}.}
+
 {\bf Invented loads} were illustrated by the code in
 Listings~\ref{lst:toolsoftrade:Living Dangerously Early 1990s Style}
 and~\ref{lst:toolsoftrade:C Compilers Can Invent Loads},
 in which the compiler optimized away a temporary variable,
 thus loading from a shared variable more often than intended.
 
-Invented loads can also be a performance hazard.
+Invented loads can be a performance hazard.
 These hazards can occur when a load of variable in a ``hot''
 cacheline is hoisted out of an \co{if} statement.
 These hoisting optimizations are not uncommon, and can cause significant
@@ -1866,6 +1893,34 @@ resets the value back to zero on
 line~\lnref{store:cond} if \co{condition} was not set.
 This transforms the if-then-else into an if-then, saving one branch.
 \end{lineref}
+
+\QuickQuiz{}
+	Ouch!
+	So can't the compiler invent a store to a normal variable pretty
+	much any time it likes?
+\QuickQuizAnswer{
+	Thankfully, the answer is no.
+	This is because the compiler is forbidden from introducing data races.
+	The case of inventing a store just before a normal store is
+	quite special:  It is not possible for some other entity,
+	be it CPU, thread, signal handler, or interrupt handler, to be
+	able to see the invented store unless the code already has
+	a data race, even without the invented store.
+	And if the code already has a data race, it already invokes
+	the dreaded spectre of undefined behavior, which allows the
+	compiler to generate pretty much whatever code it wants,
+	regardless of the wishes of the developer.
+
+	But if the original store is volatile, as in \co{WRITE_ONCE()},
+	for all the compiler knows, there might be a side effect
+	associated with the store that could signal some other thread,
+	allowing data-race-free access to the variable.
+	By inventing the store, the compiler might be introducing a
+	data race, which it is not permitted to do.
+
+	In the case of \co{volatile} and atomic variables, the compiler
+	is specifically forbidden from inventing writes.
+} \QuickQuizEnd
 
 Finally, pre-C11 compilers could invent writes to unrelated
 variables that happened to be adjacent to written-to

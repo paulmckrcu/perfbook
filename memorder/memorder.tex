@@ -3082,300 +3082,87 @@ describes how to protect those delicate control dependencies.
 \subsection{Memory-Reference Restrictions}
 \label{sec:memorder:Memory-Reference Restrictions}
 
-Again, unless told otherwise, compilers assume that nothing else
-is affecting the variables being accessed by the generated code.
-This assumption is not simply some design error, but is instead enshrined in
-various standards.\footnote{
+As noted in Section~\ref{sec:toolsoftrade:Accessing Shared Variables},
+unless told otherwise, compilers assume that nothing else
+is affecting the variables that the code is accessing.
+Furthermore, this assumption is not simply some design error, but is
+instead enshrined in various standards.\footnote{
 	Or perhaps it is a standardized design error.}
-This assumption means that compilers are within their rights
-(as defined by the standards) to optimize the following code
-so as to hoist the load from \co{a} out of the loop, at least
-in cases where the compiler can prove that \co{do_something()}
-does not modify \co{a}:
+It is worth summarizing this material in preparation for the following
+sections.
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 while (a)
-  2   do_something();
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-The optimized code might look something like this, essentially
-fusing an arbitrarily large number of intended loads into a single
-actual load:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 if (a)
-  2   for (;;)
-  3     do_something();
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-This optimization might come as a fatal surprise to code elsewhere
-that expected to terminate this loop by storing a zero to \co{a}.
-Fortunately, there are several ways of avoiding this sort of problem:
+Plain accesses, as in plain-access C-language assignment statements such
+as ``\co{r1 = a}'' or ``\co{b = 1}'' are subject to the
+shared-variable shenanigans described in
+Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}.
+Ways of avoiding these shenanigans are described in
+Sections~\ref{sec:toolsoftrade:A Volatile Solution}-\ref{sec:toolsoftrade:Avoiding Data Races}:
 
 \begin{enumerate}
-\item	Volatile accesses.
-\item	Atomic variables.
-\item	Prohibitions against introducing data races.
+\item	Plain accesses can tear, for example, the compiler could choose
+	to access an eight-byte pointer one byte at a time.
+	Tearing can be prevented by using \co{READ_ONCE()} and
+	\co{WRITE_ONCE()}.
+\item	Plain loads can fuse, for example, if the results of an earlier
+	load from that same object are still in a machine register,
+	the compiler might opt to reuse the value in that register
+	instead of reloading from memory.
+	Load fusing can be prevented by using \co{READ_ONCE()} or by
+	enforcing ordering between the two loads using \co{barrier()},
+	\co{smp_rmb()}, and other means shown in
+	Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
+\item	Plain stores can fuse, so that a store can be omitted entirely
+	if there is a later store to that same variable.
+	Store fusing can be prevented by using \co{WRITE_ONCE()} or by
+	enforcing ordering between the two stores using \co{barrier()},
+	\co{smp_wmb()}, and other means shown in
+	Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
+\item	Plain accesses can be reordered in surprising ways by modern
+	optimizing compilers.
+	This reordering can be prevented by enforcing ordering as
+	called out above.
+\item	Plain loads can be invented, for example, register pressure might
+	cause the compiler to discard a previously loaded value from
+	its register, and then reload it later on.
+	Invented loads can be prevented by using \co{READ_ONCE()} or by
+	enforcing ordering as callout out above between the load and a
+	later use of its value using \co{barrier()}.
+\item	Stores can be invented before a plain store, for example, by
+	using the stored-to location as temporary storage.
+	This can be prevented by use of \co{WRITE_ONCE()}.
 \end{enumerate}
 
-The \co{volatile} restrictions are necessary to write reliable
-device drivers, and the atomic variables and prohibitions against
-introducing data races are necessary to write reliable concurrent
-code.
-
-Starting with volatile accesses, the following code
-relies on the \co{volatile} casts in \co{READ_ONCE()} to prevent
-the unfortunate infinite-loop optimization:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 while (READ_ONCE(a))
-  2   do_something();
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-\co{READ_ONCE()} marks the load with a \co{volatile} cast.
-Now \co{volatile} was originally designed for accessing
-memory-mapped I/O (MMIO) registers, which are accessed using
-the same load and store instructions that are used when
-accessing normal memory.
-However, MMIO registers need not act at all like normal memory.
-Storing a value to an MMIO register does not necessarily mean
-that a subsequent load from that register will return the value
-stored.
-Loading from an MMIO register might well have side effects,
-for example, changing the device state or affecting the response
-to subsequent loads and stores involving other MMIO registers.
-Loads and stores of different sizes to the same MMIO address
-might well have different effects.
-
-This means that, even on a uniprocessor system, changing the
-order, number, or size of MMIO accesses is strictly forbidden.
-And this is exactly the purpose of the C-language \co{volatile} keyword,
-to constrain the compiler so as to allow implementation of reliable device
-drivers.
-
-This is why \co{READ_ONCE()} prevents the destructive hoisting of
-the load from \co{a} out of the loop:  Doing so changes the number
-of \co{volatile} loads from \co{a}, so this optimization is disallowed.
-However, note well that \co{volatile} does absolutely nothing to
-constrain the hardware.
-Therefore, if the code following the loop needs to see the result of
-any memory references preceding the store of zero that terminated
-the loop, you will instead need to use something like
-\co{smp_store_release()} to store the zero and \co{smp_load_acquire()}
-in the loop condition.
-But if all you need is to reliably control the loop without any
-other ordering, \co{READ_ONCE()} can do the job.
-
-Compilers can also replicate loads.
-For example, consider this all-too-real code fragment:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 tmp = p;
-  2 if (tmp != NULL && tmp <= q)
-  3   do_something(tmp);
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-Here the intent is that the \co{do_something()} function is never
-passed a \co{NULL} pointer or a pointer that is greater than \co{q}.
-However, the compiler is within its rights to transform this into the
-following:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 if (p != NULL && p <= q)
-  2   do_something(p);
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-In this transformed code, the value of \co{p} is loaded three
-separate times.
-This transformation might seem silly at first glance, but it is quite
-useful when the surrounding code has consumed all of the
-machine registers.
-It is possible that the current value of \co{p} passes the test on
-line~1, but that some other thread stores \co{NULL} to \co{p} before
-line~2 executes, and the resulting \co{NULL} pointer could be a fatal
-surprise to \co{do_something()}.\footnote{
-	Your editor made exactly this mistake in the DYNIX/ptx
-	kernel's memory allocator in the early 1990s.
-	Tracking down the bug consumed a holiday weekend not just
-	for your editor, but also for several of his colleagues.
-	In short, this is not a new problem.}
-To prevent the compiler from replicating the load, use \co{READ_ONCE()},
-for example as follows:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 tmp = READ_ONCE(p);
-  2 if (tmp != NULL && tmp <= q)
-  3   do_something(tmp);
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-Alternatively, the variable \co{p} could be declared \co{volatile}.
-
-Compilers can also fuse stores.
-The most infamous example is probably the progress-bar example
-shown below:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 while (!am_done()) {
-  2   do_something(p);
-  3   progress++;
-  4 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-If the compiler used a feedback-driven optimizer, it might well
-notice that the store to the shared variable \co{progress} was
-quite expensive, resulting in the following well-intentioned
-optimization:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 while (!am_done()) {
-  2   do_something(p);
-  3   tmp++;
-  4 }
-  5 progress = tmp;
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-This might well slightly increase performance, but the poor user
-watching the progress bar might be forgiven for harboring significant
-ill will towards this particular optimization.
-The progress bar will after all be stuck at zero for a long time,
-then jump at the very end.
-The following code will usually prevent this problem:
-
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 while (!am_done()) {
-  2   do_something(p);
-  3   WRITE_ONCE(progress, progress + 1);
-  4 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
-
-Exceptions can occur if the compiler is able to analyze \co{do_something()}
-and learn that it has no accesses to atomic or \co{volatile} variables.
-In these cases the compiler could produce two loops, one invoking
-\co{do_something()} and the other incrementing \co{progress}.
-It may be necessary to replace the \co{WRITE_ONCE()} with something
-like \co{smp_store_release()} in the unlikely event that this occurs.
-It is important to note that although the compiler is forbidden from
-changing the number, size, or order of \co{volatile} accesses, it is
-perfectly within its rights to reorder normal accesses with unrelated
-\co{volatile} accesses.
-
-Oddly enough, the compiler is within its rights to use a variable
-as temporary storage just before a normal store to that variable, thus
-inventing stores to that variable.
-Fortunately, most compilers avoid this sort of thing, at least outside
-of stack variables.
-In any case, using \co{WRITE_ONCE()}, declaring the variable
-\co{volatile}, or declaring the variable atomic (in recent C and C++
-compilers supporting atomics) will prevent this sort of thing.
-
 \QuickQuiz{}
-	Why can't the compiler invent a store to a normal variable
-	any time it likes?
+	Why not place a \co{barrier()} call immediately before
+	a plain store to prevent the compiler from inventing stores?
 \QuickQuizAnswer{
-	Because the compiler is forbidden from introducing data races.
-	The case of inventing a store just before a normal store is
-	quite special:  It is not possible for some other entity,
-	be it CPU, thread, signal handler, or interrupt handler, to be
-	able to see the invented store unless the code already has
-	a data race, even without the invented store.
-	And if the code already has a data race, it already invokes
-	the dreaded spectre of undefined behavior, which allows the
-	compiler to generate pretty much whatever code it wants,
-	regardless of the wishes of the developer.
-
-	But if the original store is volatile, as in \co{WRITE_ONCE()},
-	for all the compiler knows, there might be a side effect
-	associated with the store that could signal some other thread,
-	allowing data-race-free access to the variable.
-	By inventing the store, the compiler might be introducing a
-	data race, which it is not permitted to do.
-
-	In the case of \co{volatile} and atomic variables, the compiler
-	is specifically forbidden from inventing writes.
+	Because it would not work.
+	Although the compiler would be prevented from inventing a
+	store prior to the \co{barrier()}, nothing would prevent
+	it from inventing a store between that \co{barrier()} and
+	the plain store.
 } \QuickQuizEnd
 
-The previous examples involved compiler optimizations that
-changed the number of accesses.
-Now, it might seem that preventing the compiler from changing the
-order of accesses is an act of futility, given that the underlying
-hardware is free to reorder them.
-However, modern machines have \emph{exact exceptions} and
-\emph{exact interrupts}, meaning that any interrupt or exception will
-appear to have happened at a specific place in the instruction
-stream, so that the handler will see the effect of all prior
-instructions, but won't see the effect of any subsequent instructions.
-\co{READ_ONCE()} and \co{WRITE_ONCE()} can therefore be used to
-control communication between interrupted code and interrupt handlers.\footnote{
-	That said, the various standards committees would prefer that
-	you instead use atomics or variables of type \co{sig_atomic_t}.}
+Please note that all of these shared-memory shenanigans can instead be
+avoided by avoiding data races on plain accesses, as described in
+Section~\ref{sec:toolsoftrade:Avoiding Data Races}.
+After all, if there are no data races, then each and every one of the
+compiler optimizations mentioned above is perfectly safe.
+But for code containing data races, this list is subject to change
+without notice as compiler optimizations continue becoming increasingly
+aggressive.
 
-This leaves changes to the size of accesses, which is known as
-\emph{load tearing} and \emph{store tearing} when the actual size
-is smaller than desired.
-For example, storing the constant \co{0x00010002} into a 32-bit
-variable might seem quite safe.
-However, there are CPUs that can store small immediate values
-directly into memory, and on such CPUs, the compiler can be expected
-to split this into two 16-bit stores in order to avoid the overhead
-of explicitly forming the 32-bit constant.
-This could come as a fatal surprise to another thread concurrently
-loading from this variable, which might not expect to see the
-result of a half-completed store.
-Use of \co{READ_ONCE()} and \co{WRITE_ONCE()} prevent the compiler
-from engaging in load tearing and store tearing, respectively.
-
-In short, use of \co{READ_ONCE()}, \co{WRITE_ONCE()}, and
-\co{volatile} are valuable tools in preventing the compiler from
+In short, use of \co{READ_ONCE()}, \co{WRITE_ONCE()}, \co{barrier()},
+\co{volatile}, and other primitives called out in
+Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
+are valuable tools in preventing the compiler from
 optimizing your parallel algorithm out of existence.
 Compilers are starting to provide other mechanisms for avoiding
 load and store tearing, for example, \co{memory_order_relaxed}
-atomic loads and stores, however, \co{volatile} is still needed
-to avoid fusing and splitting of accesses.
+atomic loads and stores, however, work is still
+needed~/\cite{JonathanCorbet2016C11atomics}
+In addition, compiler issues aside, \co{volatile} is still needed
+to avoid fusing and invention of accesses, including C11 atomic accesses.
 
 Please note that, it is possible to overdo use of \co{READ_ONCE()} and
 \co{WRITE_ONCE()}.
