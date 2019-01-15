@@ -1003,8 +1003,9 @@ failure.
 	functions described next.
 } \QuickQuizEnd
 
-This implementation of \co{ht_get_bucket()} permits lookups and
-modifications to run concurrently with a resize operation.
+This implementation of \co{ht_get_bucket()} and \co{ht_search_bucket()}
+permits lookups and modifications to run concurrently with a resize
+operation.
 
 \begin{listing}[tb]
 \input{CodeSamples/datastruct/hash/hash_resize@lock_unlock_mod.fcv}
@@ -1040,20 +1041,24 @@ operation has already distributed this bucket across the new hash table,
 and if not, line~\lnref{lsp1_1} indicates that there is no
 already-resized hash bucket and
 line~\lnref{fastret1} returns with the selected hash bucket's
-lock held (and also within an RCU read-side critical section).
+lock held (thus preventing a concurrent resize operation from distributing
+this bucket) and also within an RCU read-side critical section.
 
 Otherwise, a concurrent resize operation has already distributed this
 bucket, so line~\lnref{new_hashtbl} proceeds to the new hash table,
 line~\lnref{get_newbkt} selects the bucket corresponding to the key,
 and line~\lnref{acq_newbkt} acquires the bucket's lock.
 Lines~\lnref{lsp1b}-\lnref{lsp1e} store the bucket pointer and
-pointer-set index into their respective fields in the
-\co{ht_lock_state} structure, which communicates the information to
+pointer-set index into their respective fields in the 
+\co{ht_lock_state} structure, which again communicates this information to
 \co{hashtab_add()}, \co{hashtab_del()}, and \co{hashtab_unlock_mod()}.
-Note that in this case, two locks are held, one in the old \co{ht_bucket}
-structure to prevent resizing that bucket (if not already resized),
-and one in the new \co{ht_bucket} structure to synchronize with
-concurrent \co{hashtab_add()} and \co{hashtab_del()} invocations.
+Because this bucket has already been resized and because
+\co{hashtab_add()} and \co{hashtab_del()} affect both the old and the
+new \co{ht_bucket} structures, two locks are held, one on each of the
+two buckets.
+Additionally, both elements of each array in \co{ht_lock_state} structure
+are used, with the \co{[0]} element pertaining to the old \co{ht_bucket}
+structure and the \co{[1]} element pertaining to the new structure.
 Once again, \co{hashtab_lock_mod()} exits within an RCU read-side critical
 section.
 \end{lineref}
@@ -1061,12 +1066,10 @@ section.
 \begin{lineref}[ln:datastruct:hash_resize:lock_unlock_mod:ul]
 The \co{hashtab_unlock_mod()} function releases the lock(s) acquired by
 \co{hashtab_lock_mod()}.
-Line~\lnref{relbkt0} releases the lock on the old \co{ht_bucket}
-structure, which is the only such structure in the common case
-where there is no resize operation in progress.
-If line~\lnref{ifbkt1} determines that there was a resize operation
-in progress, then line~\lnref{relbkt1} releases the lock on the new
-\co{ht_bucket} structure.
+Line~\lnref{relbkt0} releases the lock on the old \co{ht_bucket} structure.
+In the unlikely event that line~\lnref{ifbkt1} determines that a resize
+operation is in progress, line~\lnref{relbkt1} releases the lock on the
+new \co{ht_bucket} structure.
 Either way, line~\lnref{rcu_unlock} exits the RCU read-side critical
 section.
 \end{lineref}
@@ -1108,8 +1111,8 @@ hash lookups.
 Line~\lnref{get_curtbl} fetches the current hash table and
 line~\lnref{get_curbkt} searches the bucket corresponding to the
 specified key.
-Line~\lnref{ret} returns a pointer to the element that was located
-or \co{NULL} when the search failed.
+Line~\lnref{ret} returns a pointer to the searched-for element
+or \co{NULL} when the search fails.
 \end{lineref}
 
 \QuickQuiz{}
@@ -1133,9 +1136,9 @@ Line~\lnref{htbp} picks up the current \co{ht_bucket} structure into which the
 new element is to be added, and line~\lnref{i} picks up the index of
 the pointer pair.
 Line~\lnref{add} adds the new element to the current hash bucket.
-Then line~\lnref{ifnew} determines if the bucket has been distributed to
-a new hash table, and if so,
-line~\lnref{addnew} adds the new element to the bucket in the new hash table.
+If line~\lnref{ifnew} determines that this bucket has been distributed
+to a new version of the hash table, then line~\lnref{addnew} also adds the
+new element to the corresponding new bucket.
 The caller is required to handle concurrency, for example, by invoking
 \co{hashtab_lock_mod()} before the call to \co{hashtab_add()} and invoking
 \co{hashtab_unlock_mod()} afterwards.
@@ -1147,10 +1150,9 @@ lines~\lnref{b}-\lnref{e} of the listing removes
 an existing element from the hash table.
 Line~\lnref{i} picks up the index of the pointer pair
 and line~\lnref{del} removes the specified element from the current table.
-Then line~\lnref{ifnew} determines if the bucket has been distributed to
-a new hash table, and if so,
-line~\lnref{delnew} removes the sepcified element from the bucket in
-the new table.
+If line~\lnref{ifnew} determines that this bucket has been distributed
+to a new version of the hash table, then line~\lnref{delnew} also removes
+the specified element from the corresponding new bucket.
 As with \co{hashtab_add()}, the caller is responsible for concurrency
 control and this concurrency control suffices for synchronizing with
 a concurrent resize operation.

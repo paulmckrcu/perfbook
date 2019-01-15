@@ -42,14 +42,6 @@ struct ht_bucket {
 	spinlock_t htb_lock;
 };
 
-struct ht_lock_state {					//\lnlbl{hls:b}
-	struct ht_bucket *hbp[2];
-#ifndef FCV_SNIPPET
-	unsigned long hls_hash[2];
-#endif /* #ifndef FCV_SNIPPET */
-	int hls_idx[2];
-};							//\lnlbl{hls:e}
-
 /* Hash-table instance, duplicated at resize time. */
 struct ht {						//\lnlbl{ht:b}
 	long ht_nbuckets;				//\lnlbl{ht:nbuckets}
@@ -61,6 +53,14 @@ struct ht {						//\lnlbl{ht:b}
 	void *(*ht_getkey)(struct ht_elem *htep);	//\lnlbl{ht:getkey}
 	struct ht_bucket ht_bkt[0];			//\lnlbl{ht:bkt}
 };							//\lnlbl{ht:e}
+
+struct ht_lock_state {					//\lnlbl{hls:b}
+	struct ht_bucket *hbp[2];
+#ifndef FCV_SNIPPET
+	unsigned long hls_hash[2];
+#endif /* #ifndef FCV_SNIPPET */
+	int hls_idx[2];
+};							//\lnlbl{hls:e}
 
 /* Top-level hash-table data structure, including buckets. */
 struct hashtab {					//\lnlbl{hashtab:b}
