@@ -34,49 +34,50 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
 
-divisor=3
-relerr=0.01
-trendbreak=10
-while test $# -gt 0
+#\begin{snippet}[labelbase=ln:debugging:datablows:whole,commandchars=\!\@\%]
+div=3				#\lnlbl{param:b}
+rel=0.01
+tre=10				#\lnlbl{param:e}
+while test $# -gt 0		#\lnlbl{parse:b}
 do
 	case "$1" in
 	--divisor)
 		shift
-		divisor=$1
+		div=$1
 		;;
 	--relerr)
 		shift
-		relerr=$1
+		rel=$1
 		;;
 	--trendbreak)
 		shift
-		trendbreak=$1
+		tre=$1
 		;;
 	esac
 	shift
-done
-# echo divisor: $divisor relerr: $relerr trendbreak: $trendbreak
+done				#\lnlbl{parse:e}
+# echo divisor: $div relerr: $rel trendbreak: $tre #\fcvexclude
 
-awk -v divisor=$divisor -v relerr=$relerr -v trendbreak=$trendbreak '{
-	for (i = 2; i <= NF; i++)
-		d[i - 1] = $i;
-	asort(d);
-	i = int((NF + divisor - 1) / divisor);
-	delta = d[i] - d[1];
-	maxdelta = delta * divisor;
-	maxdelta1 = delta + d[i] * relerr;
-	if (maxdelta1 > maxdelta)
-		maxdelta = maxdelta1;
-	for (j = i + 1; j < NF; j++) {
-		if (j <= 2)
+awk -v divisor=$div -v relerr=$rel -v trendbreak=$tre '{#\lnlbl{awk:invoke}
+	for (i = 2; i <= NF; i++)		#\lnlbl{awk:copy:b}
+		d[i - 1] = $i;			#\lnlbl{awk:copy:e}
+	asort(d);				#\lnlbl{awk:asort}
+	i = int((NF + divisor - 1) / divisor);	#\lnlbl{awk:comp_i}
+	delta = d[i] - d[1];			#\lnlbl{awk:delta}
+	maxdelta = delta * divisor;		#\lnlbl{awk:maxdelta}
+	maxdelta1 = delta + d[i] * relerr;	#\lnlbl{awk:maxdelta1}
+	if (maxdelta1 > maxdelta)		#\lnlbl{awk:comp_max:b}
+		maxdelta = maxdelta1;		#\lnlbl{awk:comp_max:e}
+	for (j = i + 1; j < NF; j++) {		#\lnlbl{awk:add:b}
+		if (j <= 2)			#\lnlbl{awk:chk_engh}
 			maxdiff = d[NF - 1] - d[1];
 		else
-			maxdiff = trendbreak * (d[j - 1] - d[1]) / (j - 2);
-# print "i: " i, "j: " j, "maxdelta: " maxdelta, "maxdiff: " maxdiff, "d[j] - d[j - 1]: " d[j] - d[j - 1]
-		if (d[j] - d[1] > maxdelta && d[j] - d[j - 1] > maxdiff)
-			break;
-	}
-	n = sum = 0;
+			maxdiff = trendbreak * (d[j - 1] - d[1]) / (j - 2); #\lnlbl{awk:mul_avr}
+# print "i: " i, "j: " j, "maxdelta: " maxdelta, "maxdiff: " maxdiff, "d[j] - d[j - 1]: " d[j] - d[j - 1] #\fcvexclude
+		if (d[j] - d[1] > maxdelta && d[j] - d[j - 1] > maxdiff) #\lnlbl{awk:chk_max}
+			break;			#\lnlbl{awk:break}
+	}					#\lnlbl{awk:add:e}
+	n = sum = 0;				#\lnlbl{awk:comp_stat:b}
 	for (k = 1; k < j; k++) {
 		sum += d[k];
 		n++;
@@ -84,5 +85,6 @@ awk -v divisor=$divisor -v relerr=$relerr -v trendbreak=$trendbreak '{
 	min = d[1];
 	max = d[j - 1];
 	avg = sum / n;
-	print $1, avg, min, max, n, NF - 1;
-}'
+	print $1, avg, min, max, n, NF - 1;	#\lnlbl{awk:comp_stat:e}
+}'						#\lnlbl{awk:end}
+#\end{snippet}

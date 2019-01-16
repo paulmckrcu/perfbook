@@ -23,9 +23,9 @@ my $re;
 $snippet_key = '\begin{snippet}' ;
 $snippet_key_ltms = '\begin[snippet]' ;
 @ignore_re = ('\.swp$', '~$', '\#$') ;  # to ignore backup of vim and emacs
-@fcvsources = `grep -l -r -F '$snippet_key' CodeSamples` ;
+@fcvsources = `grep -l -R -F '$snippet_key' CodeSamples` ;
 @fcvsources = grep { not /\.ltms$/ } @fcvsources ;
-@fcvsources_ltms = `grep -l -r -F '$snippet_key_ltms' CodeSamples` ;
+@fcvsources_ltms = `grep -l -R -F '$snippet_key_ltms' CodeSamples` ;
 foreach $re (@ignore_re) {
     @fcvsources = grep { not /$re/ } @fcvsources ;
     @fcvsources_ltms = grep { not /$re/ } @fcvsources_ltms ;
