@@ -147,6 +147,8 @@ Axiomatic approaches may also be applied to higher-level
 languages and also to higher-level synchronization primitives, as
 exemplified by the lock-based litmus test shown in
 Listing~\ref{lst:formal:Locking Example} (\path{C-Lock1.litmus}).
+This litmus test can be modeled by the Linux kernel memory model
+(LKMM)~\cite{Alglave:2018:FSC:3173162.3177156}.
 As expected, the \co{herd} tool's output features the string \co{Never},
 correctly indicating that \co{P1()} cannot see \co{x} having a value
 of one.\footnote{
@@ -180,6 +182,73 @@ And in this case, the \co{herd} tool's output features the string
 \co{Sometimes}, correctly indicating that use of different locks allows
 \co{P1()} to see \co{x} having a value of one.
 
+\QuickQuiz{}
+	Why bother modeling locking directly?
+	Why not simply emulate locking with atomic operations?
+\QuickQuizAnswer{
+\begin{table}[tb]
+\rowcolors{2}{}{lightgray}
+\small
+\centering
+\newcommand{\lockfml}[1]{\multicolumn{1}{c}{\begin{picture}(6,150)(0,0)\rotatebox{90}{#1}\end{picture}}}
+\begin{tabular}{rrrrrr}
+	\lockfml{\# Processes}
+	& \lockfml{Model}
+	& \lockfml{Emulate: \tco{cmpxchg_acquire()}, \tco{filter}}
+	& \lockfml{Emulate: \tco{xchg_acquire()}, \tco{filter}}
+	& \lockfml{Emulate: \tco{cmpxchg_acquire()}, \tco{exists}}
+	& \lockfml{Emulate: \tco{xchg_acquire()}, \tco{exists}}
+	\\
+	\midrule
+	2 & 0.004 &  0.022 &  0.027 &   0.039 &   0.058 \\
+	3 & 0.041 &  0.743 &  0.968 &   1.653 &   3.203 \\
+	4 & 0.374 & 59.565 & 74.818 & 151.962 & 500.96  \\
+	5 & 4.905 \\
+\end{tabular}
+\caption{Locking: Modeling vs. Emulation Time (s)}
+\label{tab:formal:Locking: Modeling vs. Emulation Time (s)}
+\end{table}
+	In a word, performance, as can be seen in
+	Table~\ref{tab:formal:Locking: Modeling vs. Emulation Time (s)}.
+	The first column shows the number of herd processes modeled.
+	The second column shows the herd runtime when modeling
+	\co{spin_lock()} and \co{spin_unlock()} directly in herd's
+	cat language.
+	The third column shows the herd runtime when emulating
+	\co{spin_lock()} with \co{cmpxchg_acquire()} and \co{spin_unlock()}
+	with \co{smp_store_release()}, using the herd \co{filter}
+	clause to reject executions that fail to acquire the lock.
+	The fourth column is like the third, but using \co{xchg_acquire()}
+	instead of \co{cmpxchg_acquire()}.
+	The fifth and sixth columns are like the third and fourth,
+	but instead using the herd \co{exists} clause to reject
+	executions that fail to acquire the lock.
+
+	Note also that use of the \co{filter} clause is about twice
+	as fast as is use of the \co{exists} clause.
+	This is no surprise because the \co{filter} clause allows
+	early abandoning of excluded executions, where the executions
+	that are excluded are the ones in which the lock is concurrently
+	held by more than one process.
+
+	More important, modeling \co{spin_lock()} and \co{spin_unlock()}
+	directly ranges from five times faster to more than two orders
+	of magnitude faster than modeling emulated locking.
+	This should also be no surprise, as direct modeling raises
+	the level of abstraction, thus reducing the number of events
+	that herd must model.
+	Because almost everything that herd does is of exponential
+	computational complexity, modest reductions in the number of
+	events produces exponentially large reductions in runtime.
+
+	Thus, in formal verification even more than in parallel
+	programming itself, divide and conquer!!!
+} \QuickQuizEnd
+
+But locking is not the only synchronization primitive that can be
+modeled directly:
+The next section looks at RCU.
+
 \subsection{Axiomatic Approaches and RCU}
 \label{sec:formal:Axiomatic Approaches and RCU}
 
@@ -196,6 +265,9 @@ Listing~\ref{lst:formal:Canonical RCU Removal Litmus Test}
 (\path{C-RCU-remove.litmus})
 shows a litmus test corresponding to the canonical RCU-mediated
 removal from a linked list.
+As with the locking litmus test, this RCU litmus test can be
+modeled by LKMM, with similar performance advantages compared
+to modeling emulations of RCU.
 Line~\lnref{head} shows \co{x} as the list head, initially
 referencing \co{y}, which in turn is initialized to the value
 \co{2} on line~\lnref{tail:1}.
@@ -354,8 +426,9 @@ in the \co{herd} output.
 These sections have shown how axiomatic approaches can successfully
 model synchronization primitives such as locking and RCU in C-language
 litmus tests.
-Longer term, the hope is that the axiomatic approaches incorporate
-axioms describing even higher-level software artifacts.
+Longer term, the hope is that the axiomatic approaches will model
+even higher-level software artifacts, producing exponential
+verification speedups.
 This could potentially allow axiomatic verification of much larger
 software systems.
 Another alternative is to press the axioms of boolean logic into service,
