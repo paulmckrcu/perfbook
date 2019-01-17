@@ -3998,43 +3998,158 @@ This section will look into how higher levels of abstraction can
 also provide a deeper understanding of the synchronization primitives
 themselves.
 
-\subsection{Locking}
-\label{sec:memorder:Locking}
+% \subsection{Detailed Locking Semantics}
+% \label{sec:memorder:Detailed Locking Semantics}
+The remainder of this section focuses on detailed RCU grace-period
+semantics.
+% % Awaiting LWN article.
 
-Locking is a well-known synchronization primitive with which the
-parallel-programming community has had decades of experience with
-in a great many situations.
-As such, locking's semantics are quite simple.
+% Locking is a well-known synchronization primitive with which the
+% parallel-programming community has had decades of experience with
+% in a great many situations.
+% As such, locking's semantics are quite simple.
 
-They are quite simple, that is, until you think about them hard enough
-to mathematically model them.
+% However, they remain quite simple only until you start thinking about
+% them rigorously enough to mathematically model them.
 
-Existence of mathematical modeling, as called out in
-Section~\ref{sec:formal:Axiomatic Approaches and Locking}.
-Pull in performance from LKMM effort.
+% The simple part is that any CPU or thread holding a given lock is
+% guaranteed to see accesses executed when other CPUs or threads
+% were previously holding that lock.
+% In addition, any CPU or thread holding a given lock is guaranteed not
+% to see accesses executed when other CPUs or threads will be
+% subsequently holding that lock.
 
-Ordering for holders of same lock.
-For holders of different locks?
+% Existence of mathematical modeling, as called out in
+% Section~\ref{sec:formal:Axiomatic Approaches and Locking}.
+% Pull in performance from LKMM effort.
 
-Memory-ordering constraints for lock and unlock.
-When augmented by \co{smp_mb__after_spinlock()} or
-\co{smp_mb__after_spinlock()}.
+% Ordering for holders of same lock.
+% For holders of different locks?
 
-Memory-ordering constraints for unlock followed by lock.
-When augmented \co{smp_mb__after_unlock_lock()}.
+% Memory-ordering constraints for lock and unlock.
+% When augmented by \co{smp_mb__after_spinlock()} or
+% \co{smp_mb__after_spinlock()}.
 
-\subsection{RCU}
-\label{sec:memorder:RCU}
+% Memory-ordering constraints for unlock followed by lock.
+% When augmented \co{smp_mb__after_unlock_lock()}.
 
-From fundamental property to counting rule.
+% \subsection{RCU}
+% \label{sec:memorder:RCU}
 
-\subsection{SRCU}
-\label{sec:memorder:SRCU}
+The fundamental property of RCU grace periods is this straightforward
+two-part guarantee:
+% @@@ Refer back to if-then diagrams to be added to RCU Fundamentals.
+(1)~If any part of a given RCU read-side critical section precedes
+the beginning of a given grace period, then the entirety of that
+critical section precedes the end of that grace period.
+(2)~If any part of a given RCU read-side critical section follows
+the end of a given grace period, then the entirety of that
+critical section follows the beginning of that grace period.
 
-Nesting vs. value passed from \co{srcu_read_lock()} to
-\co{srcu_read_unlock()}.
+\begin{listing}[tb]
+\input{CodeSamples/formal/herd/C-SB+o-rcusync-o+rl-o-o-rul@whole.fcv}
+\caption{RCU Fundamental Property}
+\label{lst:formal:RCU Fundamental Property}
+\end{listing}
 
-When augmented by \co{smp_mb__after_srcu_read_unlock()}.
+In short, an RCU read-side critical section is guaranteed never to
+completely overlap an RCU grace period, as demonstrated by
+Listing~\ref{lst:formal:RCU Fundamental Property}
+(\path{C-SB+o-rcusync-o+rl-o-o-rul.litmus}).
+Either or neither of the \co{r2} registers can have the final value of zero,
+but at least one of them must be non-zero, courtesy of RCU's fundamental
+grace-period guarantee, as can be seen by running \co{herd} on this litmus test.
+
+However, this definition is incomplete, as can be seen from the following
+list of questions:\footnote{
+	Several of which were introduced to Paul by Jade Alglave during
+	early work on LKMM, and a few more of which came from other
+	LKMM participants~\cite{Alglave:2018:FSC:3173162.3177156}.}
+
+\begin{enumerate}
+\item	What ordering is provided by \co{rcu_read_lock()}
+	and \co{rcu_read_unlock()}, independent of RCU grace periods?
+\item	What ordering is provided by \co{synchronize_rcu()}
+	and \co{synchronize_rcu_expedited()}, independent of RCU read-side
+	critical sections?
+\item	If the entirety of a given RCU read-side critical section
+	precedes the end of a given RCU grace period, what about
+	accesses preceding that critical section?
+\item	If the entirety of a given RCU read-side critical section
+	follows the beginning of a given RCU grace period, what about
+	accesses following that critical section?
+\item	What happens in situations involving more than one RCU read-side
+	critical section and/or more than one RCU grace period?
+\item	What happens when RCU is mixed with other memory-ordering
+	mechanisms?
+\end{enumerate}
+
+\subsection{RCU Read-Side Ordering}
+\label{sec:memorder:RCU Read-Side Ordering}
+
+\begin{listing}[tb]
+\input{CodeSamples/formal/herd/C-LB+rl-o-o-rul+rl-o-o-rul@whole.fcv}
+\caption{RCU Readers Provide No Lock-Like Ordering}
+\label{lst:formal:RCU Readers Provide No Lock-Like Ordering}
+\end{listing}
+
+On their own, RCU's read-side primitives \co{rcu_read_lock()} and
+\co{rcu_read_unlock()} provide no ordering whatsoever.
+In particular, despite their names, they do not act like locks, as can
+be seen in
+Listing~\ref{lst:formal:RCU Readers Provide No Lock-Like Ordering}
+(\path{C-LB+rl-o-o-rul+rl-o-o-rul.litmus}).
+As can be seen by running \co{herd} on this litmus test, it is
+quite possible for both instances of the \co{r1} register to
+have final values of 1.
+
+\begin{listing}[tb]
+\input{CodeSamples/formal/herd/C-LB+o-rl-rul-o+o-rl-rul-o@whole.fcv}
+\caption{RCU Readers Provide No Barrier-Like Ordering}
+\label{lst:formal:RCU Readers Provide No Barrier-Like Ordering}
+\end{listing}
+
+Nor do these primitives have barrier-like ordering properties,
+at least not unless there is a grace period in the mix, as can be seen in
+Listing~\ref{lst:formal:RCU Readers Provide No Barrier-Like Ordering}
+(\path{C-LB+o-rl-rul-o+o-rl-rul-o.litmus}).
+It is again quite possible for both instances of the \co{r1} register to
+have final values of 1, as can be verified by running \co{herd} on this
+litmus test.
+
+Of course, lack of ordering in both these litmus tests should be absolutely
+no surprise, given that both \co{rcu_read_lock()} and \co{rcu_read_unlock()}
+are no-ops in the QSBR implementation of RCU.
+
+\subsection{RCU Update-Side Ordering}
+\label{sec:memorder:RCU Update-Side Ordering}
+
+\subsection{RCU Readers: Before and After}
+\label{sec:memorder:RCU Readers: Before and After}
+
+\subsection{Multiple RCU Readers and Updaters}
+\label{sec:memorder:Multiple RCU Readers and Updaters}
+
+\subsection{RCU and Other Ordering Mechanisms}
+\label{sec:memorder:RCU and Other Ordering Mechanisms}
+
+% \subsection{SRCU}
+% \label{sec:memorder:SRCU}
+% @@@ After LWN article
+
+% Nesting vs. value passed from \co{srcu_read_lock()} to
+% \co{srcu_read_unlock()}.
+
+% When augmented by \co{smp_mb__after_srcu_read_unlock()}.
+
+\QuickQuiz{}
+	The section header is ``Higher-Level Primitives'', plural.
+	So why is only one primitive presented?
+\QuickQuizAnswer{
+	Patience!
+	Other primitives will make their presence known in the fullness
+	of time.
+} \QuickQuizEnd
 
 \section{Hardware Specifics}
 \label{sec:memorder:Hardware Specifics}
