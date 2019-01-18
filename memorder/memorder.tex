@@ -4143,6 +4143,150 @@ Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
 \subsection{RCU Readers: Before and After}
 \label{sec:memorder:RCU Readers: Before and After}
 
+Before reading this section, it would be well to reflect on the distinction
+between guarantees that are available and guarantees that maintainable
+software should rely on.
+Keeping that firmly in mind, this section presents some rather exotic
+RCU guarantees.
+
+\begin{listing}[tb]
+\input{CodeSamples/formal/herd/C-SB+o-rcusync-o+o-rl-o-rul@whole.fcv}
+\caption{What Happens Before RCU Readers?}
+\label{lst:memorder:What Happens Before RCU Readers?}
+\end{listing}
+
+Listing~\ref{lst:memorder:What Happens Before RCU Readers?}
+(\path{C-SB+o-rcusync-o+o-rl-o-rul.litmus})
+shows a litmus test similar to that in
+Listing~\ref{lst:memorder:RCU Fundamental Property},
+but with the RCU reader's first access preceding the RCU read-side critical
+section, rather than the more conventional (and maintainable!) approach of
+being contained within it.
+Perhaps surprisingly, running \co{herd} on this litmus test gives the
+same result as for that in
+Listing~\ref{lst:memorder:RCU Fundamental Property}:
+At least one of the two instances of \co{r2} is guaranteed to be non-zero.
+
+Why would this be the case?
+
+Because both of \co{P1()}'s accesses are volatile,
+as discussed in
+Section~\ref{sec:toolsoftrade:A Volatile Solution},
+the compiler is not permitted to reorder them.
+This means that the code emitted for \co{P1()}'s \co{WRITE_ONCE()} will
+precede that of \co{P1()}'s \co{READ_ONCE()}.
+Therefore, RCU implementations that place memory-barrier instructions in
+\co{rcu_read_lock()} and \co{rcu_read_unlock()} will preserve the ordering
+of \co{P1()}'s two accesses all the way down to the hardware level.
+On the other hand, RCU implementations that rely on interrupt-based
+state machines will also fully preserve this ordering
+\emph{relative to the grace period} due to the fact that interrupts take
+place at a precise location in the execution of the interrupted code.
+
+This in turn means that if the \co{WRITE_ONCE()} follows the end of a given
+RCU grace period, then the accesses within the RCU read-side critical
+section must follow the beginning of that same grace period.
+In fact, in some RCU implementations, the critical section's accesses
+would (as an accident of the implementation!) also follow the end of
+that grace period, rather than merely the beginning of it.
+Similarly, if the \co{READ_ONCE()} precedes the beginning of the grace
+period, everything within \emph{and preceding} that critical section
+must precede the end of that same grace period.
+
+\begin{listing}[tb]
+\input{CodeSamples/formal/herd/C-SB+o-rcusync-o+rl-o-rul-o@whole.fcv}
+\caption{What Happens After RCU Readers?}
+\label{lst:memorder:What Happens After RCU Readers?}
+\end{listing}
+
+Listing~\ref{lst:memorder:What Happens After RCU Readers?}
+(\path{C-SB+o-rcusync-o+rl-o-rul-o.litmus})
+is similar, but instead looks at accesses after the RCU read-side
+critical section.
+Again, at least one of the \co{r2} registers is guaranteed to have a
+non-zero final value, as can be checked with the \co{herd} tool.
+The reasoning is similar to that for
+Listing~\ref{lst:memorder:What Happens Before RCU Readers?},
+and is left as an exercise for the reader.
+
+\begin{listing}[tb]
+\input{CodeSamples/formal/herd/C-SB+o-rcusync-o+o-rl-rul-o@whole.fcv}
+\caption{What Happens With Empty RCU Readers?}
+\label{lst:memorder:What Happens With Empty RCU Readers?}
+\end{listing}
+
+Listing~\ref{lst:memorder:What Happens With Empty RCU Readers?}
+(\path{C-SB+o-rcusync-o+o-rl-rul-o.litmus})
+takes things one step farther, moving \co{P1()}'s \co{WRITE_ONCE()}
+to precede the RCU read-side critical section and moving
+\co{P1()}'s \co{READ_ONCE()} to follow it, resulting in an
+empty RCU read-side critical section.
+
+Perhaps surprisingly, despite the empty critical section, RCU nevertheless
+still manages to guarantee that at least one of the \co{r2} registers
+will have a non-zero final value.
+This can again be checked using the \co{herd} tool.
+Furthermore, the reasoning is once again similar to that for
+Listing~\ref{lst:memorder:What Happens Before RCU Readers?},
+Recapping, if \co{P1()}'s \co{WRITE_ONCE()} follows the end of a given
+grace period, then \co{P1()}'s RCU read-side critical section---and
+everything following it---must follow the beginning of that same grace
+period.
+Similarly, if \co{P1()}'s \co{READ_ONCE()} precedes the beginning of a
+given grace period, then \co{P1()}'s RCU read-side critical section---and
+everything preceding it---must precede the end of that same grace period.
+In both cases, the critical section's emptiness is irrelevant.
+
+\QuickQuiz{}
+	Wait a minute!
+	In QSBR implementations of RCU, no code is emitted for
+	\co{rcu_read_lock()} and \co{rcu_read_unlock()}.
+	This means that the RCU read-side critical section in
+	Listing~\ref{lst:memorder:What Happens With Empty RCU Readers?}
+	isn't just empty, it is completely nonexistent!!!
+	So how can something that doesn't exist at all possibly have
+	any effect whatsoever on ordering???
+\QuickQuizAnswer{
+	Because in QSBR, RCU read-side critical sections don't
+	actually disappear.
+	Instead, they are extended in both directions until a quiescent
+	state is encountered.
+	For example, in the Linux kernel, the critical section might
+	be expanded to a pair of \co{schedule()} calls, with one
+	preceding and the other following the critical section.\footnote{
+		Of course, in non-QSBR implementations,
+		\co{rcu_read_lock()} and \co{rcu_read_unlock()} really
+		do emit code, which can clearly provide ordering.}
+
+	Therefore, strange though it might seem, empty RCU read-side
+	critical sections really can and do provide some degree of
+	ordering.
+} \QuickQuizEnd
+
+\begin{listing}[tb]
+\input{CodeSamples/formal/herd/C-SB+o-rcusync-o+o-o@whole.fcv}
+\caption{What Happens With No RCU Readers?}
+\label{lst:memorder:What Happens With No RCU Readers?}
+\end{listing}
+
+This situation leads to the question of what happens if
+\co{rcu_read_lock()} and \co{rcu_read_unlock()} are omitted
+entirely, as shown in
+Listing~\ref{lst:memorder:What Happens With No RCU Readers?}
+(\path{C-SB+o-rcusync-o+o-o.litmus}).
+As can be checked with \co{herd}, this litmus test allows both
+instances of \co{r2} to have final values of zero.
+
+This might seem strange in light of the fact that empty RCU
+read-side critical sections can provide ordering.
+And it is true that a QSBR implementations of RCU would in fact
+forbid this outcome.
+However, it is necessary to allow for non-QSBR implementations
+as well, and these implementations have no way to enforce ordering
+in this case.
+Again, therefore, litmus test allows both instances of \co{r2} to have
+final values of zero.
+
 \subsection{Multiple RCU Readers and Updaters}
 \label{sec:memorder:Multiple RCU Readers and Updaters}
 
