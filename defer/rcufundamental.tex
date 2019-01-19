@@ -4,50 +4,6 @@
 \label{sec:defer:RCU Fundamentals}
 \OriginallyPublished{Section}{sec:defer:RCU Fundamentals}{RCU Fundamentals}{Linux Weekly News}{PaulEMcKenney2007WhatIsRCUFundamentally}
 
-RCU achieves scalability
-improvements by allowing reads to occur concurrently with updates.
-In contrast with conventional locking primitives that ensure mutual exclusion
-among concurrent threads regardless of whether they be readers or
-updaters, or with reader-writer locks that allow concurrent reads but not in
-the presence of updates, RCU supports concurrency between a single
-updater and multiple readers.
-RCU ensures that reads are coherent by
-maintaining multiple versions of objects and ensuring that they are not
-freed up until all pre-existing read-side critical sections complete.
-RCU defines and uses efficient and scalable mechanisms for publishing
-and reading new versions of an object, and also for deferring the collection
-of old versions.
-These mechanisms distribute the work among read and
-update paths in such a way as to make read paths extremely fast, using
-replication and weakening optimizations in a manner similar to
-hazard pointers, but without the need for read-side retries.
-In some cases (non-preemptible kernels), RCU's read-side primitives have
-zero overhead.
-
-\QuickQuiz{}
-	But doesn't Section~\ref{sec:defer:Sequence Locks}'s seqlock
-	also permit readers and updaters to get work done concurrently?
-\QuickQuizAnswer{
-	Yes and no.
-	Although seqlock readers can run concurrently with
-	seqlock writers, whenever this happens, the \co{read_seqretry()}
-	primitive will force the reader to retry.
-	This means that any work done by a seqlock reader running concurrently
-	with a seqlock updater will be discarded and redone.
-	So seqlock readers can \emph{run} concurrently with updaters,
-	but they cannot actually get any work done in this case.
-
-	In contrast, RCU readers can perform useful work even in presence
-	of concurrent RCU updaters.
-} \QuickQuizEnd
-
-This leads to the question ``What exactly is RCU?'', and perhaps also
-to the question ``How can RCU \emph{possibly} work?'' (or, not
-infrequently, the assertion that RCU cannot possibly work).
-This document addresses these questions from a fundamental viewpoint;
-later installments look at them from usage and from API viewpoints.
-This last installment also includes a list of references.
-
 RCU is made up of three fundamental mechanisms, the first being
 used for insertion, the second being used for deletion, and the third
 being used to allow readers to tolerate concurrent insertions and deletions.
@@ -813,7 +769,10 @@ algorithms:
 \begin{enumerate}
 \item	a publish-subscribe mechanism for adding new data,
 
-\item	a way of waiting for pre-existing RCU readers to finish, and
+\item	a way of waiting for pre-existing RCU readers to finish,\footnote{
+		This component is described in much greater detail in
+		Section~\ref{sec:memorder:RCU}.}
+	and
 
 \item	a discipline of maintaining multiple versions to permit
 	change without harming or unduly delaying concurrent RCU readers.

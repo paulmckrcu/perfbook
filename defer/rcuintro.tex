@@ -486,7 +486,64 @@ Section~\ref{sec:defer:RCU Usage}.
 In summary, it is in fact possible to create concurrent linked data
 structures that can be traversed by readers executing the same sequence
 of machine instructions that would be executed by single-threaded readers.
-But is this capability useful in practice?
+The next section summarizes RCU's high-level properties.
+
+\subsubsection{RCU Properties}
+\label{sec:defer:RCU Properties}
+
+RCU achieves scalability
+improvements by allowing reads to make useful forward progress
+concurrently with updates, which are also allowed to make useful
+forward progress.
+This property enables RCU implementations to provide low-cost
+or even no-cost readers,
+in contrast with conventional synchronization primitives that
+provide mutual exclusion, thus prohibiting useful concurrent forward
+progress.
+RCU delimits readers with \co{rcu_read_lock()} and \co{rcu_read_unlock()},
+and ensures that each reader has a coherent view by
+maintaining multiple versions of objects and using update-side primitives
+such as \co{synchronize_rcu()} to ensure that objects are not
+freed until all pre-existing read-side critical sections complete.
+RCU defines and uses \co{rcu_assign_pointer()} and \co{rcu_dereference()}
+to provide efficient and scalable mechanisms for publishing
+and reading new versions of an object, respectively.
+These mechanisms distribute the work among read and
+update paths in such a way as to make read paths extremely fast, using
+replication and weakening optimizations in a manner similar to
+hazard pointers, but without the need for read-side retries.
+In some cases, including \co{CONFIG_PREEMPT=n} Linux kernels,
+RCU's read-side primitives have zero overhead.
+
+\QuickQuiz{}
+	But doesn't Section~\ref{sec:defer:Sequence Locks}'s seqlock
+	also permit readers and updaters to get work done concurrently?
+\QuickQuizAnswer{
+	Yes and no.
+	Although seqlock readers can run concurrently with
+	seqlock writers, whenever this happens, the \co{read_seqretry()}
+	primitive will force the reader to retry.
+	This means that any work done by a seqlock reader running concurrently
+	with a seqlock updater will be discarded and redone.
+	So seqlock readers can \emph{run} concurrently with updaters,
+	but they cannot actually get any work done in this case.
+
+	In contrast, RCU readers can perform useful work even in presence
+	of concurrent RCU updaters.
+
+	However, both reference counters
+	(Section~\ref{sec:defer:Reference Counting})
+	and hazard pointers
+	(Section~\ref{sec:defer:Hazard Pointers})
+	really do permit useful concurrent forward progress for both
+	updaters and readers, just at somewhat greater cost.
+	Please see
+	Section~\ref{sec:defer:Which to Choose?}
+	for a comparison of these different solutions to the
+	deferred-reclamation problem.
+} \QuickQuizEnd
+
+But are these properties actually useful in practice?
 This question is taken up by the next section.
 
 \subsubsection{Practical Applicability}
@@ -515,8 +572,9 @@ VM/XA, possibly as early as the mid-1980s~\cite{Hennessy89}.
 Finally, as discussed in
 Section~\ref{sec:defer:RCU Related Work},
 mechanisms roughly similar to RCU have also been used
-in academic and industrial-research projects, as well as in production
-by a number of userspace
+in academic and industrial-research projects as early as
+1980~\cite{Kung80},
+and more recently in production by a number of userspace
 applications~\cite{MathieuDesnoyers2009URCU,MikeDay2013RCUqemu,GeoffRomer2018C++DeferredReclamationP0561R4}.
 
 It is therefore safe to say that RCU enjoys wide practical applicability.
