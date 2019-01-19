@@ -4063,14 +4063,15 @@ completely overlap an RCU grace period, as demonstrated by
 Listing~\ref{lst:memorder:RCU Fundamental Property}
 (\path{C-SB+o-rcusync-o+rl-o-o-rul.litmus}).
 Either or neither of the \co{r2} registers can have the final value of zero,
-but at least one of them must be non-zero, courtesy of RCU's fundamental
+but at least one of them must be non-zero (that is, the cycle identified
+by the \co{exists} clause is prohibited), courtesy of RCU's fundamental
 grace-period guarantee, as can be seen by running \co{herd} on this litmus test.
 Note that this guarantee is insensitive to the ordering of the accesses
-within \co{P1()}'s critical section, so the both-zero prohibition also
-applies to the litmus test shown in
+within \co{P1()}'s critical section, so the litmus test shown in
 Listing~\ref{lst:memorder:RCU Fundamental Property and Reordering},\footnote{
 	Dependencies can of course limit the ability to reorder accesses
 	within RCU read-side critical sections.}
+also forbids this same cycle.
 
 However, this definition is incomplete, as can be seen from the following
 list of questions:\footnote{
@@ -4111,8 +4112,8 @@ In particular, despite their names, they do not act like locks, as can
 be seen in
 Listing~\ref{lst:memorder:RCU Readers Provide No Lock-Like Ordering}
 (\path{C-LB+rl-o-o-rul+rl-o-o-rul.litmus}).
-As can be seen by running \co{herd} on this litmus test, it is
-quite possible for both instances of the \co{r1} register to
+As can be seen by running \co{herd} on this litmus test, this litmus
+test's cycle is allowed: Both instances of the \co{r1} register can
 have final values of 1.
 
 \begin{listing}[tb]
@@ -4125,9 +4126,8 @@ Nor do these primitives have barrier-like ordering properties,
 at least not unless there is a grace period in the mix, as can be seen in
 Listing~\ref{lst:memorder:RCU Readers Provide No Barrier-Like Ordering}
 (\path{C-LB+o-rl-rul-o+o-rl-rul-o.litmus}).
-It is again quite possible for both instances of the \co{r1} register to
-have final values of 1, as can be verified by running \co{herd} on this
-litmus test.
+This litmus test's cycle is allowed, as can be verified by running
+\co{herd} on this litmus test.
 
 Of course, lack of ordering in both these litmus tests should be absolutely
 no surprise, given that both \co{rcu_read_lock()} and \co{rcu_read_unlock()}
@@ -4147,8 +4147,8 @@ In contrast with RCU readers, the RCU updater-side functions
 provide memory ordering at least as strong as \co{smp_mb()},
 as can be seen by running \co{herd} on the litmus test shown in
 Listing~\ref{lst:memorder:RCU Updaters Provide Full Ordering}.
-At least one of the instances of \co{r2} is guaranteed to be non-zero,
-just as would be the case with \co{smp_mb()}.
+This test's cycle is prohibited, just as would be the case with
+\co{smp_mb()}.
 This should be no surprise given the information presented in
 Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
 
@@ -4158,8 +4158,8 @@ Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
 Before reading this section, it would be well to reflect on the distinction
 between guarantees that are available and guarantees that maintainable
 software should rely on.
-Keeping that firmly in mind, this section presents some rather exotic
-RCU guarantees.
+Keeping that firmly in mind, this section presents a few of the
+more exotic RCU guarantees.
 
 \begin{listing}[tb]
 \input{CodeSamples/formal/herd/C-SB+o-rcusync-o+o-rl-o-rul@whole.fcv}
@@ -4177,7 +4177,7 @@ being contained within it.
 Perhaps surprisingly, running \co{herd} on this litmus test gives the
 same result as for that in
 Listing~\ref{lst:memorder:RCU Fundamental Property}:
-At least one of the two instances of \co{r2} is guaranteed to be non-zero.
+The cycle is forbidden.
 
 Why would this be the case?
 
@@ -4215,8 +4215,8 @@ Listing~\ref{lst:memorder:What Happens After RCU Readers?}
 (\path{C-SB+o-rcusync-o+rl-o-rul-o.litmus})
 is similar, but instead looks at accesses after the RCU read-side
 critical section.
-Again, at least one of the \co{r2} registers is guaranteed to have a
-non-zero final value, as can be checked with the \co{herd} tool.
+This test's cycle is also forbidden, as can be checked with the \co{herd}
+tool.
 The reasoning is similar to that for
 Listing~\ref{lst:memorder:What Happens Before RCU Readers?},
 and is left as an exercise for the reader.
@@ -4235,8 +4235,7 @@ to precede the RCU read-side critical section and moving
 empty RCU read-side critical section.
 
 Perhaps surprisingly, despite the empty critical section, RCU nevertheless
-still manages to guarantee that at least one of the \co{r2} registers
-will have a non-zero final value.
+still manages to forbid the cycle.
 This can again be checked using the \co{herd} tool.
 Furthermore, the reasoning is once again similar to that for
 Listing~\ref{lst:memorder:What Happens Before RCU Readers?},
@@ -4286,18 +4285,16 @@ This situation leads to the question of what happens if
 entirely, as shown in
 Listing~\ref{lst:memorder:What Happens With No RCU Readers?}
 (\path{C-SB+o-rcusync-o+o-o.litmus}).
-As can be checked with \co{herd}, this litmus test allows both
-instances of \co{r2} to have final values of zero.
+As can be checked with \co{herd}, this litmus test's cycle is allowed,
+that is, both instances of \co{r2} can have final values of zero.
 
 This might seem strange in light of the fact that empty RCU
 read-side critical sections can provide ordering.
 And it is true that a QSBR implementations of RCU would in fact
 forbid this outcome.
-However, it is necessary to allow for non-QSBR implementations
-as well, and these implementations have no way to enforce ordering
-in this case.
-Again, therefore, litmus test allows both instances of \co{r2} to have
-final values of zero.
+However, RCU also has non-QSBR implementations, and these implementations
+have no way to enforce ordering in this case.
+Again, therefore, this litmus test's cycle is allowed.
 
 \QuickQuiz{}
 	Can \co{P1()}'s accesses be reordered in the litmus tests shown in
@@ -4317,7 +4314,10 @@ final values of zero.
 	section and the \co{READ_ONCE()} before its critical section?
 
 	Swapping the accesses allows both instances of \co{r2} to
-	have a final value of zero.
+	have a final value of zero, in other words, although RCU read-side
+	critical sections' ordering properties can extend outside of
+	those critical sections, the same is not true of their
+	reordering properties.
 	Checking this with \co{herd} and explaining why is left as an
 	exercise for the reader.
 } \QuickQuizEnd
@@ -4325,8 +4325,148 @@ final values of zero.
 \subsection{Multiple RCU Readers and Updaters}
 \label{sec:memorder:Multiple RCU Readers and Updaters}
 
+Because \co{synchronize_rcu()} has stronger ordering semantics than does
+\co{smp_mb()}, no matter how many processes there are in an SB
+litmus test, placing \co{synchronize_rcu()} between each process's
+accesses prohibits the cycle.\footnote{
+	All this of course also applies to many other types of litmus tests
+	as well, including LB, MP, and so on, not just SB.}
+In addition, the cycle is prohibited in an SB test where one process
+uses \co{synchronize_rcu()} and the other uses \co{rcu_read_lock()} and
+\co{rcu_read_unlock()}, as exemplified by
+Listing~\ref{lst:memorder:RCU Fundamental Property}.
+However, if both processes use \co{rcu_read_lock()} and
+\co{rcu_read_unlock()}, the cycle will be allowed, as exemplified by
+Listing~\ref{lst:memorder:RCU Readers Provide No Lock-Like Ordering}.
+
+So is it possible to say anything general about which RCU-protected
+litmus tests will be prohibited and which will be allowed?
+This section takes up this question.
+
+\begin{listing}[tb]
+\input{CodeSamples/formal/herd/C-SB+o-rcusync-o+rl-o-o-rul+rl-o-o-rul@whole.fcv}
+\caption{One RCU Grace Period and Two Readers}
+\label{lst:memorder:One RCU Grace Period and Two Readers}
+\end{listing}
+
+More specifically, what happens when the litmus test has one RCU grace
+period and two RCU readers, as shown in
+Listing~\ref{lst:memorder:One RCU Grace Period and Two Readers}?
+The \co{herd} tool says that this cycle is allowed, but it would be
+good to know \emph{why}.\footnote{
+	Especially given that Paul changed his mind several times about
+	this particular litmus test when working with Jade Alglave to
+	generalize RCU ordering semantics.}
+
+\begin{figure*}[tbp]
+\centering
+\resizebox{0.75\textwidth}{!}{\includegraphics{memorder/RCU1G2R}}
+\caption{Cycle for One RCU Grace Period and Two RCU Readers}
+\label{fig:memorder:Cycle for One RCU Grace Period and Two RCU Readers}
+\end{figure*}
+
+The key point is that the CPU is free to reorder \co{P1()}'s and \co{P2()}'s
+\co{WRITE_ONCE()} and \co{READ_ONCE()}.
+With that reordering,
+Figure~\ref{fig:memorder:Cycle for One RCU Grace Period and Two RCU Readers}
+shows how the cycle forms:
+
+\begin{enumerate}
+\item	\co{P0()}'s read from \co{x1} precedes \co{P1()}'s write, as
+	depicted by the dashed arrow near the bottom of the diagram.
+\item	Because \co{P1()}'s write follows the end of \co{P0()}'s grace period,
+	\co{P1()}'s read from \co{x2} cannot precede the beginning of
+	\co{P0()}'s grace period.
+\item	\co{P1()}'s read from \co{x2} precedes \co{P2()}'s write.
+\item	Because \co{P2()}'s write to \co{x2} precedes the end of
+	\co{P0()}'s grace period, it is completely legal for \co{P2()}'s
+	read from \co{x0} to precede the beginning of that grace period.
+\item	Therefore, \co{P2()}'s read from \co{x0} can precede \co{P0()}'s
+	write, thus allowing the cycle to form.
+\end{enumerate}
+
+\begin{listing}[tb]
+\input{CodeSamples/formal/herd/C-SB+o-rcusync-o+o-rcusync-o+rl-o-o-rul+rl-o-o-rul@whole.fcv}
+\caption{Two RCU Grace Periods and Two Readers}
+\label{lst:memorder:Two RCU Grace Periods and Two Readers}
+\end{listing}
+
+\begin{figure*}[tbp]
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{memorder/RCU2G2R}}
+\caption{No Cycle for Two RCU Grace Periods and Two RCU Readers}
+\label{fig:memorder:No Cycle for Two RCU Grace Periods and Two RCU Readers}
+\end{figure*}
+
+But what happens when another grace period is added?
+This situation is shown in
+Listing~\ref{lst:memorder:Two RCU Grace Periods and Two Readers},
+an SB litmus test in which \co{P0()} and \co{P1()} have RCU grace periods
+and \co{P2()} and \co{P3()} have RCU readers.
+Again, the CPUs can reorder the accesses within RCU read-side critical
+sections, as shown in
+Figure~\ref{fig:memorder:No Cycle for Two RCU Grace Periods and Two RCU Readers}.
+For this cycle to form, \co{P2()}'s critical section must
+end after \co{P1()}'s grace period and \co{P3()}'s must end after the
+beginning of that same grace period, which happens to also be after the
+end of \co{P0()}'s grace period.
+Therefore, \co{P3()}'s critical section must start after the beginning
+of \co{P0()}'s grace period, which in turn means that \co{P3()}'s
+read from \co{x0} cannot possibly precede \co{P0()}'s read.
+Therefore, the cycle is forbidden: RCU read-side critical sections
+cannot span full RCU grace periods.
+
+Which suggests the general rule, which is:  In these sorts of RCU-only
+litmus tests, if there are at least as many RCU grace periods as there
+are RCU read-side critical sections, the cycle is forbidden.\footnote{
+	Interestingly enough, Alan Stern proved that within the context
+	of LKMM, the fundamental property of RCU implies this seemingly
+	more general result~\cite{Alglave:2018:FSC:3173162.3177156}.}
+
 \subsection{RCU and Other Ordering Mechanisms}
 \label{sec:memorder:RCU and Other Ordering Mechanisms}
+
+But what about litmus tests that combine RCU with other ordering
+mechanisms?
+
+The general rule is that it takes only one mechanism to forbid a cycle.
+
+For example, refer back to
+Listing~\ref{lst:memorder:RCU Readers Provide No Lock-Like Ordering}.
+Applying the general rule from the previous section, because this litmus
+test has two RCU read-side critical sections and no RCU grace periods,
+the cycle is allowed.
+But suppose that \co{P0()}'s \co{WRITE_ONCE()} is replaced by an
+\co{smp_store_release()} and \co{P1()}'s \co{READ_ONCE()} is replaced
+by an \co{smp_load_acquire()}?
+
+RCU would still allow the cycle, but the release-acquire pair would
+forbid it.
+Because it only takes one mechanism to forbid a cycle, the
+release-acquire pair would ``win'' and the cycle would be
+forbidden.
+
+For another example, refer back to
+Listing~\ref{lst:memorder:One RCU Grace Period and Two Readers}.
+Because this litmus test has two RCU readers but only one grace period,
+its cycle is allowed.
+But suppose that an \co{smp_mb()} was placed between \co{P1()}'s
+pair of accesses.
+In this new litmus test, both \co{P1()} and \co{P2()} would have
+critical sections extending beyond the end of \co{P0()}'s grace
+period, which in turn would prevent \co{P2()}'s read from \co{x0}
+from preceding \co{P0()}'s write.
+In this case, RCU and the full memory barrier work together to forbid
+the cycle.
+
+\QuickQuiz{}
+	What would happen if the \co{smp_mb()} was instead added between
+	\co{P2()}'s accesses in
+	Listing~\ref{lst:memorder:One RCU Grace Period and Two Readers}?
+\QuickQuizAnswer{
+	The cycle would again be forbidden.
+	Further analysis is left as an exercise for the reader.
+} \QuickQuizEnd
 
 % \subsection{SRCU}
 % \label{sec:memorder:SRCU}
