@@ -4380,7 +4380,7 @@ shows how the cycle forms:
 \item	\co{P1()}'s read from \co{x2} precedes \co{P2()}'s write.
 \item	Because \co{P2()}'s write to \co{x2} precedes the end of
 	\co{P0()}'s grace period, it is completely legal for \co{P2()}'s
-	read from \co{x0} to precede the beginning of that grace period.
+	read from \co{x0} to precede the beginning of \co{P0()}'s grace period.
 \item	Therefore, \co{P2()}'s read from \co{x0} can precede \co{P0()}'s
 	write, thus allowing the cycle to form.
 \end{enumerate}
@@ -4413,7 +4413,7 @@ end of \co{P0()}'s grace period.
 Therefore, \co{P3()}'s critical section must start after the beginning
 of \co{P0()}'s grace period, which in turn means that \co{P3()}'s
 read from \co{x0} cannot possibly precede \co{P0()}'s read.
-Therefore, the cycle is forbidden: RCU read-side critical sections
+Therefore, the cycle is forbidden because RCU read-side critical sections
 cannot span full RCU grace periods.
 
 Which suggests the general rule, which is:  In these sorts of RCU-only
@@ -4452,12 +4452,15 @@ Because this litmus test has two RCU readers but only one grace period,
 its cycle is allowed.
 But suppose that an \co{smp_mb()} was placed between \co{P1()}'s
 pair of accesses.
-In this new litmus test, both \co{P1()} and \co{P2()} would have
-critical sections extending beyond the end of \co{P0()}'s grace
-period, which in turn would prevent \co{P2()}'s read from \co{x0}
-from preceding \co{P0()}'s write.
+In this new litmus test, because of the addition of the \co{smp_mb()},
+\co{P2()}'s as well as \co{P1()}'s critical sections would extend beyond the
+end of \co{P0()}'s grace period, which in turn would prevent \co{P2()}'s
+read from \co{x0} from preceding \co{P0()}'s write, as depicted by the
+red dashed arrow.
 In this case, RCU and the full memory barrier work together to forbid
-the cycle.
+the cycle, with RCU preserving ordering between \co{P0()} and both
+\co{P1()} and \co{P2()}, and with the \co{smp_mb()} preserving
+ordering between \co{P1()} and \co{P2()}.
 
 \QuickQuiz{}
 	What would happen if the \co{smp_mb()} was instead added between
