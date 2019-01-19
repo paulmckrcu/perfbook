@@ -3997,11 +3997,82 @@ modeled at higher levels of abstraction.
 This section will look into how higher levels of abstraction can
 also provide a deeper understanding of the synchronization primitives
 themselves.
+Section~\ref{sec:memorder:Memory Allocation}
+takes a look at memory allocation and
+Section~\ref{sec:memorder:RCU}
+digs more deeply into RCU.
+
+\subsection{Memory Allocation}
+\label{sec:memorder:Memory Allocation}
+
+Section~\ref{sec:SMPdesign:Parallel Fastpath for Resource Allocation}
+touched upon memory allocation, and this section expands upon the relevant
+memory-ordering issues.
+
+The key requirement is that any access executed on a given block of
+memory before freeing that block must be ordered before any access
+executed after that same block is reallocated.
+It would after all be a cruel and unusual memory-allocator bug if a store
+preceding the free were to be reordered after another store following
+the reallocation!
+However, it would also be cruel and unusual to require developers to use
+\co{READ_ONCE()} and \co{WRITE_ONCE()} to access dynamically allocated
+memory.
+Full ordering must therefore be provided for plain accesses, in spite of
+all the shared-variable shenanigans called out in
+Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}.
+
+Of course, each CPU sees its own accesses in order and the compiler
+always has fully accounted for intra-CPU shenanigans.
+These facts are what enables the lockless fastpaths in
+\co{memblock_alloc()} and \co{memblock_free()}, which are shown in
+Listing~\ref{lst:SMPdesign:Allocator-Cache Allocator Function}
+and~\ref{lst:SMPdesign:Allocator-Cache Free Function},
+respectively.
+However, this also why the developer is responsible for providing
+appropriate ordering (for example, by using \co{smp_store_release()})
+when publishing a pointer to a newly allocated block of memory.
+After all, in the CPU-local case, the allocator has not necessarily
+provided any ordering.
+
+However, the allocator must provide ordering when rebalancing its
+per-thread pools.
+This ordering is provided by the calls to \co{spin_lock()} and
+\co{spin_unlock()} from \co{memblock_alloc()} and \co{memblock_free()}.
+For any block that has migrated from one thread to another, the old
+thread will have executed \co{spin_unlock(&globalmem.mutex)} after
+placing the block in the \co{globalmem} pool, and the new thread will
+have executed \co{spin_lock(&globalmem.mutex)} before moving that
+block to its per-thread pool.
+This \co{spin_unlock()} and \co{spin_lock()} ensures that both the
+old and new threads see the old thread's accesses as having happened
+before those of the new thread.
+
+\QuickQuiz{}
+	But doesn't PowerPC have weak unlock-lock ordering properties
+	within the Linux kernel, allowing a write before the unlock to
+	be reordered with a read after the lock?
+\QuickQuizAnswer{
+	Yes, but only from the perspective of a third thread not holding
+	that lock.
+	In contrast, memory allocators need only concern themselves with
+	the two threads migrating the memory.
+	It is after all the developer's responsibility to properly
+	synchronize with any other threads that need access to the newly
+	migrated block of memory.
+
+	That said, if there was a third CPU involved in the memory
+	allocator within the Linux kernel, it might be necessary for
+	the memory allocator to invoke \co{smp_mb__after_unlock_lock()}
+	immediately after acquiring \co{globalmem.mutex}.
+} \QuickQuizEnd
+
+Therefore, the ordering required by conventional uses of memory allocation
+can be provided solely by non-fastpath locking, allowing the fastpath to
+remain synchronization-free.
 
 % \subsection{Detailed Locking Semantics}
 % \label{sec:memorder:Detailed Locking Semantics}
-The remainder of this section focuses on detailed RCU grace-period
-semantics.
 % % Awaiting LWN article.
 
 % Locking is a well-known synchronization primitive with which the
@@ -4033,10 +4104,12 @@ semantics.
 % Memory-ordering constraints for unlock followed by lock.
 % When augmented \co{smp_mb__after_unlock_lock()}.
 
-% \subsection{RCU}
-% \label{sec:memorder:RCU}
+\subsection{RCU}
+\label{sec:memorder:RCU}
 
-The fundamental property of RCU grace periods is this straightforward
+As expounded upon in
+Section~\ref{sec:defer:RCU Fundamentals},
+the fundamental property of RCU grace periods is this straightforward
 two-part guarantee:
 % @@@ Refer back to if-then diagrams to be added to RCU Fundamentals.
 (1)~If any part of a given RCU read-side critical section precedes
@@ -4097,7 +4170,9 @@ list of questions:\footnote{
 	mechanisms?
 \end{enumerate}
 
-\subsection{RCU Read-Side Ordering}
+These questions are addressed in the following sections.
+
+\subsubsection{RCU Read-Side Ordering}
 \label{sec:memorder:RCU Read-Side Ordering}
 
 \begin{listing}[tb]
@@ -4133,7 +4208,7 @@ Of course, lack of ordering in both these litmus tests should be absolutely
 no surprise, given that both \co{rcu_read_lock()} and \co{rcu_read_unlock()}
 are no-ops in the QSBR implementation of RCU.
 
-\subsection{RCU Update-Side Ordering}
+\subsubsection{RCU Update-Side Ordering}
 \label{sec:memorder:RCU Update-Side Ordering}
 
 \begin{listing}[tb]
@@ -4152,7 +4227,7 @@ This test's cycle is prohibited, just as would be the case with
 This should be no surprise given the information presented in
 Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
 
-\subsection{RCU Readers: Before and After}
+\subsubsection{RCU Readers: Before and After}
 \label{sec:memorder:RCU Readers: Before and After}
 
 Before reading this section, it would be well to reflect on the distinction
@@ -4322,7 +4397,7 @@ Again, therefore, this litmus test's cycle is allowed.
 	exercise for the reader.
 } \QuickQuizEnd
 
-\subsection{Multiple RCU Readers and Updaters}
+\subsubsection{Multiple RCU Readers and Updaters}
 \label{sec:memorder:Multiple RCU Readers and Updaters}
 
 Because \co{synchronize_rcu()} has stronger ordering semantics than does
@@ -4416,14 +4491,22 @@ read from \co{x0} cannot possibly precede \co{P0()}'s read.
 Therefore, the cycle is forbidden because RCU read-side critical sections
 cannot span full RCU grace periods.
 
-Which suggests the general rule, which is:  In these sorts of RCU-only
+However, a closer look at
+Figure~\ref{fig:memorder:No Cycle for Two RCU Grace Periods and Two RCU Readers}
+makes it clear that adding a third reader would allow the cycle.
+This is because this third reader could end before the end of \co{P0()}'s
+grace period, and thus start before the beginning of that same grace
+period.
+This in turn suggests the general rule, which is:  In these sorts of RCU-only
 litmus tests, if there are at least as many RCU grace periods as there
 are RCU read-side critical sections, the cycle is forbidden.\footnote{
 	Interestingly enough, Alan Stern proved that within the context
-	of LKMM, the fundamental property of RCU implies this seemingly
-	more general result~\cite{Alglave:2018:FSC:3173162.3177156}.}
+	of LKMM, the two-part fundamental property of RCU expressed
+	in Section~\ref{sec:defer:RCU Fundamentals} actually implies
+	this seemingly more general result, which is called the RCU
+	axiom~\cite{Alglave:2018:FSC:3173162.3177156}.}
 
-\subsection{RCU and Other Ordering Mechanisms}
+\subsubsection{RCU and Other Ordering Mechanisms}
 \label{sec:memorder:RCU and Other Ordering Mechanisms}
 
 But what about litmus tests that combine RCU with other ordering
@@ -4436,7 +4519,7 @@ Listing~\ref{lst:memorder:RCU Readers Provide No Lock-Like Ordering}.
 Applying the general rule from the previous section, because this litmus
 test has two RCU read-side critical sections and no RCU grace periods,
 the cycle is allowed.
-But suppose that \co{P0()}'s \co{WRITE_ONCE()} is replaced by an
+But what if \co{P0()}'s \co{WRITE_ONCE()} is replaced by an
 \co{smp_store_release()} and \co{P1()}'s \co{READ_ONCE()} is replaced
 by an \co{smp_load_acquire()}?
 
@@ -4471,6 +4554,10 @@ ordering between \co{P1()} and \co{P2()}.
 	Further analysis is left as an exercise for the reader.
 } \QuickQuizEnd
 
+In short, where RCU's semantics were once purely pragmatic, they are
+now fully
+formalized~\cite{PaulMcKenney2005RCUSemantics,MathieuDesnoyers2012URCU,AlexeyGotsman2013ESOPRCU,Alglave:2018:FSC:3173162.3177156}.
+
 % \subsection{SRCU}
 % \label{sec:memorder:SRCU}
 % @@@ After LWN article
@@ -4479,15 +4566,6 @@ ordering between \co{P1()} and \co{P2()}.
 % \co{srcu_read_unlock()}.
 
 % When augmented by \co{smp_mb__after_srcu_read_unlock()}.
-
-\QuickQuiz{}
-	The section header is ``Higher-Level Primitives'', plural.
-	So why is only one primitive presented?
-\QuickQuizAnswer{
-	Patience!
-	Other primitives will make their presence known in the fullness
-	of time.
-} \QuickQuizEnd
 
 \section{Hardware Specifics}
 \label{sec:memorder:Hardware Specifics}
