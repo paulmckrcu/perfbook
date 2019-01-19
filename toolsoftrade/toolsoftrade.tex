@@ -1565,8 +1565,9 @@ its rights to assume that the affected variables are neither accessed
 nor modified by any other thread.
 This assumption allows the compiler to carry out a large number of
 transformations, including load tearing, store tearing,
-load fusing, store fusing, code reordering, invented loads, and
-invented stores, all of which work just fine in single-threaded code.
+load fusing, store fusing, code reordering, invented loads,
+invented stores, and store-to-load transformations,
+all of which work just fine in single-threaded code.
 But concurrent code can be broken by each of these transformations,
 or shared-variable shenanigans, as described below.
 
@@ -1928,8 +1929,64 @@ variables~\cite[Section 4.2]{Boehm:2005:TCI:1064978.1065042}.
 This variant of invented stores has been outlawed by the prohibition
 against compiler optimizations that invent data races.
 
+\begin{listing}[tbp]
+\begin{linelabel}[ln:toolsoftrade:Inviting a Store-to-Load Conversion]
+\begin{VerbatimL}[commandchars=\\\[\]]
+r1 = p;\lnlbl[load:p]
+if (unlikely(r1))\lnlbl[if]
+	do_somthing_with(r1);\lnlbl[dsw]
+barrier();\lnlbl[barrier]
+p = NULL;\lnlbl[null]
+\end{VerbatimL}
+\end{linelabel}
+\caption{Inviting a Store-to-Load Conversion}
+\label{lst:toolsoftrade:Inviting a Store-to-Load Conversion}
+\end{listing}
+
+{\bf Store-to-load transformations} can occur when the compiler notices
+that a plain store might not actually change the value in memory.
+\begin{lineref}[ln:toolsoftrade:Inviting a Store-to-Load Conversion]
+For example, consider
+Listing~\ref{lst:toolsoftrade:Inviting a Store-to-Load Conversion}.
+Line~\lnref{load:p} fetches \co{p}, but the \qco{if} statement on
+line~\lnref{if} also tells the compiler that the developer thinks that
+\co{p} is usually zero.\footnote{
+	The \co{unlikely()} function provides this hint to the compiler,
+	and different compilers provide different ways of implementing
+	\co{unlikely()}.}
+The \co{barrier()} statment on line~\lnref{barrier} forces the compiler
+to forget the value of \co{p}, but one could imagine a compiler
+choosing to remember the hint---or getting an additional hint via
+feedback-directed optimization.
+Doing so would cause the compiler to realize that line~\lnref{null}
+is often an expensive no-op.
+\end{lineref}
+
+\begin{listing}[tbp]
+\begin{linelabel}[ln:toolsoftrade:Compiler Converts a Store to a Load]
+\begin{VerbatimL}[commandchars=\\\[\]]
+r1 = p;\lnlbl[load:p]
+if (unlikely(r1))\lnlbl[if]
+	do_somthing_with(r1);\lnlbl[dsw]
+barrier();\lnlbl[barrier]
+if (p != NULL)\lnlbl[if1]
+	p = NULL;\lnlbl[null]
+\end{VerbatimL}
+\end{linelabel}
+\caption{Compiler Converts a Store to a Load}
+\label{lst:toolsoftrade:Compiler Converts a Store to a Load}
+\end{listing}
+
+\begin{lineref}[ln:toolsoftrade:Compiler Converts a Store to a Load]
+Such a compiler might therefore guard the store of \co{NULL}
+with a check, as shown on lines~\lnref{if1} and~\lnref{null} of
+Listing~\ref{lst:toolsoftrade:Compiler Converts a Store to a Load}.
+This conversion could be problematic if the actual store was
+required for ordering.
+\end{lineref}
+
 Reliable concurrent code clearly needs a way to cause the compiler to
-preserve both the number and order of important accesses, a topic taken
+preserve the number, order, and type of important accesses, a topic taken
 up by
 Sections~\ref{sec:toolsoftrade:A Volatile Solution}
 and~\ref{sec:toolsoftrade:Assembling the Rest of a Solution},
