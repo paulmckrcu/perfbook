@@ -9,7 +9,7 @@ used for insertion, the second being used for deletion, and the third
 being used to allow readers to tolerate concurrent insertions and deletions.
 Section~\ref{sec:defer:Publish-Subscribe Mechanism}
 describes the publish-subscribe mechanism used for insertion,
-Section~\ref{sec:defer:Wait For Pre-Existing RCU Readers to Complete}
+Section~\ref{sec:defer:Wait For Pre-Existing RCU Readers}
 describes how waiting for pre-existing RCU readers enabled deletion,
 and
 Section~\ref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}
@@ -21,6 +21,10 @@ summarizes RCU fundamentals.
 
 \subsubsection{Publish-Subscribe Mechanism}
 \label{sec:defer:Publish-Subscribe Mechanism}
+
+% @@@ Slim down presentation, refer to toolsoftrade and memorder.
+% @@@ Summarize care and feeding of address dependencies.
+% @@@ Mention language/compiler support being a work in progress.
 
 \begin{listing}[tbp]
 \begin{VerbatimL}
@@ -135,7 +139,7 @@ The \co{rcu_read_lock()} and \co{rcu_read_unlock()}
 calls are absolutely required: they define the extent of the
 RCU read-side critical section.
 Their purpose is explained in
-Section~\ref{sec:defer:Wait For Pre-Existing RCU Readers to Complete},
+Section~\ref{sec:defer:Wait For Pre-Existing RCU Readers},
 however, they never spin or block, nor do they prevent the
 \co{list_add_rcu()} from executing concurrently.
 In fact, in non-\co{CONFIG_PREEMPT} kernels, they generate
@@ -348,8 +352,8 @@ have released their references to that data element?
 
 These questions are addressed in the following section.
 
-\subsubsection{Wait For Pre-Existing RCU Readers to Complete}
-\label{sec:defer:Wait For Pre-Existing RCU Readers to Complete}
+\subsubsection{Wait For Pre-Existing RCU Readers}
+\label{sec:defer:Wait For Pre-Existing RCU Readers}
 
 In its most basic form, RCU is a way of waiting for things to finish.
 Of course, there are a great many other ways of waiting for things to
@@ -361,115 +365,127 @@ the performance degradation, scalability limitations, complex deadlock
 scenarios, and memory-leak hazards that are inherent in schemes
 using explicit tracking.
 
-In RCU's case, the things waited on are called
-``RCU read-side critical sections''.
-An RCU read-side critical section starts with an
-\co{rcu_read_lock()} primitive, and ends with a corresponding
-\co{rcu_read_unlock()} primitive.
+In RCU's case, each of the things waited on is called an
+\emph{RCU read-side critical section}.
+As hinted at in
+Section~\ref{sec:defer:Toy Implementation}, an RCU read-side critical
+section starts with an \co{rcu_read_lock()} primitive, and ends with a
+corresponding \co{rcu_read_unlock()} primitive.
 RCU read-side critical sections can be nested, and may contain pretty
-much any code, as long as that code does not explicitly block or sleep
-(although a special form of RCU called SRCU~\cite{PaulEMcKenney2006c}
-does permit general sleeping in SRCU read-side critical sections).
+much any code, as long as that code does not contain a quiescent state,
+for example, within the Linux kernel, it is illegal to sleep within
+an RCU read-side critical section because a context switch is a quiescent
+state.\footnote{
+	However, a special form of RCU called SRCU~\cite{PaulEMcKenney2006c}
+	does permit general sleeping in SRCU read-side critical sections.}
 If you abide by these conventions, you can use RCU to wait for \emph{any}
-desired piece of code to complete.
+pre-existing RCU read-side critical section to complete, and
+\co{synchronize_rcu()} does the actual waiting.
 
-RCU accomplishes this feat by indirectly determining when these
-other things have finished~\cite{PaulEMcKenney2007whatisRCU,
-PaulEMcKenney2007PreemptibleRCU}.
+% @@@ citations? @@@ RCU accomplishes this feat by indirectly determining
+% when these other things have finished~\cite{PaulEMcKenney2007whatisRCU,
+% PaulEMcKenney2007PreemptibleRCU}.
 
 \begin{figure}[tb]
 \centering
-\resizebox{3in}{!}{\includegraphics{defer/GracePeriodGood}}
-\caption{Readers and RCU Grace Period}
-\label{fig:defer:Readers and RCU Grace Period}
+\resizebox{3in}{!}{\includegraphics{defer/RCUGuaranteeFwd}}
+\caption{RCU Reader and Later Grace Period}
+\label{fig:defer:RCU Reader and Later Grace Period}
 \end{figure}
 
-In particular, as shown in
-Figure~\ref{fig:defer:Readers and RCU Grace Period},
-RCU is a way of
-waiting for pre-existing RCU read-side critical sections to completely
-finish, including memory operations executed by those critical sections.
-However, note that RCU read-side critical sections
-that begin after the beginning
-of a given grace period can and will extend beyond the end of that grace
-period.
+The relationship between an RCU read-side critical section and a later
+RCU grace period is an if-then relationship, as illustrated by
+Figure~\ref{fig:defer:RCU Reader and Later Grace Period}.
+If any portion of a given critical section precedes the beginning of
+a given grace period, then RCU guarantees that all of that critical
+section will precede the end of that grace period.
+In the figure, because \co{P0()}'s access to \co{y} precedes
+\co{P1()}'s access to this same variable, it is guaranteed that
+\co{P0()}'s access to \co{x} will precede \co{P1()}'s access.
+In this case, if \co{y}'s final value is 2, then \co{x}'s
+final value is guaranteed to also be 2.
 
-The following pseudocode shows the basic form of algorithms that use
-RCU to wait for readers:
+\QuickQuiz{}
+	What other final values of \co{x} and \co{y} are possible in
+	Figure~\ref{fig:defer:RCU Reader and Later Grace Period}?
+\QuickQuizAnswer{
+	The \co{x == 2 && y == 2} possibility was called out in the text.
+	Given that \co{y == 2} implies \co{x == 2}, we know that
+	\co{x == 1 && y == 2} is forbidden.
+	The following discussion will show that both
+	\co{x == 1 && y == 1} and \co{x == 2 && y == 1} are possible.
+} \QuickQuizEnd
+
+\begin{figure}[tb]
+\centering
+\resizebox{3in}{!}{\includegraphics{defer/RCUGuaranteeRev}}
+\caption{RCU Reader and Earlier Grace Period}
+\label{fig:defer:RCU Reader and Earlier Grace Period}
+\end{figure}
+
+The relationship between an RCU read-side critical section and an earlier
+RCU grace period is also an if-then relationship, as illustrated by
+Figure~\ref{fig:defer:RCU Reader and Earlier Grace Period}.
+If any portion of a given critical section follows the end of
+a given grace period, then RCU guarantees that all of that critical
+section will follow the beginning of that grace period.
+In the figure, because \co{P0()}'s access to \co{x} follows
+\co{P1()}'s access to this same variable, it is guaranteed that
+\co{P0()}'s access to \co{y} will precede \co{P1()}'s access.
+In this case, if \co{x}'s final value is 1, then \co{y}'s
+final value is guaranteed to also be 1.
+
+\begin{figure}[tb]
+\centering
+\resizebox{3in}{!}{\includegraphics{defer/RCUGuaranteeMid}}
+\caption{RCU Reader Within Grace Period}
+\label{fig:defer:RCU Reader Within Grace Period}
+\end{figure}
+
+Finally, as shown in
+Figure~\ref{fig:defer:RCU Reader Within Grace Period},
+an RCU read-side critical section can be completely overlapped by
+an RCU grace period.
+In this case, \co{x}'s final value is 1 and \co{y}'s final value is 2.
+
+However, it cannot be the case that \co{x}'s final value is 2 and \co{y}'s
+final value is 1.
+This would mean that an RCU read-side critical section had completely
+overlapped a grace period, which is forbidden.
+RCU's wait-for-readers guarantee therefore has two parts:
+(1)~If any part of a given RCU read-side critical section precedes
+the beginning of a given grace period, then the entirety of that
+critical section precedes the end of that grace period.
+(2)~If any part of a given RCU read-side critical section follows
+the end of a given grace period, then the entirety of that
+critical section follows the beginning of that grace period.
+This definition is sufficient for almost all RCU-based algorithms, but
+for those wanting more,
+simple executable formal models of RCU are available
+as part of Linux kernel v4.17 and later, as discussed in
+Section~\ref{sec:formal:Axiomatic Approaches and RCU}.
+In addition, RCU's ordering properties are examined in much
+greater detail in Section~\ref{sec:memorder:RCU}.
+
+Although RCU's wait-for-readers capability really is sometimes used to
+order the assignment of values to variables as shown in
+Figures~\ref{fig:defer:RCU Reader and Later Grace Period}-\ref{fig:defer:RCU Reader Within Grace Period},
+it is more frequently used to safely free data elements removed from
+a linked structure, as was done in
+Section~\ref{sec:defer:Introduction to RCU}.
+The general process is illustrated by the following pseudocode:
 
 \begin{enumerate}
-\item	Make a change, for example, replace an element in a linked list.
+\item	Make a change, for example, remove an element from a linked list.
 \item	Wait for all pre-existing RCU read-side critical sections to
-	completely finish (for example, by using the
-	\co{synchronize_rcu()} primitive or its asynchronous
-	counterpart, \co{call_rcu()}, which invokes a specified
-	function at the end of a future grace period).
-	The key observation here is that subsequent RCU read-side critical
-	sections have no way to gain a reference to the newly removed
-	element.
+	completely finish (for example, by using
+	\co{synchronize_rcu()}).
 \item	Clean up, for example, free the element that was replaced above.
 \end{enumerate}
 
-\begin{listing}[tbp]
-\begin{linelabel}[ln:defer:Canonical RCU Replacement Example]
-\begin{VerbatimL}[commandchars=\\\[\]]
-struct foo {
-	struct list_head *list;
-	int a;
-	int b;
-	int c;
-};
-LIST_HEAD(head);
-
-/* . . . */
-
-p = search(head, key);			\lnlbl[search]
-if (p == NULL) {
-	/* Take appropriate action, unlock, & return. */
-}
-q = kmalloc(sizeof(*p), GFP_KERNEL);
-*q = *p;				\lnlbl[copy]
-q->b = 2;				\lnlbl[update]
-q->c = 3;
-list_replace_rcu(&p->list, &q->list);	\lnlbl[replace]
-synchronize_rcu();			\lnlbl[sync_rcu]
-kfree(p);				\lnlbl[kfree]
-\end{VerbatimL}
-\end{linelabel}
-\caption{Canonical RCU Replacement Example}
-\label{lst:defer:Canonical RCU Replacement Example}
-\end{listing}
-
-The code fragment shown in
-Listing~\ref{lst:defer:Canonical RCU Replacement Example},
-adapted from those in Section~\ref{sec:defer:Publish-Subscribe Mechanism},
-demonstrates this process, with field \co{a} being the search key.
-
-\begin{lineref}[ln:defer:Canonical RCU Replacement Example]
-Lines~\lnref{replace}, \lnref{sync_rcu}, and~\lnref{kfree}
-implement the three steps called out above.
-Lines~\lnref{copy}-\lnref{replace}
-gives RCU (``read-copy update'') its name: while permitting
-concurrent \emph{reads}, line~\lnref{copy} \emph{copies} and
-lines~\lnref{update}-\lnref{replace}
-do an \emph{update}.
-\end{lineref}
-
-As discussed in Section~\ref{sec:defer:Introduction to RCU},
-the \co{synchronize_rcu()} primitive can be quite simple
-(see Appendix~\ref{chp:app:``Toy'' RCU Implementations}
-for additional ``toy'' RCU implementations).
-Furthermore, simple executable formal models of RCU are available
-as part of Linux kernel v4.17 and later, as discussed in
-Section~\ref{sec:formal:Axiomatic Approaches and RCU}.
-However, production-quality implementations must deal with
-difficult corner cases and also incorporate
-powerful optimizations, both of which result in significant complexity.
-Although it is good to know that there is a simple conceptual
-implementation of \co{synchronize_rcu()}, other questions remain.
-For example, what exactly do RCU
-readers see when traversing a concurrently updated list?
-This question is addressed in the following section.
+Given that RCU readers can make forward progress while this update
+is in progress, different readers might disagree about the state
+of the data structure, a topic taken up by the next section.
 
 \subsubsection{Maintain Multiple Versions of Recently Updated Objects}
 \label{sec:defer:Maintain Multiple Versions of Recently Updated Objects}
@@ -489,13 +505,13 @@ We can now revisit the deletion example from
 Section~\ref{sec:defer:Introduction to RCU},
 but now with the benefit of a firm understanding of the fundamental
 concepts underlying RCU.
-\begin{lineref}[ln:defer:Canonical RCU Replacement Example]
-To begin this new version of the deletion example,
-we will modify
-lines~\lnref{search}-\lnref{kfree} in
-Listing~\ref{lst:defer:Canonical RCU Replacement Example}
-to read as follows:
-\end{lineref}
+% @@@ \begin{lineref}[ln:defer:Canonical RCU Replacement Example]
+% @@@ To begin this new version of the deletion example,
+% @@@ we will modify
+% @@@ lines~\lnref{search}-\lnref{kfree} in
+% @@@ Listing~\ref{lst:defer:Canonical RCU Replacement Example}
+% @@@ to read as follows:
+% @@@ \end{lineref}
 
 \begin{linelabel}[ln:defer:RCU Deletion From Linked List]
 \begin{VerbatimN}[samepage=true,commandchars=\\\[\]]
@@ -574,7 +590,7 @@ The following example covers replacement.
 To start the replacement example,
 here are the last few lines of the
 example shown in
-Listing~\ref{lst:defer:Canonical RCU Replacement Example}:
+% @@@ Listing~\ref{lst:defer:Canonical RCU Replacement Example}:
 
 \begin{linelabel}[ln:defer:Canonical RCU Replacement Example (2nd)]
 \begin{VerbatimN}[samepage=true,commandchars=\\\[\],firstnumber=15]
