@@ -23,7 +23,7 @@ summarizes RCU fundamentals.
 \label{sec:defer:Publish-Subscribe Mechanism}
 
 Because RCU readers are not excluded by RCU updaters, an RCU-protected
-data structure might change immediately after a reader accesses it.
+data structure might change while a reader accesses it.
 The accessed data item might be moved, removed, or replaced.
 Because the data structure does not ``hold still'' for the reader,
 each reader's access can be thought of as subscribing to the current
@@ -38,124 +38,149 @@ For their part, updaters can be thought of as publishing new versions.
 % @@@ Merge usage section into "Which to Choose?" and suggest choices.
 % @@@ Should "RCU Exercises" move to "RCU Rescues"?
 
-\begin{listing}[tbp]
-\begin{VerbatimL}
-struct foo {
-	int a;
-	int b;
-	int c;
-};
-struct foo *gp = NULL;
+\begin{figure}[tb]
+\centering
+\resizebox{3in}{!}{\includegraphics{defer/pubsub}}
+\caption{Publication/Subscription Constraints}
+\label{fig:defer:Publication/Subscription Constraints}
+\end{figure}
 
-/* . . . */
+Unfortunately, as laid out in
+Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
+and reiterated in
+Section~\ref{sec:defer:Minimal Insertion and Deletion},
+it is unwise to use plain accesses for these publication and subscription
+operations.
+It is instead necessary to inform both the compiler and the CPU
+of the need for care, as can be seen from
+Figure~\ref{fig:defer:Publication/Subscription Constraints},
+which illustrates interactions between concurrent executions of
+\co{ins_route()} (and its caller) and \co{read_gptr()} from
+Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}.
 
-p = kmalloc(sizeof(*p), GFP_KERNEL);
-p->a = 1;
-p->b = 2;
-p->c = 3;
-gp = p;
-\end{VerbatimL}
-\caption{Data Structure Publication (Unsafe)}
-\label{lst:defer:Data Structure Publication (Unsafe)}
-\end{listing}
+The \co{ins_route()} column from
+Figure~\ref{fig:defer:Publication/Subscription Constraints}
+shows \co{ins_route()}'s caller allocating a new \co{route} structure,
+which then contains pre-initialization garbage.
+The caller then initializes the newly allocated structure, and then
+invokes \co{ins_route()} to publish a pointer to the new \co{route}
+structure.
+Publication does not affect the contents of the structure, which
+therefore remain valid after publication.
 
-One key attribute of RCU is the ability to safely scan data, even
-though that data is being modified concurrently.
-To provide this ability for concurrent insertion,
-RCU uses what can be thought of as a publish-subscribe mechanism.
-For example, consider an initially \co{NULL} global pointer
-\co{gp} that is to be modified to point to a newly allocated
-and initialized data structure.
-The code fragment shown in
-Listing~\ref{lst:defer:Data Structure Publication (Unsafe)}
-(with the addition of appropriate locking)
-might be used for this purpose.
+The \co{access_route()} column from this same figure shows
+the pointer being subscribed to and dereferenced.
+This dereference operation absolutely must see a valid \co{route}
+structure rather than pre-initialization garbage because referencing
+garbage could result in memory corruption, crashes, and hangs.
+As noted earlier, avoiding such garbage means that the publish and
+subscribe operations must inform both the compiler and the CPU of the
+need to maintain the needed ordering.
 
-Unfortunately, there is nothing forcing the compiler and CPU to execute
-the last four assignment statements in order.
-If the assignment to \co{gp} happens before the initialization
-of \co{p} fields, then concurrent readers could see the
-uninitialized values.
-Memory barriers are required to keep things ordered, but memory barriers
-are notoriously difficult to use.
-We therefore encapsulate them into a primitive
-\co{rcu_assign_pointer()} that has publication semantics.
-The last four lines would then be as follows:
+Publication is carried out by \co{rcu_assign_pointer()}, which ensures that
+\co{ins_route()}'s callers initialization is ordered before the actual
+publication operation's store of the pointer.
+In addition, \co{rcu_assign_pointer()} must be atomic in the sense that 
+concurrent readers see either the old value of the pointer or the new
+value of the pointer, but not some mash-up of these two values.
+These requirements are met by the C11 store-release operation,
+and in fact in the Linux kernel, \co{rcu_assign_pointer()} is defined
+in terms of \co{smp_store_release()}, which is roughly similar to
+C11 store-release.
 
-\begin{VerbatimN}[samepage=true]
-p->a = 1;
-p->b = 2;
-p->c = 3;
-rcu_assign_pointer(gp, p);
-\end{VerbatimN}
+Note that if concurrent updates are required, some sort of synchronization
+mechanism will be required to mediate among multiple concurrent
+\co{rcu_assign_pointer()} calls on the same pointer.
+In the Linux kernel, locking is the mechanism of choice, but pretty
+much any synchronization mechanism may be use.
+An example of a particularly lightweight synchronization mechanism is
+Chapter~\ref{chp:Data Ownership}'s data ownership: If each pointer is
+owned by a particular thread, then that thread may execute
+\co{rcu_assign_pointer()} on that pointer with no additional
+synchronization overhead.
 
-The \co{rcu_assign_pointer()}
-would \emph{publish} the new structure, forcing both the compiler
-and the CPU to execute the assignment to \co{gp} \emph{after}
-the assignments to the fields referenced by \co{p}.
+\QuickQuiz{}
+	Wouldn't use of data ownership for RCU updaters mean that
+	the updates could use exactly the same sequence of instructions
+	as would the corresponding single-threaded code?
+\QuickQuizAnswer{
+	Sometimes, for example, on TSO systems such as x86 or the IBM
+	mainframe where a store-release operation emits a single store
+	instruction.
+	However, weakly ordered systems must also emit a memory barrier
+	or perhaps a store-release instruction.
+	In addition, removing data requires quite a bit of additional
+	work because it is necessary to wait for pre-existing readers
+	before freeing the removed data.
+} \QuickQuizEnd
 
-However, it is not sufficient to only enforce ordering at the
-updater, as the reader must enforce proper ordering as well.
-Consider for example the following code fragment:
+Subscription is carried out by \co{rcu_dereference()}, which ensures that
+the subscription operation's load from the pointer is ordered before the
+dereference.
+Similar to \co{rcu_assign_pointer()}, \co{rcu_dereference()} must be
+atomic in the sense that the value loaded must be that from a single
+store, for example, the compiler must not tear the load.\footnote{
+	That is, the compiler must not break the load into multiple
+	smaller loads, as described under ``load tearing'' in
+	Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}.}
+Unfortunately, compiler support for \co{rcu_dereference()} is at best
+a work in progress~\cite{PaulEMcKennneyConsumeP0190R4,PaulEMcKenney2017markconsumeP0462R1}. @@@ Add JF Bastien's consume paper. @@@
+In the meantime, the Linux kernel relies on volatile loads, the details of
+the various CPU architectures, coding
+restrictions~\cite{PaulEMcKenney2014rcu-dereference},
+and, on DEC Alpha~\cite{ALPHA2002}, a memory-barrier instruction.
+However, on other architectures, \co{rcu_dereference()} typically
+emits a single load instruction, just as would the equivalent single-threaded
+code.
+The coding restrictions are described in more detail in
+Section~/ref{sec:memorder:Address- and Data-Dependency Difficulties}.
+Software that does not require the ultimate in read-side performance
+can instead use C11 acquire loads, which provide the needed ordering and
+more, albeit at a cost.
+It is hoped that lighter-weight compiler support for \co{rcu_dereference()}
+will appear sooner rather than later.
 
-\begin{VerbatimN}[samepage=true]
-p = gp;
-if (p != NULL) {
-	do_something_with(p->a, p->b, p->c);
-}
-\end{VerbatimN}
+In short, use of \co{rcu_assign_pointer()} for publishing pointers and
+use of \co{rcu_dereference()} for subscribing to them successfully avoids the
+``Not OK'' garbage loads depicted in
+Figure~\ref{fig:defer:Publication/Subscription Constraints}.
+These two primitives can therefore be used to add new data to linked
+structures without disrupting concurrent readers.
 
-Although this code fragment might well seem immune to misordering,
-unfortunately, the
-DEC Alpha CPU~\cite{PaulMcKenney2005i,PaulMcKenney2005j}
-and value-speculation compiler optimizations can, believe it or not,
-cause the values of \co{p->a}, \co{p->b}, and
-\co{p->c} to be fetched before the value of \co{p}.
-This is perhaps easiest to see in the case of value-speculation
-compiler optimizations, where the compiler guesses the value
-of \co{p}, fetches \co{p->a}, \co{p->b}, and
-\co{p->c}, and then fetches the actual value of \co{p}
-in order to check whether its guess was correct.
-This sort of optimization is quite aggressive, perhaps insanely so,
-but does actually occur in the context of profile-driven optimization.
+\QuickQuiz{}
+	But suppose that updaters are adding and removing multiple data
+	items from a linked list while a reader is iterating over that
+	same list.
+	Specifically, suppose that a list initially contains elements
+	A, B, and C, and that an updater removes element A and then
+	adds a new element D at the end of the list.
+	The reader might well see \{A, B, C, D\}, when that sequence of
+	elements never actually ever existed!
+	In what alternate universe would that qualify as ``not disrupting
+	concurrent readers''???
+\QuickQuizAnswer{
+	In the universe where an iterating reader is only required to
+	traverse elements that were present throughout the full duration
+	of the iteration.
+	In the example, that would be elements B and C.
+	Because elements A and D were each present for only part of the
+	iteration, the reader is permitted to iterate over them, but not
+	obliged to.
 
-Clearly, we need to prevent this sort of skullduggery on the
-part of both the compiler and the CPU.
-The \co{rcu_dereference()} primitive uses
-whatever memory-barrier instructions and compiler
-directives are required for this purpose:\footnote{
-	In the Linux kernel, \co{rcu_dereference()} is implemented via
-	a volatile cast, and, on DEC Alpha, a memory barrier instruction.
-	In the C11 and C++11 standards, \co{memory_order_consume}
-	is intended to provide longer-term support for \co{rcu_dereference()},
-	but no compilers implement this natively yet.
-	(They instead strengthen \co{memory_order_consume} to
-	\co{memory_order_acquire}, thus emitting a needless memory-barrier
-	instruction on weakly ordered systems.)}
+	If stronger consistency is required, then higher-cost
+	synchronization mechanisms are required, for example, sequence
+	locking or reader-writer locking.
+	But if stronger consistency is \emph{not} required (and it very often
+	is not), then why pay the higher cost?
+} \QuickQuizEnd
 
-\begin{VerbatimN}[samepage=true]
-rcu_read_lock();
-p = rcu_dereference(gp);
-if (p != NULL) {
-	do_something_with(p->a, p->b, p->c);
-}
-rcu_read_unlock();
-\end{VerbatimN}
+Adding data to a linked structure without disrupting readers is a good thing,
+as are the cases where this can be done with no added read-side cost compared
+to single-threaded readers.
+However, in most cases it is also necessary to remove data, and this is the
+subject of the next section.
 
-The \co{rcu_dereference()} primitive can thus be thought of
-as \emph{subscribing} to a given value of the specified pointer,
-guaranteeing that subsequent dereference operations will see any
-initialization that occurred before the corresponding
-\co{rcu_assign_pointer()} operation that published that pointer.
-The \co{rcu_read_lock()} and \co{rcu_read_unlock()}
-calls are absolutely required: they define the extent of the
-RCU read-side critical section.
-Their purpose is explained in
-Section~\ref{sec:defer:Wait For Pre-Existing RCU Readers},
-however, they never spin or block, nor do they prevent the
-\co{list_add_rcu()} from executing concurrently.
-In fact, in non-\co{CONFIG_PREEMPT} kernels, they generate
-absolutely no code.
+@@@
 
 \begin{figure}[tb]
 \centering
@@ -190,73 +215,6 @@ This notation is cumbersome, and will therefore be abbreviated as shown in
 Figure~\ref{fig:defer:Linux Linked List Abbreviated},
 which shows only the non-header (blue) elements.
 
-\begin{listing}[tbp]
-\begin{linelabel}[ln:defer:RCU Data Structure Publication]
-\begin{VerbatimL}[commandchars=\\\[\]]
-struct foo {
-	struct list_head *list;
-	int a;
-	int b;
-	int c;
-};
-LIST_HEAD(head);
-
-/* . . . */
-
-p = kmalloc(sizeof(*p), GFP_KERNEL);
-p->a = 1;
-p->b = 2;
-p->c = 3;
-list_add_rcu(&p->list, &head);		\lnlbl[add_rcu]
-\end{VerbatimL}
-\end{linelabel}
-\caption{RCU Data Structure Publication}
-\label{lst:defer:RCU Data Structure Publication}
-\end{listing}
-
-Adapting the pointer-publish example for the linked list results in
-the code shown in
-Listing~\ref{lst:defer:RCU Data Structure Publication}.
-
-Line~\ref{ln:defer:RCU Data Structure Publication:add_rcu}
-must be protected by some synchronization mechanism (most
-commonly some sort of lock) to prevent multiple \co{list_add_rcu()}
-instances from executing concurrently.
-However, such synchronization does not prevent this \co{list_add()}
-instance from executing concurrently with RCU readers.
-
-Subscribing to an RCU-protected list is straightforward:
-
-\begin{VerbatimN}[samepage=true]
-rcu_read_lock();
-list_for_each_entry_rcu(p, head, list) {
-	do_something_with(p->a, p->b, p->c);
-}
-rcu_read_unlock();
-\end{VerbatimN}
-
-The \co{list_add_rcu()} primitive publishes an entry, inserting it at
-the head of the specified list, guaranteeing that the corresponding
-\co{list_for_each_entry_rcu()} invocation will properly subscribe to
-this same entry.
-
-\QuickQuiz{}
-	What prevents the \co{list_for_each_entry_rcu()} from
-	getting a segfault if it happens to execute at exactly the same
-	time as the \co{list_add_rcu()}?
-\QuickQuizAnswer{
-	On all systems running Linux, loads from and stores
-	to pointers are atomic, that is, if a store to a pointer occurs at
-	the same time as a load from that same pointer, the load will return
-	either the initial value or the value stored, never some bitwise
-	mashup of the two.
-	In addition, the \co{list_for_each_entry_rcu()} always proceeds
-	forward through the list, never looking back.
-	Therefore, the \co{list_for_each_entry_rcu()} will either see
-	the element being added by \co{list_add_rcu()} or it will not,
-	but either way, it will see a valid well-formed list.
-} \QuickQuizEnd
-
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{defer/Linux_hlist}}
@@ -275,48 +233,7 @@ As before, this notation is cumbersome, so hlists will be abbreviated
 in the same way lists are, as shown in
 Figure~\ref{fig:defer:Linux Linked List Abbreviated}.
 
-\begin{listing}[tbp]
-\begin{linelabel}[ln:defer:RCU hlist Publication]
-\begin{VerbatimL}[commandchars=\\\[\]]
-struct foo {
-	struct hlist_node *list;
-	int a;
-	int b;
-	int c;
-};
-HLIST_HEAD(head);
-
-/* . . . */
-
-p = kmalloc(sizeof(*p), GFP_KERNEL);
-p->a = 1;
-p->b = 2;
-p->c = 3;
-hlist_add_head_rcu(&p->list, &head);	\lnlbl[add_head]
-\end{VerbatimL}
-\end{linelabel}
-\caption{RCU {\tt hlist} Publication}
-\label{lst:defer:RCU hlist Publication}
-\end{listing}
-
-Publishing a new element to an RCU-protected hlist is quite similar
-to doing so for the circular list,
-as shown in Listing~\ref{lst:defer:RCU hlist Publication}.
-
-As before, line~\ref{ln:defer:RCU hlist Publication:add_head}
-must be protected by some sort of synchronization
-mechanism, for example, a lock.
-
-Subscribing to an RCU-protected hlist is also similar to the
-circular list:
-
-\begin{VerbatimN}[samepage=true]
-rcu_read_lock();
-hlist_for_each_entry_rcu(p, head, list) {
-	do_something_with(p->a, p->b, p->c);
-}
-rcu_read_unlock();
-\end{VerbatimN}
+@@@
 
 \begin{table*}[tb]
 \renewcommand*{\arraystretch}{1.2}
@@ -354,15 +271,7 @@ The set of RCU publish and subscribe primitives are shown in
 Table~\ref{tab:defer:RCU Publish and Subscribe Primitives},
 along with additional primitives to ``unpublish'', or retract.
 
-Note that the \co{list_replace_rcu()}, \co{list_del_rcu()},
-\co{hlist_replace_rcu()}, and \co{hlist_del_rcu()}
-APIs add a complication.
-When is it safe to free up the data element that was replaced or
-removed?
-In particular, how can we possibly know when all the readers
-have released their references to that data element?
-
-These questions are addressed in the following section.
+@@@
 
 \subsubsection{Wait For Pre-Existing RCU Readers}
 \label{sec:defer:Wait For Pre-Existing RCU Readers}
