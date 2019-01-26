@@ -23,7 +23,7 @@
 #include "hazptr.h"
 
 /* Route-table entry to be included in the routing list. */
-//\begin{snippet}[labelbase=ln:defer:route_hazptr:lookup,commandchars=\\\[\]]
+//\begin{snippet}[labelbase=ln:defer:route_hazptr:lookup,commandchars=\\\@\$]
 struct route_entry {
 	struct hazptr_head hh;				//\lnlbl{hh}
 	struct route_entry *re_next;
