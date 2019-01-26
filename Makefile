@@ -254,15 +254,17 @@ CodeSamples/snippets.d: $(SOURCES_OF_SNIPPET) $(GEN_SNIPPET_D)
 
 $(FCVSNIPPETS):
 	@echo "$< --> $@"
-	utilities/fcvextract.pl $< $(subst +,\\+,$(subst @,:,$(basename $(notdir $@)))) > $@
+	@utilities/fcvextract.pl $< $(subst +,\\+,$(subst @,:,$(basename $(notdir $@)))) > $@
+	@utilities/checkfcv.pl $@
 
 $(FCVSNIPPETS_VIA_LTMS):
 	@echo "$< --> $@"
-	utilities/fcvextract.pl $< $(subst +,\\+,$(subst @,:,$(basename $(notdir $@)))) > $@
+	@utilities/fcvextract.pl $< $(subst +,\\+,$(subst @,:,$(basename $(notdir $@)))) > $@
+	@utilities/checkfcv.pl $@
 
 $(FCVSNIPPETS_LTMS):
 	@echo "$< --> $@"
-	utilities/reorder_ltms.pl $< > $@
+	@utilities/reorder_ltms.pl $< > $@
 
 help:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
