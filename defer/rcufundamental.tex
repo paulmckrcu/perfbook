@@ -407,115 +407,144 @@ of the data structure, a topic taken up by the next section.
 \subsubsection{Maintain Multiple Versions of Recently Updated Objects}
 \label{sec:defer:Maintain Multiple Versions of Recently Updated Objects}
 
-This section demonstrates how RCU maintains multiple versions of
-lists to accommodate synchronization-free readers.
-
-% @@@ \ref{lst:defer:Insertion and Deletion With Concurrent Readers}
-%	Describe quick alternating ins_route() and del_route() with
-%	concurrent access_route().  Note series of values and total order.
-% @@@ Routing as case where reordering is OK.  (Check for repetition.)
-% @@@ Isolated lookups as case where software cannot see reordering. (Ditto.)
-
-@@@
-Two examples are presented showing how an element
-that might be referenced by a given reader must remain intact
-while that reader remains in its RCU read-side critical section.
-The first example demonstrates deletion of a list element,
-and the second example demonstrates replacement of an element.
-
-\paragraph{Example 1: Maintaining Multiple Versions During Deletion}
-\label{sec:defer:Example 1: Maintaining Multiple Versions During Deletion}
-
-We can now revisit the deletion example from
-Section~\ref{sec:defer:Introduction to RCU},
-but now with the benefit of a firm understanding of the fundamental
-concepts underlying RCU.
-% @@@ \begin{lineref}[ln:defer:Canonical RCU Replacement Example]
-% @@@ To begin this new version of the deletion example,
-% @@@ we will modify
-% @@@ lines~\lnref{search}-\lnref{kfree} in
-% @@@ Listing~\ref{lst:defer:Canonical RCU Replacement Example}
-% @@@ to read as follows:
-% @@@ \end{lineref}
-
-\begin{linelabel}[ln:defer:RCU Deletion From Linked List]
-\begin{VerbatimN}[samepage=true,commandchars=\\\[\]]
-p = search(head, key);
-if (p != NULL) {
-	list_del_rcu(&p->list);		\lnlbl[del_rcu]
-	synchronize_rcu();		\lnlbl[sync_rcu]
-	kfree(p);
-}
-\end{VerbatimN}
-\end{linelabel}
+This section discusses how RCU accommodates synchronization-free readers
+by maintaining multiple versions of data.
+This discussion builds on the introduction of multiple versions by
+Figure~\ref{fig:defer:Deletion With Concurrent Readers}
+in
+Section~\ref{sec:defer:Minimal Insertion and Deletion},
+in which readers running concurrently with \co{del_route()}
+(see Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers})
+might see the old \co{route} structure or an empty list, but either
+way get a valid result.
+Of course, a closer look at
+Figure~\ref{fig:defer:Insertion With Concurrent Readers}
+shows that calls to \co{ins_route()} can also result in concurrent
+readers seeing different versions: Either the initial empty list
+or the newly inserted \co{route} structure.
+Note that both reference counting
+(Section~\ref{sec:defer:Reference Counting})
+and hazard pointers
+(Section~\ref{sec:defer:Hazard Pointers})
+can also cause concurrent readers to see different versions, but
+RCU's extremely light-weight readers increase the probability of
+readers doing so.
 
 \begin{figure}[tb]
 \centering
-\resizebox{3in}{!}{\includegraphics{defer/RCUDeletion}}
-\caption{RCU Deletion From Linked List}
-\label{fig:defer:RCU Deletion From Linked List}
+\resizebox{3in}{!}{\includegraphics{defer/multver}}
+\caption{Multiple RCU Data-Structure Versions}
+\label{fig:defer:Multiple RCU Data-Structure Versions}
 \end{figure}
 
-This code will update the list as shown in
-Figure~\ref{fig:defer:RCU Deletion From Linked List}.
-The triples in each element represent the values of fields \co{a},
-\co{b}, and \co{c}, respectively.
-The red-shaded elements
-indicate that RCU readers might be holding references to them,
-so in the initial state at the top of the diagram, all elements
-are shaded red.
-Please note that
-we have omitted the backwards pointers and the link from the tail
-of the list to the head for clarity.
+However, maintaining multiple versions can be even more surprising.
+For example, consider
+Figure~\ref{fig:defer:Multiple RCU Data-Structure Versions},
+in which a reader is traversing a linked list that is concurrently
+updated.\footnote{
+	RCU linked-list APIs may be found in
+	Section~\ref{sec:defer:RCU Linux-Kernel API}.}
+In the first row of the figure, the reader is referencing data item~A,
+and in the second row, it advances to~B, having thus far seen A followed by~B.
+In the third row, an updater removes element~A and in the fourth row
+an updater adds element~E to the end of the list.
+In the fifth and final row, the reader completes its traversal, having
+seeing elements A through E.
 
-\begin{lineref}[ln:defer:RCU Deletion From Linked List]
-After the \co{list_del_rcu()} on
-line~\lnref{del_rcu} has completed, the \co{5,6,7}~element
-has been removed from the list, as shown in the second row of
-Figure~\ref{fig:defer:RCU Deletion From Linked List}.
-Since readers do not synchronize directly with updaters,
-readers might be concurrently scanning this list.
-These concurrent readers might or might not see the newly removed element,
-depending on timing.
-However, readers that were delayed (e.g., due to interrupts, ECC memory
-errors, or, in \co{CONFIG_PREEMPT_RT} kernels, preemption)
-just after fetching a pointer to the newly removed element might
-see the old version of the list for quite some time after the
-removal.
-Therefore, we now have two versions of the list, one with element
-\co{5,6,7} and one without.
-The \co{5,6,7}~element in the second row of the figure is now
-shaded yellow, indicating
-that old readers might still be referencing it, but that new
-readers cannot obtain a reference to it.
+Except that there was no time at which such a list existed.
+This situation might be even more surprising than that shown in
+Figure~\ref{fig:defer:Deletion With Concurrent Readers},
+in which different concurrent readers see different versions.
+In contrast, in
+Figure~\ref{fig:defer:Multiple RCU Data-Structure Versions}
+the reader sees a version that never actually existed!
 
-Please note that readers are not permitted to maintain references to
-element~\co{5,6,7} after exiting from their RCU read-side
-critical sections.
-Therefore,
-once the \co{synchronize_rcu()} on
-line~\lnref{sync_rcu} completes, so that all pre-existing readers are
-guaranteed to have completed,
-there can be no more readers referencing this
-element, as indicated by its green shading on the third row of
-Figure~\ref{fig:defer:RCU Deletion From Linked List}.
-We are thus back to a single version of the list.
-\end{lineref}
+One way to resolve this strange situation is via weaker semanitics.
+A reader traversal must encounter any data item that was present
+during the full traversal (B, C, and~D), and might or might not
+encounter data items that were present for only part of the
+traversal (A and~E).
+Therefore, in this particular case, it is perfectly legitimate for
+the reader traveral to encounter all five elements.
+If this outcome is problematic, another way to resolve this situation is
+through use of stronger synchronization mechanisms, such as reader-writer
+locking.
+Of course, stronger mechanisms will be more expensive, but life is
+about choices and tradeoffs.
 
-At this point, the \co{5,6,7}~element may safely be
-freed, as shown on the final row of
-Figure~\ref{fig:defer:RCU Deletion From Linked List}.
-At this point, we have completed the deletion of
-element~\co{5,6,7}.
-The following example covers replacement.
+Strange though this situation might seem, it is entirely consistent with
+the real world.
+As we saw in
+Section~\ref{sec:cpu:Overheads},
+the finite speed of light cannot be ignored within a computer system,
+but it also cannot be ignored outside of the system.
+Which in turn means that any data within the system representing
+state in the real world outside of the system is outdated, and thus
+inconsistent with the real world.
+As a result, algorithms operating on real-world data must account for
+that data being inconsistent with the real world.
+In many cases, such algorithms are also perfectly capable of dealing
+with inconsistencies within the system.
 
-\paragraph{Example 2: Maintaining Multiple Versions During Replacement}
-\label{sec:defer:Example 2: Maintaining Multiple Versions During Replacement}
+The pre-BSD packet routing example laid out in
+Section~\ref{sec:defer:Running Example}
+is a case in point.
+The contents of a routing list is set by routing protocols, and these
+protocols feature significant delays (seconds or even minutes) to avoid
+various instabilities.
+These delays mean that once a routing update reaches a given system,
+it might well have been sending packets the wrong way for quite some time.
+Sending a few more packets the wrong way for the few microseconds during
+which the update is in flight is clearly not a problem because the same
+higher-level protocol actions that deal with the delayed routing updates
+will also deal with the inconsistencies.
 
-To start the replacement example,
-here are the last few lines of the
-example shown in
-% @@@ Listing~\ref{lst:defer:Canonical RCU Replacement Example}:
+Nor is Internet routing the only situation tolerating inconsistencies.
+To repeat, any algorithm in which data within a system tracks
+outside-of-system state must tolerate inconsistencies, which includes
+security policies (often set by committees of humans), storage configuration,
+and WiFi access points, to say nothing of removable hardware such as
+microphones, headsets, cameras, mice, printers, and much else besides.
+Furthermore, the large number of Linux-kernel RCU API uses shown in
+Figure~\ref{fig:defer:RCU Usage in the Linux Kernel},
+combined with the Linux kernel's heavy use of reference counting
+and with increasing use of hazard pointers in other projects, demonstrates
+that tolerance for such inconsistencies is more common than one might
+imagine.
+This is especially the case given that single-item lookups are much more
+common than traversals:  After all, concurrent updates are less likely
+to affect a single-item lookup than they are a full traversal.
+
+From a more theoretical viewpoint, there are even some special cases where
+RCU readers can be considered to be fully ordered with updaters, despite
+the fact that these readers might be executing the exact same sequence of
+machine instructions that would be executed by a single-threaded program.
+For example, referring back to
+Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}
+on page~\pageref{lst:defer:Insertion and Deletion With Concurrent Readers},
+suppose that each reader thread invokes \co{access_route()} exactly
+once during its lifetime, and that there is no other communication among
+reader and updater threads.
+Then each invocation of \co{access_route()} can be ordered after the
+\co{ins_route()} invocation that produced the \co{route} structure
+accessed by line~9 of \co{access_route()} and ordered before any subsequent
+\co{ins_route()} or \co{del_route()} invocation.
+
+In summary, maintaining multiple versions is exactly what enables the
+extremely low overheads of RCU readers, and as noted earlier, many
+algorithms are unfazed by multiple versions.
+However, there are algorithms that absolutely cannot handle multiple versions.
+There are techniques for adapting such algorithms to
+RCU~\cite{PaulEdwardMcKenneyPhD},
+but these are beyond the scope of this section.
+
+The next section gives an overview of the Linux kernel's RCU API.
+
+@@@
+
+% @@@ Move to discussion of list_replace_rcu().
+% @@@ Refer to \ref{fig:defer:Insertion With Concurrent Readers} and
+%	\ref{fig:defer:Deletion With Concurrent Readers}, mostly the latter.
 
 \begin{linelabel}[ln:defer:Canonical RCU Replacement Example (2nd)]
 \begin{VerbatimN}[samepage=true,commandchars=\\\[\],firstnumber=15]
@@ -541,7 +570,7 @@ is the same as for the deletion example, as shown on the
 first row of
 Figure~\ref{fig:defer:RCU Replacement in Linked List}.
 
-As before,
+@@@ As before,
 the triples in each element represent the values of fields \co{a},
 \co{b}, and \co{c}, respectively.
 The red-shaded elements might be referenced by readers,
@@ -693,13 +722,6 @@ else {
 	probably are not good candidates for RCU.
 	That said, RCU can handle high update rates when necessary.
 } \QuickQuizEnd
-
-This sequence of events shows how RCU updates use multiple versions
-to safely carry out changes in presence of concurrent readers.
-Of course, some algorithms cannot gracefully handle multiple versions.
-There are techniques
-for adapting such algorithms to RCU~\cite{PaulEdwardMcKenneyPhD},
-but these are beyond the scope of this section.
 
 \subsubsection{Summary of RCU Fundamentals}
 \label{sec:defer:Summary of RCU Fundamentals}
