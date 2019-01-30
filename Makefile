@@ -11,6 +11,8 @@ LATEXSOURCES = \
 	*/*.tex \
 	*/*/*.tex
 
+LST_SOURCES := $(wildcard CodeSamples/formal/promela/*.lst)
+
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
 
 ABBREVTARGETS := tcb 1c hb msns mss mstx msr msn msnt 1csf
@@ -123,7 +125,7 @@ $(PDFTARGETS): %.pdf: %.tex %.bbl
 $(PDFTARGETS:.pdf=.bbl): %.bbl: %.aux $(BIBSOURCES)
 	bibtex $(basename $@)
 
-$(PDFTARGETS:.pdf=.aux): $(LATEXGENERATED) $(LATEXSOURCES)
+$(PDFTARGETS:.pdf=.aux): $(LATEXGENERATED) $(LATEXSOURCES) $(LST_SOURCES)
 	sh utilities/runfirstlatex.sh $(basename $@)
 
 autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET) utilities/fcvextract.pl
