@@ -105,7 +105,7 @@
 # NOTE: "#ifdef FCV_SNIPPET" is not recognized.
 #	"#else" can be omitted.
 #
-# Copyright (C) Akira Yokosawa, 2018
+# Copyright (C) Akira Yokosawa, 2018, 2019
 #
 # Authors: Akira Yokosawa <akiyks@gmail.com>
 
@@ -142,14 +142,10 @@ $extract_labelbase = $ARGV[1];
 $begin_re = qr/\\begin\{snippet\}.*labelbase=[^,\]]*$extract_labelbase[,\]]/ ;
 $end_re = qr/\\end\{snippet\}/;
 
-if ($src_file =~ /.*\.[ch]$/ ) {
+if ($src_file =~ /.*\.[ch]$/ || $src_file =~ /.*\.spin$/) {
     $lnlbl_re = qr!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!;
     $lnlbl_re2 = qr!(.*?)(s*/\*\s*)\\lnlbl\{(.*)}\s*\*/(.*)$!;
     $c_src = 1;
-} elsif ($src_file =~ /.*\.c$/ ) {
-    $lnlbl_re = qr!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!;
-} elsif ($src_file =~ /.*\.spin$/ ) {
-    $lnlbl_re = qr!(.*?)(\s*//\s*)\\lnlbl\{(.*)}\s*$!;
 } elsif ($src_file =~ /.*\.sh$/ ) {
     $lnlbl_re = qr!(.*?)(\s*#\s*)\\lnlbl\{(.*)}\s*$!;
 } elsif ($src_file =~ /.\.ltms$/ ) {
