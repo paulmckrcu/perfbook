@@ -3,6 +3,7 @@
 byte counter = 0;
 byte progress[NUMPROCS];
 
+//\begin{snippet}[labelbase=ln:formal:promela:atomicincrement:incrementer,commandchars=\\\@\$]
 proctype incrementer(byte me)
 {
 	int temp;
@@ -13,6 +14,7 @@ proctype incrementer(byte me)
 	}
 	progress[me] = 1;
 }
+//\end{snippet}
 
 init {
 	int i = 0;
