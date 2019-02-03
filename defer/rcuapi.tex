@@ -4,7 +4,9 @@
 \label{sec:defer:RCU Linux-Kernel API}
 \OriginallyPublished{Section}{sec:defer:RCU Linux-Kernel API}{RCU Linux-Kernel API}{Linux Weekly News}{PaulEMcKenney2008WhatIsRCUAPI}
 
-This section looks at RCU from the viewpoint of its Linux-kernel API.
+This section looks at RCU from the viewpoint of its Linux-kernel API.\footnote{
+	Userspace RCU's API is documented
+	elsewhere~\cite{PaulMcKenney2013LWNURCU}.}
 Section~\ref{sec:defer:RCU has a Family of Wait-to-Finish APIs}
 presents RCU's wait-to-finish APIs, and
 Section~\ref{sec:defer:RCU has Publish-Subscribe and Version-Maintenance APIs}
@@ -26,95 +28,97 @@ presents concluding remarks.
 \begin{tabularx}{7.9in}{>{\raggedright\arraybackslash}p{1.08in}
     >{\raggedright\arraybackslash}X
     >{\raggedright\arraybackslash}X
-    >{\raggedright\arraybackslash}X
-    >{\raggedright\arraybackslash}X
-    >{\raggedright\arraybackslash}p{1.22in}}
+    >{\raggedright\arraybackslash}p{1.2in}
+    >{\raggedright\arraybackslash}p{1.55in}}
 \toprule
 Attribute &
-    RCU Classic &
-	RCU BH &
-	    RCU Sched &
-		Realtime RCU &
-		    SRCU \\
+    RCU &
+	SRCU &
+	    Tasks RCU &
+		Generic \\
 \midrule
 Purpose &
     Original &
-	Prevent DDoS attacks &
-	    Wait for preempt-disable regions, hardirqs, \& NMIs &
-	        Realtime response &
-		    Sleeping readers \\
+	Sleeping readers &
+	    Free tracing trampolines &
+		\\
 Availability &
     2.5.43 &
-	2.6.9 &
-	    2.6.12 &
-		2.6.26 &
-		    2.6.19 \\
-Read-side primitives &
-    \tco{rcu_read_lock()}~! \tco{rcu_read_unlock()}~! &
-	\tco{rcu_read_lock_bh()} \tco{rcu_read_unlock_bh()} &
-	    \tco{preempt_disable()} \tco{preempt_enable()} (and friends) &
-	        \tco{rcu_read_lock()} \tco{rcu_read_unlock()} &
-		    \tco{srcu_read_lock()} \tco{srcu_read_unlock()} \\
+	2.6.19 &
+	    3.18 &
+		\\
+Read-side critical-section markers &
+    \tco{rcu_read_lock()}~! \tco{rcu_read_unlock()}~!
+    \tco{rcu_read_lock_bh()} \tco{rcu_read_unlock_bh()}
+    \tco{rcu_read_lock_sched()} \tco{rcu_read_unlock_sched()}
+    \tco{rcu_read_lock_sched_notrace()} \tco{rcu_read_unlock_sched_notrace()}
+    (Plus anything disabing bottom halves, preemption, or interrupts.) &
+	\tco{srcu_read_lock()} \tco{srcu_read_unlock()} &
+	    Voluntary context switch &
+		\\
 { Update-side primitives (synchronous) } &
-    { \tco{synchronize_rcu()} \tco{synchronize_net()} } &
-	\tco{synchronize_rcu_bh()} &
-	    \tco{synchronize_sched()} &
-	        { \tco{synchronize_rcu()} \tco{synchronize_net()} } &
-		    \tco{synchronize_srcu()} \\
+    { \tco{synchronize_rcu()} \tco{synchronize_rcu_expedited()}
+      \tco{synchronize_net()} } &
+	\tco{synchronize_srcu()} \tco{synchronize_srcu_expedited()} &
+	    \tco{synchronize_rcu_tasks()} &
+		\\
 { Update-side primitives (asynchronous/callback) } &
     \tco{call_rcu()} ! &
-	\tco{call_rcu_bh()} &
-	    \tco{call_rcu_sched()} &
-	        \tco{call_rcu()} &
-		    \tco{call_srcu()} \\
+	\tco{call_srcu()} &
+	    \tco{call_rcu_tasks()} &
+		\\
 { Update-side primitives (wait for callbacks) } &
     \tco{rcu_barrier()} &
-	\tco{rcu_barrier_bh()} &
-	    \tco{rcu_barrier_sched()} &
-	        \tco{rcu_barrier()} &
-		    N/A \\
+	\tco{srcu_barrier()} &
+	    \tco{rcu_barrier_tasks()} &
+		\\
+Validation &
+    \tco{rcu_read_lock_held()} \tco{rcu_read_lock_bh_held()} 
+    \tco{rcu_read_lock_sched_held()} &
+	\tco{srcu_read_lock_held()} &
+	    &
+		\tco{__rcu}
+		\tco{init_rcu_head()}
+		\tco{destroy_rcu_head()}
+		\tco{init_rcu_head_on_stack()}
+		\tco{destroy_rcu_head_on_stack()}
+		\tco{rcu_cpu_stall_reset()}
+		\tco{rcu_head_init()}
+		\tco{rcu_head_after_call_rcu()}
+		\tco{rcu_is_watching()}
+		\tco{RCU_LOCKDEP_WARN()}
+		\tco{RCU_NONIDLE()}
+		\tco{rcu_sleep_check()} \\
 Type-safe memory &
     \tco{SLAB_DESTROY_BY_RCU} &
 	&
 	    &
-	        \tco{SLAB_DESTROY_BY_RCU} &
-		    \\
+		\\
 Read side constraints &
-    No blocking &
-	No bottom-half (BH) enabling &
-	    No blocking &
-	        Only preemption and lock acquisition &
-		    No \tco{synchronize_srcu()} with same \tco{srcu_struct} \\
+    No blocking (only preemption) &
+	No \tco{synchronize_srcu()} with same \tco{srcu_struct} &
+	    No voluntary context switch &
+		\\
 Read side overhead &
-    Preempt disable/enable (free on non-\tco{PREEMPT}) &
-	BH disable/enable &
-	    Preempt disable/enable (free on non-\tco{PREEMPT}) &
-	        Simple instructions, \IRQ\ disable/enable &
-		    Simple instructions, preempt disable/enable, memory barriers \\
+    CPU-local accesses (free on \tco{PREEMPT=n}) &
+	Simple instructions, memory barriers &
+	    Free &
+		\\
 Asynchronous update-side overhead &
     sub-microsecond &
 	sub-microsecond &
 	    sub-microsecond &
-	        sub-microsecond &
-		    N/A \\
+		\\
 Grace-period latency &
     10s of milliseconds &
-	10s of milliseconds &
-	    10s of milliseconds &
-	        10s of milliseconds &
-		    10s of milliseconds \\
-Non-\tco{PREEMPT_RT} implementation &
-    RCU Classic &
-	RCU BH &
-	    RCU Classic &
-	        Preemptible RCU &
-		    SRCU \\
-\tco{PREEMPT_RT} implementation &
-    Preemptible RCU &
-	Realtime RCU &
-	    Forced Schedule on all CPUs &
-	        Realtime RCU &
-		    SRCU \\
+        Milliseconds &
+	    seconds &
+		\\
+Expedited grace-period latency &
+    10s of microseconds &
+        Microseconds &
+	    N/A &
+		\\
 \bottomrule
 \end{tabularx}
 \end{sidewaystable*}
@@ -682,5 +686,8 @@ all of the things you can do with these APIs.
 However, for many people, a complete view of RCU must include sample
 RCU implementations.
 Appendix~\ref{chp:app:``Toy'' RCU Implementations} therefore presents a series
-of ``toy'' RCU implementations of increasing complexity and capability.
+of ``toy'' RCU implementations of increasing complexity and capability,
+though others might prefer the classic
+``User-Level Implementations of Read-Copy
+Update''~\cite{MathieuDesnoyers2012URCU}.
 For everyone else, the next section gives an overview of some RCU use cases.
