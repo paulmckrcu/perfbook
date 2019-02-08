@@ -1934,7 +1934,7 @@ against compiler optimizations that invent data races.
 \begin{VerbatimL}[commandchars=\\\[\]]
 r1 = p;\lnlbl[load:p]
 if (unlikely(r1))\lnlbl[if]
-	do_somthing_with(r1);\lnlbl[dsw]
+	do_something_with(r1);\lnlbl[dsw]
 barrier();\lnlbl[barrier]
 p = NULL;\lnlbl[null]
 \end{VerbatimL}
@@ -1967,7 +1967,7 @@ is often an expensive no-op.
 \begin{VerbatimL}[commandchars=\\\[\]]
 r1 = p;\lnlbl[load:p]
 if (unlikely(r1))\lnlbl[if]
-	do_somthing_with(r1);\lnlbl[dsw]
+	do_something_with(r1);\lnlbl[dsw]
 barrier();\lnlbl[barrier]
 if (p != NULL)\lnlbl[if1]
 	p = NULL;\lnlbl[null]
@@ -1983,8 +1983,10 @@ with a check, as shown on lines~\lnref{if1} and~\lnref{null} of
 Listing~\ref{lst:toolsoftrade:Compiler Converts a Store to a Load}.
 Although this transformation is often desirable, it could be problematic
 if the actual store was required for ordering.
-For example, a write memory barrier (Linux kernel \co{smp_wmb()} would
+For example, a write memory barrier (Linux kernel \co{smp_wmb()}) would
 order the store, but not the load.
+This situation might suggest use of \co{smp_store_release()} over
+\co{smp_wmb()}.
 \end{lineref}
 
 Reliable concurrent code clearly needs a way to cause the compiler to
@@ -2303,60 +2305,50 @@ shared variables!''
 
 ``Then stop concurrently accessing shared variables!!!''
 
-The doctor's advice might seem unhelpful, but simplification is often
-a very good thing.
-And one time-tested way to avoid concurrently accessing shared variables
-is to use locking, as will be discussed in
-Chapter~\ref{chp:Locking}.
-Another way is to access a given ``shared'' variable from only one
+The doctor's advice might seem unhelpful, but
+one time-tested way to avoid concurrently accessing shared variables
+is access those variables only when holding a particular lock, as will
+be discussed in Chapter~\ref{chp:Locking}.
+Another way is to access a given ``shared'' variable only from a given
 CPU or thread, as will be discussed in
 Chapter~\ref{chp:Data Ownership}.
-It is possible to combine these, for example, a given variable might
-be modified only by one CPU or thread while holding a particular lock,
-and might be read either from that same CPU or thread on the one hand,
-or while holding that same lock on the other.
+It is possible to combine these two approaches, for example, a given
+variable might be modified only by a given CPU or thread while holding a
+particular lock, and might be read either from that same CPU or thread
+on the one hand, or from some other CPU or thread while holding that
+same lock on the other.
 
-In the spirit of ``every little bit helps'', here is a list of
-ways of allowing plain loads and stores in some cases, while requiring
-markings (such as \co{READ_ONCE()} and \co{WRITE_ONCE()}) for other
-cases:
+In the spirit of ``every little bit helps'', here is a list of situations
+allowing plain loads and stores for some accesses to a given variable,
+while requiring markings (such as \co{READ_ONCE()} and \co{WRITE_ONCE()})
+for other accesses to that same variable:
 
 \begin{enumerate}
+\item	If a shared variable is only modified by a given owning CPU or
+	thread, then all stores must use \co{WRITE_ONCE()} and non-owning
+	CPUs or threads must use \co{READ_ONCE()} for loads.
+	The owning CPU or thread may use plain loads.
+\item	If a shared variable is only modified while holding a given
+	lock, then all stores must use \co{WRITE_ONCE()}.
+	CPUs or threads not holding the lock must use \co{READ_ONCE()}
+	for loads.
+	CPUs or threads holding the lock may use plain loads.
 \item	If a shared variable is only modified while holding a given
 	lock by a given owning CPU or thread, then all stores must use
 	\co{WRITE_ONCE()} and non-owning CPUs or threads that
 	are not holding the lock must use \co{READ_ONCE()} for loads.
 	The owning CPU or thread may use plain loads, as may any
 	CPU or thread holding the lock.
-\item	If a shared variable is only modified while holding a given
-	lock, then all stores must use \co{WRITE_ONCE()}.
-	CPUs or threads not holding the lock must use \co{READ_ONCE()}
-	for loads.
-	CPUs or threads holding the lock may use plain loads.
-\item	If a shared variable is only modified by a given owning CPU or
-	thread, then all stores must use \co{WRITE_ONCE()} and non-owning
-	CPUs or threads must use \co{READ_ONCE()} for loads.
-	The owning CPU or thread may use plain loads.
+\item	If a shared variable is only accessed by a given CPU or thread
+	and by a signal or interrupt handler running in that CPU's
+	or thread's context, then the handler can use plain loads and
+	stores, as can any code that has prevented the handler from being
+	invoked, that is, code that has blocked signals and/or interrupts.
+	All other code must use \co{READ_ONCE()} and \co{WRITE_ONCE()}.
 \end{enumerate}
 
-In most other cases, loads from and stores to a shared variable must
-use \co{READ_ONCE()} and \co{WRITE_ONCE()} or stronger, respectively.
-But it bears repeating that neither \co{READ_ONCE()} nor \co{WRITE_ONCE()}
-provide any ordering guarantees.
-See the above
-Section~\ref{sec:toolsoftrade:Assembling the Rest of a Solution} or
-Chapter~\ref{chp:Advanced Synchronization: Memory Ordering}
-for information on providing ordering guarantees.
-
-One important special case is when a given variable is shared by
-process-level code on the one hand and by an interrupt or signal handler
-on the other, but is never accessed concurrently by some other CPU or
-thread.
-In this case, the process-level code must use \co{READ_ONCE()} and
-\co{WRITE_ONCE()} or stronger to access this variable.
-
 \QuickQuiz{}
-	What needs to happen if a given interrupt or signal handler
+	What needs to happen if an interrupt or signal handler
 	might itself be interrupted?
 \QuickQuizAnswer{
 	Then that interruptible handler must also use \co{READ_ONCE()} and
@@ -2368,6 +2360,15 @@ In this case, the process-level code must use \co{READ_ONCE()} and
 	variables cannot be concurrently accessed by some other CPU or
 	thread.
 } \QuickQuizEnd
+
+In most other cases, loads from and stores to a shared variable must
+use \co{READ_ONCE()} and \co{WRITE_ONCE()} or stronger, respectively.
+But it bears repeating that neither \co{READ_ONCE()} nor \co{WRITE_ONCE()}
+provide any ordering guarantees.
+See the above
+Section~\ref{sec:toolsoftrade:Assembling the Rest of a Solution} or
+Chapter~\ref{chp:Advanced Synchronization: Memory Ordering}
+for information on such guarantees.
 
 Examples of many of these data-race-avoidance patterns are presented in
 Chapter~\ref{chp:Counting}.
