@@ -1566,7 +1566,7 @@ nor modified by any other thread.
 This assumption allows the compiler to carry out a large number of
 transformations, including load tearing, store tearing,
 load fusing, store fusing, code reordering, invented loads,
-invented stores, and store-to-load transformations,
+invented stores, store-to-load transformations, and dead-code elimination,
 all of which work just fine in single-threaded code.
 But concurrent code can be broken by each of these transformations,
 or shared-variable shenanigans, as described below.
@@ -1988,6 +1988,19 @@ order the store, but not the load.
 This situation might suggest use of \co{smp_store_release()} over
 \co{smp_wmb()}.
 \end{lineref}
+
+{\bf Dead-code elimination} can occur when the compiler notices that
+the value from a load is never used, or when a variable is stored to,
+but never loaded from.
+This can of course eliminate an access to a shared variable, which
+can in turn defeat a memory-ordering primitive, which could cause your
+concurrent code to act in surprising ways.
+Experience thus far indicates that relatively few such surprises will
+be at all pleasant.
+Elimination of store-only variables is especially dangerous in cases
+where external code locates the variable via symbol tables: The
+compiler is necessarily ignorant of such external-code accesses, and
+might thus eliminate a variable that the external code relies on.
 
 Reliable concurrent code clearly needs a way to cause the compiler to
 preserve the number, order, and type of important accesses to shared
