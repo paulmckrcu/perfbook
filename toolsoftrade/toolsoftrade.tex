@@ -2330,43 +2330,56 @@ variable might be modified only by a given CPU or thread while holding a
 particular lock, and might be read either from that same CPU or thread
 on the one hand, or from some other CPU or thread while holding that
 same lock on the other.
+In all of these situations, all accesses to the shared variables may
+be plain C-language accesses.
 
-In the spirit of ``every little bit helps'', here is a list of situations
+Here is a list of situations
 allowing plain loads and stores for some accesses to a given variable,
 while requiring markings (such as \co{READ_ONCE()} and \co{WRITE_ONCE()})
 for other accesses to that same variable:
 
 \begin{enumerate}
-\item	If a shared variable is only modified by a given owning CPU or
-	thread, then all stores must use \co{WRITE_ONCE()} and non-owning
-	CPUs or threads must use \co{READ_ONCE()} for loads.
+\item	A shared variable is only modified by a given owning CPU or
+	thread, but is read by other CPUs or threads.
+	All stores must use \co{WRITE_ONCE()}.
 	The owning CPU or thread may use plain loads.
-\item	If a shared variable is only modified while holding a given
-	lock, then all stores must use \co{WRITE_ONCE()}.
-	CPUs or threads not holding the lock must use \co{READ_ONCE()}
-	for loads.
+	Everything else must use \co{READ_ONCE()} for loads.
+\item	A shared variable is only modified while holding a given
+	lock, but is read by code not holding that lock.
+	All stores must use \co{WRITE_ONCE()}.
 	CPUs or threads holding the lock may use plain loads.
-\item	If a shared variable is only modified while holding a given
-	lock by a given owning CPU or thread, then all stores must use
-	\co{WRITE_ONCE()} and non-owning CPUs or threads that
-	are not holding the lock must use \co{READ_ONCE()} for loads.
+	Everything else must use \co{READ_ONCE()} for loads.
+\item	A shared variable is only modified while holding a given
+	lock by a given owning CPU or thread, but is read by other
+	CPUs or threads or by code not holding that lock.
+	All stores must use \co{WRITE_ONCE()}.
 	The owning CPU or thread may use plain loads, as may any
 	CPU or thread holding the lock.
-\item	If a shared variable is only accessed by a given CPU or thread
+	Everything else must use \co{READ_ONCE()} for loads.
+\item	A shared variable is only accessed by a given CPU or thread
 	and by a signal or interrupt handler running in that CPU's
-	or thread's context, then the handler can use plain loads and
-	stores, as can any code that has prevented the handler from being
-	invoked, that is, code that has blocked signals and/or interrupts.
+	or thread's context.
+	The handler can use plain loads and stores, as can any code
+	that has prevented the handler from being invoked, that is,
+	code that has blocked signals and/or interrupts.
 	All other code must use \co{READ_ONCE()} and \co{WRITE_ONCE()}.
+\item	A shared variable is only accessed by a given CPU or thread
+	and by a signal or interrupt handler running in that CPU's
+	or thread's context, and the interrupt handler always restores
+	the values of any variables that it has written before return.
+	The handler can use plain loads and stores, as can any code
+	that has prevented the handler from being invoked, that is,
+	code that has blocked signals and/or interrupts.
+	All other code can use plain loads, but must use \co{WRITE_ONCE()}
+	to prevent store tearing, store fusing, and invented stores.
 \end{enumerate}
 
 \QuickQuiz{}
 	What needs to happen if an interrupt or signal handler
 	might itself be interrupted?
 \QuickQuizAnswer{
-	Then that interruptible handler must also use \co{READ_ONCE()} and
-	\co{WRITE_ONCE()} or stronger to access any variable that
-	might be accessed by the interrupting handler.
+	Then that interrupt handler must follow the same rules that
+	are followed by other interrupted code.
 	Only those handlers that cannot be themselves interrupted
 	or that access no variables shared with an interrupting handler
 	may safely use plain accesses, and even then only if those
