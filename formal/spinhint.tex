@@ -886,21 +886,15 @@ cc -DSAFETY [-DCOLLAPSE] -o pan pan.c
 \label{tab:advsync:Memory Usage of QRCU Model}
 \end{table}
 
-The resulting output shows that this model passes all of the cases
-shown in
+The output shows that this model passes all of the cases shown in
 Table~\ref{tab:advsync:Memory Usage of QRCU Model}.
-Now, it would be nice to run the case with three readers and three
+It would be nice to run three readers and three
 updaters, however, simple extrapolation indicates that this will
-require on the order of half a terabyte of memory best case.
-So, what to do?
+require about half a terabyte of memory.
+What to do?
 
-As a last resort for full search of large state spaces,
-Spin provides a compiler flag \co{-DMA=N}
-which generates code for aggressive compression of
-state-space memory in exchange of search speed.
-Use of the flag is suggested in the output of an incomplete run of
-\co{./pan} due to lack of memory.
-An example from three readers and three updaters reads:
+It turns out that \co{./pan} gives advice when ti runs out of memory,
+for example, when attempting to run three readers and updaters:
 
 \begin{VerbatimU}
 hint: to reduce memory, recompile with
@@ -910,7 +904,10 @@ hint: to reduce memory, recompile with
   -DBITSTATE # supertrace, approximation
 \end{VerbatimU}
 
-So let's try the following:
+Let's try the suggested compiler flag \co{-DMA=N},
+which generates code for aggressive compression of the
+state space at the cost of greatly increased search overhead.
+The required commands are as follows:
 
 \begin{VerbatimU}
 spin -a qrcu.spin
@@ -918,18 +915,17 @@ cc -DSAFETY -DMA=96 -O2 -o pan pan.c
 ./pan -m20000000
 \end{VerbatimU}
 
-Here, the depth limit of 20,000,000 is one order of magnitude
+Here, the depth limit of 20,000,000 is an order of magnitude
 larger than the expected depth deduced from simple extrapolation.
-This will increase up-front memory usage, but we don't want
-a long run to end up in an incomplete search by specifying
-a tight limit.
-
-It took a little more than 3~days on a \Power{9} server.
+Although this increases up-front memory usage, it avoids wasting
+a long run due to incomplete search resulting from a too-tight
+depth limit.
+This run took a little more than 3~days on a \Power{9} server.
 The result is shown in
 Listing~\ref{lst:formal:spinhint:3 Readers 3 Updaters QRCU Spin Output with -DMA=96}.
-As you can see, this Spin run completed with the total memory
-usage of \emph{only} 6.5\,GB, and the model passed this case
-as well.
+This Spin run completed successfully with a total memory
+usage of only 6.5\,GB, which is almost two orders of magnitude
+lower than the \co{-DCOLLAPSE} usage of about half a terabyte.
 
 \begin{listing}
 \VerbatimInput[numbers=none,fontsize=\scriptsize]{CodeSamples/formal/promela/qrcu.spin.33ma.lst}
@@ -939,11 +935,11 @@ as well.
 \end{listing}
 
 \QuickQuiz{}
-	Compression rate of 0.48\,\%! Is the state-space search
-	really exhaustive???
+	A compression rate of 0.48\,\% corresponds to a 200-to-1 decrease
+	in memory occupied by the states!
+	Is the state-space search \emph{really} exhaustive???
 \QuickQuizAnswer{
-	As long as you believe documentation of Spin, yes, it should
-	be.
+	According Spin's documentation, yes, is.
 
 \begin{listing}
 \VerbatimInput[numbers=none,fontsize=\scriptsize]{CodeSamples/formal/promela/qrcu.spin.col-ma.diff.lst}
@@ -955,7 +951,7 @@ as well.
 	As an indirect evidence, let's compare the results of
 	runs with \co{-DCOLLAPSE} and with \co{-DMA=88}
 	(two readers and three updaters).
-	The diff of outputs of those runs is shown in
+	The diff of outputs from those runs is shown in
 	Listing~\ref{lst:formal:promela:Spin Output Diff of -DCOLLAPSE and -DMA=88}.
 	As you can see, they agree on the numbers of states
 	(stored and matched).
@@ -1015,15 +1011,19 @@ summarizes the Spin results with \co{-DCOLLAPSE} and \co{-DMA=N}
 compiler flags.
 The memory usage is obtained with minimal sufficient
 search depths and \co{-DMA=N} parameters shown in the table.
-As for \co{-DCOLLAPSE}, hash table sizes are tweaked by
+As was the case for \co{-DCOLLAPSE}, hash table sizes are tweaked by
 the \co{-wN} option of \co{./pan} to avoid using too much
-memory for hashing small state space. Hence the memory usage is
-smaller than what is shown in
+memory hashing small state spaces.
+Hence the memory usage is smaller than what is shown in
 Table~\ref{tab:advsync:Memory Usage of QRCU Model}.
-The runtime is taken on a \Power{9} server.
+The runtime is from a \Power{9} server, which shows that \co{-DMA=N}
+suffers up to about an order of magnitude higher CPU overhead
+than does \co{-DCOLLAPSE}, but on the other hand reduces memroy overhead
+by well over an order of magnitude.
 
-So far so good. But as can be easily seen, full state-space search
-would be infeasible if you add a few more updaters\slash readers.
+So far so good.
+But adding a few more updaters or readers would exhaust memory, even
+with \co{-DMA=N}.
 So what to do?
 Here are some possible approaches:
 
