@@ -159,12 +159,10 @@ perfbook-hb.tex: perfbook.tex
 	sed -e 's/,twocolumn/&,letterpaperhb/' -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < $< > $@
 
 perfbook-msns.tex: perfbook.tex
-	sed -e 's/%msfontstub/\\usepackage{courier}/' \
-	    -e 's/{lmttforcode}{true}/{lmttforcode}{false}/' < $< > $@
+	sed -e 's/%msfontstub/\\usepackage{courier}/' < $< > $@
 
 perfbook-mss.tex: perfbook.tex
-	sed -e 's/%msfontstub/\\usepackage[scaled=.94]{couriers}/' \
-	    -e 's/{lmttforcode}{true}/{lmttforcode}{false}/' < $< > $@
+	sed -e 's/%msfontstub/\\usepackage[scaled=.94]{couriers}/' < $< > $@
 
 perfbook-mstx.tex: perfbook.tex
 	sed -e 's/%msfontstub/\\renewcommand*\\ttdefault{txtt}/' < $< > $@
@@ -174,7 +172,8 @@ perfbook-msr.tex: perfbook.tex
 	@echo "## This target requires font package nimbus15. ##"
 
 perfbook-msn.tex: perfbook.tex
-	sed -e 's/%msfontstub/\\usepackage{nimbusmononarrow}/' < $< > $@
+	sed -e 's/%msfontstub/\\usepackage{nimbusmononarrow}/' \
+	    -e 's/{lmttforcode}{true}/{lmttforcode}{false}/' < $< > $@
 	@echo "## This target requires font package nimbus15. ##"
 
 perfbook-msnt.tex: perfbook.tex
@@ -291,7 +290,7 @@ help:
 	@echo "  \"msn\" doesn't cover bold face for monospace."
 	@echo "  \"1csf\" requires \"newtxsf\"."
 	@echo
-	@echo "All targets except for \"msns\" and \"mss\" use \"Latin Modern Typewriter\" font"
+	@echo "All targets except for \"msn\" use \"Latin Modern Typewriter\" font"
 	@echo "for code snippets."
 
 clean:
