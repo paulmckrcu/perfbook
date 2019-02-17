@@ -415,9 +415,8 @@ Fortunately, the RCU publish-subscribe and version-maintenance
 primitives shown in
 Table~\ref{tab:defer:RCU Publish-Subscribe and Version Maintenance APIs}
 apply to all of the variants of RCU discussed above.
-This commonality can in some cases allow more code to be shared,
-which certainly reduces the API proliferation that would otherwise
-occur.
+This commonality can allow more code to be shared, and reduces API
+proliferation.
 The original purpose of the RCU publish-subscribe APIs was to
 bury memory barriers into these APIs, so that Linux kernel
 programmers could use RCU without needing to become expert on
@@ -434,63 +433,7 @@ Category &
 	Primitives &
 		Overhead \\
 \midrule
-List traversal &
-	\tco{list_for_each_entry_rcu()} &
-		Simple instructions (memory barrier on Alpha) \\
-\midrule
-List update &
-	\tco{list_add_rcu()} &
-		Memory barrier \\
-&
-	\tco{list_add_tail_rcu()} &
-		Memory barrier \\
-&
-	\tco{list_del_rcu()} &
-		Simple instructions \\
-&
-	\tco{list_replace_rcu()} &
-		Memory barrier \\
-&
-	\tco{list_splice_init_rcu()} &
-		Grace-period latency \\
-\midrule
-Hlist traversal &
-	\tco{hlist_for_each_entry_rcu()} &
-		Simple instructions (memory barrier on Alpha) \\
-\midrule
-Hlist update &
-	\tco{hlist_add_behind_rcu()} &
-		Memory barrier \\
-&
-	\tco{hlist_add_before_rcu()} &
-		Memory barrier \\
-&
-	\tco{hlist_add_head_rcu()} &
-		Memory barrier \\
-&
-	\tco{hlist_del_rcu()} &
-		Simple instructions \\
-&
-	\tco{hlist_replace_rcu()} &
-		Memory barrier \\
-\midrule
-Pointer traversal &
-	\tco{rcu_access_pointer()} &
-		Simple instructions \\
-&
-	\tco{rcu_dereference()} &
-		Simple instructions (memory barrier on Alpha) \\
-&
-	\tco{rcu_dereference_protected()} &
-		Simple instructions \\
-&
-	\tco{rcu_dereference_raw()} &
-		Simple instructions (memory barrier on Alpha) \\
-&
-	\tco{rcu_dereference_raw_notrace()} &
-		Simple instructions (memory barrier on Alpha) \\
-\midrule
-Pointer update &
+Pointer publish &
 	\tco{rcu_assign_pointer()} &
 		Memory barrier \\
 &
@@ -505,11 +448,165 @@ Pointer update &
 &
 	\tco{RCU_POINTER_INITIALIZER()} &
 		Compile-time constant \\
+\midrule
+Pointer subscribe (traveral) &
+	\tco{rcu_access_pointer()} &
+		Simple instructions \\
+&
+	\tco{rcu_dereference()} &
+		Simple instructions (memory barrier on Alpha) \\
+&
+	\tco{rcu_dereference_check()} &
+		Simple instructions (memory barrier on Alpha) \\
+&
+	\tco{rcu_dereference_protected()} &
+		Simple instructions \\
+&
+	\tco{rcu_dereference_raw()} &
+		Simple instructions (memory barrier on Alpha) \\
+&
+	\tco{rcu_dereference_raw_notrace()} &
+		Simple instructions (memory barrier on Alpha) \\
 \bottomrule
 \end{tabular}
 \caption{RCU Publish-Subscribe and Version Maintenance APIs}
 \label{tab:defer:RCU Publish-Subscribe and Version Maintenance APIs}
 \end{table*}
+
+These primitives operate directly on pointers, and are useful for
+creating RCU-protected linked data structures, such as RCU-protected
+arrays and trees.
+The special case of linked lists is handled by a separate set of
+APIs described in
+Section~\ref{sec:defer:RCU has List-Processing APIs}.
+
+The first category publishes pointers to new data items. 
+The \co{rcu_assign_pointer()} primitive ensures that any
+prior initialization remains ordered before the assignment to the
+pointer on weakly ordered machines.
+The \co{rcu_swap_protected()} primitive updates the pointer just like
+\co{rcu_assign_pointer()} does, but also returns the previous value,
+just like \co{rcu_dereference_protected()} (see below) would, including
+the lockdep expression.
+This swapping is convenient when the updater must both publish a new
+pointer and free the structure referenced by the old pointer.
+
+\QuickQuiz{}
+	Normally, any pointer subject to \co{rcu_dereference()} \emph{must}
+	always be updated using one of the pointer-publish functions in
+	Table~\ref{tab:defer:RCU Publish-Subscribe and Version Maintenance APIs},
+	for example, \co{rcu_assign_pointer()}.
+
+	What is an exception to this rule?
+\QuickQuizAnswer{
+	One such exception is when a multi-element linked
+	data structure is initialized as a unit while inaccessible to other
+	CPUs, and then a single \co{rcu_assign_pointer()} is used
+	to plant a global pointer to this data structure.
+	The initialization-time pointer assignments need not use
+	\co{rcu_assign_pointer()}, though any such assignments that
+	happen after the structure is globally visible \emph{must} use
+	\co{rcu_assign_pointer()}.
+
+	However, unless this initialization code is on an impressively hot
+	code-path, it is probably wise to use \co{rcu_assign_pointer()}
+	anyway, even though it is in theory unnecessary.
+	It is all too easy for a ``minor'' change to invalidate your cherished
+	assumptions about the initialization happening privately.
+} \QuickQuizEnd
+
+\QuickQuiz{}
+	Are there any downsides to the fact that these traversal and update
+	primitives can be used with any of the RCU API family members?
+\QuickQuizAnswer{
+	It can sometimes be difficult for automated
+	code checkers such as ``sparse'' (or indeed for human beings) to
+	work out which type of RCU read-side critical section a given
+	RCU traversal primitive corresponds to.
+	For example, consider the code shown in
+	Listing~\ref{lst:defer:Diverse RCU Read-Side Nesting}.
+
+\begin{listing}[htbp]
+\begin{VerbatimL}
+rcu_read_lock();
+preempt_disable();
+p = rcu_dereference(global_pointer);
+
+/* . . . */
+
+preempt_enable();
+rcu_read_unlock();
+\end{VerbatimL}
+\caption{Diverse RCU Read-Side Nesting}
+\label{lst:defer:Diverse RCU Read-Side Nesting}
+\end{listing}
+
+	Is the \co{rcu_dereference()} primitive in a vanilla RCU critical
+	section or an RCU Sched critical section?
+	What would you have to do to figure this out?
+
+	But perhaps after the consolidation of the RCU flavors in
+	the v4.20 Linux kernel we no longer need to care!
+} \QuickQuizEnd
+
+The \co{rcu_pointer_handoff()} primitive simply returns its sole argument,
+but is useful to tooling checking for pointers being leaked from
+RCU read-side critical sections.
+Use of \co{rcu_pointer_handoff()} indicates to such tooling that protection
+of the structure in question has been handed off from RCU to some other
+mechanism, such as locking or reference counting.
+
+The \co{RCU_INIT_POINTER()} macro can be used to initialized RCU-protected
+pointers that have not yet been exposed to readers, or alternatively,
+to set RCU-protected pointers to \co{NULL}.
+In these restricted cases, the memory-barrier instructions provided by
+\co{rcu_assign_pointer()} are not needed.
+Similarly, \co{RCU_POINTER_INITIALIZER()} provides a \GCC-style
+structure initializer to allow easy initialization of RCU-protected
+pointers in structures.
+
+The second category subscribes to pointers to data items, or,
+alternatively, safely traverses RCU-protected pointers.
+Again, simply loading these pointers using C-language accesses
+could result in seeing pre-initialization garbage in the pointed-to data.
+However, if the pointer is merely to be tested and not dereferenced,
+this protection is not needed.
+In this case, \co{rcu_access_pointer()()} may be used.
+Normally, however, protection is required, and so the
+\co{rcu_dereference()} primitive ensures that subsequent code
+dereferencing the pointer will see the effects of initialization code
+prior to the corresponding \co{rcu_assign_pointer()}, even on Alpha CPUs.
+On non-Alpha CPUs, \co{rcu_dereference()} documents which pointer
+dereferences require RCU protection.
+
+Another situation where protection is not required is when update side code
+accesses the RCU protected pointer while holding the update-side lock.
+The \co{rcu_dereference_protected()} API member is provided for this
+situation.
+Its first parameter is the RCU-protected pointer, and the second
+parameter takes a lockdep expression describing which locks must be
+held in order for the access to be safe.
+Code invoked both from readers and updaters can use
+\co{rcu_dereference_check()}, which also takes a lockdep expression, but
+which may also be invoked from read-side code not holding the locks.
+In some cases, the lockdep expressions can be very complex, for example,
+when using fine-grained locking, any of a very large number of locks
+might be held, and it might be quite difficult to work out which applies.
+In these (hopefully rare) cases, \co{rcu_dereference_raw()} provides
+protection but does not check for being invoked within a reader or with
+any particular lock being held.
+The \co{rcu_dereference_raw_notrace()} API member acts similarly, but
+cannot be traced, and may therefore be safely used by tracing code.
+
+Although pretty much any linked structure can be accessed by manipulating
+pointers, higher-level structures can be quite helpful.
+The next section therefore looks at various sorts of RCU-protected
+linked lists used by the Linux kernel.
+
+\subsubsection{RCU has List-Processing APIs}
+\label{sec:defer:RCU has List-Processing APIs}
+
+@@@ Move discription of Linux lists here
 
 \begin{sidewaystable*}[htbp]
 \rowcolors{1}{}{lightgray}
@@ -639,74 +736,6 @@ large hash tables.
 The \co{struct hlist_head} primitives in the table
 relate to their non-RCU counterparts in much the same way as do the
 \co{struct list_head} primitives.
-
-The final pair of categories operate directly on pointers, and
-are useful for creating RCU-protected non-list data structures,
-such as RCU-protected arrays and trees.
-The \co{rcu_assign_pointer()} primitive ensures that any
-prior initialization remains ordered before the assignment to the
-pointer on weakly ordered machines.
-Similarly, the \co{rcu_dereference()} primitive ensures that subsequent
-code dereferencing the pointer will see the effects of initialization code
-prior to the corresponding \co{rcu_assign_pointer()} on
-Alpha CPUs.
-On non-Alpha CPUs, \co{rcu_dereference()} documents which pointer
-dereferences are protected by RCU.
-
-\QuickQuiz{}
-	Normally, any pointer subject to \co{rcu_dereference()} \emph{must}
-	always be updated using \co{rcu_assign_pointer()}.
-	What is an exception to this rule?
-\QuickQuizAnswer{
-	One such exception is when a multi-element linked
-	data structure is initialized as a unit while inaccessible to other
-	CPUs, and then a single \co{rcu_assign_pointer()} is used
-	to plant a global pointer to this data structure.
-	The initialization-time pointer assignments need not use
-	\co{rcu_assign_pointer()}, though any such assignments that
-	happen after the structure is globally visible \emph{must} use
-	\co{rcu_assign_pointer()}.
-
-	However, unless this initialization code is on an impressively hot
-	code-path, it is probably wise to use \co{rcu_assign_pointer()}
-	anyway, even though it is in theory unnecessary.
-	It is all too easy for a ``minor'' change to invalidate your cherished
-	assumptions about the initialization happening privately.
-} \QuickQuizEnd
-
-\QuickQuiz{}
-	Are there any downsides to the fact that these traversal and update
-	primitives can be used with any of the RCU API family members?
-\QuickQuizAnswer{
-	It can sometimes be difficult for automated
-	code checkers such as ``sparse'' (or indeed for human beings) to
-	work out which type of RCU read-side critical section a given
-	RCU traversal primitive corresponds to.
-	For example, consider the code shown in
-	Listing~\ref{lst:defer:Diverse RCU Read-Side Nesting}.
-
-\begin{listing}[htbp]
-\begin{VerbatimL}
-rcu_read_lock();
-preempt_disable();
-p = rcu_dereference(global_pointer);
-
-/* . . . */
-
-preempt_enable();
-rcu_read_unlock();
-\end{VerbatimL}
-\caption{Diverse RCU Read-Side Nesting}
-\label{lst:defer:Diverse RCU Read-Side Nesting}
-\end{listing}
-
-	Is the \co{rcu_dereference()} primitive in a vanilla RCU critical
-	section or an RCU Sched critical section?
-	What would you have to do to figure this out?
-
-	But perhaps after the consolidation of the RCU flavors in
-	the v4.20 Linux kernel we no longer need to care!
-} \QuickQuizEnd
 
 The next section looks at APIs that assist developers in debugging
 their code that makes use of RCU.
