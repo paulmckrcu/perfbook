@@ -30,16 +30,12 @@ presents concluding remarks.
     >{\raggedright\arraybackslash}X
     >{\raggedright\arraybackslash}p{1.3in}}
 \toprule
-Attribute &
-    RCU &
-	SRCU &
-	    Tasks RCU \\
+&
+    {\bf RCU}: Original &
+	{\bf SRCU}: Sleeping readers &
+	    {\bf Tasks RCU}: Free tracing trampolines \\
 \midrule
-Purpose &
-    Original &
-	Sleeping readers &
-	    Free tracing trampolines \\
-Read-side critical-section markers &
+{\bf Read-side critical-section markers} &
     \tco{rcu_read_lock()}~! \tco{rcu_read_unlock()}~!
     \tco{rcu_read_lock_bh()} \tco{rcu_read_unlock_bh()}
     \tco{rcu_read_lock_sched()} \tco{rcu_read_unlock_sched()}
@@ -47,40 +43,49 @@ Read-side critical-section markers &
     (Plus anything disabing bottom halves, preemption, or interrupts.) &
 	\tco{srcu_read_lock()} \tco{srcu_read_unlock()} &
 	    Voluntary context switch \\
-{ Update-side primitives (synchronous) } &
+{\bf Update-side primitives (synchronous) } &
     { \tco{synchronize_rcu()} \tco{synchronize_rcu_expedited()}
       \tco{synchronize_net()} } &
 	\tco{synchronize_srcu()} \tco{synchronize_srcu_expedited()} &
 	    \tco{synchronize_rcu_tasks()} \\
-{ Update-side primitives (asynchronous/callback) } &
+{\bf Update-side primitives (asynchronous/callback) } &
     \tco{call_rcu()} ! &
 	\tco{call_srcu()} &
 	    \tco{call_rcu_tasks()} \\
-{ Update-side primitives (wait for callbacks) } &
+{\bf Update-side primitives (wait for callbacks) } &
     \tco{rcu_barrier()} &
 	\tco{srcu_barrier()} &
 	    \tco{rcu_barrier_tasks()} \\
-Type-safe memory &
+{\bf Update-side primitives (initiate / wait)} &
+    \tco{get_state_synchronize_rcu()}
+    \tco{cond_synchronize_rcu()} &
+	&
+	    \\
+{\bf Update-side primitives (free memory) } &
+    \tco{kfree_rcu()} &
+	&
+	    \\
+{\bf Type-safe memory } &
     \tco{SLAB_DESTROY_BY_RCU} &
 	&
 	    \\
-Read side constraints &
+{\bf Read side constraints } &
     No blocking (only preemption) &
 	No \tco{synchronize_srcu()} with same \tco{srcu_struct} &
 	    No voluntary context switch \\
-Read side overhead &
+{\bf Read side overhead } &
     CPU-local accesses (free on \tco{PREEMPT=n}) &
 	Simple instructions, memory barriers &
 	    Free \\
-Asynchronous update-side overhead &
+{\bf Asynchronous update-side overhead } &
     sub-microsecond &
 	sub-microsecond &
 	    sub-microsecond \\
-Grace-period latency &
+{\bf Grace-period latency } &
     10s of milliseconds &
         Milliseconds &
 	    seconds \\
-Expedited grace-period latency &
+{\bf Expedited grace-period latency } &
     10s of microseconds &
         Microseconds &
 	    N/A \\
@@ -505,6 +510,90 @@ Pointer update &
 \caption{RCU Publish-Subscribe and Version Maintenance APIs}
 \label{tab:defer:RCU Publish-Subscribe and Version Maintenance APIs}
 \end{table*}
+
+\begin{sidewaystable*}[htbp]
+\rowcolors{1}{}{lightgray}
+\renewcommand*{\arraystretch}{1.3}
+\centering
+\caption{RCU-Protected List APIs}
+\label{tab:defer:RCU-Protected List APIs}
+\footnotesize
+\begin{tabularx}{8.5in}{>{\raggedright\arraybackslash}X
+    >{\raggedright\arraybackslash}X
+    >{\raggedright\arraybackslash}X
+    >{\raggedright\arraybackslash}p{1.7in}}
+\toprule
+{\bf \tco{list}}: Circular doubly linked list &
+    {\bf \tco{hlist}}: Linear doubly linked list &
+	{\bf \tco{hlist_nulls}}: Linear doubly linked list with marked
+	NULL pointer, with up to 31 bits of marking &
+	    {\bf \tco{hlist_bl}}: Linear doubly linked list with bit locking \\
+\midrule
+\multicolumn{4}{l}{{\bf Initialization}} \\
+&
+    \tco{INIT_LIST_HEAD_RCU()} &
+	&
+	    \\
+\multicolumn{4}{l}{{\bf Full traversal}} \\
+\tco{list_for_each_entry_rcu()}
+\tco{list_for_each_entry_lockless()} &
+    \tco{hlist_for_each_entry_rcu()}
+    \tco{hlist_for_each_entry_rcu_bh()}
+    \tco{hlist_for_each_entry_rcu_notrace()} &
+	\tco{hlist_nulls_for_each_entry_rcu()}
+	\tco{hlist_nulls_for_each_entry_safe()} &
+	    \tco{hlist_bl_for_each_entry_rcu()} \\
+\multicolumn{4}{l}{{\bf Resume traversal}} \\
+\tco{list_for_each_entry_continue_rcu()}
+\tco{list_for_each_entry_from_rcu()} &
+    \tco{hlist_for_each_entry_continue_rcu()}
+    \tco{hlist_for_each_entry_continue_rcu_bh()}
+    \tco{hlist_for_each_entry_from_rcu()} &
+	&
+	    \\
+\multicolumn{4}{l}{{\bf Stepwise traversal}} \\
+\tco{list_entry_rcu()}
+\tco{list_entry_lockless()}
+\tco{list_first_or_null_rcu()}
+\tco{list_next_rcu()}
+\tco{list_next_or_null_rcu()} &
+    \multicolumn{1}{p{1.2in}}{\tco{hlist_first_rcu()}
+			      \tco{hlist_next_rcu()}
+			      \tco{hlist_pprev_rcu()}} &
+	\tco{hlist_nulls_first_rcu()}
+	\tco{hlist_nulls_first_rcu()} &
+	    \tco{hlist_bl_first_rcu()} \\
+\multicolumn{4}{l}{{\bf Add}} \\
+\multicolumn{1}{p{1.2in}}{\tco{list_add_rcu()}
+			  \tco{list_add_tail_rcu()}} &
+    \tco{hlist_add_before_rcu()}
+    \tco{hlist_add_behind_rcu()}
+    \tco{hlist_add_head_rcu()}
+    \tco{hlist_add_tail_rcu()} &
+	\tco{hlist_nulls_add_head_rcu()} &
+	    \tco{hlist_bl_add_head_rcu()}
+	    \tco{hlist_bl_set_first_rcu()} \\
+\multicolumn{4}{l}{{\bf Delete}} \\
+\tco{list_del_rcu()} &
+    \tco{hlist_del_rcu()}
+    \tco{hlist_del_init_rcu()} &
+	\tco{hlist_nulls_del_rcu()}
+	\tco{hlist_nulls_del_init_rcu()} &
+	    \tco{hlist_bl_del_rcu()}
+	    \tco{hlist_bl_del_init_rcu()} \\
+\multicolumn{4}{l}{{\bf Replace}} \\
+\tco{list_replace_rcu()} &
+    \tco{hlist_replace_rcu()} &
+	&
+	    \\
+\multicolumn{4}{l}{{\bf Splice}} \\
+\tco{list_splice_init_rcu()} &
+    \tco{list_splice_tail_init_rcu()} &
+	&
+	    \\
+\bottomrule
+\end{tabularx}
+\end{sidewaystable*}
 
 The first pair of categories operate on Linux
 \co{struct list_head} lists, which are circular, doubly-linked
