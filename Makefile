@@ -168,23 +168,27 @@ perfbook-mstx.tex: perfbook.tex
 	sed -e 's/%msfontstub/\\renewcommand*\\ttdefault{txtt}/' < $< > $@
 
 perfbook-msr.tex: perfbook.tex
-	sed -e 's/%msfontstub/\\usepackage[scaled=.94]{nimbusmono}/' < $< > $@
+	sed -e 's/%msfontstub/\\usepackage[scaled=.94]{nimbusmono}/' \
+	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
 	@echo "## This target requires font package nimbus15. ##"
 
 perfbook-msn.tex: perfbook.tex
 	sed -e 's/%msfontstub/\\usepackage{nimbusmononarrow}/' \
-	    -e 's/{lmttforcode}{true}/{lmttforcode}{false}/' < $< > $@
+	    -e 's/{lmttforcode}{true}/{lmttforcode}{false}/' \
+	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
 	@echo "## This target requires font package nimbus15. ##"
 
 perfbook-msnt.tex: perfbook.tex
-	sed -e 's/%msfontstub/\\usepackage[zerostyle=a]{newtxtt}/' < $< > $@
-	@echo "## This target requires font package newtxtt. ##"
-	@echo "## If build fails, try target 'mstx' instead. ##"
+	sed -e 's/%msfontstub/\\usepackage[zerostyle=a]{newtxtt}/' \
+	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
+	@echo "## This target requires font packages newtxtt and nimbus15. ##"
+	@echo "## If build fails, try target 'mstx' instead.               ##"
 
 perfbook-1csf.tex: perfbook-1c.tex
 	sed -e 's/setboolean{sansserif}{false}/setboolean{sansserif}{true}/' \
+	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' \
 	    -e 's/%msfontstub/\\usepackage[var0]{inconsolata}[2013\/07\/17]/' < $< > $@
-	@echo "## This target requires math font package newtxsf. ##"
+	@echo "## This target requires math font packages newtxsf and nimbus15. ##"
 
 # Rules related to perfbook_html are removed as of May, 2016
 
