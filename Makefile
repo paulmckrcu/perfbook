@@ -58,13 +58,29 @@ PDFTARGETS_OF_EPSOTHER := $(filter-out $(PDFTARGETS_OF_EPSORIG),$(PDFTARGETS_OF_
 
 BIBSOURCES := bib/*.bib alphapf.bst
 
+# required commands
 DOT := $(shell which dot 2>/dev/null)
 FIG2EPS := $(shell which fig2eps 2>/dev/null)
 A2PING := $(shell which a2ping 2>/dev/null)
 INKSCAPE := $(shell which inkscape 2>/dev/null)
 LATEXPAND := $(shell which latexpand 2>/dev/null)
+
+# required fonts
 STEELFONT := $(shell fc-list | grep -c -i steel)
 URWPS := $(shell fc-list | grep "Nimbus Mono PS" | wc -l)
+
+# required font packages
+FONTPACKAGES := $(shell kpsewhich nimbusmono.sty newtxtt.sty newtxsf.sty inconsolata.sty)
+NIMBUSMONO := $(findstring nimbusmono,$(FONTPACKAGES))
+NEWTXTT := $(findstring newtxtt,$(FONTPACKAGES))
+NEWTXSF := $(findstring newtxsf,$(FONTPACKAGES))
+INCONSOLATA := $(findstring inconsolata,$(FONTPACKAGES))
+
+# for line break in error text
+define n
+
+
+endef
 
 ifeq ($(URWPS),0)
 FIXSVGFONTS   = utilities/fixsvgfonts.sh
@@ -168,27 +184,43 @@ perfbook-mstx.tex: perfbook.tex
 	sed -e 's/%msfontstub/\\renewcommand*\\ttdefault{txtt}/' < $< > $@
 
 perfbook-msr.tex: perfbook.tex
+ifeq ($(NIMBUSMONO),)
+	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
+endif
 	sed -e 's/%msfontstub/\\usepackage[scaled=.94]{nimbusmono}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
-	@echo "## This target requires font package nimbus15. ##"
 
 perfbook-msn.tex: perfbook.tex
+ifeq ($(NIMBUSMONO),)
+	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
+endif
 	sed -e 's/\\renewcommand\*\\ttdefault{lmtt}//' \
 	    -e 's/{lmttforcode}{true}/{lmttforcode}{false}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
-	@echo "## This target requires font package nimbus15. ##"
 
 perfbook-msnt.tex: perfbook.tex
+ifeq ($(NEWTXTT),)
+	$(error Font package 'newtxtt' not found.$nInstall it or try 'make mstx' instead. See #9 in FAQ-BUILD.txt)
+endif
+ifeq ($(NIMBUSMONO),)
+	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
+endif
 	sed -e 's/%msfontstub/\\usepackage[zerostyle=a]{newtxtt}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
-	@echo "## This target requires font packages newtxtt and nimbus15. ##"
-	@echo "## If build fails, try target 'mstx' instead.               ##"
 
 perfbook-1csf.tex: perfbook-1c.tex
+ifeq ($(NEWTXSF),)
+	$(error Font package 'newtxsf' not found. See #9 in FAQ-BUILD.txt)
+endif
+ifeq ($(INCONSOLATA),)
+	$(error Font package 'inconsolata' not found. See #9 in FAQ-BUILD.txt)
+endif
+ifeq ($(NIMBUSMONO),)
+	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
+endif
 	sed -e 's/setboolean{sansserif}{false}/setboolean{sansserif}{true}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' \
 	    -e 's/%msfontstub/\\usepackage[var0]{inconsolata}[2013\/07\/17]/' < $< > $@
-	@echo "## This target requires math font packages newtxsf and nimbus15. ##"
 
 # Rules related to perfbook_html are removed as of May, 2016
 
