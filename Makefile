@@ -173,7 +173,7 @@ perfbook-msr.tex: perfbook.tex
 	@echo "## This target requires font package nimbus15. ##"
 
 perfbook-msn.tex: perfbook.tex
-	sed -e 's/%msfontstub/\\usepackage{nimbusmononarrow}/' \
+	sed -e 's/\\renewcommand\*\\ttdefault{lmtt}//' \
 	    -e 's/{lmttforcode}{true}/{lmttforcode}{false}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
 	@echo "## This target requires font package nimbus15. ##"
