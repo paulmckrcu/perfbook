@@ -64,6 +64,7 @@ FIG2EPS := $(shell which fig2eps 2>/dev/null)
 A2PING := $(shell which a2ping 2>/dev/null)
 INKSCAPE := $(shell which inkscape 2>/dev/null)
 LATEXPAND := $(shell which latexpand 2>/dev/null)
+QPDF := $(shell which qpdf 2>/dev/null)
 
 # required fonts
 STEELFONT := $(shell fc-list | grep -c -i steel)
@@ -114,6 +115,8 @@ ifeq ($(default),)
 else
 	targ = $(default)
 endif
+
+chkpagegroup = $(PERFBOOK_CHKPAGEGROUP)
 
 .PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mslm perfbook-mslm.pdf mslmmsg help
 all: $(targ)
@@ -285,6 +288,16 @@ else
 endif
 	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
 	@rm -f $<i
+ifeq ($(chkpagegroup),on)
+ifndef QPDF
+	$(error qpdf not found. Please install it)
+endif
+	@echo "checking page group in $@"
+	@qpdf --qdf $@ $@q
+	@./utilities/extpagegroup.pl < $@q > $@p
+	@diff -q -w $@p pagegroup
+	@rm -f $@q $@p
+endif
 
 CodeSamples/snippets.d: $(SOURCES_OF_SNIPPET) $(GEN_SNIPPET_D)
 	sh ./utilities/gen_snippet_d.sh
@@ -333,7 +346,8 @@ clean:
 	find . -name '*.aux' -o -name '*.blg' \
 		-o -name '*.dvi' -o -name '*.log' \
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' \
-		-o -name '*.fcv' -o -name '*.ltms' | xargs rm -f
+		-o -name '*.fcv' -o -name '*.ltms' \
+		-o -name '*.pdfp' -o -name '*.pdfq' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook*.out perfbook-*.tex
 	rm -f $(LATEXGENERATED)
 	rm -f CodeSamples/snippets.mk CodeSamples/snippets.d
