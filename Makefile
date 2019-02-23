@@ -37,7 +37,7 @@ SVGSOURCES := $(wildcard */*.svg)
 FAKE_EPS_FROM_SVG := $(SVGSOURCES:%.svg=%.eps)
 PDFTARGETS_OF_SVG := $(SVGSOURCES:%.svg=%.pdf)
 
-OBSOLETE_FILES = extraction $(FAKE_EPS_FROM_SVG)
+OBSOLETE_FILES = extraction $(FAKE_EPS_FROM_SVG) CodeSamples/snippets.mk
 
 EPSSOURCES_DUP := \
 	$(wildcard */*.eps) \
@@ -346,16 +346,16 @@ clean:
 	find . -name '*.aux' -o -name '*.blg' \
 		-o -name '*.dvi' -o -name '*.log' \
 		-o -name '*.qqz' -o -name '*.toc' -o -name '*.bbl' \
-		-o -name '*.fcv' -o -name '*.ltms' \
 		-o -name '*.pdfp' -o -name '*.pdfq' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook*.out perfbook-*.tex
 	rm -f $(LATEXGENERATED)
-	rm -f CodeSamples/snippets.mk CodeSamples/snippets.d
+	rm -f CodeSamples/snippets.d
 	@rm -f $(OBSOLETE_FILES)
 
 distclean: clean
 	sh utilities/cleanpdf.sh
 	rm -f $(EPSSOURCES_FROM_DOT) $(EPSSOURCES_FROM_TEX) $(EPSSOURCES_FROM_FIG)
+	find . -name '*.fcv' -o -name '*.ltms' | xargs rm -f
 
 touchsvg:
 	find . -name '*.svg' | xargs touch
