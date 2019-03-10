@@ -263,6 +263,34 @@ The overhead of RCU implementations vary from nothing to that of a pair of
 memory barriers for each read-side critical section, thus providing RCU
 with the best performance, particularly for read-side critical sections
 that traverse many data elements.
+Of course, the read-side overhead of all deferred-processing variants can
+be reduced by batching, so that each read-side operation covers more data.
+
+\QuickQuiz{}
+	But didn't the answer to one of the quick quizzes in
+	Section~\ref{sec:defer:Hazard Pointers}
+	say that pairwise asymmetric barriers could eliminate the
+	read-side \co{smp_mb()} from hazard pointers?
+\QuickQuizAnswer{
+	Yes, it did.
+	However, doing this could be argued to change hazard pointers's
+	``Reclamation Forward Progress'' row (discussed later) from
+	lock-free to blocking because a CPU spinning with interrupts
+	disabled in the kernel would prevent the update-side portion of
+	the asymmetric barrier from completing.
+	In the Linux kernel, such blocking could in theory be prevented
+	by building the kernel with \co{CONFIG_NO_HZ_FULL}, designating
+	the relevant CPUs as \co{nohz_full} at boot time, ensuring that
+	only one thread was ever runnable on a given CPU at a given
+	time, and avoiding ever calling into the kernel.
+	Alternatively, you could ensure that the kernel was free of any
+	bugs that might cause CPUs to spin with interrupts disabled.
+
+	Given that CPUs spinning in the Linux kernel with interrupts
+	disabled seems to be rather rare, one might counter-argue that
+	asymmetric-barrier hazard-pointer updates are non-blocking
+	in practice, if not in theory.
+} \QuickQuizEnd
 
 The ``Reader Forward Progress Guarantee'' row shows that only RCU
 has a bounded wait-free forward-progress guarantee, which means that
