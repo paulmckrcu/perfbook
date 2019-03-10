@@ -8,6 +8,144 @@
 	  may be; custom will soon render it easy and agreeable.}
 	  {\emph{Pythagoras}}
 
+This section provides a high-level overview and then a more detailed view
+of the differences between the deferred-processing techniques presented
+in this chapter.
+This discussion assumes a linked data structure that is large enough
+that readers do not hold references from one traversal to another,
+and where elements might be added to and removed from the structure
+at any location and at any time.
+This discussion should help you to make an informed choice between
+these techniques.
+
+\subsection{Which to Choose? (Overview)}
+\label{sec:defer:Which to Choose? (Overview)}
+
+\begin{table*}
+\rowcolors{1}{}{lightgray}
+\renewcommand*{\arraystretch}{1.25}
+\footnotesize
+\centering\OneColumnHSpace{-.3in}
+\begin{tabularx}{5.3in}{>{\raggedright\arraybackslash}p{1.1in}
+    >{\raggedright\arraybackslash}p{1.0in}
+    >{\raggedright\arraybackslash}X
+    >{\raggedright\arraybackslash}X
+    >{\raggedright\arraybackslash}p{.9in}}
+	\toprule
+	Property
+		& Reference Counting
+			& Hazard Pointers
+				& Sequence Locks
+					& RCU \\
+%		  RC	  HP	  SL	  RCU \\
+	\midrule
+	Readers
+		& Slow and unscalable
+			& Fast and scalable
+				& Fast and scalable
+					& Fast and scalable \\
+	Number of Protected Objects
+		& Scalable
+			& Unscalable
+				& No protection
+					& Scalable \\
+	Duration of Protection
+		& Can be long
+			& Can be long
+				& No protection
+					& User must bound duration \\
+	Need for Traversal Retries
+		& If race with object deletion
+			& If race with object deletion
+				& If race with any update
+					& Never \\
+	\bottomrule
+\end{tabularx}
+\caption{Which Deferred Technique to Choose? (Overview)}
+\label{tab:defer:Which Deferred Technique to Choose? (Overview)}
+\end{table*}
+
+Table~\ref{tab:defer:Which Deferred Technique to Choose? (Overview)}
+shows a few high-level properties that distinguish the deferred-reclamation
+techniques from one another.
+
+The ``Readers'' row summarizes the results presented in
+Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by RCU QSBR},
+which shows that all but reference counting are enjoy reasonably
+fast and scalable readers.
+
+The ``Number of Protected Objects'' row evaluates each technique's need
+for external storage with which to record reader protection.
+RCU relies on quiescent states, and thus needs no storage to represent
+readers, whether within or outside of the object.
+Reference counting can use a single integer within each object in the
+structure, and no additional storage is required.
+Hazard pointers requires external-to-object pointers be provisioned,
+and that there be sufficient pointers to handle the maximum number of
+objects that a given CPU or thread might need to reference simultaneously.
+Of course, sequence locks provides no pointer-traversal protection,
+which is why it is normally used on static data.
+
+\QuickQuiz{}
+	Why can't users dynamically allocate the hazard pointers as they
+	are needed?
+\QuickQuizAnswer{
+	They can, but at the expense of additional reader-traversal
+	overhead and, in some environments, the need to handle
+	memory-allocation failure.
+} \QuickQuizEnd
+
+The ``Duration of Protection'' describes constraints (if any) on how
+long a period of time a user may protect a given object.
+Reference counting and hazard pointers can both protect objects for
+extended time periods with no untoward side effects, but
+maintaining an RCU reference to even one object prevents all other RCU
+from being freed.
+RCU readers must therefore be relatively short in order to avoid running
+the system out of memory.
+Again, sequence locks provides no pointer-traversal protection,
+which is why it is normally used on static data.
+
+The ``Need for Traversal Retries'' row tells whether a new reference to
+a given object may be acquired unconditionally, as it can with RCU, or
+whether the reference acquisition can fail, resulting in a retry
+operation, which is the case for reference counting, hazard pointers,
+and sequence locks.
+In the case of reference counting and hazard pointers, retries are only
+required if an attempt to acquire a reference to a given object while
+that object is in the processof being deleted, a topic covered in more
+detail in the next section.
+Sequence locking must of course retry its critical section should it
+run concurrently with any update.
+
+\QuickQuiz{}
+	But don't Linux-kernel \co{kref} reference counters allow
+	guaranteed unconditional reference acquisition?
+\QuickQuizAnswer{
+	Yes they do, but the guarantee only applies unconditionally
+	in cases where a reference is already held.
+	With this in mind, please review the paragraph at the beginning of
+	Section~\ref{sec:defer:Which to Choose?}, especially the part
+	saying ``large enough that readers do not hold references from
+	one traversal to another''.
+} \QuickQuizEnd
+
+Of course, different rows will have different levels of importance in
+different situations.
+For example, if your current code is having read-side scalability problems
+with hazard pointers, then it does not matter that hazard pointers can require
+retrying reference acquisition because your current code already handles
+this.
+Similarly, if real-time considerations already limit the duration of reader
+traversals, then it does not matter that RCU has duration-limit requirements
+because your code already meets them.
+Nevertheless, this table should be of great help when choosing between
+these techniques.
+But those wishing more detail should continue on to the next section.
+
+\subsection{Which to Choose? (Details)}
+\label{sec:defer:Which to Choose? (Details)}
+
 \begin{table*}
 \rowcolors{1}{}{lightgray}
 \renewcommand*{\arraystretch}{1.25}
@@ -85,12 +223,12 @@
 					& 73 \\
 	\bottomrule
 \end{tabularx}
-\caption{Which Deferred Technique to Choose?}
-\label{tab:defer:Which Deferred Technique to Choose?}
+\caption{Which Deferred Technique to Choose?  (Details)}
+\label{tab:defer:Which Deferred Technique to Choose?  (Details)}
 \end{table*}
 
-Table~\ref{tab:defer:Which Deferred Technique to Choose?}
-provides some rough rules of thumb that can help you choose among the
+Table~\ref{tab:defer:Which Deferred Technique to Choose? (Details)}
+provides more-detailed rules of thumb that can help you choose among the
 four deferred-processing techniques presented in this chapter.
 
 As shown in the ``Existence Guarantee'' row,
