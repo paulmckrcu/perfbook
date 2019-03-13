@@ -8,13 +8,19 @@
 	  may be; custom will soon render it easy and agreeable.}
 	  {\emph{Pythagoras}}
 
-This section provides a high-level overview and then a more detailed view
+Section~\ref{sec:defer:Which to Choose? (Overview)}
+provides a high-level overview and then
+Section~\ref{sec:defer:Which to Choose? (Details)}
+provides a more detailed view
 of the differences between the deferred-processing techniques presented
 in this chapter.
 This discussion assumes a linked data structure that is large enough
 that readers do not hold references from one traversal to another,
 and where elements might be added to and removed from the structure
 at any location and at any time.
+Section~\ref{sec:defer:Which to Choose? (Production Use)}
+then points out a few publicly visible production uses of
+hazard pointers, sequence locking, and RCU.
 This discussion should help you to make an informed choice between
 these techniques.
 
@@ -389,3 +395,116 @@ As more experience is gained using these techniques, both separately
 and in combination, the rules of thumb laid out in this section will
 need to be refined.
 However, this section does reflect the current state of the art.
+
+\subsection{Which to Choose? (Production Use)}
+\label{sec:defer:Which to Choose? (Production Use)}
+
+This section points out a few publicly visible production uses of
+hazard pointers, sequence locking, and RCU.
+Reference counting is omitted, not because it is unimportant, but rather
+because it is not only used pervasively, but heavily documented in textbooks
+going back a half century.
+One of the hoped-for benefits of listing production uses of these other
+techniques is to provide examples to study---or to find bugs in, as
+the case may be.\footnote{
+	Kudos to Mathias Stearn, Matt Wilson, David Goldblatt,
+	LiveJournal user fanf, Nadav Har'El, Avi Kivity, Dmitry Vyukov,
+	Raul Guitterez S., and Twitter user @peo3 for locating a
+	great many of these use cases.}
+
+\subsubsection{Production Uses of Hazard Pointers}
+\label{sec:defer:Production Uses of Hazard Pointers}
+
+In 2010, Keith Bostic added hazard pointers to
+WiredTiger~\cite{KeithBostic2010WiredTigerhazptr}.
+MongoDB 3.0, released in 2015, included WiredTiger and thus hazard pointers.
+
+In 2011, Samy Al Bahra added hazard pointers to the Concurrency Kit
+library~\cite{SamyAlBahra2011ckhp}.
+
+In 2014, Maxim Khizhinsky added hazard pointers to
+libcds~\cite{MaximKhizhinsky2014libcdsHazptr}.
+
+In 2015, David Gwynne introduced shared reference pointers, a form
+of hazard pointers, to OpenBSD~\cite{DavidGwynne2015srp}.
+
+In 2018, Maged Michael added hazard pointers to Facebook's Folly
+library~\cite{MagedMichael2018FollyHazptr}, where it is used heavily.
+
+\subsubsection{Production Uses of Sequence Locking}
+\label{sec:defer:Production Uses of Sequence Locking}
+
+The Linux kernel added sequence locking in
+v2.5.60~\cite{JonathanCorbet2003seqlock}, having been generalized from
+an ad-hoc technique used in x86's implementation of the
+\co{gettimeofday()} system call.
+
+In 2011, Samy Al Bahra added sequence locking to the Concurrency Kit
+library~\cite{SamyAlBahra2011ckseqlock}.
+
+A simple sequence locking implementation was added to \co{jemalloc()}
+in 2018~\cite{DavidGoldblatt2018seqlock}.
+The eigen library also has a special-purpose queue that is managed by
+a mechanism resembling sequence locking.\footnote{
+	\url{https://bitbucket.org/eigen/eigen/src/9fdbc9e653c1adc64db1078fd2ec899c1e33ba0c/unsupported/Eigen/CXX11/src/ThreadPool/RunQueue.h?at=default&fileviewer=file-view-default\#RunQueue.h-202}}
+
+\subsubsection{Production Uses of RCU}
+\label{sec:defer:Production Uses of RCU}
+
+IBM's VM/XA is adopted passive serialization, a mechanism similar to
+RCU, some time in the 1980s~\cite{Hennessy89}.
+
+DYNIX/ptx adopted RCU in 1993~\cite{McKenney98,Slingwine95}.
+
+The Linux kernel adopted Dipankar Sarma's implementation of RCU in
+2002~\cite{Torvalds2.5.43}.
+
+The userspace RCU project started in 2009~\cite{MathieuDesnoyers2009URCU}.
+
+The Knot DNS project started using the userspace RCU
+library in 2010~\cite{LubosSlovak2010KnotDNSRCU}.
+
+In 2011, Samy Al Bahra added epochs
+(a form of RCU~\cite{KeirAnthonyFraserPhD,KeirFraser2007withoutLocks})
+to the Concurrency Kit
+library~\cite{SamyAlBahra2011ckEpoch}.
+
+NetBSD began using the aforementioned passive serialization with v6.0 in
+2012~\cite{NetBSD2012pserialize}.
+Among other things, passive serialization is used in
+NetBSD packet filter (NPF)~\cite{MindaugasRasiukevicius2014NPFRCU}.
+
+The OSv kernel added an RCU implementation in 2010~\cite{AviKivity2013OSvRCU},
+later adding an RCU-protected linked list~\cite{AviKivity2013OSvRCUlist}
+and an RCU-protected hash table~\cite{AviKivity2013OSvRCUhash}.
+
+In 2015, Maxim Khizhinsky added RCU to
+libcds~\cite{MaxKhiszinsky2015C++RCU}.
+
+Mindaugas Rasiukevicius implemented libqsbr in 2016, which features
+QSBR and epoch-based reclamation
+(EBR)~\cite{MindaugasRasiukevicius2016libqsbr},
+both of which are types of implementations of RCU.
+
+Sheth et al.~\cite{HarshalSheth2016goRCU}
+demonstrated the value of leveraging golang's garbage
+collector to provide RCU-like functionality, and
+the golang programming language provides a \co{Value} type that can
+provide this functionality.\footnote{
+	See \url{https://golang.org/pkg/sync/atomic/\#Value}, particularly
+	the ``Example (ReadMostly)''.}
+
+Matt Klein describes an RCU-like mechanism that is used in the Envoy
+Proxy~\cite{MattKlein2017EnvoyRCU}.
+
+\subsubsection{Summary of Production Uses}
+\label{sec:defer:Summary of Production Uses}
+
+Perhaps the time will come when sequence locking, hazard pointers, and
+RCU are all as heavily used and as well known as are reference counters.
+Until that time comes, the current production uses of these mechanisms
+should help guide the choice of mechanism as well as showing how best
+to apply each of them.
+
+The next section discusses updates, a ticklish issue for many of the
+read-mostly mechanisms described in this chapter.
