@@ -29,14 +29,14 @@
 # along with this program; if not, you can access it online at
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
-# Copyright (C) Akira Yokosawa, 2016
+# Copyright (C) Akira Yokosawa, 2016, 2019
 #
 # Authors: Akira Yokosawa <akiyks@gmail.com>
 #
 #-------------------------------------------------------------------
 # Instruction to plug the security hole
-# (based on http://d.hatena.ne.jp/zrbabbler/20161206/1481039449 (in Japanese),
-# translated and supplemented by Akira Yokosawa)
+# (based on https://zrbabbler.hatenablog.com/entry/20161206/1481039449
+# (in Japanese), translated and supplemented by Akira Yokosawa)
 #
 # 1. Test the config of your TeX environment
 #
@@ -55,7 +55,8 @@
 #    upmpost
 #
 # Note:
-#   "rmpost" and "rpmpost" in the list are known to be safe.
+#   "rmpost", "rpmpost", "r-mpost", "r-pmpost", and "r-upmpost"
+#    in the list are known to be safe.
 #
 # 2. Solution
 #
@@ -131,13 +132,14 @@ dogrep() {
 
 if which kpsewhich >/dev/null
 then
-	command_list=`kpsewhich -var-value=shell_escape_commands`
-	if echo $command_list | grep -w -q "mpost" || \
+	command_list_orig=`kpsewhich -var-value=shell_escape_commands`
+	command_list=`echo $command_list_orig | sed -E "s/r-u?p?mpost,//g"`
+	if echo $command_list  | grep -w -q "mpost" || \
 			echo $command_list | grep -w -q "[jp]mpost" || \
 			echo $command_list | grep -w -q "upmpost"
 	then
 		echo "kpsewhich -var-value=shell_escape_commands"
-		echo $command_list
+		echo $command_list_orig
 		echo "WARNING: Refer to utilities/mpostcheck.sh for texmf config fix."
 		dogrep
 	else
