@@ -127,17 +127,15 @@ grace-period machinery.
 When a given CPU enters dynticks-idle mode because it has no more
 tasks to run, it invokes \co{rcu_enter_nohz()}:
 
-{ \scriptsize
-\begin{verbatim}
- 1  static inline void rcu_enter_nohz(void)
- 2  {
- 3    mb();
- 4    __get_cpu_var(dynticks_progress_counter)++;
- 5    WARN_ON(__get_cpu_var(dynticks_progress_counter) &
- 6            0x1);
- 7  }
-\end{verbatim}
+\begin{VerbatimN}
+static inline void rcu_enter_nohz(void)
+{
+	mb();
+	__get_cpu_var(dynticks_progress_counter)++;
+	WARN_ON(__get_cpu_var(dynticks_progress_counter) &
+	        0x1);
 }
+\end{VerbatimN}
 
 This function simply increments \co{dynticks_progress_counter} and
 checks that the result is even, but first executing a memory barrier
@@ -149,17 +147,15 @@ Similarly, when a CPU that is in dynticks-idle mode prepares to
 start executing a newly runnable task, it invokes
 \co{rcu_exit_nohz()}:
 
-{ \scriptsize
-\begin{verbatim}
-  1 static inline void rcu_exit_nohz(void)
-  2 {
-  3   __get_cpu_var(dynticks_progress_counter)++;
-  4   mb();
-  5   WARN_ON(!(__get_cpu_var(dynticks_progress_counter) &
-  6             0x1));
-  7 }
-\end{verbatim}
+\begin{VerbatimN}
+static inline void rcu_exit_nohz(void)
+{
+	__get_cpu_var(dynticks_progress_counter)++;
+	mb();
+	WARN_ON(!(__get_cpu_var(dynticks_progress_counter) &
+	          0x1));
 }
+\end{VerbatimN}
 
 This function again increments \co{dynticks_progress_counter},
 but follows it with a memory barrier to ensure that if any other CPU
@@ -190,39 +186,43 @@ used to distinguish between an outermost or a nested interrupt/NMI.
 Interrupt entry is handled by the \co{rcu_irq_enter()}
 shown below:
 
-{ \scriptsize
-\begin{verbatim}
-  1 void rcu_irq_enter(void)
-  2 {
-  3   int cpu = smp_processor_id();
-  4
-  5   if (per_cpu(rcu_update_flag, cpu))
-  6     per_cpu(rcu_update_flag, cpu)++;
-  7   if (!in_interrupt() &&
-  8       (per_cpu(dynticks_progress_counter,
-  9                cpu) & 0x1) == 0) {
- 10     per_cpu(dynticks_progress_counter, cpu)++;
- 11     smp_mb();
- 12     per_cpu(rcu_update_flag, cpu)++;
- 13   }
- 14 }
-\end{verbatim}
-}
+\begin{linelabel}[ln:formal:dyntickrcu:rcu_irq_enter]
+\begin{VerbatimN}[commandchars=\\\[\]]
+void rcu_irq_enter(void)
+{
+	int cpu = smp_processor_id();	\lnlbl[fetch]
 
-Line~3 fetches the current CPU's number, while lines~5 and~6
+	if (per_cpu(rcu_update_flag, cpu))	\lnlbl[inc:b]
+		per_cpu(rcu_update_flag, cpu)++; \lnlbl[inc:e]
+	if (!in_interrupt() &&			\lnlbl[chk_lv:b]
+	    (per_cpu(dynticks_progress_counter,
+	             cpu) & 0x1) == 0) {	\lnlbl[chk_lv:e]
+		per_cpu(dynticks_progress_counter, cpu)++; \lnlbl[inc_cnt]
+		smp_mb();			\lnlbl[mb]
+		per_cpu(rcu_update_flag, cpu)++;\lnlbl[inc_flg]
+	}
+}
+\end{VerbatimN}
+\end{linelabel}
+
+\begin{lineref}[ln:formal:dyntickrcu:rcu_irq_enter]
+Line~\lnref{fetch} fetches the current CPU's number, while
+lines~\lnref{inc:b} and~\lnref{inc:e}
 increment the \co{rcu_update_flag} nesting counter if it
 is already non-zero.
-Lines~7-9 check to see whether we are the outermost level of
+Lines~\lnref{chk_lv:b}-\lnref{chk_lv:e} check to see whether we are
+the outermost level of
 interrupt, and, if so, whether \co{dynticks_progress_counter}
 needs to be incremented.
-If so, line~10 increments \co{dynticks_progress_counter},
-line~11 executes a memory barrier, and line~12 increments
+If so, line~\lnref{inc_cnt} increments \co{dynticks_progress_counter},
+line~\lnref{mb} executes a memory barrier, and line~\lnref{inc_flg} increments
 \co{rcu_update_flag}.
 As with \co{rcu_exit_nohz()}, the memory barrier ensures that
 any other CPU that sees the effects of an RCU read-side critical section
 in the interrupt handler (following the \co{rcu_irq_enter()}
 invocation) will also see the increment of
 \co{dynticks_progress_counter}.
+\end{lineref}
 
 \QuickQuiz{}
 	Why not simply increment \co{rcu_update_flag}, and then only
@@ -246,9 +246,11 @@ invocation) will also see the increment of
 } \QuickQuizEnd
 
 \QuickQuiz{}
-	But if line~7 finds that we are the outermost interrupt,
+	\begin{lineref}[ln:formal:dyntickrcu:rcu_irq_enter]
+	But if line~\lnref{chk_lv:b} finds that we are the outermost interrupt,
 	wouldn't we \emph{always} need to increment
 	\co{dynticks_progress_counter}?
+	\end{lineref}
 \QuickQuizAnswer{
 	Not if we interrupted a running task!
 	In that case, \co{dynticks_progress_counter} would
@@ -259,42 +261,45 @@ invocation) will also see the increment of
 Interrupt exit is handled similarly by
 \co{rcu_irq_exit()}:
 
-{ \scriptsize
-\begin{verbatim}
-  1 void rcu_irq_exit(void)
-  2 {
-  3   int cpu = smp_processor_id();
-  4
-  5   if (per_cpu(rcu_update_flag, cpu)) {
-  6     if (--per_cpu(rcu_update_flag, cpu))
-  7       return;
-  8     WARN_ON(in_interrupt());
-  9     smp_mb();
- 10     per_cpu(dynticks_progress_counter, cpu)++;
- 11     WARN_ON(per_cpu(dynticks_progress_counter,
- 12                     cpu) & 0x1);
- 13   }
- 14 }
-\end{verbatim}
-}
+\begin{linelabel}[ln:formal:dyntickrcu:rcu_irq_exit]
+\begin{VerbatimN}[commandchars=\\\[\]]
+void rcu_irq_exit(void)
+{
+	int cpu = smp_processor_id();	\lnlbl[fetch]
 
-Line~3 fetches the current CPU's number, as before.
-Line~5 checks to see if the \co{rcu_update_flag} is
+	if (per_cpu(rcu_update_flag, cpu)) { \lnlbl[chk_flg]
+		if (--per_cpu(rcu_update_flag, cpu)) \lnlbl[dec_flg]
+			return;
+		WARN_ON(in_interrupt());	\lnlbl[verify]
+		smp_mb();			\lnlbl[mb]
+		per_cpu(dynticks_progress_counter, cpu)++; \lnlbl[inc_cnt]
+		WARN_ON(per_cpu(dynticks_progress_counter, \lnlbl[vrf_even:b]
+		                cpu) & 0x1); \lnlbl[vrf_even:e]
+	}
+}
+\end{VerbatimN}
+\end{linelabel}
+
+\begin{lineref}[ln:formal:dyntickrcu:rcu_irq_exit]
+Line~\lnref{fetch} fetches the current CPU's number, as before.
+Line~\lnref{chk_flg} checks to see if the \co{rcu_update_flag} is
 non-zero, returning immediately (via falling off the end of the
 function) if not.
-Otherwise, lines~6 through~12 come into play.
-Line~6 decrements \co{rcu_update_flag}, returning
+Otherwise, lines~\lnref{dec_flg} through~\lnref{vrf_even:e} come into play.
+Line~\lnref{dec_flg} decrements \co{rcu_update_flag}, returning
 if the result is not zero.
-Line~8 verifies that we are indeed leaving the outermost
-level of nested interrupts, line~9 executes a memory barrier,
-line~10 increments \co{dynticks_progress_counter},
-and lines~11 and~12 verify that this variable is now even.
+Line~\lnref{verify} verifies that we are indeed leaving the outermost
+level of nested interrupts, line~\lnref{mb} executes a memory barrier,
+line~\lnref{inc_cnt} increments \co{dynticks_progress_counter},
+and lines~\lnref{vrf_even:b} and~\lnref{vrf_even:e} verify that this
+variable is now even.
 As with \co{rcu_enter_nohz()}, the memory barrier ensures that
 any other CPU that sees the increment of
 \co{dynticks_progress_counter}
 will also see the effects of an RCU read-side critical section
 in the interrupt handler (preceding the \co{rcu_irq_exit()}
 invocation).
+\end{lineref}
 
 These two sections have described how the
 \co{dynticks_progress_counter} variable is maintained during
@@ -329,82 +334,87 @@ snapshot in another per-CPU variable,
 This is accomplished by invoking
 \co{dyntick_save_progress_counter()}, shown below:
 
-{ \scriptsize
-\begin{verbatim}
-  1 static void dyntick_save_progress_counter(int cpu)
-  2 {
-  3   per_cpu(rcu_dyntick_snapshot, cpu) =
-  4     per_cpu(dynticks_progress_counter, cpu);
-  5 }
-\end{verbatim}
+\begin{VerbatimN}
+static void dyntick_save_progress_counter(int cpu)
+{
+	per_cpu(rcu_dyntick_snapshot, cpu) =
+		per_cpu(dynticks_progress_counter, cpu);
 }
+\end{VerbatimN}
 
 The \co{rcu_try_flip_waitack_state()} state invokes
 \co{rcu_try_flip_waitack_needed()}, shown below:
 
-{ \scriptsize
-\begin{verbatim}
-  1 static inline int
-  2 rcu_try_flip_waitack_needed(int cpu)
-  3 {
-  4   long curr;
-  5   long snap;
-  6
-  7   curr = per_cpu(dynticks_progress_counter, cpu);
-  8   snap = per_cpu(rcu_dyntick_snapshot, cpu);
-  9   smp_mb();
- 10   if ((curr == snap) && ((curr & 0x1) == 0))
- 11     return 0;
- 12   if ((curr - snap) > 2 || (snap & 0x1) == 0)
- 13     return 0;
- 14   return 1;
- 15 }
-\end{verbatim}
-}
+\begin{linelabel}[ln:formal:dyntickrcu:rcu_try_flip_waitack_needed]
+\begin{VerbatimN}[commandchars=\\\[\]]
+static inline int
+rcu_try_flip_waitack_needed(int cpu)
+{
+	long curr;
+	long snap;
 
-Lines~7 and~8 pick up current and snapshot versions of
+	curr = per_cpu(dynticks_progress_counter, cpu); \lnlbl[curr]
+	snap = per_cpu(rcu_dyntick_snapshot, cpu); \lnlbl[snap]
+	smp_mb();				\lnlbl[mb]
+	if ((curr == snap) && ((curr & 0x1) == 0)) \lnlbl[chk_remain]
+		return 0;			\lnlbl[ret_0_r]
+	if ((curr - snap) > 2 || (snap & 0x1) == 0) \lnlbl[chk_idle]
+		return 0;			\lnlbl[ret_0_i]
+	return 1;				\lnlbl[ret_1]
+}
+\end{VerbatimN}
+\end{linelabel}
+
+\begin{lineref}[ln:formal:dyntickrcu:rcu_try_flip_waitack_needed]
+Lines~\lnref{curr} and~\lnref{snap} pick up current and snapshot versions of
 \co{dynticks_progress_counter}, respectively.
-The memory barrier on line~9 ensures that the counter checks
+The memory barrier on line~\lnref{mb} ensures that the counter checks
 in the later \co{rcu_try_flip_waitzero_state()} follow
 the fetches of these counters.
-Lines~10 and~11 return zero (meaning no communication with the
+Lines~\lnref{chk_remain} and~\lnref{ret_0_r} return zero
+(meaning no communication with the
 specified CPU is required) if that CPU has remained in dynticks-idle
 state since the time that the snapshot was taken.
-Similarly, lines~12 and~13 return zero if that CPU was initially
+Similarly, lines~\lnref{chk_idle} and~\lnref{ret_0_i} return zero
+if that CPU was initially
 in dynticks-idle state or if it has completely passed through a
 dynticks-idle state.
 In both these cases, there is no way that that CPU could have retained
 the old value of the grace-period counter.
-If neither of these conditions hold, line~14 returns one, meaning
+If neither of these conditions hold, line~\lnref{ret_1} returns one, meaning
 that the CPU needs to explicitly respond.
+\end{lineref}
 
 For its part, the \co{rcu_try_flip_waitmb_state()} state
 invokes \co{rcu_try_flip_waitmb_needed()}, shown below:
 
-{ \scriptsize
-\begin{verbatim}
-  1 static inline int
-  2 rcu_try_flip_waitmb_needed(int cpu)
-  3 {
-  4   long curr;
-  5   long snap;
-  6
-  7   curr = per_cpu(dynticks_progress_counter, cpu);
-  8   snap = per_cpu(rcu_dyntick_snapshot, cpu);
-  9   smp_mb();
- 10   if ((curr == snap) && ((curr & 0x1) == 0))
- 11     return 0;
- 12   if (curr != snap)
- 13     return 0;
- 14   return 1;
- 15 }
-\end{verbatim}
-}
+\begin{linelabel}[ln:formal:dyntickrcu:rcu_try_flip_waitmb_needed]
+\begin{VerbatimN}[commandchars=\\\[\]]
+static inline int
+rcu_try_flip_waitmb_needed(int cpu)
+{
+	long curr;
+	long snap;
 
+	curr = per_cpu(dynticks_progress_counter, cpu);
+	snap = per_cpu(rcu_dyntick_snapshot, cpu);
+	smp_mb();
+	if ((curr == snap) && ((curr & 0x1) == 0))
+		return 0;
+	if (curr != snap)		\lnlbl[chk_to_from]
+		return 0;		\lnlbl[ret_0]
+	return 1;
+}
+\end{VerbatimN}
+\end{linelabel}
+
+\begin{lineref}[ln:formal:dyntickrcu:rcu_try_flip_waitmb_needed]
 This is quite similar to \co{rcu_try_flip_waitack_needed()},
-the difference being in lines~12 and~13, because any transition
+the difference being in lines~\lnref{chk_to_from} and~\lnref{ret_0},
+because any transition
 either to or from dynticks-idle state executes the memory barrier
 needed by the \co{rcu_try_flip_waitmb_state()} state.
+\end{lineref}
 
 We now have seen all the code involved in the interface between
 RCU and the dynticks-idle state.
@@ -943,48 +953,48 @@ We therefore need to be testing \co{curr} rather than
 
 The corrected C code is as follows:
 
-{ \scriptsize
-\begin{verbatim}
-  1 static inline int
-  2 rcu_try_flip_waitack_needed(int cpu)
-  3 {
-  4   long curr;
-  5   long snap;
-  6
-  7   curr = per_cpu(dynticks_progress_counter, cpu);
-  8   snap = per_cpu(rcu_dyntick_snapshot, cpu);
-  9   smp_mb();
- 10   if ((curr == snap) && ((curr & 0x1) == 0))
- 11     return 0;
- 12   if ((curr - snap) > 2 || (curr & 0x1) == 0)
- 13     return 0;
- 14   return 1;
- 15 }
-\end{verbatim}
-}
+\begin{linelabel}[ln:formal:dyntickrcu:rcu_try_flip_waitack_needed_fixed]
+\begin{VerbatimN}[commandchars=\\\[\]]
+static inline int
+rcu_try_flip_waitack_needed(int cpu)
+{
+	long curr;
+	long snap;
 
-Lines~10-13 can now be combined and simplified,
+	curr = per_cpu(dynticks_progress_counter, cpu);
+	snap = per_cpu(rcu_dyntick_snapshot, cpu);
+	smp_mb();
+	if ((curr == snap) && ((curr & 0x1) == 0)) \lnlbl[if:b]
+		return 0;
+	if ((curr - snap) > 2 || (curr & 0x1) == 0)
+		return 0;			\lnlbl[if:e]
+	return 1;
+}
+\end{VerbatimN}
+\end{linelabel}
+
+\begin{lineref}[ln:formal:dyntickrcu:rcu_try_flip_waitack_needed_fixed]
+Lines~\lnref{if:b}-\lnref{if:e} can now be combined and simplified,
 resulting in the following.
 A similar simplification can be applied to
 \co{rcu_try_flip_waitmb_needed()}.
+\end{lineref}
 
-{ \scriptsize
-\begin{verbatim}
-  1 static inline int
-  2 rcu_try_flip_waitack_needed(int cpu)
-  3 {
-  4   long curr;
-  5   long snap;
-  6
-  7   curr = per_cpu(dynticks_progress_counter, cpu);
-  8   snap = per_cpu(rcu_dyntick_snapshot, cpu);
-  9   smp_mb();
- 10   if ((curr - snap) >= 2 || (curr & 0x1) == 0)
- 11     return 0;
- 12   return 1;
- 13 }
-\end{verbatim}
+\begin{VerbatimN}[commandchars=\\\[\]]
+static inline int
+rcu_try_flip_waitack_needed(int cpu)
+{
+	long curr;
+	long snap;
+
+	curr = per_cpu(dynticks_progress_counter, cpu);
+	snap = per_cpu(rcu_dyntick_snapshot, cpu);
+	smp_mb();
+	if ((curr - snap) >= 2 || (curr & 0x1) == 0)
+		return 0;
+	return 1;
 }
+\end{VerbatimN}
 
 Making the corresponding correction in the
 model (\path{dyntickRCU-base-sl.spin})
@@ -1041,15 +1051,10 @@ a label and a Promela statement as follows:
 
 One might use this macro as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
+\begin{VerbatimU}
 EXECUTE_MAINLINE(stmt1,
                  tmp = dynticks_progress_counter)
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\end{VerbatimU}
 
 Line~2 of the macro creates the specified statement label.
 Lines~3-8 are an atomic block that tests the \co{in_dyntick_irq}
@@ -1120,37 +1125,27 @@ statements in that group execute atomically.
 	is to use explicit labels and ``goto'' statements.
 	For example, the construct:
 
-	\vspace{5pt}
-	\begin{minipage}[t]{\columnwidth}
-	\scriptsize
-	\begin{verbatim}
-		if
-		:: i == 0 -> a = -1;
-		:: else -> a = -2;
-		fi;
-	\end{verbatim}
-	\end{minipage}
-	\vspace{5pt}
+\begin{VerbatimU}
+	if
+	:: i == 0 -> a = -1;
+	:: else -> a = -2;
+	fi;
+\end{VerbatimU}
 
 	could be modeled as something like:
 
-	\vspace{5pt}
-	\begin{minipage}[t]{\columnwidth}
-	\scriptsize
-	\begin{verbatim}
-		EXECUTE_MAINLINE(stmt1,
-				 if
-				 :: i == 0 -> goto stmt1_then;
-				 :: else -> goto stmt1_else;
-				 fi)
-		stmt1_then: skip;
-		EXECUTE_MAINLINE(stmt1_then1, a = -1; goto stmt1_end)
-		stmt1_else: skip;
-		EXECUTE_MAINLINE(stmt1_then1, a = -2)
-		stmt1_end: skip;
-	\end{verbatim}
-	\end{minipage}
-	\vspace{5pt}
+\begin{VerbatimU}
+	EXECUTE_MAINLINE(stmt1,
+	                 if
+	                 :: i == 0 -> goto stmt1_then;
+	                 :: else -> goto stmt1_else;
+	                 fi)
+	stmt1_then: skip;
+	EXECUTE_MAINLINE(stmt1_then1, a = -1; goto stmt1_end)
+	stmt1_else: skip;
+	EXECUTE_MAINLINE(stmt1_then1, a = -2)
+	stmt1_end: skip;
+\end{VerbatimU}
 
 	However, it is not clear that the macro is helping much in the case
 	of the ``if'' statement, so these sorts of situations will
@@ -1760,8 +1755,7 @@ states, passing without errors.
 \label{sec:formal:Lessons (Re)Learned}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
+\begin{VerbatimL}[numbers=none]
  static inline void rcu_enter_nohz(void)
  {
 +       mb();
@@ -1775,23 +1769,16 @@ states, passing without errors.
         __get_cpu_var(dynticks_progress_counter)++;
 +       mb();
  }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\end{VerbatimL}
 \caption{Memory-Barrier Fix Patch}
 \label{lst:formal:Memory-Barrier Fix Patch}
 \end{listing}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
+\begin{VerbatimL}[numbers=none]
 -       if ((curr - snap) > 2 || (snap & 0x1) == 0)
 +       if ((curr - snap) > 2 || (curr & 0x1) == 0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\end{VerbatimL}
 \caption{Variable-Name-Typo Fix Patch}
 \label{lst:formal:Variable-Name-Typo Fix Patch}
 \end{listing}
@@ -1854,24 +1841,20 @@ Manfred Spraul~\cite{ManfredSpraul2008StateMachineRCU}.
 \label{sec:formal:State Variables for Simplified Dynticks Interface}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 struct rcu_dynticks {
-  2   int dynticks_nesting;
-  3   int dynticks;
-  4   int dynticks_nmi;
-  5 };
-  6
-  7 struct rcu_data {
-  8   ...
-  9   int dynticks_snap;
- 10   int dynticks_nmi_snap;
- 11   ...
- 12 };
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{VerbatimL}
+struct rcu_dynticks {
+	int dynticks_nesting;
+	int dynticks;
+	int dynticks_nmi;
+};
+
+struct rcu_data {
+	...
+	int dynticks_snap;
+	int dynticks_nmi_snap;
+	...
+};
+\end{VerbatimL}
 \caption{Variables for Simple Dynticks Interface}
 \label{lst:formal:Variables for Simple Dynticks Interface}
 \end{listing}
@@ -1940,39 +1923,37 @@ passed through a quiescent state during that interval.
 \label{sec:formal:Entering and Leaving Dynticks-Idle Mode}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 void rcu_enter_nohz(void)
-  2 {
-  3   unsigned long flags;
-  4   struct rcu_dynticks *rdtp;
-  5
-  6   smp_mb();
-  7   local_irq_save(flags);
-  8   rdtp = &__get_cpu_var(rcu_dynticks);
-  9   rdtp->dynticks++;
- 10   rdtp->dynticks_nesting--;
- 11   WARN_ON(rdtp->dynticks & 0x1);
- 12   local_irq_restore(flags);
- 13 }
- 14
- 15 void rcu_exit_nohz(void)
- 16 {
- 17   unsigned long flags;
- 18   struct rcu_dynticks *rdtp;
- 19
- 20   local_irq_save(flags);
- 21   rdtp = &__get_cpu_var(rcu_dynticks);
- 22   rdtp->dynticks++;
- 23   rdtp->dynticks_nesting++;
- 24   WARN_ON(!(rdtp->dynticks & 0x1));
- 25   local_irq_restore(flags);
- 26   smp_mb();
- 27 }
-\end{verbbox}
+\begin{linelabel}[ln:formal:Entering and Exiting Dynticks-Idle Mode]
+\begin{VerbatimL}[commandchars=\\\[\]]
+void rcu_enter_nohz(void)
+{
+	unsigned long flags;
+	struct rcu_dynticks *rdtp;
+
+	smp_mb();			\lnlbl[mb]
+	local_irq_save(flags);		\lnlbl[irq_sv]
+	rdtp = &__get_cpu_var(rcu_dynticks); \lnlbl[get_ptr]
+	rdtp->dynticks++;		\lnlbl[inc_cnt]
+	rdtp->dynticks_nesting--;	\lnlbl[dec_nst]
+	WARN_ON(rdtp->dynticks & 0x1);
+	local_irq_restore(flags);	\lnlbl[irq_rs]
 }
-\centering
-\theverbbox
+
+void rcu_exit_nohz(void)
+{
+	unsigned long flags;
+	struct rcu_dynticks *rdtp;
+
+	local_irq_save(flags);
+	rdtp = &__get_cpu_var(rcu_dynticks);
+	rdtp->dynticks++;
+	rdtp->dynticks_nesting++;
+	WARN_ON(!(rdtp->dynticks & 0x1));
+	local_irq_restore(flags);
+	smp_mb();
+}
+\end{VerbatimL}
+\end{linelabel}
 \caption{Entering and Exiting Dynticks-Idle Mode}
 \label{lst:formal:Entering and Exiting Dynticks-Idle Mode}
 \end{listing}
@@ -1982,16 +1963,19 @@ shows the \co{rcu_enter_nohz()} and \co{rcu_exit_nohz()},
 which enter and exit dynticks-idle mode, also known as ``nohz'' mode.
 These two functions are invoked from process context.
 
-Line~6 ensures that any prior memory accesses (which might
+\begin{lineref}[ln:formal:Entering and Exiting Dynticks-Idle Mode]
+Line~\lnref{mb} ensures that any prior memory accesses (which might
 include accesses from RCU read-side critical sections) are seen
 by other CPUs before those marking entry to dynticks-idle mode.
-Lines~7 and~12 disable and reenable \IRQ s.
-Line~8 acquires a pointer to the current CPU's \co{rcu_dynticks}
+Lines~\lnref{irq_sv} and~\lnref{irq_rs} disable and reenable \IRQ s.
+Line~\lnref{get_ptr} acquires a pointer to the current CPU's \co{rcu_dynticks}
 structure, and
-line~9 increments the current CPU's \co{dynticks} counter, which
+line~\lnref{inc_cnt} increments the current CPU's \co{dynticks} counter, which
 should now be even, given that we are entering dynticks-idle mode
 in process context.
-Finally, line~10 decrements \co{dynticks_nesting}, which should now be zero.
+Finally, line~\lnref{dec_nst} decrements \co{dynticks_nesting},
+which should now be zero.
+\end{lineref}
 
 The \co{rcu_exit_nohz()} function is quite similar, but increments
 \co{dynticks_nesting} rather than decrementing it and checks for
@@ -2001,225 +1985,237 @@ the opposite \co{dynticks} polarity.
 \label{sec:formal:NMIs From Dynticks-Idle Mode}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1  void rcu_nmi_enter(void)
- 2  {
- 3    struct rcu_dynticks *rdtp;
- 4 
- 5    rdtp = &__get_cpu_var(rcu_dynticks);
- 6    if (rdtp->dynticks & 0x1)
- 7      return;
- 8    rdtp->dynticks_nmi++;
- 9    WARN_ON(!(rdtp->dynticks_nmi & 0x1));
-10    smp_mb();
-11  }
-12 
-13  void rcu_nmi_exit(void)
-14  {
-15    struct rcu_dynticks *rdtp;
-16 
-17    rdtp = &__get_cpu_var(rcu_dynticks);
-18    if (rdtp->dynticks & 0x1)
-19      return;
-20    smp_mb();
-21    rdtp->dynticks_nmi++;
-22    WARN_ON(rdtp->dynticks_nmi & 0x1);
-23  }
-\end{verbbox}
+\begin{linelabel}[ln:formal:NMIs From Dynticks-Idle Mode]
+\begin{VerbatimL}[commandchars=\\\[\]]
+void rcu_nmi_enter(void)
+{
+	struct rcu_dynticks *rdtp;
+
+	rdtp = &__get_cpu_var(rcu_dynticks);
+	if (rdtp->dynticks & 0x1)	\lnlbl[chk_ext1]
+		return;			\lnlbl[ret1]
+	rdtp->dynticks_nmi++;
+	WARN_ON(!(rdtp->dynticks_nmi & 0x1));
+	smp_mb();			\lnlbl[mb1]
 }
-\centering
-\theverbbox
+
+void rcu_nmi_exit(void)
+{
+	struct rcu_dynticks *rdtp;
+
+	rdtp = &__get_cpu_var(rcu_dynticks);
+	if (rdtp->dynticks & 0x1)	\lnlbl[chk_ext2]
+		return;			\lnlbl[ret2]
+	smp_mb();			\lnlbl[mb2]
+	rdtp->dynticks_nmi++;
+	WARN_ON(rdtp->dynticks_nmi & 0x1);
+}
+\end{VerbatimL}
+\end{linelabel}
 \caption{NMIs From Dynticks-Idle Mode}
 \label{lst:formal:NMIs From Dynticks-Idle Mode}
 \end{listing}
 
+\begin{lineref}[ln:formal:NMIs From Dynticks-Idle Mode]
 Listing~\ref{lst:formal:NMIs From Dynticks-Idle Mode}
 shows the \co{rcu_nmi_enter()} and \co{rcu_nmi_exit()} functions,
 which inform RCU of NMI entry and exit, respectively, from dynticks-idle
 mode.
 However, if the NMI arrives during an \IRQ\ handler, then RCU will already
 be on the lookout for RCU read-side critical sections from this CPU,
-so lines~6 and~7 of \co{rcu_nmi_enter()} and lines~18 and~19
+so lines~\lnref{chk_ext1} and~\lnref{ret1} of \co{rcu_nmi_enter()}
+and lines~\lnref{chk_ext2} and~\lnref{ret2}
 of \co{rcu_nmi_exit()} silently return if \co{dynticks} is odd.
 Otherwise, the two functions increment \co{dynticks_nmi}, with
 \co{rcu_nmi_enter()} leaving it with an odd value and \co{rcu_nmi_exit()}
 leaving it with an even value.
 Both functions execute memory barriers between this increment
-and possible RCU read-side critical sections on lines~10 and~20,
+and possible RCU read-side critical sections on
+lines~\lnref{mb1} and~\lnref{mb2},
 respectively.
+\end{lineref}
 
 \subsubsection{Interrupts From Dynticks-Idle Mode}
 \label{sec:formal:Interrupts From Dynticks-Idle Mode}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 void rcu_irq_enter(void)
-  2 {
-  3   struct rcu_dynticks *rdtp;
-  4
-  5   rdtp = &__get_cpu_var(rcu_dynticks);
-  6   if (rdtp->dynticks_nesting++)
-  7     return;
-  8   rdtp->dynticks++;
-  9   WARN_ON(!(rdtp->dynticks & 0x1));
- 10   smp_mb();
- 11 }
- 12
- 13 void rcu_irq_exit(void)
- 14 {
- 15   struct rcu_dynticks *rdtp;
- 16
- 17   rdtp = &__get_cpu_var(rcu_dynticks);
- 18   if (--rdtp->dynticks_nesting)
- 19     return;
- 20   smp_mb();
- 21   rdtp->dynticks++;
- 22   WARN_ON(rdtp->dynticks & 0x1);
- 23   if (__get_cpu_var(rcu_data).nxtlist ||
- 24       __get_cpu_var(rcu_bh_data).nxtlist)
- 25     set_need_resched();
- 26 }
-\end{verbbox}
+\begin{linelabel}[ln:formal:Interrupts From Dynticks-Idle Mode]
+\begin{VerbatimL}[commandchars=\\\[\]]
+void rcu_irq_enter(void)
+{
+	struct rcu_dynticks *rdtp;
+
+	rdtp = &__get_cpu_var(rcu_dynticks);
+	if (rdtp->dynticks_nesting++)		\lnlbl[inc_nst]
+		return;				\lnlbl[ret1]
+	rdtp->dynticks++;			\lnlbl[inc_dynt1]
+	WARN_ON(!(rdtp->dynticks & 0x1));
+	smp_mb();				\lnlbl[mb1]
 }
-\centering
-\theverbbox
+
+void rcu_irq_exit(void)
+{
+	struct rcu_dynticks *rdtp;
+
+	rdtp = &__get_cpu_var(rcu_dynticks);
+	if (--rdtp->dynticks_nesting)		\lnlbl[dec_nst]
+		return;				\lnlbl[ret2]
+	smp_mb();				\lnlbl[mb2]
+	rdtp->dynticks++;			\lnlbl[inc_dynt2]
+	WARN_ON(rdtp->dynticks & 0x1);		\lnlbl[chk_even]
+	if (__get_cpu_var(rcu_data).nxtlist ||	\lnlbl[chk_cb:b]
+	    __get_cpu_var(rcu_bh_data).nxtlist)
+		set_need_resched();		\lnlbl[chk_cb:e]
+}
+\end{VerbatimL}
+\end{linelabel}
 \caption{Interrupts From Dynticks-Idle Mode}
 \label{lst:formal:Interrupts From Dynticks-Idle Mode}
 \end{listing}
 
+\begin{lineref}[ln:formal:Interrupts From Dynticks-Idle Mode]
 Listing~\ref{lst:formal:Interrupts From Dynticks-Idle Mode}
 shows \co{rcu_irq_enter()} and \co{rcu_irq_exit()}, which
 inform RCU of entry to and exit from, respectively, \IRQ\ context.
-Line~6 of \co{rcu_irq_enter()} increments \co{dynticks_nesting},
-and if this variable was already non-zero, line~7 silently returns.
-Otherwise, line~8 increments \co{dynticks}, which will then have
+Line~\lnref{inc_nst} of \co{rcu_irq_enter()}
+increments \co{dynticks_nesting},
+and if this variable was already non-zero, line~\lnref{ret1} silently returns.
+Otherwise, line~\lnref{inc_dynt1} increments \co{dynticks},
+which will then have
 an odd value, consistent with the fact that this CPU can now
 execute RCU read-side critical sections.
-Line~10 therefore executes a memory barrier to ensure that
+Line~\lnref{mb1} therefore executes a memory barrier to ensure that
 the increment of \co{dynticks} is seen before any
 RCU read-side critical sections that the subsequent \IRQ\ handler
 might execute.
 
-Line~18 of \co{rcu_irq_exit()} decrements \co{dynticks_nesting}, and
-if the result is non-zero, line~19 silently returns.
-Otherwise, line~20 executes a memory barrier to ensure that the
-increment of \co{dynticks} on line~21 is seen after any RCU
+Line~\lnref{dec_nst} of \co{rcu_irq_exit()} decrements
+\co{dynticks_nesting}, and
+if the result is non-zero, line~\lnref{ret2} silently returns.
+Otherwise, line~\lnref{mb2} executes a memory barrier to ensure that the
+increment of \co{dynticks} on line~\lnref{inc_dynt2} is seen after any RCU
 read-side critical sections that the prior \IRQ\ handler might have executed.
-Line~22 verifies that \co{dynticks} is now even, consistent with
+Line~\lnref{chk_even} verifies that \co{dynticks} is now even, consistent with
 the fact that no RCU read-side critical sections may appear in
 dynticks-idle mode.
-Lines~23-25 check to see if the prior \IRQ\ handlers enqueued any
+Lines~\lnref{chk_cb:b}-\lnref{chk_cb:e} check to see
+if the prior \IRQ\ handlers enqueued any
 RCU callbacks, forcing this CPU out of dynticks-idle mode via
 a reschedule API if so.
+\end{lineref}
 
 \subsubsection{Checking For Dynticks Quiescent States}
 \label{sec:formal:Checking For Dynticks Quiescent States}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1  static int
- 2  dyntick_save_progress_counter(struct rcu_data *rdp)
- 3  {
- 4    int ret;
- 5    int snap;
- 6    int snap_nmi;
- 7 
- 8    snap = rdp->dynticks->dynticks;
- 9    snap_nmi = rdp->dynticks->dynticks_nmi;
-10    smp_mb();
-11    rdp->dynticks_snap = snap;
-12    rdp->dynticks_nmi_snap = snap_nmi;
-13    ret = ((snap & 0x1) == 0) &&
-14          ((snap_nmi & 0x1) == 0);
-15    if (ret)
-16      rdp->dynticks_fqs++;
-17    return ret;
-18  }
-\end{verbbox}
+\begin{linelabel}[ln:formal:Saving Dyntick Progress Counters]
+\begin{VerbatimL}[commandchars=\\\[\]]
+static int
+dyntick_save_progress_counter(struct rcu_data *rdp)
+{
+	int ret;
+	int snap;
+	int snap_nmi;
+
+	snap = rdp->dynticks->dynticks;		\lnlbl[snap]
+	snap_nmi = rdp->dynticks->dynticks_nmi;	\lnlbl[snapn]
+	smp_mb();				\lnlbl[mb]
+	rdp->dynticks_snap = snap;		\lnlbl[rec_snap]
+	rdp->dynticks_nmi_snap = snap_nmi;	\lnlbl[rec_snapn]
+	ret = ((snap & 0x1) == 0) && ((snap_nmi & 0x1) == 0); \lnlbl[chk_prgs]
+	if (ret)				\lnlbl[cnt:b]
+		rdp->dynticks_fqs++;		\lnlbl[cnt:e]
+	return ret;				\lnlbl[ret]
 }
-\centering
-\theverbbox
+\end{VerbatimL}
+\end{linelabel}
 \caption{Saving Dyntick Progress Counters}
 \label{lst:formal:Saving Dyntick Progress Counters}
 \end{listing}
 
+\begin{lineref}[ln:formal:Saving Dyntick Progress Counters]
 Listing~\ref{lst:formal:Saving Dyntick Progress Counters}
 shows \co{dyntick_save_progress_counter()}, which takes a snapshot
 of the specified CPU's \co{dynticks} and \co{dynticks_nmi}
 counters.
-Lines~8 and~9 snapshot these two variables to locals, line~10
+Lines~\lnref{snap} and~\lnref{snapn} snapshot these two variables to locals,
+line~\lnref{mb}
 executes a memory barrier to pair with the memory barriers in
 the functions in
 Listings~\ref{lst:formal:Entering and Exiting Dynticks-Idle Mode},
 \ref{lst:formal:NMIs From Dynticks-Idle Mode}, and
 \ref{lst:formal:Interrupts From Dynticks-Idle Mode}.
-Lines~11 and~12 record the snapshots for later calls to
+Lines~\lnref{rec_snap} and~\lnref{rec_snapn}
+record the snapshots for later calls to
 \co{rcu_implicit_dynticks_qs()},
-and lines~13 and~14 check to see if the CPU is in dynticks-idle mode with
+and line~\lnref{chk_prgs} checks to see if the CPU is in dynticks-idle mode with
 neither \IRQ s nor NMIs in progress (in other words, both snapshots
 have even values), hence in an extended quiescent state.
-If so, lines~15 and~16 count this event, and line~17 returns
+If so, lines~\lnref{cnt:b} and~\lnref{cnt:e} count this event,
+and line~\lnref{ret} returns
 true if the CPU was in a quiescent state.
+\end{lineref}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1  static int
- 2  rcu_implicit_dynticks_qs(struct rcu_data *rdp)
- 3  {
- 4    long curr;
- 5    long curr_nmi;
- 6    long snap;
- 7    long snap_nmi;
- 8 
- 9    curr = rdp->dynticks->dynticks;
-10    snap = rdp->dynticks_snap;
-11    curr_nmi = rdp->dynticks->dynticks_nmi;
-12    snap_nmi = rdp->dynticks_nmi_snap;
-13    smp_mb();
-14    if ((curr != snap || (curr & 0x1) == 0) &&
-15        (curr_nmi != snap_nmi ||
-16        (curr_nmi & 0x1) == 0)) {
-17      rdp->dynticks_fqs++;
-18      return 1;
-19    }
-20    return rcu_implicit_offline_qs(rdp);
-21  }
-\end{verbbox}
+\begin{linelabel}[ln:formal:Checking Dyntick Progress Counters]
+\begin{VerbatimL}[commandchars=\\\[\]]
+static int
+rcu_implicit_dynticks_qs(struct rcu_data *rdp)
+{
+	long curr;
+	long curr_nmi;
+	long snap;
+	long snap_nmi;
+
+	curr = rdp->dynticks->dynticks;		\lnlbl[curr]
+	snap = rdp->dynticks_snap;		\lnlbl[snap]
+	curr_nmi = rdp->dynticks->dynticks_nmi;	\lnlbl[currn]
+	snap_nmi = rdp->dynticks_nmi_snap;	\lnlbl[snapn]
+	smp_mb();				\lnlbl[mb]
+	if ((curr != snap || (curr & 0x1) == 0) && \lnlbl[chk_q:b]
+	    (curr_nmi != snap_nmi || (curr_nmi & 0x1) == 0)) { \lnlbl[chk_q:e]
+		rdp->dynticks_fqs++;		\lnlbl[cnt]
+		return 1;			\lnlbl[ret_1]
+	}
+	return rcu_implicit_offline_qs(rdp);	\lnlbl[chk_race]
 }
-\centering
-\theverbbox
+\end{VerbatimL}
+\end{linelabel}
 \caption{Checking Dyntick Progress Counters}
 \label{lst:formal:Checking Dyntick Progress Counters}
 \end{listing}
 
+\begin{lineref}[ln:formal:Checking Dyntick Progress Counters]
 Listing~\ref{lst:formal:Checking Dyntick Progress Counters}
 shows \co{rcu_implicit_dynticks_qs()}, which is called to check
 whether a CPU has entered dyntick-idle mode subsequent to a call
 to \co{dynticks_save_progress_counter()}.
-Lines~9 and~11 take new snapshots of the corresponding CPU's
-\co{dynticks} and \co{dynticks_nmi} variables, while lines~10 and~12
+Lines~\lnref{curr} and~\lnref{currn}
+take new snapshots of the corresponding CPU's
+\co{dynticks} and \co{dynticks_nmi} variables, while
+lines~\lnref{snap} and~\lnref{snapn}
 retrieve the snapshots saved earlier by
 \co{dynticks_save_progress_counter()}.
-Line~13 then
+Line~\lnref{mb} then
 executes a memory barrier to pair with the memory barriers in
 the functions in
 Listings~\ref{lst:formal:Entering and Exiting Dynticks-Idle Mode},
 \ref{lst:formal:NMIs From Dynticks-Idle Mode}, and
 \ref{lst:formal:Interrupts From Dynticks-Idle Mode}.
-Lines~14-16 then check to see if the CPU is either currently in
+Lines~\lnref{chk_q:b}-\lnref{chk_q:e}
+then check to see if the CPU is either currently in
 a quiescent state (\co{curr} and \co{curr_nmi} having even values) or
 has passed through a quiescent state since the last call to
 \co{dynticks_save_progress_counter()} (the values of
 \co{dynticks} and \co{dynticks_nmi} having changed).
 If these checks confirm that the CPU has passed through a dyntick-idle
-quiescent state, then line~17 counts that fact and line~18 returns
+quiescent state, then line~\lnref{cnt} counts that fact and
+line~\lnref{ret_1} returns
 an indication of this fact.
-Either way, line~20 checks for race conditions that can result in RCU
+Either way, line~\lnref{chk_race}
+checks for race conditions that can result in RCU
 waiting for a CPU that is offline.
+\end{lineref}
 
 \QuickQuiz{}
 	This is still pretty complicated.
