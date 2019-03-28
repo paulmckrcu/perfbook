@@ -60,16 +60,33 @@ void hazptr_scan();
 void hazptr_free_later(hazptr_head_t *);
 void hazptr_free(void *ptr); /* supplied by caller. */
 
+#define HAZPTR_POISON 0x8
+
+/* This can be used when reading a pointer from an immortal structure. */
 static inline void *hp_record(void **p, hazard_pointer *hp)
 {
-	hazptr_head_t *tmp;
+	void *tmp;
 
 	do {
 		tmp = READ_ONCE(*p);
+		if (!tmp || tmp == (void *)HAZPTR_POISON)
+			return tmp;
 		WRITE_ONCE(hp->p, tmp);
 		smp_mb();
 	} while (tmp != READ_ONCE(*p));
 	return tmp;
+}
+
+static inline int hp_try_record(void **p, hazard_pointer *hp)
+{
+	void *tmp;
+
+	tmp = READ_ONCE(*p);
+	if (!tmp || tmp == (void *)HAZPTR_POISON)
+		return 0;
+	WRITE_ONCE(hp->p, tmp);
+	smp_mb();
+	return tmp == READ_ONCE(*p);
 }
 
 static inline void hp_clear(hazard_pointer *hp)
@@ -79,7 +96,5 @@ static inline void hp_clear(hazard_pointer *hp)
 }
 
 #define hazptr_clean_pointer(p) ((typeof(p))((unsigned long)(p) & ~0x1UL))
-
-#define HAZPTR_POISON 0x8
  
 #endif /* #ifndef __HAZPTR_H */
