@@ -50,22 +50,11 @@ unsigned long route_lookup(unsigned long addr)
 retry:							//\lnlbl{retry}
 	repp = &route_list.re_next;
 	do {
-		rep = READ_ONCE(*repp);
-		if (rep == NULL)
-			return ULONG_MAX;
-		if (rep == (struct route_entry *)HAZPTR_POISON)	//\lnlbl{acq:b}
-			goto retry; /* element deleted. */
-								//\fcvexclude
-		/* Store a hazard pointer. */
-		my_hazptr[offset].p = &rep->hh;
-		offset = !offset;
-		smp_mb(); /* Force pointer loads in order. */
-								//\fcvexclude
-		/* Recheck the hazard pointer against the original. */
-		if (READ_ONCE(*repp) != rep)
-			goto retry;			//\lnlbl{acq:e}
-								//\fcvexclude
-		/* Advance to next. */
+		rep = hp_try_record(repp, &my_hazptr[offset]);	//\lnlbl{tryrecord}
+		if (!rep)
+			return ULONG_MAX;			//\lnlbl{NULL}
+		if ((uintptr_t)rep == HAZPTR_POISON)
+			goto retry; /* element deleted. */	//\lnlbl{deleted}
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
 	if (READ_ONCE(rep->re_freed))
