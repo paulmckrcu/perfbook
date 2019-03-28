@@ -77,16 +77,18 @@ static inline void *hp_record(void **p, hazard_pointer *hp)
 	return tmp;
 }
 
-static inline int hp_try_record(void **p, hazard_pointer *hp)
+static inline void *hp_try_record(void **p, hazard_pointer *hp)
 {
 	void *tmp;
 
 	tmp = READ_ONCE(*p);
 	if (!tmp || tmp == (void *)HAZPTR_POISON)
-		return 0;
+		return NULL;
 	WRITE_ONCE(hp->p, tmp);
 	smp_mb();
-	return tmp == READ_ONCE(*p);
+	if (tmp == READ_ONCE(*p))
+		return tmp;
+	return NULL;
 }
 
 static inline void hp_clear(hazard_pointer *hp)
