@@ -48,7 +48,7 @@ typedef struct hazptr_head {
 } hazptr_head_t;
 
 typedef struct hazard_pointer_s {
-	hazptr_head_t *  __attribute__ ((__aligned__ (CACHE_LINE_SIZE))) p;
+	void *  __attribute__ ((__aligned__ (CACHE_LINE_SIZE))) p;
 } hazard_pointer;
 
 /* Must be dynamically initialized to be an array of size H. */
