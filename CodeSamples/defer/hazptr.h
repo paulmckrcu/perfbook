@@ -77,7 +77,7 @@ static inline void *hp_record(void **p, hazard_pointer *hp)
 	return tmp;
 }
 
-static inline void *hp_try_record(void **p, hazard_pointer *hp)
+static inline void *hp_try_record_impl(void **p, hazard_pointer *hp)
 {
 	void *tmp;
 
@@ -88,8 +88,10 @@ static inline void *hp_try_record(void **p, hazard_pointer *hp)
 	smp_mb();
 	if (tmp == READ_ONCE(*p))
 		return tmp;
-	return NULL;
+	return (void *)HAZPTR_POISON;
 }
+
+#define hp_try_record(p, hp) hp_try_record_impl((void **)(p), hp)
 
 static inline void hp_clear(hazard_pointer *hp)
 {
