@@ -105,6 +105,12 @@
 # NOTE: "#ifdef FCV_SNIPPET" is not recognized.
 #	"#else" can be omitted.
 #
+#
+# Another option to suppress blank or empty lines in the snippet is
+# "gobbleblank=yes". When this option is given, an empty line can
+# be expressed by a line containing "//\fcvblank".
+# By default, "gobbleblank=no" is assumed.
+#
 # Copyright (C) Akira Yokosawa, 2018, 2019
 #
 # Authors: Akira Yokosawa <akiyks@gmail.com>
@@ -132,6 +138,7 @@ my $func_name;
 my $label;
 my $env_name = "VerbatimL" ;
 my $keepcomment = 0;
+my $gobbleblank = 0;
 my $incomment = 0;
 my $ifndef = 0;
 my $other_opts;
@@ -222,6 +229,10 @@ while($line = <>) {
 	    print $edit_line . "\n" ;
 	} elsif ($line eq "") {
 	    next;
+	} elsif ($gobbleblank && $line !~ /\S/) {
+	    next ;
+	} elsif ($line =~ /\\fcvblank/) {
+	    print "\n" ;
 	} else {
 	    print $line ;
         }
@@ -268,6 +279,14 @@ while($line = <>) {
 	    }
 	    $_ = $line;
 	    s/keepcomment=[^,\]]+,?// ;
+	    $line = $_ ;
+	}
+	if ($line =~ /gobbleblank=([^,\]]+).\]/) {
+	    if ($1 eq "yes") {
+		$gobbleblank = 1;
+	    }
+	    $_ = $line;
+	    s/gobbleblank=[^,\]]+,?// ;
 	    $line = $_ ;
 	}
 	if ($line =~ /\[(.*)\]$/) {
