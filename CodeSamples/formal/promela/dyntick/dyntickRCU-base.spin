@@ -50,20 +50,25 @@ byte in_interrupt = 0;
  * and portions of rcu_try_flip_waitack() and rcu_try_flip_waitmb().
  */
 
+//\begin{snippet}[labelbase=ln:formal:promela:dyntick:dyntickRCU-base:grace_period,style=N,gobbleblank=yes,commandchars=\@\[\]]
 proctype grace_period()
 {
 	byte curr;
 	byte snap;
-
+								//\fcvblank
 	/*
 	 * A little code from rcu_try_flip_idle() and its call
 	 * to dyntick_save_progress_counter().
 	 */
 
-	atomic {
+	atomic {					//\lnlbl{print:b}
+#ifndef FCV_SNIPPET
 		printf("MAX_DYNTICK_LOOP_NOHZ = %d\n", MAX_DYNTICK_LOOP_NOHZ);
+#else /* #ifndef FCV_SNIPPET */
+		printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
+#endif /* #ifndef FCV_SNIPPET */
 		snap = dynticks_progress_counter;
-	}
+	}						//\lnlbl{print:e}
 
 	/*
 	 * Each pass through the following loop corresponds to an
@@ -72,7 +77,7 @@ proctype grace_period()
 	 * and its call to rcu_try_flip_waitack_needed().
 	 */
 
-	do
+	do						//\lnlbl{do1}
 	:: 1 ->
 		atomic {
 			curr = dynticks_progress_counter;
@@ -84,7 +89,7 @@ proctype grace_period()
 			:: 1 -> skip;
 			fi;
 		}
-	od;
+	od;						//\lnlbl{od1}
 
 	/*
 	 * A little code from rcu_try_flip_waitzero() and its call
@@ -92,7 +97,7 @@ proctype grace_period()
 	 * validation code.
 	 */
 
-	snap = dynticks_progress_counter;
+	snap = dynticks_progress_counter;		//\lnlbl{snap}
 
 	/*
 	 * Each pass through the following loop corresponds to an
@@ -101,7 +106,7 @@ proctype grace_period()
 	 * and its call to rcu_try_flip_waitmb_needed().
 	 */
 
-	do
+	do						//\lnlbl{do2}
 	:: 1 ->
 		atomic {
 			curr = dynticks_progress_counter;
@@ -113,8 +118,9 @@ proctype grace_period()
 			:: 1 -> skip;
 			fi;
 		}
-	od;
+	od;						//\lnlbl{od2}
 }
+//\end{snippet}
 
 /*
  * Validation code for the rcu_enter_nohz() and rcu_exit_nohz()
@@ -124,37 +130,39 @@ proctype grace_period()
  * rcu_exit_nohz() and rcu_enter_nohz().
  */
 
+//\begin{snippet}[labelbase=ln:formal:promela:dyntick:dyntickRCU-base:dyntick_nohz,style=N,gobbleblank=yes,commandchars=\\\[\]]
 proctype dyntick_nohz()
 {
 	byte tmp;
 	byte i = 0;
-
-	do
-	:: i >= MAX_DYNTICK_LOOP_NOHZ -> break;
-	:: i < MAX_DYNTICK_LOOP_NOHZ ->
+								//\fcvblank
+	do						//\lnlbl{do}
+	:: i >= MAX_DYNTICK_LOOP_NOHZ -> break;		//\lnlbl{break}
+	:: i < MAX_DYNTICK_LOOP_NOHZ ->			//\lnlbl{kick_loop}
 
 		/*
 		 * The following corresponds to rcu_exit_nohz().
 		 */
 
-		tmp = dynticks_progress_counter;
+		tmp = dynticks_progress_counter;	//\lnlbl{ex_inc:b}
 		atomic {
-			dynticks_progress_counter = tmp + 1;
-			assert((dynticks_progress_counter & 1) == 1);
+			dynticks_progress_counter = tmp + 1; //\lnlbl{ex_inc:e}
+			assert((dynticks_progress_counter & 1) == 1); //\lnlbl{ex_assert}
 		}
 
 		/*
 		 * The following corresponds to rcu_enter_nohz().
 		 */
 
-		tmp = dynticks_progress_counter;
+		tmp = dynticks_progress_counter;	//\lnlbl{ent_inc:b}
 		atomic {
 			dynticks_progress_counter = tmp + 1;
 			assert((dynticks_progress_counter & 1) == 0);
-		}
-		i++;
-	od;
+		}					//\lnlbl{ent_inc:e}
+		i++;					//\lnlbl{inc_i}
+	od;						//\lnlbl{od}
 }
+//\end{snippet}
 
 init {
 	atomic {

@@ -447,49 +447,30 @@ from the 2.6.25-rc4 kernel, placing these in a single Promela
 process that models exiting and entering dynticks-idle mode in
 a loop as follows:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype dyntick_nohz()
-  2 {
-  3   byte tmp;
-  4   byte i = 0;
-  5
-  6   do
-  7   :: i >= MAX_DYNTICK_LOOP_NOHZ -> break;
-  8   :: i < MAX_DYNTICK_LOOP_NOHZ ->
-  9     tmp = dynticks_progress_counter;
- 10     atomic {
- 11       dynticks_progress_counter = tmp + 1;
- 12       assert((dynticks_progress_counter & 1) == 1);
- 13     }
- 14     tmp = dynticks_progress_counter;
- 15     atomic {
- 16       dynticks_progress_counter = tmp + 1;
- 17       assert((dynticks_progress_counter & 1) == 0);
- 18     }
- 19     i++;
- 20   od;
- 21 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-base@dyntick_nohz.fcv}
 
-Lines~6 and~20 define a loop.
-Line~7 exits the loop once the loop counter \co{i}
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-base:dyntick_nohz]
+Lines~\lnref{do} and~\lnref{od} define a loop.
+Line~\lnref{break} exits the loop once the loop counter \co{i}
 has exceeded the limit \co{MAX_DYNTICK_LOOP_NOHZ}.
-Line~8 tells the loop construct to execute lines~9-19
+Line~\lnref{kick_loop} tells the loop construct to execute
+lines~\lnref{ex_inc:b}-\lnref{inc_i}
 for each pass through the loop.
-Because the conditionals on lines~7 and~8 are exclusive of
+Because the conditionals on lines~\lnref{break} and~\lnref{kick_loop}
+are exclusive of
 each other, the normal Promela random selection of true conditions
 is disabled.
-Lines~9 and~11 model \co{rcu_exit_nohz()}'s non-atomic
+Lines~\lnref{ex_inc:b} and~\lnref{ex_inc:e} model
+\co{rcu_exit_nohz()}'s non-atomic
 increment of \co{dynticks_progress_counter}, while
-line~12 models the \co{WARN_ON()}.
+line~\lnref{ex_assert} models the \co{WARN_ON()}.
 The \co{atomic} construct simply reduces the Promela state space,
 given that the \co{WARN_ON()} is not strictly speaking part
 of the algorithm.
-Lines~14-18 similarly models the increment and
+Lines~\lnref{ent_inc:b}-\lnref{ent_inc:e} similarly models the increment and
 \co{WARN_ON()} for \co{rcu_enter_nohz()}.
-Finally, line~19 increments the loop counter.
+Finally, line~\lnref{inc_i} increments the loop counter.
+\end{lineref}
 
 Each pass through the loop therefore models a CPU exiting
 dynticks-idle mode (for example, starting to execute a task), then
@@ -529,49 +510,11 @@ The following \co{grace_period()} Promela process models
 these functions as they would be invoked during a single pass
 through preemptible RCU's grace-period processing.
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype grace_period()
-  2 {
-  3   byte curr;
-  4   byte snap;
-  5
-  6   atomic {
-  7     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
-  8     snap = dynticks_progress_counter;
-  9   }
- 10   do
- 11   :: 1 ->
- 12     atomic {
- 13       curr = dynticks_progress_counter;
- 14       if
- 15       :: (curr == snap) && ((curr & 1) == 0) ->
- 16         break;
- 17       :: (curr - snap) > 2 || (snap & 1) == 0 ->
- 18         break;
- 19       :: 1 -> skip;
- 20       fi;
- 21     }
- 22   od;
- 23   snap = dynticks_progress_counter;
- 24   do
- 25   :: 1 ->
- 26     atomic {
- 27       curr = dynticks_progress_counter;
- 28       if
- 29       :: (curr == snap) && ((curr & 1) == 0) ->
- 30         break;
- 31       :: (curr != snap) ->
- 32         break;
- 33       :: 1 -> skip;
- 34       fi;
- 35     }
- 36   od;
- 37 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-base@grace_period.fcv}
 
-Lines~6-9 print out the loop limit (but only into the .trail file
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-base:grace_period]
+Lines~\lnref{print:b}-\lnref{print:e} print out the loop limit
+(but only into the .trail file
 in case of error) and models a line of code
 from \co{rcu_try_flip_idle()} and its call to
 \co{dyntick_save_progress_counter()}, which takes a
@@ -579,24 +522,25 @@ snapshot of the current CPU's \co{dynticks_progress_counter}
 variable.
 These two lines are executed atomically to reduce state space.
 
-Lines~10-22 model the relevant code in
+Lines~\lnref{do1}-\lnref{od1} model the relevant code in
 \co{rcu_try_flip_waitack()} and its call to
 \co{rcu_try_flip_waitack_needed()}.
 This loop is modeling the grace-period state machine waiting for
 a counter-flip acknowledgement from each CPU, but only that part
 that interacts with dynticks-idle CPUs.
 
-Line~23 models a line from \co{rcu_try_flip_waitzero()}
+Line~\lnref{snap} models a line from \co{rcu_try_flip_waitzero()}
 and its call to \co{dyntick_save_progress_counter()}, again
 taking a snapshot of the CPU's \co{dynticks_progress_counter}
 variable.
 
-Finally, lines~24-36 model the relevant code in
+Finally, lines~\lnref{do2}-\lnref{od2} model the relevant code in
 \co{rcu_try_flip_waitack()} and its call to
 \co{rcu_try_flip_waitack_needed()}.
 This loop is modeling the grace-period state-machine waiting for
 each CPU to execute a memory barrier, but again only that part
 that interacts with dynticks-idle CPUs.
+\end{lineref}
 
 \QuickQuiz{}
 	Wait a minute!
@@ -630,86 +574,36 @@ The next section therefore adds safety assertions.
 A safe RCU implementation must never permit a grace period to
 complete before the completion of any RCU readers that started
 before the start of the grace period.
-This is modeled by a \co{gp_state} variable that
+This is modeled by a \co{grace_period_state} variable that
 can take on three states as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\begin{verbatim}
-  1 #define GP_IDLE    0
-  2 #define GP_WAITING  1
-  3 #define GP_DONE    2
-  4 byte gp_state = GP_DONE;
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-base-s@grace_period_state.fcv}
 
 The \co{grace_period()} process sets this variable as it
 progresses through the grace-period phases, as shown below:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype grace_period()
-  2 {
-  3   byte curr;
-  4   byte snap;
-  5
-  6   gp_state = GP_IDLE;
-  7   atomic {
-  8     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
-  9     snap = dynticks_progress_counter;
- 10     gp_state = GP_WAITING;
- 11   }
- 12   do
- 13   :: 1 ->
- 14     atomic {
- 15       curr = dynticks_progress_counter;
- 16       if
- 17       :: (curr == snap) && ((curr & 1) == 0) ->
- 18         break;
- 19       :: (curr - snap) > 2 || (snap & 1) == 0 ->
- 20         break;
- 21       :: 1 -> skip;
- 22       fi;
- 23     }
- 24   od;
- 25   gp_state = GP_DONE;
- 26   gp_state = GP_IDLE;
- 27   atomic {
- 28     snap = dynticks_progress_counter;
- 29     gp_state = GP_WAITING;
- 30   }
- 31   do
- 32   :: 1 ->
- 33     atomic {
- 34       curr = dynticks_progress_counter;
- 35       if
- 36       :: (curr == snap) && ((curr & 1) == 0) ->
- 37         break;
- 38       :: (curr != snap) ->
- 39         break;
- 40       :: 1 -> skip;
- 41       fi;
- 42     }
- 43   od;
- 44   gp_state = GP_DONE;
- 45 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-base-s@grace_period.fcv}
 
-Lines~6, 10, 25, 26, 29, and~44 update this variable (combining
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-base-s:grace_period]
+Lines~\lnref{upd_gps1}, \lnref{upd_gps2}, \lnref{upd_gps3},
+\lnref{upd_gps4}, \lnref{upd_gps5}, and~\lnref{upd_gps6}
+update this variable (combining
 atomically with algorithmic operations where feasible) to
 allow the \co{dyntick_nohz()} process to verify the basic
 RCU safety property.
 The form of this verification is to assert that the value of the
-\co{gp_state} variable cannot jump from
+\co{grace_period_state} variable cannot jump from
 \co{GP_IDLE} to \co{GP_DONE} during a time period
 over which RCU readers could plausibly persist.
+\end{lineref}
 
 \QuickQuiz{}
+	\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-base-s:grace_period]
 	Given there are a pair of back-to-back changes to
-	\co{gp_state} on lines~25 and~26,
-	how can we be sure that line~25's changes won't be lost?
+	\co{grace_period_state} on
+	lines~\lnref{upd_gps3} and~\lnref{upd_gps4},
+	how can we be sure that line~\lnref{upd_gps3}'s changes won't be lost?
+	\end{lineref}
 \QuickQuizAnswer{
 	Recall that Promela and spin trace out
 	every possible sequence of state changes.
@@ -722,45 +616,18 @@ over which RCU readers could plausibly persist.
 The \co{dyntick_nohz()} Promela process implements
 this verification as shown below:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype dyntick_nohz()
-  2 {
-  3   byte tmp;
-  4   byte i = 0;
-  5   bit old_gp_idle;
-  6
-  7   do
-  8   :: i >= MAX_DYNTICK_LOOP_NOHZ -> break;
-  9   :: i < MAX_DYNTICK_LOOP_NOHZ ->
- 10     tmp = dynticks_progress_counter;
- 11     atomic {
- 12       dynticks_progress_counter = tmp + 1;
- 13       old_gp_idle = (gp_state == GP_IDLE);
- 14       assert((dynticks_progress_counter & 1) == 1);
- 15     }
- 16     atomic {
- 17       tmp = dynticks_progress_counter;
- 18       assert(!old_gp_idle ||
- 19              gp_state != GP_DONE);
- 20     }
- 21     atomic {
- 22       dynticks_progress_counter = tmp + 1;
- 23       assert((dynticks_progress_counter & 1) == 0);
- 24     }
- 25     i++;
- 26   od;
- 27 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-base-s@dyntick_nohz.fcv}
 
-Line~13 sets a new \co{old_gp_idle} flag if the
-value of the \co{gp_state} variable is
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-base-s:dyntick_nohz]
+Line~\lnref{new_flg} sets a new \co{old_gp_idle} flag if the
+value of the \co{grace_period_state} variable is
 \co{GP_IDLE} at the beginning of task execution,
-and the assertion at lines~18 and~19 fire if the \co{gp_state}
+and the assertion at lines~\lnref{assert:b} and~\lnref{assert:e}
+fire if the \co{grace_period_state}
 variable has advanced to \co{GP_DONE} during task execution,
 which would be illegal given that a single RCU read-side critical
 section could span the entire intervening time period.
+\end{lineref}
 
 The resulting
 model (\path{dyntickRCU-base-s.spin}),
@@ -773,110 +640,27 @@ The next section therefore covers verifying liveness.
 \subsubsection{Validating Liveness}
 \label{sec:formal:Validating Liveness}
 
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-base-sl-busted:dyntick_nohz]
 Although liveness can be difficult to prove, there is a simple
 trick that applies here.
 The first step is to make \co{dyntick_nohz()} indicate that
 it is done via a \co{dyntick_nohz_done} variable, as shown on
-line~27 of the following:
+line~\lnref{done} of the following:
+\end{lineref}
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype dyntick_nohz()
-  2 {
-  3   byte tmp;
-  4   byte i = 0;
-  5   bit old_gp_idle;
-  6
-  7   do
-  8   :: i >= MAX_DYNTICK_LOOP_NOHZ -> break;
-  9   :: i < MAX_DYNTICK_LOOP_NOHZ ->
- 10     tmp = dynticks_progress_counter;
- 11     atomic {
- 12       dynticks_progress_counter = tmp + 1;
- 13       old_gp_idle = (gp_state == GP_IDLE);
- 14       assert((dynticks_progress_counter & 1) == 1);
- 15     }
- 16     atomic {
- 17       tmp = dynticks_progress_counter;
- 18       assert(!old_gp_idle ||
- 19              gp_state != GP_DONE);
- 20     }
- 21     atomic {
- 22       dynticks_progress_counter = tmp + 1;
- 23       assert((dynticks_progress_counter & 1) == 0);
- 24     }
- 25     i++;
- 26   od;
- 27   dyntick_nohz_done = 1;
- 28 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-base-sl-busted@dyntick_nohz.fcv}
 
 With this variable in place, we can add assertions to
 \co{grace_period()} to check for unnecessary blockage
 as follows:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype grace_period()
-  2 {
-  3   byte curr;
-  4   byte snap;
-  5   bit shouldexit;
-  6
-  7   gp_state = GP_IDLE;
-  8   atomic {
-  9     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
- 10     shouldexit = 0;
- 11     snap = dynticks_progress_counter;
- 12     gp_state = GP_WAITING;
- 13   }
- 14   do
- 15   :: 1 ->
- 16     atomic {
- 17       assert(!shouldexit);
- 18       shouldexit = dyntick_nohz_done;
- 19       curr = dynticks_progress_counter;
- 20       if
- 21       :: (curr == snap) && ((curr & 1) == 0) ->
- 22         break;
- 23       :: (curr - snap) > 2 || (snap & 1) == 0 ->
- 24         break;
- 25       :: else -> skip;
- 26       fi;
- 27     }
- 28   od;
- 29   gp_state = GP_DONE;
- 30   gp_state = GP_IDLE;
- 31   atomic {
- 32     shouldexit = 0;
- 33     snap = dynticks_progress_counter;
- 34     gp_state = GP_WAITING;
- 35   }
- 36   do
- 37   :: 1 ->
- 38     atomic {
- 39       assert(!shouldexit);
- 40       shouldexit = dyntick_nohz_done;
- 41       curr = dynticks_progress_counter;
- 42       if
- 43       :: (curr == snap) && ((curr & 1) == 0) ->
- 44         break;
- 45       :: (curr != snap) ->
- 46         break;
- 47       :: else -> skip;
- 48       fi;
- 49     }
- 50   od;
- 51   gp_state = GP_DONE;
- 52 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-base-sl-busted@grace_period.fcv}
 
-We have added the \co{shouldexit} variable on line~5,
-which we initialize to zero on line~10.
-Line~17 asserts that \co{shouldexit} is not set, while
-line~18 sets \co{shouldexit} to the \co{dyntick_nohz_done}
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-base-sl-busted:grace_period]
+We have added the \co{shouldexit} variable on line~\lnref{shex},
+which we initialize to zero on line~\lnref{init_shex}.
+Line~\lnref{assert_shex} asserts that \co{shouldexit} is not set, while
+line~\lnref{set_shex} sets \co{shouldexit} to the \co{dyntick_nohz_done}
 variable maintained by \co{dyntick_nohz()}.
 This assertion will therefore trigger if we attempt to take more than
 one pass through the wait-for-counter-flip-acknowledgement
@@ -887,12 +671,14 @@ any more state changes to force us out of the loop, so going through twice
 in this state means an infinite loop, which in turn means no end to the
 grace period.
 
-Lines~32, 39, and~40 operate in a similar manner for the
+Lines~\lnref{init_shex2}, \lnref{assert_shex2}, and~\lnref{set_shex2}
+operate in a similar manner for the
 second (memory-barrier) loop.
 
 However, running this
 model (\path{dyntickRCU-base-sl-busted.spin})
-results in failure, as line~23 is checking that the wrong variable
+results in failure, as line~\lnref{chk_2} is checking that
+the wrong variable
 is even.
 Upon failure, \co{spin} writes out a
 ``trail'' file
@@ -912,10 +698,12 @@ at step 34 (search for ``34:''), but that the
 \co{grace_period()} process nonetheless failed to exit the loop.
 The value of \co{curr} is \co{6} (see step 35)
 and that the value of \co{snap} is \co{5} (see step 17).
-Therefore the first condition on line~21 above does not hold because
-\co{curr != snap}, and the second condition on line~23
+Therefore the first condition on line~\lnref{chk_1} above
+does not hold because
+\co{curr != snap}, and the second condition on line~\lnref{chk_2}
 does not hold either because \co{snap} is odd and because
 \co{curr} is only one greater than \co{snap}.
+\end{lineref}
 
 So one of these two conditions has to be incorrect.
 Referring to the comment block in \co{rcu_try_flip_waitack_needed()}
@@ -1036,18 +824,7 @@ and execute only when the flag is not set.
 This can be accomplished with a C-preprocessor macro that takes
 a label and a Promela statement as follows:
 
-{ \scriptsize
-\begin{verbatim}
-  1 #define EXECUTE_MAINLINE(label, stmt) \
-  2 label: skip; \
-  3     atomic { \
-  4       if \
-  5       :: in_dyntick_irq -> goto label; \
-  6       :: else -> stmt; \
-  7       fi; \
-  8     } \
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-irqnn-ssl@EXECUTE_MAINLINE.fcv}
 
 One might use this macro as follows:
 
@@ -1056,14 +833,17 @@ EXECUTE_MAINLINE(stmt1,
                  tmp = dynticks_progress_counter)
 \end{VerbatimU}
 
-Line~2 of the macro creates the specified statement label.
-Lines~3-8 are an atomic block that tests the \co{in_dyntick_irq}
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-irqnn-ssl:EXECUTE_MAINLINE]
+Line~\lnref{label} of the macro creates the specified statement label.
+Lines~\lnref{atm:b}-\lnref{atm:e} are an atomic block that tests
+the \co{in_dyntick_irq}
 variable, and if this variable is set (indicating that the interrupt
 handler is active), branches out of the atomic block back to the
 label.
-Otherwise, line~6 executes the specified statement.
+Otherwise, line~\lnref{else} executes the specified statement.
 The overall effect is that mainline execution stalls any time an interrupt
 is active, as required.
+\end{lineref}
 
 \subsubsection{Validating Interrupt Handlers}
 \label{sec:formal:Validating Interrupt Handlers}
@@ -1071,40 +851,14 @@ is active, as required.
 The first step is to convert \co{dyntick_nohz()} to
 \co{EXECUTE_MAINLINE()} form, as follows:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype dyntick_nohz()
-  2 {
-  3   byte tmp;
-  4   byte i = 0;
-  5   bit old_gp_idle;
-  6
-  7   do
-  8   :: i >= MAX_DYNTICK_LOOP_NOHZ -> break;
-  9   :: i < MAX_DYNTICK_LOOP_NOHZ ->
- 10     EXECUTE_MAINLINE(stmt1,
- 11       tmp = dynticks_progress_counter)
- 12     EXECUTE_MAINLINE(stmt2,
- 13       dynticks_progress_counter = tmp + 1;
- 14       old_gp_idle = (gp_state == GP_IDLE);
- 15       assert((dynticks_progress_counter & 1) == 1))
- 16     EXECUTE_MAINLINE(stmt3,
- 17       tmp = dynticks_progress_counter;
- 18       assert(!old_gp_idle ||
- 19              gp_state != GP_DONE))
- 20     EXECUTE_MAINLINE(stmt4,
- 21       dynticks_progress_counter = tmp + 1;
- 22       assert((dynticks_progress_counter & 1) == 0))
- 23     i++;
- 24   od;
- 25   dyntick_nohz_done = 1;
- 26 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-irqnn-ssl@dyntick_nohz.fcv}
 
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-irqnn-ssl:dyntick_nohz]
 It is important to note that when a group of statements is passed
-to \co{EXECUTE_MAINLINE()}, as in lines~12-15, all
+to \co{EXECUTE_MAINLINE()}, as in
+lines~\lnref{stmt2:b}-\lnref{stmt2:e}, all
 statements in that group execute atomically.
+\end{lineref}
 
 \QuickQuiz{}
 	But what would you do if you needed the statements in a single
@@ -1155,73 +909,28 @@ statements in that group execute atomically.
 The next step is to write a \co{dyntick_irq()} process
 to model an interrupt handler:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype dyntick_irq()
-  2 {
-  3   byte tmp;
-  4   byte i = 0;
-  5   bit old_gp_idle;
-  6
-  7   do
-  8   :: i >= MAX_DYNTICK_LOOP_IRQ -> break;
-  9   :: i < MAX_DYNTICK_LOOP_IRQ ->
- 10     in_dyntick_irq = 1;
- 11     if
- 12     :: rcu_update_flag > 0 ->
- 13        tmp = rcu_update_flag;
- 14       rcu_update_flag = tmp + 1;
- 15     :: else -> skip;
- 16     fi;
- 17     if
- 18     :: !in_interrupt &&
- 19       (dynticks_progress_counter & 1) == 0 ->
- 20       tmp = dynticks_progress_counter;
- 21       dynticks_progress_counter = tmp + 1;
- 22       tmp = rcu_update_flag;
- 23       rcu_update_flag = tmp + 1;
- 24     :: else -> skip;
- 25     fi;
- 26     tmp = in_interrupt;
- 27     in_interrupt = tmp + 1;
- 28     old_gp_idle = (gp_state == GP_IDLE);
- 29     assert(!old_gp_idle || gp_state != GP_DONE);
- 30     tmp = in_interrupt;
- 31     in_interrupt = tmp - 1;
- 32     if
- 33     :: rcu_update_flag != 0 ->
- 34       tmp = rcu_update_flag;
- 35       rcu_update_flag = tmp - 1;
- 36       if
- 37       :: rcu_update_flag == 0 ->
- 38         tmp = dynticks_progress_counter;
- 39         dynticks_progress_counter = tmp + 1;
- 40       :: else -> skip;
- 41       fi;
- 42     :: else -> skip;
- 43     fi;
- 44     atomic {
- 45       in_dyntick_irq = 0;
- 46       i++;
- 47     }
- 48   od;
- 49   dyntick_irq_done = 1;
- 50 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-irqnn-ssl@dyntick_irq.fcv}
 
-The loop from lines~7-48 models up to \co{MAX_DYNTICK_LOOP_IRQ}
-interrupts, with lines~8 and~9 forming the loop condition and line~46
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-irqnn-ssl:dyntick_irq]
+The loop from lines~\lnref{do}-\lnref{od} models up to
+\co{MAX_DYNTICK_LOOP_IRQ}
+interrupts, with lines~\lnref{cond1} and~\lnref{cond2} forming
+the loop condition and line~\lnref{inc_i}
 incrementing the control variable.
-Line~10 tells \co{dyntick_nohz()} that an interrupt handler
-is running, and line~45 tells \co{dyntick_nohz()} that this
+Line~\lnref{in_irq} tells \co{dyntick_nohz()} that an interrupt handler
+is running, and line~\lnref{clr_in_irq} tells \co{dyntick_nohz()} that this
 handler has completed.
-Line~49 is used for liveness verification, just like the corresponding
+Line~\lnref{irq_done} is used for liveness verification,
+just like the corresponding
 line of \co{dyntick_nohz()}.
+\end{lineref}
 
 \QuickQuiz{}
-	Why are lines~45 and~46 (the \co{in_dyntick_irq = 0;}
+	\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-irqnn-ssl:dyntick_irq]
+	Why are lines~\lnref{clr_in_irq} and~\lnref{inc_i}
+	(the \co{in_dyntick_irq = 0;}
 	and the \co{i++;}) executed atomically?
+	\end{lineref}
 \QuickQuizAnswer{
 	These lines of code pertain to controlling the
 	model, not to the code being modeled, so there is no reason to
@@ -1230,12 +939,17 @@ line of \co{dyntick_nohz()}.
 	of the state space.
 } \QuickQuizEnd
 
-Lines~11-25 model \co{rcu_irq_enter()}, and
-lines~26 and~27 model the relevant snippet of \co{__irq_enter()}.
-Lines~28 and~29 verifies safety in much the same manner as do the
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-irqnn-ssl:dyntick_irq]
+Lines~\lnref{enter:b}-\lnref{enter:e} model \co{rcu_irq_enter()}, and
+lines~\lnref{add_prmt_cnt:b} and~\lnref{add_prmt_cnt:e}
+model the relevant snippet of \co{__irq_enter()}.
+Lines~\lnref{vrf_safe:b}-\lnref{vrf_safe:e} verify
+safety in much the same manner as do the
 corresponding lines of \co{dynticks_nohz()}.
-Lines~30 and~31 model the relevant snippet of \co{__irq_exit()},
-and finally lines~32-43 model \co{rcu_irq_exit()}.
+Lines~\lnref{irq_exit:b} and~\lnref{irq_exit:e} model the relevant snippet
+of \co{__irq_exit()},
+and finally lines~\lnref{exit:b}-\lnref{exit:e} model \co{rcu_irq_exit()}.
+\end{lineref}
 
 \QuickQuiz{}
 	What property of interrupts is this \co{dynticks_irq()}
@@ -1247,66 +961,18 @@ and finally lines~32-43 model \co{rcu_irq_exit()}.
 
 The \co{grace_period()} process then becomes as follows:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype grace_period()
-  2 {
-  3   byte curr;
-  4   byte snap;
-  5   bit shouldexit;
-  6
-  7   gp_state = GP_IDLE;
-  8   atomic {
-  9     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
- 10     printf("MDLI = %d\n", MAX_DYNTICK_LOOP_IRQ);
- 11     shouldexit = 0;
- 12     snap = dynticks_progress_counter;
- 13     gp_state = GP_WAITING;
- 14   }
- 15   do
- 16   :: 1 ->
- 17     atomic {
- 18       assert(!shouldexit);
- 19       shouldexit = dyntick_nohz_done && dyntick_irq_done;
- 20       curr = dynticks_progress_counter;
- 21       if
- 22       :: (curr - snap) >= 2 || (curr & 1) == 0 ->
- 23         break;
- 24       :: else -> skip;
- 25       fi;
- 26     }
- 27   od;
- 28   gp_state = GP_DONE;
- 29   gp_state = GP_IDLE;
- 30   atomic {
- 31     shouldexit = 0;
- 32     snap = dynticks_progress_counter;
- 33     gp_state = GP_WAITING;
- 34   }
- 35   do
- 36   :: 1 ->
- 37     atomic {
- 38       assert(!shouldexit);
- 39       shouldexit = dyntick_nohz_done && dyntick_irq_done;
- 40       curr = dynticks_progress_counter;
- 41       if
- 42       :: (curr != snap) || ((curr & 1) == 0) ->
- 43         break;
- 44       :: else -> skip;
- 45       fi;
- 46     }
- 47   od;
- 48   gp_state = GP_DONE;
- 49 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-irqnn-ssl@grace_period.fcv}
 
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-irqnn-ssl:grace_period]
 The implementation of \co{grace_period()} is very similar
 to the earlier one.
-The only changes are the addition of line~10 to add the new
-interrupt-count parameter, changes to lines~19 and~39 to
+The only changes are the addition of line~\lnref{MDLI} to add the new
+interrupt-count parameter, changes to
+lines~\lnref{edit1} and~\lnref{edit3} to
 add the new \co{dyntick_irq_done} variable to the liveness
-checks, and of course the optimizations on lines~22 and~42.
+checks, and of course the optimizations on
+lines~\lnref{edit2} and~\lnref{edit4}.
+\end{lineref}
 
 This model (\path{dyntickRCU-irqnn-ssl.spin})
 results in a correct verification with roughly half a million
@@ -1321,108 +987,41 @@ This topic is taken up in the next section.
 Nested interrupt handlers may be modeled by splitting the body of
 the loop in \co{dyntick_irq()} as follows:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype dyntick_irq()
-  2 {
-  3   byte tmp;
-  4   byte i = 0;
-  5   byte j = 0;
-  6   bit old_gp_idle;
-  7   bit outermost;
-  8
-  9   do
- 10   :: i >= MAX_DYNTICK_LOOP_IRQ &&
- 11      j >= MAX_DYNTICK_LOOP_IRQ -> break;
- 12   :: i < MAX_DYNTICK_LOOP_IRQ ->
- 13     atomic {
- 14       outermost = (in_dyntick_irq == 0);
- 15       in_dyntick_irq = 1;
- 16     }
- 17     if
- 18     :: rcu_update_flag > 0 ->
- 19       tmp = rcu_update_flag;
- 20       rcu_update_flag = tmp + 1;
- 21     :: else -> skip;
- 22     fi;
- 23     if
- 24     :: !in_interrupt &&
- 25        (dynticks_progress_counter & 1) == 0 ->
- 26       tmp = dynticks_progress_counter;
- 27       dynticks_progress_counter = tmp + 1;
- 28       tmp = rcu_update_flag;
- 29       rcu_update_flag = tmp + 1;
- 30     :: else -> skip;
- 31     fi;
- 32     tmp = in_interrupt;
- 33     in_interrupt = tmp + 1;
- 34     atomic {
- 35       if
- 36       :: outermost ->
- 37         old_gp_idle = (gp_state == GP_IDLE);
- 38       :: else -> skip;
- 39       fi;
- 40     }
- 41     i++;
- 42   :: j < i ->
- 43     atomic {
- 44       if
- 45       :: j + 1 == i ->
- 46         assert(!old_gp_idle ||
- 47                gp_state != GP_DONE);
- 48       :: else -> skip;
- 49       fi;
- 50     }
- 51     tmp = in_interrupt;
- 52     in_interrupt = tmp - 1;
- 53     if
- 54     :: rcu_update_flag != 0 ->
- 55       tmp = rcu_update_flag;
- 56       rcu_update_flag = tmp - 1;
- 57       if
- 58       :: rcu_update_flag == 0 ->
- 59         tmp = dynticks_progress_counter;
- 60         dynticks_progress_counter = tmp + 1;
- 61       :: else -> skip;
- 62       fi;
- 63     :: else -> skip;
- 64     fi;
- 65     atomic {
- 66       j++;
- 67       in_dyntick_irq = (i != j);
- 68     }
- 69   od;
- 70   dyntick_irq_done = 1;
- 71 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-irq-ssl@dyntick_irq.fcv}
 
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-irq-ssl:dyntick_irq]
 This is similar to the earlier \co{dynticks_irq()} process.
-It adds a second counter variable \co{j} on line~5, so that
+It adds a second counter variable \co{j} on line~\lnref{j}, so that
 \co{i} counts entries to interrupt handlers and \co{j}
 counts exits.
-The \co{outermost} variable on line~7 helps determine
-when the \co{gp_state} variable needs to be sampled
+The \co{outermost} variable on line~\lnref{om} helps determine
+when the \co{grace_period_state} variable needs to be sampled
 for the safety checks.
-The loop-exit check on lines~10 and~11 is updated to require that the
+The loop-exit check on lines~\lnref{chk_ex:b} and~\lnref{chk_ex:e}
+is updated to require that the
 specified number of interrupt handlers are exited as well as entered,
-and the increment of \co{i} is moved to line~41, which is
+and the increment of \co{i} is moved to line~\lnref{inc_i}, which is
 the end of the interrupt-entry model.
-Lines~13-16 set the \co{outermost} variable to indicate
+Lines~\lnref{atm1:b}-\lnref{atm1:e}
+set the \co{outermost} variable to indicate
 whether this is the outermost of a set of nested interrupts and to
 set the \co{in_dyntick_irq} variable that is used by the
 \co{dyntick_nohz()} process.
-Lines~34-40 capture the state of the \co{gp_state}
+Lines~\lnref{atm2:b}-\lnref{atm2:e}
+capture the state of the \co{grace_period_state}
 variable, but only when in the outermost interrupt handler.
 
-Line~42 has the do-loop conditional for interrupt-exit modeling:
+Line~\lnref{cnd_ex} has the do-loop conditional for interrupt-exit modeling:
 as long as we have exited fewer interrupts than we have entered, it is
 legal to exit another interrupt.
-Lines~43-50 check the safety criterion, but only if we are exiting
+Lines~\lnref{atm3:b}-\lnref{atm3:e}
+check the safety criterion, but only if we are exiting
 from the outermost interrupt level.
-Finally, lines~65-68 increment the interrupt-exit count \co{j}
+Finally, lines~\lnref{atm4:b}-\lnref{atm4:e}
+increment the interrupt-exit count \co{j}
 and, if this is the outermost interrupt level, clears
 \co{in_dyntick_irq}.
+\end{lineref}
 
 This model (\path{dyntickRCU-irq-ssl.spin})
 results in a correct verification with a bit more than half a million
@@ -1437,60 +1036,7 @@ We take the same general approach for NMIs as we do for interrupts,
 keeping in mind that NMIs do not nest.
 This results in a \co{dyntick_nmi()} process as follows:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype dyntick_nmi()
-  2 {
-  3   byte tmp;
-  4   byte i = 0;
-  5   bit old_gp_idle;
-  6
-  7   do
-  8   :: i >= MAX_DYNTICK_LOOP_NMI -> break;
-  9   :: i < MAX_DYNTICK_LOOP_NMI ->
- 10     in_dyntick_nmi = 1;
- 11     if
- 12     :: rcu_update_flag > 0 ->
- 13       tmp = rcu_update_flag;
- 14       rcu_update_flag = tmp + 1;
- 15     :: else -> skip;
- 16     fi;
- 17     if
- 18     :: !in_interrupt &&
- 19        (dynticks_progress_counter & 1) == 0 ->
- 20       tmp = dynticks_progress_counter;
- 21       dynticks_progress_counter = tmp + 1;
- 22       tmp = rcu_update_flag;
- 23       rcu_update_flag = tmp + 1;
- 24     :: else -> skip;
- 25     fi;
- 26     tmp = in_interrupt;
- 27     in_interrupt = tmp + 1;
- 28     old_gp_idle = (gp_state == GP_IDLE);
- 29     assert(!old_gp_idle || gp_state != GP_DONE);
- 30     tmp = in_interrupt;
- 31     in_interrupt = tmp - 1;
- 32     if
- 33     :: rcu_update_flag != 0 ->
- 34       tmp = rcu_update_flag;
- 35       rcu_update_flag = tmp - 1;
- 36       if
- 37       :: rcu_update_flag == 0 ->
- 38         tmp = dynticks_progress_counter;
- 39         dynticks_progress_counter = tmp + 1;
- 40       :: else -> skip;
- 41       fi;
- 42     :: else -> skip;
- 43     fi;
- 44     atomic {
- 45       i++;
- 46       in_dyntick_nmi = 0;
- 47     }
- 48   od;
- 49   dyntick_nmi_done = 1;
- 50 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-irq-nmi-ssl@dyntick_nmi.fcv}
 
 Of course, the fact that we have NMIs requires adjustments in
 the other components.
@@ -1499,222 +1045,36 @@ pay attention to the NMI handler (\co{in_dyntick_nmi}) as well
 as the interrupt handler (\co{in_dyntick_irq}) by checking
 the \co{dyntick_nmi_done} variable as follows:
 
-{ \scriptsize
-\begin{verbatim}
-  1 #define EXECUTE_MAINLINE(label, stmt) \
-  2 label: skip; \
-  3     atomic { \
-  4       if \
-  5       :: in_dyntick_irq || \
-  6          in_dyntick_nmi -> goto label; \
-  7       :: else -> stmt; \
-  8       fi; \
-  9     } \
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-irq-nmi-ssl@EXECUTE_MAINLINE.fcv}
 
 We will also need to introduce an \co{EXECUTE_IRQ()}
 macro that checks \co{in_dyntick_nmi} in order to allow
 \co{dyntick_irq()} to exclude \co{dyntick_nmi()}:
 
-{ \scriptsize
-\begin{verbatim}
-  1 #define EXECUTE_IRQ(label, stmt) \
-  2 label: skip; \
-  3     atomic { \
-  4       if \
-  5       :: in_dyntick_nmi -> goto label; \
-  6       :: else -> stmt; \
-  7       fi; \
-  8     } \
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-irq-nmi-ssl@EXECUTE_IRQ.fcv}
 
 It is further necessary to convert \co{dyntick_irq()}
 to \co{EXECUTE_IRQ()} as follows:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype dyntick_irq()
-  2 {
-  3   byte tmp;
-  4   byte i = 0;
-  5   byte j = 0;
-  6   bit old_gp_idle;
-  7   bit outermost;
-  8
-  9   do
- 10   :: i >= MAX_DYNTICK_LOOP_IRQ &&
- 11      j >= MAX_DYNTICK_LOOP_IRQ -> break;
- 12   :: i < MAX_DYNTICK_LOOP_IRQ ->
- 13     atomic {
- 14       outermost = (in_dyntick_irq == 0);
- 15       in_dyntick_irq = 1;
- 16     }
- 17 stmt1: skip;
- 18     atomic {
- 19       if
- 20       :: in_dyntick_nmi -> goto stmt1;
- 21       :: !in_dyntick_nmi && rcu_update_flag ->
- 22         goto stmt1_then;
- 23       :: else -> goto stmt1_else;
- 24       fi;
- 25     }
- 26 stmt1_then: skip;
- 27     EXECUTE_IRQ(stmt1_1, tmp = rcu_update_flag)
- 28     EXECUTE_IRQ(stmt1_2, rcu_update_flag = tmp + 1)
- 29 stmt1_else: skip;
- 30 stmt2: skip;  atomic {
- 31       if
- 32       :: in_dyntick_nmi -> goto stmt2;
- 33       :: !in_dyntick_nmi &&
- 34          !in_interrupt &&
- 35          (dynticks_progress_counter & 1) == 0 ->
- 36            goto stmt2_then;
- 37       :: else -> goto stmt2_else;
- 38       fi;
- 39     }
- 40 stmt2_then: skip;
- 41     EXECUTE_IRQ(stmt2_1, tmp = dynticks_progress_counter)
- 42     EXECUTE_IRQ(stmt2_2,
- 43       dynticks_progress_counter = tmp + 1)
- 44     EXECUTE_IRQ(stmt2_3, tmp = rcu_update_flag)
- 45     EXECUTE_IRQ(stmt2_4, rcu_update_flag = tmp + 1)
- 46 stmt2_else: skip;
- 47     EXECUTE_IRQ(stmt3, tmp = in_interrupt)
- 48     EXECUTE_IRQ(stmt4, in_interrupt = tmp + 1)
- 49 stmt5: skip;
- 50     atomic {
- 51       if
- 52       :: in_dyntick_nmi -> goto stmt4;
- 53       :: !in_dyntick_nmi && outermost ->
- 54         old_gp_idle = (gp_state == GP_IDLE);
- 55       :: else -> skip;
- 56       fi;
- 57     }
- 58     i++;
- 59   :: j < i ->
- 60 stmt6: skip;
- 61     atomic {
- 62       if
- 63       :: in_dyntick_nmi -> goto stmt6;
- 64       :: !in_dyntick_nmi && j + 1 == i ->
- 65         assert(!old_gp_idle ||
- 66                gp_state != GP_DONE);
- 67       :: else -> skip;
- 68       fi;
- 69     }
- 70     EXECUTE_IRQ(stmt7, tmp = in_interrupt);
- 71     EXECUTE_IRQ(stmt8, in_interrupt = tmp - 1);
- 72
- 73 stmt9: skip;
- 74     atomic {
- 75       if
- 76       :: in_dyntick_nmi -> goto stmt9;
- 77       :: !in_dyntick_nmi && rcu_update_flag != 0 ->
- 78         goto stmt9_then;
- 79       :: else -> goto stmt9_else;
- 80       fi;
- 81     }
- 82 stmt9_then: skip;
- 83     EXECUTE_IRQ(stmt9_1, tmp = rcu_update_flag)
- 84     EXECUTE_IRQ(stmt9_2, rcu_update_flag = tmp - 1)
- 85 stmt9_3: skip;
- 86     atomic {
- 87       if
- 88       :: in_dyntick_nmi -> goto stmt9_3;
- 89       :: !in_dyntick_nmi && rcu_update_flag == 0 ->
- 90         goto stmt9_3_then;
- 91       :: else -> goto stmt9_3_else;
- 92       fi;
- 93     }
- 94 stmt9_3_then: skip;
- 95     EXECUTE_IRQ(stmt9_3_1,
- 96       tmp = dynticks_progress_counter)
- 97     EXECUTE_IRQ(stmt9_3_2,
- 98       dynticks_progress_counter = tmp + 1)
- 99 stmt9_3_else:
-100 stmt9_else: skip;
-101     atomic {
-102       j++;
-103       in_dyntick_irq = (i != j);
-104     }
-105   od;
-106   dyntick_irq_done = 1;
-107 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-irq-nmi-ssl@dyntick_irq.fcv}
 
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-irq-nmi-ssl:dyntick_irq]
 Note that we have open-coded the ``if'' statements
-(for example, lines~17-29).
+(for example, lines~\lnref{stmt1:b}-\lnref{stmt1:e}).
 In addition, statements that process strictly local state
-(such as line~58) need not exclude \co{dyntick_nmi()}.
+(such as line~\lnref{inc_i}) need not exclude \co{dyntick_nmi()}.
+\end{lineref}
 
 Finally, \co{grace_period()} requires only a few changes:
 
-{ \scriptsize
-\begin{verbatim}
-  1 proctype grace_period()
-  2 {
-  3   byte curr;
-  4   byte snap;
-  5   bit shouldexit;
-  6
-  7   gp_state = GP_IDLE;
-  8   atomic {
-  9     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
- 10     printf("MDLI = %d\n", MAX_DYNTICK_LOOP_IRQ);
- 11     printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NMI);
- 12     shouldexit = 0;
- 13     snap = dynticks_progress_counter;
- 14     gp_state = GP_WAITING;
- 15   }
- 16   do
- 17   :: 1 ->
- 18     atomic {
- 19       assert(!shouldexit);
- 20       shouldexit = dyntick_nohz_done &&
- 21              dyntick_irq_done &&
- 22              dyntick_nmi_done;
- 23       curr = dynticks_progress_counter;
- 24       if
- 25       :: (curr - snap) >= 2 || (curr & 1) == 0 ->
- 26         break;
- 27       :: else -> skip;
- 28       fi;
- 29     }
- 30   od;
- 31   gp_state = GP_DONE;
- 32   gp_state = GP_IDLE;
- 33   atomic {
- 34     shouldexit = 0;
- 35     snap = dynticks_progress_counter;
- 36     gp_state = GP_WAITING;
- 37   }
- 38   do
- 39   :: 1 ->
- 40     atomic {
- 41       assert(!shouldexit);
- 42       shouldexit = dyntick_nohz_done &&
- 43              dyntick_irq_done &&
- 44              dyntick_nmi_done;
- 45       curr = dynticks_progress_counter;
- 46       if
- 47       :: (curr != snap) || ((curr & 1) == 0) ->
- 48         break;
- 49       :: else -> skip;
- 50       fi;
- 51     }
- 52   od;
- 53   gp_state = GP_DONE;
- 54 }
-\end{verbatim}
-}
+\input{CodeSamples/formal/promela/dyntick/dyntickRCU-irq-nmi-ssl@grace_period.fcv}
 
+\begin{lineref}[ln:formal:promela:dyntick:dyntickRCU-irq-nmi-ssl:grace_period]
 We have added the \co{printf()} for the new
-\co{MAX_DYNTICK_LOOP_NMI} parameter on line~11 and
+\co{MAX_DYNTICK_LOOP_NMI} parameter on line~\lnref{MDL_NMI} and
 added \co{dyntick_nmi_done} to the \co{shouldexit}
-assignments on lines~22 and~44.
+assignments on lines~\lnref{nmi_done1} and~\lnref{nmi_done2}.
+\end{lineref}
 
 The model (\path{dyntickRCU-irq-nmi-ssl.spin})
 results in a correct verification with several hundred million

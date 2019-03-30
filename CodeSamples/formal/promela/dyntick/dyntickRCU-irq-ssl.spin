@@ -179,13 +179,13 @@ proctype grace_period()
  */
 
 #define EXECUTE_MAINLINE(label, stmt) \
-label: skip; \
+label: skip; /\
 		atomic { \
 			if \
 			:: in_dyntick_irq -> goto label; \
 			:: else -> stmt; \
 			fi; \
-		} \
+		}
 
 /*
  * Validation code for the rcu_enter_nohz() and rcu_exit_nohz()
@@ -212,7 +212,8 @@ proctype dyntick_nohz()
 		 * with code to check for grace_period() jumping the gun.
 		 */
 
-		EXECUTE_MAINLINE(stmt1, tmp = dynticks_progress_counter)
+		EXECUTE_MAINLINE(stmt1,
+		                 tmp = dynticks_progress_counter)
 		EXECUTE_MAINLINE(stmt2,
 				 dynticks_progress_counter = tmp + 1;
 				 old_gp_idle = (grace_period_state == GP_IDLE);
@@ -238,24 +239,26 @@ proctype dyntick_nohz()
  * Validation code corresponding to rcu_irq_enter() and rcu_irq_exit().
  */
 
+//\begin{snippet}[labelbase=ln:formal:promela:dyntick:dyntickRCU-irq-ssl:dyntick_irq,style=N,gobbleblank=yes,commandchars=\\\[\]]
 proctype dyntick_irq()
 {
 	byte tmp;
 	byte i = 0;
-	byte j = 0;
+	byte j = 0;					//\lnlbl{j}
 	bit old_gp_idle;
-	bit outermost;
-
+	bit outermost;					//\lnlbl{om}
+								//\fcvblank
 	do
-	:: i >= MAX_DYNTICK_LOOP_IRQ && j >= MAX_DYNTICK_LOOP_IRQ -> break;
+	:: i >= MAX_DYNTICK_LOOP_IRQ &&			//\lnlbl{chk_ex:b}
+	   j >= MAX_DYNTICK_LOOP_IRQ -> break;		//\lnlbl{chk_ex:e}
 	:: i < MAX_DYNTICK_LOOP_IRQ ->
 
 		/* Tell dyntick_nohz() that we are in interrupt handler. */
 
-		atomic {
+		atomic {				//\lnlbl{atm1:b}
 			outermost = (in_dyntick_irq == 0);
 			in_dyntick_irq = 1;
-		}
+		}					//\lnlbl{atm1:e}
 
 		/* Validation code corresponding to rcu_irq_enter(). */
 
@@ -266,7 +269,8 @@ proctype dyntick_irq()
 		:: else -> skip;
 		fi;
 		if
-		:: !in_interrupt && (dynticks_progress_counter & 1) == 0 ->
+		:: !in_interrupt &&
+		   (dynticks_progress_counter & 1) == 0 ->
 			tmp = dynticks_progress_counter;
 			dynticks_progress_counter = tmp + 1;
 			tmp = rcu_update_flag;
@@ -284,32 +288,32 @@ proctype dyntick_irq()
 
 		/* Capture state to see if grace_period() is behaving. */
 
-		atomic {
+		atomic {				//\lnlbl{atm2:b}
 			if
 			:: outermost ->
 				old_gp_idle = (grace_period_state == GP_IDLE);
 			:: else -> skip;
 			fi;
-		}
+		}					//\lnlbl{atm2:e}
 
 		/* Count the entry for termination and nesting. */
 
-		i++;
+		i++;			//\lnlbl{inc_i}
 
 	/* Note that we cannot exit a handler we have not yet entered! */
 
-	:: j < i ->
+	:: j < i ->				//\lnlbl{cnd_ex}
 
 		/* See if we can catch grace_period() misbehaving. */
 
-		atomic {
+		atomic {				//\lnlbl{atm3:b}
 			if
 			:: j + 1 == i ->
 				assert(!old_gp_idle ||
 				       grace_period_state != GP_DONE);
 			:: else -> skip;
 			fi;
-		}
+		}					//\lnlbl{atm3:e}
 
 		/*
 		 * Validation code corresponding to the sub_preempt_count()
@@ -339,13 +343,14 @@ proctype dyntick_irq()
 		 * have completely exited a nested set of interrupts.
 		 */
 
-		atomic {
+		atomic {				//\lnlbl{atm4:b}
 			j++;
 			in_dyntick_irq = (i != j);
-		}
+		}					//\lnlbl{atm4:e}
 	od;
 	dyntick_irq_done = 1;
 }
+//\end{snippet}
 
 init {
 	atomic {

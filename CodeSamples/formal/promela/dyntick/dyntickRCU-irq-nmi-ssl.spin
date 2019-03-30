@@ -91,12 +91,13 @@ bit dyntick_nmi_done = 0;
  * mode at some point during the transition.
  */
 
+//\begin{snippet}[labelbase=ln:formal:promela:dyntick:dyntickRCU-irq-nmi-ssl:grace_period,gobbleblank=yes,style=N,commandchars=\@\[\]]
 proctype grace_period()
 {
 	byte curr;
 	byte snap;
 	bit shouldexit;
-
+							//\fcvblank
 	/*
 	 * A little code from rcu_try_flip_idle() and its call
 	 * to dyntick_save_progress_counter(), plus a bunch of
@@ -108,9 +109,15 @@ proctype grace_period()
 
 	grace_period_state = GP_IDLE;
 	atomic {
+#ifndef FCV_SNIPPET
 		printf("MAX_DYNTICK_LOOP_NOHZ = %d\n", MAX_DYNTICK_LOOP_NOHZ);
 		printf("MAX_DYNTICK_LOOP_IRQ = %d\n", MAX_DYNTICK_LOOP_IRQ);
 		printf("MAX_DYNTICK_LOOP_NMI = %d\n", MAX_DYNTICK_LOOP_NMI);
+#else /* #ifndef FCV_SNIPPET */
+		printf("MDL_NOHZ = %d\n", MAX_DYNTICK_LOOP_NOHZ);
+		printf("MDL_IRQ = %d\n", MAX_DYNTICK_LOOP_IRQ);
+		printf("MDL_NMI = %d\n", MAX_DYNTICK_LOOP_NMI); //\lnlbl{MDL_NMI}
+#endif  /* #ifndef FCV_SNIPPET */
 		shouldexit = 0;
 		snap = dynticks_progress_counter;
 		grace_period_state = GP_WAITING;
@@ -131,7 +138,7 @@ proctype grace_period()
 			assert(!shouldexit);
 			shouldexit = dyntick_nohz_done &&
 				     dyntick_irq_done &&
-				     dyntick_nmi_done;
+				     dyntick_nmi_done;	//\lnlbl{nmi_done1}
 			curr = dynticks_progress_counter;
 			if
 			:: (curr - snap) >= 2 || (curr & 1) == 0 ->
@@ -173,7 +180,7 @@ proctype grace_period()
 			assert(!shouldexit);
 			shouldexit = dyntick_nohz_done &&
 				     dyntick_irq_done &&
-				     dyntick_nmi_done;
+				     dyntick_nmi_done;	//\lnlbl{nmi_done2}
 			curr = dynticks_progress_counter;
 			if
 			:: (curr != snap) || ((curr & 1) == 0) ->
@@ -184,6 +191,7 @@ proctype grace_period()
 	od;
 	grace_period_state = GP_DONE;
 }
+//\end{snippet}
 
 /*
  * Macro that allows dyntick_irq() and dyntick_nmi() code to run atomically
@@ -191,14 +199,17 @@ proctype grace_period()
  * dyntick_nmi() to be interleaved with other processes.
  */
 
+//\begin{snippet}[labelbase=ln:formal:promela:dyntick:dyntickRCU-irq-nmi-ssl:EXECUTE_MAINLINE,style=N,commandchars=\@\[\]]
 #define EXECUTE_MAINLINE(label, stmt) \
 label: skip; \
 		atomic { \
 			if \
-			:: in_dyntick_irq || in_dyntick_nmi -> goto label; \
+			:: in_dyntick_irq || \
+			   in_dyntick_nmi -> goto label; \
 			:: else -> stmt; \
 			fi; \
-		} \
+		}
+//\end{snippet}
 
 /*
  * Validation code for the rcu_enter_nohz() and rcu_exit_nohz()
@@ -251,6 +262,7 @@ proctype dyntick_nohz()
  * is running.
  */
 
+//\begin{snippet}[labelbase=ln:formal:promela:dyntick:dyntickRCU-irq-nmi-ssl:EXECUTE_IRQ,style=N,commandchars=\@\[\]]
 #define EXECUTE_IRQ(label, stmt) \
 label: skip; \
 		atomic { \
@@ -258,12 +270,14 @@ label: skip; \
 			:: in_dyntick_nmi -> goto label; \
 			:: else -> stmt; \
 			fi; \
-		} \
+		}
+//\end{snippet}
 
 /*
  * Validation code corresponding to rcu_irq_enter() and rcu_irq_exit().
  */
 
+//\begin{snippet}[labelbase=ln:formal:promela:dyntick:dyntickRCU-irq-nmi-ssl:dyntick_irq,style=N,gobbleblank=yes,commandchars=\@\[\]]
 proctype dyntick_irq()
 {
 	byte tmp;
@@ -271,9 +285,10 @@ proctype dyntick_irq()
 	byte j = 0;
 	bit old_gp_idle;
 	bit outermost;
-
+								//\fcvblank
 	do
-	:: i >= MAX_DYNTICK_LOOP_IRQ && j >= MAX_DYNTICK_LOOP_IRQ -> break;
+	:: i >= MAX_DYNTICK_LOOP_IRQ &&
+	   j >= MAX_DYNTICK_LOOP_IRQ -> break;
 	:: i < MAX_DYNTICK_LOOP_IRQ ->
 
 		/* Tell dyntick_nohz() that we are in interrupt handler. */
@@ -285,7 +300,7 @@ proctype dyntick_irq()
 
 		/* Validation code corresponding to rcu_irq_enter(). */
 
-stmt1: skip;
+stmt1: skip;				//\lnlbl{stmt1:b}
 		atomic {
 			if
 			:: in_dyntick_nmi -> goto stmt1;
@@ -297,7 +312,7 @@ stmt1: skip;
 stmt1_then: skip;
 		EXECUTE_IRQ(stmt1_1, tmp = rcu_update_flag)
 		EXECUTE_IRQ(stmt1_2, rcu_update_flag = tmp + 1)
-stmt1_else: skip;
+stmt1_else: skip;			//\lnlbl{stmt1:e}
 stmt2: skip;	atomic {
 			if
 			:: in_dyntick_nmi -> goto stmt2;
@@ -309,8 +324,10 @@ stmt2: skip;	atomic {
 			fi;
 		}
 stmt2_then: skip;
-		EXECUTE_IRQ(stmt2_1, tmp = dynticks_progress_counter)
-		EXECUTE_IRQ(stmt2_2, dynticks_progress_counter = tmp + 1)
+		EXECUTE_IRQ(stmt2_1,
+		            tmp = dynticks_progress_counter)
+		EXECUTE_IRQ(stmt2_2,
+		            dynticks_progress_counter = tmp + 1)
 		EXECUTE_IRQ(stmt2_3, tmp = rcu_update_flag)
 		EXECUTE_IRQ(stmt2_4, rcu_update_flag = tmp + 1)
 stmt2_else: skip;
@@ -337,7 +354,7 @@ stmt5: skip;
 
 		/* Count the entry for termination and nesting. */
 
-		i++;
+		i++;			//\lnlbl{inc_i}
 
 	/* Note that we cannot exit a handler we have not yet entered! */
 
@@ -388,8 +405,10 @@ stmt9_3: skip;
 			fi;
 		}
 stmt9_3_then: skip;
-		EXECUTE_IRQ(stmt9_3_1, tmp = dynticks_progress_counter)
-		EXECUTE_IRQ(stmt9_3_2, dynticks_progress_counter = tmp + 1)
+		EXECUTE_IRQ(stmt9_3_1,
+		            tmp = dynticks_progress_counter)
+		EXECUTE_IRQ(stmt9_3_2,
+		            dynticks_progress_counter = tmp + 1)
 stmt9_3_else:
 stmt9_else: skip;
 
@@ -405,6 +424,7 @@ stmt9_else: skip;
 	od;
 	dyntick_irq_done = 1;
 }
+//\end{snippet}
 
 /*
  * Validation code corresponding to rcu_irq_enter() and rcu_irq_exit().
@@ -413,12 +433,13 @@ stmt9_else: skip;
  * to grace_period(), but one step at a time.
  */
 
+//\begin{snippet}[labelbase=ln:formal:promela:dyntick:dyntickRCU-irq-nmi-ssl:dyntick_nmi,style=N,gobbleblank=yes,commandchars=\@\[\]]
 proctype dyntick_nmi()
 {
 	byte tmp;
 	byte i = 0;
 	bit old_gp_idle;
-
+								//\fcvblank
 	do
 	:: i >= MAX_DYNTICK_LOOP_NMI -> break;
 	:: i < MAX_DYNTICK_LOOP_NMI ->
@@ -436,7 +457,8 @@ proctype dyntick_nmi()
 		:: else -> skip;
 		fi;
 		if
-		:: !in_interrupt && (dynticks_progress_counter & 1) == 0 ->
+		:: !in_interrupt &&
+		   (dynticks_progress_counter & 1) == 0 ->
 			tmp = dynticks_progress_counter;
 			dynticks_progress_counter = tmp + 1;
 			tmp = rcu_update_flag;
@@ -458,7 +480,8 @@ proctype dyntick_nmi()
 
 		/* See if we can catch grace_period() misbehaving. */
 
-		assert(!old_gp_idle || grace_period_state != GP_DONE);
+		assert(!old_gp_idle ||
+		       grace_period_state != GP_DONE);
 
 		/*
 		 * Validation code corresponding to the sub_preempt_count()
@@ -495,6 +518,7 @@ proctype dyntick_nmi()
 	od;
 	dyntick_nmi_done = 1;
 }
+//\end{snippet}
 
 init {
 	atomic {

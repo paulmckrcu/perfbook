@@ -74,12 +74,13 @@ bit dyntick_nohz_done = 0;
  * mode at some point during the transition.
  */
 
+//\begin{snippet}[labelbase=ln:formal:promela:dyntick:dyntickRCU-base-sl:grace_period,style=N,gobbleblank=yes,commandchars=\@\[\]]
 proctype grace_period()
 {
 	byte curr;
 	byte snap;
 	bit shouldexit;
-
+								//\fcvblank
 	/*
 	 * A little code from rcu_try_flip_idle() and its call
 	 * to dyntick_save_progress_counter(), plus a bunch of
@@ -91,7 +92,11 @@ proctype grace_period()
 
 	grace_period_state = GP_IDLE;
 	atomic {
+#ifndef FCV_SNIPPET
 		printf("MAX_DYNTICK_LOOP_NOHZ = %d\n", MAX_DYNTICK_LOOP_NOHZ);
+#else /* #ifndef FCV_SNIPPET */
+		printf("MDLN = %d\n", MAX_DYNTICK_LOOP_NOHZ);
+#endif /* #ifndef FCV_SNIPPET */
 		shouldexit = 0;
 		snap = dynticks_progress_counter;
 		grace_period_state = GP_WAITING;
@@ -161,6 +166,7 @@ proctype grace_period()
 	od;
 	grace_period_state = GP_DONE;
 }
+//\end{snippet}
 
 /*
  * Validation code for the rcu_enter_nohz() and rcu_exit_nohz()
@@ -172,12 +178,13 @@ proctype grace_period()
  * rcu_exit_nohz() and rcu_enter_nohz().
  */
 
+//\begin{snippet}[labelbase=ln:formal:promela:dyntick:dyntickRCU-base-sl:dyntick_nohz,style=N,gobbleblank=yes,commandchars=\@\[\]]
 proctype dyntick_nohz()
 {
 	byte tmp;
 	byte i = 0;
 	bit old_gp_idle;
-
+								//\fcvblank
 	do
 	:: i >= MAX_DYNTICK_LOOP_NOHZ -> break;
 	:: i < MAX_DYNTICK_LOOP_NOHZ ->
@@ -201,7 +208,8 @@ proctype dyntick_nohz()
 
 		atomic {
 			tmp = dynticks_progress_counter;
-			assert(!old_gp_idle || grace_period_state != GP_DONE);
+			assert(!old_gp_idle ||
+			       grace_period_state != GP_DONE);
 		}
 		atomic {
 			dynticks_progress_counter = tmp + 1;
@@ -209,8 +217,9 @@ proctype dyntick_nohz()
 		}
 		i++;
 	od;
-	dyntick_nohz_done = 1;
+	dyntick_nohz_done = 1;				//\lnlbl{done}
 }
+//\end{snippet}
 
 init {
 	atomic {
