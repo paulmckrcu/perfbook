@@ -175,6 +175,9 @@ while($line = <>) {
 	    if ($incomment) {
 		if ($line =~ /\*\/(.*$)/) {
 		    $line = $1;
+		    if ($line !~ /\S/) {
+			$line = "";
+		    }
 		    $incomment = 0;
 		} else {
 		    $line = "";
@@ -189,6 +192,9 @@ while($line = <>) {
 		    }
 		} elsif ($line =~ /(.*)\/\*.*/) {
 		    $line = $1;
+		    if ($line !~ /\S/) {
+			$line = "";
+		    }
 		    $incomment = 1;
 		}
 	    }
