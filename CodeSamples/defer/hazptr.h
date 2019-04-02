@@ -63,41 +63,41 @@ void hazptr_free(void *ptr); /* supplied by caller. */
 #define HAZPTR_POISON 0x8
 
 /* This can be used when reading a pointer from an immortal structure. */
-static inline void *hp_record(void **p, hazard_pointer *hp)
+//\begin{snippet}[labelbase=ln:defer:hazptr:record_clear,commandchars=\\\[\]]
+static inline void *_h_t_r_impl(void **p,		//\lnlbl{htr:b}
+                                hazard_pointer *hp)
+{
+	void *tmp;
+
+	tmp = READ_ONCE(*p);				//\lnlbl{htr:ro1}
+	if (!tmp || tmp == (void *)HAZPTR_POISON)
+		return tmp;				//\lnlbl{htr:race1}
+	WRITE_ONCE(hp->p, tmp);				//\lnlbl{htr:store}
+	smp_mb();					//\lnlbl{htr:mb}
+	if (tmp == READ_ONCE(*p))			//\lnlbl{htr:ro2}
+		return tmp;				//\lnlbl{htr:success}
+	return (void *)HAZPTR_POISON;			//\lnlbl{htr:race2}
+}
+
+#define hp_try_record(p, hp) _h_t_r_impl((void **)(p), hp) //\lnlbl{htr:e}
+
+static inline void *hp_record(void **p,			//\lnlbl{hr:b}
+                              hazard_pointer *hp)
 {
 	void *tmp;
 
 	do {
-		tmp = READ_ONCE(*p);
-		if (!tmp || tmp == (void *)HAZPTR_POISON)
-			return tmp;
-		WRITE_ONCE(hp->p, tmp);
-		smp_mb();
-	} while (tmp != READ_ONCE(*p));
+		tmp = hp_try_record(*p, hp);
+	} while (tmp == (void *)HAZPTR_POISON);
 	return tmp;
-}
+}							//\lnlbl{hr:e}
 
-static inline void *hp_try_record_impl(void **p, hazard_pointer *hp)
-{
-	void *tmp;
-
-	tmp = READ_ONCE(*p);
-	if (!tmp || tmp == (void *)HAZPTR_POISON)
-		return NULL;
-	WRITE_ONCE(hp->p, tmp);
-	smp_mb();
-	if (tmp == READ_ONCE(*p))
-		return tmp;
-	return (void *)HAZPTR_POISON;
-}
-
-#define hp_try_record(p, hp) hp_try_record_impl((void **)(p), hp)
-
-static inline void hp_clear(hazard_pointer *hp)
+static inline void hp_clear(hazard_pointer *hp)		//\lnlbl{hc:b}
 {
 	smp_mb();
 	WRITE_ONCE(hp->p, NULL);
-}
+}							//\lnlbl{hc:e}
+//\end{snippet}
 
 #define hazptr_clean_pointer(p) ((typeof(p))((unsigned long)(p) & ~0x1UL))
  

@@ -250,6 +250,8 @@ void *hazptr_read_stress_test(void *arg)
 	hazptr_register_thread();
 	while (goflag == GOFLAG_RUN) {
 		p = hp_record((void *)&hazptr_stress_current, &HP[base]);
+		if (!p)
+			continue;
 		if (p->mbtest == 0)
 			n_mberror++;
 		pc = p->pipe_count;

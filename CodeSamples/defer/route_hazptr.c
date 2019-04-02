@@ -58,7 +58,7 @@ retry:							//\lnlbl{retry}
 		repp = &rep->re_next;
 	} while (rep->addr != addr);
 	if (READ_ONCE(rep->re_freed))
-		abort();
+		abort();					//\lnlbl{abort}
 	return rep->iface;
 }
 //\end{snippet}
