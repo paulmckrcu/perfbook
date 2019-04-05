@@ -1,5 +1,14 @@
 % formal/dyntickrcu.tex
 
+% Disable frame around VerbatimN in two-column layout
+\IfTwoColumn{
+\RecustomVerbatimEnvironment{VerbatimN}{Verbatim}%
+{numbers=left,numbersep=5pt,xleftmargin=10pt,xrightmargin=0pt,frame=none}
+\AtBeginEnvironment{VerbatimN}{%
+\renewcommand{\lnlbl}[1]{\raisebox{0pt}{\phantomsection\label{\lnlblbase:#1}}}%
+}
+}{}
+
 \subsection{Promela Parable: dynticks and Preemptible RCU}
 \label{sec:formal:Promela Parable: dynticks and Preemptible RCU}
 
@@ -1114,10 +1123,19 @@ states, passing without errors.
 
 \subsubsection{Lessons (Re)Learned}
 \label{sec:formal:Lessons (Re)Learned}
-\NoIndentAfterThis
 
-\begin{listing}[tbp]
-\begin{VerbatimL}[numbers=none]
+This effort provided some lessons (re)learned:
+
+\begin{enumerate}
+\item	{\bf Promela and Spin can verify interrupt\slash NMI\-/handler
+	interactions.}
+\item	{\bf Documenting code can help locate bugs.}
+	In this case, the documentation effort located
+	a misplaced memory barrier in
+	\co{rcu_enter_nohz()} and \co{rcu_exit_nohz()},
+	as shown by the following patch.
+
+\begin{VerbatimU}
  static inline void rcu_enter_nohz(void)
  {
 +       mb();
@@ -1131,38 +1149,20 @@ states, passing without errors.
         __get_cpu_var(dynticks_progress_counter)++;
 +       mb();
  }
-\end{VerbatimL}
-\caption{Memory-Barrier Fix Patch}
-\label{lst:formal:Memory-Barrier Fix Patch}
-\end{listing}
+\end{VerbatimU}
 
-\begin{listing}[tbp]
-\begin{VerbatimL}[numbers=none]
--       if ((curr - snap) > 2 || (snap & 0x1) == 0)
-+       if ((curr - snap) > 2 || (curr & 0x1) == 0)
-\end{VerbatimL}
-\caption{Variable-Name-Typo Fix Patch}
-\label{lst:formal:Variable-Name-Typo Fix Patch}
-\end{listing}
-
-This effort provided some lessons (re)learned:
-
-\begin{enumerate}
-\item	{\bf Promela and Spin can verify interrupt\slash NMI\-/handler
-	interactions.}
-\item	{\bf Documenting code can help locate bugs.}
-	In this case, the documentation effort located
-	a misplaced memory barrier in
-	\co{rcu_enter_nohz()} and \co{rcu_exit_nohz()},
-	as shown by the patch in
-	Listing~\ref{lst:formal:Memory-Barrier Fix Patch}.
 \item	{\bf Validate your code early, often, and up to the point
 	of destruction.}
 	This effort located one subtle bug in
 	\co{rcu_try_flip_waitack_needed()}
 	that would have been quite difficult to test or debug, as
-	shown by the patch in
-	Listing~\ref{lst:formal:Variable-Name-Typo Fix Patch}.
+	shown by the following patch.
+
+\begin{VerbatimU}
+-       if ((curr - snap) > 2 || (snap & 0x1) == 0)
++       if ((curr - snap) > 2 || (curr & 0x1) == 0)
+\end{VerbatimU}
+
 \item	{\bf Always verify your verification code.}
 	The usual way to do this is to insert a deliberate bug
 	and verify that the verification code catches it.  Of course,
@@ -1621,3 +1621,12 @@ where an NMI might change shared state at any point during execution of
 the \IRQ\ functions.
 
 Verification can be a good thing, but simplicity is even better.
+
+% Restore frame around VerbatimN in two-column layout
+\IfTwoColumn{
+\RecustomVerbatimEnvironment{VerbatimN}{Verbatim}%
+{numbers=left,numbersep=3pt,xleftmargin=5pt,xrightmargin=5pt,frame=single}
+\AtBeginEnvironment{VerbatimN}{%
+\renewcommand{\lnlbl}[1]{\raisebox{9pt}{\phantomsection\label{\lnlblbase:#1}}}%
+}
+}{}
