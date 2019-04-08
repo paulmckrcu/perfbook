@@ -36,7 +36,7 @@ Listing~\ref{lst:defer:Hazard-Pointer Recording and Clearing},
 which shows \co{hp_try_record()} on lines~\lnref{htr:b}-\lnref{htr:e},
 \co{hp_record()} on lines~\lnref{hr:b}-\lnref{hr:e}, and
 \co{hp_clear()} on
-lines~\lnref{hc:b}-\lnref{hc:e}.
+lines~\lnref{hc:b}-\lnref{hc:e} (\path{hazptr.h}).
 
 The \co{hp_try_record()} macro on line~\lnref{htr:e} is simply a casting
 wrapper for the \co{_h_t_r_impl()} function, which attempts to store
@@ -46,6 +46,26 @@ If successful, it returns the value of the stored pointer.
 If it fails due to that pointer being \co{NULL}, it returns \co{NULL}.
 Finally, if it fails due to racing with an update, it returns a special
 \co{HAZPTR_POISON} token.
+
+\QuickQuiz{}
+	Given that papers on hazard pointers use the bottom bits
+	of each pointer to mark deleted elements, what is up with
+	\co{HAZPTR_POISON}?
+\QuickQuizAnswer{
+	The published implementations of hazard pointers used
+	non-blocking synchronization techniques for insertion
+	and deletion.
+	These techniques require that readers traversing the
+	data structure ``help'' updaters complete their updates,
+	which in turn means that readers need to look at the successor
+	of a deleted element.
+
+	In contrast, we will be using locking to synchronize updates,
+	which does away with the need for readers to help updaters
+	complete their updates, which in turn allows us to leave
+	pointers' bottom bits alone.
+	This approach allows read-side code to be simpler and faster.
+} \QuickQuizEnd
 
 Line~\lnref{htr:ro1} reads the pointer to the object to be protected.
 If line~\lnref{htr:race1} finds that this pointer was either \co{NULL} or
@@ -79,119 +99,28 @@ The \co{hp_record()} function is quite straightforward: It repeatedly
 invokes \co{hp_try_record()} until the return value is something other
 than \co{HAZPTR_POISON}.
 
+\QuickQuiz{}
+	Why bother with \co{hp_try_record()}?
+	Wouldn't it be easier to just use the failure-immune
+	\co{hp_record()} function?
+\QuickQuizAnswer{
+	It might be easier in some sense, but as will be seen in the
+	Pre-BSD routing example, there are situations for which
+	\co{hp_record()} simply does not work.
+} \QuickQuizEnd
+
 The \co{hp_clear()} function is even more straightforward, with
 an \co{smp_mb()} to force full ordering between the caller's uses
 of the object protected by the hazard pointer and the setting of
 the hazard pointer to \co{NULL}.
 \end{lineref}
 
-@@@
-
-\QuickQuiz{}
-	Why does \co{hp_try_record()}'s caller need to restart its
-	traversal from the beginning in case of failure?
-	Isn't that inefficient for large data structures?
-\QuickQuizAnswer{
-	It might be inefficient in some sense, but the fact is that
-	such restarting is absolutely required for correctness.
-	To see this, consider a hazard-pointer-protected linked list
-	containing elements~A, B, and~C that is subjected to the
-	following sequence of events:
-
-	\begin{enumerate}
-	\item	Thread~0 stores a hazard pointer to element~B
-		(having presumably traversed to element~B from element~A).
-	\item	Thread~1 removes element~B from the list, which sets
-		the pointer from element~B to element~C to a special
-		\co{HAZPTR_POISON} value in order to mark the deletion.
-		Because Thread~0 has a hazard pointer to element~B,
-		it cannot yet be freed.
-	\item	Thread~1 removes element~C from the list.
-		Because there are no hazard pointers referencing element~C,
-		it is immediately freed.
-	\item	Thread~0 attempts to acquire a hazard pointer to
-		now-removed element~B's successor, but sees the
-		\co{HAZPTR_POISON} value, and thus returns zero,
-		forcing the caller to restart its traversal from the
-		beginning of the list.
-	\end{enumerate}
-
-	Which is a very good thing, because otherwise Thread~0 would
-	have attempted to access the now-freed element~C,
-	which might have resulted in arbitrarily horrible
-	memory corruption, especially if the memory for
-	element~C had since been re-allocated for some other
-	purpose.
-
-	All that aside, please understand that hazard pointers's
-	restarting allows it to maintain a minimal memory footprint.
-	Any object not currently referenced by some hazard pointer
-	may be immediately freed.
-	In contrast,
-	Section~\ref{sec:defer:Read-Copy Update (RCU)}
-	will discuss a mechanism that avoids read-side retries
-	(and minimizes read-side overhead), but has a much larger
-	memory footprint.
-} \QuickQuizEnd
-
-\QuickQuiz{}
-	Given that papers on hazard pointers use the bottom bits
-	of each pointer to mark deleted elements, what is up with
-	\co{HAZPTR_POISON}?
-\QuickQuizAnswer{
-	The published implementations of hazard pointers used
-	non-blocking synchronization techniques for insertion
-	and deletion.
-	These techniques require that readers traversing the
-	data structure ``help'' updaters complete their updates,
-	which in turn means that readers need to look at the successor
-	of a deleted element.
-
-	In contrast, we will be using locking to synchronize updates,
-	which does away with the need for readers to help updaters
-	complete their updates, which in turn allows us to leave
-	pointers' bottom bits alone.
-	This approach allows read-side code to be simpler and faster.
-} \QuickQuizEnd
-
-Because algorithms using hazard pointers might be restarted at any
-step of their traversal through the data structure, such algorithms
-must typically take care to avoid making any changes to the data
-structure until after they have acquired all relevant hazard pointers.
-
-\QuickQuiz{}
-	But don't these restrictions on hazard pointers also apply
-	to other forms of reference counting?
-\QuickQuizAnswer{
-	These restrictions apply only to reference-counting mechanisms whose
-	reference acquisition can fail.
-} \QuickQuizEnd
-
-These restrictions result in great benefits to readers, courtesy of the
-fact that the hazard pointers are stored local to each CPU or thread,
-which in turn allows traversals of the data structures themselves to
-be carried out in a completely read-only fashion.
-Referring back to
-Figure~\ref{fig:count:Optimization and the Four Parallel-Programming Tasks}
-on
-page~\pageref{fig:count:Optimization and the Four Parallel-Programming Tasks},
-hazard pointers enable the CPU caches to do resource replication, which
-in turn allows weakening of the parallel-access-control mechanism,
-thus boosting performance and scalability.
-Performance comparisons with other mechanisms may be found in
-Chapter~\ref{chp:Data Structures}
-and in other publications~\cite{ThomasEHart2007a,McKenney:2013:SDS:2483852.2483867,MagedMichael04a}.
+% @@@ Discuss the hazard-pointer deferred-free mechanism.
 
 \begin{listing}[tbp]
 \input{CodeSamples/defer/route_hazptr@lookup.fcv}
 \caption{Hazard-Pointer Pre-BSD Routing Table Lookup}
 \label{lst:defer:Hazard-Pointer Pre-BSD Routing Table Lookup}
-\end{listing}
-
-\begin{listing}[tbp]
-\input{CodeSamples/defer/route_hazptr@add_del.fcv}
-\caption{Hazard-Pointer Pre-BSD Routing Table Add\slash Delete}
-\label{lst:defer:Hazard-Pointer Pre-BSD Routing Table Add/Delete}
 \end{listing}
 
 The Pre-BSD routing example can use hazard pointers as shown in
@@ -224,7 +153,93 @@ The \co{do}-\co{while} loop falls through when the desired element is
 located, but if this element has already been freed, line~\lnref{abort}
 terminates the program.
 Otherwise, the element's \co{->iface} field is returned to the caller.
+
+Note that line~\lnref{tryrecord} invokes \co{hp_try_record()} rather
+than the easier-to-use \co{hp_record()}, restarting the full search
+upon \co{hp_try_record()} failure.
+And such restarting is absolutely required for correctness.  To see this,
+consider a hazard-pointer-protected linked list containing elements~A,
+B, and~C that is subjected to the following sequence of events:
 \end{lineref}
+
+\begin{enumerate}
+\item	Thread~0 stores a hazard pointer to element~B
+	(having presumably traversed to element~B from element~A).
+\item	Thread~1 removes element~B from the list, which sets
+	the pointer from element~B to element~C to the special
+	\co{HAZPTR_POISON} value in order to mark the deletion.
+	Because Thread~0 has a hazard pointer to element~B,
+	it cannot yet be freed.
+\item	Thread~1 removes element~C from the list.
+	Because there are no hazard pointers referencing element~C,
+	it is immediately freed.
+\item	Thread~0 attempts to acquire a hazard pointer to now-removed
+	element~B's successor, but \co{hp_try_record()} returns the
+	\co{HAZPTR_POISON} value, forcing the caller to restart its
+	traversal from the beginning of the list.
+\end{enumerate}
+
+Which is a very good thing, because B's successor is the now-freed
+element~C, which means that Thread~0's subsequent accesses might have
+resulted in arbitrarily horrible memory corruption, especially if the
+memory for element~C had since been re-allocated for some other purpose.
+Therefore, statically allocated global variables), hazard-pointer
+readers must typically restart the full traversal in the face of a
+concurrent deletion.
+
+\QuickQuiz{}
+	Readers must ``typically'' restart?
+	What are some exceptions?
+\QuickQuizAnswer{
+	If the pointer emanates from a global variable or is otherwise
+	not subject to being freed, then \co{hp_record()} may be
+	used to repeatedly attempt to record the hazard pointer,
+	even in the face of concurrent deletions.
+	% @@@ Add more use cases subject to Maged Michael's approval.
+} \QuickQuizEnd
+
+Because algorithms using hazard pointers might be restarted at any
+step of their traversal through the linked data structure, such algorithms
+must typically take care to avoid making any changes to the data
+structure until after they have acquired all the hazard pointers that
+are required for the update in question.
+
+\QuickQuiz{}
+	But don't these restrictions on hazard pointers also apply
+	to other forms of reference counting?
+\QuickQuizAnswer{
+	Yes and no.
+	These restrictions apply only to reference-counting mechanisms whose
+	reference acquisition can fail.
+} \QuickQuizEnd
+
+These hazard-pointer restrictions result in great benefits to readers,
+courtesy of the fact that the hazard pointers are stored local to each
+CPU or thread, which in turn allows traversals to be carried out without
+any writes to the data structures being traversed.
+Referring back to
+Figure~\ref{fig:count:Optimization and the Four Parallel-Programming Tasks}
+on
+page~\pageref{fig:count:Optimization and the Four Parallel-Programming Tasks},
+hazard pointers enable the CPU caches to do resource replication, which
+in turn allows weakening of the parallel-access-control mechanism,
+thus boosting performance and scalability.
+
+Another advantage of hazard pointers's restarting is a reduction in its
+minimal memory footprint:
+Any object not currently referenced by some hazard pointer may be
+immediately freed.
+In contrast,
+Section~\ref{sec:defer:Read-Copy Update (RCU)}
+will discuss a mechanism that avoids read-side retries (and minimizes
+read-side overhead), but which can result in a much larger memory
+footprint.
+
+\begin{listing}[tbp]
+\input{CodeSamples/defer/route_hazptr@add_del.fcv}
+\caption{Hazard-Pointer Pre-BSD Routing Table Add\slash Delete}
+\label{lst:defer:Hazard-Pointer Pre-BSD Routing Table Add/Delete}
+\end{listing}
 
 \begin{lineref}[ln:defer:route_hazptr:add_del]
 In
@@ -256,10 +271,12 @@ memory (albeit with much improved locality of reference),
 and also require a full memory barrier and retry check for each
 object traversed.
 Therefore, hazard pointers's performance is far short of ideal.
-On the other hand, hazard pointers do operate correctly for workloads
-involving concurrent updates, and as of early 2019 are used in production
-by both Facebook and by MongoDB.
-% MongoDB v3.0 according to Matthias Stearn.  Keith Bostic maintainer.
+On the other hand, unlike naive approaches to concurrent reference-counting,
+hazard pointers do operate correctly for workloads
+involving concurrent updatesa.
+Additional performance comparisons with other mechanisms may be found in
+Chapter~\ref{chp:Data Structures}
+and in other publications~\cite{ThomasEHart2007a,McKenney:2013:SDS:2483852.2483867,MagedMichael04a}.
 
 \QuickQuiz{}
 	The paper ``Structured Deferral: Synchronization via
