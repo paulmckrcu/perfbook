@@ -44,8 +44,8 @@ Unfortunately, a quick review of
 Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
 dashes these hopes.
 Therefore, the updater cannot use a simple C-language assignment, but
-must instead use something like \co{smp_store_release()}, or, as will be seen,
-\co{rcu_assign_pointer()}.
+must instead use \co{smp_store_release()} as shown in the figure,
+or, as will be seen, \co{rcu_assign_pointer()}.
 
 Similarly, one might hope that readers could use a single C-language
 assignment statement to fetch the value of \co{gptr}, and be guaranteed
@@ -78,9 +78,13 @@ being referenced by concurrent readers.
 As can be seen in
 Figure~\ref{fig:defer:Deletion With Concurrent Readers},
 the first step is easy.
-Taking the lessons from
+Again taking the lessons from
 Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
-to heart, use \co{WRITE_ONCE()} to \co{NULL} the pointer,
+to heart, use \co{smp_store_release()} to \co{NULL} the pointer,\footnote{
+	Strictly speaking, \co{WRITE_ONCE()} suffices for a \co{NULL}
+	pointer, but \co{smp_store_release()} is absolutely required
+	when storing non-\co{NULL} pointers.
+	Or, as we will see, \co{rcu_assign_pointer()}.}
 thus moving from the first row to the second in the figure.
 At this point, pre-existing readers will see the old structure with
 \co{->addr} of 42 and \co{->iface} of 1, but new readers will see
