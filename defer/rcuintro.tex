@@ -92,11 +92,15 @@ a \co{NULL} pointer, that is, concurrent readers can disagree on
 the state, as indicated by the ``2 Versions'' in the figure.
 
 \QuickQuiz{}
-	Shouldn't
-	Figure~\ref{fig:defer:Deletion With Concurrent Readers}'s
-	\co{WRITE_ONCE()} instead be \co{smp_store_release()}?
+	Why does
+	Figure~\ref{fig:defer:Deletion With Concurrent Readers}
+	use \co{smp_store_release()} given that it is storing
+	a \co{NULL} pointer?
+	Wouldn't \co{WRITE_ONCE()} work just as well in this case,
+	given that there is no structure initialization to order
+	against the store of the \co{NULL} pointer?
 \QuickQuizAnswer{
-	No, it need not be.
+	Yes, it would.
 
 	Because a \co{NULL} pointer is being assigned, there is nothing
 	to order against, so no need for \co{smp_store_release()}.
@@ -104,11 +108,12 @@ the state, as indicated by the ``2 Versions'' in the figure.
 	necessary to use \co{smp_store_release()} in order to ensure
 	that initialization of the pointed-to structure is carried
 	out before assignment of the pointer.
-	But in this case, the \co{NULL} pointer means that there is
-	no pointed-to structure, and thus no need for ordering.
 
-	In short, \co{smp_store_release()} would work, but could
-	incur unnecessary overhead.
+	In short, \co{WRITE_ONCE()} would work, and would
+	save a little bit of CPU time on some architectures.
+	However, as we will see, software-engineering concerns
+	will motivate use of a special \co{rcu_assign_pointer()}
+	that is quite similar to \co{smp_store_release()}.
 } \QuickQuizEnd
 
 \QuickQuiz{}
