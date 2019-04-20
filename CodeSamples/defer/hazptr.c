@@ -77,15 +77,6 @@ int compare (const void *a, const void *b)
   return ( *(hazptr_head_t **)a - *(hazptr_head_t **)b );
 }
 
-/* Debugging function. Leave it around. */
-inline hazptr_head_t *ssearch(hazptr_head_t **list, int size, hazptr_head_t *key) {
-	int i;
-	for (i = 0; i < size; i++)
-		if (list[i] == key)
-			return list[i];
-	return NULL;
-}
-
 void hazptr_scan()
 {
 	/* Iteratation variables. */
