@@ -47,7 +47,7 @@ void hazptr_thread_exit(void)
 	int i;
 
 	for (i = 0; i < K; i++)
-		HP[K*myTID+i].p = NULL;
+		WRITE_ONCE(HP[K*myTID+i].p, NULL);
 	
 	while (rcount > 0) {
 		hazptr_scan();
@@ -116,9 +116,11 @@ void hazptr_scan()
 	/* Stage 1: Scan HP list and insert non-null values in plist. */
 	psize = 0;
 	for (i = 0; i < H; i++) {
-		if (HP[i].p == NULL)
+		uintptr_t hp = (uintptr_t)READ_ONCE(HP[i].p);
+
+		if (!hp)
 			continue;
-		plist[psize++] = (hazptr_head_t *)((unsigned long)HP[i].p & ~0x1UL);
+		plist[psize++] = (hazptr_head_t *)(hp & ~0x1UL);
 	}
 	smp_mb(); /* ensure freeing happens after scan. */
 	
