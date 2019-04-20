@@ -115,7 +115,106 @@ of the object protected by the hazard pointer and the setting of
 the hazard pointer to \co{NULL}.
 \end{lineref}
 
-% @@@ Discuss the hazard-pointer deferred-free mechanism.
+\begin{listing}[tbp]
+\begin{VerbatimL}
+int compare (const void *a, const void *b)
+{
+	return (*(hazptr_head_t **)a - *(hazptr_head_t **)b);
+}
+
+void hazptr_scan()
+{
+	hazptr_head_t *cur;
+	int i;
+	hazptr_head_t *tmplist;
+	hazptr_head_t **plist = gplist;
+	unsigned long psize;
+
+	if (plist == NULL) {
+		psize = sizeof(hazptr_head_t *) * K * NR_THREADS;
+		plist = malloc(psize);
+		BUG_ON(!plist);
+		gplist = plist;
+	}
+	smp_mb();
+	psize = 0;
+	for (i = 0; i < H; i++) {
+		uintptr_t hp  = (uintptr_t)READ_ONCE(HP[i].p);
+
+		if (!hp)
+			continue;
+		plist[psize++] = (hazptr_head_t *)(hp & ~0x1UL);
+	}
+	smp_mb();
+	qsort(plist, psize, sizeof(hazptr_head_t *), compare);
+	tmplist = rlist;
+	rlist = NULL;
+	rcount = 0;
+	while (tmplist != NULL) {
+		cur = tmplist;
+		tmplist = tmplist->next;
+		if (bsearch(&cur, plist, psize,
+		    sizeof(hazptr_head_t *), compare)) {
+			cur->next = rlist;
+			rlist = cur;
+			rcount++;
+		} else {
+			hazptr_free(cur);
+		}
+	}
+}
+
+void hazptr_free_later(hazptr_head_t *n)
+{
+	n->next = rlist;
+	rlist = n;
+	rcount++;
+	if (rcount >= R) {
+		hazptr_scan();
+	}
+}
+\end{VerbatimL}
+\caption{Hazard-Pointer Scanning and Freeing}
+\label{lst:defer:Hazard-Pointer Scanning and Freeing}
+\end{listing}
+
+Once a hazard-pointer-protected object has been removed from its
+linked data structure, so that it is now inaccessible to future
+hazard-pointer readers, it is passed to \co{hazptr_free_later()},
+which is shown on lines~48-56 of
+Listing~\ref{lst:defer:Hazard-Pointer Scanning and Freeing}
+(\path{hazptr.c}).
+Lines~50 and~51 enqueue the object on a per-thread list \co{rlist}
+and line~52 counts the object in \co{rcount}.
+If line~53 sees that a sufficiently large number of objects are now
+queued, line~54 invokes \co{hazptr_scan()} to attempt to free some of them.
+
+The \co{hazptr_scan()} function is shown on lines~6--46 of the listing.
+This function relies on a fixed maximum number of threads (\co{NR_THREADS})
+and a fixed maximum number of hazard pointers per thread (\co{K}),
+which allows a fixed-size array of hazard pointers to be used.
+Because any thread might need to scan the hazard pointers, each thread
+maintains its own array, which is referenced by the per-thread variable
+\co{gplist}.
+If line~14 determines that this thread has not yet allocated its
+\co{gplist}, lines~15--18 carry out the allocation.
+The memory barrier on line~20 ensures that all threads see the
+removal of all objects by this thread before lines~22-28 scan
+all of the hazard pointers, accumulating non-NULL pointers into
+the \co{plist} array and counting them in \co{psize}.
+The memory barrier on line~30 ensures that the reads of the hazard pointers
+happen before any objects are freed.
+Line~30 then sorts this array to enable use of binary search below.
+
+Lines~31 and 32 remove all elements from this thread's list of
+to-be-freed objects, placing them on the local \co{tmplist}
+and line~33 zeroes the count.
+Each pass through the loop spanning lines~34-45 processes each
+of the to-be-freed objects.
+Lines~35 and~36 remove the first object from \co{tmplist},
+and if lines~37 and~38 determine that there is a hazard pointer
+protecting this object, lines~39-41 place it back onto \co{rlist}.
+Otherwise, line~43 frees the object.
 
 \begin{listing}[tbp]
 \input{CodeSamples/defer/route_hazptr@lookup.fcv}
