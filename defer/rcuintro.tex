@@ -354,14 +354,14 @@ void synchronize_rcu(void)
 	int cpu;
 
 	for_each_online_cpu(cpu)
-		run_on(cpu);
+		sched_setaffinity(current->pid, cpumask_of(cpu));
 }
 \end{VerbatimN}
 
 The \co{for_each_online_cpu()} primitive iterates over all CPUs, and
-the \co{run_on()} function causes the current thread to execute on the
-specified CPU, which forces the destination CPU to execute a context
-switch.
+the \co{sched_setaffinity_on()} function causes the current thread to
+execute on the specified CPU, which forces the destination CPU to execute
+a context switch.
 Therefore, once the \co{for_each_online_cpu()} has completed, each CPU
 has executed a context switch, which in turn guarantees that
 all pre-existing reader threads have completed.
@@ -419,9 +419,12 @@ Correct handling of a number of corner cases and the need for a number
 of powerful optimizations mean that production-quality implementations
 have significant additional complexity.
 In addition, RCU implementations for preemptible environments
-require that readers actually do something.\footnote{
-	Some toy RCU implementations that handle preemptive
-	environments are shown in
+require that readers actually do something, which in non-real-time
+Linux-kernel environments can be as simple as defining
+\co{rcu_read_lock()} and \co{rcu_read_unlock()} as \co{preempt_disable()}
+and \co{preempt_enable()}, respectively.\footnote{
+	Some toy RCU implementations that handle preempted
+	read-side critical sections are shown in
 	Appendix~\ref{chp:app:``Toy'' RCU Implementations}.}
 However, this simple non-preemptible approach is conceptually complete,
 and demonstrates that it really is possible to provide read-side
