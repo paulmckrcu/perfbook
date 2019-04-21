@@ -94,14 +94,7 @@ void hazptr_scan()				//\lnlbl{scan:b}
 	if (plist == NULL) {			//\lnlbl{scan:check}
 		psize = sizeof(hazptr_head_t *) * K * NR_THREADS; //\lnlbl{scan:alloc:b}
 		plist = (hazptr_head_t **)malloc(psize);
-#ifndef FCV_SNIPPET
-		if (plist == NULL) {
-			fprintf(stderr, "hazptr_scan: out of memory\n");
-			exit(EXIT_FAILURE);
-		}
-#else /* FCV_SNIPPET */
 		BUG_ON(!plist);
-#endif /* FCV_SNIPPET */
 		gplist = plist;			//\lnlbl{scan:alloc:e}
 	}
 
