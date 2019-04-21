@@ -44,6 +44,7 @@ ARCH_DEPENDENT = gettimestamp \
 	route_seq \
 	route_seqlock \
 	seqlocktorture \
+	singleton \
 
 PROGS = $(ARCH_DEPENDENT) $(ARCH_INDEPENDENT)
 
@@ -143,6 +144,9 @@ route_seqlock: route_seqlock.c ../api.h seqlock.h ../lib/random.h ../lib/random.
 
 seqlocktorture: seqlocktorture.c seqlock.h ../api.h
 	cc $(GCC_ARGS) -o seqlocktorture seqlocktorture.c -lpthread
+
+singleton: singleton.c ../api.h ../lib/random.h ../lib/random.c
+	cc -O0 -Wall -g -o singleton singleton.c ../lib/random.c -lpthread  -lurcu -lurcu-signal
 
 clean:
 	rm -f $(PROGS)
