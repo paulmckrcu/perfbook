@@ -72,12 +72,13 @@ void hazptr_reinitialize()
  *    0 : a == b
  *  > 0 : a > b
  */
-int compare (const void *a, const void *b)
+//\begin{snippet}[labelbase=ln:defer:hazptr:scan_free,gobbleblank=yes,commandchars=\%\@\$]
+int compare(const void *a, const void *b)
 {
-  return ( *(hazptr_head_t **)a - *(hazptr_head_t **)b );
+	return ( *(hazptr_head_t **)a - *(hazptr_head_t **)b );
 }
-
-void hazptr_scan()
+							//\fcvblank
+void hazptr_scan()				//\lnlbl{scan:b}
 {
 	/* Iteratation variables. */
 	hazptr_head_t *cur;
@@ -89,14 +90,19 @@ void hazptr_scan()
 	/* List of hazard pointers, and its size. */
 	hazptr_head_t **plist = gplist;
 	unsigned long psize;
-
-	if (plist == NULL) {
-		plist = (hazptr_head_t **)malloc(sizeof(hazptr_head_t *) * K * NR_THREADS);
+							//\fcvblank
+	if (plist == NULL) {			//\lnlbl{scan:check}
+		psize = sizeof(hazptr_head_t *) * K * NR_THREADS; //\lnlbl{scan:alloc:b}
+		plist = (hazptr_head_t **)malloc(psize);
+#ifndef FCV_SNIPPET
 		if (plist == NULL) {
 			fprintf(stderr, "hazptr_scan: out of memory\n");
 			exit(EXIT_FAILURE);
 		}
-		gplist = plist;
+#else /* FCV_SNIPPET */
+		BUG_ON(!plist);
+#endif /* FCV_SNIPPET */
+		gplist = plist;			//\lnlbl{scan:alloc:e}
 	}
 
 	/*
@@ -111,52 +117,53 @@ void hazptr_scan()
 	 *   A -> B -> C ---> A -> B      ---> A -> C
 	 *                    B -> POISON      B -> POISON
 	 */
-	smp_mb();
+	smp_mb();				//\lnlbl{scan:mb1}
 
 	/* Stage 1: Scan HP list and insert non-null values in plist. */
 	psize = 0;
-	for (i = 0; i < H; i++) {
+	for (i = 0; i < H; i++) {		//\lnlbl{scan:loop:b}
 		uintptr_t hp = (uintptr_t)READ_ONCE(HP[i].p);
-
+							//\fcvblank
 		if (!hp)
 			continue;
 		plist[psize++] = (hazptr_head_t *)(hp & ~0x1UL);
-	}
-	smp_mb(); /* ensure freeing happens after scan. */
+	}					//\lnlbl{scan:loop:e}
+	smp_mb(); /* ensure freeing happens after scan. */ //\lnlbl{scan:mb2}
 	
 	/* Stage 2: Sort the plist. */
-	qsort(plist, psize, sizeof(hazptr_head_t *), compare);
+	qsort(plist, psize, sizeof(hazptr_head_t *), compare); //\lnlbl{scan:sort}
 
 	/* Stage 3: Free non-harzardous nodes. */
-	tmplist = rlist;
-	rlist = NULL;
-	rcount = 0;
-	while (tmplist != NULL) {
+	tmplist = rlist;			//\lnlbl{scan:rem:b}
+	rlist = NULL;				//\lnlbl{scan:rem:e}
+	rcount = 0;				//\lnlbl{scan:zero}
+	while (tmplist != NULL) {		//\lnlbl{scan:loop2:b}
 		/* Pop cur off top of tmplist. */
-		cur = tmplist;
-		tmplist = tmplist->next;
+		cur = tmplist;			//\lnlbl{scan:rem1st:b}
+		tmplist = tmplist->next;	//\lnlbl{scan:rem1st:e}
 
-		if (bsearch(&cur, plist, psize, sizeof(hazptr_head_t *), compare)) {
-			cur->next = rlist;
+		if (bsearch(&cur, plist, psize,	//\lnlbl{scan:chkhazp:b}
+		            sizeof(hazptr_head_t *), compare)) { //\lnlbl{scan:chkhazp:e}
+			cur->next = rlist;	//\lnlbl{scan:back:b}
 			rlist = cur;
-			rcount++;
+			rcount++;		//\lnlbl{scan:back:e}
 		} else {
-			hazptr_free(cur);
+			hazptr_free(cur);	//\lnlbl{scan:free}
 		}
-	}
-}
-
-void hazptr_free_later(hazptr_head_t *n)
+	}					//\lnlbl{scan:loop2:e}
+}						//\lnlbl{scan:e}
+							//\fcvblank
+void hazptr_free_later(hazptr_head_t *n)	//\lnlbl{free:b}
 {
-	n->next = rlist;
-	rlist = n;
-	rcount++;
+	n->next = rlist;			//\lnlbl{free:enq:b}
+	rlist = n;				//\lnlbl{free:enq:e}
+	rcount++;				//\lnlbl{free:count}
 
-	if (rcount >= R) {
-		hazptr_scan();
+	if (rcount >= R) {			//\lnlbl{free:check}
+		hazptr_scan();			//\lnlbl{free:scan}
 	}
-}
-
+}						//\lnlbl{free:e}
+//\end{snippet}
 #ifdef TEST
 #include "hazptrtorture.h"
 #endif /* #ifdef TEST */
