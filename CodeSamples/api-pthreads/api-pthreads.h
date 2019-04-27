@@ -287,9 +287,9 @@ static __inline__ void wait_all_threads(void)
 /*
  * Wait on all child processes.
  */
+// \begin{snippet}[labelbase=ln:api-pthreads:api-pthreads:waitall,commandchars=\%\[\]]
 static __inline__ void waitall(void)
 {
-// \begin{snippet}[labelbase=ln:api-pthreads:api-pthreads:waitall,commandchars=\%\[\]]
 	int pid;
 	int status;
 
@@ -303,8 +303,8 @@ static __inline__ void waitall(void)
 		}
 		poll(NULL, 0, 1);		//\fcvexclude
 	}					//\lnlbl{loopb}
-// \end{snippet}
 }
+// \end{snippet}
 
 static __inline__ void run_on(int cpu)
 {
