@@ -20,12 +20,14 @@
 
 #include "../api.h"
 #include "rcu_lock.h"
+//\begin{snippet}[labelbase=ln:defer:rcu_lock:synchronize,commandchars=\\\[\]]
 
 void synchronize_rcu(void)
 {
 	spin_lock(&rcu_gp_lock);
 	spin_unlock(&rcu_gp_lock);
 }
+//\end{snippet}
 
 #ifdef TEST
 #include "rcutorture.h"
