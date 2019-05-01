@@ -1675,50 +1675,19 @@ overhead.
 \end{listing}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 static void rcu_read_lock(void)
-  2 {
-  3 }
-  4
-  5 static void rcu_read_unlock(void)
-  6 {
-  7 }
-  8
-  9 rcu_quiescent_state(void)
- 10 {
- 11   smp_mb();
- 12   __get_thread_var(rcu_reader_qs_gp) =
- 13     ACCESS_ONCE(rcu_gp_ctr) + 1;
- 14   smp_mb();
- 15 }
- 16
- 17 static void rcu_thread_offline(void)
- 18 {
- 19   smp_mb();
- 20   __get_thread_var(rcu_reader_qs_gp) =
- 21     ACCESS_ONCE(rcu_gp_ctr);
- 22   smp_mb();
- 23 }
- 24
- 25 static void rcu_thread_online(void)
- 26 {
- 27   rcu_quiescent_state();
- 28 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/defer/rcu_qs@read_lock_unlock.fcv}
 \caption{Quiescent-State-Based RCU Read Side}
 \label{lst:app:toyrcu:Quiescent-State-Based RCU Read Side}
 \end{listing}
 
+\begin{lineref}[ln:defer:rcu_qs:read_lock_unlock]
 Listing~\ref{lst:app:toyrcu:Quiescent-State-Based RCU Read Side}
 (\path{rcu_qs.h})
 shows the read-side primitives used to construct a user-level
 implementation of RCU based on quiescent states, with the data shown in
 Listing~\ref{lst:app:toyrcu:Data for Quiescent-State-Based RCU}.
-As can be seen from lines~1-7 in the listing, the \co{rcu_read_lock()}
+As can be seen from lines~\lnref{lock:b}-\lnref{unlock:e} in the listing,
+the \co{rcu_read_lock()}
 and \co{rcu_read_unlock()} primitives do nothing, and can in fact
 be expected to be inlined and optimized away, as they are in
 server builds of the Linux kernel.
@@ -1726,11 +1695,14 @@ This is due to the fact that quiescent-state-based RCU implementations
 \emph{approximate} the extents of RCU read-side critical sections
 using the aforementioned quiescent states.
 Each of these quiescent states contains a call to
-\co{rcu_quiescent_state()}, which is shown from lines~9-15 in the listing.
+\co{rcu_quiescent_state()}, which is shown from
+lines~\lnref{qs:b}-\lnref{qs:e} in the listing.
 Threads entering extended quiescent states (for example, when blocking)
-may instead call \co{rcu_thread_offline()} (lines~17-23) when entering
+may instead call \co{rcu_thread_offline()}
+(lines~\lnref{offline:b}-\lnref{offline:e}) when entering
 an extended quiescent state and then call
-\co{rcu_thread_online()} (lines~25-28) when leaving it.
+\co{rcu_thread_online()}
+(lines~\lnref{online:b}-\lnref{online:e}) when leaving it.
 As such, \co{rcu_thread_online()} is analogous to \co{rcu_read_lock()}
 and \co{rcu_thread_offline()} is analogous to \co{rcu_read_unlock()}.
 In addition, \co{rcu_quiescent_state()} can be thought of as a
@@ -1743,13 +1715,16 @@ In addition, \co{rcu_quiescent_state()} can be thought of as a
 	performance optimizations.}
 It is illegal to invoke \co{rcu_quiescent_state()}, \co{rcu_thread_offline()},
 or \co{rcu_thread_online()} from an RCU read-side critical section.
+\end{lineref}
 
-In \co{rcu_quiescent_state()}, line~11 executes a memory barrier
+\begin{lineref}[ln:defer:rcu_qs:read_lock_unlock:qs]
+In \co{rcu_quiescent_state()}, line~\lnref{mb1} executes a memory barrier
 to prevent any code prior to the quiescent state (including possible
 RCU read-side critical sections) from being reordered
 into the quiescent state.
-Lines~12-13 pick up a copy of the global \co{rcu_gp_ctr}, using
-\co{ACCESS_ONCE()} to ensure that the compiler does not employ any
+Lines~\lnref{gp1}-\lnref{gp2} pick up
+a copy of the global \co{rcu_gp_ctr}, using
+\co{READ_ONCE()} to ensure that the compiler does not employ any
 optimizations that would result in \co{rcu_gp_ctr} being fetched
 more than once,
 and then adds one to the value fetched and stores it into
@@ -1758,15 +1733,19 @@ instance of \co{synchronize_rcu()} will see an odd-numbered value,
 thus becoming aware that a new RCU read-side critical section has started.
 Instances of \co{synchronize_rcu()} that are waiting on older
 RCU read-side critical sections will thus know to ignore this new one.
-Finally, line~14 executes a memory barrier, which prevents subsequent
+Finally, line~\lnref{mb2} executes a memory barrier, which prevents subsequent
 code (including a possible RCU read-side critical section) from being
-re-ordered with the lines~12-13.
+re-ordered with the lines~\lnref{gp1}-\lnref{gp2}.
+\end{lineref}
 
 \QuickQuiz{}
-	Doesn't the additional memory barrier shown on line~14 of
+	\begin{lineref}[ln:defer:rcu_qs:read_lock_unlock:qs]
+	Doesn't the additional memory barrier shown on line~\lnref{mb2} of
 	Listing~\ref{lst:app:toyrcu:Quiescent-State-Based RCU Read Side}
 	greatly increase the overhead of \co{rcu_quiescent_state}?
+	\end{lineref}
 \QuickQuizAnswer{
+	\begin{lineref}[ln:defer:rcu_qs:read_lock_unlock:qs]
 	Indeed it does!
 	An application using this implementation of RCU should therefore
 	invoke \co{rcu_quiescent_state} sparingly, instead using
@@ -1774,9 +1753,11 @@ re-ordered with the lines~12-13.
 	time.
 
 	However, this memory barrier is absolutely required so that
-	other threads will see the store on lines~12-13 before any
+	other threads will see the store on
+	lines~\lnref{gp1}-\lnref{gp2} before any
 	subsequent RCU read-side critical sections executed by the
 	caller.
+	\end{lineref}
 } \QuickQuizEnd
 
 Some applications might use RCU only occasionally, but use it very heavily
@@ -1796,17 +1777,22 @@ Any concurrent instances of \co{synchronize_rcu()} will thus know to
 ignore this thread.
 
 \QuickQuiz{}
-	Why are the two memory barriers on lines~19 and 22 of
+	\begin{lineref}[ln:defer:rcu_qs:read_lock_unlock:qs]
+	Why are the two memory barriers on lines~\lnref{mb1} and \lnref{mb2} of
 	Listing~\ref{lst:app:toyrcu:Quiescent-State-Based RCU Read Side}
 	needed?
+	\end{lineref}
 \QuickQuizAnswer{
-	The memory barrier on line~19 prevents any RCU read-side
+	\begin{lineref}[ln:defer:rcu_qs:read_lock_unlock:qs]
+	The memory barrier on line~\lnref{mb1} prevents any RCU read-side
 	critical sections that might precede the
 	call to \co{rcu_thread_offline()} won't be reordered by either
-	the compiler or the CPU to follow the assignment on lines~20-21.
-	The memory barrier on line~22 is, strictly speaking, unnecessary,
+	the compiler or the CPU to follow the assignment on
+	lines~\lnref{gp1}-\lnref{gp2}.
+	The memory barrier on line~\lnref{mb2} is, strictly speaking, unnecessary,
 	as it is illegal to have any RCU read-side critical sections
 	following the call to \co{rcu_thread_offline()}.
+	\end{lineref}
 } \QuickQuizEnd
 
 The \co{rcu_thread_online()} function simply invokes
@@ -1814,30 +1800,7 @@ The \co{rcu_thread_online()} function simply invokes
 quiescent state.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 void synchronize_rcu(void)
-  2 {
-  3   int t;
-  4
-  5   smp_mb();
-  6   spin_lock(&rcu_gp_lock);
-  7   rcu_gp_ctr += 2;
-  8   smp_mb();
-  9   for_each_thread(t) {
- 10     while (rcu_gp_ongoing(t) &&
- 11            ((per_thread(rcu_reader_qs_gp, t) -
- 12              rcu_gp_ctr) < 0)) {
- 13       poll(NULL, 0, 10);
- 14     }
- 15   }
- 16   spin_unlock(&rcu_gp_lock);
- 17   smp_mb();
- 18 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/defer/rcu_qs@synchronize.fcv}
 \caption{RCU Update Side Using Quiescent States}
 \label{lst:app:toyrcu:RCU Update Side Using Quiescent States}
 \end{listing}

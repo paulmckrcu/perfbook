@@ -48,31 +48,35 @@ static void rcu_init(void)
 	init_per_thread(rcu_reader_qs_gp, rcu_gp_ctr);
 }
 
-static void rcu_read_lock(void)
+//\begin{snippet}[labelbase=ln:defer:rcu_qs:read_lock_unlock,gobbleblank=yes,commandchars=\%\@\$]
+static void rcu_read_lock(void)			//\lnlbl{lock:b}
 {
 }
-
+							//\fcvblank
 static void rcu_read_unlock(void)
 {
-}
-
-static void rcu_quiescent_state(void)
+}						//\lnlbl{unlock:e}
+							//\fcvblank
+static void rcu_quiescent_state(void)		//\lnlbl{qs:b}
 {
-	smp_mb();
-	__get_thread_var(rcu_reader_qs_gp) = ACCESS_ONCE(rcu_gp_ctr) + 1;
-	smp_mb();
-}
-
-static void rcu_thread_offline(void)
+	smp_mb();				//\lnlbl{qs:mb1}
+	__get_thread_var(rcu_reader_qs_gp) =	//\lnlbl{qs:gp1}
+		READ_ONCE(rcu_gp_ctr) + 1;	//\lnlbl{qs:gp2}
+	smp_mb();				//\lnlbl{qs:mb2}
+}						//\lnlbl{qs:e}
+							//\fcvblank
+static void rcu_thread_offline(void)		//\lnlbl{offline:b}
 {
-	smp_mb();
-	__get_thread_var(rcu_reader_qs_gp) = ACCESS_ONCE(rcu_gp_ctr);
-	smp_mb();
-}
-
-static void rcu_thread_online(void)
+	smp_mb();				//\lnlbl{offline:mb1}
+	__get_thread_var(rcu_reader_qs_gp) =	//\lnlbl{offline:gp1}
+		READ_ONCE(rcu_gp_ctr);		//\lnlbl{offline:gp2}
+	smp_mb();				//\lnlbl{offline:mb2}
+}						//\lnlbl{offline:e}
+							//\fcvblank
+static void rcu_thread_online(void)		//\lnlbl{online:b}
 {
-	rcu_quiescent_state();
-}
+	rcu_quiescent_state();			//\lnlbl{online:qs}
+}						//\lnlbl{online:e}
+//\end{snippet}
 
 extern void synchronize_rcu(void);
