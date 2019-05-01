@@ -1218,44 +1218,8 @@ thread-local accesses to one, as is done in the next section.
 \end{listing}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 static void rcu_read_lock(void)
- 2 {
- 3   __get_thread_var(rcu_reader_gp) =
- 4     ACCESS_ONCE(rcu_gp_ctr) + 1;
- 5   smp_mb();
- 6 }
- 7 
- 8 static void rcu_read_unlock(void)
- 9 {
-10   smp_mb();
-11   __get_thread_var(rcu_reader_gp) =
-12     ACCESS_ONCE(rcu_gp_ctr);
-13 }
-14 
-15 void synchronize_rcu(void)
-16 {
-17   int t;
-18 
-19   smp_mb();
-20   spin_lock(&rcu_gp_lock);
-21   ACCESS_ONCE(rcu_gp_ctr) += 2;
-22   smp_mb();
-23   for_each_thread(t) {
-24     while ((per_thread(rcu_reader_gp, t) & 0x1) &&
-25             ((per_thread(rcu_reader_gp, t) -
-26               ACCESS_ONCE(rcu_gp_ctr)) < 0)) {
-27       poll(NULL, 0, 10);
-28     }
-29   }
-30   spin_unlock(&rcu_gp_lock);
-31   smp_mb();
-32 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/defer/rcu@read_lock_unlock.fcv}\vspace*{-11pt}\fvset{firstnumber=last}
+\input{CodeSamples/defer/rcu@synchronize.fcv}\fvset{firstnumber=auto}
 \caption{Free-Running Counter Using RCU}
 \label{lst:app:toyrcu:Free-Running Counter Using RCU}
 \end{listing}
@@ -1267,25 +1231,34 @@ that takes on only even-numbered values, with data shown in
 Listing~\ref{lst:app:toyrcu:Data for Free-Running Counter Using RCU}.
 The resulting \co{rcu_read_lock()} implementation is extremely
 straightforward.
-Lines~3 and~4 simply add one to the global free-running \co{rcu_gp_ctr}
+\begin{lineref}[ln:defer:rcu:read_lock_unlock:lock]
+Lines~\lnref{gp1} and~\lnref{gp2} simply
+add one to the global free-running \co{rcu_gp_ctr}
 variable and stores the resulting odd-numbered value into the
 \co{rcu_reader_gp} per-thread variable.
-Line~5 executes a memory barrier to prevent the content of the
+Line~\lnref{mb} executes a memory barrier to prevent the content of the
 subsequent RCU read-side critical section from ``leaking out''.
+\end{lineref}
 
+\begin{lineref}[ln:defer:rcu:read_lock_unlock:unlock]
 The \co{rcu_read_unlock()} implementation is similar.
-Line~10 executes a memory barrier, again to prevent the prior RCU
+Line~\lnref{mb} executes a memory barrier, again to prevent the prior RCU
 read-side critical section from ``leaking out''.
-Lines~11 and~12 then copy the \co{rcu_gp_ctr} global variable to the
+Lines~\lnref{gp1} and~\lnref{gp2} then
+copy the \co{rcu_gp_ctr} global variable to the
 \co{rcu_reader_gp} per-thread variable, leaving this per-thread
 variable with an even-numbered value so that a concurrent instance
 of \co{synchronize_rcu()} will know to ignore it.
+\end{lineref}
 
 \QuickQuiz{}
+	\begin{lineref}[ln:defer:rcu:read_lock_unlock:unlock]
 	If any even value is sufficient to tell \co{synchronize_rcu()}
-	to ignore a given task, why don't lines~10 and~11 of
+	to ignore a given task, why don't lines~\lnref{gp1}
+	and~\lnref{gp2} of
 	Listing~\ref{lst:app:toyrcu:Free-Running Counter Using RCU}
 	simply assign zero to \co{rcu_reader_gp}?
+	\end{lineref}
 \QuickQuizAnswer{
 	Assigning zero (or any other even-numbered constant)
 	would in fact work, but assigning the value of
@@ -1294,39 +1267,46 @@ of \co{synchronize_rcu()} will know to ignore it.
 	thread last exited an RCU read-side critical section.
 } \QuickQuizEnd
 
+\begin{lineref}[ln:defer:rcu:synchronize:syn]
 Thus, \co{synchronize_rcu()} could wait for all of the per-thread
 \co{rcu_reader_gp} variables to take on even-numbered values.
 However, it is possible to do much better than that because
 \co{synchronize_rcu()} need only wait on \emph{pre-existing}
 RCU read-side critical sections.
-Line~19 executes a memory barrier to prevent prior manipulations
+Line~\lnref{mb1} executes a memory barrier to prevent prior manipulations
 of RCU-protected data structures from being reordered (by either
-the CPU or the compiler) to follow the increment on line~21.
-Line~20 acquires the \co{rcu_gp_lock} (and line~30 releases it)
+the CPU or the compiler) to follow the increment on
+line~\lnref{increasegp}.
+Line~\lnref{spinlock} acquires the \co{rcu_gp_lock}
+(and line~\lnref{spinunlock} releases it)
 in order to prevent multiple
 \co{synchronize_rcu()} instances from running concurrently.
-Line~21 then increments the global \co{rcu_gp_ctr} variable by
+Line~\lnref{increasegp} then increments the global \co{rcu_gp_ctr} variable by
 two, so that all pre-existing RCU read-side critical sections will
 have corresponding per-thread \co{rcu_reader_gp} variables with
 values less than that of \co{rcu_gp_ctr}, modulo the machine's
 word size.
 Recall also that threads with even-numbered values of \co{rcu_reader_gp}
 are not in an RCU read-side critical section,
-so that lines~23-29 scan the \co{rcu_reader_gp} values until they
-all are either even (line~24) or are greater than the global
-\co{rcu_gp_ctr} (lines~25-26).
-Line~27 blocks for a short period of time to wait for a
+so that lines~\lnref{scan:b}-\lnref{scan:e}
+scan the \co{rcu_reader_gp} values until they
+all are either even (line~\lnref{even}) or are greater than the global
+\co{rcu_gp_ctr} (lines~\lnref{gt1}-\lnref{gt2}).
+Line~\lnref{poll} blocks for a short period of time to wait for a
 pre-existing RCU read-side critical section, but this can be replaced with
 a spin-loop if grace-period latency is of the essence.
-Finally, the memory barrier at line~31 ensures that any subsequent
+Finally, the memory barrier at line~\lnref{mb3} ensures that any subsequent
 destruction will not be reordered into the preceding loop.
+\end{lineref}
 
 \QuickQuiz{}
-	Why are the memory barriers on lines~19 and~31 of
+	\begin{lineref}[ln:defer:rcu:synchronize:syn]
+	Why are the memory barriers on lines~\lnref{mb1} and~\lnref{mb3} of
 	Listing~\ref{lst:app:toyrcu:Free-Running Counter Using RCU}
 	needed?
 	Aren't the memory barriers inherent in the locking
-	primitives on lines~20 and~30 sufficient?
+	primitives on lines~\lnref{spinlock} and~\lnref{spinunlock} sufficient?
+	\end{lineref}
 \QuickQuizAnswer{
 	These memory barriers are required because the locking
 	primitives are only guaranteed to confine the critical
@@ -1355,11 +1335,12 @@ such CPUs.
 	This work is left as an exercise for the reader.
 } \QuickQuizEnd
 
+\begin{lineref}[ln:defer:rcu:read_lock_unlock:lock]
 This implementation suffers from some serious shortcomings in
 addition to the high update-side overhead noted earlier.
 First, it is no longer permissible to nest RCU read-side critical
 sections, a topic that is taken up in the next section.
-Second, if a reader is preempted at line~3 of
+Second, if a reader is preempted at line~\lnref{gp1} of
 Listing~\ref{lst:app:toyrcu:Free-Running Counter Using RCU} after fetching from
 \co{rcu_gp_ctr} but before storing to \co{rcu_reader_gp},
 and if the \co{rcu_gp_ctr} counter then runs through more than half
@@ -1368,15 +1349,19 @@ will ignore the subsequent RCU read-side critical section.
 Third and finally, this implementation requires that the enclosing software
 environment be able to enumerate threads and maintain per-thread
 variables.
+\end{lineref}
 
 \QuickQuiz{}
+	\begin{lineref}[ln:defer:rcu:read_lock_unlock:lock]
 	Is the possibility of readers being preempted in
-	lines~3-4 of Listing~\ref{lst:app:toyrcu:Free-Running Counter Using RCU}
+	lines~\lnref{gp1}-\lnref{gp2} of
+	Listing~\ref{lst:app:toyrcu:Free-Running Counter Using RCU}
 	a real problem, in other words, is there a real sequence
 	of events that could lead to failure?
 	If not, why not?
 	If so, what is the sequence of events, and how can the
 	failure be addressed?
+	\end{lineref}
 \QuickQuizAnswer{
 	It is a real problem, there is a sequence of events leading to
 	failure, and there are a number of possible ways of
