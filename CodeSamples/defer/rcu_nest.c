@@ -35,7 +35,7 @@ void synchronize_rcu(void)
 
 	/* Advance to a new grace-period number, enforce ordering. */
 
-	rcu_gp_ctr += RCU_GP_CTR_BOTTOM_BIT;
+	WRITE_ONCE(rcu_gp_ctr, rcu_gp_ctr + RCU_GP_CTR_BOTTOM_BIT);
 	smp_mb();
 
 	/*
@@ -45,7 +45,8 @@ void synchronize_rcu(void)
 
 	for_each_thread(t) {
 		while (rcu_gp_ongoing(t) &&
-		       ((per_thread(rcu_reader_gp, t) - rcu_gp_ctr) < 0)) {
+		       ((READ_ONCE(per_thread(rcu_reader_gp, t)) -
+			 rcu_gp_ctr) < 0)) {
 			/*@@@ poll(NULL, 0, 10); */
 			barrier();
 		}

@@ -20,12 +20,17 @@
 
 #include "rcu_pointer.h"
 
+/* Borrow from rcupdate.h in Linux kernel */
+#define ULONG_CMP_GE(a, b)      (ULONG_MAX / 2 >= (a) - (b))
+#define ULONG_CMP_LT(a, b)      (ULONG_MAX / 2 < (a) - (b))
+
 DEFINE_SPINLOCK(rcu_gp_lock);
 #define RCU_GP_CTR_SHIFT 7
 #define RCU_GP_CTR_BOTTOM_BIT (1 << RCU_GP_CTR_SHIFT)
 #define RCU_GP_CTR_NEST_MASK (RCU_GP_CTR_BOTTOM_BIT - 1)
-long rcu_gp_ctr = 0;	/* increment by RCU_GP_CTR_BOTTOM_BIT each gp. */
-DEFINE_PER_THREAD(long, rcu_reader_gp);
+#define MAX_GP_ADV_DISTANCE (RCU_GP_CTR_NEST_MASK << 8)
+unsigned long rcu_gp_ctr = 0;	/* increment by RCU_GP_CTR_BOTTOM_BIT each gp. */
+DEFINE_PER_THREAD(unsigned long, rcu_reader_gp);
 
 static inline int rcu_gp_ongoing(int cpu)
 {
@@ -39,8 +44,8 @@ static void rcu_init(void)
 
 static void rcu_read_lock(void)
 {
-	long tmp;
-	long *rrgp;
+	unsigned long tmp;
+	unsigned long *rrgp;
 
 	/*
 	 * If this is the outermost RCU read-side critical section,
@@ -52,13 +57,24 @@ static void rcu_read_lock(void)
 retry:
 	tmp = *rrgp;
 	if ((tmp & RCU_GP_CTR_NEST_MASK) == 0)
-		tmp = rcu_gp_ctr;
+		tmp = READ_ONCE(rcu_gp_ctr);
 	tmp++;
-	*rrgp = tmp;
+	WRITE_ONCE(*rrgp, tmp);
 	smp_mb();
+
+	/*
+	 * A reader could be suspended in between fetching the value of *rrgp
+	 * and writting the updated value back into *rrgp. During this
+	 * time period, the grace-period counter might have advanced very far.
+	 * In this case, we force the reader to start over. One special case
+	 * is that "rcu_gp_ctr" may have wrapped around while "tmp" is close to
+	 * ULONG_MAX. To handle this correctly, we adopt the helper function
+	 * ULONG_CMP_GE.
+	 */
+
 	if (((tmp & RCU_GP_CTR_NEST_MASK) == 1) &&
-	    ((rcu_gp_ctr - tmp) > (RCU_GP_CTR_NEST_MASK << 8)) != 0) {
-		(*rrgp)--;
+	     ULONG_CMP_GE(READ_ONCE(rcu_gp_ctr), tmp + MAX_GP_ADV_DISTANCE)) {
+		WRITE_ONCE(*rrgp, *rrgp - 1);
 		goto retry;
 	}
 }
