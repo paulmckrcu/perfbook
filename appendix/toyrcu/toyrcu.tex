@@ -1395,60 +1395,15 @@ variables.
 \end{listing}
 
 \begin{listing}[tb]
-{ \scriptsize
-\begin{verbbox}
- 1 static void rcu_read_lock(void)
- 2 {
- 3   long tmp;
- 4   long *rrgp;
- 5 
- 6   rrgp = &__get_thread_var(rcu_reader_gp);
- 7   tmp = *rrgp;
- 8   if ((tmp & RCU_GP_CTR_NEST_MASK) == 0)
- 9     tmp = ACCESS_ONCE(rcu_gp_ctr);
-10   tmp++;
-11   *rrgp = tmp;
-12   smp_mb();
-13 }
-14 
-15 static void rcu_read_unlock(void)
-16 {
-17   long tmp;
-18 
-19   smp_mb();
-20   __get_thread_var(rcu_reader_gp)--;
-21 }
-22 
-23 void synchronize_rcu(void)
-24 {
-25   int t;
-26 
-27   smp_mb();
-28   spin_lock(&rcu_gp_lock);
-29   ACCESS_ONCE(rcu_gp_ctr) +=
-30     RCU_GP_CTR_BOTTOM_BIT;
-31   smp_mb();
-32   for_each_thread(t) {
-33     while (rcu_gp_ongoing(t) &&
-34            ((per_thread(rcu_reader_gp, t) -
-35              rcu_gp_ctr) < 0)) {
-36       poll(NULL, 0, 10);
-37     }
-38   }
-39   spin_unlock(&rcu_gp_lock);
-40   smp_mb();
-41 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/defer/rcu_nest@read_lock_unlock.fcv}\vspace*{-11pt}\fvset{firstnumber=last}
+\input{CodeSamples/defer/rcu_nest@synchronize.fcv}\fvset{firstnumber=auto}
 \caption{Nestable RCU Using a Free-Running Counter}
 \label{lst:app:toyrcu:Nestable RCU Using a Free-Running Counter}
 \end{listing}
 
 Listing~\ref{lst:app:toyrcu:Nestable RCU Using a Free-Running Counter}
 (\path{rcu_nest.h} and \path{rcu_nest.c})
-show an RCU implementation based on a single global free-running counter,
+shows an RCU implementation based on a single global free-running counter,
 but that permits nesting of RCU read-side critical sections.
 This nestability is accomplished by reserving the low-order bits of the
 global \co{rcu_gp_ctr} to count nesting, using the definitions shown in
@@ -1472,23 +1427,28 @@ reserves seven bits, for a maximum RCU read-side critical-section
 nesting depth of 127, which should be well in excess of that needed
 by most applications.
 
+\begin{lineref}[ln:defer:rcu_nest:read_lock_unlock:lock]
 The resulting \co{rcu_read_lock()} implementation is still reasonably
 straightforward.
-Line~6 places a pointer to this thread's instance of \co{rcu_reader_gp}
+Line~\lnref{readgp} places a pointer to
+this thread's instance of \co{rcu_reader_gp}
 into the local variable \co{rrgp}, minimizing the number of expensive
 calls to the pthreads thread-local-state API.
-Line~7 records the current value of \co{rcu_reader_gp} into another
-local variable \co{tmp}, and line~8 checks to see if the low-order
-bits are zero, which would indicate that this is the outermost
-\co{rcu_read_lock()}.
-If so, line~9 places the global \co{rcu_gp_ctr} into \co{tmp} because
-the current value previously fetched by line~7 is likely to be obsolete.
-In either case, line~10 increments the nesting depth, which you will
-recall is stored in the seven low-order bits of the counter.
-Line~11 stores the updated counter back into this thread's instance
-of \co{rcu_reader_gp}, and, finally, line~12 executes a memory
-barrier to prevent the RCU read-side critical section from bleeding out
+Line~\lnref{wtmp1} records the current value of \co{rcu_reader_gp}
+into another local variable \co{tmp}, and line~\lnref{checktmp} checks
+to see if the low-order bits are zero, which would indicate that
+this is the outermost \co{rcu_read_lock()}.
+If so, line~\lnref{wtmp2} places the global \co{rcu_gp_ctr}
+into \co{tmp} because the current value previously fetched by
+line~\lnref{wtmp1} is likely to be obsolete.
+In either case, line~\lnref{inctmp} increments the nesting depth,
+which you will recall is stored in the seven low-order bits of the counter.
+Line~\lnref{writegp} stores the updated counter back into this thread's
+instance of \co{rcu_reader_gp}, and,
+finally, line~\lnref{mb1} executes a memory barrier
+to prevent the RCU read-side critical section from bleeding out
 into the code preceding the call to \co{rcu_read_lock()}.
+\end{lineref}
 
 In other words, this implementation of \co{rcu_read_lock()} picks up a copy
 of the global \co{rcu_gp_ctr} unless the current invocation of
@@ -1499,29 +1459,35 @@ Either way, it increments whatever value it fetched in order to record
 an additional nesting level, and stores the result in the current
 thread's instance of \co{rcu_reader_gp}.
 
+\begin{lineref}[ln:defer:rcu_nest:read_lock_unlock:unlock]
 Interestingly enough, despite their \co{rcu_read_lock()} differences,
 the implementation of \co{rcu_read_unlock()}
 is broadly similar to that shown in
 Section~\ref{sec:app:toyrcu:RCU Based on Free-Running Counter}.
-Line~19 executes a memory barrier in order to prevent the RCU read-side
+Line~\lnref{mb1} executes a memory barrier
+in order to prevent the RCU read-side
 critical section from bleeding out into code following the call
 to \co{rcu_read_unlock()}, and
-line~20 decrements this thread's instance of \co{rcu_reader_gp},
+line~\lnref{decgp} decrements this thread's instance of \co{rcu_reader_gp},
 which has the effect of decrementing the nesting count contained in
 \co{rcu_reader_gp}'s low-order bits.
 Debugging versions of this primitive would check (before decrementing!)
 that these low-order bits were non-zero.
+\end{lineref}
 
+\begin{lineref}[ln:defer:rcu_nest:synchronize:syn]
 The implementation of \co{synchronize_rcu()} is quite similar to
 that shown in
 Section~\ref{sec:app:toyrcu:RCU Based on Free-Running Counter}.
 There are two differences.
-The first is that lines~29 and~30 adds \co{RCU_GP_CTR_BOTTOM_BIT}
-to the global \co{rcu_gp_ctr} instead of adding the constant ``2'',
-and the second is that the comparison on line~33 has been abstracted
-out to a separate function, where it checks the bit indicated
-by \co{RCU_GP_CTR_BOTTOM_BIT} instead of unconditionally checking
-the low-order bit.
+The first is that lines~\lnref{incgp1} and~\lnref{incgp2}
+adds \co{RCU_GP_CTR_BOTTOM_BIT} to the global \co{rcu_gp_ctr}
+instead of adding the constant ``2'',
+and the second is that the comparison on line~\lnref{ongoing}
+has been abstracted out to a separate function,
+where it checks the bit indicated by \co{RCU_GP_CTR_BOTTOM_BIT}
+instead of unconditionally checking the low-order bit.
+\end{lineref}
 
 This approach achieves read-side performance almost equal to that
 shown in
@@ -1562,10 +1528,12 @@ overhead.
 	how could you double the time required to overflow the global
 	\co{rcu_gp_ctr}?
 \QuickQuizAnswer{
+	\begin{lineref}[ln:defer:rcu_nest:synchronize:syn]
 	One way would be to replace the magnitude comparison on
-	lines~33 and 34 with an inequality check of the per-thread
-	\co{rcu_reader_gp} variable against
+	lines~\lnref{lt1} and \lnref{lt2} with an inequality check of
+	the per-thread \co{rcu_reader_gp} variable against
 	\co{rcu_gp_ctr+RCU_GP_CTR_BOTTOM_BIT}.
+	\end{lineref}
 } \QuickQuizEnd
 
 \QuickQuiz{}

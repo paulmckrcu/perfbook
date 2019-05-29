@@ -21,45 +21,52 @@
 #include "../api.h"
 #include "rcu_nest.h"
 
-void synchronize_rcu(void)
+//\begin{snippet}[labelbase=ln:defer:rcu_nest:synchronize,gobbleblank=yes,commandchars=\%\@\$]
+void synchronize_rcu(void)				//\lnlbl{syn:b}
 {
 	int t;
-
+								//\fcvblank
 	/* Memory barrier ensures mutation seen before grace period. */
 
-	smp_mb();
+	smp_mb();					//\lnlbl{syn:mb1}
 
 	/* Only one synchronize_rcu() at a time. */
 
-	spin_lock(&rcu_gp_lock);
+	spin_lock(&rcu_gp_lock);			//\lnlbl{syn:spinlock}
 
 	/* Advance to a new grace-period number, enforce ordering. */
 
-	WRITE_ONCE(rcu_gp_ctr, rcu_gp_ctr + RCU_GP_CTR_BOTTOM_BIT);
-	smp_mb();
+	WRITE_ONCE(rcu_gp_ctr, rcu_gp_ctr +		//\lnlbl{syn:incgp1}
+			RCU_GP_CTR_BOTTOM_BIT);		//\lnlbl{syn:incgp2}
+	smp_mb();					//\lnlbl{syn:mb2}
 
 	/*
 	 * Wait until all threads are either out of their RCU read-side
 	 * critical sections or are aware of the new grace period.
 	 */
 
-	for_each_thread(t) {
-		while (rcu_gp_ongoing(t) &&
-		       ((READ_ONCE(per_thread(rcu_reader_gp, t)) -
-			 rcu_gp_ctr) < 0)) {
+	for_each_thread(t) {				//\lnlbl{syn:scan:b}
+		while (rcu_gp_ongoing(t) &&		//\lnlbl{syn:ongoing}
+		       ((READ_ONCE(per_thread(rcu_reader_gp, t)) -//\lnlbl{syn:lt1}
+		          rcu_gp_ctr) < 0)) {		//\lnlbl{syn:lt2}
+#ifndef FCV_SNIPPET
 			/*@@@ poll(NULL, 0, 10); */
 			barrier();
+#else
+			poll(NULL, 0, 10);      	//\lnlbl{syn:poll}
+#endif
 		}
-	}
+	}						//\lnlbl{syn:scan:e}
 
 	/* Let other synchronize_rcu() instances move ahead. */
 
-	spin_unlock(&rcu_gp_lock);
+	spin_unlock(&rcu_gp_lock);			//\lnlbl{syn:spinunlock}
 
 	/* Ensure that any subsequent free()s happen -after- above checks. */
 
-	smp_mb();
-}
+	smp_mb();					//\lnlbl{syn:mb3}
+}							//\lnlbl{syn:e}
+//\end{snippet}
 
 #ifdef TEST
 #define RCU_READ_NESTABLE

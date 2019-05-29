@@ -42,25 +42,28 @@ static void rcu_init(void)
 	init_per_thread(rcu_reader_gp, 0);
 }
 
-static void rcu_read_lock(void)
+//\begin{snippet}[labelbase=ln:defer:rcu_nest:read_lock_unlock,gobbleblank=yes,commandchars=\%\@\$]
+static void rcu_read_lock(void)				//\lnlbl{lock:b}
 {
 	unsigned long tmp;
 	unsigned long *rrgp;
-
+								//\fcvblank
 	/*
 	 * If this is the outermost RCU read-side critical section,
 	 * copy the global grace-period counter.  In either case,
 	 * increment the nesting count held in the low-order bits.
 	 */
 
-	rrgp = &__get_thread_var(rcu_reader_gp);
+	rrgp = &__get_thread_var(rcu_reader_gp);	//\lnlbl{lock:readgp}
+#ifndef FCV_SNIPPET
 retry:
-	tmp = *rrgp;
-	if ((tmp & RCU_GP_CTR_NEST_MASK) == 0)
-		tmp = READ_ONCE(rcu_gp_ctr);
-	tmp++;
-	WRITE_ONCE(*rrgp, tmp);
-	smp_mb();
+#endif
+	tmp = *rrgp;					//\lnlbl{lock:wtmp1}
+	if ((tmp & RCU_GP_CTR_NEST_MASK) == 0)		//\lnlbl{lock:checktmp}
+		tmp = READ_ONCE(rcu_gp_ctr);		//\lnlbl{lock:wtmp2}
+	tmp++;						//\lnlbl{lock:inctmp}
+	WRITE_ONCE(*rrgp, tmp);				//\lnlbl{lock:writegp}
+	smp_mb();					//\lnlbl{lock:mb1}
 
 	/*
 	 * A reader could be suspended in between fetching the value of *rrgp
@@ -71,14 +74,15 @@ retry:
 	 * ULONG_MAX. To handle this correctly, we adopt the helper function
 	 * ULONG_CMP_GE.
 	 */
-
+#ifndef FCV_SNIPPET
 	if (((tmp & RCU_GP_CTR_NEST_MASK) == 1) &&
 	     ULONG_CMP_GE(READ_ONCE(rcu_gp_ctr), tmp + MAX_GP_ADV_DISTANCE)) {
 		WRITE_ONCE(*rrgp, *rrgp - 1);
 		goto retry;
 	}
+#endif
 }
-
+								//\fcvblank
 static void rcu_read_unlock(void)
 {
 	/*
@@ -86,11 +90,15 @@ static void rcu_read_unlock(void)
 	 * which had better not initially be zero.
 	 */
 
-	smp_mb();
+	smp_mb();					//\lnlbl{unlock:mb1}
+#ifndef FCV_SNIPPET
 #ifdef DEBUG_EXTREME
 	BUG_ON((__get_thread_var(rcu_reader_gp) & RCU_GP_CTR_NEST_MASK) != 0);
-#endif /* #ifdef DEBUG_EXTREME */
-	__get_thread_var(rcu_reader_gp)--;
+#endif /* #ifdef DEBUG_EXTREME */				//\fcvexclude
+#endif
+	__get_thread_var(rcu_reader_gp)--;		//\lnlbl{unlock:decgp}
 }
+								//\fcvblank
+//\end{snippet}
 
 extern void synchronize_rcu(void);
