@@ -24,6 +24,7 @@
 #define ULONG_CMP_GE(a, b)      (ULONG_MAX / 2 >= (a) - (b))
 #define ULONG_CMP_LT(a, b)      (ULONG_MAX / 2 < (a) - (b))
 
+//\begin{snippet}[labelbase=ln:defer:rcu_nest:define,commandchars=\%\@\$]
 DEFINE_SPINLOCK(rcu_gp_lock);
 #define RCU_GP_CTR_SHIFT 7
 #define RCU_GP_CTR_BOTTOM_BIT (1 << RCU_GP_CTR_SHIFT)
@@ -31,6 +32,7 @@ DEFINE_SPINLOCK(rcu_gp_lock);
 #define MAX_GP_ADV_DISTANCE (RCU_GP_CTR_NEST_MASK << 8)
 unsigned long rcu_gp_ctr = 0;	/* increment by RCU_GP_CTR_BOTTOM_BIT each gp. */
 DEFINE_PER_THREAD(unsigned long, rcu_reader_gp);
+//\end{snippet}
 
 static inline int rcu_gp_ongoing(int cpu)
 {
