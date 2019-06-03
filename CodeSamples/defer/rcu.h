@@ -20,10 +20,12 @@
 
 #include "rcu_pointer.h"
 
+//\begin{snippet}[labelbase=ln:defer:rcu:define,commandchars=\%\@\$]
 DEFINE_SPINLOCK(rcu_gp_lock);
 long rcu_gp_ctr = 0;	/* always even, +=2 at start of each grace period. */
 DEFINE_PER_THREAD(long, rcu_reader_gp);
 DEFINE_PER_THREAD(long, rcu_reader_gp_snap);
+//\end{snippet}
 
 static inline void rcu_init(void)
 {
