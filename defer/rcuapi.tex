@@ -93,7 +93,7 @@ presents concluding remarks.
 \end{tabularx}
 \end{table*}
 
-The most straightforward answer to ``what is RCU'' is that RCU is
+@@@ The most straightforward answer to ``what is RCU'' is that RCU is
 an API used in the Linux kernel, as summarized by
 Table~\ref{tab:defer:RCU Wait-to-Finish APIs},
 which shows the wait-for-readers portions of the RCU, ``sleepable'' RCU
@@ -601,8 +601,6 @@ linked lists used by the Linux kernel.
 \subsubsection{RCU has List-Processing APIs}
 \label{sec:defer:RCU has List-Processing APIs}
 
-@@@ Update the following list decription to include nulls and bl lists.
-
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{defer/Linux_list}}
@@ -625,9 +623,12 @@ Therefore, the \co{rcu_assign_pointer()} and
 \co{rcu_dereference()}
 primitives have been embedded in special RCU variants of Linux's
 list-manipulation API.
-Linux has two variants of doubly linked list, the circular
+Linux has three variants of doubly linked list, the circular
 \co{struct list_head} and the linear
-\co{struct hlist_head}/\co{struct hlist_node} pair.
+\co{struct hlist_head}/\co{struct hlist_node},
+\co{struct hlist_nulls_head}/\co{struct hlist_nulls_node}, and
+\co{struct hlist_bl_head}/\co{struct hlist_bl_node}
+pairs.
 The former is laid out as shown in
 Figure~\ref{fig:defer:Linux Circular Linked List (list)},
 where the green (leftmost) boxes represent the list header and the blue
@@ -671,6 +672,9 @@ Should a reader encounter a \co{NULL} pointer not matching the index of
 the bucket it started from, that reader knows that an element it was
 traversing was moved to some other bucket during the traversal, taking
 that reader with it.
+The \co{is_a_nulls()} function returns true if passed an \co{hlist_nulls}
+\co{NULL} pointer, and the \co{get_nulls_value()} function returns its
+argument's \co{NULL}-pointer identifier.
 
 \QuickQuiz{}
 	But what if an \co{hlist_nulls} reader gets moved to some other
@@ -833,6 +837,14 @@ Section~\ref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}.
 	NULL pointer, with up to 31~bits of marking &
 	    \pmb{\tco{hlist_bl}}: Linear doubly linked list with bit locking \\
 \midrule
+\multicolumn{4}{l}{{\bf Structures}} \\
+\tco{struct list_head} &
+    \tco{struct}{\tt ~}\tco{hlist_head} ~~~~~~~~~~~~~~
+    \tco{struct}{\tt ~}\tco{hlist_node} &
+	\tco{struct}{\tt ~}\tco{hlist_nulls_head}
+	\tco{struct}{\tt ~}\tco{hlist_nulls_node} &
+	    \tco{struct}{\tt ~}\tco{hlist_bl_head}
+	    \tco{struct}{\tt ~}\tco{hlist_bl_node} \\
 \multicolumn{4}{l}{{\bf Initialization}} \\
 &
     \tco{INIT_LIST_HEAD_RCU()} &
