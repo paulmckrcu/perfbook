@@ -643,19 +643,76 @@ which shows only the non-header (blue) elements.
 \label{fig:defer:Linux Linear Linked List (hlist)}
 \end{figure}
 
-Linux's other doubly linked list, the hlist,
+Linux's \co{hlist}\footnote{
+	The ``h'' stands for hashtable, where it enjoys half of the
+	storage requirements of Linux's circular linked list.}
 is a linear list, which means that
 it needs only one pointer for the header rather than the two
 required for the circular list, as shown in
 Figure~\ref{fig:defer:Linux Linear Linked List (hlist)}.
-Thus, use of hlist can halve the memory consumption for the hash-bucket
+Thus, use of \co{hlist} can halve the memory consumption for the hash-bucket
 arrays of large hash tables.
-As before, this notation is cumbersome, so hlists will be abbreviated
-in the same way lists are, as shown in
+As before, this notation is cumbersome, so \co{hlist} structures will
+be abbreviated in the same way lists are, as shown in
 Figure~\ref{fig:defer:Linux Linked List Abbreviated}.
 
-% @@@ Refer to \ref{fig:defer:Insertion With Concurrent Readers} and
-%	\ref{fig:defer:Deletion With Concurrent Readers}, mostly the latter.
+A variant of Linux's \co{hlist}, named \co{hlist_nulls}, provides multiple
+distinct \co{NULL} pointer, but otherwise uses the same layout as shown in
+Figure~\ref{fig:defer:Linux Linear Linked List (hlist)}.
+In this variant, a \co{->next} pointer having a zero low-order bit is
+considered to be a pointer.
+However, if the low-order bit is set to one, the upper bits indentify
+the type of \co{NULL} pointer.
+This type of list is used to allow lockless readers to detect when a
+node has been moved from one list to another.
+For example, each bucket of a hash table might use its index to mark
+its \co{NULL} pointer.
+Should a reader encounter a \co{NULL} pointer not matching the index of
+the bucket it started from, that reader knows that an element it was
+traversing was moved to some other bucket during the traversal, taking
+that reader with it.
+
+\QuickQuiz{}
+	But what if an \co{hlist_nulls} reader gets moved to some other
+	bucket and then back again?
+\QuickQuizAnswer{
+	One way to handle this is to always move nodes to the beginning
+	of the destination bucket, ensuring that when the reader reaches
+	the end of the list having a matching \co{NULL} pointer, it will
+	have searched the entire list.
+
+	Of course, if there are too many move operations in a hash table
+	with many elements per bucket, the reader might never reach the
+	end of a list.
+	One way of avoiding this in the common case is to keep hash
+	tables well-tuned, thus with short lists.
+	One way of detecting the problem and handling it is for the
+	reader to terminate the search after traversing some large
+	number of nodes, acquire the update-side lock, and redo the
+	search, but this might introduce deadlocks.
+	Another way of avoiding the problem entirely is for readers to
+	search within RCU read-side critical sections, and to wait for
+	an RCU grace period between successive updates.
+} \QuickQuizEnd
+
+Another variant of Linux's \co{hlist} incorporates bit-locking,
+and is named \co{hlist_bl}.
+This variant uses the same layout as shown in
+Figure~\ref{fig:defer:Linux Linear Linked List (hlist)},
+but reserves the low-order bit of the head pointer (``first'' in the
+figure) to lock the list.
+This is also a storage-savings member, as it allows what would otherwise
+be a separate spinlock to be stored with the pointer itself.
+
+This background suffices to describe more complex updates in which an
+element in the middle of the list having multiple fields is atomically
+updated, so that a given reader sees either the old set of values or
+the new set of values, but not a mixture of the two sets.
+For example, each node of a linked list might have integer fields
+\co{->a}, \co{->b}, and \co{->c}, and it might be necessary to update
+a given node's fields from 5, 6, and 7 to 5, 2, and 3, respectively.
+
+The code implementing this atomic update is straightforward:
 
 \begin{linelabel}[ln:defer:Canonical RCU Replacement Example (2nd)]
 \begin{VerbatimN}[samepage=true,commandchars=\\\[\],firstnumber=15]
@@ -676,20 +733,20 @@ kfree(p);				\lnlbl[kfree]
 \label{fig:defer:RCU Replacement in Linked List}
 \end{figure}
 
-The initial state of the list, including the pointer \co{p},
-is the same as for the deletion example, as shown on the
-first row of
-Figure~\ref{fig:defer:RCU Replacement in Linked List}.
-
-@@@ As before,
-the triples in each element represent the values of fields \co{a},
-\co{b}, and \co{c}, respectively.
+The following discussion walks through this code, using
+Figure~\ref{fig:defer:RCU Replacement in Linked List} to illustrate
+the state changes.
+The triples in each element represent the values of fields \co{->a},
+\co{->b}, and \co{->c}, respectively.
 The red-shaded elements might be referenced by readers,
 and because readers do not synchronize directly with updaters,
 readers might run concurrently with this entire replacement process.
-Please note that
-we again omit the backwards pointers and the link from the tail
-of the list to the head for clarity.
+Please note that backwards pointers and the link from the tail to the
+head are omitted for clarity.
+
+The initial state of the list, including the pointer \co{p},
+is the same as for the deletion example, as shown on the
+first row of the figure.
 
 The following text describes how to replace the \co{5,6,7} element
 with \co{5,2,3} in such a way that any given reader sees one of these
@@ -722,7 +779,8 @@ At this point, as shown below, we have two versions of the list.
 Pre-existing readers might see the \co{5,6,7} element (which is
 therefore now shaded yellow), but
 new readers will instead see the \co{5,2,3} element.
-But any given reader is guaranteed to see some well-defined list.
+But any given reader is guaranteed to see one set of values or the
+other, not a mixture of the two.
 
 After the \co{synchronize_rcu()} on line~\lnref{sync_rcu} returns,
 a grace period will have elapsed, and so all reads that started before the
@@ -744,7 +802,8 @@ Figure~\ref{fig:defer:RCU Replacement in Linked List}.
 
 Despite the fact that RCU was named after the replacement case,
 the vast majority of RCU usage within the Linux kernel relies on
-the simple deletion case shown in
+the simple independent insertion and deletion, as was shown in
+Figure~\ref{fig:defer:Multiple RCU Data-Structure Versions} in
 Section~\ref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}.
 
 \begin{sidewaystable*}[htbp]
@@ -840,7 +899,7 @@ Section~\ref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}.
 \end{tabular}
 \end{sidewaystable*}
 
-The first pair of categories operate on Linux
+@@@ The first pair of categories operate on Linux
 \co{struct list_head} lists, which are circular, doubly-linked
 lists.
 The \co{list_for_each_entry_rcu()} primitive traverses an
