@@ -1,4 +1,4 @@
-//\begin{snippet}[labelbase=ln:base1,commandchars=\$\[\]]
+//\begin{snippet}[labelbase=ln:base1,keepcomment=yes,commandchars=\$\[\]]
 /*
  * Sample Code Snippet
  */
