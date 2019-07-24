@@ -132,10 +132,12 @@ static __inline__ int spin_is_locked(spinlock_t *sp)
 #define spin_lock_irqsave(l, f) do { f = 1; spin_lock(l); } while (0)
 #define spin_unlock_irqrestore(l, f) do { f = 0; spin_unlock(l); } while (0)
 
-//\begin{snippet}[labelbase=ln:api-pthreads:api-pthreads:compiler_barrier,commandchars=\@\[\],numbers=none]
+//\begin{snippet}[labelbase=ln:api-pthreads:api-pthreads:compiler_barrier,commandchars=\@\[\],numbers=none,xleftmargin=0pt]
 #define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
-#define READ_ONCE(x) ({ typeof(x) ___x = ACCESS_ONCE(x); ___x; })
-#define WRITE_ONCE(x, val) do { ACCESS_ONCE(x) = (val); } while (0)
+#define READ_ONCE(x) \
+                ({ typeof(x) ___x = ACCESS_ONCE(x); ___x; })
+#define WRITE_ONCE(x, val) \
+                do { ACCESS_ONCE(x) = (val); } while (0)
 #define barrier() __asm__ __volatile__("": : :"memory")
 //\end{snippet}
 #ifndef unlikely
