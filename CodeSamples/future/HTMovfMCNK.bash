@@ -27,7 +27,7 @@
 #
 # Copyright (C) IBM Corporation, 2012
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 cachesize=$1
 assoc=$2

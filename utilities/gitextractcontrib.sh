@@ -20,7 +20,7 @@
 #
 # Copyright (C) IBM Corporation, 2008
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 git log $1 | egrep '^ *(Signed-off-by|Reported-by)' |
 	sed -e 's/ *Signed-off-by: *//' -e 's/ *Reported-by: *//' |

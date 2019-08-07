@@ -18,7 +18,7 @@
 #
 # Copyright (C) IBM Corporation, 2009
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 # We cheat and substitute a 5-second sleep for useful computation.
 function compute_it {

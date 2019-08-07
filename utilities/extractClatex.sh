@@ -19,7 +19,7 @@
 #
 # Copyright (C) IBM Corporation, 2007
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 if test "$1" = ""
 then

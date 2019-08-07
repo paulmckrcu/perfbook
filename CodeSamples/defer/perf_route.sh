@@ -18,7 +18,7 @@
 #
 # Copyright (C) IBM Corporation, 2016
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 for i in 1 2 3 4 5 6 7 8 9 10
 do

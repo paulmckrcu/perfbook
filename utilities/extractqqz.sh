@@ -19,7 +19,7 @@
 #
 # Copyright (C) IBM Corporation, 2008
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 sed -n -e '/^\\QuickQuizChapter{/p' \
        -e '/^\\QuickQuiz{/,/^} \\QuickQuizEnd/p' |

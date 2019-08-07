@@ -32,7 +32,7 @@
 #
 # Copyright (C) IBM Corporation, 2012
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 #\begin{snippet}[labelbase=ln:debugging:datablows:whole,commandchars=\!\@\%]
 div=3				#\lnlbl{param:b}

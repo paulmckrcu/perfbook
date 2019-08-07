@@ -18,7 +18,7 @@
 #
 # Copyright (C) IBM Corporation, 2010
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 for ncpu in 1 2 3 4 6 8
 do

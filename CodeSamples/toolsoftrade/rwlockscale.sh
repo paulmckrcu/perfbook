@@ -18,7 +18,7 @@
 #
 # Copyright (C) IBM Corporation, 2009
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 for ((ncpus = 1; ncpus <= 128; ncpus += 2))
 do

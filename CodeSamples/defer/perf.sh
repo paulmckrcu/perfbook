@@ -18,7 +18,7 @@
 #
 # Copyright (C) IBM Corporation, 2008
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 for rcu in rcu rcu64 rcu_lock rcu_lock_percpu rcu_nest rcu_nest32 \
 	rcu_nest_qs rcu_qs rcu_rcg rcu_rcpg rcu_rcpl rcu_rcpls rcu_ts

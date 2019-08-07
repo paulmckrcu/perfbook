@@ -20,7 +20,7 @@
 #
 # Copyright (C) IBM Corporation, 2009
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 fontsize=10
 plotsize=0.5

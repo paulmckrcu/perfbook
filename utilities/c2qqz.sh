@@ -20,7 +20,7 @@
 #
 # Copyright (C) IBM Corporation, 2007
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 awk '{printf "%3d %s\n", NR, $0}' |
 	sed -e 's/^  /~~/' \

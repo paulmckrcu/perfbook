@@ -20,7 +20,7 @@
 #
 # Copyright (C) IBM Corporation, 2012
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 awk '{
 	for (i = 2; i <= NF; i++)

@@ -18,7 +18,7 @@
 #
 # Copyright (C) IBM Corporation, 2009
 #
-# Authors: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
 for ((i=0;i<10000;i++))
 do
