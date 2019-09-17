@@ -350,6 +350,7 @@ clean:
 	rm -f perfbook_flat.tex perfbook*.out perfbook-*.tex
 	rm -f $(LATEXGENERATED)
 	rm -f CodeSamples/snippets.d
+	rm -f *.synctex*
 	@rm -f $(OBSOLETE_FILES)
 
 distclean: clean
