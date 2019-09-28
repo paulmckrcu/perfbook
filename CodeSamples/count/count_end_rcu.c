@@ -34,8 +34,7 @@ DEFINE_SPINLOCK(final_mutex);
 
 __inline__ void inc_count(void)
 {
-	WRITE_ONCE(counter,
-		   READ_ONCE(counter) + 1);
+	WRITE_ONCE(counter, counter + 1);
 }
 
 unsigned long read_count(void)
