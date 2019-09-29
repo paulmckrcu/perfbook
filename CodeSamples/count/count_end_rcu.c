@@ -23,37 +23,38 @@
 #include "../defer/rcu_nest32.c"
 #include <string.h>
 
-struct countarray {
+//\begin{snippet}[labelbase=ln:count:count_end_rcu:whole,commandchars=\%\@\$]
+struct countarray {				//\lnlbl{struct:b}
 	unsigned long total;
 	unsigned long *counterp[NR_THREADS];
-};
+};						//\lnlbl{struct:e}
 
-unsigned long __thread counter = 0;
+unsigned long __thread counter = 0;		//\lnlbl{perthread:b}
 struct countarray *countarrayp = NULL;
-DEFINE_SPINLOCK(final_mutex);
+DEFINE_SPINLOCK(final_mutex);			//\lnlbl{perthread:e}
 
-__inline__ void inc_count(void)
+__inline__ void inc_count(void)			//\lnlbl{inc:b}
 {
 	WRITE_ONCE(counter, counter + 1);
-}
+}						//\lnlbl{inc:e}
 
-unsigned long read_count(void)
+unsigned long read_count(void)			//\lnlbl{read:b}
 {
 	struct countarray *cap;
 	unsigned long sum;
 	int t;
 
-	rcu_read_lock();
-	cap = rcu_dereference(countarrayp);
-	sum = cap->total;
-	for_each_thread(t)
+	rcu_read_lock();			//\lnlbl{read:rrl}
+	cap = rcu_dereference(countarrayp);	//\lnlbl{read:deref}
+	sum = cap->total;			//\lnlbl{read:init}
+	for_each_thread(t)			//\lnlbl{read:add:b}
 		if (cap->counterp[t] != NULL)
-			sum += *cap->counterp[t];
-	rcu_read_unlock();
-	return sum;
-}
+			sum += *cap->counterp[t]; //\lnlbl{read:add:e}
+	rcu_read_unlock();			//\lnlbl{read:rru}
+	return sum;				//\lnlbl{read:ret}
+}						//\lnlbl{read:e}
 
-void count_init(void)
+void count_init(void)				//\lnlbl{init:b}
 {
 	countarrayp = malloc(sizeof(*countarrayp));
 	if (countarrayp == NULL) {
@@ -61,38 +62,39 @@ void count_init(void)
 		exit(EXIT_FAILURE);
 	}
 	memset(countarrayp, '\0', sizeof(*countarrayp));
-}
+}						//\lnlbl{init:e}
 
-void count_register_thread(unsigned long *p)
+void count_register_thread(unsigned long *p)	//\lnlbl{reg:b}
 {
-	int idx = smp_thread_id();
+	int idx = smp_thread_id();		//\lnlbl{reg:idx}
 
-	spin_lock(&final_mutex);
-	countarrayp->counterp[idx] = &counter;
-	spin_unlock(&final_mutex);
-}
+	spin_lock(&final_mutex);		//\lnlbl{reg:acq}
+	countarrayp->counterp[idx] = &counter;  //\lnlbl{reg:set}
+	spin_unlock(&final_mutex);		//\lnlbl{reg:rel}
+}						//\lnlbl{reg:e}
 
-void count_unregister_thread(int nthreadsexpected)
+void count_unregister_thread(int nthreadsexpected)	//\lnlbl{unreg:b}
 {
 	struct countarray *cap;
 	struct countarray *capold;
 	int idx = smp_thread_id();
 
-	cap = malloc(sizeof(*countarrayp));
+	cap = malloc(sizeof(*countarrayp));		//\lnlbl{unreg:alloc:b}
 	if (cap == NULL) {
 		fprintf(stderr, "Out of memory\n");
 		exit(EXIT_FAILURE);
-	}
-	spin_lock(&final_mutex);
-	*cap = *countarrayp;
-	cap->total += counter;
-	cap->counterp[idx] = NULL;
-	capold = countarrayp;
-	rcu_assign_pointer(countarrayp, cap);
-	spin_unlock(&final_mutex);
-	synchronize_rcu();
-	free(capold);
-}
+	}						//\lnlbl{unreg:alloc:e}
+	spin_lock(&final_mutex);			//\lnlbl{unreg:acq}
+	*cap = *countarrayp;				//\lnlbl{unreg:copy}
+	cap->total += counter;				//\lnlbl{unreg:add}
+	cap->counterp[idx] = NULL;			//\lnlbl{unreg:null}
+	capold = countarrayp;				//\lnlbl{unreg:retain}
+	rcu_assign_pointer(countarrayp, cap);		//\lnlbl{unreg:assign}
+	spin_unlock(&final_mutex);			//\lnlbl{unreg:rel}
+	synchronize_rcu();				//\lnlbl{unreg:sync}
+	free(capold);					//\lnlbl{unreg:free}
+}							//\lnlbl{unreg:e}
+//\end{snippet}
 
 __inline__ void count_cleanup(void)
 {

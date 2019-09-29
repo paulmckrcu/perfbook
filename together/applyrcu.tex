@@ -15,7 +15,7 @@ performance and scalability, and in still other cases, both.
 \subsection{RCU and Per-Thread-Variable-Based Statistical Counters}
 \label{sec:together:RCU and Per-Thread-Variable-Based Statistical Counters}
 
-Section~\ref{sec:count:Per-Thread-Variable-Based Implementation}
+\Cref{sec:count:Per-Thread-Variable-Based Implementation}
 described an implementation of statistical counters that provided
 excellent
 performance, roughly that of simple increment (as in the C \co{++}
@@ -25,7 +25,7 @@ Unfortunately, threads needing to read out the value via \co{read_count()}
 were required to acquire a global
 lock, and thus incurred high overhead and suffered poor scalability.
 The code for the lock-based implementation is shown in
-Listing~\ref{lst:count:Per-Thread Statistical Counters} on
+\cref{lst:count:Per-Thread Statistical Counters} on
 Page~\pageref{lst:count:Per-Thread Statistical Counters}.
 
 \QuickQuiz{}
@@ -60,7 +60,7 @@ execution.
 	Just what is the accuracy of \co{read_count()}, anyway?
 \QuickQuizAnswer{
 	Refer to
-	Listing~\ref{lst:count:Per-Thread Statistical Counters} on
+	\cref{lst:count:Per-Thread Statistical Counters} on
 	Page~\pageref{lst:count:Per-Thread Statistical Counters}.
 	Clearly, if there are no concurrent invocations of \co{inc_count()},
 	\co{read_count()} will return an exact result.
@@ -113,88 +113,14 @@ held constant, ensuring that \co{read_count()} sees consistent data.
 \subsubsection{Implementation}
 
 \begin{listing}[bp]
-{ \scriptsize
-\begin{verbbox}
-  1 struct countarray {
-  2   unsigned long total;
-  3   unsigned long *counterp[NR_THREADS];
-  4 };
-  5 
-  6 long __thread counter = 0;
-  7 struct countarray *countarrayp = NULL;
-  8 DEFINE_SPINLOCK(final_mutex);
-  9 
- 10 void inc_count(void)
- 11 {
- 12   counter++;
- 13 }
- 14 
- 15 long read_count(void)
- 16 {
- 17   struct countarray *cap;
- 18   unsigned long sum;
- 19   int t;
- 20 
- 21   rcu_read_lock();
- 22   cap = rcu_dereference(countarrayp);
- 23   sum = cap->total;
- 24   for_each_thread(t)
- 25     if (cap->counterp[t] != NULL)
- 26       sum += *cap->counterp[t];
- 27   rcu_read_unlock();
- 28   return sum;
- 29 }
- 30 
- 31 void count_init(void)
- 32 {
- 33   countarrayp = malloc(sizeof(*countarrayp));
- 34   if (countarrayp == NULL) {
- 35     fprintf(stderr, "Out of memory\n");
- 36     exit(-1);
- 37   }
- 38   memset(countarrayp, '\0', sizeof(*countarrayp));
- 39 }
- 40 
- 41 void count_register_thread(void)
- 42 {
- 43   int idx = smp_thread_id();
- 44 
- 45   spin_lock(&final_mutex);
- 46   countarrayp->counterp[idx] = &counter;
- 47   spin_unlock(&final_mutex);
- 48 }
- 49 
- 50 void count_unregister_thread(int nthreadsexpected)
- 51 {
- 52   struct countarray *cap;
- 53   struct countarray *capold;
- 54   int idx = smp_thread_id();
- 55 
- 56   cap = malloc(sizeof(*countarrayp));
- 57   if (cap == NULL) {
- 58     fprintf(stderr, "Out of memory\n");
- 59     exit(-1);
- 60   }
- 61   spin_lock(&final_mutex);
- 62   *cap = *countarrayp;
- 63   cap->total += counter;
- 64   cap->counterp[idx] = NULL;
- 65   capold = countarrayp;
- 66   rcu_assign_pointer(countarrayp, cap);
- 67   spin_unlock(&final_mutex);
- 68   synchronize_rcu();
- 69   free(capold);
- 70 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/count/count_end_rcu@whole.fcv}
 \caption{RCU and Per-Thread Statistical Counters}
 \label{lst:together:RCU and Per-Thread Statistical Counters}
 \end{listing}
 
-Lines~1-4 of
-Listing~\ref{lst:together:RCU and Per-Thread Statistical Counters}
+\begin{lineref}[ln:count:count_end_rcu:whole]
+\Clnrefrange{struct:b}{struct:e} of
+\cref{lst:together:RCU and Per-Thread Statistical Counters}
 show the \co{countarray} structure, which contains a
 \co{->total} field for the count from previously exited threads,
 and a \co{counterp[]} array of pointers to the per-thread
@@ -203,46 +129,57 @@ This structure allows a given execution of \co{read_count()}
 to see a total that is consistent with the indicated set of running
 threads.
 
-Lines~6-8 contain the definition of the per-thread \co{counter}
+\Clnrefrange{perthread:b}{perthread:e}
+contain the definition of the per-thread \co{counter}
 variable, the global pointer \co{countarrayp} referencing
 the current \co{countarray} structure, and
 the \co{final_mutex} spinlock.
 
-Lines~10-13 show \co{inc_count()}, which is unchanged from
-Listing~\ref{lst:count:Per-Thread Statistical Counters}.
+\Clnrefrange{inc:b}{inc:e} show \co{inc_count()}, which is unchanged from
+\cref{lst:count:Per-Thread Statistical Counters}.
+\end{lineref}
 
-Lines~15-29 show \co{read_count()}, which has changed significantly.
-Lines~21 and~27 substitute \co{rcu_read_lock()} and
+\begin{lineref}[ln:count:count_end_rcu:whole:read]
+\Clnrefrange{b}{e} show \co{read_count()}, which has changed significantly.
+\Clnref{rrl,rru} substitute \co{rcu_read_lock()} and
 \co{rcu_read_unlock()} for acquisition and release of \co{final_mutex}.
-Line~22 uses \co{rcu_dereference()} to snapshot the
+\Clnref{deref} uses \co{rcu_dereference()} to snapshot the
 current \co{countarray} structure into local variable \co{cap}.
 Proper use of RCU will guarantee that this \co{countarray} structure
 will remain with us through at least the end of the current RCU
-read-side critical section at line~27.
-Line~23 initializes \co{sum} to \co{cap->total}, which is the
+read-side critical section at \clnref{rru}.
+\Clnref{init} initializes \co{sum} to \co{cap->total}, which is the
 sum of the counts of threads that have previously exited.
-Lines~24-26 add up the per-thread counters corresponding to currently
-running threads, and, finally, line~28 returns the sum.
+\Clnrefrange{add:b}{add:e} add up the per-thread counters corresponding
+to currently
+running threads, and, finally, \clnref{ret} returns the sum.
+\end{lineref}
 
+\begin{lineref}[ln:count:count_end_rcu:whole:init]
 The initial value for \co{countarrayp} is
-provided by \co{count_init()} on lines~31-39.
+provided by \co{count_init()} on \clnrefrange{b}{e}.
 This function runs before the first thread is created, and its job
 is to allocate
 and zero the initial structure, and then assign it to \co{countarrayp}.
+\end{lineref}
 
-Lines~41-48 show the \co{count_register_thread()} function, which
+\begin{lineref}[ln:count:count_end_rcu:whole:reg]
+\Clnrefrange{b}{e} show the \co{count_register_thread()} function, which
 is invoked by each newly created thread.
-Line~43 picks up the current thread's index, line~45 acquires
-\co{final_mutex}, line~46 installs a pointer to this thread's
-\co{counter}, and line~47 releases \co{final_mutex}.
+\Clnref{idx} picks up the current thread's index, \clnref{acq} acquires
+\co{final_mutex}, \clnref{set} installs a pointer to this thread's
+\co{counter}, and \clnref{rel} releases \co{final_mutex}.
+\end{lineref}
 
 \QuickQuiz{}
+	\begin{lineref}[ln:count:count_end_rcu:whole:reg]
 	Hey!!!
-	Line~46 of
-	Listing~\ref{lst:together:RCU and Per-Thread Statistical Counters}
+	\Clnref{set} of
+	\cref{lst:together:RCU and Per-Thread Statistical Counters}
 	modifies a value in a pre-existing \co{countarray} structure!
 	Didn't you say that this structure, once made available to
 	\co{read_count()}, remained constant???
+	\end{lineref}
 \QuickQuizAnswer{
 	Indeed I did say that.
 	And it would be possible to make \co{count_register_thread()}
@@ -260,37 +197,39 @@ Line~43 picks up the current thread's index, line~45 acquires
 	but without actually having to do the allocation.
 } \QuickQuizEnd
 
-Lines~50-70 shows \co{count_unregister_thread()}, which is invoked
+\begin{lineref}[ln:count:count_end_rcu:whole:unreg]
+\Clnrefrange{b}{e} shows \co{count_unregister_thread()}, which is invoked
 by each thread just before it exits.
-Lines~56-60 allocate a new \co{countarray} structure,
-line~61 acquires \co{final_mutex} and line~67 releases it.
-Line~62 copies the contents of the current \co{countarray} into
-the newly allocated version, line~63 adds the exiting thread's \co{counter}
-to new structure's \co{->total}, and line~64 \co{NULL}s the exiting thread's
+\Clnrefrange{alloc:b}{alloc:e} allocate a new \co{countarray} structure,
+\clnref{acq} acquires \co{final_mutex} and \clnref{rel} releases it.
+\Clnref{copy} copies the contents of the current \co{countarray} into
+the newly allocated version, \clnref{add} adds the exiting thread's \co{counter}
+to new structure's \co{->total}, and \clnref{null} \co{NULL}s the exiting thread's
 \co{counterp[]} array element.
-Line~65 then retains a pointer to the current (soon to be old)
-\co{countarray} structure, and line~66 uses \co{rcu_assign_pointer()}
+\Clnref{retain} then retains a pointer to the current (soon to be old)
+\co{countarray} structure, and \clnref{assign} uses \co{rcu_assign_pointer()}
 to install the new version of the \co{countarray} structure.
-Line~68 waits for a grace period to elapse, so that any threads that
+\Clnref{sync} waits for a grace period to elapse, so that any threads that
 might be concurrently executing in \co{read_count()}, and thus might
 have references to the old \co{countarray} structure, will be allowed
 to exit their RCU read-side critical sections, thus dropping any such
 references.
-Line~69 can then safely free the old \co{countarray} structure.
+\Clnref{free} can then safely free the old \co{countarray} structure.
+\end{lineref}
 
 \subsubsection{Discussion}
 
 \QuickQuiz{}
 	Wow!
-	Listing~\ref{lst:together:RCU and Per-Thread Statistical Counters}
+	\cref{lst:together:RCU and Per-Thread Statistical Counters}
 	contains 70 lines of code, compared to only 42 in
-	Listing~\ref{lst:count:Per-Thread Statistical Counters}.
+	\cref{lst:count:Per-Thread Statistical Counters}.
 	Is this extra complexity really worth it?
 \QuickQuizAnswer{
 	This of course needs to be decided on a case-by-case basis.
 	If you need an implementation of \co{read_count()} that
 	scales linearly, then the lock-based implementation shown in
-	Listing~\ref{lst:count:Per-Thread Statistical Counters}
+	\cref{lst:count:Per-Thread Statistical Counters}
 	simply will not work for you.
 	On the other hand, if calls to \co{count_read()} are sufficiently
 	rare, then the lock-based version is simpler and might thus be
@@ -304,10 +243,10 @@ Line~69 can then safely free the old \co{countarray} structure.
 	and the use of RCU unnecessary.
 	This would in turn enable an implementation that
 	was even simpler than the one shown in
-	Listing~\ref{lst:count:Per-Thread Statistical Counters}, but
+	\cref{lst:count:Per-Thread Statistical Counters}, but
 	with all the scalability and performance benefits of the
 	implementation shown in
-	Listing~\ref{lst:together:RCU and Per-Thread Statistical Counters}!
+	\cref{lst:together:RCU and Per-Thread Statistical Counters}!
 } \QuickQuizEnd
 
 Use of RCU enables exiting threads to wait until other threads are
@@ -326,7 +265,7 @@ complexity seen by users of \co{__thread} variables.
 \subsection{RCU and Counters for Removable I/O Devices}
 \label{sec:together:RCU and Counters for Removable I/O Devices}
 
-Section~\ref{sec:count:Applying Exact Limit Counters}
+\Cref{sec:count:Applying Exact Limit Counters}
 showed a fanciful pair of code fragments for dealing with counting
 I/O accesses to removable devices.
 These code fragments suffered from high overhead on the fastpath
@@ -339,22 +278,18 @@ The code for performing an I/O is quite similar to the original, with
 an RCU read-side critical section being substituted for the reader-writer
 lock read-side critical section in the original:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1 rcu_read_lock();
-  2 if (removing) {
-  3   rcu_read_unlock();
-  4   cancel_io();
-  5 } else {
-  6   add_count(1);
-  7   rcu_read_unlock();
-  8   do_io();
-  9   sub_count(1);
- 10 }
-\end{verbatim}
-\end{minipage}
+\begin{VerbatimN}[tabsize=8]
+rcu_read_lock();
+if (removing) {
+	rcu_read_unlock();
+	cancel_io();
+} else {
+	add_count(1);
+	rcu_read_unlock();
+	do_io();
+	sub_count(1);
+}
+\end{VerbatimN}
 \vspace{5pt}
 
 The RCU read-side primitives have minimal overhead, thus speeding up
@@ -362,54 +297,49 @@ the fastpath, as desired.
 
 The updated code fragment removing a device is as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1 spin_lock(&mylock);
-  2 removing = 1;
-  3 sub_count(mybias);
-  4 spin_unlock(&mylock);
-  5 synchronize_rcu();
-  6 while (read_count() != 0) {
-  7   poll(NULL, 0, 1);
-  8 }
-  9 remove_device();
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{linelabel}[ln:together:applyrcu:Removing Device]
+\begin{VerbatimN}[tabsize=8,commandchars=\\\[\]]
+spin_lock(&mylock);
+removing = 1;
+sub_count(mybias);
+spin_unlock(&mylock);
+synchronize_rcu();
+while (read_count() != 0) {	\lnlbl[nextofsync]
+	poll(NULL, 0, 1);
+}
+remove_device();
+\end{VerbatimN}
+\end{linelabel}
 
+\begin{lineref}[ln:together:applyrcu:Removing Device]
 Here we replace the reader-writer lock with an exclusive spinlock and
 add a \co{synchronize_rcu()} to wait for all of the RCU read-side
 critical sections to complete.
 Because of the \co{synchronize_rcu()},
-once we reach line~6, we know that all remaining I/Os have been accounted
-for.
+once we reach \clnref{nextofsync},
+we know that all remaining I/Os have been accounted for.
 
 Of course, the overhead of \co{synchronize_rcu()} can be large,
 but given that device removal is quite rare, this is usually a good
 tradeoff.
+\end{lineref}
 
 \subsection{Array and Length}
 \label{sec:together:Array and Length}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 struct foo {
- 2   int length;
- 3   char *a;
- 4 };
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{VerbatimL}[tabsize=8]
+struct foo {
+	int length;
+	char *a;
+};
+\end{VerbatimL}
 \caption{RCU-Protected Variable-Length Array}
 \label{lst:together:RCU-Protected Variable-Length Array}
 \end{listing}
 
 Suppose we have an RCU-protected variable-length array, as shown in
-Listing~\ref{lst:together:RCU-Protected Variable-Length Array}.
+\cref{lst:together:RCU-Protected Variable-Length Array}.
 The length of the array \co{->a[]} can change dynamically, and at any
 given time, its length is given by the field \co{->length}.
 Of course, this introduces the following race condition:
@@ -429,32 +359,28 @@ Of course, this introduces the following race condition:
 How can we prevent this?
 
 One approach is to make careful use of memory barriers, which are
-covered in Chapter~\ref{chp:Advanced Synchronization: Memory Ordering}.
+covered in \cref{chp:Advanced Synchronization: Memory Ordering}.
 This works, but incurs read-side overhead and, perhaps worse, requires
 use of explicit memory barriers.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 struct foo_a {
- 2   int length;
- 3   char a[0];
- 4 };
- 5 
- 6 struct foo {
- 7   struct foo_a *fa;
- 8 };
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{VerbatimL}[tabsize=8]
+struct foo_a {
+	int length;
+	char a[0];
+};
+
+struct foo {
+	struct foo_a *fa;
+};
+\end{VerbatimL}
 \caption{Improved RCU-Protected Variable-Length Array}
 \label{lst:together:Improved RCU-Protected Variable-Length Array}
 \end{listing}
 
 A better approach is to put the value and the array into the same structure,
 as shown in
-Listing~\ref{lst:together:Improved RCU-Protected Variable-Length Array}.
+\cref{lst:together:Improved RCU-Protected Variable-Length Array}.
 Allocating a new array (\co{foo_a} structure) then automatically provides
 a new place for the array length.
 This means that if any CPU picks up a reference to \co{->fa}, it is
@@ -485,27 +411,23 @@ A more general version of this approach is presented in the next section.
 \label{sec:together:Correlated Fields}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 struct animal {
- 2   char name[40];
- 3   double age;
- 4   double meas_1;
- 5   double meas_2;
- 6   double meas_3;
- 7   char photo[0]; /* large bitmap. */
- 8 };
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{VerbatimL}[tabsize=8]
+struct animal {
+	char name[40];
+	double age;
+	double meas_1;
+	double meas_2;
+	double meas_3;
+	char photo[0]; /* large bitmap. */
+};
+\end{VerbatimL}
 \caption{Uncorrelated Measurement Fields}
 \label{lst:together:Uncorrelated Measurement Fields}
 \end{listing}
 
 Suppose that each of Sch\"odinger's animals is represented by the
 data element shown in
-Listing~\ref{lst:together:Uncorrelated Measurement Fields}.
+\cref{lst:together:Uncorrelated Measurement Fields}.
 The \co{meas_1}, \co{meas_2}, and \co{meas_3} fields are a set
 of correlated measurements that are updated periodically.
 It is critically important that readers see these three values from
@@ -526,30 +448,26 @@ to the \co{->photo[]} field.
 This copying might incur unacceptably large overhead.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 struct measurement {
- 2   double meas_1;
- 3   double meas_2;
- 4   double meas_3;
- 5 };
- 6 
- 7 struct animal {
- 8   char name[40];
- 9   double age;
-10   struct measurement *mp;
-11   char photo[0]; /* large bitmap. */
-12 };
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{VerbatimL}[tabsize=8]
+struct measurement {
+	double meas_1;
+	double meas_2;
+	double meas_3;
+};
+
+struct animal {
+	char name[40];
+	double age;
+	struct measurement *mp;
+	char photo[0]; /* large bitmap. */
+};
+\end{VerbatimL}
 \caption{Correlated Measurement Fields}
 \label{lst:together:Correlated Measurement Fields}
 \end{listing}
 
 Another approach is to insert a level of indirection, as shown in
-Listing~\ref{lst:together:Correlated Measurement Fields}.
+\cref{lst:together:Correlated Measurement Fields}.
 When a new measurement is taken, a new \co{measurement} structure
 is allocated, filled in with the measurements, and the \co{animal}
 structure's \co{->mp} field is updated to point to this new
@@ -559,38 +477,34 @@ can be freed.
 
 \QuickQuiz{}
 	But cant't the approach shown in
-	Listing~\ref{lst:together:Correlated Measurement Fields}
+	\cref{lst:together:Correlated Measurement Fields}
 	result in extra cache misses, in turn resulting in additional
 	read-side overhead?
 \QuickQuizAnswer{
 	Indeed it can.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 struct measurement {
- 2   double meas_1;
- 3   double meas_2;
- 4   double meas_3;
- 5 };
- 6 
- 7 struct animal {
- 8   char name[40];
- 9   double age;
-10   struct measurement *mp;
-11   struct measurement meas;
-12   char photo[0]; /* large bitmap. */
-13 };
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{VerbatimL}[tabsize=8]
+struct measurement {
+	double meas_1;
+	double meas_2;
+	double meas_3;
+};
+
+struct animal {
+	char name[40];
+	double age;
+	struct measurement *mp;
+        struct measurement meas;
+	char photo[0]; /* large bitmap. */
+};
+\end{VerbatimL}
 \caption{Localized Correlated Measurement Fields}
 \label{lst:together:Localized Correlated Measurement Fields}
 \end{listing}
 
 	One way to avoid this cache-miss overhead is shown in
-	Listing~\ref{lst:together:Localized Correlated Measurement Fields}:
+	\cref{lst:together:Localized Correlated Measurement Fields}:
 	Simply embed an instance of a \co{measurement} structure
 	named \co{meas}
 	into the \co{animal} structure, and point the \co{->mp}
