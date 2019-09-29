@@ -10,28 +10,27 @@ synchronization, namely lockless and real-time synchronization.
 
 Lockless synchronization can be quite helpful when faced with extreme
 requirements, but sadly, lockless synchronization is no panacea.
-For example, as noted at the end of
-Chapter~\ref{chp:Counting},
+For example, as noted at the end of \cref{chp:Counting},
 you should thoroughly apply partitioning, batching, and
-well-tested packaged weak APIs (see Chapter~\ref{chp:Data Ownership}
-and~\ref{chp:Deferred Processing})
+well-tested packaged weak APIs
+(see \cref{chp:Data Ownership,chp:Deferred Processing})
 before even thinking about lockless synchronization.
 
 But after doing all that, you still might find yourself needing the
 advanced techniques described in this chapter.
 To that end,
-Section~\ref{sec:advsync:Avoiding Locks}
+\cref{sec:advsync:Avoiding Locks}
 summarizes techniques used thus far for avoiding locks and
-Section~\ref{sec:advsync:Non-Blocking Synchronization}
+\cref{sec:advsync:Non-Blocking Synchronization}
 gives a brief overview of non-blocking synchronization.
 Memory ordering is also quite important, but is sufficiently large
 to warrant its own chapter, namely
-Chapter~\ref{chp:Advanced Synchronization: Memory Ordering}.
+\cref{chp:Advanced Synchronization: Memory Ordering}.
 
 The second form of advanced synchronization provides stronger forward-progress
 guarantees, as needed for parallel real-time computing.
 Real-time synchronization is therfore the topic of
-Section~\ref{sec:advsync:Parallel Real-Time Computing}.
+\cref{sec:advsync:Parallel Real-Time Computing}.
 
 \section{Avoiding Locks}
 \label{sec:advsync:Avoiding Locks}
@@ -44,24 +43,24 @@ many situations performance, scalability, and real-time response can
 all be greatly improved through use of lockless techniques.
 A particularly impressive example of such a lockless technique are
 the statistical counters described in
-Section~\ref{sec:count:Statistical Counters},
+\cref{sec:count:Statistical Counters},
 which avoids not only locks, but also atomic operations, memory barriers,
 and even cache misses for counter increments.
 Other examples we have covered include:
 
 \begin{enumerate}
 \item	The fastpaths through a number of other counting algorithms
-	in Chapter~\ref{chp:Counting}.
+	in \cref{chp:Counting}.
 \item	The fastpath through resource allocator caches in
-	Section~\ref{sec:SMPdesign:Resource Allocator Caches}.
-\item	The maze solver in Section~\ref{sec:SMPdesign:Beyond Partitioning}.
+	\cref{sec:SMPdesign:Resource Allocator Caches}.
+\item	The maze solver in \cref{sec:SMPdesign:Beyond Partitioning}.
 \item	The data-ownership techniques described in
-	Chapter~\ref{chp:Data Ownership}.
+	\cref{chp:Data Ownership}.
 \item	The reference-counting and RCU techinques described in
-	Chapter~\ref{chp:Deferred Processing}.
-\item	The lookup code paths described in Chapter~\ref{chp:Data Structures}.
+	\cref{chp:Deferred Processing}.
+\item	The lookup code paths described in \cref{chp:Data Structures}.
 \item	Many of the techniques described in
-	Chapter~\ref{chp:Putting It All Together}.
+	\cref{chp:Putting It All Together}.
 \end{enumerate}
 
 In short, lockless techniques are quite useful and are heavily used.
@@ -73,7 +72,7 @@ The reason for this is that undisciplined use of lockless techniques
 is a good way to create difficult bugs.
 If you don't believe that avoiding such bugs is easier than finding
 and fixing them, please re-read
-Chapters~\ref{chp:Validation} and~\ref{chp:Formal Verification}.
+\cref{chp:Validation,chp:Formal Verification}.
 
 A key component of many lockless techniques is the memory barrier,
 which is described in the following section.
@@ -189,7 +188,7 @@ instructions, although compare-and-swap (\co{cmpxchg()} or CAS)
 instructions can also be used.
 
 The statistical counters algorithm discussed in
-Section~\ref{sec:count:Statistical Counters}
+\cref{sec:count:Statistical Counters}
 can be considered wait-free, but only but using a cute definitional trick
 in which the sum is considered approximate rather than exact.\footnote{
 	Citation needed.
@@ -203,49 +202,47 @@ Cute definitional tricks notwithstanding, this algorithm is probably
 the most heavily used NBS algorithm in the Linux kernel.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 static inline bool
- 2 ___cds_wfcq_append(struct cds_wfcq_head *head,
- 3                    struct cds_wfcq_tail *tail,
- 4                    struct cds_wfcq_node *new_head,
- 5                    struct cds_wfcq_node *new_tail)
- 6 {
- 7   struct cds_wfcq_node *old_tail;
- 8 
- 9   old_tail = uatomic_xchg(&tail->p, new_tail);
-10   CMM_STORE_SHARED(old_tail->next, new_head);
-11   return old_tail != &head->node;
-12 }
-13 
-14 static inline bool
-15 _cds_wfcq_enqueue(struct cds_wfcq_head *head,
-16                   struct cds_wfcq_tail *tail,
-17                   struct cds_wfcq_node *new_tail)
-18 {
-19   return ___cds_wfcq_append(head, tail,
-20                             new_tail, new_tail);
-21 }
-\end{verbbox}
+\begin{linelabel}[ln:count:NBS Enqueue Algorithm]
+\begin{VerbatimL}[commandchars=\\\[\]]
+static inline bool
+___cds_wfcq_append(struct cds_wfcq_head *head,
+                   struct cds_wfcq_tail *tail,
+                   struct cds_wfcq_node *new_head,
+                   struct cds_wfcq_node *new_tail)
+{
+	struct cds_wfcq_node *old_tail;
+
+	old_tail = uatomic_xchg(&tail->p, new_tail);	\lnlbl[tail]
+	CMM_STORE_SHARED(old_tail->next, new_head);     \lnlbl[pred]
+	return old_tail != &head->node;			\lnlbl[ret]
 }
-\centering
-\theverbbox
+
+static inline bool
+_cds_wfcq_enqueue(struct cds_wfcq_head *head,
+                  struct cds_wfcq_tail *tail,
+                  struct cds_wfcq_node *new_tail)
+{
+	return ___cds_wfcq_append(head, tail,
+	                          new_tail, new_tail);
+}
+\end{VerbatimL}
+\end{linelabel}
 \caption{NBS Enqueue Algorithm}
 \label{lst:count:NBS Enqueue Algorithm}
 \end{listing}
 
+\begin{lineref}[ln:count:NBS Enqueue Algorithm]
 Another common NBS algorithm is the atomic queue where elements are
 enqueued using an atomic exchange instruction~\cite{MagedMichael1993JPDC},
 followed by a store into the \co{->next} pointer of the new element's
-predecessor, as shown in
-Listing~\ref{lst:count:NBS Enqueue Algorithm},
+predecessor, as shown in \cref{lst:count:NBS Enqueue Algorithm},
 which shows the userspace-RCU library
 implementation~\cite{MathieuDesnoyers2009URCU}.
-Line~9 updates the tail pointer to reference the new element while
+\Clnref{tail} updates the tail pointer to reference the new element while
 returning a reference to its predecessor, which is stored in
 local variable \co{old_tail}.
-Line~10 then updates the predecessor's \co{->next} pointer to
-reference the newly added element, and finally line~11
+\Clnref{pred} then updates the predecessor's \co{->next} pointer to
+reference the newly added element, and finally \clnref{ret}
 returns an indication as to whether or not the queue was initially
 empty.
 
@@ -253,13 +250,14 @@ Although mutual exclusion is required to dequeue a single element
 (so that dequeue is blocking), it is possible to carry out a non-blocking
 removal of the entire contents of the queue.
 What is not possible is to dequeue any given element in a non-blocking
-manner: The enqueuer might have failed between lines~9 and~10 of the
+manner: The enqueuer might have failed between \clnref{tail,pred} of the
 listing, so that the element in question is only partially enqueued.
 This results in a half-NBS algorithm where enqueues are NBS but
 dequeues are blocking.
 This algorithm is nevertheless heavily used in practice, in part because
 most production software is not required to tolerate arbitrary fail-stop
 errors.
+\end{lineref}
 
 \subsection{NBS Discussion}
 \label{sec:advsync:NBS Discussion}
