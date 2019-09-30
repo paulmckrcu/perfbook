@@ -87,34 +87,7 @@ the statements within both Thread~\co{P0()} and Thread~\co{P1()},
 even on relatively strongly ordered systems such as x86.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-SB+o-o+o-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  int r2;
-
-  WRITE_ONCE(*x0, 2);
-  r2 = READ_ONCE(*x1);
-}
-
-
-P1(int *x0, int *x1)
-{
-  int r2;
-
-  WRITE_ONCE(*x1, 2);
-  r2 = READ_ONCE(*x0);
-}
-
-exists (1:r2=0 /\ 0:r2=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-SB+o-o+o-o@whole.fcv}
 \caption{Memory Misordering: Store-Buffering Litmus Test}
 \label{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}
 \end{listing}
@@ -265,10 +238,12 @@ Table~\ref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}
 shows how this memory misordering can happen.
 Row~1 shows the initial state, where CPU~0 has \co{x1} in its cache
 and CPU~1 has \co{x0} in its cache, both variables having a value of zero.
-Row~2 shows the state change due to each CPU's store (lines~9 and~18 of
+\begin{lineref}[ln:formal:C-SB+o-o+o-o:whole]
+Row~2 shows the state change due to each CPU's store (\clnref{st0,st1} of
 Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}).
 Because neither CPU has the stored-to variable in its cache, both CPUs
 record their stores in their respective store buffers.
+\end{lineref}
 
 \QuickQuiz{}
 	But wait!!!
@@ -286,11 +261,13 @@ record their stores in their respective store buffers.
 	Section~\ref{sec:memorder:Variables With Multiple Values}!
 } \QuickQuizEnd
 
-Row~3 shows the two loads (lines~10 and~19 of
+\begin{lineref}[ln:formal:C-SB+o-o+o-o:whole]
+Row~3 shows the two loads (\clnref{ld0,ld1} of
 Listing~\ref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}).
 Because the variable being loaded by each CPU is in that CPU's cache,
 each load immediately returns the cached value, which in both cases
 is zero.
+\end{lineref}
 
 But the CPUs are not done yet: Sooner or later, they must empty their
 store buffers.
@@ -354,36 +331,7 @@ ordering, your path of least resistance is to simply use these primitives,
 thus allowing you to stop reading this section.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-SB+o-mb-o+o-mb-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  int r2;
-
-  WRITE_ONCE(*x0, 2);
-  smp_mb();
-  r2 = READ_ONCE(*x1);
-}
-
-
-P1(int *x0, int *x1)
-{
-  int r2;
-
-  WRITE_ONCE(*x1, 2);
-  smp_mb();
-  r2 = READ_ONCE(*x0);
-}
-
-exists (1:r2=0 /\ 0:r2=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-SB+o-mb-o+o-mb-o@whole.fcv}
 \caption{Memory Ordering: Store-Buffering Litmus Test}
 \label{lst:memorder:Memory Ordering: Store-Buffering Litmus Test}
 \end{listing}
@@ -875,17 +823,20 @@ Tables~\ref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}
 and~\ref{tab:memorder:Memory Ordering: Store-Buffering Sequence of Events},
 and if so, the purpose of this section is to drive this point home.
 
+\begin{lineref}[ln:memorder:Software Logic Analyzer]
 To this end, consider the program fragment shown in
 Listing~\ref{lst:memorder:Software Logic Analyzer}.
 This code fragment is executed in parallel by several CPUs.
-Line~1 sets a shared variable to the current CPU's ID, line~2
+\Clnref{setid} sets a shared variable to the current CPU's ID, \clnref{init}
 initializes several variables from a \co{gettb()} function that
 delivers the value of a fine-grained hardware ``timebase'' counter that is
 synchronized among all CPUs (not available from all CPU architectures,
-unfortunately!), and the loop from lines~3-8 records the length of
+unfortunately!), and the loop from \clnrefrange{loop:b}{loop:e}
+records the length of
 time that the variable retains the value that this CPU assigned to it.
 Of course, one of the CPUs will ``win'', and would thus never exit
-the loop if not for the check on lines~6-7.
+the loop if not for the check on \clnrefrange{iftmout}{break}.
+\end{lineref}
 
 \QuickQuiz{}
 	What assumption is the code fragment
@@ -903,20 +854,18 @@ the loop if not for the check on lines~6-7.
 } \QuickQuizEnd
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 state.variable = mycpu;
-  2 lasttb = oldtb = firsttb = gettb();
-  3 while (state.variable == mycpu) {
-  4   lasttb = oldtb;
-  5   oldtb = gettb();
-  6   if (lasttb - firsttb > 1000)
-  7     break;
-  8 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{linelabel}[ln:memorder:Software Logic Analyzer]
+\begin{VerbatimL}[commandchars=\\\[\]]
+state.variable = mycpu;			\lnlbl[setid]
+lasttb = oldtb = firsttb = gettb();	\lnlbl[init]
+while (state.variable == mycpu) {	\lnlbl[loop:b]
+	lasttb = oldtb;
+	oldtb = gettb();
+	if (lasttb - firsttb > 1000)	\lnlbl[iftmout]
+		break;			\lnlbl[break]
+}					\lnlbl[loop:e]
+\end{VerbatimL}
+\end{linelabel}
 \caption{Software Logic Analyzer}
 \label{lst:memorder:Software Logic Analyzer}
 \end{listing}
@@ -1059,37 +1008,7 @@ This section builds on that result, looking at the other combinations of
 loads and stores.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-MP+o-wmb-o+o-o
-
-{
-}
-
-
-P0(int* x0, int* x1) {
-
-  WRITE_ONCE(*x0, 2);
-  smp_wmb();
-  WRITE_ONCE(*x1, 2);
-
-}
-
-P1(int* x0, int* x1) {
-
-  int r2;
-  int r3;
-
-  r2 = READ_ONCE(*x1);
-  r3 = READ_ONCE(*x0);
-
-}
-
-exists (1:r2=2 /\ 1:r3=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-MP+o-wmb-o+o-o@whole.fcv}
 \caption{Message-Passing Litmus Test (No Ordering)}
 \label{lst:memorder:Message-Passing Litmus Test (No Ordering)}
 \end{listing}
@@ -1097,6 +1016,7 @@ exists (1:r2=2 /\ 1:r3=0)
 \subsubsection{Load Followed By Load}
 \label{sec:memorder:Load Followed By Load}
 
+\begin{lineref}[ln:formal:C-MP+o-wmb-o+o-o:whole]
 Listing~\ref{lst:memorder:Message-Passing Litmus Test (No Ordering)}
 (\path{C-MP+o-wmb-o+o-o.litmus})
 shows the classic \emph{message-passing} litmus test, where \co{x0} is
@@ -1107,8 +1027,9 @@ but no ordering is specified for the loads.
 Relatively strongly ordered architectures, such as x86, do enforce ordering.
 However, weakly ordered architectures often do
 not~\cite{JadeAlglave2011ppcmem}.
-Therefore, the \co{exists} clause on line~25 of the listing \emph{can}
+Therefore, the \co{exists} clause on \clnref{exists} of the listing \emph{can}
 trigger.
+\end{lineref}
 
 One rationale for reordering loads from different locations is that doing
 so allows execution to proceed when an earlier load misses the cache,
@@ -1132,77 +1053,22 @@ but the values for later loads are already present.
 } \QuickQuizEnd
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-MP+o-wmb-o+o-rmb-o
-
-{
-}
-
-P0(int* x0, int* x1) {
-
-  WRITE_ONCE(*x0, 2);
-  smp_wmb();
-  WRITE_ONCE(*x1, 2);
-
-}
-
-P1(int* x0, int* x1) {
-
-  int r2;
-  int r3;
-
-  r2 = READ_ONCE(*x1);
-  smp_rmb();
-  r3 = READ_ONCE(*x0);
-
-}
-
-exists (1:r2=2 /\ 1:r3=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-MP+o-wmb-o+o-rmb-o@whole.fcv}
 \caption{Enforcing Order of Message-Passing Litmus Test}
 \label{lst:memorder:Enforcing Order of Message-Passing Litmus Test}
 \end{listing}
 
+\begin{lineref}[ln:formal:C-MP+o-wmb-o+o-rmb-o:whole]
 Thus, portable code relying on ordered loads must
 add explicit ordering, for example, the \co{smp_rmb()} shown on
-line~20 of
+\clnref{rmb} of
 Listing~\ref{lst:memorder:Enforcing Order of Message-Passing Litmus Test}
 (\path{C-MP+o-wmb-o+o-rmb-o.litmus}), which prevents
-the \co{exists} clause from triggering.
+the \co{exists_} clause from triggering.
+\end{lineref}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-LB+o-o+o-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x1);
-  WRITE_ONCE(*x0, 2);
-}
-
-
-P1(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x0);
-  WRITE_ONCE(*x1, 2);
-}
-
-exists (1:r2=2 /\ 0:r2=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-LB+o-o+o-o@whole.fcv}
 \caption{Load-Buffering Litmus Test (No Ordering)}
 \label{lst:memorder:Load-Buffering Litmus Test (No Ordering)}
 \end{listing}
@@ -1210,6 +1076,7 @@ exists (1:r2=2 /\ 0:r2=2)
 \subsubsection{Load Followed By Store}
 \label{sec:memorder:Load Followed By Store}
 
+\begin{lineref}[ln:formal:C-LB+o-o+o-o:whole]
 Listing~\ref{lst:memorder:Load-Buffering Litmus Test (No Ordering)}
 (\path{C-LB+o-o+o-o.litmus})
 shows the classic \emph{load-buffering} litmus test.
@@ -1217,41 +1084,16 @@ Although relatively strongly ordered systems such as x86
 or the IBM Mainframe do not reorder prior loads with subsequent stores,
 more weakly ordered architectures really do allow such
 reordering~\cite{JadeAlglave2011ppcmem}.
-Therefore, the \co{exists} clause on line~22 really can trigger.
+Therefore, the \co{exists} clause on \clnref{exists} really can trigger.
+\end{lineref}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-LB+o-r+a-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x1);
-  smp_store_release(x0, 2);
-}
-
-
-P1(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x0);
-  WRITE_ONCE(*x1, 2);
-}
-
-exists (1:r2=2 /\ 0:r2=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-LB+o-r+a-o@whole.fcv}
 \caption{Enforcing Ordering of Load-Buffering Litmus Test}
 \label{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test}
 \end{listing}
 
+\begin{lineref}[ln:formal:C-LB+o-r+a-o:whole]
 Although it is rare for actual hardware to
 exhibit this reordering~\cite{LucMaranget2017aarch64},
 one situation where it might be desirable to do so is when a load
@@ -1262,39 +1104,11 @@ as shown in
 Listing~\ref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test}
 (\path{C-LB+o-r+a-o.litmus}).
 The \co{smp_store_release()} and \co{smp_load_acquire()} guarantee that
-the \co{exists} clause on line~22 never triggers.
+the \co{exists} clause on \clnref{exists} never triggers.
+\end{lineref}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-MP+o-o+o-rmb-o
-
-{
-}
-
-P0(int* x0, int* x1) {
-
-  WRITE_ONCE(*x0, 2);
-  WRITE_ONCE(*x1, 2);
-
-}
-
-P1(int* x0, int* x1) {
-
-  int r2;
-  int r3;
-
-  r2 = READ_ONCE(*x1);
-  smp_rmb();
-  r3 = READ_ONCE(*x0);
-
-}
-
-exists (1:r2=2 /\ 1:r3=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-MP+o-o+o-rmb-o@whole.fcv}
 \caption{Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
 \label{lst:memorder:Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
 \end{listing}
@@ -1342,65 +1156,37 @@ instruction is used to compute the address used by a later memory-reference
 instruction.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-MP+o-wmb-o+o-addr-o
-
-{
-int y=1;
-int *x1 = &y;
-}
-
-P0(int* x0, int** x1) {
-
-  WRITE_ONCE(*x0, 2);
-  smp_wmb();
-  WRITE_ONCE(*x1, x0);
-
-}
-
-P1(int** x1) {
-
-  int *r2;
-  int r3;
-
-  r2 = READ_ONCE(*x1);
-  r3 = READ_ONCE(*r2);
-
-}
-
-exists (1:r2=x0 /\ 1:r3=1)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-MP+o-wmb-o+o-addr-o@whole.fcv}
 \caption{Message-Passing Address-Dependency Litmus Test (No Ordering Before v4.15)}
 \label{lst:memorder:Message-Passing Address-Dependency Litmus Test (No Ordering Before v4.15)}
 \end{listing}
 
+\begin{lineref}[ln:formal:C-MP+o-wmb-o+o-addr-o:whole]
 Listing~\ref{lst:memorder:Message-Passing Address-Dependency Litmus Test (No Ordering Before v4.15)}
 (\path{C-MP+o-wmb-o+o-addr-o.litmus})
 shows a linked variant of the message-passing pattern.
 The head pointer is \co{x1}, which initially
-references the \co{int} variable \co{y} (line~5), which is in turn
-initialized to the value $1$ (line~4).
-\co{P0()} updates head pointer \co{x1} to reference \co{x0} (line~12),
-but only after initializing it to $2$ (line~10) and forcing ordering
-(line~11).
-\co{P1()} picks up the head pointer \co{x1} (line~21), and then loads
-the referenced value (line~22).
-There is thus an address dependency from the load on line~21 to the
-load on line~22.
-In this case, the value returned by line~21 is exactly the address
-used by line~22, but many variations are possible,
+references the \co{int} variable \co{y} (\clnref{init:x1}), which is in turn
+initialized to the value $1$ (\clnref{init:y}).
+\co{P0()} updates head pointer \co{x1} to reference \co{x0} (\clnref{P0:x1}),
+but only after initializing it to $2$ (\clnref{P0:x0}) and forcing ordering
+(\clnref{P0:wmb}).
+\co{P1()} picks up the head pointer \co{x1} (\clnref{P1:x1}), and then loads
+the referenced value (\clnref{P1:ref}).
+There is thus an address dependency from the load on \clnref{P1:x1} to the
+load on \clnref{P1:ref}.
+In this case, the value returned by \clnref{P1:x1} is exactly the address
+used by \clnref{P1:ref}, but many variations are possible,
+\end{lineref}
 including field access using the C-language \co{->} operator,
 addition, subtraction, and array indexing.\footnote{
 	But note that in the Linux kernel, the address dependency must
 	be carried through the pointer to the array, not through the
 	array index.}
 
-One might hope that line~21's load from the head pointer would be ordered
-before line~22's dereference, which is in fact the case on Linux v4.15
+\begin{lineref}[ln:formal:C-MP+o-wmb-o+o-addr-o:whole]
+One might hope that \clnref{P1:x1}'s load from the head pointer would be ordered
+before \clnref{P1:ref}'s dereference, which is in fact the case on Linux v4.15
 and later.
 However, prior to v4.15, this is not the case on DEC Alpha, which can
 in effect use a speculated value for the dependent load, as described
@@ -1408,10 +1194,11 @@ in more detail in Section~\ref{sec:memorder:Alpha}.
 Therefore, on older versions of Linux,
 Listing~\ref{lst:memorder:Message-Passing Address-Dependency Litmus Test (No Ordering Before v4.15)}'s
 \co{exists} clause \emph{can} trigger.
+\end{lineref}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
+\begin{linelabel}[ln:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15)]
+\begin{VerbatimL}[commandchars=\@\[\]]
 C C-MP+o-wmb-o+ld-addr-o
 
 {
@@ -1421,31 +1208,30 @@ int *x1 = &y;
 
 P0(int* x0, int** x1) {
 
-  WRITE_ONCE(*x0, 2);
-  smp_wmb();
-  WRITE_ONCE(*x1, x0);
+	WRITE_ONCE(*x0, 2);
+	smp_wmb();
+	WRITE_ONCE(*x1, x0);
 
 }
 
 P1(int** x1) {
 
-  int *r2;
-  int r3;
+	int *r2;
+        int r3;
 
-  r2 = lockless_dereference(*x1); // Obsolete
-  r3 = READ_ONCE(*r2);
+	r2 = lockless_dereference(*x1); // Obsolete @lnlbl[deref]
+	r3 = READ_ONCE(*r2);			    @lnlbl[read]
 
 }
 
 exists (1:r2=x0 /\ 1:r3=1)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\end{VerbatimL}
+\end{linelabel}
 \caption{Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15)}
 \label{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15)}
 \end{listing}
 
+\begin{lineref}[ln:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15)]
 Listing~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15)}
 % \path{C-MP+o-wmb-o+ld-addr-o.litmus} available at commit bc4b1c3f3b35
 % ("styleguide: Loosen restriction on comment in litmus test")
@@ -1459,53 +1245,26 @@ which acts like \co{READ_ONCE()} on all platforms other than DEC Alpha,
 where it acts like a \co{READ_ONCE()} followed by an \co{smp_mb()},
 thereby forcing the required ordering on all platforms, in turn
 preventing the \co{exists} clause from triggering.
+\end{lineref}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-S+o-wmb-o+o-addr-o
-
-{
-int y=1;
-int *x1 = &y;
-}
-
-P0(int* x0, int** x1) {
-
-  WRITE_ONCE(*x0, 2);
-  smp_wmb();
-  WRITE_ONCE(*x1, x0);
-
-}
-
-P1(int** x1) {
-
-  int *r2;
-
-  r2 = READ_ONCE(*x1);
-  WRITE_ONCE(*r2, 3);
-
-}
-
-exists (1:r2=x0 /\ x0=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-S+o-wmb-o+o-addr-o@whole.fcv}
 \caption{S Address-Dependency Litmus Test}
 \label{lst:memorder:S Address-Dependency Litmus Test}
 \end{listing}
 
+\begin{lineref}[ln:formal:C-S+o-wmb-o+o-addr-o:whole]
 But what happens if the dependent operation is a store rather than
 a load, for example, in the \emph{S}
 litmus test~\cite{JadeAlglave2011ppcmem} shown in
 Listing~\ref{lst:memorder:S Address-Dependency Litmus Test}
 (\path{C-S+o-wmb-o+o-addr-o.litmus})?
 Because no production-quality platform speculates stores,
-it is not possible for the \co{WRITE_ONCE()} on line~10 to overwrite
-the \co{WRITE_ONCE()} on line~21, meaning that the \co{exists}
-clause on line~25 cannot trigger, even on DEC Alpha, even
+it is not possible for the \co{WRITE_ONCE()} on \clnref{P0:x0} to overwrite
+the \co{WRITE_ONCE()} on \clnref{P1:r2}, meaning that the \co{exists}
+clause on \clnref{exists} cannot trigger, even on DEC Alpha, even
 in pre-v4.15 Linux kernels.
+\end{lineref}
 
 \QuickQuiz{}
 	But how do we know that \emph{all} platforms really avoid
@@ -1518,17 +1277,21 @@ in pre-v4.15 Linux kernels.
 	(2)~Weakly ordered platorms, and
 	(3)~DEC Alpha.
 
+	\begin{lineref}[ln:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15)]
 	The TSO platforms order all pairs of memory references except for
 	prior stores against later loads.
-	Because the address dependency on lines~21 and~22 of
+	Because the address dependency on \clnref{deref,read} of
 	Listing~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15)}
 	is instead a load followed by another load, TSO platforms preserve
 	this address dependency.
-	They also preserve the address dependency on lines~20 and~21 of
+	\end{lineref}
+	\begin{lineref}[ln:formal:C-S+o-wmb-o+o-addr-o:whole]
+	They also preserve the address dependency on \clnref{P1:x1,P1:r2} of
 	Listing~\ref{lst:memorder:S Address-Dependency Litmus Test}
 	because this is a load followed by a store.
 	Because address dependencies must start with a load, TSO platforms
 	implicitly but completely respect them.
+	\end{lineref}
 
 	Weakly ordered platforms don't necessarily maintain ordering of
 	unrelated accesses.
@@ -1539,18 +1302,22 @@ in pre-v4.15 Linux kernels.
 	The hardware tracks dependencies and maintains the needed
 	ordering.
 
+	\begin{lineref}[ln:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15)]
 	There is one (famous) exception to this rule for weakly ordered
 	platforms, and that exception is DEC Alpha for load-to-load
 	address dependencies.
 	And this is why, in Linux kernels predating v4.15, DEC Alpha
 	requires the explicit memory barrier supplied for it by the
-	now-obsolete \co{lockless_dereference()} on line~21 of
+	now-obsolete \co{lockless_dereference()} on \clnref{deref} of
 	Listing~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15)}.
+	\end{lineref}
+	\begin{lineref}[ln:formal:C-S+o-wmb-o+o-addr-o:whole]
 	However, DEC Alpha does track load-to-store address dependencies,
-	which is why line~20 of
+	which is why \clnref{P1:x1} of
 	Listing~\ref{lst:memorder:S Address-Dependency Litmus Test}
 	does not need a \co{lockless_dereference()}, even in Linux
 	kernels predating v4.15.
+	\end{lineref}
 
 	To sum up, current platforms either respect address dependencies
 	implicitly, as is the case for TSO platforms (x86, mainframe,
@@ -1589,47 +1356,22 @@ was instead used to compute the address used by a later store
 instruction, that would instead be an address dependency.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-LB+o-r+o-data-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x1);
-  smp_store_release(x0, 2);
-}
-
-
-P1(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x0);
-  WRITE_ONCE(*x1, r2);
-}
-
-exists (1:r2=2 /\ 0:r2=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-LB+o-r+o-data-o@whole.fcv}
 \caption{Load-Buffering Data-Dependency Litmus Test}
 \label{lst:memorder:Load-Buffering Data-Dependency Litmus Test}
 \end{listing}
 
+\begin{lineref}[ln:formal:C-LB+o-r+o-data-o:whole]
 Listing~\ref{lst:memorder:Load-Buffering Data-Dependency Litmus Test}
 (\path{C-LB+o-r+o-data-o.litmus})
 is similar to
 Listing~\ref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test},
-except that \co{P1()}'s ordering between lines~18 and~19 is
+except that \co{P1()}'s ordering between \clnref{ld,st} is
 enforced not by an acquire load, but instead by a data dependency:
-The value loaded by line~18 is what line~19 stores.
+The value loaded by \clnref{ld} is what \clnref{st} stores.
 The ordering provided by this data dependency is sufficient to prevent
 the \co{exists} clause from triggering.
+\end{lineref}
 
 Just as with address dependencies, data dependencies are
 fragile and can be easily broken by compiler optimizations, as discussed in
@@ -1648,14 +1390,16 @@ substitute the constant zero for the value loaded, thus breaking
 the dependency.
 
 \QuickQuiz{}
+	\begin{lineref}[ln:formal:C-LB+o-r+o-data-o:whole]
 	But wait!!!
-	Line~18 of
+	\Clnref{ld} of
 	Listing~\ref{lst:memorder:Load-Buffering Data-Dependency Litmus Test}
 	uses \co{READ_ONCE()}, which marks the load as volatile,
 	which means that the compiler absolutely must emit the load
 	instruction even if the value is later multiplied by zero.
 	So do you really need to work so hard to keep the compiler from
 	breaking your data dependencies?
+	\end{lineref}
 \QuickQuizAnswer{
 	Yes, the compiler absolutely must emit a load instruction for
 	a volatile load.
