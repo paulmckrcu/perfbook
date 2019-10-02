@@ -712,23 +712,25 @@ access X1.
 	rest of this chapter.
 } \QuickQuizEnd
 
+\begin{lineref}[ln:formal:C-SB+o-mb-o+o-mb-o:whole]
 Listing~\ref{lst:memorder:Memory Ordering: Store-Buffering Litmus Test}
 is a case in point.
-The \co{smp_mb()} on line~10 and~20 serve as the barriers,
-the store to \co{x0} on line~9 as X0, the load from \co{x1} on line~11
-as Y0, the store to \co{x1} on line~19 as Y1, and the load from
-\co{x0} as X1.
+The \co{smp_mb()} on \clnref{P0:mb,P1:mb} serve as the barriers,
+the store to \co{x0} on \clnref{P0:st} as X0, the load from \co{x1}
+on \clnref{P0:ld} as Y0, the store to \co{x1} on \clnref{P1:st} as Y1,
+and the load from \co{x0} as X1.
 Applying the if-then rule step by step, we know that the store to
-\co{x1} on line~19 happens after the load from \co{x1} on line~11 if
+\co{x1} on \clnref{P1:st} happens after the load from \co{x1} on \clnref{P0:ld} if
 \co{P0()}'s local variable \co{r2} is set to the value zero.
 The if-then rule would then state that the load from \co{x0} on
-line~21 happens after the store to \co{x0} on line~9.
+\clnref{P1:ld} happens after the store to \co{x0} on \clnref{P0:st}.
 In other words,
 \co{P1()}'s local variable \co{r2} is guaranteed
 to end up with the value two \emph{only if}
 \co{P0()}'s local variable \co{r2} ends up with the value zero.
 This underscores the point that memory ordering guarantees are
 conditional, not absolute.
+\end{lineref}
 
 Although
 Figure~\ref{fig:memorder:Memory Barriers Provide Conditional If-Then Ordering}
@@ -1236,8 +1238,8 @@ Listing~\ref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependenc
 % \path{C-MP+o-wmb-o+ld-addr-o.litmus} available at commit bc4b1c3f3b35
 % ("styleguide: Loosen restriction on comment in litmus test")
 shows how to make this work reliably on pre-v4.15 Linux kernels running on
-DEC Alpha, by
-replacing line~21's \co{READ_ONCE()} with \co{lockless_dereference()},\footnote{
+DEC Alpha, by replacing \clnref{read}'s \co{READ_ONCE()} with
+\co{lockless_dereference()},\footnote{
 	Note that \co{lockless_dereference()} is not needed on v4.15 and
 	later, and therefore is not available in these later Linux kernels.
 	Nor is it needed in versions of this book containing this sentence.}
@@ -1426,45 +1428,19 @@ Note well the ``later store instruction'': Many platforms do not respect
 load-to-load control dependencies.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-LB+o-r+o-ctrl-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x1);
-  smp_store_release(x0, 2);
-}
-
-
-P1(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x0);
-  if (r2 >= 0)
-    WRITE_ONCE(*x1, 2);
-}
-
-exists (1:r2=2 /\ 0:r2=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-LB+o-r+o-ctrl-o@whole.fcv}
 \caption{Load-Buffering Control-Dependency Litmus Test}
 \label{lst:memorder:Load-Buffering Control-Dependency Litmus Test}
 \end{listing}
 
+\begin{lineref}[ln:formal:C-LB+o-r+o-ctrl-o:whole]
 Listing~\ref{lst:memorder:Load-Buffering Control-Dependency Litmus Test}
 (\path{C-LB+o-r+o-ctrl-o.litmus})
 shows another load-buffering example, this time using a control
-dependency (line~19) to order the load on line~18 and the store on
-line~20.
+dependency (\clnref{if}) to order the load on \clnref{ld} and the store on
+\clnref{st}.
 The ordering is sufficient to prevent the \co{exists} from triggering.
+\end{lineref}
 
 However, control dependencies are even more susceptible to being optimized
 out of existence than are data dependencies, and
@@ -1473,46 +1449,20 @@ describes some of the rules that must be followed in order to prevent
 your compiler from breaking your control dependencies.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-MP+o-r+o-ctrl-o
-
-{
-}
-
-P0(int* x0, int* x1) {
-
-  WRITE_ONCE(*x0, 2);
-  smp_store_release(x1, 2);
-
-}
-
-P1(int* x0, int* x1) {
-  int r2;
-  int r3 = 0;
-
-  r2 = READ_ONCE(*x1);
-  if (r2 >= 0)
-    r3 = READ_ONCE(*x0);
-
-}
-
-exists (1:r2=2 /\ 1:r3=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-MP+o-r+o-ctrl-o@whole.fcv}
 \caption{Message-Passing Control-Dependency Litmus Test (No Ordering)}
 \label{lst:memorder:Message-Passing Control-Dependency Litmus Test (No Ordering)}
 \end{listing}
 
+\begin{lineref}[ln:formal:C-MP+o-r+o-ctrl-o:whole]
 It is worth reiterating that control dependencies provide ordering only
 from loads to stores.
-Therefore, the load-to-load control dependency shown on lines~17-19 of
+Therefore, the load-to-load control dependency shown on \clnrefrange{ld1}{ld2} of
 Listing~\ref{lst:memorder:Message-Passing Control-Dependency Litmus Test (No Ordering)}
 (\path{C-MP+o-r+o-ctrl-o.litmus})
 does \emph{not} provide ordering, and therefore does \emph{not}
 prevent the \co{exists} clause from triggering.
+\end{lineref}
 
 In summary, control dependencies can be useful, but they are
 high-maintenance items.
@@ -1546,51 +1496,12 @@ for this concept, this book uses ``cache coherence'' and ``coherence''
 interchangeably.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-CCIRIW+o+o+o-o+o-o
-
-{
-int x = 0;
-}
-
-P0(int *x)
-{
-  WRITE_ONCE(*x, 1);
-}
-
-P1(int *x)
-{
-  WRITE_ONCE(*x, 2);
-}
-
-P2(int *x)
-{
-  int r1;
-  int r2;
-
-  r1 = READ_ONCE(*x);
-  r2 = READ_ONCE(*x);
-}
-
-P3(int *x)
-{
-  int r3;
-  int r4;
-
-  r3 = READ_ONCE(*x);
-  r4 = READ_ONCE(*x);
-}
-
-exists(2:r1=1 /\ 2:r2=2 /\ 3:r3=2 /\ 3:r4=1)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-CCIRIW+o+o+o-o+o-o@whole.fcv}
 \caption{Cache-Coherent IRIW Litmus Test}
 \label{lst:memorder:Cache-Coherent IRIW Litmus Test}
 \end{listing}
 
+\begin{lineref}[ln:formal:C-CCIRIW+o+o+o-o+o-o:whole]
 Listing~\ref{lst:memorder:Cache-Coherent IRIW Litmus Test}
 (\path{C-CCIRIW+o+o+o-o+o-o.litmus})
 shows a litmus test that tests for cache coherence,
@@ -1602,8 +1513,9 @@ on the order of \co{P0()}'s and \co{P1()}'s stores.
 In other words, if \co{P2()} believes that \co{P0()}'s store
 came first, then \co{P3()} had better not believe that
 \co{P1()}'s store came first.
-And in fact the \co{exists} clause on line~35 will trigger if this
+And in fact the \co{exists} clause on \clnref{exists} will trigger if this
 situation arises.
+\end{lineref}
 
 \QuickQuiz{}
 	But in
@@ -1681,37 +1593,7 @@ This in turn avoids abysmal performance.
 	on the other?
 \QuickQuizAnswer{
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-MP-OMCA+o-o-o+o-rmb-o
-
-{
-}
-
-P0(int *x, int *y)
-{
-  int r0;
-
-  WRITE_ONCE(*x, 1);
-  r0 = READ_ONCE(*x);
-  WRITE_ONCE(*y, r0);
-}
-
-P1(int *x, int *y)
-{
-  int r1;
-  int r2;
-
-  r1 = READ_ONCE(*y);
-  smp_rmb();
-  r2 = READ_ONCE(*x);
-}
-
-exists (1:r1=1 /\ 1:r2=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-MP-OMCA+o-o-o+o-rmb-o@whole.fcv}
 \caption{Litmus Test Distinguishing Multicopy Atomic From Other Multicopy Atomic}
 \label{lst:memorder:Litmus Test Distinguishing Multicopy Atomic From Other Multicopy Atomic}
 \end{listing}%
@@ -1720,19 +1602,21 @@ exists (1:r1=1 /\ 1:r2=0)
 	(\path{C-MP-OMCA+o-o-o+o-rmb-o.litmus})
 	shows such a test.
 
+	\begin{lineref}[ln:formal:C-MP-OMCA+o-o-o+o-rmb-o:whole]
 	On a multicopy-atomic platform, \co{P0()}'s store to \co{x} on
-	line~10 must become visible to both \co{P0()} and \co{P1()}
+	\clnref{P0:st} must become visible to both \co{P0()} and \co{P1()}
 	simultaneously.
-	Because this store becomes visible to \co{P0()} on line~11, before
-	\co{P0()}'s store to \co{y} on line~12, \co{P0()}'s store to
+	Because this store becomes visible to \co{P0()} on \clnref{P0:ld}, before
+	\co{P0()}'s store to \co{y} on \clnref{P0:y}, \co{P0()}'s store to
 	\co{x} must become visible before its store to \co{y} everywhere,
 	including \co{P1()}.
-	Therefore, if \co{P1()}'s load from \co{y} on line~20 returns the
-	value 1, so must its load from \co{x} on line~22, given that
-	the \co{smp_rmb()} on line~21 forces these two loads to execute
+	Therefore, if \co{P1()}'s load from \co{y} on \clnref{P1:y} returns the
+	value 1, so must its load from \co{x} on \clnref{P1:x}, given that
+	the \co{smp_rmb()} on \clnref{P1:rmb} forces these two loads to execute
 	in order.
-	Therefore, the \co{exists} clause on line~25 cannot trigger on a
+	Therefore, the \co{exists} clause on \clnref{exists} cannot trigger on a
 	multicopy-atomic platform.
+	\end{lineref}
 
 	In contrast, on an other-multicopy-atomic platform, \co{P0()}
 	could see its own store early, so that there would be no constraint
@@ -1746,49 +1630,16 @@ in the meantime, non-multicopy-atomic platforms do exist, and so software
 must deal with them.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-WRC+o+o-data-o+o-rmb-o
-
-{
-}
-
-P0(int *x)
-{
-  WRITE_ONCE(*x, 1);
-}
-
-P1(int *x, int* y)
-{
-  int r1;
-
-  r1 = READ_ONCE(*x);
-  WRITE_ONCE(*y, r1);
-}
-
-P2(int *x, int* y)
-{
-  int r2;
-  int r3;
-
-  r2 = READ_ONCE(*y);
-  smp_rmb();
-  r3 = READ_ONCE(*x);
-}
-
-exists (1:r1=1 /\ 2:r2=1 /\ 2:r3=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-WRC+o+o-data-o+o-rmb-o@whole.fcv}
 \caption{WRC Litmus Test With Dependencies (No Ordering)}
 \label{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}
 \end{listing}
 
+\begin{lineref}[ln:formal:C-WRC+o+o-data-o+o-rmb-o:whole]
 Listing~\ref{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}
 (\path{C-WRC+o+o-data-o+o-rmb-o.litmus})
 demonstrates multicopy atomicity, that is, on a multicopy-atomic platform,
-the \co{exists} clause on line~29 cannot trigger.
+the \co{exists} clause on \clnref{exists} cannot trigger.
 In contrast, on a non-multicopy-atomic
 platform this \co{exists} clause can trigger, despite
 \co{P1()}'s accesses being ordered by a data dependency and \co{P2()}'s
@@ -1801,6 +1652,7 @@ different threads at different times.
 In particular, \co{P0()}'s store might reach \co{P1()} long before it
 reaches \co{P2()}, which raises the possibility that \co{P1()}'s store
 might reach \co{P2()} before \co{P0()}'s store does.
+\end{lineref}
 
 \begin{figure}[tb]
 \centering
@@ -1903,11 +1755,12 @@ Figure~\ref{fig:memorder:Shared Store Buffers And Multi-Copy Atomicity}.
 	notions of fairness.
 } \QuickQuizEnd
 
+\begin{lineref}[ln:formal:C-WRC+o+o-data-o+o-rmb-o:whole]
 Row~1 shows the initial state, with the initial value of \co{y} in
 \co{P0()}'s and \co{P1()}'s shared cache, and the initial value of \co{x} in
 \co{P2()}'s cache.
 
-Row~2 shows the immediate effect of \co{P0()} executing its store on line~8.
+Row~2 shows the immediate effect of \co{P0()} executing its store on \clnref{P0:x}.
 Because the cacheline containing \co{x} is not in \co{P0()}'s and \co{P1()}'s
 shared cache, the new value (\co{1}) is stored in the shared store buffer.
 
@@ -1915,14 +1768,14 @@ Row~3 shows two transitions.
 First, \co{P0()} issues a read-invalidate operation to fetch the cacheline
 containing \co{x} so that it can flush the new value for \co{x} out of
 the shared store buffer.
-Second, \co{P1()} loads from \co{x} (line~15), an operation that completes
+Second, \co{P1()} loads from \co{x} (\clnref{P1:x}), an operation that completes
 immediately because the new value of \co{x} is immediately available
 from the shared store buffer.
 
 Row~4 also shows two transitions.
 First, it shows the immediate effect of \co{P1()} executing its store to
-\co{y} (line~16), placing the new value into the shared store buffer.
-Second, it shows the start of \co{P2()}'s load from \co{y} (line~24).
+\co{y} (\clnref{P1:y}), placing the new value into the shared store buffer.
+Second, it shows the start of \co{P2()}'s load from \co{y} (\clnref{P2:y}).
 
 Row~5 continues the tradition of showing two transitions.
 First, it shows \co{P1()} complete its store to \co{y}, flushing
@@ -1932,7 +1785,7 @@ Second, it shows \co{P2()} request the cacheline containing \co{y}.
 Row~6 shows \co{P2()} receive the cacheline containing \co{y}, allowing
 it to finish its load into \co{r2}, which takes on the value \co{1}.
 
-Row~7 shows \co{P2()} execute its \co{smp_rmb()} (line~25), thus keeping
+Row~7 shows \co{P2()} execute its \co{smp_rmb()} (\clnref{P2:rmb}), thus keeping
 its two loads ordered.
 
 Row~8 shows \co{P2()} execute its load from \co{x}, which immediately
@@ -1944,20 +1797,23 @@ the cacheline containing \co{x}, which was made way back up on row~3.
 Finally, row~10 shows \co{P0()} finish its store, flushing its value of
 \co{x} from the shared store buffer to the shared cache.
 
-Note well that the \co{exists} clause on line~29 has triggered.
+Note well that the \co{exists} clause on \clnref{exists} has triggered.
 The values of \co{r1} and \co{r2} are both the value one, and
 the final value of \co{r3} the value zero.
 This strange result occurred because \co{P0()}'s new value of \co{x} was
 communicated to \co{P1()} long before it was communicated to \co{P2()}.
+\end{lineref}
 
 \QuickQuiz{}
+	\begin{lineref}[ln:formal:C-WRC+o+o-data-o+o-rmb-o:whole]
 	Referring to
 	Table~\ref{tab:memorder:Memory Ordering: WRC Sequence of Events},
 	why on earth would \co{P0()}'s store take so long to complete when
 	\co{P1()}'s store complete so quickly?
-	In other words, does the \co{exists} clause on line~32 of
+	In other words, does the \co{exists} clause on \clnref{exists} of
 	Listing~\ref{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}
 	really trigger on real systems?
+	\end{lineref}
 \QuickQuizAnswer{
 	You need to face the fact that it really can trigger.
 	Akira Yokosawa used the \co{litmus7} tool to run this litmus test
@@ -1987,40 +1843,7 @@ access preceding it, but also earlier accesses by any thread to that
 same variable.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-WRC+o+o-r+a-o
-
-{
-}
-
-P0(int *x)
-{
-  WRITE_ONCE(*x, 1);
-}
-
-P1(int *x, int* y)
-{
-  int r1;
-
-  r1 = READ_ONCE(*x);
-  smp_store_release(y, r1);
-}
-
-P2(int *x, int* y)
-{
-  int r2;
-  int r3;
-
-  r2 = smp_load_acquire(y);
-  r3 = READ_ONCE(*x);
-}
-
-exists (1:r1=1 /\ 2:r2=1 /\ 2:r3=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-WRC+o+o-r+a-o@whole.fcv}
 \caption{WRC Litmus Test With Release}
 \label{lst:memorder:WRC Litmus Test With Release}
 \end{listing}
@@ -2037,15 +1860,17 @@ Listing~\ref{lst:memorder:WRC Litmus Test With Release}
 substitutes a release operation for
 Listing~\ref{lst:memorder:WRC Litmus Test With Dependencies (No Ordering)}'s
 data dependency.
+\begin{lineref}[ln:formal:C-WRC+o+o-r+a-o:whole]
 Because the release operation is cumulative, its ordering applies not only to
 Listing~\ref{lst:memorder:WRC Litmus Test With Release}'s
-load from \co{x} by \co{P1()} on line~15, but also to the store to \co{x}
-by \co{P0()} on line~8---but only if that load returns the value stored,
-which matches the \co{1:r1=1} in the \co{exists} clause on line~28.
+load from \co{x} by \co{P1()} on \clnref{P1:x}, but also to the store to \co{x}
+by \co{P0()} on \clnref{P0:x}---but only if that load returns the value stored,
+which matches the \co{1:r1=1} in the \co{exists} clause on \clnref{exists}.
 This means that \co{P2()}'s load-acquire suffices to force the
-load from \co{x} on line~25 to happen after the store on line~8, so
+load from \co{x} on \clnref{P2:x} to happen after the store on \clnref{P0:x}, so
 the value returned is one, which does not match \co{2:r3=0}, which
 in turn prevents the \co{exists} clause from triggering.
+\end{lineref}
 
 \begin{figure*}[htbp]
 \centering
@@ -2054,13 +1879,15 @@ in turn prevents the \co{exists} clause from triggering.
 \label{fig:memorder:Cumulativity}
 \end{figure*}
 
+\begin{lineref}[ln:formal:C-WRC+o+o-r+a-o:whole]
 These ordering constraints are depicted graphically in
 Figure~\ref{fig:memorder:Cumulativity}.
 Note also that cumulativity is not limited to a single step back in time.
 If there was another load from \co{x} or store to \co{x} from any thread
-that came before the store on line~8, that prior load or store would also
-be ordered before the load on line~25, though only if both \co{r1} and
+that came before the store on \clnref{P0:x}, that prior load or store would also
+be ordered before the load on \clnref{P2:x}, though only if both \co{r1} and
 \co{r2} both end up containing the value \co{1}.
+\end{lineref}
 
 In short, use of cumulative ordering operations can suppress
 non-multicopy-atomic behaviors in some situations.
@@ -2070,99 +1897,37 @@ Cumulativity nevertheless has limits, which are examined in the next section.
 \label{sec:memorder:Propagation}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-W+RWC+o-r+a-o+o-mb-o
-
-{
-int x = 0;
-int y = 0;
-int z = 0;
-}
-
-P0(int *x, int *y)
-{
-  WRITE_ONCE(*x, 1);
-  smp_store_release(y, 1);
-}
-
-P1(int *y, int *z)
-{
-  int r1;
-  int r2;
-
-  r1 = smp_load_acquire(y);
-  r2 = READ_ONCE(*z);
-}
-
-P2(int *z, int *x)
-{
-  int r3;
-
-  WRITE_ONCE(*z, 1);
-  smp_mb();
-  r3 = READ_ONCE(*x);
-}
-
-exists(1:r1=1 /\ 1:r2=0 /\ 2:r3=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-W+RWC+o-r+a-o+o-mb-o@whole.fcv}
 \caption{W+RWC Litmus Test With Release (No Ordering)}
 \label{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}
 \end{listing}
 
+\begin{lineref}[ln:formal:C-W+RWC+o-r+a-o+o-mb-o:whole]
 Listing~\ref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}
 (\path{C-W+RWC+o-r+a-o+o-mb-o.litmus})
 shows the limitations of cumulativity and store-release,
 even with a full memory barrier.
 The problem is that although the \co{smp_store_release()} on
-line~12 has cumulativity, and although that cumulativity does
-order \co{P2()}'s load on line~30, the \co{smp_store_release()}'s
+\clnref{P0:sr} has cumulativity, and although that cumulativity does
+order \co{P2()}'s load on \clnref{P2:ld}, the \co{smp_store_release()}'s
 ordering cannot propagate through the combination of \co{P1()}'s
-load (line~21) and \co{P2()}'s store (line~28).
-This means that the \co{exists} clause on line~33 really can trigger.
+load (\clnref{P1:ld}) and \co{P2()}'s store (\clnref{P2:st}).
+This means that the \co{exists} clause on \clnref{exists} really can trigger.
+\end{lineref}
 
 \QuickQuiz{}
 	But it is not necessary to worry about propagation unless
 	there are at least three threads in the litmus test, right?
 \QuickQuizAnswer{
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-R+o-wmb-o+o-mb-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  WRITE_ONCE(*x0, 1);
-  smp_wmb();
-  WRITE_ONCE(*x1, 1);
-}
-
-
-P1(int *x0, int *x1)
-{
-  int r2;
-
-  WRITE_ONCE(*x1, 2);
-  smp_mb();
-  r2 = READ_ONCE(*x0);
-}
-
-exists (1:r2=0 /\ x1=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-R+o-wmb-o+o-mb-o@whole.fcv}
 \caption{R Litmus Test With Write Memory Barrier (No Ordering)}
 \label{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)}
 \end{listing}%
 %
 	Wrong.
 
+	\begin{lineref}[ln:formal:C-R+o-wmb-o+o-mb-o:whole]
 	Listing~\ref{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)}
 	(\path{C-R+o-wmb-o+o-mb-o.litmus})
 	shows a two-thread litmus test that requires propagation due to
@@ -2171,10 +1936,11 @@ exists (1:r2=0 /\ x1=2)
 	Even though \co{P0()} is fully ordered by the \co{smp_wmb()} and
 	\co{P1()} is fully ordered by the \co{smp_mb()}, the
 	counter-temporal nature of the links means that
-	the \co{exists} clause on line~22 really can trigger.
-	To prevent this triggering, the \co{smp_wmb()} on line~8
+	the \co{exists} clause on \clnref{exists} really can trigger.
+	To prevent this triggering, the \co{smp_wmb()} on \clnref{wmb}
 	must become an \co{smp_mb()}, bringing propagation into play
 	twice, once for each non-temporal link.
+	\end{lineref}
 } \QuickQuizEnd
 
 \QuickQuizLabel{\MemorderQQLitmusTestR}
@@ -2205,84 +1971,52 @@ also shows the limitations of memory-barrier pairing, given that
 there are not two but three processes.
 These more complex litmus tests can instead be said to have \emph{cycles},
 where memory-barrier pairing is the special case of a two-thread cycle.
+\begin{lineref}[ln:formal:C-W+RWC+o-r+a-o+o-mb-o:whole]
 The cycle in
 Listing~\ref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}
-goes through \co{P0()} (lines~11 and~12), \co{P1()} (lines~20 and~21),
-\co{P2()} (lines~28, 29, and~30), and back to \co{P0()} (line~11).
+goes through \co{P0()} (\clnref{P0:st,P0:sr}), \co{P1()} (\clnref{P1:la,P1:ld}),
+\co{P2()} (\clnref{P2:st,P2:mb,P2:ld}), and back to \co{P0()} (\clnref{P0:st}).
 The \co{exists} clause delineates this cycle:
-the \co{1:r1=1} indicates that the \co{smp_load_acquire()} on line~20
-returned the value stored by the \co{smp_store_release()} on line~12,
-the \co{1:r2=0} indicates that the \co{WRITE_ONCE()} on line~28 came
-too late to affect the value returned by the \co{READ_ONCE()} on line~21,
+the \co{1:r1=1} indicates that the \co{smp_load_acquire()} on \clnref{P1:la}
+returned the value stored by the \co{smp_store_release()} on \clnref{P0:sr},
+the \co{1:r2=0} indicates that the \co{WRITE_ONCE()} on \clnref{P2:st} came
+too late to affect the value returned by the \co{READ_ONCE()} on \clnref{P1:ld},
 and finally the \co{2:r3=0} indicates that the
-\co{WRITE_ONCE()} on line~11 came too late to affect the value returned
-by the \co{READ_ONCE()} on line~30.
+\co{WRITE_ONCE()} on \clnref{P0:st} came too late to affect the value returned
+by the \co{READ_ONCE()} on \clnref{P2:ld}.
 In this case, the fact that the \co{exists} clause can trigger means that
 the cycle is said to be \emph{allowed}.
 In contrast, in cases where the \co{exists} clause cannot trigger,
 the cycle is said to be \emph{prohibited}.
+\end{lineref}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-W+RWC+o-mb-o+a-o+o-mb-o
-
-{
-int x = 0;
-int y = 0;
-int z = 0;
-}
-
-P0(int *x, int *y)
-{
-  WRITE_ONCE(*x, 1);
-  smp_mb();
-  WRITE_ONCE(*y, 1);
-}
-
-P1(int *y, int *z)
-{
-  int r1;
-  int r2;
-
-  r1 = smp_load_acquire(y);
-  r2 = READ_ONCE(*z);
-}
-
-P2(int *z, int *x)
-{
-  int r3;
-
-  WRITE_ONCE(*z, 1);
-  smp_mb();
-  r3 = READ_ONCE(*x);
-}
-
-exists(1:r1=1 /\ 1:r2=0 /\ 2:r3=0)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-W+RWC+o-mb-o+a-o+o-mb-o@whole.fcv}
 \caption{W+WRC Litmus Test With More Barriers}
 \label{lst:memorder:W+WRC Litmus Test With More Barriers}
 \end{listing}
 
-But what if we need to keep the \co{exists} clause on line~33 of
+\begin{lineref}[ln:formal:C-W+RWC+o-r+a-o+o-mb-o:whole]
+But what if we need to keep the \co{exists} clause on \clnref{exists} of
 Listing~\ref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}?
 One solution is to replace \co{P0()}'s \co{smp_store_release()}
 with an \co{smp_mb()}, which
 Table~\ref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 shows to have not only cumulativity, but also propagation.
+\end{lineref}
 The result is shown in
 Listing~\ref{lst:memorder:W+WRC Litmus Test With More Barriers}
 (\path{C-W+RWC+o-mb-o+a-o+o-mb-o.litmus}).
 
 \QuickQuiz{}
+	\begin{lineref}[ln:formal:C-W+RWC+o-r+a-o+o-mb-o:whole]
 	But given that \co{smp_mb()} has the propagation property,
-	why doesn't the \co{smp_mb()} on line~29 of
+	why doesn't the \co{smp_mb()} on \clnref{P2:mb} of
 	Listing~\ref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}
 	prevent the \co{exists} clause from triggering?
+	\end{lineref}
 \QuickQuizAnswer{
+	\begin{lineref}[ln:formal:C-W+RWC+o-r+a-o+o-mb-o:whole]
 	As a rough rule of thumb, the \co{smp_mb()} barrier's
 	propagation property is sufficient to maintain ordering
 	through only one store-to-load link between
@@ -2290,13 +2024,14 @@ Listing~\ref{lst:memorder:W+WRC Litmus Test With More Barriers}
 	Unfortunately,
 	Listing~\ref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}
 	has not one but two store-to-load links, with the
-	first being from the \co{READ_ONCE()} on line~21 to the
-	\co{WRITE_ONCE()} on line~28 and the second being from
-	the \co{READ_ONCE()} on line~30 to the \co{WRITE_ONCE()}
-	on line~11.
+	first being from the \co{READ_ONCE()} on \clnref{P1:ld} to the
+	\co{WRITE_ONCE()} on \clnref{P2:st} and the second being from
+	the \co{READ_ONCE()} on \clnref{P2:ld} to the \co{WRITE_ONCE()}
+	on \clnref{P0:st}.
 	Therefore, preventing the \co{exists} clause from triggering
 	should be expected to require not one but two
 	instances of \co{smp_mb()}.
+	\end{lineref}
 
 	As a special exception to this rule of thumb, a release-acquire
 	chain can have one load-to-store link between processes
@@ -2318,32 +2053,7 @@ This should not come as a surprise to anyone who carefully examined
 Figure~\ref{fig:memorder:A Variable With More Simultaneous Values}.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-2+2W+o-wmb-o+o-wmb-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  WRITE_ONCE(*x0, 1);
-  smp_wmb();
-  WRITE_ONCE(*x1, 2);
-}
-
-
-P1(int *x0, int *x1)
-{
-  WRITE_ONCE(*x1, 1);
-  smp_wmb();
-  WRITE_ONCE(*x0, 2);
-}
-
-exists (x0=1 /\ x1=1)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-2+2W+o-wmb-o+o-wmb-o@whole.fcv}
 \caption{2+2W Litmus Test With Write Barriers}
 \label{lst:memorder:2+2W Litmus Test With Write Barriers}
 \end{listing}
@@ -2363,40 +2073,19 @@ exists (x0=1 /\ x1=1)
 	considered a great gift from the relevant laws of physics
 	and cache-coherency-protocol mathematics.
 
+	\begin{lineref}[ln:formal:C-2+2W+o-wmb-o+o-wmb-o:whole]
 	Unfortunately, no one has been able to come up with a software use
 	case for this gift that does not have a much better alternative
 	implementation.
 	Therefore, neither the C11 nor the Linux kernel memory models
 	provide any guarantee corresponding to
 	Listing~\ref{lst:memorder:2+2W Litmus Test With Write Barriers}.
-	This means that the \co{exists} clause on line~20 can
+	This means that the \co{exists} clause on \clnref{exists} can
 	trigger.
+	\end{lineref}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-2+2W+o-o+o-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  WRITE_ONCE(*x0, 1);
-  WRITE_ONCE(*x1, 2);
-}
-
-
-P1(int *x0, int *x1)
-{
-  WRITE_ONCE(*x1, 1);
-  WRITE_ONCE(*x0, 2);
-}
-
-exists (x0=1 /\ x1=1)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-2+2W+o-o+o-o@whole.fcv}
 \caption{2+2W Litmus Test (No Ordering)}
 \label{lst:memorder:2+2W Litmus Test (No Ordering)}
 \end{listing}
@@ -2429,42 +2118,7 @@ This means that carefully constructed programs can rely on the
 passage of time itself as an memory-ordering operation.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-LB+a-o+o-data-o+o-data-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x0);
-  WRITE_ONCE(*x1, 2);
-}
-
-
-P1(int *x1, int *x2)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x1);
-  WRITE_ONCE(*x2, r2);
-}
-
-P2(int *x2, int *x0)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x2);
-  WRITE_ONCE(*x0, r2);
-}
-
-exists (0:r2=2 /\ 1:r2=2 /\ 2:r2=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-LB+a-o+o-data-o+o-data-o@whole.fcv}
 \caption{LB Litmus Test With One Acquire}
 \label{lst:memorder:LB Litmus Test With One Acquire}
 \end{listing}
@@ -2496,45 +2150,7 @@ suffice to prevent the \co{exists} clause from triggering.
 	as an exercise for the reader.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-LB+o-data-o+o-data-o+o-data-o
-{
-int x0=0;
-int x1=1;
-int x2=2;
-}
-
-P0(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x0);
-  WRITE_ONCE(*x1, r2);
-}
-
-
-P1(int *x1, int *x2)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x1);
-  WRITE_ONCE(*x2, r2);
-}
-
-P2(int *x2, int *x0)
-{
-  int r2;
-
-  r2 = READ_ONCE(*x2);
-  WRITE_ONCE(*x0, r2);
-}
-
-exists (0:r2=2 /\ 1:r2=0 /\ 2:r2=1)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-LB+o-data-o+o-data-o+o-data-o@whole.fcv}
 \caption{LB Litmus Test With No Acquires}
 \label{lst:memorder:LB Litmus Test With No Acquires}
 \end{listing}
@@ -2547,59 +2163,16 @@ memory accesses is covered in the next section.
 \label{sec:memorder:Release-Acquire Chains}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-LB+a-r+a-r+a-r+a-r
-{
-}
-
-P0(int *x0, int *x1)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x0);
-  smp_store_release(x1, 2);
-}
-
-
-P1(int *x1, int *x2)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x1);
-  smp_store_release(x2, 2);
-}
-
-P2(int *x2, int *x3)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x2);
-  smp_store_release(x3, 2);
-}
-
-P3(int *x3, int *x0)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x3);
-  smp_store_release(x0, 2);
-}
-
-exists (0:r2=2 /\ 1:r2=2 /\ 2:r2=2 /\ 3:r2=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-LB+a-r+a-r+a-r+a-r@whole.fcv}
 \caption{Long LB Release-Acquire Chain}
 \label{lst:memorder:Long LB Release-Acquire Chain}
 \end{listing}
 
 A minimal release-acquire chain was shown in
-Listing~\ref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test}
-(\path{C-LB+a-r+a-r+a-r+a-r.litmus}),
+Listing~\ref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test},
 but these chains can be much longer, as shown in
-Listing~\ref{lst:memorder:Long LB Release-Acquire Chain}.
+Listing~\ref{lst:memorder:Long LB Release-Acquire Chain}
+(\path{C-LB+a-r+a-r+a-r+a-r.litmus}).
 The longer the release-acquire chain, the more ordering is gained
 from the passage of time, so that no matter how many threads are
 involved, the corresponding \co{exists} clause cannot trigger.
@@ -2622,13 +2195,12 @@ final access is a \co{READ_ONCE()} from \co{x0}, which is
 accessed via \co{WRITE_ONCE()} by \co{P0()}, forming a non-temporal
 load-to-store link between these two processes.
 \begin{lineref}[ln:formal:litmus:C-ISA2+o-r+a-r+a-r+a-o:whole]
-However, because \co{P0()}'s \co{smp_store_release()} (line~\lnref{P0:rel})
+However, because \co{P0()}'s \co{smp_store_release()} (\clnref{P0:rel})
 is cumulative, if \co{P3()}'s \co{READ_ONCE()} returns zero,
 this cumulativity will force the \co{READ_ONCE()} to be ordered
 before \co{P0()}'s \co{smp_store_release()}.
 In addition, the release-acquire chain
-(lines~\lnref{P0:rel}, \lnref{P1:acq}, \lnref{P1:rel}, \lnref{P2:acq},
-\lnref{P2:rel}, and~\lnref{P3:acq})
+(\clnref{P0:rel,P1:acq,P1:rel,P2:acq,P2:rel,P3:acq})
 forces \co{P3()}'s \co{READ_ONCE()} to be ordered after \co{P0()}'s
 \co{smp_store_release()}.
 Because \co{P3()}'s \co{READ_ONCE()} cannot be both before and after
@@ -2654,48 +2226,7 @@ load-to-store link, as was seen in
 Listing~\ref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-Z6.2+o-r+a-r+a-r+a-o
-{
-}
-
-P0(int *x0, int *x1)
-{
-  WRITE_ONCE(*x0, 2);
-  smp_store_release(x1, 2);
-}
-
-
-P1(int *x1, int *x2)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x1);
-  smp_store_release(x2, 2);
-}
-
-P2(int *x2, int *x3)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x2);
-  smp_store_release(x3, 2);
-}
-
-P3(int *x3, int *x0)
-{
-  int r2;
-
-  r2 = smp_load_acquire(x3);
-  WRITE_ONCE(*x0, 3);
-}
-
-exists (1:r2=2 /\ 2:r2=2 /\ 3:r2=2 /\ x0=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-Z6.2+o-r+a-r+a-r+a-o@whole.fcv}
 \caption{Long Z6.2 Release-Acquire Chain}
 \label{lst:memorder:Long Z6.2 Release-Acquire Chain}
 \end{listing}
@@ -2704,51 +2235,16 @@ Release-acquire chains can also tolerate a single store-to-store step,
 as shown in
 Listing~\ref{lst:memorder:Long Z6.2 Release-Acquire Chain}
 (\path{C-Z6.2+o-r+a-r+a-r+a-o.litmus}).
+\begin{lineref}[ln:formal:C-Z6.2+o-r+a-r+a-r+a-o:whole]
 As with the previous example, \co{smp_store_release()}'s cumulativity
 combined with the temporal nature of the release-acquire chain
-prevents the \co{exists} clause on line~36 from triggering.
+prevents the \co{exists} clause on \clnref{exists} from triggering.
 But beware: Adding a second store-to-store step would allow the correspondingly
 updated \co{exists} clause to trigger.
+\end{lineref}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-Z6.2+o-r+a-o+o-mb-o
-
-{
-int x = 0;
-int y = 0;
-int z = 0;
-}
-
-P0(int *x, int *y)
-{
-  WRITE_ONCE(*x, 1);
-  smp_store_release(y, 1);
-}
-
-P1(int *y, int *z)
-{
-  int r1;
-
-  r1 = smp_load_acquire(y);
-  WRITE_ONCE(*z, 1);
-}
-
-P2(int *z, int *x)
-{
-  int r2;
-
-  WRITE_ONCE(*z, 2);
-  smp_mb();
-  r2 = READ_ONCE(*x);
-}
-
-exists(1:r1=1 /\ 2:r2=0 /\ z=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-Z6.2+o-r+a-o+o-mb-o@whole.fcv}
 \caption{Z6.0 Release-Acquire Chain (Ordering?)}
 \label{lst:memorder:Z6.0 Release-Acquire Chain (Ordering?)}
 \end{listing}
@@ -2972,42 +2468,38 @@ As soon as the compiler does that, the dependency is broken and all
 ordering is lost.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 int reserve_int;
- 2 int *gp;
- 3 int *p;
- 4
- 5 p = rcu_dereference(gp);
- 6 if (p == &reserve_int)
- 7   handle_reserve(p);
- 8 do_something_with(*p); /* buggy! */
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{linelabel}[ln:memorder:Breakable Dependencies With Comparisons]
+\begin{VerbatimL}[commandchars=\\\[\]]
+int reserve_int;
+int *gp;
+int *p;
+
+p = rcu_dereference(gp);
+if (p == &reserve_int)		\lnlbl[cmp]
+	handle_reserve(p);	\lnlbl[handle]
+do_something_with(*p); /* buggy! */
+\end{VerbatimL}
+\end{linelabel}
 \caption{Breakable Dependencies With Comparisons}
 \label{lst:memorder:Breakable Dependencies With Comparisons}
 \end{listing}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 int reserve_int;
- 2 int *gp;
- 3 int *p;
- 4
- 5 p = rcu_dereference(gp);
- 6 if (p == &reserve_int) {
- 7   handle_reserve(&reserve_int);
- 8   do_something_with(reserve_int); /* buggy! */
- 9 } else {
-10   do_something_with(*p); /* OK! */
-11 }
-\end{verbbox}
+\begin{linelabel}[ln:memorder:Broken Dependencies With Comparisons]
+\begin{VerbatimL}[commandchars=\\\[\]]
+int reserve_int;
+int *gp;
+int *p;
+
+p = rcu_dereference(gp);	\lnlbl[deref1]
+if (p == &reserve_int) {
+	handle_reserve(&reserve_int);
+	do_something_with(reserve_int); /* buggy! */ \lnlbl[deref2]
+} else {
+	do_something_with(*p); /* OK! */
 }
-\centering
-\theverbbox
+\end{VerbatimL}
+\end{linelabel}
 \caption{Broken Dependencies With Comparisons}
 \label{lst:memorder:Broken Dependencies With Comparisons}
 \end{listing}
@@ -3028,8 +2520,11 @@ ordering is lost.
 	Here global pointer \co{gp} points to a dynamically allocated
 	integer, but if memory is low, it might instead point to
 	the \co{reserve_int} variable.
+	\begin{lineref}[ln:memorder:Breakable Dependencies With Comparisons]
 	This \co{reserve_int} case might need special handling, as
-	shown on lines~6 and~7 of the listing.
+	shown on \clnref{cmp,handle} of the listing.
+	\end{lineref}
+        \begin{lineref}[ln:memorder:Broken Dependencies With Comparisons]
 	But the compiler could reasonably transform this code into
 	the form shown in
 	Listing~\ref{lst:memorder:Broken Dependencies With Comparisons},
@@ -3037,15 +2532,18 @@ ordering is lost.
 	addresses run faster than instructions using addresses
 	supplied in registers.
 	However, there is clearly no ordering between the pointer
-	load on line~5 and the dereference on line~8.
+	load on \clnref{deref1} and the dereference on \clnref{deref2}.
 	Please note that this is simply an example: There are a great
 	many other ways to break dependency chains with comparisons.
+	\end{lineref}
 \end{enumerate}
 
 \QuickQuiz{}
+	\begin{lineref}[ln:memorder:Breakable Dependencies With Comparisons]
 	Why can't you simply dereference the pointer before comparing it
-	to \co{&reserve_int} on line~6 of
+	to \co{&reserve_int} on \clnref{cmp} of
 	Listing~\ref{lst:memorder:Breakable Dependencies With Comparisons}?
+	\end{lineref}
 \QuickQuizAnswer{
 	For first, it might be necessary to invoke
 	\co{handle_reserve()} before \co{do_something_with()}.
@@ -3065,46 +2563,42 @@ ordering is lost.
 \QuickQuizAnswer{
 %
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 int *gp1;
- 2 int *gp2;
- 3 int *p;
- 4 int *q;
- 5
- 6 p = rcu_dereference(gp1);
- 7 q = READ_ONCE(gp2);
- 8 if (p == q)
- 9   handle_equality(p);
-10 do_something_with(*p);
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{linelabel}[ln:memorder:Breakable Dependencies With Non-Constant Comparisons]
+\begin{VerbatimL}
+int *gp1;
+int *gp2;
+int *p;
+int *q;
+
+p = rcu_dereference(gp1);
+q = READ_ONCE(gp2);
+if (p == q)
+	handle_equality(p);
+do_something_with(*p);
+\end{VerbatimL}
+\end{linelabel}
 \caption{Breakable Dependencies With Non-Constant Comparisons}
 \label{lst:memorder:Breakable Dependencies With Non-Constant Comparisons}
 \end{listing}%
 %
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 int *gp1;
- 2 int *gp2;
- 3 int *p;
- 4 int *q;
- 5
- 6 p = rcu_dereference(gp1);
- 7 q = READ_ONCE(gp2);
- 8 if (p == q) {
- 9   handle_equality(q);
-10   do_something_with(*q);
-11 } else {
-12   do_something_with(*p);
-13 }
-\end{verbbox}
+\begin{linelabel}[ln:memorder:Broken Dependencies With Non-Constant Comparisons]
+\begin{VerbatimL}[commandchars=\\\[\]]
+int *gp1;
+int *gp2;
+int *p;
+int *q;
+
+p = rcu_dereference(gp1);		\lnlbl[p]
+q = READ_ONCE(gp2);
+if (p == q) {
+	handle_equality(q);
+	do_something_with(*q);		\lnlbl[q]
+} else {
+	do_something_with(*p);
 }
-\centering
-\theverbbox
+\end{VerbatimL}
+\end{linelabel}
 \caption{Broken Dependencies With Non-Constant Comparisons}
 \label{lst:memorder:Broken Dependencies With Non-Constant Comparisons}
 \end{listing}%
@@ -3117,12 +2611,14 @@ ordering is lost.
 	Listing~\ref{lst:memorder:Broken Dependencies With Non-Constant Comparisons},
 	and might well make this transformation due to register pressure
 	if \co{handle_equality()} was inlined and needed a lot of registers.
-	Line~10 of this transformed code uses \co{q}, which although
+	\begin{lineref}[ln:memorder:Broken Dependencies With Non-Constant Comparisons]
+	\Clnref{q} of this transformed code uses \co{q}, which although
 	equal to \co{p}, is not necessarily tagged by the hardware as
 	carrying a dependency.
 	Therefore, this transformed code does not necessarily guarantee
-	that line~10 is ordered after line~6.\footnote{
+	that \clnref{q} is ordered after \clnref{p}.\footnote{
 		Kudos to Linus Torvalds for providing this example.}
+	\end{lineref}
 } \QuickQuizEnd
 
 Note that a series of inequality comparisons might, when taken together,
@@ -3162,51 +2658,49 @@ pointers:
 \end{enumerate}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1 struct foo {
- 2   int a;
- 3   int b;
- 4   int c;
- 5 };
- 6 struct foo *gp1;
- 7 struct foo *gp2;
- 8
- 9 void updater(void)
-10 {
-11   struct foo *p;
-12
-13   p = malloc(sizeo(*p));
-14   BUG_ON(!p);
-15   p->a = 42;
-16   p->b = 43;
-17   p->c = 44;
-18   rcu_assign_pointer(gp1, p);
-19   p->b = 143;
-20   p->c = 144;
-21   rcu_assign_pointer(gp2, p);
-22 }
-23
-24 void reader(void)
-25 {
-26   struct foo *p;
-27   struct foo *q;
-28   int r1, r2 = 0;
-29
-30   p = rcu_dereference(gp2);
-31   if (p == NULL)
-32     return;
-33   r1 = p->b;
-34   q = rcu_dereference(gp1);
-35   if (p == q) {
-36     r2 = p->c;
-37   }
-38   do_something_with(r1, r2);
-39 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{linelabel}[ln:memorder:Broken Dependencies With Pointer Comparisons]
+\begin{VerbatimL}[commandchars=\\\[\]]
+struct foo {		\lnlbl[foo:b]
+	int a;
+	int b;
+	int c;
+};                      \lnlbl[foo:e]
+struct foo *gp1;	\lnlbl[gp1]
+struct foo *gp2;	\lnlbl[gp2]
+
+void updater(void)		\lnlbl[upd:b]
+{
+	struct foo *p;
+
+	p = malloc(sizeo(*p));		\lnlbl[upd:alloc]
+	BUG_ON(!p);			\lnlbl[upd:bug]
+	p->a = 42;			\lnlbl[upd:init:a]
+	p->b = 43;
+	p->c = 44;			\lnlbl[upd:init:c]
+	rcu_assign_pointer(gp1, p);	\lnlbl[upd:assign1]
+	p->b = 143;			\lnlbl[upd:upd:b]
+	p->c = 144;			\lnlbl[upd:upd:c]
+	rcu_assign_pointer(gp2, p);	\lnlbl[upd:assign2]
+}				\lnlbl[upd:e]
+
+void reader(void)		\lnlbl[read:b]
+{
+	struct foo *p;
+	struct foo *q;
+	int r1, r2 = 0;
+
+	p = rcu_dereference(gp2);	\lnlbl[read:gp2]
+	if (p == NULL)			\lnlbl[read:nulchk]
+		return;			\lnlbl[read:nulret]
+	r1 = p->b;			\lnlbl[read:pb]
+	q = rcu_dereference(gp1);	\lnlbl[read:gp1]
+        if (p == q) {			\lnlbl[read:equ]
+		r2 = p->c;		\lnlbl[read:pc]
+	}
+	do_something_with(r1, r2);
+}				\lnlbl[read:e]
+\end{VerbatimL}
+\end{linelabel}
 \caption{Broken Dependencies With Pointer Comparisons}
 \label{lst:memorder:Broken Dependencies With Pointer Comparisons}
 \end{listing}
@@ -3214,52 +2708,62 @@ pointers:
 Pointer comparisons can be quite tricky, and so it is well worth working
 through the example shown in
 Listing~\ref{lst:memorder:Broken Dependencies With Pointer Comparisons}.
-This example uses a simple \co{struct foo} shown on lines~1-5 and
-two global pointers, \co{gp1} and \co{gp2}, shown on lines~6 and~7,
+\begin{lineref}[ln:memorder:Broken Dependencies With Pointer Comparisons]
+This example uses a simple \co{struct foo} shown on \clnrefrange{foo:b}{foo:e}
+and two global pointers, \co{gp1} and \co{gp2}, shown on \clnref{gp1,gp2},
 respectively.
-This example uses two threads, namely \co{updater()} on lines~9-22 and
-\co{reader()} on lines~24-39.
+This example uses two threads, namely \co{updater()} on
+\clnrefrange{upd:b}{upd:e} and \co{reader()} on \clnrefrange{read:b}{read:e}.
+\end{lineref}
 
-The \co{updater()} thread allocates memory on line~13, and complains
-bitterly on line~14 if none is available.
-Lines~15-17 initialize the newly allocated structure, and then line~18
-assigns the pointer to \co{gp1}.
-Lines~19 and~20 then update two of the structure's fields, and does
-so \co{after} line~18 has made those fields visible to readers.
+\begin{lineref}[ln:memorder:Broken Dependencies With Pointer Comparisons:upd]
+The \co{updater()} thread allocates memory on \clnref{alloc}, and complains
+bitterly on \clnref{bug} if none is available.
+\Clnrefrange{init:a}{init:c} initialize the newly allocated structure,
+and then \clnref{assign1} assigns the pointer to \co{gp1}.
+\Clnref{upd:b,upd:c} then update two of the structure's fields, and does
+so \co{after} \clnref{assign1} has made those fields visible to readers.
 Please note that unsynchronized update of reader-visible fields
 often constitutes a bug.
 Although there are legitimate use cases doing just this, such use cases
 require more care than is exercised in this example.
 
-Finally, line~21 assigns the pointer to \co{gp2}.
+Finally, \clnref{assign2} assigns the pointer to \co{gp2}.
+\end{lineref}
 
-The \co{reader()} thread first fetches \co{gp2} on line~30, with
-lines~31 and~32 checking for \co{NULL} and returning if so.
-Line~33 then fetches field \co{->b}.
-Now line~34 fetches \co{gp1}, and if line~35 sees that the pointers
-fetched on lines~30 and~34 are equal, line~36 fetches \co{p->c}.
-Note that line~36 uses pointer \co{p} fetched on line~30, not
-pointer \co{q} fetched on line~34.
+\begin{lineref}[ln:memorder:Broken Dependencies With Pointer Comparisons:read]
+The \co{reader()} thread first fetches \co{gp2} on \clnref{gp2}, with
+\clnref{nulchk,nulret} checking for \co{NULL} and returning if so.
+\Clnref{pb} then fetches field \co{->b}.
+Now \clnref{gp1} fetches \co{gp1}, and if \clnref{equ} sees that the pointers
+fetched on \clnref{gp2,gp1} are equal, \clnref{pc} fetches \co{p->c}.
+Note that \clnref{pc} uses pointer \co{p} fetched on \clnref{gp2}, not
+pointer \co{q} fetched on \clnref{gp1}.
 
 But this difference might not matter.
-An equals comparison on line~35 might lead the compiler to (incorrectly)
+An equals comparison on \clnref{equ} might lead the compiler to (incorrectly)
 conclude that both pointers are equivalent, when in fact they carry
 different dependencies.
-This means that the compiler might well transform line~36 to instead
+This means that the compiler might well transform \clnref{pc} to instead
 be \co{r2 = q->c}, which might well cause the value 44 to be loaded
 instead of the expected value 144.
+\end{lineref}
 
 \QuickQuiz{}
-	But doesn't the condition in line~35 supply a control dependency
-	that would keep line~36 ordered after line~34?
+	\begin{lineref}[ln:memorder:Broken Dependencies With Pointer Comparisons:read]
+	But doesn't the condition in \clnref{equ} supply a control dependency
+	that would keep \clnref{pc} ordered after \clnref{gp1}?
+	\end{lineref}
 \QuickQuizAnswer{
+	\begin{lineref}[ln:memorder:Broken Dependencies With Pointer Comparisons:read]
 	Yes, but no.
 	Yes, there is a control dependency, but control dependencies do
 	not order later loads, only later stores.
 	If you really need ordering, you could place an \co{smp_rmb()}
-	between lines~35 and~36.
+	between \clnref{equ,pc}.
 	Or considerably better, have \co{update()}
 	allocate two structures instead of reusing the structure.
+	\end{lineref}
 } \QuickQuizEnd
 
 In short, some care is required in order to ensure that dependency
