@@ -2782,18 +2782,13 @@ A load-load control dependency requires a full read memory barrier,
 not simply a data dependency barrier.
 Consider the following bit of code:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 q = READ_ONCE(x);
-  2 if (q) {
-  3   <data dependency barrier>
-  4   q = READ_ONCE(y);
-  5 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+if (q) {
+	<data dependency barrier>
+	q = READ_ONCE(y);
+}
+\end{VerbatimN}
 
 This will not have the desired effect because there is no actual data
 dependency, but rather a control dependency that the CPU may short-circuit
@@ -2801,33 +2796,23 @@ by attempting to predict the outcome in advance, so that other CPUs see
 the load from~\co{y} as having happened before the load from~\co{x}.
 In such a case what's actually required is:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 q = READ_ONCE(x);
-  2 if (q) {
-  3   <read barrier>
-  4   q = READ_ONCE(y);
-  5 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+if (q) {
+	<read barrier>
+	q = READ_ONCE(y);
+}
+\end{VerbatimN}
 
 However, stores are not speculated.
 This means that ordering \emph{is} provided for load-store control
 dependencies, as in the following example:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 q = READ_ONCE(x);
-  2 if (q)
-  3   WRITE_ONCE(y, 1);
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+if (q)
+	WRITE_ONCE(y, 1);
+\end{VerbatimN}
 
 Control dependencies pair normally with other types of ordering operations.
 That said, please note that neither \co{READ_ONCE()} nor \co{WRITE_ONCE()}
@@ -2843,55 +2828,40 @@ variable~\co{x} is always non-zero, it would be well within its rights
 to optimize the original example by eliminating the \qco{if} statement
 as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
-  1 q = READ_ONCE(x);
-  2 WRITE_ONCE(y, 1); /* BUG: CPU can reorder!!! */
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+WRITE_ONCE(y, 1); /* BUG: CPU can reorder!!! */
+\end{VerbatimN}
 
 It is tempting to try to enforce ordering on identical stores on both
 branches of the \qco{if} statement as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
- 1 q = READ_ONCE(x);
- 2 if (q) {
- 3   barrier();
- 4   WRITE_ONCE(y, 1);
- 5   do_something();
- 6 } else {
- 7   barrier();
- 8   WRITE_ONCE(y, 1);
- 9   do_something_else();
-10 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+if (q) {
+	barrier();
+	WRITE_ONCE(y, 1);
+	do_something();
+} else {
+	barrier();
+	WRITE_ONCE(y, 1);
+	do_something_else();
+}
+\end{VerbatimN}
 
 Unfortunately, current compilers will transform this as follows at high
 optimization levels:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
- 1 q = READ_ONCE(x);
- 2 barrier();
- 3 WRITE_ONCE(y, 1);  /* BUG: No ordering!!! */
- 4 if (q) {
- 5   do_something();
- 6 } else {
- 7   do_something_else();
- 8 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+barrier();
+WRITE_ONCE(y, 1);  /* BUG: No ordering!!! */
+if (q) {
+	do_something();
+} else {
+	do_something_else();
+}
+\end{VerbatimN}
 
 Now there is no conditional between the load from~\co{x} and the store
 to~\co{y}, which means that the CPU is within its rights to reorder them:
@@ -2900,21 +2870,16 @@ assembly code even after all compiler optimizations have been applied.
 Therefore, if you need ordering in this example, you need explicit
 memory-ordering operations, for example, a release store:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
- 1 q = READ_ONCE(x);
- 2 if (q) {
- 3   smp_store_release(&y, 1);
- 4   do_something();
- 5 } else {
- 6   smp_store_release(&y, 1);
- 7   do_something_else();
- 8 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+if (q) {
+	smp_store_release(&y, 1);
+	do_something();
+} else {
+	smp_store_release(&y, 1);
+	do_something_else();
+}
+\end{VerbatimN}
 
 The initial \co{READ_ONCE()} is still required to prevent the compiler from
 proving the value of~\co{x}.
@@ -2925,36 +2890,26 @@ otherwise the compiler might be able to guess the value and again remove
 the needed conditional.
 For example:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
- 1 q = READ_ONCE(x);
- 2 if (q % MAX) {
- 3   WRITE_ONCE(y, 1);
- 4   do_something();
- 5 } else {
- 6   WRITE_ONCE(y, 2);
- 7   do_something_else();
- 8 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+if (q % MAX) {
+	WRITE_ONCE(y, 1);
+	do_something();
+} else {
+	WRITE_ONCE(y, 2);
+	do_something_else();
+}
+\end{VerbatimN}
 
 If \co{MAX} is defined to be~1, then the compiler knows that \co{(q\%MAX)} is
 equal to zero, in which case the compiler is within its rights to
 transform the above code into the following:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
- 1 q = READ_ONCE(x);
- 2 WRITE_ONCE(y, 2);
- 3 do_something_else();
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+WRITE_ONCE(y, 2);
+do_something_else();
+\end{VerbatimN}
 
 Given this transformation, the CPU is not required to respect the ordering
 between the load from variable~\co{x} and the store to variable~\co{y}.
@@ -2964,22 +2919,17 @@ The conditional is gone, and the \co{barrier()} won't bring it back.
 Therefore, if you are relying on this ordering, you should make sure
 that \co{MAX} is greater than one, perhaps as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
- 1 q = READ_ONCE(x);
- 2 BUILD_BUG_ON(MAX <= 1);
- 3 if (q % MAX) {
- 4   WRITE_ONCE(y, 1);
- 5   do_something();
- 6 } else {
- 7   WRITE_ONCE(y, 2);
- 8   do_something_else();
- 9 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+BUILD_BUG_ON(MAX <= 1);
+if (q % MAX) {
+	WRITE_ONCE(y, 1);
+	do_something();
+} else {
+	WRITE_ONCE(y, 2);
+	do_something_else();
+}
+\end{VerbatimN}
 
 Please note once again that the stores to~\co{y} differ.
 If they were identical, as noted earlier, the compiler could pull this
@@ -2988,30 +2938,20 @@ store outside of the \qco{if} statement.
 You must also avoid excessive reliance on boolean short-circuit evaluation.
 Consider this example:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
- 1 q = READ_ONCE(x);
- 2 if (q || 1 > 0)
- 3   WRITE_ONCE(y, 1);
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+if (q || 1 > 0)
+	WRITE_ONCE(y, 1);
+\end{VerbatimN}
 
 Because the first condition cannot fault and the second condition is
 always true, the compiler can transform this example as following,
 defeating control dependency:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
- 1 q = READ_ONCE(x);
- 2 WRITE_ONCE(y, 1);
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+WRITE_ONCE(y, 1);
+\end{VerbatimN}
 
 This example underscores the need to ensure that the compiler cannot
 out-guess your code.
@@ -3024,20 +2964,15 @@ else-clause of the if-statement in question.
 In particular, it does
 not necessarily apply to code following the if-statement:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
- 1 q = READ_ONCE(x);
- 2 if (q) {
- 3   WRITE_ONCE(y, 1);
- 4 } else {
- 5   WRITE_ONCE(y, 2);
- 6 }
- 7 WRITE_ONCE(z, 1);  /* BUG: No ordering. */
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+q = READ_ONCE(x);
+if (q) {
+	WRITE_ONCE(y, 1);
+} else {
+	WRITE_ONCE(y, 2);
+}
+WRITE_ONCE(z, 1);  /* BUG: No ordering. */
+\end{VerbatimN}
 
 It is tempting to argue that there in fact is ordering because the
 compiler cannot reorder volatile accesses and also cannot reorder
@@ -3047,19 +2982,14 @@ of reasoning, the compiler might compile the two writes to~\co{y} as
 conditional-move instructions, as in this fanciful pseudo-assembly
 language:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\scriptsize
-\begin{verbatim}
- 1 ld r1,x
- 2 cmp r1,$0
- 3 cmov,ne r4,$1
- 4 cmov,eq r4,$2
- 5 st r4,y
- 6 st $1,z
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}
+ld r1,x
+cmp r1,$0
+cmov,ne r4,$1
+cmov,eq r4,$2
+st r4,y
+st $1,z
+\end{VerbatimN}
 
 A weakly ordered CPU would have no dependency of any sort between the load
 from~\co{x} and the store to~\co{z}.
@@ -3079,35 +3009,7 @@ with the initial values
 of~\co{x} and~\co{y} both being zero.
 
 \begin{listing}[tb]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-LB+o-cgt-o+o-cgt-o
-{
-}
-
-P0(int *x, int *y)
-{
-  int r1;
-
-  r1 = READ_ONCE(*x);
-  if (r1 > 0)
-    WRITE_ONCE(*y, 1);
-}
-
-P1(int *x, int *y)
-{
-  int r2;
-
-  r2 = READ_ONCE(*y);
-  if (r2 > 0)
-    WRITE_ONCE(*x, 1);
-}
-
-exists (0:r1=1 /\ 1:r2=1)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-LB+o-cgt-o+o-cgt-o@whole.fcv}
 \caption{LB Litmus Test With Control Dependency}
 \label{lst:memorder:LB Litmus Test With Control Dependency}
 \end{listing}
@@ -3123,40 +3025,7 @@ Listing~\ref{lst:memorder:WWC Litmus Test With Control Dependency (Cumulativity?
 would guarantee the related \co{exists} clause never to trigger.
 
 \begin{listing}
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
-C C-WWC+o-cgt-o+o-cgt-o+o
-{
-}
-
-P0(int *x, int *y)
-{
-  int r1;
-
-  r1 = READ_ONCE(*x);
-  if (r1 > 0)
-    WRITE_ONCE(*y, 1);
-}
-
-P1(int *x, int *y)
-{
-  int r2;
-
-  r2 = READ_ONCE(*y);
-  if (r2 > 0)
-    WRITE_ONCE(*x, 1);
-}
-
-P2(int *x)
-{
-  WRITE_ONCE(*x, 2);
-}
-
-exists (0:r1=2 /\ 1:r2=1 /\ x=2)
-\end{verbbox}
-}
-\centering
-\theverbbox
+\input{CodeSamples/formal/litmus/C-WWC+o-cgt-o+o-cgt-o+o@whole.fcv}
 \caption{WWC Litmus Test With Control Dependency (Cumulativity?)}
 \label{lst:memorder:WWC Litmus Test With Control Dependency (Cumulativity?)}
 \end{listing}
@@ -4051,75 +3920,77 @@ influence on concurrency APIs, including within the Linux kernel.
 Understanding Alpha is therefore surprisingly important to the Linux kernel
 hacker.
 
+\begin{lineref}[ln:memorder:Insert and Lock-Free Search (No Ordering)]
 The dependent-load difference between Alpha and the other CPUs is
 illustrated by the code shown in
 Listing~\ref{lst:memorder:Insert and Lock-Free Search (No Ordering)}.
-This \co{smp_wmb()} on line~9 of this listing
+This \co{smp_wmb()} on \clnref{wmb} of this listing
 guarantees that the element initialization
-in lines~6-8 is executed before the element is added to the
-list on line~10, so that the lock-free search will work correctly.
+in \clnrefrange{init:b}{init:e} is executed before the element is added to the
+list on \clnref{add}, so that the lock-free search will work correctly.
 That is, it makes this guarantee on all CPUs {\em except} Alpha.\footnote{
 	But Linux kernel versions v4.15 and later cause \co{READ_ONCE()}
 	to emit a memory barrier on Alpha, so this discussion applies
 	only to older versions of the Linux kernel.}
+\end{lineref}
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 struct el *insert(long key, long data)
-  2 {
-  3     struct el *p;
-  4     p = kmalloc(sizeof(*p), GFP_ATOMIC);
-  5     spin_lock(&mutex);
-  6     p->next = head.next;
-  7     p->key = key;
-  8     p->data = data;
-  9     smp_wmb();
- 10     head.next = p;
- 11     spin_unlock(&mutex);
- 12 }
- 13
- 14 struct el *search(long key)
- 15 {
- 16     struct el *p;
- 17     p = READ_ONCE(head.next);
- 18     while (p != &head) {
- 19         /* Prior to v4.15, BUG ON ALPHA!!! */
- 20         if (p->key == key) {
- 21             return (p);
- 22         }
- 23         p = READ_ONCE(p->next);
- 24     };
- 25     return (NULL);
- 26 }
-\end{verbbox}
+\begin{linelabel}[ln:memorder:Insert and Lock-Free Search (No Ordering)]
+\begin{VerbatimL}[commandchars=\\\[\]]
+struct el *insert(long key, long data)
+{
+	struct el *p;
+	p = kmalloc(sizeof(*p), GFP_ATOMIC);
+	spin_lock(&mutex);
+	p->next = head.next;		\lnlbl[init:b]
+	p->key = key;
+	p->data = data;			\lnlbl[init:e]
+	smp_wmb();			\lnlbl[wmb]
+	head.next = p;			\lnlbl[add]
+	spin_unlock(&mutex);
 }
-\centering
-\theverbbox
+
+struct el *search(long key)
+{
+	struct el *p;
+	p = READ_ONCE(head.next);	\lnlbl[h:next]
+	while (p != &head) {
+		/* Prior to v4.15, BUG ON ALPHA!!! */ \lnlbl[BUG]
+		if (p->key == key) {	\lnlbl[key]
+			return (p);
+		}
+		p = READ_ONCE(p->next);	\lnlbl[next]
+	};
+	return (NULL);
+}
+\end{VerbatimL}
+\end{linelabel}
 \caption{Insert and Lock-Free Search (No Ordering)}
 \label{lst:memorder:Insert and Lock-Free Search (No Ordering)}
 \end{listing}
 
-Alpha actually allows the code on line~20 of
+\begin{lineref}[ln:memorder:Insert and Lock-Free Search (No Ordering)]
+Alpha actually allows the code on \clnref{key} of
 Listing~\ref{lst:memorder:Insert and Lock-Free Search (No Ordering)}
 could see the old
-garbage values that were present before the initialization on lines~6-8.
+garbage values that were present before the initialization on
+\clnrefrange{init:b}{init:e}.
 
 Figure~\ref{fig:memorder:Why smp-read-barrier-depends() is Required}
 shows how this can happen on
 an aggressively parallel machine with partitioned caches, so that
 alternating cache lines are processed by the different partitions
 of the caches.
-For example, the load of \co{head.next} on line~17 of
+For example, the load of \co{head.next} on \clnref{h:next} of
 Listing~\ref{lst:memorder:Insert and Lock-Free Search (No Ordering)}
 might access cache bank~0,
-and the load of \co{p->key} on line~20 and of \co{p->next} on line~23
+and the load of \co{p->key} on \clnref{key} and of \co{p->next} on \clnref{next}
 might access cache bank~1.
 On Alpha, the \co{smp_wmb()} will guarantee that the cache invalidations
-performed by lines~6-8 of
+performed by \clnrefrange{init:b}{init:e} of
 Listing~\ref{lst:memorder:Insert and Lock-Free Search (No Ordering)}
 (for \co{p->next}, \co{p->key}, and \co{p->data}) will reach
-the interconnect before that of line~10 (for \co{head.next}), but
+the interconnect before that of \clnref{add} (for \co{head.next}), but
 makes absolutely no guarantee about the order of
 propagation through the reading CPU's cache banks.
 For example, it is possible that the reading CPU's cache bank~1 is very
@@ -4131,6 +4002,7 @@ but loads the old cached values for \co{p->key} and \co{p->next}.
 Yes, this does mean that Alpha can in effect fetch
 the data pointed to {\em before} it fetches the pointer itself, strange
 but true.
+\end{lineref}
 See the documentation~\cite{Compaq01,WilliamPugh2000Gharachorloo}
 called out earlier for more information,
 or if you think that I am just making all this up.\footnote{
@@ -4159,12 +4031,16 @@ A \co{smp_read_barrier_depends()} primitive has therefore been added to the
 Linux kernel to eliminate overhead on these systems, and was also added
 to \co{READ_ONCE()} in v4.15 of the Linux kernel so that core kernel
 code no longer needs to concern itself with this aspect of DEC Alpha.
+\begin{lineref}[ln:memorder:Insert and Lock-Free Search (No Ordering)]
 This \co{smp_read_barrier_depends()} primitive could be inserted in
-place of line~19 of
+place of \clnref{BUG} of
 Listing~\ref{lst:memorder:Insert and Lock-Free Search (No Ordering)},
+\end{lineref}
+\begin{lineref}[ln:memorder:Safe Insert and Lock-Free Search]
 but it is better to use the \co{rcu_dereference()} wrapper macro
-as shown on lines~17 and~22 of
+as shown on \clnref{deref1,deref2} of
 Listing~\ref{lst:memorder:Safe Insert and Lock-Free Search}.
+\end{lineref}
 
 It is also possible to implement a software mechanism
 that could be used in place of \co{smp_wmb()} to force
@@ -4183,37 +4059,35 @@ not be considered a reasonable approach by those whose systems must meet
 aggressive real-time response requirements.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
- 1  struct el *insert(long key, long data)
- 2  {
- 3      struct el *p;
- 4      p = kmalloc(sizeof(*p), GFP_ATOMIC);
- 5      spin_lock(&mutex);
- 6      p->next = head.next;
- 7      p->key = key;
- 8      p->data = data;
- 9      smp_wmb();
-10      head.next = p;
-11      spin_unlock(&mutex);
-12  }
-13
-14  struct el *search(long key)
-15  {
-16      struct el *p;
-17      p = rcu_dereference(head.next);
-18      while (p != &head) {
-19          if (p->key == key) {
-20              return (p);
-21          }
-22          p = rcu_dereference(p->next);
-23      };
-24      return (NULL);
-25  }
-\end{verbbox}
+\begin{linelabel}[ln:memorder:Safe Insert and Lock-Free Search]
+\begin{VerbatimL}[commandchars=\\\[\]]
+struct el *insert(long key, long data)
+{
+	struct el *p;
+	p = kmalloc(sizeof(*p), GFP_ATOMIC);
+	spin_lock(&mutex);
+	p->next = head.next;
+	p->key = key;
+	p->data = data;
+	smp_wmb();
+	head.next = p;
+	spin_unlock(&mutex);
 }
-\centering
-\theverbbox
+
+struct el *search(long key)
+{
+	struct el *p;
+	p = rcu_dereference(head.next);		\lnlbl[deref1]
+	while (p != &head) {
+		if (p->key == key) {
+			return (p);
+		}
+		p = rcu_dereference(p->next);	\lnlbl[deref2]
+	};
+	return (NULL);
+}
+\end{VerbatimL}
+\end{linelabel}
 \caption{Safe Insert and Lock-Free Search}
 \label{lst:memorder:Safe Insert and Lock-Free Search}
 \end{listing}
@@ -4312,32 +4186,31 @@ be guaranteed to be ordered unless there is an \co{ISB}
 instruction between the branch and the load.
 Consider the following example:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1 r1 = x;
-  2 if (r1 == 0)
-  3   nop();
-  4 y = 1;
-  5 r2 = z;
-  6 ISB();
-  7 r3 = z;
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{linelabel}[ln:memorder:ARM:load-store control dependency]
+\begin{VerbatimN}[commandchars=\\\[\]]
+r1 = x;			\lnlbl[x]
+if (r1 == 0)		\lnlbl[if]
+	nop();		\lnlbl[nop]
+y = 1;			\lnlbl[y]
+r2 = z;			\lnlbl[z1]
+ISB();			\lnlbl[isb]
+r3 = z;			\lnlbl[z2]
+\end{VerbatimN}
+\end{linelabel}
 
+\begin{lineref}[ln:memorder:ARM:load-store control dependency]
 In this example, load-store control dependency ordering causes
-the load from \co{x} on line~1 to be ordered before the store to
-\co{y} on line~4.
+the load from \co{x} on \clnref{x} to be ordered before the store to
+\co{y} on \clnref{y}.
 However, ARM does not respect load-load control dependencies, so that
-the load on line~1 might well happen \emph{after} the
-load on line~5.
-On the other hand, the combination of the conditional branch on line~2
-and the \co{ISB} instruction on line~6 ensures that
-the load on line~7 happens after the load on line~1.
+the load on \clnref{x} might well happen \emph{after} the
+load on \clnref{z1}.
+On the other hand, the combination of the conditional branch on \clnref{if}
+and the \co{ISB} instruction on \clnref{isb} ensures that
+the load on \clnref{z2} happens after the load on \clnref{x}.
 Note that inserting an additional \co{ISB} instruction somewhere between
-lines~3 and~4 would enforce ordering between lines~1 and~5.
+\clnref{nop,y} would enforce ordering between \clnref{x,z1}.
+\end{lineref}
 
 \subsection{ARMv8}
 
