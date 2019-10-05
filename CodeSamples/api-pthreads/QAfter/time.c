@@ -40,6 +40,8 @@ int goflag = 0;
 int producer_ready = 0;
 int producer_done = 0;
 
+//\begin{snippet}[labelbase=ln:api-pthreads:QAfter:time:producer,keepcomment=yes,commandchars=\#\[\]]
+/* WARNING: BUGGY CODE. */
 void *producer(void *ignored)
 {
 	int i = 0;
@@ -48,16 +50,17 @@ void *producer(void *ignored)
 	while (!goflag)
 		sched_yield();
 	while (goflag) {
-		ss.t = dgettimeofday();
+		ss.t = dgettimeofday();		//\lnlbl{tod}
 		ss.a = ss.c + 1;
 		ss.b = ss.a + 1;
-		ss.c = ss.b + 1;
+		ss.c = ss.b + 1;		//\lnlbl{upd:c}
 		i++;
 	}
 	printf("producer exiting: %d samples\n", i);
 	producer_done = 1;
 	return (NULL);
 }
+//\end{snippet}
 
 #define NSNAPS	100
 
@@ -76,6 +79,8 @@ int curseq = 0;
 int consumer_ready = 0;
 int consumer_done = 0;
 
+//\begin{snippet}[labelbase=ln:api-pthreads:QAfter:time:consumer,keepcomment=yes,commandchars=\#\@\$]
+/* WARNING: BUGGY CODE. */
 void *consumer(void *ignored)
 {
 	struct snapshot_consumer curssc;
@@ -87,11 +92,11 @@ void *consumer(void *ignored)
 		sched_yield();
 	}
 	while (goflag) {
-		curssc.tc = dgettimeofday();
-		curssc.t = ss.t;
+		curssc.tc = dgettimeofday();	//\lnlbl{tod}
+		curssc.t = ss.t;		//\lnlbl{prodtod}
 		curssc.a = ss.a;
 		curssc.b = ss.b;
-		curssc.c = ss.c;
+		curssc.c = ss.c;		//\lnlbl{upd:c}
 		curssc.sequence = curseq;
 		curssc.iserror = 0;
 		if ((curssc.t > curssc.tc) ||
@@ -127,6 +132,7 @@ void *consumer(void *ignored)
 			       ssc[j].c - ssc[j - 1].c);
 	consumer_done = 1;
 }
+//\end{snippet}
 
 int watcher_ready = 0;
 
