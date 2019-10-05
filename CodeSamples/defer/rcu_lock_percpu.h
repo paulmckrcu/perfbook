@@ -31,6 +31,7 @@ static void rcu_init(void)
 		spin_lock_init(&per_thread(rcu_gp_lock, t));
 }
 
+//\begin{snippet}[labelbase=ln:defer:rcu_lock_percpu:lock_unlock,commandchars=\\\[\]]
 static void rcu_read_lock(void)
 {
 	spin_lock(&__get_thread_var(rcu_gp_lock));
@@ -41,4 +42,5 @@ static void rcu_read_unlock(void)
 	spin_unlock(&__get_thread_var(rcu_gp_lock));
 }
 
+//\end{snippet}
 extern void synchronize_rcu(void);

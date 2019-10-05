@@ -22,11 +22,13 @@
 
 #include "rcu_pointer.h"
 
+//\begin{snippet}[labelbase=ln:defer:rcu_rcpls:define,commandchars=\\\@\$]
 DEFINE_SPINLOCK(rcu_gp_lock);
 DEFINE_PER_THREAD(int [2], rcu_refcnt);
 long rcu_idx;
 DEFINE_PER_THREAD(int, rcu_nesting);
 DEFINE_PER_THREAD(int, rcu_read_idx);
+//\end{snippet}
 
 static void rcu_init(void)
 {
@@ -40,6 +42,7 @@ static void rcu_init(void)
 	}
 }
 
+//\begin{snippet}[labelbase=ln:defer:rcu_rcpls:r,commandchars=\\\@\$]
 static void rcu_read_lock(void)
 {
 	int i;
@@ -47,7 +50,7 @@ static void rcu_read_lock(void)
 
 	n = __get_thread_var(rcu_nesting);
 	if (n == 0) {
-		i = READ_ONCE(rcu_idx) & 0x1;
+		i = READ_ONCE(rcu_idx) & 0x1;		//\lnlbl{lock:idx}
 		__get_thread_var(rcu_read_idx) = i;
 		__get_thread_var(rcu_refcnt)[i]++;
 	}
@@ -68,5 +71,6 @@ static void rcu_read_unlock(void)
 	}
 	__get_thread_var(rcu_nesting) = n - 1;
 }
+//\end{snippet}
 
 extern void synchronize_rcu(void);

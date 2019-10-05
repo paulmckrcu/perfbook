@@ -23,34 +23,38 @@
 #include "../api.h"
 #include "rcu_rcpls.h"
 
+//\begin{snippet}[labelbase=ln:defer:rcu_rcpls:u,gobbleblank=yes,commandchars=\\\@\$]
 static void flip_counter_and_wait(int ctr)
 {
 	int i;
 	int t;
-
-	WRITE_ONCE(rcu_idx, ctr + 1);
-	i = ctr & 0x1;
+							//\fcvblank
+	WRITE_ONCE(rcu_idx, ctr + 1);			//\lnlbl{flip:inc}
+	i = ctr & 0x1;					//\lnlbl{flip:mask}
 	smp_mb();
 	for_each_thread(t) {
 		while (per_thread(rcu_refcnt, t)[i] != 0) {
-			/* @@@ poll(NULL, 0, 10); */
+#ifndef FCV_SNIPPET
 			barrier();
+#else
+			poll(NULL, 0, 10);
+#endif
 		}
 	}
 	smp_mb();
 }
-
+						//\fcvblank
 void synchronize_rcu(void)
 {
 	int ctr;
-	int oldctr;
-
+	int oldctr;				//\lnlbl{sync:oldctr}
+						//\fcvblank
 	smp_mb();
-	oldctr = READ_ONCE(rcu_idx);
-	smp_mb();
+	oldctr = READ_ONCE(rcu_idx);		//\lnlbl{sync:idx}
+	smp_mb();				//\lnlbl{sync:mb2}
 	spin_lock(&rcu_gp_lock);
 	ctr = READ_ONCE(rcu_idx);
-	if (ctr - oldctr >= 3) {
+	if (ctr - oldctr >= 3) {		//\lnlbl{sync:if:b}
 
 		/*
 		 * There have been at least two full cycles, so
@@ -60,8 +64,8 @@ void synchronize_rcu(void)
 
 		spin_unlock(&rcu_gp_lock);
 		smp_mb();
-		return;
-	}
+		return;				//\lnlbl{sync:ret}
+	}					//\lnlbl{sync:if:e}
 
 	/*
 	 * Flip counter once and wait for old counts to go away,
@@ -71,12 +75,13 @@ void synchronize_rcu(void)
 	 */
 
 	flip_counter_and_wait(ctr);
-	if (ctr - oldctr < 2)
-		flip_counter_and_wait(ctr + 1);
+	if (ctr - oldctr < 2)			//\lnlbl{sync:ifpair}
+		flip_counter_and_wait(ctr + 1);	//\lnlbl{sync:flip2}
 
 	spin_unlock(&rcu_gp_lock);
 	smp_mb();
 }
+//\end{snippet}
 
 #ifdef TEST
 #include "rcutorture.h"

@@ -22,23 +22,27 @@
 #include "../api.h"
 #include "rcu_rcpg.h"
 
+//\begin{snippet}[labelbase=ln:defer:rcu_rcpg:sync,gobbleblank=yes,commandchars=\\\@\$]
 void synchronize_rcu(void)
 {
 	int i;
-
-	smp_mb();
-	spin_lock(&rcu_gp_lock);
+						//\fcvblank
+	smp_mb();				//\lnlbl{mb1}
+	spin_lock(&rcu_gp_lock);		//\lnlbl{acq}
 
 	/* Flip counter once and wait for old counts to go away. */
 
-	i = atomic_read(&rcu_idx);
-	atomic_set(&rcu_idx, !i);
-	smp_mb();
-	while (atomic_read(&rcu_refcnt[i]) != 0) {
-		/* @@@ poll(NULL, 0, 10); */
+	i = atomic_read(&rcu_idx);		//\lnlbl{pick}
+	atomic_set(&rcu_idx, !i);		//\lnlbl{compl}
+	smp_mb();				//\lnlbl{mb2}
+	while (atomic_read(&rcu_refcnt[i]) != 0) {	//\lnlbl{while:b}
+#ifndef FCV_SNIPPET
 		barrier();
-	}
-	smp_mb();
+#else
+		poll(NULL, 0, 10);
+#endif
+	}						//\lnlbl{while:e}
+	smp_mb();				//\lnlbl{mb3}
 
 	/*
 	 * But someone might have been preempted while we waited, so
@@ -48,11 +52,15 @@ void synchronize_rcu(void)
 	atomic_set(&rcu_idx, i);
 	smp_mb();
 	while (atomic_read(&rcu_refcnt[!i]) != 0) {
-		/* @@@ poll(NULL, 0, 10); */
-	}
-	spin_unlock(&rcu_gp_lock);
-	smp_mb();
+#ifndef FCV_SNIPPET
+#else
+		poll(NULL, 0, 10);
+#endif
+	}					//\lnlbl{while2:e}
+	spin_unlock(&rcu_gp_lock);		//\lnlbl{rel}
+	smp_mb();				//\lnlbl{mb5}
 }
+//\end{snippet}
 
 #ifdef TEST
 #include "rcutorture.h"

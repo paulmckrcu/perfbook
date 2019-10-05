@@ -21,11 +21,13 @@
 
 #include "rcu_pointer.h"
 
+//\begin{snippet}[labelbase=ln:defer:rcu_rcpg:define,commandchars=\\\@\$]
 DEFINE_SPINLOCK(rcu_gp_lock);
 atomic_t rcu_refcnt[2];
 atomic_t rcu_idx;
 DEFINE_PER_THREAD(int, rcu_nesting);
 DEFINE_PER_THREAD(int, rcu_read_idx);
+//\end{snippet}
 
 static void rcu_init(void)
 {
@@ -35,19 +37,20 @@ static void rcu_init(void)
 	init_per_thread(rcu_nesting, 0);
 }
 
+//\begin{snippet}[labelbase=ln:defer:rcu_rcpg:r,commandchars=\\\@\$]
 static void rcu_read_lock(void)
 {
 	int i;
 	int n;
 
-	n = __get_thread_var(rcu_nesting);
-	if (n == 0) {
-		i = atomic_read(&rcu_idx);
-		__get_thread_var(rcu_read_idx) = i;
-		atomic_inc(&rcu_refcnt[i]);
+	n = __get_thread_var(rcu_nesting);		//\lnlbl{lock:pick}
+	if (n == 0) {					//\lnlbl{lock:if}
+		i = atomic_read(&rcu_idx);		//\lnlbl{lock:cur:b}
+		__get_thread_var(rcu_read_idx) = i;	//\lnlbl{lock:set}
+		atomic_inc(&rcu_refcnt[i]);		//\lnlbl{lock:cur:e}
 	}
-	__get_thread_var(rcu_nesting) = n + 1;
-	smp_mb();
+	__get_thread_var(rcu_nesting) = n + 1;		//\lnlbl{lock:inc}
+	smp_mb();					//\lnlbl{lock:mb}
 }
 
 static void rcu_read_unlock(void)
@@ -55,13 +58,14 @@ static void rcu_read_unlock(void)
 	int i;
 	int n;
 
-	smp_mb();
-	n = __get_thread_var(rcu_nesting);
-	if (n == 1) {
-		 i = __get_thread_var(rcu_read_idx);
-		atomic_dec(&rcu_refcnt[i]);
+	smp_mb();					//\lnlbl{unlock:mb}
+	n = __get_thread_var(rcu_nesting);		//\lnlbl{unlock:nest}
+	if (n == 1) {					//\lnlbl{unlock:if}
+		i = __get_thread_var(rcu_read_idx);	//\lnlbl{unlock:idx}
+		atomic_dec(&rcu_refcnt[i]);		//\lnlbl{unlock:atmdec}
 	}
-	__get_thread_var(rcu_nesting) = n - 1;
+	__get_thread_var(rcu_nesting) = n - 1;		//\lnlbl{unlock:decnest}
 }
+//\end{snippet}
 
 extern void synchronize_rcu(void);

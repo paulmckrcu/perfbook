@@ -22,15 +22,17 @@
 #include "../api.h"
 #include "rcu_lock_percpu.h"
 
+//\begin{snippet}[labelbase=ln:defer:rcu_lock_percpu:sync,commandchars=\\\[\]]
 void synchronize_rcu(void)
 {
 	int t;
 
-	for_each_running_thread(t) {
+	for_each_running_thread(t) {		//\lnlbl{loop:b}
 		spin_lock(&per_thread(rcu_gp_lock, t));
 		spin_unlock(&per_thread(rcu_gp_lock, t));
-	}
+	}					//\lnlbl{loop:e}
 }
+//\end{snippet}
 
 #ifdef TEST
 #include "rcutorture.h"

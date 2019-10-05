@@ -26,9 +26,11 @@
 
 #include "rcu_pointer.h"
 
+//\begin{snippet}[labelbase=ln:defer:rcu_qs:define,commandchars=\\\[\]]
 DEFINE_SPINLOCK(rcu_gp_lock);
 long rcu_gp_ctr = 0;	/* increment by RCU_GP_CTR_BOTTOM_BIT each gp. */
 DEFINE_PER_THREAD(long, rcu_reader_qs_gp);
+//\end{snippet}
 
 #define mark_rcu_quiescent_state() rcu_quiescent_state()
 #define put_thread_offline() rcu_thread_offline()

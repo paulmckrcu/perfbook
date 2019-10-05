@@ -22,15 +22,20 @@
 #include "../api.h"
 #include "rcu_rcg.h"
 
+//\begin{snippet}[labelbase=ln:defer:rcu_rcg:sync,commandchars=\\\[\]]
 void synchronize_rcu(void)
 {
 	smp_mb();
 	while (atomic_read(&rcu_refcnt) != 0) {
-		/* @@@ poll(NULL, 0, 10); */
+#ifndef FCV_SNIPPET
 		barrier();
+#else
+		poll(NULL, 0, 10);	//\lnlbl{poll}
+#endif
 	}
 	smp_mb();
 }
+//\end{snippet}
 
 #ifdef TEST
 #include "rcutorture.h"

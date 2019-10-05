@@ -22,25 +22,29 @@
 #include "../api.h"
 #include "rcu_rcpl.h"
 
+//\begin{snippet}[labelbase=ln:defer:rcu_rcpl:u,gobbleblank=yes,commandchars=\\\@\$]
 static void flip_counter_and_wait(int i)
 {
 	int t;
-
-	atomic_set(&rcu_idx, !i);
-	smp_mb();
-	for_each_thread(t) {
+						//\fcvblank
+	atomic_set(&rcu_idx, !i);		//\lnlbl{flip:atmset}
+	smp_mb();				//\lnlbl{flip:mb1}
+	for_each_thread(t) {			//\lnlbl{flip:loop:b}
 		while (per_thread(rcu_refcnt, t)[i] != 0) {
-			/* poll(NULL, 0, 10); */
+#ifndef FCV_SNIPPET
 			barrier();
+#else
+			poll(NULL, 0, 10);
+#endif
 		}
-	}
-	smp_mb();
+	}					//\lnlbl{flip:loop:e}
+	smp_mb();				//\lnlbl{flip:mb2}
 }
-
+						//\fcvblank
 void synchronize_rcu(void)
 {
 	int i;
-
+						//\fcvblank
 	smp_mb();
 	spin_lock(&rcu_gp_lock);
 	i = atomic_read(&rcu_idx);
@@ -51,12 +55,13 @@ void synchronize_rcu(void)
 	 * we must flip and wait twice.
 	 */
 
-	flip_counter_and_wait(i);
-	flip_counter_and_wait(!i);
+	flip_counter_and_wait(i);		//\lnlbl{sync:flip1}
+	flip_counter_and_wait(!i);		//\lnlbl{sync:flip2}
 
 	spin_unlock(&rcu_gp_lock);
 	smp_mb();
 }
+//\end{snippet}
 
 #ifdef TEST
 #include "rcutorture.h"

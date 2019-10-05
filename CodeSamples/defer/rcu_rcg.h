@@ -21,13 +21,16 @@
 
 #include "rcu_pointer.h"
 
-atomic_t rcu_refcnt;
+//\begin{snippet}[labelbase=ln:defer:rcu_rcg:lock_unlock,commandchars=\\\[\]]
+atomic_t rcu_refcnt;			//\lnlbl{grc}
 
+#ifndef FCV_SNIPPET
 static void rcu_init(void)
 {
 	atomic_set(&rcu_refcnt, 0);
 }
 
+#endif
 static void rcu_read_lock(void)
 {
 	atomic_inc(&rcu_refcnt);
@@ -40,4 +43,5 @@ static void rcu_read_unlock(void)
 	atomic_dec(&rcu_refcnt);
 }
 
+//\end{snippet}
 extern void synchronize_rcu(void);
