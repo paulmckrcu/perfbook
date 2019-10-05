@@ -960,20 +960,19 @@ Listing~\ref{lst:app:toyrcu:Data for Free-Running Counter Using RCU}.
 The resulting \co{rcu_read_lock()} implementation is extremely
 straightforward.
 \begin{lineref}[ln:defer:rcu:read_lock_unlock:lock]
-Lines~\lnref{gp1} and~\lnref{gp2} simply
+\Clnref{gp1,gp2} simply
 add one to the global free-running \co{rcu_gp_ctr}
 variable and stores the resulting odd-numbered value into the
 \co{rcu_reader_gp} per-thread variable.
-Line~\lnref{mb} executes a memory barrier to prevent the content of the
+Clnref{mb} executes a memory barrier to prevent the content of the
 subsequent RCU read-side critical section from ``leaking out''.
 \end{lineref}
 
 \begin{lineref}[ln:defer:rcu:read_lock_unlock:unlock]
 The \co{rcu_read_unlock()} implementation is similar.
-Line~\lnref{mb} executes a memory barrier, again to prevent the prior RCU
+\Clnref{mb} executes a memory barrier, again to prevent the prior RCU
 read-side critical section from ``leaking out''.
-Lines~\lnref{gp1} and~\lnref{gp2} then
-copy the \co{rcu_gp_ctr} global variable to the
+\Clnref{gp1,gp2} then copy the \co{rcu_gp_ctr} global variable to the
 \co{rcu_reader_gp} per-thread variable, leaving this per-thread
 variable with an even-numbered value so that a concurrent instance
 of \co{synchronize_rcu()} will know to ignore it.
@@ -982,8 +981,7 @@ of \co{synchronize_rcu()} will know to ignore it.
 \QuickQuiz{}
 	\begin{lineref}[ln:defer:rcu:read_lock_unlock:unlock]
 	If any even value is sufficient to tell \co{synchronize_rcu()}
-	to ignore a given task, why don't lines~\lnref{gp1}
-	and~\lnref{gp2} of
+	to ignore a given task, why don't \clnref{gp1,gp2} of
 	Listing~\ref{lst:app:toyrcu:Free-Running Counter Using RCU}
 	simply assign zero to \co{rcu_reader_gp}?
 	\end{lineref}
@@ -1001,39 +999,39 @@ Thus, \co{synchronize_rcu()} could wait for all of the per-thread
 However, it is possible to do much better than that because
 \co{synchronize_rcu()} need only wait on \emph{pre-existing}
 RCU read-side critical sections.
-Line~\lnref{mb1} executes a memory barrier to prevent prior manipulations
+\Clnref{mb1} executes a memory barrier to prevent prior manipulations
 of RCU-protected data structures from being reordered (by either
 the CPU or the compiler) to follow the increment on
-line~\lnref{increasegp}.
-Line~\lnref{spinlock} acquires the \co{rcu_gp_lock}
-(and line~\lnref{spinunlock} releases it)
+\clnref{increasegp}.
+\Clnref{spinlock} acquires the \co{rcu_gp_lock}
+(and \clnref{spinunlock} releases it)
 in order to prevent multiple
 \co{synchronize_rcu()} instances from running concurrently.
-Line~\lnref{increasegp} then increments the global \co{rcu_gp_ctr} variable by
+\Clnref{increasegp} then increments the global \co{rcu_gp_ctr} variable by
 two, so that all pre-existing RCU read-side critical sections will
 have corresponding per-thread \co{rcu_reader_gp} variables with
 values less than that of \co{rcu_gp_ctr}, modulo the machine's
 word size.
 Recall also that threads with even-numbered values of \co{rcu_reader_gp}
 are not in an RCU read-side critical section,
-so that lines~\lnref{scan:b}-\lnref{scan:e}
+so that \clnrefrange{scan:b}{scan:e}
 scan the \co{rcu_reader_gp} values until they
-all are either even (line~\lnref{even}) or are greater than the global
-\co{rcu_gp_ctr} (lines~\lnref{gt1}-\lnref{gt2}).
-Line~\lnref{poll} blocks for a short period of time to wait for a
+all are either even (\clnref{even}) or are greater than the global
+\co{rcu_gp_ctr} (\clnrefrange{gt1}{gt2}).
+\Clnref{poll} blocks for a short period of time to wait for a
 pre-existing RCU read-side critical section, but this can be replaced with
 a spin-loop if grace-period latency is of the essence.
-Finally, the memory barrier at line~\lnref{mb3} ensures that any subsequent
+Finally, the memory barrier at \clnref{mb3} ensures that any subsequent
 destruction will not be reordered into the preceding loop.
 \end{lineref}
 
 \QuickQuiz{}
 	\begin{lineref}[ln:defer:rcu:synchronize:syn]
-	Why are the memory barriers on lines~\lnref{mb1} and~\lnref{mb3} of
+	Why are the memory barriers on \clnref{mb1,mb3} of
 	Listing~\ref{lst:app:toyrcu:Free-Running Counter Using RCU}
 	needed?
 	Aren't the memory barriers inherent in the locking
-	primitives on lines~\lnref{spinlock} and~\lnref{spinunlock} sufficient?
+	primitives on \clnref{spinlock,spinunlock} sufficient?
 	\end{lineref}
 \QuickQuizAnswer{
 	These memory barriers are required because the locking
@@ -1068,7 +1066,7 @@ This implementation suffers from some serious shortcomings in
 addition to the high update-side overhead noted earlier.
 First, it is no longer permissible to nest RCU read-side critical
 sections, a topic that is taken up in the next section.
-Second, if a reader is preempted at line~\lnref{gp1} of
+Second, if a reader is preempted at \clnref{gp1} of
 Listing~\ref{lst:app:toyrcu:Free-Running Counter Using RCU} after fetching from
 \co{rcu_gp_ctr} but before storing to \co{rcu_reader_gp},
 and if the \co{rcu_gp_ctr} counter then runs through more than half
@@ -1082,7 +1080,7 @@ variables.
 \QuickQuiz{}
 	\begin{lineref}[ln:defer:rcu:read_lock_unlock:lock]
 	Is the possibility of readers being preempted in
-	lines~\lnref{gp1}-\lnref{gp2} of
+	\clnrefrange{gp1}{gp2} of
 	Listing~\ref{lst:app:toyrcu:Free-Running Counter Using RCU}
 	a real problem, in other words, is there a real sequence
 	of events that could lead to failure?
@@ -1147,22 +1145,22 @@ by most applications.
 \begin{lineref}[ln:defer:rcu_nest:read_lock_unlock:lock]
 The resulting \co{rcu_read_lock()} implementation is still reasonably
 straightforward.
-Line~\lnref{readgp} places a pointer to
+\Clnref{readgp} places a pointer to
 this thread's instance of \co{rcu_reader_gp}
 into the local variable \co{rrgp}, minimizing the number of expensive
 calls to the pthreads thread-local-state API.
-Line~\lnref{wtmp1} records the current value of \co{rcu_reader_gp}
-into another local variable \co{tmp}, and line~\lnref{checktmp} checks
+\Clnref{wtmp1} records the current value of \co{rcu_reader_gp}
+into another local variable \co{tmp}, and \clnref{checktmp} checks
 to see if the low-order bits are zero, which would indicate that
 this is the outermost \co{rcu_read_lock()}.
-If so, line~\lnref{wtmp2} places the global \co{rcu_gp_ctr}
+If so, \clnref{wtmp2} places the global \co{rcu_gp_ctr}
 into \co{tmp} because the current value previously fetched by
-line~\lnref{wtmp1} is likely to be obsolete.
-In either case, line~\lnref{inctmp} increments the nesting depth,
+\clnref{wtmp1} is likely to be obsolete.
+In either case, \clnref{inctmp} increments the nesting depth,
 which you will recall is stored in the seven low-order bits of the counter.
-Line~\lnref{writegp} stores the updated counter back into this thread's
+\Clnref{writegp} stores the updated counter back into this thread's
 instance of \co{rcu_reader_gp}, and,
-finally, line~\lnref{mb1} executes a memory barrier
+finally, \clnref{mb1} executes a memory barrier
 to prevent the RCU read-side critical section from bleeding out
 into the code preceding the call to \co{rcu_read_lock()}.
 \end{lineref}
@@ -1181,11 +1179,11 @@ Interestingly enough, despite their \co{rcu_read_lock()} differences,
 the implementation of \co{rcu_read_unlock()}
 is broadly similar to that shown in
 Section~\ref{sec:app:toyrcu:RCU Based on Free-Running Counter}.
-Line~\lnref{mb1} executes a memory barrier
+\Clnref{mb1} executes a memory barrier
 in order to prevent the RCU read-side
 critical section from bleeding out into code following the call
 to \co{rcu_read_unlock()}, and
-line~\lnref{decgp} decrements this thread's instance of \co{rcu_reader_gp},
+\clnref{decgp} decrements this thread's instance of \co{rcu_reader_gp},
 which has the effect of decrementing the nesting count contained in
 \co{rcu_reader_gp}'s low-order bits.
 Debugging versions of this primitive would check (before decrementing!)
@@ -1197,10 +1195,10 @@ The implementation of \co{synchronize_rcu()} is quite similar to
 that shown in
 Section~\ref{sec:app:toyrcu:RCU Based on Free-Running Counter}.
 There are two differences.
-The first is that lines~\lnref{incgp1} and~\lnref{incgp2}
+The first is that \clnref{incgp1,incgp2}
 adds \co{RCU_GP_CTR_BOTTOM_BIT} to the global \co{rcu_gp_ctr}
 instead of adding the constant ``2'',
-and the second is that the comparison on line~\lnref{ongoing}
+and the second is that the comparison on \clnref{ongoing}
 has been abstracted out to a separate function,
 where it checks the bit indicated by \co{RCU_GP_CTR_BOTTOM_BIT}
 instead of unconditionally checking the low-order bit.
@@ -1247,7 +1245,7 @@ overhead.
 \QuickQuizAnswer{
 	\begin{lineref}[ln:defer:rcu_nest:synchronize:syn]
 	One way would be to replace the magnitude comparison on
-	lines~\lnref{lt1} and \lnref{lt2} with an inequality check of
+	\clnref{lt1,lt2} with an inequality check of
 	the per-thread \co{rcu_reader_gp} variable against
 	\co{rcu_gp_ctr+RCU_GP_CTR_BOTTOM_BIT}.
 	\end{lineref}
@@ -1363,7 +1361,7 @@ Listing~\ref{lst:app:toyrcu:Quiescent-State-Based RCU Read Side}
 shows the read-side primitives used to construct a user-level
 implementation of RCU based on quiescent states, with the data shown in
 Listing~\ref{lst:app:toyrcu:Data for Quiescent-State-Based RCU}.
-As can be seen from lines~\lnref{lock:b}-\lnref{unlock:e} in the listing,
+As can be seen from \clnrefrange{lock:b}{unlock:e} in the listing,
 the \co{rcu_read_lock()}
 and \co{rcu_read_unlock()} primitives do nothing, and can in fact
 be expected to be inlined and optimized away, as they are in
@@ -1373,13 +1371,13 @@ This is due to the fact that quiescent-state-based RCU implementations
 using the aforementioned quiescent states.
 Each of these quiescent states contains a call to
 \co{rcu_quiescent_state()}, which is shown from
-lines~\lnref{qs:b}-\lnref{qs:e} in the listing.
+\clnrefrange{qs:b}{qs:e} in the listing.
 Threads entering extended quiescent states (for example, when blocking)
 may instead call \co{rcu_thread_offline()}
-(lines~\lnref{offline:b}-\lnref{offline:e}) when entering
+(\clnrefrange{offline:b}{offline:e}) when entering
 an extended quiescent state and then call
 \co{rcu_thread_online()}
-(lines~\lnref{online:b}-\lnref{online:e}) when leaving it.
+(\clnrefrange{online:b}{online:e}) when leaving it.
 As such, \co{rcu_thread_online()} is analogous to \co{rcu_read_lock()}
 and \co{rcu_thread_offline()} is analogous to \co{rcu_read_unlock()}.
 In addition, \co{rcu_quiescent_state()} can be thought of as a
@@ -1395,11 +1393,11 @@ or \co{rcu_thread_online()} from an RCU read-side critical section.
 \end{lineref}
 
 \begin{lineref}[ln:defer:rcu_qs:read_lock_unlock:qs]
-In \co{rcu_quiescent_state()}, line~\lnref{mb1} executes a memory barrier
+In \co{rcu_quiescent_state()}, \clnref{mb1} executes a memory barrier
 to prevent any code prior to the quiescent state (including possible
 RCU read-side critical sections) from being reordered
 into the quiescent state.
-Lines~\lnref{gp1}-\lnref{gp2} pick up
+\Clnrefrange{gp1}{gp2} pick up
 a copy of the global \co{rcu_gp_ctr}, using
 \co{READ_ONCE()} to ensure that the compiler does not employ any
 optimizations that would result in \co{rcu_gp_ctr} being fetched
@@ -1410,14 +1408,14 @@ instance of \co{synchronize_rcu()} will see an odd-numbered value,
 thus becoming aware that a new RCU read-side critical section has started.
 Instances of \co{synchronize_rcu()} that are waiting on older
 RCU read-side critical sections will thus know to ignore this new one.
-Finally, line~\lnref{mb2} executes a memory barrier, which prevents subsequent
+Finally, \clnref{mb2} executes a memory barrier, which prevents subsequent
 code (including a possible RCU read-side critical section) from being
-re-ordered with the lines~\lnref{gp1}-\lnref{gp2}.
+re-ordered with the \clnrefrange{gp1}{gp2}.
 \end{lineref}
 
 \QuickQuiz{}
 	\begin{lineref}[ln:defer:rcu_qs:read_lock_unlock:qs]
-	Doesn't the additional memory barrier shown on line~\lnref{mb2} of
+	Doesn't the additional memory barrier shown on \clnref{mb2} of
 	Listing~\ref{lst:app:toyrcu:Quiescent-State-Based RCU Read Side}
 	greatly increase the overhead of \co{rcu_quiescent_state}?
 	\end{lineref}
@@ -1431,7 +1429,7 @@ re-ordered with the lines~\lnref{gp1}-\lnref{gp2}.
 
 	However, this memory barrier is absolutely required so that
 	other threads will see the store on
-	lines~\lnref{gp1}-\lnref{gp2} before any
+	\clnrefrange{gp1}{gp2} before any
 	subsequent RCU read-side critical sections executed by the
 	caller.
 	\end{lineref}
@@ -1455,18 +1453,18 @@ ignore this thread.
 
 \QuickQuiz{}
 	\begin{lineref}[ln:defer:rcu_qs:read_lock_unlock:qs]
-	Why are the two memory barriers on lines~\lnref{mb1} and \lnref{mb2} of
+	Why are the two memory barriers on \clnref{mb1,mb2} of
 	Listing~\ref{lst:app:toyrcu:Quiescent-State-Based RCU Read Side}
 	needed?
 	\end{lineref}
 \QuickQuizAnswer{
 	\begin{lineref}[ln:defer:rcu_qs:read_lock_unlock:qs]
-	The memory barrier on line~\lnref{mb1} prevents any RCU read-side
+	The memory barrier on \clnref{mb1} prevents any RCU read-side
 	critical sections that might precede the
 	call to \co{rcu_thread_offline()} won't be reordered by either
 	the compiler or the CPU to follow the assignment on
-	lines~\lnref{gp1}-\lnref{gp2}.
-	The memory barrier on line~\lnref{mb2} is, strictly speaking, unnecessary,
+	\clnrefrange{gp1}{gp2}.
+	The memory barrier on \clnref{mb2} is, strictly speaking, unnecessary,
 	as it is illegal to have any RCU read-side critical sections
 	following the call to \co{rcu_thread_offline()}.
 	\end{lineref}
