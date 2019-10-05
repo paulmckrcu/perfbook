@@ -263,16 +263,12 @@ not implement any of these research ideas, and perhaps for good reason.
 The first complication is the possibility of \emph{conflicts}.
 For example, suppose that transactions~A and~B are defined as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\begin{verbatim}
+\begin{VerbatimU}
 Transaction A       Transaction B
 
 x = 1;              y = 2;
 y = 3;              x = 4;
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\end{VerbatimU}
 
 Suppose that each transaction executes concurrently on its own processor.
 If transaction~A stores to \co{x} at the same time that transaction~B
@@ -372,25 +368,25 @@ have on ease of use.
 	can fail in ways that would be quite surprising to most users.
 	To see this, consider the following transaction:
 
-	\vspace{5pt}
-	\begin{minipage}[t]{\columnwidth}
-	\small
-\begin{verbatim}
-  1 begin_trans();
-  2 if (a) {
-  3   do_one_thing();
-  4   do_another_thing();
-  5 } else {
-  6   do_a_third_thing();
-  7   do_a_fourth_thing();
-  8 }
-  9 end_trans();
-\end{verbatim}
-	\end{minipage}
-	\vspace{5pt}
+\begin{linelabel}[ln:future:htm:debug rollbacks]
+\begin{VerbatimN}[commandchars=\\\[\]]
+begin_trans();
+if (a) {
+	do_one_thing();
+	do_another_thing();	\lnlbl[another]
+} else {
+	do_a_third_thing();
+	do_a_fourth_thing();
+}
+end_trans();
+\end{VerbatimN}
+\end{linelabel}
 
-	Suppose that the user sets a breakpoint at line~3, which triggers,
+	\begin{lineref}[ln:future:htm:debug rollbacks]
+	Suppose that the user sets a breakpoint at \clnref{another},
+	which triggers,
 	aborting the transaction and entering the debugger.
+	\end{lineref}
 	Suppose that between the time that the breakpoint triggers
 	and the debugger gets around to stopping all the threads, some
 	other thread sets the value of \co{a} to zero.
@@ -650,64 +646,58 @@ semantics of locking, but loses locking's time-based messaging semantics.
 
 	Worker threads' code is as follows:
 
-	\vspace{5pt}
-	\begin{minipage}[t]{\columnwidth}
-	\scriptsize
-\begin{verbatim}
-  1   int my_status = -1;  /* Thread local. */
-  2 
-  3   while (continue_working()) {
-  4     enqueue_any_new_work();
-  5     wp = dequeue_work();
-  6     do_work(wp);
-  7     my_timestamp = clock_gettime(...);
-  8   }
-  9 
- 10   acquire_lock(&departing_thread_lock);
- 11 
- 12   /*
- 13    * Disentangle from application, might
- 14    * acquire other locks, can take much longer
- 15    * than MAX_LOOP_TIME, especially if many
- 16    * threads exit concurrently.
- 17    */
- 18   my_status = get_return_status();
- 19   release_lock(&departing_thread_lock);
- 20 
- 21   /* thread awaits repurposing. */
-\end{verbatim}
-	\end{minipage}
-	\vspace{5pt}
+\begin{VerbatimN}
+	int my_status = -1;  /* Thread local. */
+
+	while (continue_working()) {
+		enqueue_any_new_work();
+		wp = dequeue_work();
+		do_work(wp);
+		my_timestamp = clock_gettime(...);
+	}
+
+	acquire_lock(&departing_thread_lock);
+
+	/*
+	 * Disentangle from application, might
+	 * acquire other locks, can take much longer
+	 * than MAX_LOOP_TIME, especially if many
+	 * threads exit concurrently.
+	 */
+	my_status = get_return_status();
+	release_lock(&departing_thread_lock);
+
+	/* thread awaits repurposing. */
+\end{VerbatimN}
 
 	The control thread's code is as follows:
 
-	\vspace{5pt}
-	\begin{minipage}[t]{\columnwidth}
-	\scriptsize
-\begin{verbatim}
-  1   for (;;) {
-  2     for_each_thread(t) {
-  3       ct = clock_gettime(...);
-  4       d = ct - per_thread(my_timestamp, t);
-  5       if (d >= MAX_LOOP_TIME) {
-  6         /* thread departing. */
-  7         acquire_lock(&departing_thread_lock);
-  8         release_lock(&departing_thread_lock);
-  9         i = per_thread(my_status, t);
- 10         status_hist[i]++; /* Bug if TLE! */
- 11       }
- 12     }
- 13     /* Repurpose threads as needed. */
- 14   }
-\end{verbatim}
-	\end{minipage}
-	\vspace{5pt}
+\begin{linelabel}[ln:future:htm:control thread]
+\begin{VerbatimN}[commandchars=\\\@\$]
+	for (;;) {
+		for_each_thread(t) {
+			ct = clock_gettime(...);
+			d = ct - per_thread(my_timestamp, t);
+			if (d >= MAX_LOOP_TIME) {	\lnlbl@if$
+				/* thread departing. */	\lnlbl@dep:b$
+				acquire_lock(&departing_thread_lock); \lnlbl@acq$
+				release_lock(&departing_thread_lock); \lnlbl@rel$
+				i = per_thread(my_status, t);
+				status_hist[i]++; /* Bug if TLE! */ \lnlbl@dep:e$
+			}
+		}
+		/* Repurpose threads as needed. */
+	}
+\end{VerbatimN}
+\end{linelabel}
 
-	Line~5 uses the passage of time to deduce that the thread
-	has exited, executing lines~6-10 if so.
-	The empty lock-based critical section on lines~7 and~8
+	\begin{lineref}[ln:future:htm:control thread]
+	\Clnref{if} uses the passage of time to deduce that the thread
+	has exited, executing \clnref{dep:b,dep:e} if so.
+	The empty lock-based critical section on \clnref{acq,rel}
 	guarantees that any thread in the process of exiting
 	completes (remember that locks are granted in FIFO order!).
+	\end{lineref}
 
 	Once again, do not try this sort of thing on commodity
 	microprocessors.
@@ -734,36 +724,34 @@ high-priority process, which is the rationale for the name ``priority
 inversion.''
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}
-  1 void boostee(void)
-  2 {
-  3   int i = 0;
-  4 
-  5   acquire_lock(&boost_lock[i]);
-  6   for (;;) {
-  7     acquire_lock(&boost_lock[!i]);
-  8     release_lock(&boost_lock[i]);
-  9     i = i ^ 1;
- 10     do_something();
- 11   }
- 12 }
- 13 
- 14 void booster(void)
- 15 {
- 16   int i = 0;
- 17 
- 18   for (;;) {
- 19     usleep(1000); /* sleep 1 ms. */
- 20     acquire_lock(&boost_lock[i]);
- 21     release_lock(&boost_lock[i]);
- 22     i = i ^ 1;
- 23   }
- 24 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\begin{linelabel}[ln:future:Exploiting Priority Boosting]
+\begin{VerbatimL}[commandchars=\\\@\$]
+void boostee(void)		\lnlbl@low:b$
+{
+	int i = 0;
+
+	acquire_lock(&boost_lock[i]);	\lnlbl@1stacq$
+	for (;;) {
+		acquire_lock(&boost_lock[!i]);
+		release_lock(&boost_lock[i]);
+		i = i ^ 1;
+		do_something();
+	}
+}				\lnlbl@low:e$
+
+void booster(void)		\lnlbl@high:b$
+{
+	int i = 0;
+
+	for (;;) {
+		usleep(1000); /* sleep 1 ms. */
+		acquire_lock(&boost_lock[i]);	\lnlbl@acq$
+		release_lock(&boost_lock[i]);	\lnlbl@rel$
+		i = i ^ 1;
+	}
+}                               \lnlbl@high:e$
+\end{VerbatimL}
+\end{linelabel}
 \caption{Exploiting Priority Boosting}
 \label{lst:future:Exploiting Priority Boosting}
 \end{listing}
@@ -775,14 +763,16 @@ boosting}.
 However, priority boosting can be used for things other than avoiding
 priority inversion, as shown in
 Listing~\ref{lst:future:Exploiting Priority Boosting}.
-Lines~1-12 of this listing show a low-priority process that must
-nevertheless run every millisecond or so, while lines~14-24 of
+\begin{lineref}[ln:future:Exploiting Priority Boosting]
+\Clnrefrange{low:b}{low:e} of this listing show a low-priority process that must
+nevertheless run every millisecond or so, while \clnrefrange{high:b}{high:e} of
 this same listing show a high-priority process that uses priority
 boosting to ensure that \co{boostee()} runs periodically as needed.
 
 The \co{boostee()} function arranges this by always holding one of
-the two \co{boost_lock[]} locks, so that lines~20-21 of
+the two \co{boost_lock[]} locks, so that \clnrefrange{acq}{rel} of
 \co{booster()} can boost priority as needed.
+\end{lineref}
 
 \QuickQuiz{}
 	But the \co{boostee()} function in
@@ -799,8 +789,9 @@ the two \co{boost_lock[]} locks, so that lines~20-21 of
 	will flag this as a false positive.
 } \QuickQuizEnd
 
+\begin{lineref}[ln:future:Exploiting Priority Boosting]
 This arrangement requires that \co{boostee()} acquire its first
-lock on line~5 before the system becomes busy, but this is easily
+lock on \clnref{1stacq} before the system becomes busy, but this is easily
 arranged, even on modern hardware.
 
 Unfortunately, this arrangement can break down in presence of transactional
@@ -815,12 +806,13 @@ complete (which after all is why \co{boostee()} was preempted),
 this thread might never again get a chance to run.
 
 And if the \co{boostee()} thread is not holding the lock, then
-the \co{booster()} thread's empty critical section on lines~20 and~21 of
+the \co{booster()} thread's empty critical section on \clnref{acq,rel} of
 Listing~\ref{lst:future:Exploiting Priority Boosting}
 will become an empty transaction that has no effect, so that
 \co{boostee()} never runs.
 This example illustrates some of the subtle consequences of
 transactional memory's rollback-and-retry semantics.
+\end{lineref}
 
 Given that experience will likely uncover additional subtle semantic
 differences, application of HTM-based lock elision to large programs
