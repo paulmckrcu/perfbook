@@ -684,16 +684,11 @@ consider the following code with variables ``a'' and ``b'' both initially
 zero, and with the cache line containing variable ``a'' initially
 owned by CPU~1 and that containing ``b'' initially owned by CPU~0:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1   a = 1;
-  2   b = a + 1;
-  3   assert(b == 2);
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}[fontsize=\footnotesize,samepage=true]
+a = 1;
+b = a + 1;
+assert(b == 2);
+\end{VerbatimN}
 
 One would not expect the assertion to fail.
 However, if one were foolish enough to use the very simple architecture
@@ -757,24 +752,19 @@ To see the second complication, a violation of global memory ordering,
 consider the following code sequences
 with variables ``a'' and ``b'' initially zero:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1 void foo(void)
-  2 {
-  3   a = 1;
-  4   b = 1;
-  5 }
-  6
-  7 void bar(void)
-  8 {
-  9   while (b == 0) continue;
- 10   assert(a == 1);
- 11 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}[fontsize=\footnotesize,samepage=true]
+void foo(void)
+{
+	a = 1;
+	b = 1;
+}
+
+void bar(void)
+{
+	while (b == 0) continue;
+	assert(a == 1);
+}
+\end{VerbatimN}
 
 Suppose CPU~0 executes foo() and CPU~1 executes bar().
 Suppose further that the cache line containing ``a'' resides only in CPU~1's
@@ -824,25 +814,20 @@ Therefore, the hardware designers provide memory-barrier instructions
 to allow the software to tell the CPU about such relations.
 The program fragment must be updated to contain the memory barrier:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1 void foo(void)
-  2 {
-  3   a = 1;
-  4   smp_mb();
-  5   b = 1;
-  6 }
-  7
-  8 void bar(void)
-  9 {
- 10   while (b == 0) continue;
- 11   assert(a == 1);
- 12 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}[fontsize=\footnotesize,samepage=true]
+void foo(void)
+{
+	a = 1;
+	smp_mb();
+	b = 1;
+}
+
+void bar(void)
+{
+	while (b == 0) continue;
+	assert(a == 1);
+}
+\end{VerbatimN}
 
 The memory barrier \co{smp_mb()} will cause the CPU to flush its store
 buffer before applying each subsequent store to its variable's cache line.
@@ -1002,27 +987,25 @@ is owned by CPU~0 (MESI ``exclusive'' or ``modified'' state).
 Then suppose that CPU~0 executes \co{foo()} while CPU~1 executes
 function \co{bar()} in the following code fragment:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1 void foo(void)
-  2 {
-  3   a = 1;
-  4   smp_mb();
-  5   b = 1;
-  6 }
-  7
-  8 void bar(void)
-  9 {
- 10   while (b == 0) continue;
- 11   assert(a == 1);
- 12 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{linelabel}[ln:app:whymb:Breaking mb]
+\begin{VerbatimN}[fontsize=\footnotesize,samepage=true,commandchars=\\\[\]]
+void foo(void)
+{
+	a = 1;
+	smp_mb();	\lnlbl[mb]
+	b = 1;
+}
+
+void bar(void)
+{
+	while (b == 0) continue;
+	assert(a == 1);
+}
+\end{VerbatimN}
+\end{linelabel}
 
 Then the sequence of operations might be as follows:
+\begin{lineref}[ln:app:whymb:Breaking mb]
 \begin{enumerate}
 \item	CPU~0 executes \co{a = 1}.  The corresponding
 	cache line is read-only in
@@ -1035,7 +1018,7 @@ Then the sequence of operations might be as follows:
 \item	CPU~1 receives CPU~0's ``invalidate'' message, queues it, and
 	immediately responds to it.
 \item	CPU~0 receives the response from CPU~1, and is therefore free
-	to proceed past the \co{smp_mb()} on line~4 above, moving
+	to proceed past the \co{smp_mb()} on \clnref{mb} above, moving
 	the value of ``a'' from its store buffer to its cache line.
 \item	CPU~0 executes \co{b = 1}.
 	It already owns this cache line (in other words, the cache line
@@ -1056,6 +1039,7 @@ Then the sequence of operations might be as follows:
 	``invalidate'' message, and (tardily)
 	invalidates the cache line containing ``a'' from its own cache.
 \end{enumerate}
+\end{lineref}
 
 \QuickQuiz{}
 	In step~1 of the first scenario in
@@ -1081,26 +1065,23 @@ and forces any subsequent load to wait until all marked entries
 have been applied to the CPU's cache.
 Therefore, we can add a memory barrier to function \co{bar} as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1 void foo(void)
-  2 {
-  3   a = 1;
-  4   smp_mb();
-  5   b = 1;
-  6 }
-  7
-  8 void bar(void)
-  9 {
- 10   while (b == 0) continue;
- 11   smp_mb();
- 12   assert(a == 1);
- 13 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{linelabel}[ln:app:whymb:Add mb]
+\begin{VerbatimN}[fontsize=\footnotesize,samepage=true,commandchars=\\\[\]]
+void foo(void)
+{
+	a = 1;
+	smp_mb();		\lnlbl[mb1]
+	b = 1;
+}
+
+void bar(void)
+{
+	while (b == 0) continue;
+	smp_mb();
+	assert(a == 1);
+}
+\end{VerbatimN}
+\end{linelabel}
 
 \QuickQuiz{}
 	Say what???
@@ -1118,28 +1099,23 @@ Therefore, we can add a memory barrier to function \co{bar} as follows:
 	In fact, some compilers would transform the loop to a branch
 	around an infinite loop as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1 void foo(void)
-  2 {
-  3   a = 1;
-  4   smp_mb();
-  5   b = 1;
-  6 }
-  7 
-  8 void bar(void)
-  9 {
- 10   if (b == 0)
- 11     for (;;)
- 12       continue;
- 13   smp_mb();
- 14   assert(a == 1);
- 15 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}[fontsize=\footnotesize,samepage=true]
+void foo(void)
+{
+	a = 1;
+	smp_mb();
+	b = 1;
+}
+
+void bar(void)
+{
+	if (b == 0)
+		for (;;)
+			continue;
+	smp_mb();
+	assert(a == 1);
+}
+\end{VerbatimN}
 
 	Given this optimization, the assertion could clearly fire.
 	You should use volatile casts or (where available) C++
@@ -1152,6 +1128,7 @@ Therefore, we can add a memory barrier to function \co{bar} as follows:
 %
 } \QuickQuizEnd
 
+\begin{lineref}[ln:app:whymb:Add mb]
 With this change, the sequence of operations might be as follows:
 \begin{enumerate}
 \item	CPU~0 executes \co{a = 1}.  The corresponding
@@ -1165,7 +1142,7 @@ With this change, the sequence of operations might be as follows:
 \item	CPU~1 receives CPU~0's ``invalidate'' message, queues it, and
 	immediately responds to it.
 \item	CPU~0 receives the response from CPU~1, and is therefore free
-	to proceed past the \co{smp_mb()} on line~4 above, moving
+	to proceed past the \co{smp_mb()} on \clnref{mb1} above, moving
 	the value of ``a'' from its store buffer to its cache line.
 \item	CPU~0 executes \co{b = 1}.
 	It already owns this cache line (in other words, the cache line
@@ -1192,6 +1169,7 @@ With this change, the sequence of operations might be as follows:
 \item	CPU~1 receives this cache line, which contains a value of 1 for
 	``a'', so that the assertion does not trigger.
 \end{enumerate}
+\end{lineref}
 
 With much passing of MESI messages, the CPUs arrive at the correct answer.
 This section illustrates why CPU designers must be extremely careful
@@ -1226,26 +1204,21 @@ only on the CPU executing the memory barrier.
 If we update \co{foo} and \co{bar} to use read and write memory
 barriers, they appear as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
-  1 void foo(void)
-  2 {
-  3   a = 1;
-  4   smp_wmb();
-  5   b = 1;
-  6 }
-  7
-  8 void bar(void)
-  9 {
- 10   while (b == 0) continue;
- 11   smp_rmb();
- 12   assert(a == 1);
- 13 }
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\begin{VerbatimN}[fontsize=\footnotesize,samepage=true]
+void foo(void)
+{
+	a = 1;
+	smp_wmb();
+	b = 1;
+}
+
+void bar(void)
+{
+	while (b == 0) continue;
+	smp_rmb();
+	assert(a == 1);
+}
+\end{VerbatimN}
 
 Some computers have even more flavors of memory barriers, but
 understanding these three variants will provide a good introduction
@@ -1512,16 +1485,11 @@ Therefore, CPU~2's assertion on line~9 is guaranteed \emph{not} to fire.
 	used in the assertions in the previous examples.
 	For example, the assertion can be modified as follows:
 
-\vspace{5pt}
-\begin{minipage}[t]{\columnwidth}
-\small
-\begin{verbatim}
+\begin{VerbatimU}[fontsize=\footnotesize]
 r1 = e;
 barrier();
 assert(r1 == 0 || a == 1);
-\end{verbatim}
-\end{minipage}
-\vspace{5pt}
+\end{VerbatimU}
 
 	No changes are needed to the code in the first two columns,
 	because interrupt handlers run atomically from the perspective
