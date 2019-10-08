@@ -126,6 +126,16 @@ then
 fi
 rm -f $basename-warning.log $basename-warning-prev.log
 echo "'$basename.pdf' is ready."
+# cleveref version check (Ubuntu 18.04 LTS has buggy one
+if grep -q -F "packageversion{0.21.1}" `kpsewhich cleveref.sty`
+then
+	echo "############################################################"
+	echo "### Buggy version of LaTeX package 'cleveref' detected!! ###"
+	echo "### (Known issue on Ubuntu 18.04 LTS)                    ###"
+	echo "### Please consider installing a stable version.         ###"
+	echo "### See item 10 in FAQ-BUILD.txt for further info.       ###"
+	echo "############################################################"
+fi
 # to avoid redundant run of bibtex and pdflatex
 touch $basename.bbl
 touch $basename.pdf
