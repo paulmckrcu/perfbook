@@ -66,7 +66,7 @@ static void rcu_read_unlock(void)
 	smp_mb();
 	n = __get_thread_var(rcu_nesting);
 	if (n == 1) {
-		 i = __get_thread_var(rcu_read_idx);
+		i = __get_thread_var(rcu_read_idx);
 		__get_thread_var(rcu_refcnt)[i]--;
 	}
 	__get_thread_var(rcu_nesting) = n - 1;

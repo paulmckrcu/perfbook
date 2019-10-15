@@ -37,7 +37,7 @@ void synchronize_rcu(void)				//\lnlbl{syn:b}
 	/* Advance to a new grace-period number, enforce ordering. */
 
 	WRITE_ONCE(rcu_gp_ctr, rcu_gp_ctr +		//\lnlbl{syn:incgp1}
-			RCU_GP_CTR_BOTTOM_BIT);		//\lnlbl{syn:incgp2}
+	           RCU_GP_CTR_BOTTOM_BIT);		//\lnlbl{syn:incgp2}
 	smp_mb();					//\lnlbl{syn:mb2}
 
 	/*
@@ -48,7 +48,7 @@ void synchronize_rcu(void)				//\lnlbl{syn:b}
 	for_each_thread(t) {				//\lnlbl{syn:scan:b}
 		while (rcu_gp_ongoing(t) &&		//\lnlbl{syn:ongoing}
 		       ((READ_ONCE(per_thread(rcu_reader_gp, t)) -//\lnlbl{syn:lt1}
-		          rcu_gp_ctr) < 0)) {		//\lnlbl{syn:lt2}
+		         rcu_gp_ctr) < 0)) {		//\lnlbl{syn:lt2}
 #ifndef FCV_SNIPPET
 			/*@@@ poll(NULL, 0, 10); */
 			barrier();
