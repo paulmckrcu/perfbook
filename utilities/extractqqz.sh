@@ -21,6 +21,7 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
+echo "% mainfile: perfbook.tex"
 sed -n -e '/^\\QuickQuizChapter{/p' \
        -e '/^\\QuickQuiz{/,/^} \\QuickQuizEnd/p' |
 sed -e 's/^\\QuickQuizChapter{/\\QuickQAC{/' \

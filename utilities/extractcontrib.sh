@@ -22,5 +22,6 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
+echo "% mainfile: perfbook.tex"
 sed -n -e '/^\\ContributedBy{/p' |
 sed -e 's/^\\ContributedBy{/\\ContribItem{/'

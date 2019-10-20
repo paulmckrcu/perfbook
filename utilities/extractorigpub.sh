@@ -22,6 +22,7 @@
 #
 # Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 
+echo "% mainfile: perfbook.tex"
 sed -n -e '/^\\OriginallyPublished{/p' \
        -e '/^\\RangeOriginallyPublished{/p' |
 sed -e 's/^\\OriginallyPublished{/\\OrigPubItem{/' \
