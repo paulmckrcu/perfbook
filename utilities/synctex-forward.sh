@@ -21,6 +21,7 @@
 # If LATEX_OPT does not have "synctex", do nothing
 if ! echo $LATEX_OPT | grep -q synctex ; then
 	echo "LATEX_OPT has no synctex option. Exiting..."
+	echo "See #11 in FAQ-BUILD.txt for SyncTeX support."
 	exit 1
 fi
 
@@ -86,4 +87,5 @@ fi
 mainbase="${main%.tex}"
 if [ `ls -1 perfbook* | grep -c $mainbase.synctex` -eq 0 ] ; then
 	echo "### $mainbase.synctex*: file not found."
+	echo "### See #11 in FAQ-BUILD.txt for how to generate one."
 fi
