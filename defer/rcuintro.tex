@@ -32,7 +32,8 @@ data structure, which consists of a single global pointer that is either
 Interestingly enough, this simple data structure is used in
 production~\cite{GeoffRomer2018C++DeferredReclamationP0561R4}.
 A classic approach for insertion is shown in
-Figure~\ref{fig:defer:Insertion With Concurrent Readers}.
+Figure~\ref{fig:defer:Insertion With Concurrent Readers},
+which shows four states with time advancing from top to bottom.
 The first row shows the initial state, with \co{gptr} equal to \co{NULL}.
 In the second row, we have allocated a structure which is uninitialized,
 as indicated by the question marks.
@@ -57,12 +58,11 @@ To obtain this guarantee, readers must instead use \co{READ_ONCE()},
 or, as will be seen, \co{rcu_dereference()}.
 However, on most modern computer systems, each of these two primitives
 can be implemented with a single load instruction, exactly the instruction
-that would be used in single-threaded code.
+that would normally be used in single-threaded code.
 
-Therefore, despite the serious implementability questions, it really
-is possible to add new data to linked data structures while allowing
-concurrent readers to execute the same sequence of machine instructions
-that is required in single-threaded code.
+Therefore, it really is possible to add new data to linked data structures
+while allowing concurrent readers to execute the same sequence of machine
+instructions that is normally used in single-threaded code.
 This no-cost approach to concurrent reading provides excellent performance
 and scalability, and also is eminently suitable for real-time use.
 
@@ -73,20 +73,20 @@ and scalability, and also is eminently suitable for real-time use.
 \label{fig:defer:Deletion With Concurrent Readers}
 \end{figure}
 
-But sooner or later, it will be necessary to remove data that is
-being referenced by concurrent readers.
+Insertion is of course quite useful, but sooner or later, it will also
+be necessary to delete data.
 As can be seen in
 Figure~\ref{fig:defer:Deletion With Concurrent Readers},
 the first step is easy.
 Again taking the lessons from
 Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
-to heart, use \co{smp_store_release()} to \co{NULL} the pointer,\footnote{
+to heart, \co{smp_store_release()} is used to \co{NULL} the pointer,\footnote{
 	Strictly speaking, \co{WRITE_ONCE()} suffices for a \co{NULL}
 	pointer, but \co{smp_store_release()} is absolutely required
 	when storing non-\co{NULL} pointers.
 	Or, as we will see, \co{rcu_assign_pointer()}.}
 thus moving from the first row to the second in the figure.
-At this point, pre-existing readers will see the old structure with
+At this point, pre-existing readers see the old structure with
 \co{->addr} of 42 and \co{->iface} of 1, but new readers will see
 a \co{NULL} pointer, that is, concurrent readers can disagree on
 the state, as indicated by the ``2 Versions'' in the figure.
@@ -103,7 +103,7 @@ the state, as indicated by the ``2 Versions'' in the figure.
 	Yes, it would.
 
 	Because a \co{NULL} pointer is being assigned, there is nothing
-	to order against, so no need for \co{smp_store_release()}.
+	to order against, so there is no need for \co{smp_store_release()}.
 	In contrast, when assigning a non-\co{NULL} pointer, it is
 	necessary to use \co{smp_store_release()} in order to ensure
 	that initialization of the pointed-to structure is carried
@@ -145,13 +145,15 @@ the state, as indicated by the ``2 Versions'' in the figure.
 	It also applies to reference counting, hazard pointers, sequence
 	locks, and even to some locking use cases.
 	For example, if you compute some quantity while holding a lock,
-	but use that computed quantity after releasing that lock,
+	but use that quantity after releasing that lock,
 	you might well be using stale data.
-	After all, the data from which that quantity was computed could
-	change arbitrarily as soon as the lock was released.
+	After all, the data that quantity is based on might change
+	arbitrarily as soon as the lock is released.
 
 	So yes, RCU readers can see stale and inconsistent data, but no,
 	this is not necessarily problematic.
+	And, when needed, there are RCU usage patterns that avoid both
+	staleness and inconsistency~\cite{Arcangeli03}.
 } \QuickQuizEnd
 
 We get back to a single version simply by waiting for all the
@@ -165,8 +167,8 @@ Thus, given a way to wait for pre-existing readers to complete,
 it is possible to both add data to and remove data from a linked
 data structure, despite the readers executing the same sequence
 of machine instructions that would be appropriate for single-threaded
-execution!
-So perhaps going too far was not too far after all.
+execution.
+So perhaps going all the way was not too far after all!
 
 But how can we tell when all of the pre-existing readers have in
 fact completed?
@@ -217,10 +219,10 @@ be attempting to use the same memory for two very different purposes.
 The ensuing mess will at best be exceedingly difficult to debug.
 
 A fourth approach is to wait forever, secure in the knowledge that
-doing so will outwait even the most unreasonable reader.
+doing so will accommodate even the most unreasonable reader.
 This approach is also called ``leaking memory'', and has a bad reputation
 due to the fact that memory leaks often require untimely and
-highly inconvenient reboots.
+inconvenient reboots.
 However, reputation notwithstanding, this is a viable strategy when
 the update rate and the uptime are both sharply bounded.
 For example, this approach could work well in a high-availability
@@ -261,11 +263,13 @@ Within non-preemptive operating-systems kernels, a context switch can be
 a quiescent state~\cite{McKenney98}.
 Either way, one all CPUs and/or threads have passed through a quiescent
 state, the system is said to have completed a \emph{grace period},
-such that all pre-existing readers have completed, and it is now
-safe to free any previously-removed data items.\footnote{
+at which point all readers in existence at the start of that grace period
+are guaranteed to have completed.
+As a result, it is also guaranteed to be safe to free any removed data
+items that were removed prior to the start of that grace period.\footnote{
 	It is possible to do much more with RCU than simply defer
-	reclamation of memory, but deferred reclamation is an
-	excellent place to start.}
+	reclamation of memory, but deferred reclamation is RCU's most
+	common use case, and is therefore an excellent place to start.}
 
 Within a non-preemptive operating-system kernel, for context switch to be
 a valid quiescent state, readers must be prohibited from blocking while
@@ -339,8 +343,9 @@ the old data item.
 	Because that waiting is exactly what enables readers to use
 	the same sequence of instructions that is appropriate for
 	single-theaded situations.
-	In other words, waiting enables excellent read-side performance,
-	scalability, and real-time response.
+	In other words, this additional ``redundant'' waiting enables
+	excellent read-side performance, scalability, and real-time
+	response.
 } \QuickQuizEnd
 
 \subsubsection{Toy Implementation}
@@ -393,6 +398,7 @@ struct route *ins_route(struct route *rp)
   old_rp = gptr;
   rcu_assign_pointer(gptr, rp);
   spin_unlock(&route_lock);
+  return old_rp;
 }
 
 int del_route(void)
@@ -418,7 +424,7 @@ int del_route(void)
 Please note that this approach is \emph{not} production quality.
 Correct handling of a number of corner cases and the need for a number
 of powerful optimizations mean that production-quality implementations
-have significant additional complexity.
+are quite complex.
 In addition, RCU implementations for preemptible environments
 require that readers actually do something, which in non-real-time
 Linux-kernel environments can be as simple as defining
@@ -496,6 +502,17 @@ Callers might use one of the following approaches:
 In contrast, \co{del_route()} uses \co{synchronize_rcu()} and
 \co{free()} to safely free the newly deleted data item.
 
+\QuickQuiz{}
+	But what if the old structure needs to be freed, but the caller
+	of \co{ins_route()} cannot block, perhaps due to performance
+	considerations or perhaps because the caller is executing within
+	an RCU read-side critical section?
+\QuickQuizAnswer{
+	A \co{call_rcu()} function, which is described in
+	Section~\ref{sec:defer:Wait For Pre-Existing RCU Readers},
+	permits asynchronous grace-period waits.
+} \QuickQuizEnd
+
 This example shows one general approach to reading and updating
 RCU-protected data structures, however, there is quite a variety
 of use cases, several of which are covered in
@@ -513,16 +530,15 @@ RCU achieves scalability
 improvements by allowing reads to make useful forward progress
 concurrently with updates, which are also allowed to make useful
 forward progress.
-This property enables RCU implementations to provide low-cost
-or even no-cost readers,
-in contrast with conventional synchronization primitives that
-provide mutual exclusion, thus prohibiting useful concurrent forward
-progress.
+This property enables RCU implementations to provide low-cost or even
+no-cost readers, in contrast with conventional synchronization primitives
+that enforce strict mutual exclusion, thus prohibiting useful concurrent
+forward progress.
 RCU delimits readers with \co{rcu_read_lock()} and \co{rcu_read_unlock()},
 and ensures that each reader has a coherent view by
 maintaining multiple versions of objects and using update-side primitives
 such as \co{synchronize_rcu()} to ensure that objects are not
-freed until all pre-existing read-side critical sections complete.
+freed until after the completion of all readers that might be using them.
 RCU defines and uses \co{rcu_assign_pointer()} and \co{rcu_dereference()}
 to provide efficient and scalable mechanisms for publishing
 and reading new versions of an object, respectively.
@@ -542,7 +558,7 @@ RCU's read-side primitives have zero overhead.
 	seqlock writers, whenever this happens, the \co{read_seqretry()}
 	primitive will force the reader to retry.
 	This means that any work done by a seqlock reader running concurrently
-	with a seqlock updater will be discarded and redone.
+	with a seqlock updater will be discarded and the redone upon retry.
 	So seqlock readers can \emph{run} concurrently with updaters,
 	but they cannot actually get any work done in this case.
 
