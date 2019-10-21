@@ -4,6 +4,11 @@
 \label{sec:defer:RCU Fundamentals}
 \OriginallyPublished{Section}{sec:defer:RCU Fundamentals}{RCU Fundamentals}{Linux Weekly News}{PaulEMcKenney2007WhatIsRCUFundamentally}
 
+This section re-examines the ground covered in the previous section, but
+independent of any particular example or use case.
+People who prefer to live their lives very close the the actual code may
+wish to skip the underlying fundamentals presented in this section.
+
 RCU is made up of three fundamental mechanisms, the first being
 used for insertion, the second being used for deletion, and the third
 being used to allow readers to tolerate concurrent insertions and deletions.
@@ -87,7 +92,7 @@ Note that if concurrent updates are required, some sort of synchronization
 mechanism will be required to mediate among multiple concurrent
 \co{rcu_assign_pointer()} calls on the same pointer.
 In the Linux kernel, locking is the mechanism of choice, but pretty
-much any synchronization mechanism may be use.
+much any synchronization mechanism may be used.
 An example of a particularly lightweight synchronization mechanism is
 Chapter~\ref{chp:Data Ownership}'s data ownership: If each pointer is
 owned by a particular thread, then that thread may execute
@@ -109,8 +114,8 @@ synchronization overhead.
 	before freeing the removed data.
 } \QuickQuizEnd
 
-Subscription is carried out by \co{rcu_dereference()}, which ensures that
-the subscription operation's load from the pointer is ordered before the
+Subscription is carried out by \co{rcu_dereference()}, which orders
+the subscription operation's load from the pointer is before the
 dereference.
 Similar to \co{rcu_assign_pointer()}, \co{rcu_dereference()} must be
 atomic in the sense that the value loaded must be that from a single
@@ -134,7 +139,7 @@ Software that does not require the ultimate in read-side performance
 can instead use C11 acquire loads, which provide the needed ordering and
 more, albeit at a cost.
 It is hoped that lighter-weight compiler support for \co{rcu_dereference()}
-will appear sooner rather than later.
+will appear in due course.
 
 In short, use of \co{rcu_assign_pointer()} for publishing pointers and
 use of \co{rcu_dereference()} for subscribing to them successfully avoids the
@@ -162,6 +167,9 @@ structures without disrupting concurrent readers.
 	Because elements A and D were each present for only part of the
 	iteration, the reader is permitted to iterate over them, but not
 	obliged to.
+	Note that this supports the common case where the reader is simply
+	looking up a single item, and does not know or care about the
+	presence or absence of other items.
 
 	If stronger consistency is required, then higher-cost
 	synchronization mechanisms are required, for example, sequence
@@ -315,13 +323,17 @@ This more abstract procedure requires a more abstract diagram than
 Figures~\ref{fig:defer:RCU Reader and Later Grace Period}--\ref{fig:defer:RCU Reader Within Grace Period},
 which are specific to a particular litmus test.
 Figure~\ref{fig:defer:RCU Grace-Period Ordering Guarantees}
-fills this need, showing how the RCU read-side critical sections
-in the upper left and lower right are ordered with a grace period
-that starts with a \co{call_rcu()} at the upper right and ends
-with the invocation of the corresponding callback at the lower left.
+fills this need, showing how the RCU read-side critical sections in the
+upper left and lower right are ordered with an asynchronous grace period
+that starts with a \co{call_rcu()}\footnote{
+	As opposed to the synchronous RCU grace periods waited for
+	by \co{synchronize_rcu()}.}
+at the upper right and ends at the lower left with the invocation of
+the callback functions that was passed to \co{call_rcu()}.
 This diagram illustrates RCU's wait-for-readers functionality:
-Given a grace period, each reader either ends before the end of that
-grace period or starts after the beginning of that grace period.
+Given a grace period, each reader ends before the end of that grace
+period, starts after the beginning of that grace period, or both, in
+which case it is wholly contained within that grace period.
 
 Given that RCU readers can make forward progress while updates
 are in progress, different readers might disagree about the state
@@ -350,8 +362,8 @@ Note that both reference counting
 and hazard pointers
 (Section~\ref{sec:defer:Hazard Pointers})
 can also cause concurrent readers to see different versions, but
-RCU's extremely light-weight readers increase the probability of
-readers doing so.
+RCU's extremely light-weight readers can make different versions
+more likely.
 
 \begin{figure}[tb]
 \centering
@@ -391,9 +403,9 @@ Therefore, in this particular case, it is perfectly legitimate for
 the reader traveral to encounter all five elements.
 If this outcome is problematic, another way to resolve this situation is
 through use of stronger synchronization mechanisms, such as reader-writer
-locking.
-Of course, stronger mechanisms will be more expensive, but life is
-about choices and tradeoffs.
+locking or clever use of timestamps or versioning.
+Of course, stronger mechanisms will be more expensive, but then again
+the engineering life is all about choices and tradeoffs.
 
 Strange though this situation might seem, it is entirely consistent with
 the real world.
@@ -401,9 +413,9 @@ As we saw in
 Section~\ref{sec:cpu:Overheads},
 the finite speed of light cannot be ignored within a computer system,
 but it also cannot be ignored outside of the system.
-Which in turn means that any data within the system representing
-state in the real world outside of the system is outdated, and thus
-inconsistent with the real world.
+This in turn means that any data within the system representing state
+in the real world outside of the system is always and forever outdated,
+and thus inconsistent with the real world.
 As a result, algorithms operating on real-world data must account for
 that data being inconsistent with the real world.
 In many cases, such algorithms are also perfectly capable of dealing
@@ -419,8 +431,8 @@ These delays mean that once a routing update reaches a given system,
 it might well have been sending packets the wrong way for quite some time.
 Sending a few more packets the wrong way for the few microseconds during
 which the update is in flight is clearly not a problem because the same
-higher-level protocol actions that deal with the delayed routing updates
-will also deal with the inconsistencies.
+higher-level protocol actions that deal with delayed routing updates
+will also deal with internal inconsistencies.
 
 Nor is Internet routing the only situation tolerating inconsistencies.
 To repeat, any algorithm in which data within a system tracks
@@ -435,8 +447,9 @@ and with increasing use of hazard pointers in other projects, demonstrates
 that tolerance for such inconsistencies is more common than one might
 imagine.
 This is especially the case given that single-item lookups are much more
-common than traversals:  After all, concurrent updates are less likely
-to affect a single-item lookup than they are a full traversal.
+common than traversals:  After all, (1)~concurrent updates are less likely
+to affect a single-item lookup than they are a full traversal, and
+(2)~an isolated single-item lookup cannot detect such inconsistencies.
 
 From a more theoretical viewpoint, there are even some special cases where
 RCU readers can be considered to be fully ordered with updaters, despite
@@ -515,29 +528,29 @@ else {
 
 	Then the following sequence of events could occur, starting from
 	the end state of
-	Figure~\ref{fig:defer:RCU Replacement in Linked List}:
+	Figure~\ref{fig:defer:Multiple RCU Data-Structure Versions}:
 
 	\begin{enumerate}
 	\item	Thread~A traverses the list, obtaining a reference to
-		the 5,2,3 element.
-	\item	Thread~B replaces the 5,2,3 element with a new
-		5,2,4 element, then waits for its \co{synchronize_rcu()}
+		Element~C.
+	\item	Thread~B replaces Element~C with a new
+		Element~F, then waits for its \co{synchronize_rcu()}
 		call to return.
 	\item	Thread~C traverses the list, obtaining a reference to
-		the 5,2,4 element.
-	\item	Thread~D replaces the 5,2,4 element with a new
-		5,2,5 element, then waits for its \co{synchronize_rcu()}
+		Element~F.
+	\item	Thread~D replaces Element~F with a new
+		Element~G, then waits for its \co{synchronize_rcu()}
 		call to return.
 	\item	Thread~E traverses the list, obtaining a reference to
-		the 5,2,5 element.
-	\item	Thread~F replaces the 5,2,5 element with a new
-		5,2,6 element, then waits for its \co{synchronize_rcu()}
+		Element~G.
+	\item	Thread~F replaces Element~G with a new
+		Element~H, then waits for its \co{synchronize_rcu()}
 		call to return.
 	\item	Thread~G traverses the list, obtaining a reference to
-		the 5,2,6 element.
-	\item	And the previous two steps repeat quickly, so that all
-		of them happen before any of the \co{synchronize_rcu()}
-		calls return.
+		Element~H.
+	\item	And the previous two steps repeat quickly with additional
+		new elements, so that all of them happen before any of
+		the \co{synchronize_rcu()} calls return.
 	\end{enumerate}
 
 	Thus, there can be an arbitrary number of versions active,
@@ -580,10 +593,11 @@ algorithms:
 	On subsequent readers?)
 } \QuickQuizEnd
 
-These three RCU components
-allow data to be updated in face of concurrent readers, and
-can be combined in different ways to
-implement a surprising variety of different types of RCU-based algorithms.
+These three RCU components allow data to be updated in face of concurrent
+readers that might be executing the same sequence of machine instructions
+that would be used by a reader in a single-threaded implementation.
+These RCU components can be combined in different ways to implement a
+surprising variety of different types of RCU-based algorithms.
 However, it is usually better to work at higher levels of abstraction.
 To this end, the next section describes the Linux-kernel API, which
 includes simple data structures such as lists.
