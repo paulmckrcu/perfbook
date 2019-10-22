@@ -8,9 +8,15 @@ This section looks at RCU from the viewpoint of its Linux-kernel API.\footnote{
 	Userspace RCU's API is documented
 	elsewhere~\cite{PaulMcKenney2013LWNURCU}.}
 Section~\ref{sec:defer:RCU has a Family of Wait-to-Finish APIs}
-presents RCU's wait-to-finish APIs, and
+presents RCU's wait-to-finish APIs,
 Section~\ref{sec:defer:RCU has Publish-Subscribe and Version-Maintenance APIs}
-presents RCU's publish-subscribe and version-maintenance APIs.
+presents RCU's publish-subscribe and version-maintenance APIs,
+Section~\ref{sec:defer:RCU has List-Processing APIs}
+presents RCU's list-processing APIs,
+Section~\ref{sec:defer:RCU Has Diagnostic APIs}
+presents RCU's diagnostic APIs, and
+Section~\ref{sec:defer:Where Can RCU's APIs Be Used?}
+describes in which contexts RCU's various APIs may be used.
 Finally,
 Section~\ref{sec:defer:So, What is RCU Really?}
 presents concluding remarks.
@@ -93,24 +99,30 @@ presents concluding remarks.
 \end{tabularx}
 \end{table*}
 
-@@@ The most straightforward answer to ``what is RCU'' is that RCU is
-an API used in the Linux kernel, as summarized by
+The most straightforward answer to ``what is RCU'' is that RCU is
+an API.
+For example, the RCU implementation used in the Linux kernel is
+summarized by
 Table~\ref{tab:defer:RCU Wait-to-Finish APIs},
 which shows the wait-for-readers portions of the RCU, ``sleepable'' RCU
 (SRCU), Tasks RCU, and generic APIs, respectively,
 and by
 Table~\ref{tab:defer:RCU Publish-Subscribe and Version Maintenance APIs},
-which shows the publish-subscribe portions of the API.
+which shows the publish-subscribe portions of the
+API~\cite{PaulEMcKenney2019RCUAPI}.\footnote{
+	This citation covers v4.20 and later.
+	Documetation for earlier versions of the Linux-kernel RCU API may
+	be found elsewhere~\cite{PaulEMcKenney2008WhatIsRCUAPI,PaulEMcKenney2014RCUAPI}.}
 
 If you are new to RCU, you might consider focusing on just one
 of the columns in
 Table~\ref{tab:defer:RCU Wait-to-Finish APIs},
 each of which summarizes one member of the Linux kernel's RCU API family.
 For example, if you are primarily interested in understanding how RCU
-is used in the Linux kernel, ``RCU Classic'' would be the place to start,
+is used in the Linux kernel, ``RCU'' would be the place to start,
 as it is used most frequently.
 On the other hand, if you want to understand RCU for its own sake,
-``SRCU'' has the simplest API.
+``Task RCU'' has the simplest API.
 You can always come back for the other columns later.
 
 If you are already familiar with RCU, these tables can
@@ -129,13 +141,19 @@ serve as a useful reference.
 	he knew all that there is to know about RCU.
 } \QuickQuizEnd
 
-The ``RCU Classic'' column corresponds to the original RCU implementation,
-in which RCU read-side critical sections are delimited by
-\co{rcu_read_lock()} and \co{rcu_read_unlock()}, which
-may be nested.
+The ``RCU: Original'' column corresponds to the consolidation of the
+three Linux-kernel RCU
+implementations~\cite{PaulEMcKenney2019RCUCVE,McKenney:2019:CRS:3319647.3325836},
+in which RCU read-side critical sections start with
+\co{rcu_read_lock()}, \co{rcu_read_lock_bh()}, or \co{rcu_read_lock_sched()}
+and end with \co{rcu_read_unlock()}, \co{rcu_read_unlock_bh()},
+or \co{rcu_read_unlock_sched()}, respectively.
+Any region of code that disables bottom halves, interrupts, or preemption
+also acts as an RCU read-side critical section.
+RCU read-side critical sections may be nested.
 The corresponding synchronous update-side primitives,
 \co{synchronize_rcu()}, along with its synonym
-\co{synchronize_net()}, wait for any currently executing
+\co{synchronize_net()}, wait for any type of currently executing
 RCU read-side critical sections to complete.
 The length of this wait is known as a ``grace period''.
 The asynchronous update-side primitive, \co{call_rcu()},
@@ -149,9 +167,6 @@ such as when unloading a Linux-kernel module that uses \co{call_rcu()},
 when it is necessary to wait for all
 outstanding RCU callbacks to complete~\cite{PaulEMcKenney2007rcubarrier}.
 The \co{rcu_barrier()} primitive does this job.
-Note that the more recent hierarchical
-RCU~\cite{PaulEMcKenney2008HierarchicalRCU}
-implementation also adheres to ``RCU Classic'' semantics.
 
 Finally, RCU may be used to provide
 type-safe memory~\cite{Cheriton96a}, as described in
@@ -173,8 +188,10 @@ Instead, \co{SLAB_TYPESAFE_BY_RCU} operates by preventing
 \co{kmem_cache_free()}
 from returning a completely freed-up slab of data structures
 to the system until after an RCU grace period elapses.
-In short, although the data element might be freed and reallocated arbitrarily
-often, at least its type will remain the same.
+In short, although a given RCU read-side critical section might see a
+given \co{SLAB_TYPESAFE_BY_RCU} data element being freed and reallocated
+arbitrarily often, the element's type is guaranteed not to change until
+that critical section has completed.
 
 \QuickQuiz{}
 	How do you prevent a huge number of RCU read-side critical
@@ -187,124 +204,34 @@ often, at least its type will remain the same.
 	\co{synchronize_rcu()} invocation need wait only for
 	\emph{pre-existing} RCU read-side critical sections.
 	So as long as each RCU read-side critical section is
-	of finite duration, there should be no problem.
+	of finite duration, RCU grace periods will also remain
+	finite.
 } \QuickQuizEnd
 
 \QuickQuiz{}
 	The \co{synchronize_rcu()} API waits for all pre-existing
 	interrupt handlers to complete, right?
 \QuickQuizAnswer{
-	Absolutely not!
-	And especially not when using preemptible RCU!
+	In v4.20 and later Linux kernels,
+	yes~\cite{PaulEMcKenney2019RCUCVE,McKenney:2019:CRS:3319647.3325836}.
+
+	But not in earlier kernels, and especially not when using
+	preemptible RCU!
 	You instead want \co{synchronize_irq()}.
 	Alternatively, you can place calls to \co{rcu_read_lock()}
 	and \co{rcu_read_unlock()} in the specific interrupt handlers that
 	you want \co{synchronize_rcu()} to wait for.
+	But even then, be careful, as preemptible RCU will not be guaranteed
+	to wait for that portion of the interrupt handler preceding the
+	\co{rcu_read_lock()} or following the \co{rcu_read_unlock()}.
 } \QuickQuizEnd
 
-In the ``RCU BH'' column, \co{rcu_read_lock_bh()} and
-\co{rcu_read_unlock_bh()} delimit RCU read-side critical
-sections, \co{synchronize_rcu_bh()} waits for a grace period,
-and \co{call_rcu_bh()} invokes the specified
-function and argument after a later grace period.
-
-\QuickQuiz{}
-	What happens if you mix and match?
-	For example, suppose you use \co{rcu_read_lock()} and
-	\co{rcu_read_unlock()} to delimit RCU read-side critical
-	sections, but then use \co{call_rcu_bh()} to post an
-	RCU callback?
-\QuickQuizAnswer{
-	If there happened to be no RCU read-side critical
-	sections delimited by \co{rcu_read_lock_bh()} and
-	\co{rcu_read_unlock_bh()} at the time \co{call_rcu_bh()}
-	was invoked, RCU would be within its rights to invoke the callback
-	immediately, possibly freeing a data structure still being used by
-	the RCU read-side critical section!
-	This is not merely a theoretical possibility: a long-running RCU
-	read-side critical section delimited by \co{rcu_read_lock()}
-	and \co{rcu_read_unlock()} is vulnerable to this failure mode.
-
-	However, the \co{rcu_dereference()} family of functions apply
-	to all flavors of RCU.
-	(There was an attempt to have per-flavor variants of
-	\co{rcu_dereference()}, but it was just too messy.)
-} \QuickQuizEnd
-
-\QuickQuiz{}
-	Hardware interrupt handlers can be thought of as being
-	under the protection of an implicit \co{rcu_read_lock_bh()},
-	right?
-\QuickQuizAnswer{
-	Absolutely not!
-	And especially not when using preemptible RCU!
-	If you need to access ``rcu\_bh''-protected data structures
-	in an interrupt handler, you need to provide explicit calls to
-	\co{rcu_read_lock_bh()} and \co{rcu_read_unlock_bh()}.
-} \QuickQuizEnd
-
-In the ``RCU Sched'' column, anything that disables preemption
-acts as an RCU read-side critical section, and \co{synchronize_sched()}
-waits for the corresponding RCU grace period.
-This RCU API family was added in the 2.6.12 kernel, which split the
-old \co{synchronize_kernel()} API into the current
-\co{synchronize_rcu()} (for RCU Classic) and
-\co{synchronize_sched()} (for RCU Sched).
-Note that RCU Sched did not originally have an asynchronous
-\co{call_rcu_sched()} interface, but one was added in 2.6.26.
-In accordance with the quasi-minimalist philosophy of the Linux
-community, APIs are added on an as-needed basis.
-
-\QuickQuiz{}
-	What happens if you mix and match RCU Classic and RCU Sched?
-\QuickQuizAnswer{
-	In a non-\co{PREEMPT} or a \co{PREEMPT} kernel, mixing these
-	two works ``by accident'' because in those kernel builds, RCU Classic
-	and RCU Sched map to the same implementation.
-	However, this mixture is fatal in \co{PREEMPT_RT} builds using the
-	\rt\ patchset, due to the fact that Realtime RCU's read-side critical
-	sections can be preempted, which would permit
-	\co{synchronize_sched()} to return before the
-	RCU read-side critical section reached its \co{rcu_read_unlock()}
-	call.
-	This could in turn result in a data structure being freed before the
-	read-side critical section was finished with it,
-	which could in turn greatly increase the actuarial risk experienced
-	by your kernel.
-
-	In fact, the split between RCU Classic and RCU Sched was inspired
-	by the need for preemptible RCU read-side critical sections.
-} \QuickQuizEnd
-
-\QuickQuiz{}
-	In general, you cannot rely on \co{synchronize_sched()} to
-	wait for all pre-existing interrupt handlers,
-	right?
-\QuickQuizAnswer{
-	That is correct!
-	Because \rt\ Linux uses threaded interrupt handlers, there can
-	be context switches in the middle of an interrupt handler.
-	Because \co{synchronize_sched()} waits only until each
-	CPU has passed through a context switch, it can return
-	before a given interrupt handler completes.
-
-	If you need to wait for a given interrupt handler to complete,
-	you should instead use \co{synchronize_irq()} or place
-	explicit RCU read-side critical sections in the interrupt
-	handlers that you wish to wait on.
-} \QuickQuizEnd
-
-The ``Realtime RCU'' column has the same API as does
-RCU Classic, the only difference being that RCU read-side critical
-sections may be preempted and may block while acquiring spinlocks.
-The design of Realtime RCU is described
-elsewhere~\cite{PaulEMcKenney2007PreemptibleRCU}.
-
-The ``SRCU'' column in
+The ``SRCU: Sleeping readers'' column in
 Table~\ref{tab:defer:RCU Wait-to-Finish APIs}
-displays a specialized RCU API that permits
-general sleeping in RCU read-side critical
-sections~\cite{PaulEMcKenney2006c}.
+displays a specialized RCU API that permits general sleeping in SRCU
+read-side critical
+sections~\cite{PaulEMcKenney2006c}
+delimited by \co{srcu_read_lock()} and \co{srcu_read_unlock()}.
 Of course,
 use of \co{synchronize_srcu()} in an SRCU read-side
 critical section can result in
@@ -358,6 +285,8 @@ srcu_read_unlock(&ssb, idx);
 \label{lst:defer:Multistage SRCU Deadlocks}
 \end{listing}
 } \QuickQuizEnd
+
+@@@
 
 The Linux kernel currently has a surprising number of RCU APIs and
 implementations.
