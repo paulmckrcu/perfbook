@@ -234,29 +234,14 @@ displays a specialized RCU API that permits general sleeping in SRCU
 read-side critical
 sections~\cite{PaulEMcKenney2006c}
 delimited by \co{srcu_read_lock()} and \co{srcu_read_unlock()}.
-Of course,
-use of \co{synchronize_srcu()} in an SRCU read-side
-critical section can result in
-self-deadlock, so should be avoided.
-SRCU differs from earlier RCU implementations in that the caller
-allocates an \co{srcu_struct} for each distinct SRCU
-usage.
-This approach prevents SRCU read-side critical sections from blocking
-unrelated \co{synchronize_srcu()} invocations.
-In addition, in this variant of RCU, \co{srcu_read_lock()}
-returns a value that must be passed into the corresponding
-\co{srcu_read_unlock()}.
-
-\QuickQuiz{}
-	Why should you be careful with \co{call_srcu()}?
-\QuickQuizAnswer{
-	A single task could register SRCU callbacks very quickly.
-	Given that SRCU allows readers to block for arbitrary periods of
-	time, this could consume an arbitrarily large quantity of memory.
-	In contrast, given the synchronous \co{synchronize_srcu()}
-	interface, a given task must finish waiting for a given grace period
-	before it can start waiting for the next one.
-} \QuickQuizEnd
+However, unlike RCU, SRCU's \co{srcu_read_lock()} returns a value that
+must be passed into the corresponding \co{srcu_read_unlock()}.
+This difference is due to the fact that the SRCU user allocates an
+\co{srcu_struct} for each distinct SRCU usage.
+These distinct \co{srcu_struct} structures prevent SRCU read-side critical
+sections from blocking unrelated \co{synchronize_srcu()} invocations.
+Of course, use of \co{synchronize_srcu()} in an SRCU read-side critical
+section can result in self-deadlock, so should be avoided.
 
 \QuickQuiz{}
 	Under what conditions can \co{synchronize_srcu()} be safely
@@ -288,51 +273,27 @@ srcu_read_unlock(&ssb, idx);
 \end{listing}
 } \QuickQuizEnd
 
-@@@
+Similar to normal RCU, self-deadlock can be avoided using the
+asynchronous \co{call_srcu()} function, but special care must be taken
+when using \co{call_srcu()}.
 
-The Linux kernel currently has a surprising number of RCU APIs and
-implementations.
-There is some hope of reducing this number, evidenced by the fact
-that a given build of the Linux kernel currently has at most
-four implementations behind three APIs (given that RCU Classic
-and Realtime RCU share the same API).
-However, careful inspection and analysis will be required, just as
-would be required in order to eliminate one of the many locking APIs.
+\QuickQuiz{}
+	Why should you be careful with \co{call_srcu()}?
+\QuickQuizAnswer{
+	A single task could register SRCU callbacks very quickly.
+	Given that SRCU allows readers to block for arbitrary periods of
+	time, this could consume an arbitrarily large quantity of memory.
+	In contrast, given the synchronous \co{synchronize_srcu()}
+	interface, a given task must finish waiting for a given grace period
+	before it can start waiting for the next one.
+} \QuickQuizEnd
 
-The various RCU APIs are distinguished by the forward-progress
-guarantees that their RCU read-side critical sections must provide,
-and also by their scope, as follows:
+Also similar to RCU, there is an \co{srcu_barrier()} function that waits
+for all prior \co{call_srcu()} callbacks to be invoked.
 
-\begin{enumerate}
-\item	RCU BH: read-side critical sections
-	must guarantee forward progress against everything except for
-	NMI and interrupt handlers, but not including software-interrupt
-	(\co{softirq}) handlers.
-	RCU BH is global in scope.
-\item	RCU Sched: read-side critical sections must guarantee forward
-	progress against everything except for NMI and \IRQ\ handlers,
-	including \co{softirq} handlers.
-	RCU Sched is global in scope.
-\item	RCU (both classic and real-time): read-side critical sections
-	must guarantee forward progress against everything except for
-	NMI handlers, \IRQ\ handlers, \co{softirq} handlers, and (in the
-	real-time case) higher-priority real-time tasks.
-	RCU is global in scope.
-\item	SRCU: read-side critical sections need not guarantee
-	forward progress unless some other task is waiting for the
-	corresponding grace period to complete, in which case these
-	read-side critical sections should complete in no more than
-	a few seconds (and preferably much more quickly).\footnote{
-		Thanks to James Bottomley for urging me to this
-		formulation, as opposed to simply saying that
-		there are no forward-progress guarantees.}
-	SRCU's scope is defined by the use of the corresponding
-	\co{srcu_struct}.
-\end{enumerate}
-
-In other words, SRCU compensate for their extremely weak
+In other words, SRCU compensates for its extremely weak
 forward-progress guarantees by permitting the developer to restrict
-their scope.
+its scope.
 
 \subsubsection{RCU has Publish-Subscribe and Version-Maintenance APIs}
 \label{sec:defer:RCU has Publish-Subscribe and Version-Maintenance APIs}
@@ -363,7 +324,7 @@ Pointer publish &
 	\tco{rcu_assign_pointer()} &
 		Memory barrier \\
 &
-	\tco{rcu_swap_protected()} &
+	\tco{rcu_replace_pointer()} &
 		Memory barrier (two of them on Alpha) \\
 &
 	\tco{rcu_pointer_handoff()} &
@@ -410,11 +371,11 @@ The first category publishes pointers to new data items.
 The \co{rcu_assign_pointer()} primitive ensures that any
 prior initialization remains ordered before the assignment to the
 pointer on weakly ordered machines.
-The \co{rcu_swap_protected()} primitive updates the pointer just like
+The \co{rcu_replace_pointer()} primitive updates the pointer just like
 \co{rcu_assign_pointer()} does, but also returns the previous value,
 just like \co{rcu_dereference_protected()} (see below) would, including
 the lockdep expression.
-This swapping is convenient when the updater must both publish a new
+This replacement is convenient when the updater must both publish a new
 pointer and free the structure referenced by the old pointer.
 
 \QuickQuiz{}
@@ -554,7 +515,7 @@ Therefore, the \co{rcu_assign_pointer()} and
 \co{rcu_dereference()}
 primitives have been embedded in special RCU variants of Linux's
 list-manipulation API.
-Linux has three variants of doubly linked list, the circular
+Linux has four variants of doubly linked list, the circular
 \co{struct list_head} and the linear
 \co{struct hlist_head}/\co{struct hlist_node},
 \co{struct hlist_nulls_head}/\co{struct hlist_nulls_node}, and
@@ -585,7 +546,7 @@ Figure~\ref{fig:defer:Linux Linear Linked List (hlist)}.
 Thus, use of \co{hlist} can halve the memory consumption for the hash-bucket
 arrays of large hash tables.
 As before, this notation is cumbersome, so \co{hlist} structures will
-be abbreviated in the same way lists are, as shown in
+be abbreviated in the same way \co{list_head}-style lists are, as shown in
 Figure~\ref{fig:defer:Linux Linked List Abbreviated}.
 
 A variant of Linux's \co{hlist}, named \co{hlist_nulls}, provides multiple
@@ -603,9 +564,14 @@ Should a reader encounter a \co{NULL} pointer not matching the index of
 the bucket it started from, that reader knows that an element it was
 traversing was moved to some other bucket during the traversal, taking
 that reader with it.
-The \co{is_a_nulls()} function returns true if passed an \co{hlist_nulls}
-\co{NULL} pointer, and the \co{get_nulls_value()} function returns its
-argument's \co{NULL}-pointer identifier.
+The reader can use the \co{is_a_nulls()} function (which returns true
+if passed an \co{hlist_nulls} \co{NULL} pointer) to determine when
+it reaches the end of a list, and the \co{get_nulls_value()} function
+(which returns its argument's \co{NULL}-pointer identifier) to fetch
+the type of \co{NULL} pointer.
+When \co{get_nulls_values()} returns an unexpected value, the reader
+can take corrective action, for example, restarting its traversal from
+the beginning.
 
 \QuickQuiz{}
 	But what if an \co{hlist_nulls} reader gets moved to some other
@@ -639,7 +605,9 @@ figure) to lock the list.
 This is also a storage-savings member, as it allows what would otherwise
 be a separate spinlock to be stored with the pointer itself.
 
-This background suffices to describe more complex updates in which an
+@@@ \co{hlist_bl} primitives and locking conventions.
+
+@@@ This background suffices to describe more complex updates in which an
 element in the middle of the list having multiple fields is atomically
 updated, so that a given reader sees either the old set of values or
 the new set of values, but not a mixture of the two sets.
