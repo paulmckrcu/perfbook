@@ -375,50 +375,48 @@ has executed a context switch, which in turn guarantees that
 all pre-existing reader threads have completed.
 
 \begin{listing}[tbp]
-{ \scriptsize
-\begin{verbbox}[\LstLineNo]
+\begin{linelabel}[ln:defer:Insertion and Deletion With Concurrent Readers]
+\begin{VerbatimL}[commandchars=\\\[\]]
 struct route *gptr;
 
 int access_route(int (*f)(struct route *rp))
 {
-  int ret = -1;
-  struct route *rp;
+	int ret = -1;
+	struct route *rp;
 
-  rcu_read_lock();
-  rp = rcu_dereference(gptr);
-  if (rp)
-  	ret = f(rp);
-  rcu_read_unlock();
-  return ret;
+	rcu_read_lock();
+	rp = rcu_dereference(gptr);
+	if (rp)
+		ret = f(rp);
+	rcu_read_unlock();
+	return ret;
 }
 
 struct route *ins_route(struct route *rp)
 {
-  struct route *old_rp;
+	struct route *old_rp;
 
-  spin_lock(&route_lock);
-  old_rp = gptr;
-  rcu_assign_pointer(gptr, rp);
-  spin_unlock(&route_lock);
-  return old_rp;
+	spin_lock(&route_lock);
+	old_rp = gptr;
+	rcu_assign_pointer(gptr, rp);
+	spin_unlock(&route_lock);
+	return old_rp;
 }
 
 int del_route(void)
 {
-  struct route *old_rp;
+	struct route *old_rp;
 
-  spin_lock(&route_lock);
-  old_rp = gptr;
-  RCU_INIT_POINTER(gptr, NULL);
-  spin_unlock(&route_lock);
-  synchronize_rcu();
-  free(old_rp);
-  return !!old_rp;
+	spin_lock(&route_lock);
+	old_rp = gptr;
+	RCU_INIT_POINTER(gptr, NULL);
+	spin_unlock(&route_lock);
+	synchronize_rcu();
+	free(old_rp);
+	return !!old_rp;
 }
-\end{verbbox}
-}
-\centering
-\theverbbox
+\end{VerbatimL}
+\end{linelabel}
 \caption{Insertion and Deletion With Concurrent Readers}
 \label{lst:defer:Insertion and Deletion With Concurrent Readers}
 \end{listing}
