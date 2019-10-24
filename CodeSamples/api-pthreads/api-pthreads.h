@@ -154,7 +154,7 @@ static __inline__ int spin_is_locked(spinlock_t *sp)
 
 typedef pthread_t thread_id_t;
 
-#define NR_THREADS 128
+#define NR_THREADS 512
 
 #define __THREAD_ID_MAP_EMPTY 0
 #define __THREAD_ID_MAP_WAITING 1
