@@ -84,3 +84,20 @@ set term png medium
 set output "atomic_nehalem.png"
 replot
 ---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../../fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "|../../utilities/gnuplotepsfix > atomic_hps.eps"
+set xlabel "Number of CPUs (Threads)"
+set xtics rotate
+set ylabel "Time Per Increment (ns)"
+set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+plot "data/count_atomic:u.hps.2019.10.23a.dat" w e, "data/count_atomic:u.hps.2019.10.23a.dat" w l
+set term png medium
+set output "atomic_hps.png"
+replot
+---EOF---
