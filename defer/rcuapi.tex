@@ -554,7 +554,7 @@ distinct \co{NULL} pointer, but otherwise uses the same layout as shown in
 Figure~\ref{fig:defer:Linux Linear Linked List (hlist)}.
 In this variant, a \co{->next} pointer having a zero low-order bit is
 considered to be a pointer.
-However, if the low-order bit is set to one, the upper bits indentify
+However, if the low-order bit is set to one, the upper bits identify
 the type of \co{NULL} pointer.
 This type of list is used to allow lockless readers to detect when a
 node has been moved from one list to another.
@@ -594,6 +594,8 @@ the beginning.
 	Another way of avoiding the problem entirely is for readers to
 	search within RCU read-side critical sections, and to wait for
 	an RCU grace period between successive updates.
+	An intermediate position might wait for an RCU grace period
+	every $N$ updates, for some suitable value of $N$.
 } \QuickQuizEnd
 
 Another variant of Linux's \co{hlist} incorporates bit-locking,
@@ -602,112 +604,8 @@ This variant uses the same layout as shown in
 Figure~\ref{fig:defer:Linux Linear Linked List (hlist)},
 but reserves the low-order bit of the head pointer (``first'' in the
 figure) to lock the list.
-This is also a storage-savings member, as it allows what would otherwise
+This approach also reduces memory usage, as it allows what would otherwise
 be a separate spinlock to be stored with the pointer itself.
-
-@@@ \co{hlist_bl} primitives and locking conventions.
-
-@@@ This background suffices to describe more complex updates in which an
-element in the middle of the list having multiple fields is atomically
-updated, so that a given reader sees either the old set of values or
-the new set of values, but not a mixture of the two sets.
-For example, each node of a linked list might have integer fields
-\co{->a}, \co{->b}, and \co{->c}, and it might be necessary to update
-a given node's fields from 5, 6, and 7 to 5, 2, and 3, respectively.
-
-The code implementing this atomic update is straightforward:
-
-\begin{linelabel}[ln:defer:Canonical RCU Replacement Example (2nd)]
-\begin{VerbatimN}[samepage=true,commandchars=\\\[\],firstnumber=15]
-q = kmalloc(sizeof(*p), GFP_KERNEL);	\lnlbl[kmalloc]
-*q = *p;				\lnlbl[copy]
-q->b = 2;				\lnlbl[update1]
-q->c = 3;				\lnlbl[update2]
-list_replace_rcu(&p->list, &q->list);	\lnlbl[replace]
-synchronize_rcu();			\lnlbl[sync_rcu]
-kfree(p);				\lnlbl[kfree]
-\end{VerbatimN}
-\end{linelabel}
-
-\begin{figure}[tbp]
-\centering
-\resizebox{2.7in}{!}{\includegraphics{defer/RCUReplacement}}
-\caption{RCU Replacement in Linked List}
-\label{fig:defer:RCU Replacement in Linked List}
-\end{figure}
-
-The following discussion walks through this code, using
-Figure~\ref{fig:defer:RCU Replacement in Linked List} to illustrate
-the state changes.
-The triples in each element represent the values of fields \co{->a},
-\co{->b}, and \co{->c}, respectively.
-The red-shaded elements might be referenced by readers,
-and because readers do not synchronize directly with updaters,
-readers might run concurrently with this entire replacement process.
-Please note that backwards pointers and the link from the tail to the
-head are omitted for clarity.
-
-The initial state of the list, including the pointer \co{p},
-is the same as for the deletion example, as shown on the
-first row of the figure.
-
-The following text describes how to replace the \co{5,6,7} element
-with \co{5,2,3} in such a way that any given reader sees one of these
-two values.
-
-\begin{lineref}[ln:defer:Canonical RCU Replacement Example (2nd)]
-Line~\lnref{kmalloc} \co{kmalloc()}s a replacement element, as follows,
-resulting in the state as shown in the second row of
-Figure~\ref{fig:defer:RCU Replacement in Linked List}.
-At this point, no reader can hold a reference to the newly allocated
-element (as indicated by its green shading), and it is uninitialized
-(as indicated by the question marks).
-
-Line~\lnref{copy} copies the old element to the new one, resulting in the
-state as shown in the third row of
-Figure~\ref{fig:defer:RCU Replacement in Linked List}.
-The newly allocated element still cannot be referenced by readers, but
-it is now initialized.
-
-Line~\lnref{update1} updates \co{q->b} to the value ``2'', and
-line~\lnref{update2} updates \co{q->c} to the value ``3'',
-as shown on the fourth row of
-Figure~\ref{fig:defer:RCU Replacement in Linked List}.
-
-Now, line~\lnref{replace} does the replacement, so that the new element is
-finally visible to readers, and hence is shaded red, as shown on
-the fifth row of
-Figure~\ref{fig:defer:RCU Replacement in Linked List}.
-At this point, as shown below, we have two versions of the list.
-Pre-existing readers might see the \co{5,6,7} element (which is
-therefore now shaded yellow), but
-new readers will instead see the \co{5,2,3} element.
-But any given reader is guaranteed to see one set of values or the
-other, not a mixture of the two.
-
-After the \co{synchronize_rcu()} on line~\lnref{sync_rcu} returns,
-a grace period will have elapsed, and so all reads that started before the
-\co{list_replace_rcu()} will have completed.
-In particular, any readers that might have been holding references
-to the \co{5,6,7} element are guaranteed to have exited
-their RCU read-side critical sections, and are thus prohibited from
-continuing to hold a reference.
-Therefore, there can no longer be any readers holding references
-to the old element, as indicated its green shading in the sixth row of
-Figure~\ref{fig:defer:RCU Replacement in Linked List}.
-As far as the readers are concerned, we are back to having a single version
-of the list, but with the new element in place of the old.
-
-After the \co{kfree()} on line~\lnref{kfree} completes, the list will
-appear as shown on the final row of
-Figure~\ref{fig:defer:RCU Replacement in Linked List}.
-\end{lineref}
-
-Despite the fact that RCU was named after the replacement case,
-the vast majority of RCU usage within the Linux kernel relies on
-the simple independent insertion and deletion, as was shown in
-Figure~\ref{fig:defer:Multiple RCU Data-Structure Versions} in
-Section~\ref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}.
 
 \begin{sidewaystable*}[htbp]
 \rowcolors{1}{}{lightgray}
@@ -810,50 +708,115 @@ Section~\ref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}.
 \end{tabular}
 \end{sidewaystable*}
 
-@@@ The first pair of categories operate on Linux
-\co{struct list_head} lists, which are circular, doubly-linked
-lists.
-The \co{list_for_each_entry_rcu()} primitive traverses an
-RCU-protected list in a type-safe manner, while also enforcing
-memory ordering for situations where a new list element is inserted
-into the list concurrently with traversal.
-On non-Alpha platforms, this primitive incurs little or no performance
-penalty compared to \co{list_for_each_entry()}.
-The \co{list_add_rcu()}, \co{list_add_tail_rcu()},
-and \co{list_replace_rcu()} primitives are analogous to
-their non-RCU counterparts, but incur the overhead of an additional
-memory barrier on weakly-ordered machines.
-The \co{list_del_rcu()} primitive is also analogous to its
-non-RCU counterpart, but oddly enough is very slightly faster due to the
-fact that it poisons only the \co{prev} pointer rather than
-both the \co{prev} and \co{next} pointers as
-\co{list_del()} must do.
-Finally, the \co{list_splice_init_rcu()} primitive is similar
-to its non-RCU counterpart, but incurs a full grace-period latency.
-The purpose of this grace period is to allow RCU readers to finish
-their traversal of the source list before completely disconnecting
-it from the list header---failure to do this could prevent such
-readers from ever terminating their traversal.
+The API members for these linked-list variants are summarized in
+Table~\ref{tab:defer:RCU-Protected List APIs}.
+More information is available in the \path{Documentation/RCU}
+directory of the Linux-kernel source tree and at
+Linux Weekly News~\cite{PaulEMcKenney2019RCUAPI}.
 
-\QuickQuiz{}
-	Why doesn't \co{list_del_rcu()} poison both the \co{next}
-	and \co{prev} pointers?
-\QuickQuizAnswer{
-	Poisoning the \co{next} pointer would interfere
-	with concurrent RCU readers, who must use this pointer.
-	However, RCU readers are forbidden from using the \co{prev}
-	pointer, so it may safely be poisoned.
-} \QuickQuizEnd
+However, the remainder of this section expands on the use of
+\co{list_replace_rcu()}, given that this API member gave RCU its name.
+This API member is used to carry out more complex updates in which an
+element in the middle of the list having multiple fields is atomically
+updated, so that a given reader sees either the old set of values or
+the new set of values, but not a mixture of the two sets.
+For example, each node of a linked list might have integer fields
+\co{->a}, \co{->b}, and \co{->c}, and it might be necessary to update
+a given node's fields from 5, 6, and 7 to 5, 2, and 3, respectively.
 
-The second pair of categories operate on Linux's
-\co{struct hlist_head}, which is a linear linked list.
-One advantage of \co{struct hlist_head} over
-\co{struct list_head} is that the former requires only
-a single-pointer list header, which can save significant memory in
-large hash tables.
-The \co{struct hlist_head} primitives in the table
-relate to their non-RCU counterparts in much the same way as do the
-\co{struct list_head} primitives.
+The code implementing this atomic update is straightforward:
+
+\begin{linelabel}[ln:defer:Canonical RCU Replacement Example (2nd)]
+\begin{VerbatimN}[samepage=true,commandchars=\\\[\],firstnumber=15]
+q = kmalloc(sizeof(*p), GFP_KERNEL);	\lnlbl[kmalloc]
+*q = *p;				\lnlbl[copy]
+q->b = 2;				\lnlbl[update1]
+q->c = 3;				\lnlbl[update2]
+list_replace_rcu(&p->list, &q->list);	\lnlbl[replace]
+synchronize_rcu();			\lnlbl[sync_rcu]
+kfree(p);				\lnlbl[kfree]
+\end{VerbatimN}
+\end{linelabel}
+
+\begin{figure}[tbp]
+\centering
+\resizebox{2.7in}{!}{\includegraphics{defer/RCUReplacement}}
+\caption{RCU Replacement in Linked List}
+\label{fig:defer:RCU Replacement in Linked List}
+\end{figure}
+
+The following discussion walks through this code, using
+Figure~\ref{fig:defer:RCU Replacement in Linked List} to illustrate
+the state changes.
+The triples in each element represent the values of fields \co{->a},
+\co{->b}, and \co{->c}, respectively.
+The red-shaded elements might be referenced by readers,
+and because readers do not synchronize directly with updaters,
+readers might run concurrently with this entire replacement process.
+Please note that backwards pointers and the link from the tail to the
+head are omitted for clarity.
+
+The initial state of the list, including the pointer \co{p},
+is the same as for the deletion example, as shown on the
+first row of the figure.
+
+The following text describes how to replace the \co{5,6,7} element
+with \co{5,2,3} in such a way that any given reader sees one of these
+two values.
+
+\begin{lineref}[ln:defer:Canonical RCU Replacement Example (2nd)]
+Line~\lnref{kmalloc} \co{kmalloc()}s a replacement element, as follows,
+resulting in the state as shown in the second row of
+Figure~\ref{fig:defer:RCU Replacement in Linked List}.
+At this point, no reader can hold a reference to the newly allocated
+element (as indicated by its green shading), and it is uninitialized
+(as indicated by the question marks).
+
+Line~\lnref{copy} copies the old element to the new one, resulting in the
+state as shown in the third row of
+Figure~\ref{fig:defer:RCU Replacement in Linked List}.
+The newly allocated element still cannot be referenced by readers, but
+it is now initialized.
+
+Line~\lnref{update1} updates \co{q->b} to the value ``2'', and
+line~\lnref{update2} updates \co{q->c} to the value ``3'',
+as shown on the fourth row of
+Figure~\ref{fig:defer:RCU Replacement in Linked List}.
+
+Now, line~\lnref{replace} does the replacement, so that the new element is
+finally visible to readers, and hence is shaded red, as shown on
+the fifth row of
+Figure~\ref{fig:defer:RCU Replacement in Linked List}.
+At this point, as shown below, we have two versions of the list.
+Pre-existing readers might see the \co{5,6,7} element (which is
+therefore now shaded yellow), but
+new readers will instead see the \co{5,2,3} element.
+But any given reader is guaranteed to see one set of values or the
+other, not a mixture of the two.
+
+After the \co{synchronize_rcu()} on line~\lnref{sync_rcu} returns,
+a grace period will have elapsed, and so all reads that started before the
+\co{list_replace_rcu()} will have completed.
+In particular, any readers that might have been holding references
+to the \co{5,6,7} element are guaranteed to have exited
+their RCU read-side critical sections, and are thus prohibited from
+continuing to hold a reference.
+Therefore, there can no longer be any readers holding references
+to the old element, as indicated its green shading in the sixth row of
+Figure~\ref{fig:defer:RCU Replacement in Linked List}.
+As far as the readers are concerned, we are back to having a single version
+of the list, but with the new element in place of the old.
+
+After the \co{kfree()} on line~\lnref{kfree} completes, the list will
+appear as shown on the final row of
+Figure~\ref{fig:defer:RCU Replacement in Linked List}.
+\end{lineref}
+
+Despite the fact that RCU was named after the replacement case,
+the vast majority of RCU usage within the Linux kernel relies on
+the simple independent insertion and deletion, as was shown in
+Figure~\ref{fig:defer:Multiple RCU Data-Structure Versions} in
+Section~\ref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}.
 
 The next section looks at APIs that assist developers in debugging
 their code that makes use of RCU.
