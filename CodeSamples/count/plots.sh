@@ -96,7 +96,7 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-plot "data/count_atomic:u.hps.2019.10.23a.dat" w e, "data/count_atomic:u.hps.2019.10.23a.dat" w l
+plot "data/count_atomic:u.hps.2019.10.23a.dat" w e, "data/count_atomic:u.hps.2019.10.23a.dat" w l, 1.46041
 set term png medium
 set output "atomic_hps.png"
 replot
