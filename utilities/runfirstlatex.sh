@@ -41,6 +41,12 @@ basename=`echo $1 | sed -e 's/\.tex$//'`
 
 echo "pdflatex 1 for $basename.pdf"
 pdflatex $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null || :
+if grep -q 'LaTeX Warning: You have requested' $basename.log
+then
+	grep -A 4 'LaTeX Warning: You have requested' $basename.log
+	echo "----- Incompatible version of package found, see $basename.log for details. -----"
+	exit 1
+fi
 if grep -q '! Emergency stop.' $basename.log
 then
 	grep -B 15 -A 5 '! Emergency stop.' $basename.log
