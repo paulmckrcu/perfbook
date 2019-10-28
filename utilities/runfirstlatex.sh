@@ -41,7 +41,8 @@ fi
 NEWTXTEXT=`kpsewhich newtxtext.sty`
 if [ -z "$NEWTXTEXT" ]
 then
-	echo "newtxtext.sty not found"
+	echo "newtxtext.sty not found. Please install a font package 'newtx'."
+	echo "See item 9 in FAQ-BUILD.txt for further info."
 	exit 1
 fi
 NEWTXTEXT_DATE=`grep filedate $NEWTXTEXT | grep -o -E "[/0-9]*"`
@@ -56,6 +57,7 @@ then
 	exit 1
 fi
 
+DETECTED_BUGGY=0
 # listings package version check (TeX Live 2014 and 2015 had buggy ones)
 if grep -F "fileversion" `kpsewhich listings.sty` | grep -q -E "1.5[cde]"
 then
@@ -65,7 +67,7 @@ then
 	echo "### Please install a latest version.                     ###"
 	echo "### See item 10 in FAQ-BUILD.txt for further info.       ###"
 	echo "############################################################"
-	exit 1
+	DETECTED_BUGGY=1
 fi
 
 basename=`echo $1 | sed -e 's/\.tex$//'`
@@ -75,7 +77,11 @@ pdflatex $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null || :
 if grep -q 'LaTeX Warning: You have requested' $basename.log
 then
 	grep -A 4 'LaTeX Warning: You have requested' $basename.log
-	echo "----- Incompatible version of package found, see $basename.log for details. -----"
+	echo "### Incompatible package(s) detected. See $basename.log for details. ###"
+	echo "### See items 9 and 10 in FAQ-BUILD.txt for how to update.          ###"
+	exit 1
+fi
+if [ $DETECTED_BUGGY -eq 1 ]; then
 	exit 1
 fi
 if grep -q '! Emergency stop.' $basename.log
