@@ -37,6 +37,25 @@ then
 	exit 1
 fi
 
+# newtx font package version check (newer or equal to Ubuntu 14.04)
+NEWTXTEXT=`kpsewhich newtxtext.sty`
+if [ -z "$NEWTXTEXT" ]
+then
+	echo "newtxtext.sty not found"
+	exit 1
+fi
+NEWTXTEXT_DATE=`grep filedate $NEWTXTEXT | grep -o -E "[/0-9]*"`
+# We need TeX Live 2013/Debian (Ubuntu 14.04) or later
+if [ "$NEWTXTEXT_DATE" \< "2014/02/12" ]
+then
+	echo "############################################################"
+	echo "### Old version of font package 'newtx' is detected.     ###"
+	echo "### You need to upgrade your TeX Live installation.      ###"
+	echo "### See item 9 in FAQ-BUILD.txt for further info.        ###"
+	echo "############################################################"
+	exit 1
+fi
+
 # listings package version check (TeX Live 2014 and 2015 had buggy ones)
 if grep -F "fileversion" `kpsewhich listings.sty` | grep -q -E "1.5[cde]"
 then
