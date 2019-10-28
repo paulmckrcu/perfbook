@@ -37,6 +37,18 @@ then
 	exit 1
 fi
 
+# listings package version check (TeX Live 2014 and 2015 had buggy ones)
+if grep -F "fileversion" `kpsewhich listings.sty` | grep -q -E "1.5[cde]"
+then
+	echo "############################################################"
+	echo "### Buggy version of LaTeX package 'listings' detected!! ###"
+	echo "### (Known issue in TeX Live 2014 and 2015)              ###"
+	echo "### Please install a latest version.                     ###"
+	echo "### See item 10 in FAQ-BUILD.txt for further info.       ###"
+	echo "############################################################"
+	exit 1
+fi
+
 basename=`echo $1 | sed -e 's/\.tex$//'`
 
 echo "pdflatex 1 for $basename.pdf"
