@@ -71,9 +71,11 @@ STEELFONT := $(shell fc-list | grep -c -i steel)
 URWPS := $(shell fc-list | grep "Nimbus Mono PS" | wc -l)
 
 # required font packages
-FONTPACKAGES := $(shell kpsewhich nimbusmono.sty newtxtt.sty newtxsf.sty inconsolata.sty)
+FONTPACKAGES := $(shell kpsewhich newtxtext.sty nimbusmono.sty newtxtt.sty newtxsf.sty inconsolata.sty couriers.sty)
+NEWTXTEXT := $(findstring newtxtext,$(FONTPACKAGES))
 NIMBUSMONO := $(findstring nimbusmono,$(FONTPACKAGES))
 NEWTXTT := $(findstring newtxtt,$(FONTPACKAGES))
+COURIERS := $(findstring couriers,$(FONTPACKAGES))
 NEWTXSF := $(findstring newtxsf,$(FONTPACKAGES))
 INCONSOLATA := $(findstring inconsolata,$(FONTPACKAGES))
 
@@ -145,6 +147,9 @@ $(PDFTARGETS:.pdf=.bbl): %.bbl: %.aux $(BIBSOURCES)
 	bibtex $(basename $@)
 
 $(PDFTARGETS:.pdf=.aux): $(LATEXGENERATED) $(LATEXSOURCES) $(LST_SOURCES)
+ifeq ($(NEWTXTEXT),)
+	$(error Font package 'newtx' not found. See #9 in FAQ-BUILD.txt)
+endif
 	sh utilities/runfirstlatex.sh $(basename $@)
 
 autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET) utilities/fcvextract.pl
@@ -181,6 +186,9 @@ perfbook-msns.tex: perfbook.tex
 	sed -e 's/%msfontstub/\\usepackage{courier}/' < $< > $@
 
 perfbook-mss.tex: perfbook.tex
+ifeq ($(COURIERS),)
+	$(error Font package 'courier-scaled' not found. See #9 in FAQ-BUILD.txt)
+endif
 	sed -e 's/%msfontstub/\\usepackage[scaled=.94]{couriers}/' < $< > $@
 
 perfbook-mstx.tex: perfbook.tex

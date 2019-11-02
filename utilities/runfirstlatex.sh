@@ -39,12 +39,6 @@ fi
 
 # newtx font package version check (newer or equal to Ubuntu 14.04)
 NEWTXTEXT=`kpsewhich newtxtext.sty`
-if [ -z "$NEWTXTEXT" ]
-then
-	echo "newtxtext.sty not found. Please install a font package 'newtx'."
-	echo "See item 9 in FAQ-BUILD.txt for further info."
-	exit 1
-fi
 NEWTXTEXT_DATE=`grep filedate $NEWTXTEXT | grep -o -E "[/0-9]*"`
 # We need TeX Live 2013/Debian (Ubuntu 14.04) or later
 if [ "$NEWTXTEXT_DATE" \< "2014/02/12" ]
