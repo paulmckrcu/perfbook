@@ -56,7 +56,7 @@ void *reader(void *arg)					//\lnlbl{reader:b}
 			exit(EXIT_FAILURE);
 		}						//\lnlbl{reader:acq:e}
 		for (i = 1; i < holdtime; i++) {	//\lnlbl{reader:hold:b}
-			barrier();
+			barrier();			//\lnlbl{reader:barrier}
 		}					//\lnlbl{reader:hold:e}
 		if ((en = pthread_rwlock_unlock(&rwl)) != 0) {	//\lnlbl{reader:rel:b}
 			fprintf(stderr,
