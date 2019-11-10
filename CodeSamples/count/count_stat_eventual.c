@@ -40,8 +40,8 @@ static __inline__ unsigned long read_count(void)	//\lnlbl{read:b}
 
 void *eventual(void *arg)				//\lnlbl{eventual:b}
 {
-	int t;
-	unsigned long sum;
+	int t;						//\lnlbl{t}
+	unsigned long sum;				//\lnlbl{sum}
 
 	while (READ_ONCE(stopflag) < 3) {
 		sum = 0;
