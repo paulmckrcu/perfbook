@@ -96,14 +96,23 @@ endif
 STEELFONTID := $(shell fc-list | grep -i steel | grep -c Steel)
 
 ifdef A2PING
-A2PING_277P := $(shell a2ping --help 2>&1 | grep -c "2.77p,")
-ifeq ($(A2PING_277P),1)
-A2PING_GSCNFL := 1
-else
-A2PING_GSCNFL := 0
+  GS_950_OR_LATER := $(shell gs --version | grep -c -E "9\.[5-9].?")
+  A2PING_277P := $(shell a2ping --help 2>&1 | grep -c "2.77p,")
+  A2PING_283P := $(shell a2ping --help 2>&1 | grep -c "2.83p,")
+  ifeq ($(A2PING_277P),1)
+    A2PING_GSCNFL := 1
+  else
+    ifeq ($(A2PING_283P),1)
+      ifeq ($(GS_950_OR_LATER),1)
+        A2PING_GSCNFL := 1
+      else
+        A2PING_GSCNFL := 0
+      endif
+    else
+      A2PING_GSCNFL := 0
+    endif
+  endif
 endif
-endif
-
 SOURCES_OF_SNIPPET_ALL := $(shell grep -R -l -F '\begin{snippet}' CodeSamples)
 SOURCES_OF_LITMUS      := $(shell grep -R -l -F '\begin[snippet]' CodeSamples)
 SOURCES_OF_LTMS        := $(patsubst %.litmus,%.ltms,$(SOURCES_OF_LITMUS))
