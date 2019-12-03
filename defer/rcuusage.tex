@@ -108,29 +108,55 @@ for a discussion of RCU QSBR.)
 
 The answer to this shown in
 Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by RCU QSBR},
-which shows the RCU QSBR results as the trace between the RCU and
-the ideal traces.
-RCU QSBR's performance and scalability is very nearly that of an
-ideal synchronization-free workload, as desired.
+which shows that RCU QSBR's performance and scalability actuaally exceeds
+that of the ideal synchronization-free workload.
 
 \QuickQuiz{}
-	Why doesn't RCU QSBR give \emph{exactly} ideal results?
+	Wait, what???
+	How can RCU QSBR possibly be better than ideal?
+	Just what rubbish definition of ideal would fail to be the best
+	of all possible results???
 \QuickQuizAnswer{
-	The \co{rcu_dereference()} primitive does constrain the
-	compiler's optimizations somewhat, which can result in
-	slightly slower code.
-	This effect would normally be insignificant, but
-	each search is taking on average about 13~nanoseconds,
-	which is short enough for small differences in code
-	generation to make their presence felt.
-	The difference ranges from about 1.5\,\% to about 11.1\,\%, which is
-	quite small when you consider that the RCU QSBR code can handle
-	concurrent updates and the ``ideal'' code cannot.
+	This is an excellent question, and the answer is that modern
+	CPUs and compilers are extremely complex.
+	But before getting into that, it is well worth noting that
+	RCU QSBR's performance advantage appears only in the
+	one-hardware-thread-per-core regime.
+	Once the system is fully loaded, RCU QSBR's performance drops
+	back to ideal.
 
-	It is hoped that C11 \co{memory_order_consume}
-	loads~\cite{RichardSmith2015N4527}
-	might someday allow \co{rcu_dereference()} provide the
-	needed protection at lower cost.
+	The RCU variant of the \co{route_lookup()} search loop actually
+	has one more x86 instructions that does the sequential version,
+	namely the \co{lea} in the sequence
+	\co{cmp}, \co{je}, \co{mov}, \co{cmp}, \co{lea}, and \co{jne}.
+	This extra instruction is due to the \co{rcu_head} structure
+	at the beginning of the RCU variant's \co{route_entry} structure,
+	so that, unlike the sequential variant, the RCU variant's
+	\co{->re_next.next} pointer has a non-zero offset.
+	Back in the 1980s, this additional \co{lea} instruction might
+	have reliably resulted in the RCU variant being slower, but we
+	are now in the 21\textsuperscript{st} century, and the 1980s
+	are long gone.
+
+	This of course means that any performance result on modern
+	microprocessors must be subject to some skepticism.
+	In theory, it really does not make sense to obtain performance
+	results that are better than ideal, but it really can happen
+	on modern microprocessors.
+	Such results can be thought of as similar to the celebrated
+	super-linear speedups (see
+	Section~\ref{sec:SMPdesign:Beyond Partitioning}
+	for one such example), that is, of interest but also of limited
+	practical importance.
+	Nevertheless, one of the strengths of RCU is that its read-side
+	overhead is so low that tiny effects such as this one are visible
+	in real performance measurements.
+
+	This raises the question as to what would happen if the
+	\co{rcu_head} structure were to be moved so that RCU's
+	\co{->re_next.next} pointer also had zero offset, just the
+	same as the sequential variant.
+	This experiment is left as an exercise for the reader.
 } \QuickQuizEnd
 
 \QuickQuiz{}
