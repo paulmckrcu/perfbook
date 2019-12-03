@@ -19,7 +19,7 @@
 # Copyright (C) IBM Corporation, 2009-2019
 # Copyright (C) Facebook, 2019
 #
-# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
+# Authors: Paul E. McKenney <paulmck@kernel.org>
 
 # We cheat and substitute a 5-second sleep for useful computation.
 function compute_it {

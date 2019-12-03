@@ -19,7 +19,7 @@
 # Copyright (C) IBM Corporation, 2016-2019
 # Copyright (C) Facebook, 2019
 #
-# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
+# Authors: Paul E. McKenney <paulmck@kernel.org>
 
 for i in 1 2 3 4 5 6 7 8 9 10
 do

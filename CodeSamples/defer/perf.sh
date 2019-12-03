@@ -19,7 +19,7 @@
 # Copyright (C) IBM Corporation, 2008-2019
 # Copyright (C) Facebook, 2019
 #
-# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
+# Authors: Paul E. McKenney <paulmck@kernel.org>
 
 for rcu in rcu rcu64 rcu_lock rcu_lock_percpu rcu_nest rcu_nest32 \
 	rcu_nest_qs rcu_qs rcu_rcg rcu_rcpg rcu_rcpl rcu_rcpls rcu_ts

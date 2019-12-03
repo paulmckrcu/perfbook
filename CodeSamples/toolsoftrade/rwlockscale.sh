@@ -19,7 +19,7 @@
 # Copyright (C) IBM Corporation, 2009-2019
 # Copyright (C) Facebook, 2019
 #
-# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
+# Authors: Paul E. McKenney <paulmck@kernel.org>
 
 for ((ncpus = 1; ncpus <= 128; ncpus += 2))
 do

@@ -21,7 +21,7 @@
 # Copyright (C) IBM Corporation, 2008-2019
 # Copyright (C) Facebook, 2019
 #
-# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
+# Authors: Paul E. McKenney <paulmck@kernel.org>
 
 git log $1 | egrep '^ *(Signed-off-by|Reported-by)' |
 	sed -e 's/ *Signed-off-by: *//' -e 's/ *Reported-by: *//' |

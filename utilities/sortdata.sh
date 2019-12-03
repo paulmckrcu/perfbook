@@ -21,7 +21,7 @@
 # Copyright (C) IBM Corporation, 2012-2019
 # Copyright (C) Facebook, 2019
 #
-# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
+# Authors: Paul E. McKenney <paulmck@kernel.org>
 
 awk '{
 	for (i = 2; i <= NF; i++)

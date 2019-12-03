@@ -16,7 +16,7 @@
 # Copyright (C) IBM Corporation, 2016-2019
 # Copyright (C) Facebook, 2019
 #
-# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
+# Authors: Paul E. McKenney <paulmck@kernel.org>
 
 nsamples=7
 

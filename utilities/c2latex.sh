@@ -19,6 +19,6 @@
 # Copyright (C) IBM Corporation, 2007-2019
 # Copyright (C) Facebook, 2019
 #
-# Authors: Paul E. McKenney <paulmck@linux.ibm.com>
+# Authors: Paul E. McKenney <paulmck@kernel.org>
 
 awk '{printf "%2d %s\n", NR, $0}' | sed -e 's/	/  /g' | sed -e 's/ *$//'
