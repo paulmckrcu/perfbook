@@ -13,7 +13,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# Copyright (C) IBM Corporation, 2016
+# Copyright (C) IBM Corporation, 2016-2019
+# Copyright (C) Facebook, 2019
 #
 # Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 

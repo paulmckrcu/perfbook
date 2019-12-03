@@ -37,7 +37,8 @@
 /*
  * Modified 4/10/2003 to allow parallel operation.
  * Modified 5/18/2014 to use __thread.
- * Copyright (c) 2014 IBM Corporation.
+ * Copyright (c) 2014-2019 IBM Corporation.
+ * Copyright (c) 2019 Facebook.
  */
 
 #include <sys/types.h>

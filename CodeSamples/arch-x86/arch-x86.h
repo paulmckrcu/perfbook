@@ -15,7 +15,8 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * Copyright (c) 2006 Paul E. McKenney, IBM.
+ * Copyright (c) 2006-2019 Paul E. McKenney, IBM.
+ * Copyright (c) 2019 Paul E. McKenney, Facebook.
  *
  * Much code taken from the Linux kernel.  For such code, the option
  * to redistribute under later versions of GPL might not be available.

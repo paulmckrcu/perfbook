@@ -17,7 +17,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #
-# Copyright (C) IBM Corporation, 2007
+# Copyright (C) IBM Corporation, 2007-2019
+# Copyright (C) Facebook, 2019
 #
 # Authors: Paul E. McKenney <paulmck@linux.ibm.com>
 

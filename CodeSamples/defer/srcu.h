@@ -15,7 +15,8 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * Copyright (C) IBM Corporation, 2006
+ * Copyright (C) IBM Corporation, 2006-2019
+ * Copyright (C) Facebook, 2019
  *
  * Author: Paul McKenney <paulmck@us.ibm.com>
  *

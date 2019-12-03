@@ -16,7 +16,8 @@
 # along with this program; if not, you can access it online at
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
-# Copyright (c) 2009 Paul E. McKenney, IBM.
+# Copyright (c) 2009-2019 Paul E. McKenney, IBM.
+# Copyright (c) 2019 Paul E. McKenney, Facebook.
 
 for ncpus in 1 2 4 8 16 32 64
 do

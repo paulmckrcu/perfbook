@@ -17,6 +17,7 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
  * Copyright (c) 2013-2019 Paul E. McKenney, IBM Corporation.
+ * Copyright (c) 2019 Paul E. McKenney, Facebook.
  */
 
 #define _GNU_SOURCE
