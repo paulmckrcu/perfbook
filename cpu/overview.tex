@@ -41,9 +41,14 @@ These changes are described in the following sections.
 In the early 1980s, the typical microprocessor fetched an instruction,
 decoded it, and executed it, typically taking \emph{at least} three
 clock cycles to complete one instruction before proceeding to the next.
-In contrast, the CPU of the late 1990s and early 2000s will be executing
-many instructions simultaneously, using a deep ``pipeline'' to control
+In contrast, the CPU of the late 1990s and of the 2000s execute
+many instructions simultaneously, using a deep \emph{pipeline} to control
 the flow of instructions internally to the CPU.
+Some cores have more than one hardware thread, which is variously called
+\emph{simultaneous multithreading} (SMT) or \emph{hyperthreading}
+(HT)~\cite{JFennel1973SMT}.
+each of which appears as
+an independent CPU to software, at least from a functional viewpoint.
 These modern hardware features can greatly improve performance, as
 illustrated by Figure~\ref{fig:cpu:CPUs Old and New}.
 
@@ -82,6 +87,41 @@ branch, resulting in a pipeline flush.
 If pipeline flushes appear too frequently, they drastically reduce
 overall performance, as fancifully depicted in
 Figure~\ref{fig:cpu:CPU Meets a Pipeline Flush}.
+
+\begin{figure}[tb]
+\centering
+\resizebox{3in}{!}{\includegraphics{cpu/microarch}}
+\caption{Rough View of Modern Micro-Architecture}
+\label{fig:cpu:Rough View of Modern Micro-Architecture}
+\end{figure}
+
+This gets even worse in the increasingly common case of hyperthreading
+(or SMT, if you prefer).
+In this case, all the hardware threads sharing a core also share that
+core's resources, including registers, cache, execution units, and so on.
+The instruction streams are decoded into micro-operations, and use of the
+shared execution units and the hundreds of hardware registers is coordinated
+by a micro-operation scheduler.
+A rough diagram of a two-threaded core is shown in
+\Cref{fig:cpu:Rough View of Modern Micro-Architecture},
+and more accurate (and thus more complex) diagrams are available in
+textbooks and scholarly papers.\footnote{
+	Here is one example for a late-2010s Intel CPU:
+	\url{https://en.wikichip.org/wiki/intel/microarchitectures/skylake_(server)}.}
+Therefore, the execution of one hardware thread can and often is perturbed
+by the actions of other hardware threads sharing that core.
+
+Even if only one hardware thread is active (for example, in old-school
+CPU designs where there is only one thread), counterintuitive results
+are quite common.
+Execution units often have overlapping capabilities, so that a seemingly
+arbitrary choice at one point in the execution can result in pipeline
+stalls later on due to contention for a particular execution unit.
+In theory, such contention is often avoidable, but in practice CPUs must
+not only make these choices very quickly, but also without the benefit
+of clairvoyance.
+In particular, adding an instruction to a tight loop can sometimes
+actually speed up execution, counterintuitive though that might be.
 
 Unfortunately, pipeline flushes are not the only hazards in the obstacle
 course that modern CPUs must run.
