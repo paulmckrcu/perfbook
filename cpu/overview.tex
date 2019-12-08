@@ -38,15 +38,18 @@ These changes are described in the following sections.
 \ContributedBy{Figure}{fig:cpu:CPUs Old and New}{Melissa Broussard}
 \end{figure}
 
-In the early 1980s, the typical microprocessor fetched an instruction,
-decoded it, and executed it, typically taking \emph{at least} three
-clock cycles to complete one instruction before proceeding to the next.
-In contrast, the CPU of the late 1990s and of the 2000s execute
-many instructions simultaneously, using a deep \emph{pipeline} to control
-the flow of instructions internally to the CPU.
+In the 1980s, the typical microprocessor fetched an instruction, decoded
+it, and executed it, typically taking \emph{at least} three clock cycles
+to complete one instruction before even starting the next.
+In contrast, the CPU of the late 1990s and of the 2000s execute many
+instructions simultaneously, using \emph{pipelines}; \emph{superscalar}
+techniques; \emph{out-of-order} instruction and data handling;
+\emph{speculative execution}, and
+more~\cite{Hennessy2011}
+in order to optimize the flow of instructions and data through the CPU.
 Some cores have more than one hardware thread, which is variously called
 \emph{simultaneous multithreading} (SMT) or \emph{hyperthreading}
-(HT)~\cite{JFennel1973SMT}.
+(HT)~\cite{JFennel1973SMT},
 each of which appears as
 an independent CPU to software, at least from a functional viewpoint.
 These modern hardware features can greatly improve performance, as
@@ -70,14 +73,15 @@ allowing the pipeline to be kept full and the CPU to execute at full speed.
 However, branch prediction is not always so easy.
 For example, consider a program with many loops, each of which iterates
 a small but random number of times.
-For another example, consider
-an object-oriented program with many virtual objects that
-can reference many different real objects, all with different implementations
-for frequently invoked member functions.
+For another example, consider an old-school object-oriented program with
+many virtual objects that can reference many different real objects, all
+with different implementations for frequently invoked member functions,
+resulting in many calls through pointers.
 In these cases, it is difficult or even
 impossible for the CPU to predict where the next branch might lead.
 Then either the CPU must stall waiting for execution to proceed far
-enough to be certain where that branch leads, or it must guess.
+enough to be certain where that branch leads, or it must guess and
+then proceed using speculative execution.
 Although guessing works extremely well for programs with predictable
 control flow, for unpredictable branches (such as those in binary search)
 the guesses will frequently be wrong.
@@ -96,17 +100,19 @@ Figure~\ref{fig:cpu:CPU Meets a Pipeline Flush}.
 \end{figure}
 
 This gets even worse in the increasingly common case of hyperthreading
-(or SMT, if you prefer).
-In this case, all the hardware threads sharing a core also share that
-core's resources, including registers, cache, execution units, and so on.
-The instruction streams are decoded into micro-operations, and use of the
-shared execution units and the hundreds of hardware registers is coordinated
-by a micro-operation scheduler.
-A rough diagram of a two-threaded core is shown in
-\Cref{fig:cpu:Rough View of Modern Micro-Architecture},
+(or SMT, if you prefer), especially on pipelined superscalar out-of-order
+CPU featuring speculative execution.
+In this increasingly common case, all the hardware threads sharing
+a core also share that core's resources, including registers, cache,
+execution units, and so on.
+The instructions are often decoded into micro-operations, and use of the
+shared execution units and the hundreds of hardware registers is often
+coordinated by a micro-operation scheduler.
+A rough diagram of such a two-threaded core is shown in
+\cref{fig:cpu:Rough View of Modern Micro-Architecture},
 and more accurate (and thus more complex) diagrams are available in
 textbooks and scholarly papers.\footnote{
-	Here is one example for a late-2010s Intel CPU:
+	Here is one example for a late-2010s Intel core:
 	\url{https://en.wikichip.org/wiki/intel/microarchitectures/skylake_(server)}.}
 Therefore, the execution of one hardware thread can and often is perturbed
 by the actions of other hardware threads sharing that core.
@@ -121,10 +127,10 @@ In theory, such contention is often avoidable, but in practice CPUs must
 not only make these choices very quickly, but also without the benefit
 of clairvoyance.
 In particular, adding an instruction to a tight loop can sometimes
-actually speed up execution, counterintuitive though that might be.
+actually speed up execution, counterintuitive though this might be.
 
-Unfortunately, pipeline flushes are not the only hazards in the obstacle
-course that modern CPUs must run.
+Unfortunately, pipeline flushes and shared-resource contention are not
+the only hazards in the obstacle course that modern CPUs must run.
 The next section covers the hazards of referencing memory.
 
 \subsection{Memory References}
@@ -138,14 +144,14 @@ This disparity is due to the fact that Moore's Law has increased CPU
 performance at a much greater rate than it has decreased memory latency,
 in part due to the rate at which memory sizes have grown.
 For example, a typical 1970s minicomputer might have 4\,KB (yes, kilobytes,
-not megabytes, let alone gigabytes) of main memory, with
+not megabytes, let alone gigabytes or terabytes) of main memory, with
 single-cycle access.\footnote{
 	It is only fair to add that each of these single cycles
 	lasted no less than 1.6 \emph{microseconds}.}
-In 2008, CPU designers still can construct a 4\,KB memory with single-cycle
+Present-day CPU designers still can construct a 4\,KB memory with single-cycle
 access, even on systems with multi-GHz clock frequencies.
 And in fact they frequently do construct such memories, but they now
-call them ``level-0 caches'', and they can be quite a bit bigger than 4\,KB.
+call them ``level-0 caches'', plus they can be quite a bit bigger than 4\,KB.
 
 \begin{figure}[htb]
 \centering
