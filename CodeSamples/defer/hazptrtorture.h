@@ -223,7 +223,7 @@ void uperftest(int nupdaters, int cpustride)
  * Stress test.
  */
 
-#define HAZPTR_STRESS_PIPE_LEN (R * (NR_THREADS + 1))
+#define HAZPTR_STRESS_PIPE_LEN (R)
 
 struct hazptr_stress {
 	hazptr_head_t hh;
