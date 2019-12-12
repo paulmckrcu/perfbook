@@ -21,11 +21,11 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
-for i in 1 2 3 4 5 6 7 8 9 10
+for i in 1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10
 do
 	for routetype in route_hazptr route_rcu route_rcu_qsbr route_refcnt route_seq route_seqlock
 	do
-		for ncpu in 1 2 3 4 5 6 7 8
+		for ncpu in 1 2 3 4 5 6 7 8 10 12 14 16 20 24 28 32 40 48 56 64 80 96 112 128 160 192 224 256 320 384 420
 		do
 			echo $routetype --perftest --nreaders $ncpu --duration 100 --nelems 10
 			./$routetype --perftest --nreaders $ncpu --duration 100 --nelems 10
