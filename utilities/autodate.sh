@@ -29,6 +29,7 @@ if ! test -e .git
 then
 	date_str=`date -R`
 	modified=""
+	release=""
 else
 	date_str=`git show --format="%cD" | head -1`
 	# check if git status is clean
@@ -39,10 +40,16 @@ else
 	else
 		modified=""
 	fi
+	release="`git describe --tags HEAD | sed -e 's/^.*-.*$//'`"
 fi
 month=`date --date="$date_str" +%B`
 year=`date --date="$date_str" +%Y`
 day=`date --date="$date_str" +%e`
+if test -n "$release"
+then
+	release="\\\\\\\\ Release $release"
+fi
 
-env printf "\\date{%s %s, %s %s}\n" $month $day $year $modified
+# env printf "\\date{%s %s, %s %s %s}\n" $month $day $year $modified $release
+echo "\\date{$month $day, $year $modified $release}"
 env printf "\\\newcommand{\\\commityear}{%s}\n" $year
