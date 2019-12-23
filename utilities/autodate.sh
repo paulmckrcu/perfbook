@@ -47,9 +47,8 @@ year=`date --date="$date_str" +%Y`
 day=`date --date="$date_str" +%e`
 if test -n "$release"
 then
-	release="\\\\\\\\ Release $release"
+	release=`env printf '%s %s' '\\\\' "Release $release"`
 fi
 
-# env printf "\\date{%s %s, %s %s %s}\n" $month $day $year $modified $release
-echo "\\date{$month $day, $year $modified $release}"
-env printf "\\\newcommand{\\\commityear}{%s}\n" $year
+env printf '\\date{%s %s, %s %s %s}\n' $month $day $year $modified "$release"
+env printf '\\newcommand{\\commityear}{%s}\n' $year
