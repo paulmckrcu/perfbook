@@ -49,9 +49,12 @@ find */ -type d -print |
 	sed -e "s,^,mkdir ${destdir}/," |
 	sh
 
-cp autodate.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex origpub.sty qqz.sty perfbook.bbl ${destdir}
+cp autodate.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex origpub.sty qqz.sty pfbook.cls pfhyphex.tex perfbook.bbl ${destdir}
 
-find */ '(' -name '*.pdf' -o -name '*.tex' ')' -exec cp {} ${destdir}/{} \;
+find */ '(' -name '*.pdf' -o -name '*.tex' -o -name '*.fcv' -o -name '*.lst' ')' -exec cp {} ${destdir}/{} \;
+
+# A few code files.  This might end up not scaling, but...
+cp appendix/styleguide/samplecodesnippet.c ${destdir}/appendix/styleguide
 
 # Remove "helper" .tex files that generate figure (keep PDF instead)
 rm ${destdir}/SMPdesign/DiningPhilosopher4part-b.tex
