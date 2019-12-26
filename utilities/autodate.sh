@@ -3,7 +3,7 @@
 # Extract git commit date info to generate autodate.tex.
 # If invoked on not-clean git repository, append "(m)" to date field
 # for title.
-# If git status is not availabe, use current date instead.
+# If git status is not available, use current date instead.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -40,14 +40,62 @@ else
 	else
 		modified=""
 	fi
-	release="`git describe --tags HEAD | sed -e 's/^.*-.*$//'`"
+	description="`git describe --tags HEAD`"
+	case "$description" in
+	*-g*)
+		release="Commit $description"
+		;;
+	v*)
+		release="Release $description"
+		;;
+	Edition*)
+		release="Edition"
+		case "$description" in
+		*P*)
+			release="Print $release"
+			;;
+		esac
+		case "$description" in
+		Edition[.-][0-9]*)
+			ednum="`echo $description | sed -e 's/^Edition[.-]\([1-9]*\).*$/\1/'`"
+			case "$ednum" in
+			1)
+				edord=First
+				;;
+			2)
+				edord=Second
+				;;
+			3)
+				edord=Third
+				;;
+			4)
+				edord=Fourth
+				;;
+			*)
+				edord=FixMe
+				;;
+			esac
+			release="$edord $release"
+			;;
+		esac
+		case "$description" in
+		*-rc[0-9]*)
+			rc="`echo $description | sed -e 's/^.*-rc\(.*\)$/\1/'`"
+			release="$release, Release Candidate $rc"
+			;;
+		esac
+		;;
+	*)
+		release="Commit $description"
+		;;
+	esac
 fi
 month=`date --date="$date_str" +%B`
 year=`date --date="$date_str" +%Y`
 day=`date --date="$date_str" +%e`
 if test -n "$release"
 then
-	release=`env printf '%s %s' '\\\\' "Release $release"`
+	release=`env printf '%s %s' '\\\\' "$release"`
 fi
 
 env printf '\\date{%s %s, %s %s %s}\n' $month $day $year $modified "$release"
