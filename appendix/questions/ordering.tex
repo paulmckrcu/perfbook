@@ -1,0 +1,127 @@
+% appendix/questions/ordering.tex
+% mainfile: ../../perfbook.tex
+% SPDX-License-Identifier: CC-BY-SA-3.0
+
+\section{How Much Ordering?}
+\label{sec:app:questions:How Much Ordering?}
+
+How much ordering is enough?
+
+Perhaps you have carefully constructed a strongly ordered concurrent
+system, only to find that it neither performs nor scales well.
+Or perhaps you threw caution to the wind, only to find that your
+brilliantly fast and scalable software is also unreliable.
+Is there a happy medium with both robust reliability on the one
+hand and powerful performance augmented by scintellating scalability on
+the other?
+
+The answer, as is so often the case, is ``it depends''.
+
+One approach is to construct a strongly ordered system, then examine
+its performance and scalablity.
+If these suffice, the system is good and sufficient, and no more need
+be done.
+Otherwise, undertake careful analysis
+(see \Cref{sec:debugging:Performance Estimation})
+and attack the bottleneck located thereby.
+
+This approach can work very well, especially in contrast to the
+all-too-common approach of optimizing random components of the system
+in the hope of achieving significant system-wide benefits.
+However, starting with strong ordering can also be quite wasteful,
+given that weakening ordering of the system's bottleneck can require
+that large portions of the rest of the system be redesigned and
+rewritten to accommodate the weakening.
+Worse yet, eliminating one bottleneck often exposes another, which
+in turn needs to be weakened and which in turn can result in wholesale
+redesigns and rewrites of other parts of the system.
+Perhaps even worse is the approach, also common, of starting with a
+fast but unreliable system and then playing whack-a-mole with an endless
+succession of concurrency bugs, though in the latter case,
+Chapters~\ref{chp:Validation}
+and~\ref{chp:Formal Verification}
+are always there for you.
+
+It would be better to have design-time tools to determine which portions
+of the system can feature weak ordering, and at the same time, which
+portions actually benefit from weak ordering.
+These tasks are taken up by the following sections.
+
+\subsection{Where is the Defining Data?}
+\label{sec:app:questions:Where is the Defining Data?}
+
+One way to do this is to keep firmly in mind that the region of
+consistency engendered by strong ordering cannot extend out past the
+boundaries of the system.\footnote{
+	Which might well be a distributed system.}
+Portions of the system whose role is to track the state of the outside
+world can usually feature weak ordering, given that speed-of-light delays
+will force the within-system state to lag behind the outside world.
+There is often no point in incurring large overheads to force a consistent
+view of data that is inherently out of date.
+In these cases, the methods of \Cref{chp:Deferred Processing} can be
+quite helpful, as can some of the data structures described in
+\Cref{chp:Data Structures}.
+
+Some might argue that useful computing deals only with the outside world,
+and therefore that all computing can use weak ordering.
+Such arguments are incorrect.
+For example, the value of your bank account is defined within your bank's
+computers, and people often prefer exact computations involving their
+account balances, especially those cynical enough to suspect that any
+approximating would be in the bank's favor.
+
+In short, although data tracking external state can be an attractive
+candidate for weakly ordered access, please think carefully about
+exactly what is being tracked and what is doing the tracking.
+
+\subsection{Consistent Data Used Consistently?}
+\label{sec:app:questions:Consistent Data Used Consistently?}
+
+Another hint that weakening is safe can appear in the guise of data
+that is computed while holding a lock, but then used after the lock
+is released.
+The computed result clearly becomes at best an approximation as soon as
+the lock is released, which suggests computing the result approximately
+in the first place, possibly permitting use of weaker ordering.
+To this end, \Cref{chp:Counting} covers numerous approximate methods
+for counting.
+
+Great care is required, however.
+Is the use of data following lock release a hint that weak-ordering
+optimizations might be helpful?
+Or is instead a bug in which the lock was released too soon?
+
+\subsection{Is the Problem Partitionable?}
+\label{sec:app:questions:Is the Problem Partitionable?}
+
+Suppose that the system holds the defining instance of the data,
+or that using a computed value past lock release proved to be a bug.
+What then?
+
+One approach is to partition the system, as discussed in
+\Cref{cha:Partitioning and Synchronization Design}.
+Partititioning can provide excellent scalability and in its more
+extreme form, per-CPU performance rivaling that of a sequential program,
+as discussed in \Cref{chp:Data Ownership}.
+Partial partitioning is often mediated by locking, which is the subject of
+\Cref{chp:Locking}.
+
+\subsection{None of the Above?}
+\label{sec:app:questions:None of the Above?}
+
+The previous sections described the easier ways to gain performance
+and scalability, sometimes using weaker ordering and sometimes not.
+But the plain fact is that multicore systems are under no compunction
+to make life easy.
+But perhaps the advanced topics covered in
+Chapter~\ref{sec:advsync:Advanced Synchronization}
+and~\ref{chp:Advanced Synchronization: Memory Ordering}
+will prove helpful.
+
+But please proceed with care, as it is all too easy to destabilize
+your codebase optimizing non-bottlenecks.
+Once again, \Cref{sec:debugging:Performance Estimation} can help.
+It might also be worth your time to review other portions of this
+book, as it contains much information on handling a number of tricky
+situations.
