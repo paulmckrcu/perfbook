@@ -30,6 +30,7 @@ then
 	date_str=`date -R`
 	modified=""
 	release=""
+	commitid=""
 else
 	date_str=`git show --format="%cD" | head -1`
 	# check if git status is clean
@@ -44,12 +45,15 @@ else
 	case "$description" in
 	*-g*)
 		release=`env printf 'Commit: \\\texttt{%s}' "$description"`
+		commitid=`echo $description | sed -e 's/.*-\(g.*\)/\1/'`
 		;;
 	v*)
 		release="Release $description"
+		commitid=$description
 		;;
 	Edition*)
 		release="Edition"
+		commitid=$description
 		case "$description" in
 		*P*)
 			release="Print $release"
@@ -70,6 +74,7 @@ else
 		;;
 	*)
 		release=`env printf 'Tag: \\\texttt{%s}' "$description"`
+		commitid=`echo $description | sed -e 's/.*-\(g.*\)/\1/'`
 		;;
 	esac
 fi
@@ -83,3 +88,4 @@ fi
 
 env printf '\\date{%s %s, %s %s %s}\n' $month $day $year "$release" $modified
 env printf '\\newcommand{\\commityear}{%s}\n' $year
+env printf '\\newcommand{\\commitid}{%s}\n' $commitid$modified
