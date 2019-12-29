@@ -1940,6 +1940,10 @@ Unfortunately, it is often impractical for the following reasons:
 	than you have access to.
 \item	The application might use data that you cannot
 	access, for example, due to privacy regulations.
+\item	The application might take longer than is convenient to
+	reproduce a performance or scalability problem.\footnote{
+		Microbenchmarks can help, but
+		please see \cref{sec:debugging:Microbenchmarking}.}
 \end{enumerate}
 
 Creating a benchmark that approximates
@@ -2161,11 +2165,11 @@ free of interference.
 Or mostly free of interference, anyway.
 It turns out that the scheduling-clock interrupt fires on each CPU
 that is running in user mode.\footnote{
-	Frederic Weisbecker is working on a \co{NO_HZ_FULL}
+	Frederic Weisbecker leads up a \co{NO_HZ_FULL}
 	adaptive-ticks project
-	that will allow the scheduling-clock interrupt to be shut
-	off on any CPU that has only one runnable task, and as of
-	2017, this is mostly but not totally completed.}
+	that allows scheduling-clock interrupts to be disabled
+	on CPUs that have only one runnable task.
+	As of 2019, this is nearly complete.}
 In addition you must take care to ensure that the set of CPUs that you
 confine the interrupts to is capable of handling the load.
 
@@ -2193,16 +2197,18 @@ interference.
 	Section~\ref{sec:debugging:Detecting Interference}.
 } \QuickQuizEnd
 
-If you find yourself in this painful situation, instead of preventing
-the interference, you might need to detect the interference as described
-in the next section.
+Of course, if it is in fact the interference that is producing the
+behavior of interest, you will instead need to promote interference,
+in which case being unable to prevent it is not a problem.
+But if you really do need interference-free measurements, then instead
+of preventing the interference, you might need to detect the interference
+as described in the next section.
 
 \subsection{Detecting Interference}
 \label{sec:debugging:Detecting Interference}
 
-If you cannot prevent interference, perhaps you can detect the
-interference after the fact and reject the test runs that were affected
-by that interference.
+If you cannot prevent interference, perhaps you can detect it
+and reject results from any affected test runs.
 Section~\ref{sec:debugging:Detecting Interference Via Measurement}
 describes methods of rejection involving additional measurements,
 while Section~\ref{sec:debugging:Detecting Interference Via Statistics}
@@ -2218,10 +2224,9 @@ describes statistics-based rejection.
 
 Many systems, including Linux, provide means for determining after the
 fact whether some forms of interference have occurred.
-For example, if your test encountered process-based interference,
-a context switch must have occurred during the test.
-On Linux-based systems, this context switch will be visible in
-\path{/proc/<PID>/sched} in the \co{nr_switches} field.
+For example, process-based interference results in context switches,
+which, on Linux-based systems, are visible in
+\path{/proc/<PID>/sched} via the \co{nr_switches} field.
 Similarly, interrupt-based interference can be detected via the
 \path{/proc/interrupts} file.
 
@@ -2364,13 +2369,11 @@ line.
 The loop spanning lines~\lnref{copy:b} and~\lnref{copy:e} copies
 the input y-values to the
 \co{d} array, which line~\lnref{asort} sorts into increasing order.
-Line~\lnref{comp_i} computes the number of y-values that are to be
-trusted absolutely
+Line~\lnref{comp_i} computes the number of trustworthy y-values
 by applying \co{divisor} and rounding up.
 
 \Clnrefrange{delta}{comp_max:e} compute the \co{maxdelta}
-value used as a lower bound on
-the upper bound of y-values.
+lower bound on the upper bound of y-values.
 To this end, line~\lnref{maxdelta} multiplies the difference in values over
 the trusted region of data by the \co{divisor}, which projects the
 difference in values across the trusted region across the entire
@@ -2397,7 +2400,7 @@ and its predecessor exceeds the trend-break difference (\co{maxdiff}),
 then line~\lnref{break} exits the loop: We have the full good set of data.
 
 \Clnrefrange{comp_stat:b}{comp_stat:e} then compute and print
-the statistics for the data set.
+statistics.
 \end{lineref}
 
 \QuickQuiz{}
