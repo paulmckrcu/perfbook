@@ -43,7 +43,7 @@ else
 	description="`git describe --tags HEAD`"
 	case "$description" in
 	*-g*)
-		release="Commit $description"
+		release=`env printf 'Commit: \\\texttt{%s}' "$description"`
 		;;
 	v*)
 		release="Release $description"
@@ -57,25 +57,8 @@ else
 		esac
 		case "$description" in
 		Edition[.-][0-9]*)
-			ednum="`echo $description | sed -e 's/^Edition[.-]\([1-9]*\).*$/\1/'`"
-			case "$ednum" in
-			1)
-				edord=First
-				;;
-			2)
-				edord=Second
-				;;
-			3)
-				edord=Third
-				;;
-			4)
-				edord=Fourth
-				;;
-			*)
-				edord=FixMe
-				;;
-			esac
-			release="$edord $release"
+			ednum="`echo $description | sed -e 's/^Edition[.-]\([0-9]*\).*$/\1/'`"
+			release=`env printf '\\Ordinalstringnum{%s} %s' $ednum "$release"`
 			;;
 		esac
 		case "$description" in
@@ -86,7 +69,7 @@ else
 		esac
 		;;
 	*)
-		release="Commit $description"
+		release=`env printf 'Tag: \\\texttt{%s}' "$description"`
 		;;
 	esac
 fi
@@ -98,5 +81,5 @@ then
 	release=`env printf '%s %s' '\\\\' "$release"`
 fi
 
-env printf '\\date{%s %s, %s %s %s}\n' $month $day $year $modified "$release"
+env printf '\\date{%s %s, %s %s %s}\n' $month $day $year "$release" $modified
 env printf '\\newcommand{\\commityear}{%s}\n' $year
