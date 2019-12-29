@@ -48,7 +48,7 @@ then
 fi
 
 oldtag="`git describe --tags HEAD | sed -e 's/-.*$//'`"
-case "$t{tag}" in
+case "${tag}" in
 [0-9]*)
 	gittag=v${tag}
 	;;
@@ -82,7 +82,7 @@ then
 	echo Single-column build failed, giving up.
 	exit 7
 fi
-cp perfbook.pdf "${destdir}/perfbook-1c.${tag}.pdf"
+cp perfbook-1c.pdf "${destdir}/perfbook-1c.${tag}.pdf"
 
 # Yes, this will ask for credentials for the remote repository...
 # If this becomes too irritating, a replacement script can be created.
