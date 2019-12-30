@@ -45,7 +45,7 @@ else
 	case "$description" in
 	*-g*)
 		release=`env printf 'Commit: \\\texttt{%s}' "$description"`
-		commitid=`echo $description | sed -e 's/.*-\(g.*\)/\1/'`
+		commitid="$description"
 		;;
 	v*)
 		release="Release $description"
