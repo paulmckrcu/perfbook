@@ -110,12 +110,15 @@ unfairness, and inefficiency.
 Deadlock occurs when each of a group of threads is holding at least one
 lock while at the same time waiting on a lock held by a member
 of that same group.
+This happens even in groups containing a single thread when that thread
+attempts to acquire a non-recursive lock that it already holds.
+Deadlock can therefore occur even given but one thread and one lock!
 
 Without some sort of external intervention, deadlock is forever.
 No thread can acquire the lock it is waiting on until that
 lock is released by the thread holding it, but the thread holding
 it cannot release it until the holding thread acquires the lock that
-it is waiting on.
+it is in turn waiting on.
 
 \begin{figure}[tb]
 \centering
@@ -137,8 +140,8 @@ In Figure~\ref{fig:locking:Deadlock Cycle}, this cycle is
 Thread~B, Lock~3, Thread~C, Lock~4, and back to Thread~B.
 
 \QuickQuiz{}
-	But the definition of deadlock only said that each thread
-	was holding at least one lock and waiting on another lock
+	But the definition of lock-based deadlock only said that each
+	thread was holding at least one lock and waiting on another lock
 	that was held by some thread.
 	How do you know that there is a cycle?
 \QuickQuizAnswer{
@@ -148,33 +151,38 @@ Thread~B, Lock~3, Thread~C, Lock~4, and back to Thread~B.
 
 	If this leaf node was a lock, then we would have a thread
 	that was waiting on a lock that wasn't held by any thread,
-	which violates the definition.
-	(And in this case the thread would immediately acquire the
-	lock.)
+	counter to the definition.
+	In this case the thread would immediately acquire the lock.
 
 	On the other hand, if this leaf node was a thread, then
 	we would have a thread that was not waiting on any lock,
-	again violating the definition.
-	(And in this case, the thread would either be running or
-	be blocked on something that is not a lock.)
+	again counter to the definition.
+	And in this case, the thread would either be running or
+	be blocked on something that is not a lock.
+	In the first case, in the absence of infinite-loop bugs,
+	the thread will eventually release the lock.
+	In the second case, in the absence of a failure-to-wake bug,
+	the thread will eventually wake up and release the lock.\footnote{
+		Of course, one type of failure-to-wake bug is a
+		deadlock that involves not only locks, but also non-lock
+		resources.
+		But the question really did say ``lock-based deadlock''!}
 
-	Therefore, given this definition of deadlock, there must
-	be a cycle in the corresponding graph.
+	Therefore, given this definition of lock-based deadlock, there
+	must be a cycle in the corresponding graph.
 } \QuickQuizEnd
 
 Although there are some software environments such as database systems
-that can repair an existing deadlock, this approach requires either that
-one of the threads be killed or that a lock be forcibly stolen from one
-of the threads.
+that can recover from an existing deadlock, this approach requires either
+that one of the threads be killed or that a lock be forcibly stolen from
+one of the threads.
 This killing and forcible stealing can be appropriate for transactions,
 but is often problematic for kernel and application-level use of locking:
 dealing with the resulting partially updated structures can be extremely
 complex, hazardous, and error-prone.
 
-Kernels and applications therefore work to avoid deadlocks rather than to
-recover from them.
-There are a number of deadlock-avoidance strategies,
-including locking hierarchies
+Therefore, kernels and applications should instead avoid deadlocks.
+Deadlock-avoidance strategies include locking hierarchies
 (Section~\ref{sec:locking:Locking Hierarchies}),
 local locking hierarchies
 (Section~\ref{sec:locking:Local Locking Hierarchies}),
@@ -191,8 +199,7 @@ single-lock-at-a-time designs
 and strategies for signal/interrupt handlers
 (Section~\ref{sec:locking:Signal/Interrupt Handlers}).
 Although there is no deadlock-avoidance strategy that works perfectly
-for all situations, there is a good selection of deadlock-avoidance
-tools to choose from.
+for all situations, there is a good selection of tools to choose from.
 
 \subsubsection{Locking Hierarchies}
 \label{sec:locking:Locking Hierarchies}
@@ -200,12 +207,12 @@ tools to choose from.
 Locking hierarchies order the locks and prohibit acquiring locks out
 of order.
 In Figure~\ref{fig:locking:Deadlock Cycle},
-we might order the locks numerically, so that a thread was
-forbidden from acquiring a given lock if it already held a lock
+we might order the locks numerically, thus forbidding a thread
+from acquiring a given lock if it already holds a lock
 with the same or a higher number.
 Thread~B has violated this hierarchy because it is attempting to
-acquire Lock~3 while holding Lock~4, which permitted the deadlock
-to occur.
+acquire Lock~3 while holding Lock~4.
+This violation permitted the deadlock to occur.
 
 Again, to apply a locking hierarchy, order the locks and prohibit
 out-of-order lock acquisition.
@@ -221,8 +228,8 @@ After all, the program using a given library function has not even been
 written yet, so how can the poor library-function implementor possibly
 hope to adhere to the yet-to-be-written program's locking hierarchy?
 
-One special case that is fortunately the common case is when
-the library function does not invoke any of the caller's code.
+One special (but common) case is when the library function does not
+invoke any of the caller's code.
 In this case, the caller's locks will never be acquired while holding
 any of the library's locks, so that there cannot be a deadlock cycle
 containing locks from both the library and the caller.
@@ -260,12 +267,14 @@ containing locks from both the library and the caller.
 		within a signal handler is a no-no in most
 		environments---it is not just a bad idea, it
 		is unsupported.
+		But if you absolutely must acquire a lock in a signal
+		handler, be sure to block that signal while holding that
+		same lock in thread context.
 	\end{enumerate}
 } \QuickQuizEnd
 
 But suppose that a library function does invoke the caller's code.
-For example, the \co{qsort()} function invokes a caller-provided
-comparison function.
+For example, \co{qsort()} invokes a caller-provided comparison function.
 A concurrent implementation of \co{qsort()} likely uses locking,
 which might result in deadlock in the perhaps-unlikely case where
 the comparison function is a
@@ -274,8 +283,10 @@ How can the library function avoid deadlock?
 
 The golden rule in this case is ``Release all locks before invoking
 unknown code.''
-To follow this rule, the \co{qsort()} function must release all
+To follow this rule, the \co{qsort()} function must release all of its
 locks before invoking the comparison function.
+Thus \co{qsort()} will not be holding any of its locks while the comparison
+function acquires any of the caller's locks, thus avoiding deadlock.
 
 \QuickQuiz{}
 	But if \co{qsort()} releases all its locks before invoking
@@ -287,13 +298,15 @@ locks before invoking the comparison function.
 	or through use of deferral mechanisms such as
 	reference counting (as discussed in
 	Chapter~\ref{chp:Deferred Processing}).
+	Or through use of layered locking hierarchies, as described
+	in \cref{sec:locking:Layered Locking Hierarchies}.
 } \QuickQuizEnd
 
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{locking/NonLocalLockHierarchy}}
-\caption{Without Local Locking Hierarchy for \tco{qsort()}}
-\label{fig:lock:Without Local Locking Hierarchy for qsort()}
+\caption{Without \tco{qsort()} Local Locking Hierarchy}
+\label{fig:lock:Without qsort() Local Locking Hierarchy}
 \end{figure}
 
 \begin{figure}[tb]
@@ -304,7 +317,7 @@ locks before invoking the comparison function.
 \end{figure}
 
 To see the benefits of local locking hierarchies, compare
-Figures~\ref{fig:lock:Without Local Locking Hierarchy for qsort()} and
+Figures~\ref{fig:lock:Without qsort() Local Locking Hierarchy} and
 \ref{fig:lock:Local Locking Hierarchy for qsort()}.
 In both figures, application functions \co{foo()} and \co{bar()}
 invoke \co{qsort()} while holding Locks~A and~B, respectively.
@@ -318,7 +331,7 @@ locks.
 
 Now, if \co{qsort()} holds Lock~C while calling \co{cmp()} in violation
 of the golden release-all-locks rule above, as shown in
-Figure~\ref{fig:lock:Without Local Locking Hierarchy for qsort()},
+Figure~\ref{fig:lock:Without qsort() Local Locking Hierarchy},
 deadlock can occur.
 To see this, suppose that one thread invokes \co{foo()} while a second
 thread concurrently invokes \co{bar()}.
@@ -358,7 +371,7 @@ However, we can instead construct a layered locking hierarchy, as shown in
 Figure~\ref{fig:lock:Layered Locking Hierarchy for qsort()}.
 here, the \co{cmp()} function uses a new Lock~D that is acquired after
 all of Locks~A, B, and~C, avoiding deadlock.
-we therefore have three layers to the global deadlock hierarchy, the
+We therefore have three layers to the global deadlock hierarchy, the
 first containing Locks~A and~B, the second containing Lock~C, and
 the third containing Lock~D.
 
@@ -374,6 +387,8 @@ Quite the opposite: It is often necessary to make profound design-level
 modifications.
 Nevertheless, the effort required for such modifications is normally
 a small price to pay in order to avoid deadlock.
+More to the point, this potential deadlock should preferably be detected
+at design time, before any code has been generated!
 
 For another example where releasing all locks before invoking unknown
 code is impractical, imagine an iterator over a linked list, as shown in
@@ -464,8 +479,8 @@ prevents hangs due to lost wakeups.
 } \QuickQuizEnd
 
 In short, if you find yourself exporting an API with a pointer to a
-lock as an argument or the return value, do yourself a favor and carefully
-reconsider your API design.
+lock as an argument or the as the return value, do yourself a favor and
+carefully reconsider your API design.
 It might well be the right thing to do, but experience indicates that
 this is unlikely.
 
@@ -590,7 +605,7 @@ must release the locks and start over.
 \subsubsection{Acquire Needed Locks First}
 \label{sec:locking:Acquire Needed Locks First}
 
-In an important special case of conditional locking all needed
+In an important special case of conditional locking, all needed
 locks are acquired before any processing is carried out.
 In this case, processing need not be idempotent: if it turns out
 to be impossible to acquire a given lock without first releasing
@@ -656,36 +671,43 @@ Chapter~\ref{chp:Deferred Processing}.
 Deadlocks involving signal handlers are often quickly dismissed by
 noting that it is not legal to invoke \co{pthread_mutex_lock()} from
 within a signal handler~\cite{OpenGroup1997pthreads}.
-However, it is possible (though almost always unwise) to hand-craft
-locking primitives that can be invoked from signal handlers.
+However, it is possible (though often unwise) to hand-craft
+locking primitives that \emph{can} be invoked from signal handlers.
 Besides which, almost all operating-system kernels permit locks to
 be acquired from within interrupt handlers, which are the kernel analog
 to signal handlers.
 
 The trick is to block signals (or disable interrupts, as the case may be)
-when acquiring any lock that might be acquired within an interrupt
-handler.
+when acquiring any lock that might be acquired within a signal
+(or an interrupt) handler.
 Furthermore, if holding such a lock, it is illegal to attempt to
 acquire any lock that is ever acquired
 outside of a signal handler without blocking signals.
 
 \QuickQuiz{}
-	Why is it illegal to acquire a Lock~A that is acquired outside
-	of a signal handler without blocking signals while holding
-	a Lock~B that is acquired within a signal handler?
+	Suppose Lock~A is never acquired within a signal handler,
+	but Lock~B is acquired both from thread context and by signal
+	handlers.
+	Suppose further that Lock~A is sometimes acquired with signals
+	unblocked.
+	Why is it illegal to acquire Lock~A holding Lock~B?
 \QuickQuizAnswer{
 	Because this would lead to deadlock.
-	Given that Lock~A is held outside of a signal
+	Given that Lock~A is sometimes held outside of a signal
 	handler without blocking signals, a signal might be handled while
 	holding this lock.
 	The corresponding signal handler might then acquire
 	Lock~B, so that Lock~B is acquired while holding Lock~A.
-	Therefore, if we also acquire Lock~A while holding Lock~B
-	as called out in the question, we will have a deadlock cycle.
+	Therefore, if we also acquire Lock~A while holding Lock~B,
+	we will have a deadlock cycle.
+	Note that this problem exists even if signals are blocked while
+	holding Lock~B.
 
-	Therefore, it is illegal to acquire a lock that is acquired outside
-	of a signal handler without blocking signals while holding
-	another lock that is acquired within a signal handler.
+	This is another reason to be very careful with locks that are
+	acquired within interrupt or signal handlers.
+	But the Linux kernel's lock dependency checker knows about this
+	situation and many others as well, so please do make full use
+	of it!
 } \QuickQuizEnd
 
 If a lock is acquired by the handlers for several signals, then each
@@ -720,7 +742,7 @@ fatal errors.
 
 	In many application environments, acquiring locks in signal
 	handlers is frowned upon~\cite{OpenGroup1997pthreads}.
-	However, that does not stop clever developers from (usually
+	However, that does not stop clever developers from (perhaps
 	unwisely) fashioning home-brew locks out of atomic operations.
 	And atomic operations are in many cases perfectly legal in
 	signal handlers.
@@ -889,8 +911,8 @@ a group of threads starves, rather than just one of them.\footnote{
 	Try not to get too hung up on the exact definitions of terms
 	like livelock, starvation, and unfairness.
 	Anything that causes a group of threads to fail to make adequate
-	forward progress is a problem that needs to be fixed, regardless
-	of what name you choose for it.}
+	forward progress is a bug that needs to be fixed, and debating
+	names doesn't fix bugs.}
 
 \begin{listing}[tbp]
 \begin{linelabel}[ln:locking:Conditional Locking and Exponential Backoff]
@@ -960,12 +982,12 @@ Listing~\ref{lst:locking:Conditional Locking and Exponential Backoff}.
 	\end{enumerate}
 } \QuickQuizEnd
 
-However, for better results, the backoff should be bounded, and
-even better high-contention results have been obtained via queued
+For better results, backoffs should be bounded, and
+even better high-contention results are obtained via queued
 locking~\cite{Anderson90}, which is discussed more in
 Section~\ref{sec:locking:Other Exclusive-Locking Implementations}.
-Of course, best of all is to use a good parallel design so that lock
-contention remains low.
+Of course, best of all is to use a good parallel design that avoids
+these problems by maintaining low lock contention.
 
 \subsection{Unfairness}
 \label{sec:locking:Unfairness}
@@ -987,7 +1009,7 @@ If CPU~0 releases a lock that all the other CPUs are attempting
 to acquire, the interconnect shared between CPUs~0 and~1 means that
 CPU~1 will have an advantage over CPUs~2--7.
 Therefore CPU~1 will likely acquire the lock.
-If CPU~1 hold the lock long enough for CPU~0 to be requesting the
+If CPU~1 holds the lock long enough for CPU~0 to be requesting the
 lock by the time CPU~1 releases it and vice versa, the lock can
 shuttle between CPUs~0 and~1, bypassing CPUs~2--7.
 
@@ -1057,6 +1079,7 @@ are an effective performance booster, at least for large critical sections.
 	Of course, the downside of placing the lock and data into separate
 	cache lines is that the code will incur two cache misses rather
 	than only one in the uncontended case.
+	As always, choose wisely!
 } \QuickQuizEnd
 
 \section{Types of Locks}
