@@ -1254,6 +1254,43 @@ all necessary code paths rests with the developer.
 
 \QuickQuizLabel{\QlockingQemptycriticalsection}
 
+It is important to note that unconditionally acquiring an exclusive lock
+has two effects:
+(1)~Waiting for all prior holders of that lock to release it, and
+(2)~Blocking any other acquisition attempts until the lock is released.
+As a result, at lock acquisition time, any concurrent acquisitions of
+that lock must be partitioned into prior holders and subsequent
+holders.
+Different types of exclusive locks use different partitioning
+strategies~\cite{BjoernBrandenburgPhD,Guerraoui:2019:LPA:3319851.3301501},
+for example:
+
+\begin{enumerate}
+\item	Strict FIFO, with acquisitions starting earlier acquiring
+	the lock earlier.
+\item	Approximate FIFO, with acquisitions starting sufficiently
+	earlier acquiring the lock earlier.
+\item	FIFO within priority level, with higher-priority threads
+	acquiring the lock earlier than any lower-priority threads
+	attempting to acquire the lock at about the same time, but so
+	that some FIFO ordering applies for threads of the same priority.
+\item	Random, so that the new lock holder is chosen randomly from
+	all threads attempting acquisition, regardless of timing.
+\item	
+	Unfair, so that a given acquisition might never acquire the lock
+	(see \cref{sec:locking:Unfairness}).
+\end{enumerate}
+
+Unfortunately, locking implementations with stronger guarantees
+typically incur higher overhead, motivating the wide variety of locking
+implementations in production use.
+For example, real-time systems often require some degree of FIFO
+ordering within priority level, and much else besides
+(see \cref{sec:advsync:Event-Driven Real-Time Support}),
+while non-realtime systems subject to high contention might require
+only enough ordering to avoid starvation, and finally, non-realtime
+systems designed to avoid contention might not need fairness at all.
+
 \subsection{Reader-Writer Locks}
 \label{sec:locking:Reader-Writer Locks}
 
@@ -1295,6 +1332,36 @@ situations, but each type of implementation does have its drawbacks.
 The canonical use case for reader-writer locking involves very long
 read-side critical sections, preferably measured in hundreds of microseconds
 or even milliseconds.
+
+As with exclusive locks, unconditionally acquiring a reader-writer lock
+waits for all prior conflicting holders of that lock to release it.
+Here, readers conflict with writers, and writers with both readers and
+with other writers.
+Also as with exclusive locks, holding a reader-writer lock blocks any
+subsequent acquisition attempts until the lock is released.
+And again as with exclusive locks, at lock acquisition time any concurrent
+conflicting acquisitions must be partitioned into prior holders and
+subsequent holders.
+However, in contrast to exclusive locks, some reader-writer locks also
+similarly partition concurrent non-conflicting acquisitions in order to
+avoid starving conflicting acquisitions, for example:
+
+\begin{enumerate}
+\item	Reader-preference implementations favor readers over writers,
+	possibly allowing write acquisitions to be indefinitely blocked.
+\item	Batch-fair implementations ensure that both readers and writers
+	have access by processing batches, for example, some number of
+	readers, some number of writers, and so on.
+\item	Writer-preference implementations favor writers over readers,
+	possibly allowing read acquisitions to be indefinitely blocked.
+\end{enumerate}
+
+And once again, as with exclusive locking, these distinctions matter
+only under conditions of high lock contention.
+
+Please keep the waiting/blocking dual nature of locks firmly in mind.
+This will be revisited in \cref{chp:Deferred Processing}'s discussion
+of scalable high-performance special-purpose alternatives to locking.
 
 \subsection{Beyond Reader-Writer Locks}
 \label{sec:locking:Beyond Reader-Writer Locks}
