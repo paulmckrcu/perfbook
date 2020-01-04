@@ -79,6 +79,6 @@ rm ${destdir}/SMPdesign/DiningPhilosopher5TB.tex
 
 # The following changes work around arxiv.org limitations
 sed	-e '/usepackage{footnotebackref}/d' \
-	-e 's/\[bookmarks=true,bookmarksnumbered=true,pdfborder={0 0 0}]/[bookmarks=false]/' \
+	-e 's/{toarxiv}{false}/{toarxiv}{true}/' \
 	< perfbook.tex > ${destdir}/perfbook.tex
-echo "nohypertex" > ${destdir}/00README.XXX
+# echo "nohypertex" > ${destdir}/00README.XXX
