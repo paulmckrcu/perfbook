@@ -321,18 +321,18 @@ preemptible RCU's grace-period machinery.
 \subsubsection{Grace-Period Interface}
 \label{sec:formal:Grace-Period Interface}
 
-\begin{figure}[htb]
-\centering
-\resizebox{3in}{!}{\includegraphics{formal/RCUpreemptStates}}
-\caption{Preemptible RCU State Machine}
-\label{fig:formal:Preemptible RCU State Machine}
-\end{figure}
-
 Of the four preemptible RCU grace-period states shown in
 \cref{fig:formal:Preemptible RCU State Machine},
 only the \co{rcu_try_flip_waitack_state}
 and \co{rcu_try_flip_waitmb_state} states need to wait
 for other CPUs to respond.
+
+\begin{figure}[tb]
+\centering
+\resizebox{3in}{!}{\includegraphics{formal/RCUpreemptStates}}
+\caption{Preemptible RCU State Machine}
+\label{fig:formal:Preemptible RCU State Machine}
+\end{figure}
 
 Of course, if a given CPU is in dynticks-idle state, we shouldn't
 wait for it.
@@ -1193,7 +1193,13 @@ development cycle~\cite{PaulEMcKenney2008commit:64db4cfff99c}.
 
 \subsubsection{State Variables for Simplified Dynticks Interface}
 \label{sec:formal:State Variables for Simplified Dynticks Interface}
-\NoIndentAfterThis
+
+\Cref{lst:formal:Variables for Simple Dynticks Interface}
+shows the new per-CPU state variables.
+These variables are grouped into structs to allow multiple independent
+RCU implementations (e.g., \co{rcu} and \co{rcu_bh}) to conveniently
+and efficiently share dynticks state.
+In what follows, they can be thought of as independent per-CPU variables.
 
 \begin{listing}[tbp]
 \begin{VerbatimL}
@@ -1213,13 +1219,6 @@ struct rcu_data {
 \caption{Variables for Simple Dynticks Interface}
 \label{lst:formal:Variables for Simple Dynticks Interface}
 \end{listing}
-
-\Cref{lst:formal:Variables for Simple Dynticks Interface}
-shows the new per-CPU state variables.
-These variables are grouped into structs to allow multiple independent
-RCU implementations (e.g., \co{rcu} and \co{rcu_bh}) to conveniently
-and efficiently share dynticks state.
-In what follows, they can be thought of as independent per-CPU variables.
 
 The \co{dynticks_nesting}, \co{dynticks}, and \co{dynticks_snap} variables
 are for the \IRQ\ code paths, and the \co{dynticks_nmi} and
@@ -1276,7 +1275,11 @@ passed through a quiescent state during that interval.
 
 \subsubsection{Entering and Leaving Dynticks-Idle Mode}
 \label{sec:formal:Entering and Leaving Dynticks-Idle Mode}
-\NoIndentAfterThis
+
+\Cref{lst:formal:Entering and Exiting Dynticks-Idle Mode}
+shows the \co{rcu_enter_nohz()} and \co{rcu_exit_nohz()},
+which enter and exit dynticks-idle mode, also known as ``nohz'' mode.
+These two functions are invoked from process context.
 
 \begin{listing}[tbp]
 \begin{linelabel}[ln:formal:Entering and Exiting Dynticks-Idle Mode]
@@ -1314,11 +1317,6 @@ void rcu_exit_nohz(void)
 \label{lst:formal:Entering and Exiting Dynticks-Idle Mode}
 \end{listing}
 
-\Cref{lst:formal:Entering and Exiting Dynticks-Idle Mode}
-shows the \co{rcu_enter_nohz()} and \co{rcu_exit_nohz()},
-which enter and exit dynticks-idle mode, also known as ``nohz'' mode.
-These two functions are invoked from process context.
-
 \begin{lineref}[ln:formal:Entering and Exiting Dynticks-Idle Mode]
 \Clnref{mb} ensures that any prior memory accesses (which might
 include accesses from RCU read-side critical sections) are seen
@@ -1339,7 +1337,23 @@ the opposite \co{dynticks} polarity.
 
 \subsubsection{NMIs From Dynticks-Idle Mode}
 \label{sec:formal:NMIs From Dynticks-Idle Mode}
-\NoIndentAfterThis
+
+\begin{lineref}[ln:formal:NMIs From Dynticks-Idle Mode]
+\Cref{lst:formal:NMIs From Dynticks-Idle Mode}
+shows the \co{rcu_nmi_enter()} and \co{rcu_nmi_exit()} functions,
+which inform RCU of NMI entry and exit, respectively, from dynticks-idle
+mode.
+However, if the NMI arrives during an \IRQ\ handler, then RCU will already
+be on the lookout for RCU read-side critical sections from this CPU,
+so \clnref{chk_ext1,ret1} of \co{rcu_nmi_enter()} and \clnref{chk_ext2,ret2}
+of \co{rcu_nmi_exit()} silently return if \co{dynticks} is odd.
+Otherwise, the two functions increment \co{dynticks_nmi}, with
+\co{rcu_nmi_enter()} leaving it with an odd value and \co{rcu_nmi_exit()}
+leaving it with an even value.
+Both functions execute memory barriers between this increment
+and possible RCU read-side critical sections on \clnref{mb1,mb2},
+respectively.
+\end{lineref}
 
 \begin{listing}[tbp]
 \begin{linelabel}[ln:formal:NMIs From Dynticks-Idle Mode]
@@ -1373,26 +1387,23 @@ void rcu_nmi_exit(void)
 \label{lst:formal:NMIs From Dynticks-Idle Mode}
 \end{listing}
 
-\begin{lineref}[ln:formal:NMIs From Dynticks-Idle Mode]
-\Cref{lst:formal:NMIs From Dynticks-Idle Mode}
-shows the \co{rcu_nmi_enter()} and \co{rcu_nmi_exit()} functions,
-which inform RCU of NMI entry and exit, respectively, from dynticks-idle
-mode.
-However, if the NMI arrives during an \IRQ\ handler, then RCU will already
-be on the lookout for RCU read-side critical sections from this CPU,
-so \clnref{chk_ext1,ret1} of \co{rcu_nmi_enter()} and \clnref{chk_ext2,ret2}
-of \co{rcu_nmi_exit()} silently return if \co{dynticks} is odd.
-Otherwise, the two functions increment \co{dynticks_nmi}, with
-\co{rcu_nmi_enter()} leaving it with an odd value and \co{rcu_nmi_exit()}
-leaving it with an even value.
-Both functions execute memory barriers between this increment
-and possible RCU read-side critical sections on \clnref{mb1,mb2},
-respectively.
-\end{lineref}
-
 \subsubsection{Interrupts From Dynticks-Idle Mode}
 \label{sec:formal:Interrupts From Dynticks-Idle Mode}
-\NoIndentAfterThis
+
+\begin{lineref}[ln:formal:Interrupts From Dynticks-Idle Mode]
+\Cref{lst:formal:Interrupts From Dynticks-Idle Mode}
+shows \co{rcu_irq_enter()} and \co{rcu_irq_exit()}, which
+inform RCU of entry to and exit from, respectively, \IRQ\ context.
+\Clnref{inc_nst} of \co{rcu_irq_enter()} increments \co{dynticks_nesting},
+and if this variable was already non-zero, \clnref{ret1} silently returns.
+Otherwise, \clnref{inc_dynt1} increments \co{dynticks},
+which will then have
+an odd value, consistent with the fact that this CPU can now
+execute RCU read-side critical sections.
+\Clnref{mb1} therefore executes a memory barrier to ensure that
+the increment of \co{dynticks} is seen before any
+RCU read-side critical sections that the subsequent \IRQ\ handler
+might execute.
 
 \begin{listing}[tbp]
 \begin{linelabel}[ln:formal:Interrupts From Dynticks-Idle Mode]
@@ -1429,21 +1440,6 @@ void rcu_irq_exit(void)
 \label{lst:formal:Interrupts From Dynticks-Idle Mode}
 \end{listing}
 
-\begin{lineref}[ln:formal:Interrupts From Dynticks-Idle Mode]
-\Cref{lst:formal:Interrupts From Dynticks-Idle Mode}
-shows \co{rcu_irq_enter()} and \co{rcu_irq_exit()}, which
-inform RCU of entry to and exit from, respectively, \IRQ\ context.
-\Clnref{inc_nst} of \co{rcu_irq_enter()} increments \co{dynticks_nesting},
-and if this variable was already non-zero, \clnref{ret1} silently returns.
-Otherwise, \clnref{inc_dynt1} increments \co{dynticks},
-which will then have
-an odd value, consistent with the fact that this CPU can now
-execute RCU read-side critical sections.
-\Clnref{mb1} therefore executes a memory barrier to ensure that
-the increment of \co{dynticks} is seen before any
-RCU read-side critical sections that the subsequent \IRQ\ handler
-might execute.
-
 \Clnref{dec_nst} of \co{rcu_irq_exit()} decrements
 \co{dynticks_nesting}, and
 if the result is non-zero, \clnref{ret2} silently returns.
@@ -1461,7 +1457,25 @@ a reschedule API if so.
 
 \subsubsection{Checking For Dynticks Quiescent States}
 \label{sec:formal:Checking For Dynticks Quiescent States}
-%\NoIndentAfterThis % @@@ This doesn't work as expected @@@
+
+\begin{lineref}[ln:formal:Saving Dyntick Progress Counters]
+\Cref{lst:formal:Saving Dyntick Progress Counters}
+shows \co{dyntick_save_progress_counter()}, which takes a snapshot
+of the specified CPU's \co{dynticks} and \co{dynticks_nmi}
+counters.
+\Clnref{snap,snapn} snapshot these two variables to locals, \clnref{mb}
+executes a memory barrier to pair with the memory barriers in the functions in
+\cref{lst:formal:Entering and Exiting Dynticks-Idle Mode,%
+lst:formal:NMIs From Dynticks-Idle Mode,%
+lst:formal:Interrupts From Dynticks-Idle Mode}.
+\Clnref{rec_snap,rec_snapn} record the snapshots for later calls to
+\co{rcu_implicit_dynticks_qs()},
+and \clnref{chk_prgs} checks to see if the CPU is in dynticks-idle mode with
+neither \IRQ s nor NMIs in progress (in other words, both snapshots
+have even values), hence in an extended quiescent state.
+If so, \clnref{cnt:b,cnt:e} count this event, and \clnref{ret} returns
+true if the CPU was in a quiescent state.
+\end{lineref}
 
 \begin{listing}[tbp]
 \begin{linelabel}[ln:formal:Saving Dyntick Progress Counters]
@@ -1487,55 +1501,6 @@ dyntick_save_progress_counter(struct rcu_data *rdp)
 \end{linelabel}
 \caption{Saving Dyntick Progress Counters}
 \label{lst:formal:Saving Dyntick Progress Counters}
-\end{listing}
-
-\noindent% @@@ \NoIndentAfterThis commented out above has side effect. @@@
-\begin{lineref}[ln:formal:Saving Dyntick Progress Counters]
-\Cref{lst:formal:Saving Dyntick Progress Counters}
-shows \co{dyntick_save_progress_counter()}, which takes a snapshot
-of the specified CPU's \co{dynticks} and \co{dynticks_nmi}
-counters.
-\Clnref{snap,snapn} snapshot these two variables to locals, \clnref{mb}
-executes a memory barrier to pair with the memory barriers in the functions in
-\cref{lst:formal:Entering and Exiting Dynticks-Idle Mode,%
-lst:formal:NMIs From Dynticks-Idle Mode,%
-lst:formal:Interrupts From Dynticks-Idle Mode}.
-\Clnref{rec_snap,rec_snapn} record the snapshots for later calls to
-\co{rcu_implicit_dynticks_qs()},
-and \clnref{chk_prgs} checks to see if the CPU is in dynticks-idle mode with
-neither \IRQ s nor NMIs in progress (in other words, both snapshots
-have even values), hence in an extended quiescent state.
-If so, \clnref{cnt:b,cnt:e} count this event, and \clnref{ret} returns
-true if the CPU was in a quiescent state.
-\end{lineref}
-
-\begin{listing}[tbp]
-\begin{linelabel}[ln:formal:Checking Dyntick Progress Counters]
-\begin{VerbatimL}[commandchars=\\\[\]]
-static int
-rcu_implicit_dynticks_qs(struct rcu_data *rdp)
-{
-	long curr;
-	long curr_nmi;
-	long snap;
-	long snap_nmi;
-
-	curr = rdp->dynticks->dynticks;		\lnlbl[curr]
-	snap = rdp->dynticks_snap;		\lnlbl[snap]
-	curr_nmi = rdp->dynticks->dynticks_nmi;	\lnlbl[currn]
-	snap_nmi = rdp->dynticks_nmi_snap;	\lnlbl[snapn]
-	smp_mb();				\lnlbl[mb]
-	if ((curr != snap || (curr & 0x1) == 0) && \lnlbl[chk_q:b]
-	    (curr_nmi != snap_nmi || (curr_nmi & 0x1) == 0)) { \lnlbl[chk_q:e]
-		rdp->dynticks_fqs++;		\lnlbl[cnt]
-		return 1;			\lnlbl[ret_1]
-	}
-	return rcu_implicit_offline_qs(rdp);	\lnlbl[chk_race]
-}
-\end{VerbatimL}
-\end{linelabel}
-\caption{Checking Dyntick Progress Counters}
-\label{lst:formal:Checking Dyntick Progress Counters}
 \end{listing}
 
 \begin{lineref}[ln:formal:Checking Dyntick Progress Counters]
@@ -1566,6 +1531,35 @@ Either way, \clnref{chk_race}
 checks for race conditions that can result in RCU
 waiting for a CPU that is offline.
 \end{lineref}
+
+\begin{listing}[tbp]
+\begin{linelabel}[ln:formal:Checking Dyntick Progress Counters]
+\begin{VerbatimL}[commandchars=\\\[\]]
+static int
+rcu_implicit_dynticks_qs(struct rcu_data *rdp)
+{
+	long curr;
+	long curr_nmi;
+	long snap;
+	long snap_nmi;
+
+	curr = rdp->dynticks->dynticks;		\lnlbl[curr]
+	snap = rdp->dynticks_snap;		\lnlbl[snap]
+	curr_nmi = rdp->dynticks->dynticks_nmi;	\lnlbl[currn]
+	snap_nmi = rdp->dynticks_nmi_snap;	\lnlbl[snapn]
+	smp_mb();				\lnlbl[mb]
+	if ((curr != snap || (curr & 0x1) == 0) && \lnlbl[chk_q:b]
+	    (curr_nmi != snap_nmi || (curr_nmi & 0x1) == 0)) { \lnlbl[chk_q:e]
+		rdp->dynticks_fqs++;		\lnlbl[cnt]
+		return 1;			\lnlbl[ret_1]
+	}
+	return rcu_implicit_offline_qs(rdp);	\lnlbl[chk_race]
+}
+\end{VerbatimL}
+\end{linelabel}
+\caption{Checking Dyntick Progress Counters}
+\label{lst:formal:Checking Dyntick Progress Counters}
+\end{listing}
 
 \QuickQuiz{}
 	This is still pretty complicated.

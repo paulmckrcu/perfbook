@@ -114,12 +114,6 @@ held constant, ensuring that \co{read_count()} sees consistent data.
 
 \subsubsection{Implementation}
 
-\begin{listing}[bp]
-\input{CodeSamples/count/count_end_rcu@whole.fcv}
-\caption{RCU and Per-Thread Statistical Counters}
-\label{lst:together:RCU and Per-Thread Statistical Counters}
-\end{listing}
-
 \begin{lineref}[ln:count:count_end_rcu:whole]
 \Clnrefrange{struct:b}{struct:e} of
 \cref{lst:together:RCU and Per-Thread Statistical Counters}
@@ -130,6 +124,12 @@ and a \co{counterp[]} array of pointers to the per-thread
 This structure allows a given execution of \co{read_count()}
 to see a total that is consistent with the indicated set of running
 threads.
+
+\begin{listing}[bp]
+\input{CodeSamples/count/count_end_rcu@whole.fcv}
+\caption{RCU and Per-Thread Statistical Counters}
+\label{lst:together:RCU and Per-Thread Statistical Counters}
+\end{listing}
 
 \Clnrefrange{perthread:b}{perthread:e}
 contain the definition of the per-thread \co{counter}
@@ -329,6 +329,12 @@ tradeoff.
 \subsection{Array and Length}
 \label{sec:together:Array and Length}
 
+Suppose we have an RCU-protected variable-length array, as shown in
+\cref{lst:together:RCU-Protected Variable-Length Array}.
+The length of the array \co{->a[]} can change dynamically, and at any
+given time, its length is given by the field \co{->length}.
+Of course, this introduces the following race condition:
+
 \begin{listing}[tbp]
 \begin{VerbatimL}[tabsize=8]
 struct foo {
@@ -339,12 +345,6 @@ struct foo {
 \caption{RCU-Protected Variable-Length Array}
 \label{lst:together:RCU-Protected Variable-Length Array}
 \end{listing}
-
-Suppose we have an RCU-protected variable-length array, as shown in
-\cref{lst:together:RCU-Protected Variable-Length Array}.
-The length of the array \co{->a[]} can change dynamically, and at any
-given time, its length is given by the field \co{->length}.
-Of course, this introduces the following race condition:
 
 \begin{enumerate}
 \item	The array is initially 16 characters long, and thus \co{->length}
@@ -412,6 +412,18 @@ A more general version of this approach is presented in the next section.
 \subsection{Correlated Fields}
 \label{sec:together:Correlated Fields}
 
+Suppose that each of Sch\"odinger's animals is represented by the
+data element shown in
+\cref{lst:together:Uncorrelated Measurement Fields}.
+The \co{meas_1}, \co{meas_2}, and \co{meas_3} fields are a set
+of correlated measurements that are updated periodically.
+It is critically important that readers see these three values from
+a single measurement update: If a reader sees an old value of
+\co{meas_1} but new values of \co{meas_2} and \co{meas_3}, that
+reader will become fatally confused.
+How can we guarantee that readers will see coordinated sets of these
+three values?
+
 \begin{listing}[tbp]
 \begin{VerbatimL}[tabsize=8]
 struct animal {
@@ -426,18 +438,6 @@ struct animal {
 \caption{Uncorrelated Measurement Fields}
 \label{lst:together:Uncorrelated Measurement Fields}
 \end{listing}
-
-Suppose that each of Sch\"odinger's animals is represented by the
-data element shown in
-\cref{lst:together:Uncorrelated Measurement Fields}.
-The \co{meas_1}, \co{meas_2}, and \co{meas_3} fields are a set
-of correlated measurements that are updated periodically.
-It is critically important that readers see these three values from
-a single measurement update: If a reader sees an old value of
-\co{meas_1} but new values of \co{meas_2} and \co{meas_3}, that
-reader will become fatally confused.
-How can we guarantee that readers will see coordinated sets of these
-three values?
 
 One approach would be to allocate a new \co{animal} structure,
 copy the old structure into the new structure, update the new

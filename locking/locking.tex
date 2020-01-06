@@ -486,7 +486,22 @@ this is unlikely.
 
 \subsubsection{Conditional Locking}
 \label{sec:locking:Conditional Locking}
-\NoIndentAfterThis
+
+But suppose that there is no reasonable locking hierarchy.
+This can happen in real life, for example, in layered network protocol stacks
+where packets flow in both directions.
+In the networking case, it might be necessary to hold the locks from
+both layers when passing a packet from one layer to another.
+Given that packets travel both up and down the protocol stack, this
+is an excellent recipe for deadlock, as illustrated in
+Listing~\ref{lst:locking:Protocol Layering and Deadlock}.
+\begin{lineref}[ln:locking:Protocol Layering and Deadlock]
+Here, a packet moving down the stack towards the wire must acquire
+the next layer's lock out of order.
+Given that packets moving up the stack away from the wire are acquiring
+the locks in order, the lock acquisition in line~\lnref{acq} of the listing
+can result in deadlock.
+\end{lineref}
 
 \begin{listing}[tbp]
 \begin{linelabel}[ln:locking:Protocol Layering and Deadlock]
@@ -504,21 +519,15 @@ spin_unlock(&nextlayer->lock1);
 \label{lst:locking:Protocol Layering and Deadlock}
 \end{listing}
 
-But suppose that there is no reasonable locking hierarchy.
-This can happen in real life, for example, in layered network protocol stacks
-where packets flow in both directions.
-In the networking case, it might be necessary to hold the locks from
-both layers when passing a packet from one layer to another.
-Given that packets travel both up and down the protocol stack, this
-is an excellent recipe for deadlock, as illustrated in
-Listing~\ref{lst:locking:Protocol Layering and Deadlock}.
-\begin{lineref}[ln:locking:Protocol Layering and Deadlock]
-Here, a packet moving down the stack towards the wire must acquire
-the next layer's lock out of order.
-Given that packets moving up the stack away from the wire are acquiring
-the locks in order, the lock acquisition in line~\lnref{acq} of the listing
-can result in deadlock.
-\end{lineref}
+One way to avoid deadlocks in this case is to impose a locking hierarchy,
+but when it is necessary to acquire a lock out of order, acquire it
+conditionally, as shown in
+Listing~\ref{lst:locking:Avoiding Deadlock Via Conditional Locking}.
+\begin{lineref}[ln:locking:Avoiding Deadlock Via Conditional Locking]
+Instead of unconditionally acquiring the layer-1 lock, line~\lnref{trylock}
+conditionally acquires the lock using the \co{spin_trylock()} primitive.
+This primitive acquires the lock immediately if the lock is available
+(returning non-zero), and otherwise returns zero without acquiring the lock.
 
 \begin{listing}[tbp]
 \begin{linelabel}[ln:locking:Avoiding Deadlock Via Conditional Locking]
@@ -545,16 +554,6 @@ retry:
 \caption{Avoiding Deadlock Via Conditional Locking}
 \label{lst:locking:Avoiding Deadlock Via Conditional Locking}
 \end{listing}
-
-One way to avoid deadlocks in this case is to impose a locking hierarchy,
-but when it is necessary to acquire a lock out of order, acquire it
-conditionally, as shown in
-Listing~\ref{lst:locking:Avoiding Deadlock Via Conditional Locking}.
-\begin{lineref}[ln:locking:Avoiding Deadlock Via Conditional Locking]
-Instead of unconditionally acquiring the layer-1 lock, line~\lnref{trylock}
-conditionally acquires the lock using the \co{spin_trylock()} primitive.
-This primitive acquires the lock immediately if the lock is available
-(returning non-zero), and otherwise returns zero without acquiring the lock.
 
 If \co{spin_trylock()} was successful, line~\lnref{l1_proc} does the needed
 layer-1 processing.
@@ -818,7 +817,13 @@ quite useful in many settings.
 
 \subsection{Livelock and Starvation}
 \label{sec:locking:Livelock and Starvation}
-\NoIndentAfterThis
+
+Although conditional locking can be an effective deadlock-avoidance
+mechanism, it can be abused.
+Consider for example the beautifully symmetric example shown in
+Listing~\ref{lst:locking:Abusing Conditional Locking}.
+This example's beauty hides an ugly livelock.
+To see this, consider the following sequence of events:
 
 \begin{listing}[tbp]
 \begin{linelabel}[ln:locking:Abusing Conditional Locking]
@@ -855,13 +860,6 @@ retry:					\lnlbl[thr2:retry]
 \caption{Abusing Conditional Locking}
 \label{lst:locking:Abusing Conditional Locking}
 \end{listing}
-
-Although conditional locking can be an effective deadlock-avoidance
-mechanism, it can be abused.
-Consider for example the beautifully symmetric example shown in
-Listing~\ref{lst:locking:Abusing Conditional Locking}.
-This example's beauty hides an ugly livelock.
-To see this, consider the following sequence of events:
 
 \begin{lineref}[ln:locking:Abusing Conditional Locking]
 \begin{enumerate}
@@ -1680,13 +1678,6 @@ environments.
 
 \subsection{Sample Exclusive-Locking Implementation Based on Atomic Exchange}
 \label{sec:locking:Sample Exclusive-Locking Implementation Based on Atomic Exchange}
-\NoIndentAfterThis
-
-\begin{listing}[tbp]
-\input{CodeSamples/locking/xchglock@lock_unlock.fcv}
-\caption{Sample Lock Based on Atomic Exchange}
-\label{lst:locking:Sample Lock Based on Atomic Exchange}
-\end{listing}
 
 \begin{lineref}[ln:locking:xchglock:lock_unlock]
 This section reviews the implementation shown in
@@ -1696,6 +1687,12 @@ line~\lnref{typedef}, but could be any integral type.
 The initial value of this lock is zero, meaning ``unlocked'',
 as shown on line~\lnref{initval}.
 \end{lineref}
+
+\begin{listing}[tbp]
+\input{CodeSamples/locking/xchglock@lock_unlock.fcv}
+\caption{Sample Lock Based on Atomic Exchange}
+\label{lst:locking:Sample Lock Based on Atomic Exchange}
+\end{listing}
 
 \QuickQuiz{}
 	\begin{lineref}[ln:locking:xchglock:lock_unlock]
