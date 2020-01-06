@@ -86,49 +86,10 @@ which is described in the following section.
 	  it's supposed to do.}
 	 {\emph{Robert A. Heinlein}}
 
-The term \emph{non-blocking synchronization} (NBS) describes seven classes of
-linearizable algorithms with differing \emph{forward-progress guarantees}.
-These forward-progress guarantees are orthogonal to those that form the
-basis of real-time programming:
-
-\begin{enumerate}
-\item	Real-time forward-progress guarantees usually have some
-	definite time associated with them, for example,
-	``scheduling latency must be less than 100 microseconds.''
-	In contrast, the most popular forms of NBS only guarantees
-	that progress will be made in finite time, with no definite
-	bound.
-\item	Real-time forward-progress guarantees are sometimes
-	probabilistic, as in the soft-real-time guarantee that
-	``at least 99.9\,\% of the time, scheduling latency must
-	be less than 100 microseconds.''
-	In contrast, NBS's forward-progress
-	guarantees have traditionally been unconditional.
-\item	Real-time forward-progress guarantees are often conditioned on
-	environmental constraints, for example, only being honored
-	for the highest-priority tasks, when each CPU spends at least
-	a certain fraction of its time idle, or when I/O rates are
-	below some specified maximum.
-	In contrast, NBS's forward-progress
-	guarantees are usually unconditional.\footnote{
-		As we will see below, some recent NBS work relaxes
-		this guarantee.}
-\item	Real-time forward-progress guarantees usually apply only
-	in the absence of software bugs.
-	In contrast, most NBS guarantees apply even in the face of
-	fail-stop bugs.\footnote{
-		Again, some recent NBS work relaxes this guarantee.}
-\item	NBS forward-progress guarantee classes imply linearizability.
-	In contrast, real-time forward progress guarantees are often
-	independent of ordering constraints such as linearizability.
-\end{enumerate}
-
-Despite these differences, a number of NBS algorithms are extremely
-useful in real-time programs.
-
-There are currently seven levels in the NBS
-hierarchy~\cite{DanAlitarh2013PracticalProgress}, which are roughly
-as follows:
+The term \emph{non-blocking synchronization} (NBS)~\cite{Herlihy90}
+describes seven classes of linearizable algorithms with differing
+\emph{forward-progress guarantees}~\cite{DanAlitarh2013PracticalProgress},
+which are as follows:
 
 \begin{enumerate}
 \item	\emph{Bounded wait-free synchronization}: Every thread
@@ -260,6 +221,183 @@ This algorithm is nevertheless heavily used in practice, in part because
 most production software is not required to tolerate arbitrary fail-stop
 errors.
 \end{lineref}
+
+\subsection{Applicability of NBS Benefits}
+\label{sec:advsync:Applicability of NBS Benefits}
+
+The most heavily cited NBS benefits stem from its forward-progress
+guarantees, its tolerance of fail-stop bugs, and from its linearizability.
+Each of these is discussed in one of the following sections.
+
+\subsubsection{NBS Forward Progress Guarantees}
+\label{sec:advsync:NBS Forward Progress Guarantees}
+
+NBS's forward-progress guarantees have caused many to suggest its use in
+real-time systems, and NBS algorithms are in fact used in a great many
+such systems.
+However, it is important to note that forward-progress guarantees are
+largely orthogonal to those that form the basis of real-time programming:
+
+\begin{enumerate}
+\item	Real-time forward-progress guarantees usually have some
+	definite time associated with them, for example,
+	``scheduling latency must be less than 100 microseconds.''
+	In contrast, the most popular forms of NBS only guarantees
+	that progress will be made in finite time, with no definite
+	bound.
+\item	Real-time forward-progress guarantees are often
+	probabilistic, as in the soft-real-time guarantee that
+	``at least 99.9\,\% of the time, scheduling latency must
+	be less than 100 microseconds.''
+	In contrast, NBS's forward-progress
+	guarantees have traditionally been unconditional.
+\item	Real-time forward-progress guarantees are often conditioned on
+	environmental constraints, for example, only being honored:
+	(1)~for the highest-priority tasks,
+	(2)~when each CPU spends at least a certain fraction of its time idle,
+	or (3)~when I/O rates are below some specified maximum.
+	In contrast, NBS's forward-progress
+	guarantees are usually unconditional.\footnote{
+		As we will see below, some recent NBS work relaxes
+		this guarantee.}
+\item	An important component of a real-time program's environment
+	is the scheduler.
+	NBS algorithms assume a worst-case \emph{demonic scheduler}.
+	In contrast, real-time systems assume that the scheduler is
+	doing its level best to satisfy any scheduling constraints
+	it knows about, and, in the absence of such constraints,
+	its level best to honor process priorities and to provide
+	fair scheduling to processes of the same priority.
+	This assumption of a non-demonic scheduler allows real-time
+	programs to use simpler algorithms than those required for
+	NBS~\cite{DanAlitarh2013PracticalProgress,BjoernBrandenburgPhD}.
+\item	Real-time forward-progress guarantees usually apply only
+	in the absence of software bugs.
+	In contrast, most NBS guarantees apply even in the face of
+	fail-stop bugs.\footnote{
+		Again, some recent NBS work relaxes this guarantee.}
+\item	NBS forward-progress guarantee classes imply linearizability.
+	In contrast, real-time forward progress guarantees are often
+	independent of ordering constraints such as linearizability.
+\end{enumerate}
+
+To reiterate, despite these differences, a number of NBS algorithms are
+extremely useful in real-time programs.
+
+\subsubsection{NBS Fail-Stop Tolerance}
+\label{sec:advsync:NBS Fail-Stop Tolerance}
+
+Of the classes of NBS algorithms, wait-free synchronization (bounded or
+otherwise), lock-free synchronization, obstruction-free synchronization,
+and clash-free synchronization guarantee forward progress even in the
+presence of fail-stop bugs.
+An example fail-stop bug would be a scheduler bug that causes a random
+thread to be preempted indefinitely.
+As we will see, this fail-stop-tolerant property can be useful, but the
+fact is that composing a set of fail-stop-tolerate mechanisms does not
+necessarily result in a fail-stop-tolerant system.
+To see this, consider a system made up of a series of wait-free queues,
+where an element is removed from one queue in the series, processed,
+and then added to the next queue.
+
+If a thread is preempted in the midst of a queuing operation, all is well
+because the wait-free nature of the queue will guarantee forward progress.
+But suppose that preemption occurs not during the queuing, but instead
+during the between-queues processing.
+In this case, the element being processed is lost because
+the fail-stop-tolerant nature of the wait-free queues does not
+extend to the code using those queues.
+
+Nevertheless, there are a few applications where NBS's rather limited
+fail-stop-tolerance is useful.
+For example, in some network-based or web applications, a fail-stop
+event will eventually result in a retransmission, which will restart
+any work that was lost due to the fail-stop event.
+Systems running such applications can therefore be heavily loaded, even
+to the point where the scheduler can no longer provide any reasonable
+fairness guarantee.
+In constrast, if a thread fail-stops while holding a lock, the application
+will normally need to be restarted.
+Nevertheless, NBS is not a panacea even within this restricted area,
+due to the possibility of spurious retransmissions due to pure scheduling
+delays.
+In some cases, it may be more efficient to reduce the load to avoid
+queueing delays, which will also improve the scheduler's ability to
+provide fair access, which might turn reduce or even eliminate the
+apparent fail-stop events, thus shedding the load due to the retry
+operations initiated by retransmissions.
+
+\subsubsection{NBS Linearizability}
+\label{sec:advsync:NBS Linearizability}
+
+It is important to note that linearizability can be quite useful,
+especially when analyzing concurrent code made up of strict locking
+and fully ordered atomic operations.\footnote{
+	For example, the Linux kernel's value-returning atomic operations.}
+Furthermore, this handling of fully ordered atomic operations
+automatically covers simple NBS algorithms.
+
+However, the linearization points of a complex NBS algorithms are often
+buried deep within that algorithm, and thus not visible to users of
+a library function implementing a part of such an algorithm.
+Therefore, any claims that users benefit from the linearizability properties
+of complex NBS algorithms should be regarded with deep
+suspicion~\cite{AndreasHaas2012FIFOisnt}.
+
+It is sometimes asserted that linearizability is necessary for developers
+to produce proofs of correctness for their concurrent code.
+However, such proofs are the exception rather than the rule, and modern
+developers who do produce proofs often use modern proof techniques that
+do not depend on linearizability.
+Furthermore, developers frequently use modern proof techniques that do
+not require a full specification, given that developers often learn
+their specification after the fact, one bug at a time.
+A few such proof techniques were discussed in
+\cref{chp:Formal Verification}.\footnote{
+	A memorable verbal discussion with an advocate of linearizability
+	resulted in this advocate being asked:
+	``So the reason linearizability is important is to rescue 1980s
+	proof techniques?''
+	The advocate immediately replied in the affirmative, then spent
+	some time disparaging a particular modern proof technique.
+	Oddly enough, that technique was one of those successfully
+	applied to Linux-kernel RCU.}
+
+It is often asserted that linearizability maps well to sequential
+specifications, which are said to be more natural than are concurrent
+specifications~\cite{SergioRajsbaum2020HistoryLinearizability}.
+But this assertion flies in the face of reality in the form of a highly
+concurrent objective universe.
+Therefore, nature would be expected to select for beings able to cope
+with at least some level of concurrency, and anyone watching a team sport
+or a person successfully overseeing a number of small children would be
+hard-pressed to argue that nature has not done exactly that.
+In addition, given that the teaching of sequential
+computing is still believed to be somewhat of a black
+art~\cite{ElizabethPatitsas2020GradesNotBimodal}, it is reasonable
+to expect that teaching of concurrent computing is in a similar state
+of disarray.
+Therefore, focusing on only one proof technique is unlikely to be a
+good way forward.
+
+Again, please understand that linearizability is quite useful in many
+situations.
+Then again, so is that venerable tool, the hammer.
+But there comes a point in the field of computing where one should put
+down the hammer and pick up a keyboard.
+Similarly, it appears that there are times when linearizability is not
+the best tool for the job.
+
+To their credit, there are some linearizability advocates who are aware
+of some of its shortcomings~\cite{SergioRajsbaum2020HistoryLinearizability}.
+There are also proposals to extend linearizability, for example,
+interval-linearizability, which is intended to handle the common case
+of operations that require non-zero time to
+complete~\cite{10.1145/3266457}.
+It remains to be seen whether these proposals will result in theories
+able to handle modern concurrent software artifacts, especially given
+that several of the proof techniques discussed in \cref{chp:Formal
+Verification} already handle many modern concurrent software artifacts.
 
 \subsection{NBS Discussion}
 \label{sec:advsync:NBS Discussion}
