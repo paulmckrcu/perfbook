@@ -40,7 +40,6 @@ sed	-e 's+Times-Roman-BoldItalic+NimbusSans-BoldItalic+g' \
 	-e 's+Helvetica-Narrow+NimbusSansNarrow-Regular+g' \
 	-e 's+Helvetica-iso+NimbusSans-Regular+g' \
 	-e 's+Helvetica+NimbusSans-Regular+g' \
-	-e 's+Symbol+StandardSymbolsPS+g' \
 	-e 's+Courier-BoldOblique+NimbusMonoPS-BoldItalic+g' \
 	-e 's+Courier-Oblique+NimbusMonoPS-Italic+g' \
 	-e 's+Courier-Bold+NimbusMonoPS-Bold+g' \
@@ -53,10 +52,8 @@ sed	-e 's+Times-Roman-BoldItalic+NimbusSans-BoldItalic+g' \
 	-e 's+NimbusMonL-ReguObli+NimbusMonoPS-Italic+g' \
 	-e 's+NimbusMonL-Bold+NimbusMonoPS-Bold+g' \
 	-e 's+NimbusMonL-Regu+NimbusMonoPS-Regular+g' \
-	-e 's+StandardSymL+StandardSymbolsPS+g' \
 	-e 's+NimbusMono-Regular-Bold+NimbusMonoPS-Bold+g' \
 	-e 's+NimbusMono-Regular+NimbusMonoPS-Regular+g' \
 	-e 's+NimbusSans-Regular-Italic+NimbusSans-Italic+g' \
 	-e 's+NimbusSans-Regular-BoldItalic+NimbusSans-BoldItalic+g' \
-	-e 's+NimbusSans-Regular-Bold+NimbusSans-Bold+g' \
-	-e 's+StandardSymbolsPS-+Symbol-+g'
+	-e 's+NimbusSans-Regular-Bold+NimbusSans-Bold+g'

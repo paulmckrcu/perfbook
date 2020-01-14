@@ -38,12 +38,10 @@ sed	-e 's+Times-Roman-BoldItalic+NimbusSanL-BoldItal+g' \
 	-e 's+Helvetica-Narrow+NimbusSanL-ReguCond+g' \
 	-e 's+Helvetica-iso+NimbusSanL-Regu+g' \
 	-e 's+Helvetica+NimbusSanL-Regu+g' \
-	-e 's+Symbol+StandardSymL+g' \
 	-e 's+Courier-BoldOblique+NimbusMonL-BoldObli+g' \
 	-e 's+Courier-Oblique+NimbusMonL-ReguObli+g' \
 	-e 's+Courier-Bold+NimbusMonL-Bold+g' \
 	-e 's+Courier+NimbusMonL-Regu+g' \
 	-e 's+NimbusSanL-Regu-Italic+NimbusSanL-ReguItal+g' \
 	-e 's+NimbusSanL-Regu-BoldItalic+NimbusSanL-BoldItal+g' \
-	-e 's+NimbusSanL-Regu-Bold+NimbusSanL-Bold+g' \
-	-e 's+StardardSymL-+Symbol-+g'
+	-e 's+NimbusSanL-Regu-Bold+NimbusSanL-Bold+g'

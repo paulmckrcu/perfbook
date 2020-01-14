@@ -11,13 +11,11 @@ sed	-e 's+family:Helvetica+family:Nimbus Sans+g' \
 	-e 's+cation:Sans+cation:Nimbus Sans+g' \
 	-e 's+family:Courier+family:Nimbus Mono PS+g' \
 	-e 's+family="Courier+family="Nimbus Mono PS+g' \
-	-e 's+family:Symbol+family:Standard Symbols PS+g' \
-	-e 's+cation:Symbol+cation:Standard Symbols PS+g' \
+	-e 's+family:Symbol+family:MdSymbol+g' \
+	-e 's+cation:Symbol+cation:MdSymbol+g' \
 	-e 's+family:Nimbus Sans L+family:Nimbus Sans+g' \
 	-e 's+family="Nimbus Sans L+family="Nimbus Sans+g' \
 	-e 's+cation:Nimbus Sans L+cation:Nimbus Sans+g' \
 	-e 's+family:Nimbus Mono L+family:Nimbus Mono PS+g' \
 	-e 's+family="Nimbus Mono L+family="Nimbus Mono PS+g' \
-	-e 's+cation:Nimbus Mono L+cation:Nimbus Mono PS+g' \
-	-e 's+family:Standard Symbols L+family:Standard Symbols PS+g' \
-	-e 's+cation:Standard Symbols L+cation:Standard Symbols PS+g'
+	-e 's+cation:Nimbus Mono L+cation:Nimbus Mono PS+g'

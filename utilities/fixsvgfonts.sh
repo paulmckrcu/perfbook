@@ -10,6 +10,4 @@ sed	-e 's+family:Helvetica+family:Nimbus Sans L+g' \
 	-e 's+family:Sans+family:Nimbus Sans L+g' \
 	-e 's+cation:Sans+cation:Nimbus Sans L+g' \
 	-e 's+family:Courier+family:Nimbus Mono L+g' \
-	-e 's+family="Courier+family="Nimbus Mono L+g' \
-	-e 's+family:Symbol+family:Standard Symbols L+g' \
-	-e 's+cation:Symbol+cation:Standard Symbols L+g'
+	-e 's+family="Courier+family="Nimbus Mono L+g'
