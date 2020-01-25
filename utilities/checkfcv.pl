@@ -13,8 +13,8 @@ use warnings;
 my $line;
 my $lnlbl_re;
 my $checking = 0;
-my $linelabel_re = qr/\\begin\{linelabel\}\[([^\]]*)\]/ ;
-my $end_linelabel_re = qr/\\end\{linelabel\}/ ;
+my $fcvlabel_re = qr/\\begin\{fcvlabel\}\[([^\]]*)\]/ ;
+my $end_fcvlabel_re = qr/\\end\{fcvlabel\}/ ;
 my $Verbatim_cmd_re = qr/\\begin\{Verbatim[LNU]\}\[commandchars=(.{6}).*\]/ ;
 my $Verbatim_re = qr/\\begin\{Verbatim[LNU]\}/ ;
 my $end_Verbatim_re = qr/\\end\{Verbatim[LNU]\}/ ;
@@ -33,11 +33,11 @@ open(my $fh, '<:encoding(UTF-8)', $fcv_file)
 
 while($line = <$fh>) {
     $line_count = $line_count + 1;
-    if ($line =~ /$linelabel_re/) {
+    if ($line =~ /$fcvlabel_re/) {
 	$checking = 1;
     }
     if ($checking == 3) {
-	if ($line =~ /$end_linelabel_re/) {
+	if ($line =~ /$end_fcvlabel_re/) {
 	    $checking = 4;
 	}
     }

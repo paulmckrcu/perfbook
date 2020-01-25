@@ -103,17 +103,17 @@ It is also used in pathname traversal to detect concurrent rename operations.
 A simple implementation of sequence locks is shown in
 Listing~\ref{lst:defer:Sequence-Locking Implementation}
 (\path{seqlock.h}).
-\begin{lineref}[ln:defer:seqlock:impl:typedef]
+\begin{fcvref}[ln:defer:seqlock:impl:typedef]
 The \co{seqlock_t} data structure is shown on
 \clnrefrange{b}{e}, and contains
 the sequence number along with a lock to serialize writers.
-\end{lineref}
-\begin{lineref}[ln:defer:seqlock:impl:init]
+\end{fcvref}
+\begin{fcvref}[ln:defer:seqlock:impl:init]
 \Clnrefrange{b}{e} show \co{seqlock_init()}, which, as the name indicates,
 initializes a \co{seqlock_t}.
-\end{lineref}
+\end{fcvref}
 
-\begin{lineref}[ln:defer:seqlock:impl:read_seqbegin]
+\begin{fcvref}[ln:defer:seqlock:impl:read_seqbegin]
 \Clnrefrange{b}{e} show \co{read_seqbegin()}, which begins a sequence-lock
 read-side critical section.
 Line~\lnref{fetch} takes a snapshot of the sequence counter, and
@@ -122,7 +122,7 @@ this snapshot operation before the caller's critical section.
 Finally, line~\lnref{ret} returns the value of the snapshot (with the least-significant
 bit cleared), which the caller
 will pass to a later call to \co{read_seqretry()}.
-\end{lineref}
+\end{fcvref}
 
 \QuickQuiz{}
 	Why not have \co{read_seqbegin()} in
@@ -139,7 +139,7 @@ will pass to a later call to \co{read_seqretry()}.
 	check internal to \co{read_seqbegin()} might be preferable.
 } \QuickQuizEnd
 
-\begin{lineref}[ln:defer:seqlock:impl:read_seqretry]
+\begin{fcvref}[ln:defer:seqlock:impl:read_seqretry]
 \Clnrefrange{b}{e} show \co{read_seqretry()}, which returns true if there
 was at least one writer since the time of the corresponding
 call to \co{read_seqbegin()}.
@@ -148,7 +148,7 @@ fetch of the new snapshot of the sequence counter.
 Finally, line~\lnref{ret} checks whether the sequence counter has changed,
 in other words, whether there has been at least one writer, and returns
 true if so.
-\end{lineref}
+\end{fcvref}
 
 \QuickQuiz{}
 	Why is the \co{smp_mb()} on
@@ -170,7 +170,7 @@ true if so.
 \QuickQuizAnswer{
 	In older versions of the Linux kernel, no.
 
-	\begin{lineref}[ln:defer:seqlock:impl]
+	\begin{fcvref}[ln:defer:seqlock:impl]
 	In very new versions of the Linux kernel,
         line~\lnref{read_seqbegin:fetch} could use
 	\co{smp_load_acquire()} instead of \co{READ_ONCE()}, which
@@ -186,7 +186,7 @@ smp_store_release(&slp->seq, READ_ONCE(slp->seq) + 1);
 
 	This would allow the \co{smp_mb()} on
 	line~\lnref{write_sequnlock:mb} to be dropped.
-	\end{lineref}
+	\end{fcvref}
 } \QuickQuizEnd
 
 \QuickQuiz{}
@@ -200,16 +200,16 @@ smp_store_release(&slp->seq, READ_ONCE(slp->seq) + 1);
 	situation, in which case, go wild with the sequence-locking updates!
 } \QuickQuizEnd
 
-\begin{lineref}[ln:defer:seqlock:impl:write_seqlock]
+\begin{fcvref}[ln:defer:seqlock:impl:write_seqlock]
 \Clnrefrange{b}{e} show \co{write_seqlock()}, which simply acquires the lock,
 increments the sequence number, and executes a memory barrier to ensure
 that this increment is ordered before the caller's critical section.
-\end{lineref}
-\begin{lineref}[ln:defer:seqlock:impl:write_sequnlock]
+\end{fcvref}
+\begin{fcvref}[ln:defer:seqlock:impl:write_sequnlock]
 \Clnrefrange{b}{e} show \co{write_sequnlock()}, which executes a memory barrier
 to ensure that the caller's critical section is ordered before the
 increment of the sequence number on line~\lnref{inc}, then releases the lock.
-\end{lineref}
+\end{fcvref}
 
 \QuickQuiz{}
 	What if something else serializes writers, so that the lock
@@ -285,21 +285,21 @@ shows \co{route_add()} and \co{route_del()} (\path{route_seqlock.c}).
 This implementation is once again similar to its counterparts in earlier
 sections, so only the differences will be highlighted.
 
-\begin{lineref}[ln:defer:route_seqlock:lookup]
+\begin{fcvref}[ln:defer:route_seqlock:lookup]
 In
 Listing~\ref{lst:defer:Sequence-Locked Pre-BSD Routing Table Lookup},
 line~\lnref{struct:re_freed} adds \co{->re_freed}, which is checked on
 lines~\lnref{lookup:chk_freed} and~\lnref{lookup:abort}.
 Line~\lnref{struct:sl} adds a sequence lock, which is used by \co{route_lookup()}
-\end{lineref}
-\begin{lineref}[ln:defer:route_seqlock:lookup:lookup]
+\end{fcvref}
+\begin{fcvref}[ln:defer:route_seqlock:lookup:lookup]
 on lines~\lnref{r_sqbegin}, \lnref{r_sqretry1}, and~\lnref{r_sqretry2},
 with lines~\lnref{goto_retry1} and~\lnref{goto_retry2} branching back to
 the \co{retry} label on line~\lnref{retry}.
 The effect is to retry any lookup that runs concurrently with an update.
-\end{lineref}
+\end{fcvref}
 
-\begin{lineref}[ln:defer:route_seqlock:add_del]
+\begin{fcvref}[ln:defer:route_seqlock:add_del]
 In
 Listing~\ref{lst:defer:Sequence-Locked Pre-BSD Routing Table Add/Delete},
 lines~\lnref{add:w_sqlock}, \lnref{add:w_squnlock}, \lnref{del:w_sqlock},
@@ -307,7 +307,7 @@ lines~\lnref{add:w_sqlock}, \lnref{add:w_squnlock}, \lnref{del:w_sqlock},
 acquire and release the sequence lock,
 while lines~\lnref{add:clr_freed} and~\lnref{del:set_freed} handle \co{->re_freed}.
 This implementation is therefore quite straightforward.
-\end{lineref}
+\end{fcvref}
 
 \begin{figure}[tb]
 \centering
