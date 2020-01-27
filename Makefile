@@ -119,6 +119,16 @@ ifdef A2PING
     endif
   endif
 endif
+
+LINE_ENV_IGNORE := Makefile perfbook_flat.tex $(LATEXGENERATED))
+# following variables are intentionally defined using "="
+LINELABEL_ENV_BEGIN = $(patsubst ./%,%,$(shell grep -R -l -F '\begin{linelabel}' .))
+LINELABEL_ENV_END   = $(patsubst ./%,%,$(shell grep -R -l -F '\end{linelabel}' .))
+LINEREF_ENV_BEGIN   = $(patsubst ./%,%,$(shell grep -R -l -F '\begin{lineref}' .))
+LINEREF_ENV_END     = $(patsubst ./%,%,$(shell grep -R -l -F '\end{lineref}' .))
+LINELABEL_ENV = $(filter-out $(LINE_ENV_IGNORE),$(sort $(LINELABEL_ENV_BEGIN) $(LINELABEL_ENV_END)))
+LINEREF_ENV   = $(filter-out $(LINE_ENV_IGNORE),$(sort $(LINEREF_ENV_BEGIN) $(LINEREF_ENV_END)))
+
 SOURCES_OF_SNIPPET_ALL := $(shell grep -R -l -F '\begin{snippet}' CodeSamples)
 SOURCES_OF_LITMUS      := $(shell grep -R -l -F '\begin[snippet]' CodeSamples)
 SOURCES_OF_LTMS        := $(patsubst %.litmus,%.ltms,$(SOURCES_OF_LITMUS))
@@ -174,6 +184,22 @@ perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(FCVS
 ifndef LATEXPAND
 	$(error --> $@: latexpand not found. Please install it)
 endif
+	@if [ ! -z "$(LINELABEL_ENV)" -a "$(LINELABEL_ENV)" != " " ]; then \
+		echo "'linelabel' used as environment in $(LINELABEL_ENV)." ; \
+		echo "Use 'fcvlabel' instead." ; \
+		echo "------" ; \
+		grep -n -B 2 -A 2 -F 'linelabel' $(LINELABEL_ENV) ; \
+		echo "------" ; \
+		exit 1 ; \
+	fi
+	@if [ ! -z "$(LINEREF_ENV)" -a "$(LINEREF_ENV)" != " " ]; then \
+		echo "'lineref' used as environment in $(LINEREF_ENV)." ; \
+		echo "Use 'fcvref' instead." ; \
+		echo "------" ; \
+		grep -n -B 2 -A 2 -F 'lineref' $(LINEREF_ENV) ; \
+		echo "------" ; \
+		exit 1 ; \
+	fi
 	echo > qqz.tex
 	echo > contrib.tex
 	echo > origpub.tex
