@@ -129,6 +129,23 @@ LINEREF_ENV_END     = $(patsubst ./%,%,$(shell grep -R -l -F '\end{lineref}' .))
 LINELABEL_ENV = $(filter-out $(LINE_ENV_IGNORE),$(sort $(LINELABEL_ENV_BEGIN) $(LINELABEL_ENV_END)))
 LINEREF_ENV   = $(filter-out $(LINE_ENV_IGNORE),$(sort $(LINEREF_ENV_BEGIN) $(LINEREF_ENV_END)))
 
+OLD_EPIGRAPH := $(shell grep -c '2009/09/02' `kpsewhich epigraph.sty`)
+TEXLIVE_2015_DEBIAN := $(shell pdftex --version | grep -c 'TeX Live 2015/Debian')
+TEXLIVE_2016 := $(shell pdftex --version | grep -c 'TeX Live 2016')
+ifeq ($(OLD_EPIGRAPH),1)
+  ifeq ($(TEXLIVE_2015_DEBIAN),1)
+    SUGGEST_UPGRADE_EPIGRAPH := 0
+  else
+    ifeq ($(TEXLIVE_2016),1)
+      SUGGEST_UPGRADE_EPIGRAPH := 0
+    else
+      SUGGEST_UPGRADE_EPIGRAPH := 1
+    endif
+  endif
+else
+  SUGGEST_UPGRADE_EPIGRAPH := 0
+endif
+
 SOURCES_OF_SNIPPET_ALL := $(shell grep -R -l -F '\begin{snippet}' CodeSamples)
 SOURCES_OF_LITMUS      := $(shell grep -R -l -F '\begin[snippet]' CodeSamples)
 SOURCES_OF_LTMS        := $(patsubst %.litmus,%.ltms,$(SOURCES_OF_LITMUS))
@@ -167,6 +184,10 @@ mslmmsg:
 
 $(PDFTARGETS): %.pdf: %.tex %.bbl
 	sh utilities/runlatex.sh $(basename $@)
+ifeq ($(SUGGEST_UPGRADE_EPIGRAPH),1)
+	@echo "Consider upgrading 'epigraph' to prevent orphaned epigraphs."
+	@echo "See #13 in FAQ-BUILD.txt."
+endif
 
 $(PDFTARGETS:.pdf=.bbl): %.bbl: %.aux $(BIBSOURCES)
 	bibtex $(basename $@)
