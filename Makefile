@@ -11,7 +11,8 @@ LATEXSOURCES = \
 	*/*.tex \
 	*/*/*.tex
 
-LST_SOURCES := $(wildcard CodeSamples/formal/promela/*.lst)
+LST_SOURCES := $(wildcard CodeSamples/formal/promela/*.lst) \
+	$(wildcard appendix/styleguide/*.c)
 
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
 
@@ -123,14 +124,12 @@ ifdef A2PING
   endif
 endif
 
-LINE_ENV_IGNORE := Makefile perfbook_flat.tex $(LATEXGENERATED))
-# following variables are intentionally defined using "="
-LINELABEL_ENV_BEGIN = $(patsubst ./%,%,$(shell grep -R -l -F '\begin{linelabel}' .))
-LINELABEL_ENV_END   = $(patsubst ./%,%,$(shell grep -R -l -F '\end{linelabel}' .))
-LINEREF_ENV_BEGIN   = $(patsubst ./%,%,$(shell grep -R -l -F '\begin{lineref}' .))
-LINEREF_ENV_END     = $(patsubst ./%,%,$(shell grep -R -l -F '\end{lineref}' .))
-LINELABEL_ENV = $(filter-out $(LINE_ENV_IGNORE),$(sort $(LINELABEL_ENV_BEGIN) $(LINELABEL_ENV_END)))
-LINEREF_ENV   = $(filter-out $(LINE_ENV_IGNORE),$(sort $(LINEREF_ENV_BEGIN) $(LINEREF_ENV_END)))
+LINELABEL_ENV_BEGIN := $(shell grep -l -F '\begin{linelabel}' $(LATEXSOURCES))
+LINELABEL_ENV_END   := $(shell grep -l -F '\end{linelabel}'   $(LATEXSOURCES))
+LINEREF_ENV_BEGIN   := $(shell grep -l -F '\begin{lineref}'   $(LATEXSOURCES))
+LINEREF_ENV_END     := $(shell grep -l -F '\end{lineref}'     $(LATEXSOURCES))
+LINELABEL_ENV := $(sort $(LINELABEL_ENV_BEGIN) $(LINELABEL_ENV_END))
+LINEREF_ENV   := $(sort $(LINEREF_ENV_BEGIN) $(LINEREF_ENV_END))
 
 OLD_EPIGRAPH := $(shell grep -c '2009/09/02' `kpsewhich epigraph.sty`)
 TEXLIVE_2015_DEBIAN := $(shell pdftex --version | grep -c 'TeX Live 2015/Debian')
@@ -149,8 +148,8 @@ else
   SUGGEST_UPGRADE_EPIGRAPH := 0
 endif
 
-SOURCES_OF_SNIPPET_ALL := $(shell grep -R -l -F '\begin{snippet}' CodeSamples)
-SOURCES_OF_LITMUS      := $(shell grep -R -l -F '\begin[snippet]' CodeSamples)
+SOURCES_OF_SNIPPET_ALL := $(shell grep -r -l -F '\begin{snippet}' CodeSamples)
+SOURCES_OF_LITMUS      := $(shell grep -r -l -F '\begin[snippet]' CodeSamples)
 SOURCES_OF_LTMS        := $(patsubst %.litmus,%.ltms,$(SOURCES_OF_LITMUS))
 SOURCES_OF_SNIPPET     := $(filter-out $(SOURCES_OF_LTMS),$(SOURCES_OF_SNIPPET_ALL)) $(SOURCES_OF_LITMUS)
 GEN_SNIPPET_D  = utilities/gen_snippet_d.pl utilities/gen_snippet_d.sh
@@ -210,18 +209,18 @@ ifndef LATEXPAND
 endif
 	@if [ ! -z "$(LINELABEL_ENV)" -a "$(LINELABEL_ENV)" != " " ]; then \
 		echo "'linelabel' used as environment in $(LINELABEL_ENV)." ; \
-		echo "Use 'fcvlabel' instead." ; \
 		echo "------" ; \
 		grep -n -B 2 -A 2 -F 'linelabel' $(LINELABEL_ENV) ; \
 		echo "------" ; \
+		echo "Substitute 'fcvlabel' for 'linelabel' in $(LINELABEL_ENV)." ; \
 		exit 1 ; \
 	fi
 	@if [ ! -z "$(LINEREF_ENV)" -a "$(LINEREF_ENV)" != " " ]; then \
 		echo "'lineref' used as environment in $(LINEREF_ENV)." ; \
-		echo "Use 'fcvref' instead." ; \
 		echo "------" ; \
 		grep -n -B 2 -A 2 -F 'lineref' $(LINEREF_ENV) ; \
 		echo "------" ; \
+		echo "Substitute 'fcvref' for 'lineref' in $(LINEREF_ENV)." ; \
 		exit 1 ; \
 	fi
 	echo > qqz.tex
