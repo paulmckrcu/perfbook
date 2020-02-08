@@ -54,6 +54,8 @@ find */ -type d -print |
 	sh
 
 cp autodate.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex origpub.sty qqz.sty pfbook.cls pfhyphex.tex perfbook.bbl ${destdir}
+cp `kpsewhich fvextra.sty` ${destdir}
+cp `kpsewhich epigraph.sty` ${destdir}
 
 find */ '(' -name '*.pdf' -o -name '*.lst' ')' -exec cp {} ${destdir}/{} \;
 
