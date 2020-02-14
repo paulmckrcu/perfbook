@@ -131,6 +131,9 @@ LINEREF_ENV_END     := $(shell grep -l -F '\end{lineref}'     $(LATEXSOURCES))
 LINELABEL_ENV := $(sort $(LINELABEL_ENV_BEGIN) $(LINELABEL_ENV_END))
 LINEREF_ENV   := $(sort $(LINEREF_ENV_BEGIN) $(LINEREF_ENV_END))
 
+CREFPTN    := '\\[Cc](ln)?ref{[^{]+}\s*{[^}]+}'
+CREFPAIR   := $(shell grep -l -zo -E $(CREFPTN)   $(LATEXSOURCES))
+
 SOURCES_OF_SNIPPET_ALL := $(shell grep -r -l -F '\begin{snippet}' CodeSamples)
 SOURCES_OF_LITMUS      := $(shell grep -r -l -F '\begin[snippet]' CodeSamples)
 SOURCES_OF_LTMS        := $(patsubst %.litmus,%.ltms,$(SOURCES_OF_LITMUS))
@@ -200,6 +203,18 @@ endif
 		grep -n -B 2 -A 2 -F 'lineref' $(LINEREF_ENV) ; \
 		echo "------" ; \
 		echo "Substitute 'fcvref' for 'lineref' in $(LINEREF_ENV)." ; \
+		exit 1 ; \
+	fi
+	@if [ ! -z "$(CREFPAIR)" -a "$(CREFPAIR)" != " " ]; then \
+		echo "------" ; \
+		if grep -q -E $(CREFPTN) $(CREFPAIR) ; then \
+			grep -n -B 2 -A 2 -E $(CREFPTN) $(CREFPAIR) ; \
+		else \
+			grep -zo -B 2 -A 2 -E $(CREFPTN) $(CREFPAIR) ; \
+			echo ; \
+		fi ; \
+		echo "------" ; \
+		echo "Need to use \[Cc]refrange or \[Cc]lnrefrangein $(CREFPAIR)." ; \
 		exit 1 ; \
 	fi
 	echo > qqz.tex
