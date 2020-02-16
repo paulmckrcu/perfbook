@@ -17,7 +17,7 @@
 
 include ../Makefile.arch
 
-PROGS =	q singleq wfenqueue
+PROGS =	lifo-push q singleq wfenqueue
 
 top := ..
 include $(top)/depends.mk
@@ -30,6 +30,9 @@ all: $(PROGS)
 endif
 
 include $(top)/recipes.mk
+
+lifo-push: lifo-push.c lifo-stress.h ../api.h
+	cc $(GCC_ARGS) -o lifo-push -DTEST lifo-push.c -lpthread
 
 q: q.c q.h queuetorture.h ../api.h
 	cc $(GCC_ARGS) -o q -DTEST q.c -lpthread
