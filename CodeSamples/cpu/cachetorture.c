@@ -92,7 +92,8 @@ static void *checkbcmpxchg0(void *mycpu_in)
 	cachetestinit(mycpu_in);
 	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		while (atomic_cmpxchg(&cachectr, snap, snap + 1) != snap)
-			continue;
+			if (READ_ONCE(goflag) != GOFLAG_RUN)
+				break;
 		snap += 2;
 	}
 	return NULL;
@@ -105,7 +106,8 @@ static void *checkbcmpxchg1(void *mycpu_in)
 	cachetestinit(mycpu_in);
 	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		while (atomic_cmpxchg(&cachectr, snap, snap + 1) != snap)
-			continue;
+			if (READ_ONCE(goflag) != GOFLAG_RUN)
+				break;
 		snap += 2;
 	}
 	return NULL;
@@ -121,7 +123,8 @@ static void *checkcmpxchg0(void *mycpu_in)
 		if (!(snap & 0x1))
 			continue;
 		while (atomic_cmpxchg(&cachectr, snap, snap + 1) != snap)
-			continue;
+			if (READ_ONCE(goflag) != GOFLAG_RUN)
+				break;
 	}
 	return NULL;
 }
@@ -136,7 +139,8 @@ static void *checkcmpxchg1(void *mycpu_in)
 		if (snap & 0x1)
 			continue;
 		while (atomic_cmpxchg(&cachectr, snap, snap + 1) != snap)
-			continue;
+			if (READ_ONCE(goflag) != GOFLAG_RUN)
+				break;
 	}
 	return NULL;
 }
