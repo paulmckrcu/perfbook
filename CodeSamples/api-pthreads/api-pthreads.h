@@ -311,23 +311,29 @@ static __inline__ void waitall(void)
 static __inline__ void run_on(int cpu)
 {
 	cpu_set_t mask;
+	int ret;
 
 	CPU_ZERO(&mask);
 	CPU_SET(cpu, &mask);
-	sched_setaffinity(0, sizeof(mask), &mask);
+	ret = sched_setaffinity(0, sizeof(mask), &mask);
+	if (ret) {
+		perror("sched_setaffinity");
+		abort();
+	}
 }
 
 /*
- * timekeeping -- very crude -- should use MONOTONIC...
+ * Timekeeping, using monotonic globally coherent clock.
  */
 
 static __inline__ long long get_microseconds(void)
 {
-	struct timeval tv;
+	struct timespec ts;
 
-	if (gettimeofday(&tv, NULL) != 0)
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
 		abort();
-	return ((long long)tv.tv_sec) * 1000000LL + (long long)tv.tv_usec;
+	return ((long long)ts.tv_sec) * 1000000LL +
+	       (long long)ts.tv_nsec / 1000LL;
 }
 
 /*
