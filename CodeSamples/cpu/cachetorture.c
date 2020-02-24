@@ -1,25 +1,9 @@
 /*
  * cachetorture.c: Simple rough-and-ready measurement of cache latencies
  *
- * Usage:
- * 	./countxxx checkwrite [ <CPU> [ <CPU> ] ]
- * 		Run a read-side performance test with the specified
- * 		number of counters, running on CPUs spaced by <cpustride>.
- * 		Thus "./count 16 rperf 2" would run 16 readers on even-numbered
- * 		CPUs from 0 to 30.
- * 	./countxxx <nupdaters> uperf [ <cpustride> ]
- * 		Run an update-side performance test with the specified
- * 		number of updaters and specified CPU spacing.
- * 	./countxxx <nupdaters> perf [ <cpustride> ]
- * 		Run a combined read/update performance test with the specified
- * 		number of readers and one updater and specified CPU spacing.
- * 		The readers run on the low-numbered CPUs and the updater
- * 		of the highest-numbered CPU.
+ * This test produces output as follows:
  *
- * The above tests produce output as follows:
- *
- * n_reads: 824000  n_updates: 75264000  nreaders: 1  nupdaters: 1 duration: 240
- * ns/read: 291.262  ns/update: 3.18878
+ * ./cachetorture checkcmpxchg CPUs 0 1 duration: 240255 ops/us: 8.71474
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -209,11 +193,13 @@ static void cachetest(void *(*checkwrite0)(void *),
 void usage(int argc, char *argv[])
 {
 	fprintf(stderr,
-		"Usage: %s checkwrite [ <CPU> [ <CPU> ] ]\n", argv[0]);
+		"Usage: %s checkatomicinc [ <CPU> [ <CPU> ] ]\n", argv[0]);
 	fprintf(stderr,
 		"Usage: %s checkbcmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
 	fprintf(stderr,
-		"Usage: %s checkatomicinc [ <CPU> [ <CPU> ] ]\n", argv[0]);
+		"Usage: %s checkcmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
+	fprintf(stderr,
+		"Usage: %s checkwrite [ <CPU> [ <CPU> ] ]\n", argv[0]);
 	exit(EXIT_FAILURE);
 }
 
@@ -235,18 +221,18 @@ int main(int argc, char *argv[])
 		else
 			usage(argc, argv);
 	}
-	if (strcmp(argv[1], "checkwrite") == 0)
-		cachetest(checkwrite0, checkwrite1, cpu0, cpu1);
+	if (strcmp(argv[1], "checkatomicinc") == 0)
+		cachetest(checkatomicinc0, checkatomicinc1, cpu0, cpu1);
 	else if (strcmp(argv[1], "checkbcmpxchg") == 0)
 		cachetest(checkbcmpxchg0, checkbcmpxchg1, cpu0, cpu1);
 	else if (strcmp(argv[1], "checkcmpxchg") == 0)
 		cachetest(checkcmpxchg0, checkcmpxchg1, cpu0, cpu1);
-	else if (strcmp(argv[1], "checkatomicinc") == 0)
-		cachetest(checkatomicinc0, checkatomicinc1, cpu0, cpu1);
+	else if (strcmp(argv[1], "checkwrite") == 0)
+		cachetest(checkwrite0, checkwrite1, cpu0, cpu1);
 	else
 		usage(argc, argv);
-	printf("%s %s CPUs %d %d duration: %g ops/us: %g\n",
+	printf("%s %s CPUs %d %d duration: %g ns/op: %g\n",
 	       argv[0], argv[1], cpu0, cpu1, stop - start,
-	       ((double)atomic_read(&cachectr)) / ((2. * (stop - start))));
+	       1000. * (stop - start) / (double)atomic_read(&cachectr));
 	return 0;
 }
