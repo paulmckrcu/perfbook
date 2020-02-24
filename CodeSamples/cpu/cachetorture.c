@@ -57,7 +57,7 @@ static void cachetestinit(void *mycpu_in)
 		xchg(&garbage, READ_ONCE(garbage) + 1);
 }
 
-static void *checkatomicinc0(void *mycpu_in)
+static void *atomicinc0(void *mycpu_in)
 {
 	unsigned long snap;
 
@@ -71,7 +71,7 @@ static void *checkatomicinc0(void *mycpu_in)
 	return NULL;
 }
 
-static void *checkatomicinc1(void *mycpu_in)
+static void *atomicinc1(void *mycpu_in)
 {
 	unsigned long snap;
 
@@ -85,7 +85,7 @@ static void *checkatomicinc1(void *mycpu_in)
 	return NULL;
 }
 
-static void *checkbcmpxchg0(void *mycpu_in)
+static void *blindcmpxchg0(void *mycpu_in)
 {
 	unsigned long snap = 0;
 
@@ -99,7 +99,7 @@ static void *checkbcmpxchg0(void *mycpu_in)
 	return NULL;
 }
 
-static void *checkbcmpxchg1(void *mycpu_in)
+static void *blindcmpxchg1(void *mycpu_in)
 {
 	unsigned long snap = 1;
 
@@ -113,7 +113,7 @@ static void *checkbcmpxchg1(void *mycpu_in)
 	return NULL;
 }
 
-static void *checkcmpxchg0(void *mycpu_in)
+static void *cmpxchg0(void *mycpu_in)
 {
 	unsigned long snap;
 
@@ -129,7 +129,7 @@ static void *checkcmpxchg0(void *mycpu_in)
 	return NULL;
 }
 
-static void *checkcmpxchg1(void *mycpu_in)
+static void *cmpxchg1(void *mycpu_in)
 {
 	unsigned long snap;
 
@@ -145,7 +145,7 @@ static void *checkcmpxchg1(void *mycpu_in)
 	return NULL;
 }
 
-static void *checkwrite0(void *mycpu_in)
+static void *write0(void *mycpu_in)
 {
 	unsigned long snap;
 
@@ -158,7 +158,7 @@ static void *checkwrite0(void *mycpu_in)
 	return NULL;
 }
 
-static void *checkwrite1(void *mycpu_in)
+static void *write1(void *mycpu_in)
 {
 	unsigned long snap;
 
@@ -197,13 +197,13 @@ static void cachetest(void *(*checkwrite0)(void *),
 void usage(int argc, char *argv[])
 {
 	fprintf(stderr,
-		"Usage: %s checkatomicinc [ <CPU> [ <CPU> ] ]\n", argv[0]);
+		"Usage: %s atomicinc [ <CPU> [ <CPU> ] ]\n", argv[0]);
 	fprintf(stderr,
-		"Usage: %s checkbcmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
+		"Usage: %s blindcmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
 	fprintf(stderr,
-		"Usage: %s checkcmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
+		"Usage: %s cmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
 	fprintf(stderr,
-		"Usage: %s checkwrite [ <CPU> [ <CPU> ] ]\n", argv[0]);
+		"Usage: %s write [ <CPU> [ <CPU> ] ]\n", argv[0]);
 	exit(EXIT_FAILURE);
 }
 
@@ -225,14 +225,14 @@ int main(int argc, char *argv[])
 		else
 			usage(argc, argv);
 	}
-	if (strcmp(argv[1], "checkatomicinc") == 0)
-		cachetest(checkatomicinc0, checkatomicinc1, cpu0, cpu1);
-	else if (strcmp(argv[1], "checkbcmpxchg") == 0)
-		cachetest(checkbcmpxchg0, checkbcmpxchg1, cpu0, cpu1);
-	else if (strcmp(argv[1], "checkcmpxchg") == 0)
-		cachetest(checkcmpxchg0, checkcmpxchg1, cpu0, cpu1);
-	else if (strcmp(argv[1], "checkwrite") == 0)
-		cachetest(checkwrite0, checkwrite1, cpu0, cpu1);
+	if (strcmp(argv[1], "atomicinc") == 0)
+		cachetest(atomicinc0, atomicinc1, cpu0, cpu1);
+	else if (strcmp(argv[1], "blindcmpxchg") == 0)
+		cachetest(blindcmpxchg0, blindcmpxchg1, cpu0, cpu1);
+	else if (strcmp(argv[1], "cmpxchg") == 0)
+		cachetest(cmpxchg0, cmpxchg1, cpu0, cpu1);
+	else if (strcmp(argv[1], "write") == 0)
+		cachetest(write0, write1, cpu0, cpu1);
 	else
 		usage(argc, argv);
 	printf("%s %s CPUs %d %d duration: %g ns/op: %g\n",
