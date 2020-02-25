@@ -6,7 +6,7 @@
 maxcpu="`grep '^processor' /proc/cpuinfo | tail -1 | awk '{ print $3 }'`"
 lastcpu=${1-$maxcpu}
 
-for runtype in checkatomicinc checkbcmpxchg checkcmpxchg checkwrite
+for runtype in atomicinc blindcmpxchg cmpxchg write
 do
 	for ((cpu=1;cpu<=$lastcpu;cpu++))
 	do
