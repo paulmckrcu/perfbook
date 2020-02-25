@@ -15,4 +15,6 @@ do
 			./cachetorture $runtype 0 $cpu
 		done
 	done
+	./cachetorture locallock
+	./cachetorture localcmpxchg
 done
