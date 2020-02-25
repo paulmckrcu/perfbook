@@ -46,7 +46,8 @@ static int duration = 240;
 static double start;
 static double stop;
 
-static atomic_t cachectr;
+static atomic_t cachectr __attribute__((__aligned__(CACHE_LINE_SIZE)));
+DEFINE_SPINLOCK(my_lock);
 
 static void cachetestinit(void *mycpu_in)
 {
@@ -190,6 +191,36 @@ static void cachetest(void *(*checkwrite0)(void *),
 	wait_all_threads();
 }
 
+static void localcmpxchg(int cpu)
+{
+	int i;
+	int snap = 0;
+
+	run_on(cpu);
+	BUG_ON(atomic_xchg(&cachectr, 0) != 0);  // Pull to cache.
+	start = (double)get_microseconds();
+	for (i = 0; i < 10 * 1000 * 1000; i++) {
+		BUG_ON(atomic_cmpxchg(&cachectr, snap, snap + 1) != snap);
+		snap++;
+	}
+	stop = (double)get_microseconds();
+}
+
+static void locallock(int cpu)
+{
+	int i;
+
+	run_on(cpu);
+	BUG_ON(atomic_xchg(&cachectr, 0) != 0);  // Pull to cache.
+	start = (double)get_microseconds();
+	for (i = 0; i < 10 * 1000 * 1000; i++) {
+		spin_lock(&my_lock);
+		atomic_set(&cachectr, atomic_read(&cachectr) + 1);
+		spin_unlock(&my_lock);
+	}
+	stop = (double)get_microseconds();
+}
+
 /*
  * Mainprogram.
  */
@@ -197,13 +228,18 @@ static void cachetest(void *(*checkwrite0)(void *),
 void usage(int argc, char *argv[])
 {
 	fprintf(stderr,
-		"Usage: %s atomicinc [ <CPU> [ <CPU> ] ]\n", argv[0]);
+		"Usage:\t%s atomicinc [ <CPU> [ <CPU> ] ]\n", argv[0]);
 	fprintf(stderr,
-		"Usage: %s blindcmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
+		"\t%s blindcmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
 	fprintf(stderr,
-		"Usage: %s cmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
+		"\t%s cmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
 	fprintf(stderr,
-		"Usage: %s write [ <CPU> [ <CPU> ] ]\n", argv[0]);
+		"\t%s localcmpxchg [ <CPU> [ <CPU> ] ]\n", argv[0]);
+	fprintf(stderr,
+		"\t%s locallock [ <CPU> [ <CPU> ] ]\n", argv[0]);
+	fprintf(stderr,
+		"\t%s write [ <CPU> [ <CPU> ] ]\n", argv[0]);
+	fprintf(stderr, "localcmpxchg and locallock ignore second CPU.\n");
 	exit(EXIT_FAILURE);
 }
 
@@ -233,6 +269,10 @@ int main(int argc, char *argv[])
 		cachetest(cmpxchg0, cmpxchg1, cpu0, cpu1);
 	else if (strcmp(argv[1], "write") == 0)
 		cachetest(write0, write1, cpu0, cpu1);
+	else if (strcmp(argv[1], "locallock") == 0)
+		locallock(cpu0);
+	else if (strcmp(argv[1], "localcmpxchg") == 0)
+		localcmpxchg(cpu0);
 	else
 		usage(argc, argv);
 	printf("%s %s CPUs %d %d duration: %g ns/op: %g\n",
