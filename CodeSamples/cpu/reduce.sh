@@ -4,12 +4,13 @@
 # you want the files deposited.  Or you can place an absolute pathname
 # in the tag, I suppose.
 #
-# Usage: bash reduce.sh [ tag ] < cachetorture.sh.out
+# Usage: bash reduce.sh [ tag [ cpu ] ] < cachetorture.sh.out
 #
 #	If present, the "tag" will be included in the output filenames,
 #	for example, <tag>.atomicinc.dat.  The output files are
 #	formatted for use as gnuplot data files.  One format for <tag>
-#	is <system-id>.yyyy.mm.ddA.
+#	is <system-id>.yyyy.mm.ddA.  If "cpu" is given, only the data
+#	with that CPU as cpu0 will be considered.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,18 +32,23 @@
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
 tag="$1"
+firstcpu="${2-0}"
 
 # Gather data from each operation into a separate .raw file.
 # Each line has the program name, the operation name, the pair of CPUs
 # used, the duration, and finally the nanoseconds per operation.
-awk -v tag="$tag" '
+awk -v tag="$tag" -v firstcpu="$firstcpu" '
 {
 	opname = $2;
 	cpu0 = $4;
+	if (cpu0 != firstcpu)
+		next;
 	cpu1 = $5;
 	nsperop = $9;
 	i = opname ":" cpu0 ":" cpu1
 	# print "Read this: " opname, cpu0, cpu1, nsperop, "idx: " i
+	fn = tag "." opname ".sctr.raw"
+	print(cpu0, cpu1, nsperop) > fn
 	sum[i] += nsperop;
 	n[i]++;
 	if (min[i] == "" || min[i] > nsperop)
