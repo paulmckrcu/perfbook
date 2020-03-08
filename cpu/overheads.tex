@@ -128,7 +128,7 @@ optimization.
 \subsection{Costs of Operations}
 \label{sec:cpu:Costs of Operations}
 
-\begin{table}
+\begin{table*}
 \rowcolors{1}{}{lightgray}
 \renewcommand*{\arraystretch}{1.1}
 \centering\small
@@ -137,28 +137,38 @@ optimization.
     l
     S[table-format = 9.1]
     S[table-format = 9.1]
+    r
   }
 	\toprule
-	Operation		& \multicolumn{1}{r}{Cost (ns)}
-			& {\parbox[b]{.7in}{\raggedleft Ratio\\(cost/clock)}} \\
+	Operation	   & \multicolumn{1}{r}{Cost (ns)}
+				   & {\parbox[b]{.7in}{\raggedleft Ratio\\(cost/clock)}}
+					    & CPUs \\
 	\midrule
-	Clock period		&           0.6	&           1.0 \\
-	Best-case CAS		&          37.9	&          63.2 \\
-	Best-case lock		&          65.6	&         109.3 \\
-	Single cache miss	&         139.5	&         232.5 \\
-	CAS cache miss		&         306.0	&         510.0 \\
-	Comms Fabric		&       5 000	&       8 330	\\
-	Global Comms		& 195 000 000	& 325 000 000   \\
+	Clock period		     &   0.5 &    1.0 &			  \\
+	Same-CPU CAS		     &   7.0 &   14.6 & 0		  \\
+	Same-CPU lock		     &  15.4 &   32.3 & 0		  \\
+	In-core blind CAS	     &   7.2 &   15.2 & 224		  \\
+	In-core CAS		     &  18.0 &   37.7 & 224		  \\
+	Off-core blind CAS	     &  47.5 &   99.8 & 1--27,224--251	  \\
+	Off-core CAS		     & 101.9 &  214.0 & 1--27,224--251	  \\
+	Off-socket blind CAS	     & 148.8 &  312.5 & 28--111,252--335  \\
+	Off-socket CAS		     & 442.9 &  930.1 & 28--111,252--335  \\
+	Cross-interconnect blind CAS & 336.6 &  706.8 & 112--223,336--447 \\
+	Cross-interconnect CAS	     & 944.8 & 1984.2 & 112--223,336--447 \\
+	\midrule
+	Off-System	&	      & 	    & \\
+	Comms Fabric	&       5 000 &      10 500 & \\
+	Global Comms	& 195 000 000 & 409 500 000 & \\
 	\bottomrule
 \end{tabular}
-\caption{Performance of Synchronization Mechanisms on 4-CPU 1.8\,GHz AMD Opteron 844 System}
-\label{tab:cpu:Performance of Synchronization Mechanisms on 4-CPU 1.8GHz AMD Opteron 844 System}
-\end{table}
+\caption{CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel(R) Xeon(R) Platinum 8176 CPUs @ 2.10\,GHz}
+\label{tab:cpu:CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel(R) Xeon(R) Platinum 8176 CPUs at 2.10GHz}
+\end{table*}
 
 The overheads of some common operations important to parallel programs are
 displayed in
-Table~\ref{tab:cpu:Performance of Synchronization Mechanisms on 4-CPU 1.8GHz AMD Opteron 844 System}.
-This system's clock period rounds to 0.6\,ns.
+Table~\ref{tab:cpu:CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel(R) Xeon(R) Platinum 8176 CPUs at 2.10GHz}.
+This system's clock period rounds to 0.5\,ns.
 Although it is not unusual for modern microprocessors to be able to
 retire multiple instructions per clock period, the operations' costs are
 nevertheless normalized to a clock period in the third column, labeled
@@ -166,34 +176,112 @@ nevertheless normalized to a clock period in the third column, labeled
 The first thing to note about this table is the large values of many of
 the ratios.
 
-The best-case compare-and-swap (CAS) operation consumes almost forty
-nanoseconds, a duration more than sixty times that of the clock period.
-Here, ``best case'' means that the same CPU now performing the CAS operation
+The same-CPU compare-and-swap (CAS) operation consumes about seven
+nanoseconds, a duration more than ten times that of the clock period.
+Here, ``same-CPU'' means that the same CPU now performing the CAS operation
 on a given variable was the last CPU to operate on this variable, so
 that the corresponding cache line is already held in that CPU's cache.
-Similarly, the best-case lock operation (a ``round trip'' pair consisting
+Similarly, the same-CPU lock operation (a ``round trip'' pair consisting
 of a lock acquisition followed by a lock release) consumes more than
-sixty nanoseconds, or more than one hundred clock cycles.
-Again, ``best case'' means that the data structure representing the
-lock is already in the cache belonging to the CPU acquiring and releasing
-the lock.
+fifteen nanoseconds, or more than thirty clock cycles.
 The lock operation is more expensive than CAS because it requires two
-atomic operations on the lock data structure.
+atomic operations on the lock data structure, one for acquisition and
+the other for release.
 
-An operation that misses the cache consumes almost one hundred and forty
-nanoseconds, or more than two hundred clock cycles.
+In-core operations involving interactions between the hardware threads
+sharing a single core are about the same cost and same-CPU operations.
+This should not be too surprising, given that these two hardware threads
+also share the full cache hierarchy.
+CAS stands for an atomic compare-and-swap operation, where the hardware
+compares the contents of the specified memory location to a specified
+``old'' value, and if they compare equal, stores a specified ``new'' value,
+in which case the CAS operation is said to have succeeded.
+If they compare unequal, the memory location keeps its (unexpected) value,
+and the CAS operation is said to have failed.
+The operation is atomic is that the hardware guarantees that the memory
+location will not be changed between the compare and the store.
+CAS functionality is provided by the x86 \co{lock;cmpxchg} instruction.
+
+In the case of the blind CAS, the software specifies the old value
+without looking at the memory location.
+This approach is appropriate when attempting to acquire a lock.
+If the unlocked state is represented by zero and the locked state
+is represented by the value one, then a CAS operation on the lock
+that specifies zero for the old value and one for the new value
+will acquire the lock if it is not already held.
+The key point is that there is only one access to the memory
+location, namely the CAS operation itself.
+
+In contrast, a normal CAS operation's old value is derived from
+some earlier load.
+For example, to implement an atomic increment, the current value of
+that location could be loaded, that value incremented to produce the
+new value.
+Then in the CAS operation, the value actually loaded would be specified
+as the old value and the incremented value as the new value.
+If the value had not been changed between the load and the CAS, this
+would increment the memory location.
+However, if the value had in fact changed, then the old value would
+not match, causing a miscompare that would result in the CAS operation
+failing.
+The key point is that there are now two accesses to the memory location,
+the load and the CAS.
+
+Thus, it is not surprising that in-core blind CAS consumes only about
+seven nanoseconds, while in-core CAS consumes about 18 nanoseconds.
+The non-blind case's extra load does not come for free.
+That said, the overhead of these operations are similar to single-CPU
+CAS and lock, respectively.
+
+\QuickQuiz{}
+	\Cref{tab:cpu:CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel(R) Xeon(R) Platinum 8176 CPUs at 2.10GHz}
+	shows CPU~0 sharing a core with CPU~224.
+	Shouldn't that instead be CPU~1???
+\QuickQuizAnswer{
+	It is easy to be sympathetic to this view, but the file
+	\path{/sys/devices/system/cpu/cpu0/cache/index0/shared_cpu_list}
+	really does contain the string \co{0,224}.
+	Therefore, CPU~0's hyperthread twin really is CPU~224.
+	Some people speculate that this numbering allows naive applications
+	and schedulers to perform better, citing the fact that on many
+	workloads the second hyperthread does not provide a huge
+	amount of additional performance.
+	This speculation assumes that naive applications and schedulers
+	would utilize CPUs in numerical order, leaving aside the weaker
+	hyperthread twin CPUs until all cores are in use.
+} \QuickQuizEnd
+
+An blind CAS involving CPUs in different cores but on the same socket
+misses the cache consumes almost fifty
+nanoseconds, or almost one hundred clock cycles.
 The code used for this cache-miss measurement passes the cache line
 back and forth between a pair of CPUs, so this cache miss is satisfied
 not from memory, but rather from the other CPU's cache.
-A CAS operation, which must look at the old value of the variable as
-well as store a new value, consumes over three hundred nanoseconds, or
-more than five hundred clock cycles.
+A non-blind CAS operation, which as noted earlier must look at the old
+value of the variable as well as store a new value, consumes over one
+hundred nanoseconds, or more than two hundred clock cycles.
 Think about this a bit.
 In the time required to do \emph{one} CAS operation, the CPU could have
-executed more than \emph{five hundred} normal instructions.
+executed more than \emph{two hundred} normal instructions.
 This should demonstrate the limitations not only of fine-grained locking,
 but of any other synchronization mechanism relying on fine-grained
 global agreement.
+
+If the pair of CPUs are on different sockets, the operations are considerably
+more expensive.
+A blind CAS operation consumes almost 150~nanoseconds, or more than
+three hundred clock cycles.
+A CAS operation consumes more than 400~nanoseconds, or almost
+\emph{one thousand} clock cycles.
+
+Worse yet, not all pairs of sockets are created equal.
+This particular system appears to be constructed as a pair of four-socket
+components, with additional latency penalties when the CPUs reside
+in different components.
+In this case, a blind CAS operation consumes more than three hundred
+nanoseconds, or more than seven hundred clock cycles.
+A CAS operation consumes almost a full microsecond, or almost two
+thousand clock cycles.
 
 \QuickQuiz{}
 	Surely the hardware designers could be persuaded to improve
@@ -203,7 +291,7 @@ global agreement.
 \QuickQuizAnswer{
 	The hardware designers \emph{have} been working on this
 	problem, and have consulted with no less a luminary than
-	the physicist Stephen Hawking.
+	the late physicist Stephen Hawking.
 	Hawking's observation was that the hardware designers have
 	two basic problems~\cite{BryanGardiner2007}:
 
@@ -227,18 +315,20 @@ global agreement.
 			& {\parbox[b]{.7in}{\raggedleft Ratio\\(cost/clock)}} \\
 	\midrule
 	Clock period		&           0.4	&           1.0 \\
-	``Best-case'' CAS	&          12.2	&          33.8 \\
-	Best-case lock		&          25.6	&          71.2 \\
-	Single cache miss	&          12.9	&          35.8 \\
-	CAS cache miss		&           7.0	&          19.4 \\
+	Same-CPU CAS		&          12.2	&          33.8 \\
+	Same-CPU lock		&          25.6	&          71.2 \\
+	Blind CAS		&          12.9	&          35.8 \\
+	CAS			&           7.0	&          19.4 \\
 	\midrule
 	Off-Core		&		&		\\
-	Single cache miss	&          31.2	&          86.6 \\
-	CAS cache miss		&          31.2	&          86.5 \\
+	Blind CAS		&          31.2	&          86.6 \\
+	CAS			&          31.2	&          86.5 \\
 	\midrule
 	Off-Socket		&		&		\\
-	Single cache miss	&          92.4	&         256.7 \\
-	CAS cache miss		&          95.9	&         266.4 \\
+	Blind CAS		&          92.4	&         256.7 \\
+	CAS			&          95.9	&         266.4 \\
+	\midrule
+	Off-System		&		&		\\
 	Comms Fabric		&       2 600   &       7 220   \\
 	Global Comms		& 195 000 000	& 542 000 000   \\
 	\bottomrule
@@ -253,13 +343,64 @@ global agreement.
 	is currently holding production frequencies to well below
 	10\,GHz.
 
-	Nevertheless, some progress is being made, as may be seen
-	by comparing
-	Table~\ref{tab:cpu:Performance of Synchronization Mechanisms on 16-CPU 2.8GHz Intel X5550 (Nehalem) System}
-	with
-	Table~\ref{tab:cpu:Performance of Synchronization Mechanisms on 4-CPU 1.8GHz AMD Opteron 844 System}
+	In addition,
+	Table~\ref{tab:cpu:CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel(R) Xeon(R) Platinum 8176 CPUs at 2.10GHz}
 	on
-	page~\pageref{tab:cpu:Performance of Synchronization Mechanisms on 4-CPU 1.8GHz AMD Opteron 844 System}.
+	page~\pageref{tab:cpu:CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel(R) Xeon(R) Platinum 8176 CPUs at 2.10GHz}
+	represents a reasonably large system with no fewer 448~hardware
+	threads.
+	Smaller systems often achieve better latency, as may be seen in
+	Table~\ref{tab:cpu:Performance of Synchronization Mechanisms on 16-CPU 2.8GHz Intel X5550 (Nehalem) System},
+	which represents a much smaller system with only 16 hardware threads.
+	A similar view is provided by the rows of
+	Table~\ref{tab:cpu:CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel(R) Xeon(R) Platinum 8176 CPUs at 2.10GHz}
+	down to and including the two ``Off-core'' rows.
+
+\begin{table*}
+\rowcolors{1}{}{lightgray}
+\renewcommand*{\arraystretch}{1.1}
+\centering\small
+\begin{tabular}
+  {
+    l
+    S[table-format = 9.1]
+    S[table-format = 9.1]
+    r
+  }
+	\toprule
+	Operation		& \multicolumn{1}{r}{Cost (ns)}
+			& {\parbox[b]{.7in}{\raggedleft Ratio\\(cost/clock)}}
+			& CPUs \\
+	\midrule
+	Clock period		     &   0.5 &    1.0 &			  \\
+	Same-CPU CAS		     &   6.2 &   13.6 & 0		  \\
+	Same-CPU lock		     &  13.5 &   29.6 & 0		  \\
+	In-core blind CAS	     &   6.5 &   14.3 & 6		  \\
+	In-core CAS		     &  16.2 &   35.6 & 6		  \\
+	Off-core blind CAS	     &  22.2 &   48.8 & 1--5,7--11	  \\
+	Off-core CAS		     &  53.6 &  117.9 & 1--5,7--11	  \\
+	\midrule
+	Off-System	&	      & 	    & \\
+	Comms Fabric	&       5 000 &      11 000 & \\
+	Global Comms	& 195 000 000 & 429 000 000 & \\
+	\bottomrule
+\end{tabular}
+\caption{CPU 0 View of Synchronization Mechanisms on 12-CPU Intel(R) Core(TM) i7-8750H CPU @ 2.20\,GHz}
+\label{tab:cpu:CPU 0 View of Synchronization Mechanisms on 12-CPU Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz}
+\end{table*}
+
+	Furthermore, newer small-scale single-socket systems such
+	as the laptop on which I am typing this also have more
+	reasonable latencies, as can be seen in
+	\cref{tab:cpu:CPU 0 View of Synchronization Mechanisms on 12-CPU Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz}.
+
+	Alternatively, a 64-CPU system in the mid 1990s had
+	cross-interconnect latencies in excess of five microseconds,
+	so even the eight-socket 448-hardware-thread monster shown in
+	Table~\ref{tab:cpu:CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel(R) Xeon(R) Platinum 8176 CPUs at 2.10GHz}
+	represents more than a five-fold improvement over its
+	25-years-prior counterparts.
+
 	Integration of hardware threads in a single core and multiple
 	cores on a die have improved latencies greatly, at least within the
 	confines of a single core or single die.
@@ -268,28 +409,34 @@ global agreement.
 	Unfortunately, neither the speed of light nor the atomic nature
 	of matter has changed much in the past few
 	years~\cite{NoBugsHare2016CPUoperations}.
+	Therefore, spatial and temporal locality are first-class concerns
+	for concurrent software, even when running on relatively
+	small systems.
 
 	Section~\ref{sec:cpu:Hardware Free Lunch?}
 	looks at what else hardware designers might be
 	able to do to ease the plight of parallel programmers.
 } \QuickQuizEnd
 
+Spatial locality of reference is clearly extremely important.
+
 I/O operations are even more expensive.
 As shown in the ``Comms Fabric'' row,
 high performance (and expensive!) communications fabric, such as
 InfiniBand or any number of proprietary interconnects, has a latency
 of roughly five microseconds for an end-to-end round trip, during which
-time more than eight \emph{thousand} instructions might have been executed.
+time more than \emph{ten thousand} instructions might have been executed.
 Standards-based communications networks often require some sort of
 protocol processing, which further increases the latency.
 Of course, geographic distance also increases latency, with the
 speed-of-light through optical fiber latency around the world coming to
-roughly 195 \emph{milliseconds}, or more than 300 million clock
+roughly 195 \emph{milliseconds}, or more than 400 million clock
 cycles, as shown in the ``Global Comms'' row.
 
-% Reference of Infiniband latency:
+% Reference for Infiniband latency:
 % http://www.hpcadvisorycouncil.com/events/2014/swiss-workshop/presos/Day_1/1_Mellanox.pdf
 %     page 6/76 'Leading Interconnect, Leading Performance'
+% Needs updating...
 
 \QuickQuiz{}
 	These numbers are insanely large!
@@ -309,7 +456,10 @@ cycles, as shown in the ``Global Comms'' row.
 	the communications latency.
 
 	Important safety tip: make sure to account for the needs of
-	those you live with when appropriating toilet paper!
+	those you live with when appropriating toilet paper!\footnote{
+		Especially here in early 2020, in the midst of the
+		coronavirus excitement that is keeping store shelves
+		free of toilet paper and much else besides!}
 } \QuickQuizEnd
 
 \subsection{Hardware Optimizations}
