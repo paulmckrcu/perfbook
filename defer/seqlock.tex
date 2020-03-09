@@ -24,10 +24,10 @@ Figure~\ref{fig:defer:Reader And Uncooperative Sequence Lock},
 it is important to design code using sequence locks so that readers
 very rarely need to retry.
 
-\QuickQuiz{}
+\QuickQuiz{
 	Why isn't this sequence-lock discussion in Chapter~\ref{chp:Locking},
 	you know, the one on \emph{locking}?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	The sequence-lock mechanism is really a combination of two
 	separate synchronization mechanisms, sequence counts and
 	locking.
@@ -49,7 +49,7 @@ very rarely need to retry.
 	emphasis on the ``sequence count'' aspect of ``sequence locks''
 	and (2) because a ``sequence lock'' is much more than merely
 	a lock.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 \begin{listing}[bp]
 \begin{VerbatimL}
@@ -124,12 +124,12 @@ bit cleared), which the caller
 will pass to a later call to \co{read_seqretry()}.
 \end{fcvref}
 
-\QuickQuiz{}
+\QuickQuiz{
 	Why not have \co{read_seqbegin()} in
 	Listing~\ref{lst:defer:Sequence-Locking Implementation}
 	check for the low-order bit being set, and retry
 	internally, rather than allowing a doomed read to start?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	That would be a legitimate implementation.
 	However, if the workload is read-mostly, it would likely
 	increase the overhead of the common-case successful read,
@@ -137,7 +137,7 @@ will pass to a later call to \co{read_seqretry()}.
 	However, given a sufficiently large fraction of updates
 	and sufficiently high-overhead readers, having the
 	check internal to \co{read_seqbegin()} might be preferable.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 \begin{fcvref}[ln:defer:seqlock:impl:read_seqretry]
 \Clnrefrange{b}{e} show \co{read_seqretry()}, which returns true if there
@@ -150,24 +150,24 @@ in other words, whether there has been at least one writer, and returns
 true if so.
 \end{fcvref}
 
-\QuickQuiz{}
+\QuickQuiz{
 	Why is the \co{smp_mb()} on
 	line~\ref{ln:defer:seqlock:impl:read_seqretry:mb} of
 	Listing~\ref{lst:defer:Sequence-Locking Implementation}
 	needed?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	If it was omitted, both the compiler and the CPU would be
 	within their rights to move the critical section preceding
 	the call to \co{read_seqretry()} down below this function.
 	This would prevent the sequence lock from protecting the
 	critical section.
 	The \co{smp_mb()} primitive prevents such reordering.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
-\QuickQuiz{}
+\QuickQuiz{
 	Can't weaker memory barriers be used in the code in
 	Listing~\ref{lst:defer:Sequence-Locking Implementation}?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	In older versions of the Linux kernel, no.
 
 	\begin{fcvref}[ln:defer:seqlock:impl]
@@ -187,18 +187,18 @@ smp_store_release(&slp->seq, READ_ONCE(slp->seq) + 1);
 	This would allow the \co{smp_mb()} on
 	line~\lnref{write_sequnlock:mb} to be dropped.
 	\end{fcvref}
-} \QuickQuizEnd
+}\QuickQuizEnd
 
-\QuickQuiz{}
+\QuickQuiz{
 	What prevents sequence-locking updaters from starving readers?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Nothing.
 	This is one of the weaknesses of sequence locking, and as a
 	result, you should use sequence locking only in read-mostly
 	situations.
 	Unless of course read-side starvation is acceptable in your
 	situation, in which case, go wild with the sequence-locking updates!
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 \begin{fcvref}[ln:defer:seqlock:impl:write_seqlock]
 \Clnrefrange{b}{e} show \co{write_seqlock()}, which simply acquires the lock,
@@ -211,22 +211,22 @@ to ensure that the caller's critical section is ordered before the
 increment of the sequence number on line~\lnref{inc}, then releases the lock.
 \end{fcvref}
 
-\QuickQuiz{}
+\QuickQuiz{
 	What if something else serializes writers, so that the lock
 	is not needed?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	In this case, the \co{->lock} field could be omitted, as it
 	is in \co{seqcount_t} in the Linux kernel.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
-\QuickQuiz{}
+\QuickQuiz{
 	Why isn't \co{seq} on
 	line~\ref{ln:defer:seqlock:impl:typedef:seq} of
 	Listing~\ref{lst:defer:Sequence-Locking Implementation}
 	\co{unsigned} rather than \co{unsigned long}?
 	After all, if \co{unsigned} is good enough for the Linux
 	kernel, shouldn't it be good enough for everyone?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Not at all.
 	The Linux kernel has a number of special attributes that allow
 	it to ignore the following sequence of events:
@@ -262,7 +262,7 @@ increment of the sequence number on line~\lnref{inc}, then releases the lock.
 	\emph{nano}second.
 	Therefore, this implementation uses a type for \co{->seq}
 	that is 64 bits on 64-bit systems.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 \begin{listing}[tbp]
 \input{CodeSamples/defer/route_seqlock@lookup.fcv}
@@ -324,12 +324,12 @@ The problem is that the reader might encounter a segmentation violation
 due to accessing an already-freed structure before \co{read_seqretry()}
 has a chance to warn of the concurrent update.
 
-\QuickQuiz{}
+\QuickQuiz{
 	Can this bug be fixed?
 	In other words, can you use sequence locks as the \emph{only}
 	synchronization mechanism protecting a linked list supporting
 	concurrent addition, deletion, and lookup?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	One trivial way of accomplishing this is to surround all
 	accesses, including the read-only accesses, with
 	\co{write_seqlock()} and \co{write_sequnlock()}.
@@ -364,7 +364,7 @@ has a chance to warn of the concurrent update.
 	Section~\ref{sec:defer:Hazard Pointers}.
 	But in either case, you would be using some other synchronization
 	mechanism in addition to sequence locks!
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 Both the read-side and write-side critical sections of a sequence lock
 can be thought of as transactions, and sequence locking therefore

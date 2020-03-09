@@ -93,7 +93,7 @@ At this point, pre-existing readers see the old structure with
 a \co{NULL} pointer, that is, concurrent readers can disagree on
 the state, as indicated by the ``2 Versions'' in the figure.
 
-\QuickQuiz{}
+\QuickQuiz{
 	Why does
 	Figure~\ref{fig:defer:Deletion With Concurrent Readers}
 	use \co{smp_store_release()} given that it is storing
@@ -101,7 +101,7 @@ the state, as indicated by the ``2 Versions'' in the figure.
 	Wouldn't \co{WRITE_ONCE()} work just as well in this case,
 	given that there is no structure initialization to order
 	against the store of the \co{NULL} pointer?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Yes, it would.
 
 	Because a \co{NULL} pointer is being assigned, there is nothing
@@ -116,15 +116,15 @@ the state, as indicated by the ``2 Versions'' in the figure.
 	However, as we will see, software-engineering concerns
 	will motivate use of a special \co{rcu_assign_pointer()}
 	that is quite similar to \co{smp_store_release()}.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
-\QuickQuiz{}
+\QuickQuiz{
 	Readers running concurrently each other and with the procedure
 	outlined in
 	Figure~\ref{fig:defer:Deletion With Concurrent Readers}
 	can disagree on the value of \co{gptr}.
 	Isn't that just a wee bit problematic???
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Not necessarily.
 
 	As hinted at in Sections~\ref{sec:cpu:Hardware Optimizations}
@@ -156,7 +156,7 @@ the state, as indicated by the ``2 Versions'' in the figure.
 	this is not necessarily problematic.
 	And, when needed, there are RCU usage patterns that avoid both
 	staleness and inconsistency~\cite{Arcangeli03}.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 We get back to a single version simply by waiting for all the
 pre-existing readers to complete, as shown in row~3.
@@ -334,21 +334,21 @@ At this point, all readers throughout the entire system are known to
 have completed, so the grace period ends, permitting CPU~1 to free
 the old data item.
 
-\QuickQuiz{}
+\QuickQuiz{
 	In Figure~\ref{fig:defer:QSBR: Waiting for Pre-Existing Readers},
 	the last of CPU~3's readers that could possibly have
 	access to the old data item ended before the grace period
 	even started!
 	So why would any anyone bother waiting until CPU~3's later context
 	switch???
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Because that waiting is exactly what enables readers to use
 	the same sequence of instructions that is appropriate for
 	single-theaded situations.
 	In other words, this additional ``redundant'' waiting enables
 	excellent read-side performance, scalability, and real-time
 	response.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 \subsubsection{Toy Implementation}
 \label{sec:defer:Toy Implementation}
@@ -447,11 +447,11 @@ be implemented.
 (A slightly more capable routing table is shown in
 Section~\ref{sec:defer:RCU for Pre-BSD Routing}.)
 
-\QuickQuiz{}
+\QuickQuiz{
 	What is the point of \co{rcu_read_lock()} and \co{rcu_read_unlock()} in
 	Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}?
 	Why not just let the quiescent states speak for themselves?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Recall that readers are not permitted to pass through a quiescent
 	state.
 	For example, within the Linux kernel, RCU readers are not permitted
@@ -460,20 +460,20 @@ Section~\ref{sec:defer:RCU for Pre-BSD Routing}.)
 	debug checks for improperly placed quiescent states, making it
 	easy to find bugs that would otherwise be difficult to find,
 	intermittent, and quite destructive.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
-\QuickQuiz{}
+\QuickQuiz{
 	What is the point of \co{rcu_dereference()}, \co{rcu_assign_pointer()}
 	and \co{RCU_INIT_POINTER()} in
 	Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}?
 	Why not just use \co{READ_ONCE()}, \co{smp_store_release()}, and
 	\co{WRITE_ONCE()}, respectively?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	The RCU-specific APIs do have similar semantics to the suggested
 	replacements, but also enable static-analysis debugging checks
 	that complain if an RCU-specific API is invoked on a non-RCU
 	pointer and vice versa.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 Referring back to
 Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers},
@@ -502,16 +502,16 @@ Callers might use one of the following approaches:
 In contrast, \co{del_route()} uses \co{synchronize_rcu()} and
 \co{free()} to safely free the newly deleted data item.
 
-\QuickQuiz{}
+\QuickQuiz{
 	But what if the old structure needs to be freed, but the caller
 	of \co{ins_route()} cannot block, perhaps due to performance
 	considerations or perhaps because the caller is executing within
 	an RCU read-side critical section?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	A \co{call_rcu()} function, which is described in
 	Section~\ref{sec:defer:Wait For Pre-Existing RCU Readers},
 	permits asynchronous grace-period waits.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 This example shows one general approach to reading and updating
 RCU-protected data structures, however, there is quite a variety
@@ -549,10 +549,10 @@ hazard pointers, but without the need for read-side retries.
 In some cases, including \co{CONFIG_PREEMPT=n} Linux kernels,
 RCU's read-side primitives have zero overhead.
 
-\QuickQuiz{}
+\QuickQuiz{
 	But doesn't Section~\ref{sec:defer:Sequence Locks}'s seqlock
 	also permit readers and updaters to get work done concurrently?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Yes and no.
 	Although seqlock readers can run concurrently with
 	seqlock writers, whenever this happens, the \co{read_seqretry()}
@@ -575,7 +575,7 @@ RCU's read-side primitives have zero overhead.
 	Section~\ref{sec:defer:Which to Choose?}
 	for a comparison of these different solutions to the
 	deferred-reclamation problem.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 But are these properties actually useful in practice?
 This question is taken up by the next section.

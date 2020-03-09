@@ -67,11 +67,11 @@ Promela models, the last of which passes, consuming about
 
 More important, Promela and Spin did find a very subtle bug for me!
 
-\QuickQuiz{}
+\QuickQuiz{
 	Yeah, that's just great!
 	Now, just what am I supposed to do if I don't happen to have a
 	machine with 40\,GB of main memory???
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Relax, there are a number of lawful answers to
 	this question:
 	\begin{enumerate}
@@ -93,7 +93,7 @@ More important, Promela and Spin did find a very subtle bug for me!
 	\item	Use one of a number of cloud-computing services to rent
 		a large system for a short time period.
 	\end{enumerate}
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 Still better would be to come up with a simpler and faster algorithm
 that has a smaller state space.
@@ -234,11 +234,11 @@ invocation) will also see the increment of
 \co{dynticks_progress_counter}.
 \end{fcvref}
 
-\QuickQuiz{}
+\QuickQuiz{
 	Why not simply increment \co{rcu_update_flag}, and then only
 	increment \co{dynticks_progress_counter} if the old value
 	of \co{rcu_update_flag} was zero???
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	This fails in presence of NMIs.
 	To see this, suppose an NMI was received just after
 	\co{rcu_irq_enter()} incremented \co{rcu_update_flag},
@@ -253,20 +253,20 @@ invocation) will also see the increment of
 
 	The possibility of NMI handlers, which, by definition cannot
 	be masked, does complicate this code.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
-\QuickQuiz{}
+\QuickQuiz{
 	\begin{fcvref}[ln:formal:dyntickrcu:rcu_irq_enter]
 	But if \clnref{chk_lv:b} finds that we are the outermost interrupt,
 	wouldn't we \emph{always} need to increment
 	\co{dynticks_progress_counter}?
 	\end{fcvref}
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Not if we interrupted a running task!
 	In that case, \co{dynticks_progress_counter} would
 	have already been incremented by \co{rcu_exit_nohz()},
 	and there would be no need to increment it again.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 Interrupt exit is handled similarly by
 \co{rcu_irq_exit()}:
@@ -430,11 +430,11 @@ RCU and the dynticks-idle state.
 The next section builds up the Promela model used to verify this
 code.
 
-\QuickQuiz{}
+\QuickQuiz{
 	Can you spot any bugs in any of the code in this section?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Read the next section to see if you were correct.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 \subsection{Validating Preemptible RCU and dynticks}
 \label{sec:formal:Validating Preemptible RCU and dynticks}
@@ -491,26 +491,26 @@ Each pass through the loop therefore models a CPU exiting
 dynticks-idle mode (for example, starting to execute a task), then
 re-entering dynticks-idle mode (for example, that same task blocking).
 
-\QuickQuiz{}
+\QuickQuiz{
 	Why isn't the memory barrier in \co{rcu_exit_nohz()}
 	and \co{rcu_enter_nohz()} modeled in Promela?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Promela assumes sequential consistency, so
 	it is not necessary to model memory barriers.
 	In fact, one must instead explicitly model lack of memory barriers,
 	for example, as shown in
 	\cref{lst:formal:QRCU Unordered Summation} on
 	page~\pageref{lst:formal:QRCU Unordered Summation}.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
-\QuickQuiz{}
+\QuickQuiz{
 	Isn't it a bit strange to model \co{rcu_exit_nohz()}
 	followed by \co{rcu_enter_nohz()}?
 	Wouldn't it be more natural to instead model entry before exit?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	It probably would be more natural, but we will need
 	this particular order for the liveness checks that we will add later.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 The next step is to model the interface to RCU's grace-period
 processing.
@@ -557,12 +557,12 @@ each CPU to execute a memory barrier, but again only that part
 that interacts with dynticks-idle CPUs.
 \end{fcvref}
 
-\QuickQuiz{}
+\QuickQuiz{
 	Wait a minute!
 	In the Linux kernel, both \co{dynticks_progress_counter} and
 	\co{rcu_dyntick_snapshot} are per-CPU variables.
 	So why are they instead being modeled as single global variables?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Because the grace-period code processes each
 	CPU's \co{dynticks_progress_counter} and
 	\co{rcu_dyntick_snapshot} variables separately,
@@ -573,7 +573,7 @@ that interacts with dynticks-idle CPUs.
 	But fortunately, we can safely confine ourselves to two CPUs, the
 	one running the grace-period processing and the one entering and
 	leaving dynticks-idle mode.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 The resulting model (\path{dyntickRCU-base.spin}),
 when run with the
@@ -611,20 +611,20 @@ The form of this verification is to assert that the value of the
 over which RCU readers could plausibly persist.
 \end{fcvref}
 
-\QuickQuiz{}
+\QuickQuiz{
 	\begin{fcvref}[ln:formal:promela:dyntick:dyntickRCU-base-s:grace_period]
 	Given there are a pair of back-to-back changes to
 	\co{grace_period_state} on \clnref{upd_gps3,upd_gps4},
 	how can we be sure that \clnref{upd_gps3}'s changes won't be lost?
 	\end{fcvref}
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Recall that Promela and Spin trace out
 	every possible sequence of state changes.
 	Therefore, timing is irrelevant: Promela/Spin will be quite
 	happy to jam the entire rest of the model between those two
 	statements unless some state variable specifically prohibits
 	doing so.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 The \co{dyntick_nohz()} Promela process implements
 this verification as shown below:
@@ -872,21 +872,21 @@ to \co{EXECUTE_MAINLINE()}, as in \clnrefrange{stmt2:b}{stmt2:e}, all
 statements in that group execute atomically.
 \end{fcvref}
 
-\QuickQuiz{}
+\QuickQuiz{
 	But what would you do if you needed the statements in a single
 	\co{EXECUTE_MAINLINE()} group to execute non-atomically?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	The easiest thing to do would be to put
 	each such statement in its own \co{EXECUTE_MAINLINE()}
 	statement.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
-\QuickQuiz{}
+\QuickQuiz{
 	But what if the \co{dynticks_nohz()} process had
 	``if'' or ``do'' statements with conditions,
 	where the statement bodies of these constructs
 	needed to execute non-atomically?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	One approach, as we will see in a later section,
 	is to use explicit labels and ``goto'' statements.
 	For example, the construct:
@@ -916,7 +916,7 @@ statements in that group execute atomically.
 	However, it is not clear that the macro is helping much in the case
 	of the ``if'' statement, so these sorts of situations will
 	be open-coded in the following sections.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 The next step is to write a \co{dyntick_irq()} process
 to model an interrupt handler:
@@ -934,18 +934,18 @@ handler has completed.
 line of \co{dyntick_nohz()}.
 \end{fcvref}
 
-\QuickQuiz{}
+\QuickQuiz{
 	\begin{fcvref}[ln:formal:promela:dyntick:dyntickRCU-irqnn-ssl:dyntick_irq]
 	Why are \clnref{clr_in_irq,inc_i} (the \qtco{in_dyntick_irq = 0;}
 	and the \qco{i++;}) executed atomically?
 	\end{fcvref}
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	These lines of code pertain to controlling the
 	model, not to the code being modeled, so there is no reason to
 	model them non-atomically.
 	The motivation for modeling them atomically is to reduce the size
 	of the state space.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 \begin{fcvref}[ln:formal:promela:dyntick:dyntickRCU-irqnn-ssl:dyntick_irq]
 \Clnrefrange{enter:b}{enter:e} model \co{rcu_irq_enter()}, and
@@ -957,13 +957,13 @@ as do the corresponding lines of \co{dynticks_nohz()}.
 and finally \clnrefrange{exit:b}{exit:e} model \co{rcu_irq_exit()}.
 \end{fcvref}
 
-\QuickQuiz{}
+\QuickQuiz{
 	What property of interrupts is this \co{dynticks_irq()}
 	process unable to model?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	One such property is nested interrupts,
 	which are handled in the following section.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 The \co{grace_period()} process then becomes as follows:
 
@@ -1080,10 +1080,10 @@ The model (\path{dyntickRCU-irq-nmi-ssl.spin})
 results in a correct verification with several hundred million
 states, passing without errors.
 
-\QuickQuiz{}
+\QuickQuiz{
 	Does Paul \emph{always} write his code in this painfully incremental
 	manner?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Not always, but more and more frequently.
 	In this case, Paul started with the smallest slice of code that
 	included an interrupt handler, because he was not sure how best
@@ -1109,7 +1109,7 @@ states, passing without errors.
 	process, at the expense of some increase in coding effort.
 	Paul uses this approach because he rarely has the luxury of
 	devoting full days (let alone weeks) to coding and debugging.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 \subsubsection{Lessons (Re)Learned}
 \label{sec:formal:Lessons (Re)Learned}
@@ -1259,11 +1259,11 @@ If both \co{dynticks} and \co{dynticks_nmi} have taken on an even
 value during a given time interval, then the corresponding CPU has
 passed through a quiescent state during that interval.
 
-\QuickQuiz{}
+\QuickQuiz{
 	But what happens if an NMI handler starts running before
 	an \IRQ\ handler completes, and if that NMI handler continues
 	running until a second \IRQ\ handler starts?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	This cannot happen within the confines of a single CPU.
 	The first \IRQ\ handler cannot complete until the NMI handler
 	returns.
@@ -1271,7 +1271,7 @@ passed through a quiescent state during that interval.
 	variables have taken on an even value during a given time
 	interval, the corresponding CPU really was in a quiescent
 	state at some time during that interval.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 \subsubsection{Entering and Leaving Dynticks-Idle Mode}
 \label{sec:formal:Entering and Leaving Dynticks-Idle Mode}
@@ -1561,13 +1561,13 @@ rcu_implicit_dynticks_qs(struct rcu_data *rdp)
 \label{lst:formal:Checking Dyntick Progress Counters}
 \end{listing}
 
-\QuickQuiz{}
+\QuickQuiz{
 	This is still pretty complicated.
 	Why not just have a \co{cpumask_t} that has a bit set for
 	each CPU that is in dyntick-idle mode, clearing the bit
 	when entering an \IRQ\ or NMI handler, and setting it upon
 	exit?
-\QuickQuizAnswer{
+}\QuickQuizAnswer{
 	Although this approach would be functionally correct, it
 	would result in excessive \IRQ\ entry/exit overhead on
 	large machines.
@@ -1575,7 +1575,7 @@ rcu_implicit_dynticks_qs(struct rcu_data *rdp)
 	each CPU to touch only per-CPU data on \IRQ\ and NMI entry/exit,
 	resulting in much lower \IRQ\ entry/exit overhead, especially
 	on large machines.
-} \QuickQuizEnd
+}\QuickQuizEnd
 
 \subsubsection{Discussion}
 \label{sec:formal:Discussion}
