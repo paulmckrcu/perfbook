@@ -4229,6 +4229,7 @@ Note that inserting an additional \co{ISB} instruction somewhere between
 \end{fcvref}
 
 \subsection{\ARMv8}
+\label{sec:memorder:ARMv8}
 
 \begin{figure}[tb]
 \centering
@@ -4305,6 +4306,120 @@ both load-acquire and store-release instructions as full barriers.
 Nevertheless, Itanium was the first mainstream CPU to introduce the concept
 (if not the reality) of load-acquire and store-release into its
 instruction set.
+
+\QuickQuiz{
+	Given that hardware can have a half memory barrier, why don't
+	locking primitives allow the compiler to move memory-reference
+	instructions into lock-based critical sections?
+}\QuickQuizAnswer{
+	In fact, as we saw in \cref{sec:memorder:ARMv8} and will
+	see in \cref{sec:memorder:POWER / PowerPC}, hardware really does
+	implement partial memory-ordering instructions and it also turns
+	out that these really are used to construct locking primitives.
+	However, these locking primitives use full compiler barriers,
+	thus preventing the compiler from reordering memory-reference
+	instructions both out of and into the corresponding critical
+	section.
+
+\begin{listing}[tbp]
+\begin{fcvlabel}[ln:memorder:synchronize-rcu]
+\begin{VerbatimL}[commandchars=\@\[\]]
+static inline int rcu_gp_ongoing(unsigned long *ctr)
+{
+	unsigned long v;
+
+	v = LOAD_SHARED(*ctr);@lnlbl[load]
+	return v && (v != rcu_gp_ctr);
+}
+
+static void update_counter_and_wait(void)
+{
+	struct rcu_reader *index;
+
+	STORE_SHARED(rcu_gp_ctr, rcu_gp_ctr + RCU_GP_CTR);
+	barrier();
+	list_for_each_entry(index, &registry, node) {@lnlbl[loop]
+		while (rcu_gp_ongoing(&index->ctr))@lnlbl[call2]
+			msleep(10);
+	}
+}
+
+void synchronize_rcu(void)
+{
+	unsigned long was_online;
+
+	was_online = rcu_reader.ctr;
+	smp_mb();
+	if (was_online)@lnlbl[if]
+		STORE_SHARED(rcu_reader.ctr, 0);@lnlbl[store]
+	mutex_lock(&rcu_gp_lock);@lnlbl[acqmutex]
+	update_counter_and_wait();@lnlbl[call1]
+	mutex_unlock(&rcu_gp_lock);
+	if (was_online)
+		STORE_SHARED(rcu_reader.ctr, LOAD_SHARED(rcu_gp_ctr));
+	smp_mb();
+}
+\end{VerbatimL}
+\end{fcvlabel}
+\caption{Userspace RCU Code Reordering}
+\label{lst:memorder:Userspace RCU Code Reordering}
+\end{listing}
+
+	To see why the compiler is forbidden from doing reordering that
+	is permitted by hardware, consider the following sample code
+	in \cref{lst:memorder:Userspace RCU Code Reordering}.
+	This code is based on the userspace RCU update-side
+	code~\cite[Supplementary Materials Figure 5]{MathieuDesnoyers2012URCU}.
+
+\begin{fcvref}[ln:memorder:synchronize-rcu]
+	Suppose that the compiler reordered \clnref{if,store} into
+	the critical section starting at \clnref{acqmutex}.
+	Now suppose that two updaters start executing \co{synchronize_rcu()}
+	at about the same time.
+	Then consider the following sequence of events:
+	\begin{enumerate}
+	\item	CPU~0 acquires the lock at \clnref{acqmutex}.
+	\item	\Clnref{if} determines that CPU~0 was online, so it clears
+		its own counter at \clnref{store}.
+		(Recall that \clnref{if,store} have been reordered by the
+		compiler to follow \clnref{acqmutex}).
+	\item	CPU~0 invokes \co{update_counter_and_wait()} from
+		\lnref{call1}.
+	\item	CPU~0 invokes \co{rcu_gp_ongoing()} on itself at
+		\clnref{call2}, and \clnref{load} sees that CPU~0 is
+		in a quiescent state.
+		Control therefore returns to \co{update_counter_and_wait()},
+		and \clnref{loop} advances to CPU~1.
+	\item	CPU~1 invokes \co{synchronize_rcu()}, but because CPU~0
+		already holds the lock, CPU~1 blocks waiting for this
+		lock to become available.
+		Because the compiler reordered \clnref{if,store} to follow
+		\lnref{acqmutex}, CPU~1 does not clear its own counter,
+		despite having been online.
+	\item	CPU~0 invokes \co{rcu_gp_ongoing()} on CPU~1 at
+		\clnref{call2}, and \clnref{load} sees that CPU~1 is
+		not in a quiescent state.
+		The \co{while} loop at \clnref{call2} therefore never
+		exits.
+	\end{enumerate}
+
+	So the compiler's reordering results in a deadlock.
+	In contrast, hardware reordering is temporary, so that CPU~1
+	might undertake its first attempt to acquire the mutex on
+	\clnref{acqmutex} before executing \clnref{if,store}, but it
+	will eventually execute \clnref{if,store}.
+	Because hardware reordering only results in a short delay, it
+	can be tolerated.
+	On the other hand, because compiler reordering results in a
+	deadlock, it must be prohibited.
+
+	Some research efforts have used hardware transactional memory
+	to allow compilers to safely reorder more aggressively, but
+	the current expense of hardware transactions has thus far made
+	such optimizations unattractive.
+	% @@@ Citation for compilers use of HTM in this manner?
+\end{fcvref}
+}\QuickQuizEnd
 
 The Itanium {\tt mf} instruction is used for the \co{smp_rmb()},
 \co{smp_mb()}, and \co{smp_wmb()} primitives in the Linux kernel.
