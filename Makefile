@@ -16,7 +16,7 @@ LST_SOURCES := $(wildcard CodeSamples/formal/promela/*.lst) \
 
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
 
-ABBREVTARGETS := tcb 1c hb msns mss mstx msr msn msnt 1csf
+ABBREVTARGETS := tcb 1c hb msns mss mstx msr msn msnt 1csf 2cqq 1cqq
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
@@ -275,6 +275,7 @@ ifeq ($(NIMBUSMONO),)
 	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
 endif
 	sed -e 's/%msfontstub/\\usepackage[zerostyle=a]{newtxtt}/' \
+	    -e 's/{qqzgb}{false}/{qqzbg}{true}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
 
 perfbook-1csf.tex: perfbook-1c.tex
@@ -288,8 +289,15 @@ ifeq ($(NIMBUSMONO),)
 	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
 endif
 	sed -e 's/setboolean{sansserif}{false}/setboolean{sansserif}{true}/' \
+	    -e 's/{qqzbg}{false}/{qqzbg}{true}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' \
 	    -e 's/%msfontstub/\\usepackage[var0]{inconsolata}[2013\/07\/17]/' < $< > $@
+
+perfbook-2cqq.tex: perfbook.tex
+	sed -e 's/{qqzbg}{false}/{qqzbg}{true}/' < $< > $@
+
+perfbook-1cqq.tex: perfbook-1c.tex
+	sed -e 's/{qqzbg}{false}/{qqzbg}{true}/' < $< > $@
 
 # Rules related to perfbook_html are removed as of May, 2016
 
@@ -398,6 +406,8 @@ help:
 	@echo
 	@echo "Experimental targets:"
 	@echo "  Full,              Abbr."
+	@echo "  perfbook-2cqq,     2cqq: 2c with Quick Quiz background"
+	@echo "  perfbook-1cqq,     1cqq: 1c with Quick Quiz background"
 	@echo "  perfbook-tcb,      tcb:  2c with table caption at bottom (prev default)"
 	@echo "  perfbook-msnt.pdf, msnt: 2c with newtxtt as monospace (non-slashed 0)"
 	@echo "  perfbook-mstx.pdf, mstx: 2c with txtt as monospace"
