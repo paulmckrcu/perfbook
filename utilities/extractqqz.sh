@@ -24,9 +24,9 @@
 
 echo "% mainfile: perfbook.tex"
 sed -n -e '/^\\QuickQuizChapter{/p' \
-       -e '/^\\QuickQuiz{/,/^}\\QuickQuizEnd/p' |
+       -e '/^\\E\?QuickQuiz{/,/^}\\E\?QuickQuizEnd/p' |
 sed -e 's/^\\QuickQuizChapter{/\\QuickQAC{/' \
-    -e 's/^\\QuickQuiz{/\\QuickQ{}/' \
-    -e 's/^}\\QuickQuizAnswer{/\\QuickA{}/' \
+    -e 's/^\\E\?QuickQuiz{/\\QuickQ{}/' \
+    -e 's/^}\\E\?QuickQuizAnswer{/\\QuickA{}/' \
     -e 's/^\\QContributedBy{/\\ContributedBy{/' \
-    -e 's/^}\\QuickQuizEnd/\\QuickE{}/'
+    -e 's/^}\\E\?QuickQuizEnd/\\QuickE{}/'
