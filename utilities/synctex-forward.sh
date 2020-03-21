@@ -42,7 +42,7 @@ else
 		main="perfbook.tex"
 		change="reverted"
 		;;
-	1c|hb|tcb|msnt|mstx|msr|msn|1csf|msns|mss)
+	1c|hb|tcb|msnt|mstx|msr|msn|1csf|msns|mss|2cqq|1cqq|noqq)
 		main="perfbook-$1.tex"
 		change="modified"
 		;;
