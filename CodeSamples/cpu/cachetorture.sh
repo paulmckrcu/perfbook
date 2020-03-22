@@ -3,6 +3,8 @@
 # Run cachetorture stats, CPU 0 vs. all other CPUs.  First parameter
 # controls the maximum CPU number, defaulting to the largest-numbered CPU.
 #
+# Usage: cachetorture.sh [ testcpu [ lastcpu ] ]
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -21,16 +23,21 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
+testcpu=${1-0}
 maxcpu="`grep '^processor' /proc/cpuinfo | tail -1 | awk '{ print $3 }'`"
-lastcpu=${1-$maxcpu}
+lastcpu=${2-$maxcpu}
 
 for ((i=1;i<30;i++))
 do
-	for ((cpu=1;cpu<=$lastcpu;cpu++))
+	for ((cpu=0;cpu<=$lastcpu;cpu++))
 	do
+		if (($cpu==$testcpu))
+		then
+			continue;
+		fi
 		for runtype in atomicinc blindcmpxchg cmpxchg write
 		do
-			./cachetorture $runtype 0 $cpu
+			./cachetorture $runtype $testcpu $cpu
 		done
 	done
 	./cachetorture locallock
