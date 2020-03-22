@@ -26,11 +26,12 @@
 #include <pthread.h>
 #include <errno.h>
 #include "../api.h"
+#include "../api-pthreads/util.h"
 
 //\begin{snippet}[labelbase=ln:toolsoftrade:rwlockscale:reader,commandchars=\@\^\$]
 pthread_rwlock_t rwl = PTHREAD_RWLOCK_INITIALIZER;	//\lnlbl{rwlock}
-int holdtime = 0;	/* # loops holding lock. */	//\lnlbl{holdtm}
-int thinktime = 0;	/* # loops not holding lock. */	//\lnlbl{thinktm}
+unsigned long holdtime = 0;	/* # loops w/lock. */	//\lnlbl{holdtm}
+unsigned long thinktime = 0;	/* # w/out lock. */	//\lnlbl{thinktm}
 long long *readcounts;					//\lnlbl{rdcnts}
 int nreadersrunning = 0;				//\lnlbl{nrdrun}
 
@@ -57,7 +58,7 @@ void *reader(void *arg)					//\lnlbl{reader:b}
 			exit(EXIT_FAILURE);
 		}						//\lnlbl{reader:acq:e}
 		for (i = 1; i < holdtime; i++) {	//\lnlbl{reader:hold:b}
-			barrier();			//\lnlbl{reader:barrier}
+			wait_microseconds(1);
 		}					//\lnlbl{reader:hold:e}
 		if ((en = pthread_rwlock_unlock(&rwl)) != 0) {	//\lnlbl{reader:rel:b}
 			fprintf(stderr,
@@ -65,7 +66,7 @@ void *reader(void *arg)					//\lnlbl{reader:b}
 			exit(EXIT_FAILURE);
 		}						//\lnlbl{reader:rel:e}
 		for (i = 1; i < thinktime; i++) {	//\lnlbl{reader:think:b}
-			barrier();
+			wait_microseconds(1);
 		}					//\lnlbl{reader:think:e}
 		loopcnt++;				//\lnlbl{reader:count}
 	}						//\lnlbl{reader:loop:e}
@@ -121,7 +122,7 @@ int main(int argc, char *argv[])
 		sum += readcounts[i];
 	}
 
-	printf("%s n: %d  h: %d t: %d  sum: %lld\n",
+	printf("%s n: %d  h: %lu t: %lu  sum: %lld\n",
 	       argv[0], nthreads, holdtime, thinktime, sum);
 
 	return EXIT_SUCCESS;
