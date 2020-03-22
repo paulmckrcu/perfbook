@@ -28,7 +28,7 @@ lastcpu=${1-$maxcpu}
 
 for ((ncpus = 1; ncpus <= lastcpu; ncpus += 2))
 do
-	for hold in 1000 10000 100000 1000000 10000000 100000000
+	for hold in 1 10 100 1000 10000 100000
 	do
 		for ((i = 0; i < 3; i++))
 		do
