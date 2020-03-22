@@ -37,6 +37,22 @@ double dgettimeofday(void)
 	return (tv.tv_sec + ((double)tv.tv_usec) / 1000000.);
 }
 
+/*
+ * Spin waiting for the specified number of microseconds.
+ */
+void wait_microseconds(double usecs)
+{
+	double starttime;
+	double stoptime;
+
+	if (usecs == 0)
+		return;
+	starttime = dgettimeofday();
+	stoptime = starttime + usecs / 1000000.;
+	do {
+	} while (dgettimeofday() < stoptime);
+}
+
 #ifdef TEST
 
 int main(int argc, char *argv[])
