@@ -72,11 +72,12 @@ although concurrent RCU updates could in principle be satisfied by
 a common grace period, this implementation serializes grace periods,
 preventing grace-period sharing.
 
-\QuickQuiz{
+\QuickQuizSeries{%
+\QuickQuizB{
 	Why wouldn't any deadlock in the RCU implementation in
 	\cref{lst:app:toyrcu:Lock-Based RCU Implementation}
 	also be a deadlock in any other RCU implementation?
-}\QuickQuizAnswer{
+}\QuickQuizAnswerB{
 %
 \begin{listing}[tbp]
 \begin{fcvlabel}[ln:app:toyrcu:Deadlock in Lock-Based RCU Implementation]
@@ -124,14 +125,14 @@ void bar(void)
 
 	Other RCU implementations neither spin nor block in
 	\co{rcu_read_lock()}, hence avoiding deadlocks.
-}\QuickQuizEnd
-
-\QuickQuiz{
+}\QuickQuizEndB
+%
+\QuickQuizE{
 	Why not simply use reader-writer locks in the RCU implementation
 	in
 	\cref{lst:app:toyrcu:Lock-Based RCU Implementation}
 	in order to allow RCU readers to proceed in parallel?
-}\QuickQuizAnswer{
+}\QuickQuizAnswerE{
 	One could in fact use reader-writer locks in this manner.
 	However, textbook reader-writer locks suffer from memory
 	contention, so that the RCU read-side critical sections would
@@ -141,7 +142,8 @@ void bar(void)
 	On the other hand, use of a reader-writer lock that is
 	read-acquired in \co{rcu_read_lock()} would avoid the
 	deadlock condition noted above.
-}\QuickQuizEnd
+}\QuickQuizEndE
+}
 
 It is hard to imagine this implementation being useful
 in a production setting, though it does have the virtue
@@ -184,7 +186,8 @@ However, the update-side overhead ranges from about 600 nanoseconds
 on a single \Power{5} CPU
 up to more than 100 \emph{microseconds} on 64 CPUs.
 
-\QuickQuiz{
+\QuickQuizSeries{%
+\QuickQuizB{
 	\begin{fcvref}[ln:defer:rcu_lock_percpu:sync:loop]
 	Wouldn't it be cleaner to acquire all the locks, and then
 	release them all in the loop from \clnrefrange{b}{e} of
@@ -192,17 +195,17 @@ up to more than 100 \emph{microseconds} on 64 CPUs.
 	After all, with this change, there would be a point in time
 	when there were no readers, simplifying things greatly.
 	\end{fcvref}
-}\QuickQuizAnswer{
+}\QuickQuizAnswerB{
 	Making this change would re-introduce the deadlock, so
 	no, it would not be cleaner.
-}\QuickQuizEnd
-
-\QuickQuiz{
+}\QuickQuizEndB
+%
+\QuickQuizM{
 	Is the implementation shown in
 	\cref{lst:app:toyrcu:Per-Thread Lock-Based RCU Implementation}
 	free from deadlocks?
 	Why or why not?
-}\QuickQuizAnswer{
+}\QuickQuizAnswerM{
 	One deadlock is where a lock is
 	held across \co{synchronize_rcu()}, and that same lock is
 	acquired within an RCU read-side critical section.
@@ -229,14 +232,14 @@ up to more than 100 \emph{microseconds} on 64 CPUs.
 	is immediately released, prohibiting a deadlock cycle that
 	does not involve a lock held across the \co{synchronize_rcu()}
 	which is the first case above.
-}\QuickQuizEnd
-
-\QuickQuiz{
+}\QuickQuizEndM
+%
+\QuickQuizE{
 	Isn't one advantage of the RCU algorithm shown in
 	\cref{lst:app:toyrcu:Per-Thread Lock-Based RCU Implementation}
 	that it uses only primitives that are widely available,
 	for example, in POSIX pthreads?
-}\QuickQuizAnswer{
+}\QuickQuizAnswerE{
 	This is indeed an advantage, but do not forget that
 	\co{rcu_dereference()} and \co{rcu_assign_pointer()}
 	are still required, which means \co{volatile} manipulation
@@ -244,7 +247,8 @@ up to more than 100 \emph{microseconds} on 64 CPUs.
 	\co{rcu_assign_pointer()}.
 	Of course, many Alpha CPUs require memory barriers for both
 	primitives.
-}\QuickQuizEnd
+}\QuickQuizEndE
+}
 
 This approach could be useful in some situations, given that a similar
 approach was used in the
@@ -508,13 +512,14 @@ subsequent reclamation operations are not reordered to precede the
 checking of \co{rcu_refcnt}.
 \end{fcvref}
 
-\QuickQuiz{
+\QuickQuizSeries{%
+\QuickQuizB{
 	\begin{fcvref}[ln:defer:rcu_rcpg:sync]
 	Why the memory barrier on \clnref{mb1} of \co{synchronize_rcu()} in
 	\cref{lst:app:toyrcu:RCU Update Using Global Reference-Count Pair}
 	given that there is a spin-lock acquisition immediately after?
 	\end{fcvref}
-}\QuickQuizAnswer{
+}\QuickQuizAnswerB{
 	The spin-lock acquisition only guarantees that the spin-lock's
 	critical section will not ``bleed out'' to precede the
 	acquisition.
@@ -533,13 +538,13 @@ checking of \co{rcu_refcnt}.
 	See \cref{chp:Formal Verification}
 	for information on using these tools.
 	The first correct and complete response will be credited.
-}\QuickQuizEnd
-
-\QuickQuiz{
+}\QuickQuizEndB
+%
+\QuickQuizE{
 	Why is the counter flipped twice in
 	\cref{lst:app:toyrcu:RCU Update Using Global Reference-Count Pair}?
 	Shouldn't a single flip-and-wait cycle be sufficient?
-}\QuickQuizAnswer{
+}\QuickQuizAnswerE{
 	\begin{fcvref}[ln:defer:rcu_rcpg]
 	Both flips are absolutely required.
 	To see this, consider the following sequence of events:
@@ -590,7 +595,8 @@ checking of \co{rcu_refcnt}.
 	Why or why not?
 	The first correct and complete response will be credited.
 	\end{fcvref}
-}\QuickQuizEnd
+}\QuickQuizEndE
+}
 
 This implementation avoids the update-starvation issues that could
 occur in the single-counter implementation shown in
@@ -1244,27 +1250,28 @@ The following section shows one way to greatly increase the time
 required for overflow to occur, while greatly reducing read-side
 overhead.
 
-\QuickQuiz{
+\QuickQuizSeries{%
+\QuickQuizB{
 	Given the algorithm shown in
 	\cref{lst:app:toyrcu:Nestable RCU Using a Free-Running Counter},
 	how could you double the time required to overflow the global
 	\co{rcu_gp_ctr}?
-}\QuickQuizAnswer{
+}\QuickQuizAnswerB{
 	\begin{fcvref}[ln:defer:rcu_nest:synchronize:syn]
 	One way would be to replace the magnitude comparison on
 	\clnref{lt1,lt2} with an inequality check of
 	the per-thread \co{rcu_reader_gp} variable against
 	\co{rcu_gp_ctr+RCU_GP_CTR_BOTTOM_BIT}.
 	\end{fcvref}
-}\QuickQuizEnd
-
-\QuickQuiz{
+}\QuickQuizEndB
+%
+\QuickQuizE{
 	Again, given the algorithm shown in
 	\cref{lst:app:toyrcu:Nestable RCU Using a Free-Running Counter},
 	is counter overflow fatal?
 	Why or why not?
 	If it is fatal, what can be done to fix it?
-}\QuickQuizAnswer{
+}\QuickQuizAnswerE{
 	It can indeed be fatal.
 	To see this, consider the following sequence of events:
 	\begin{enumerate}
@@ -1345,7 +1352,8 @@ overhead.
 	deterministic execution time in any case!
 	%
 	% @@@ A fourth approach is rcu_nest32.[hc].
-}\QuickQuizEnd
+}\QuickQuizEndE
+}
 
 \section{RCU Based on Quiescent States}
 \label{sec:app:toyrcu:RCU Based on Quiescent States}
@@ -1521,13 +1529,14 @@ The need to invoke these functions periodically can make this
 implementation difficult to use in some situations, such as for
 certain types of library functions.
 
-\QuickQuiz{
+\QuickQuizSeries{%
+\QuickQuizB{
 	Why would the fact that the code is in a library make
 	any difference for how easy it is to use the RCU
 	implementation shown in
 	\cref{lst:app:toyrcu:Quiescent-State-Based RCU Read Side,%
 	lst:app:toyrcu:RCU Update Side Using Quiescent States}?
-}\QuickQuizAnswer{
+}\QuickQuizAnswerB{
 	A library function has absolutely no control over the caller,
 	and thus cannot force the caller to invoke \co{rcu_quiescent_state()}
 	periodically.
@@ -1536,16 +1545,16 @@ certain types of library functions.
 	\co{rcu_thread_online()} upon entry,
 	\co{rcu_quiescent_state()} periodically, and
 	\co{rcu_thread_offline()} upon exit.
-}\QuickQuizEnd
-
-\QuickQuiz{
+}\QuickQuizEndB
+%
+\QuickQuizE{
 	But what if you hold a lock across a call to
 	\co{synchronize_rcu()}, and then acquire that same lock within
 	an RCU read-side critical section?
 	This should be a deadlock, but how can a primitive that
 	generates absolutely no code possibly participate in a
 	deadlock cycle?
-}\QuickQuizAnswer{
+}\QuickQuizAnswerE{
 	Please note that the RCU read-side critical section is in
 	effect extended beyond the enclosing
 	\co{rcu_read_lock()} and \co{rcu_read_unlock()}, out to
@@ -1557,7 +1566,8 @@ certain types of library functions.
 	Even so, the actual deadlock itself will involve the lock
 	acquisition in the RCU read-side critical section and
 	the \co{synchronize_rcu()}, never the \co{rcu_quiescent_state()}.
-}\QuickQuizEnd
+}\QuickQuizEndE
+}
 
 In addition, this implementation does not permit concurrent calls
 to \co{synchronize_rcu()} to share grace periods.
