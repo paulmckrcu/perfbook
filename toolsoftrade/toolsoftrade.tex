@@ -850,17 +850,17 @@ Line~\lnref{mov_cnt} moves the lock-acquisition count to this thread's element o
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{CodeSamples/toolsoftrade/rwlockscale}}
-\caption{Reader-Writer Lock Scalability vs. Number of Instructions in Critical Section}
-\label{fig:toolsoftrade:Reader-Writer Lock Scalability vs. Number of Instructions in Critical Section}
+\caption{Reader-Writer Lock Scalability vs. Microseconds in Critical Section on 8-Socket System With Intel Xeon Platinum 8176 CPUs @ 2.10GHz}
+\label{fig:toolsoftrade:Reader-Writer Lock Scalability vs. Microseconds in Critical Section}
 \end{figure}
 
-Figure~\ref{fig:toolsoftrade:Reader-Writer Lock Scalability vs. Number of Instructions in Critical Section}
-shows the results of running this test on a 64-core \Power{5} system
-with two hardware threads per core for a total of 128 software-visible
+Figure~\ref{fig:toolsoftrade:Reader-Writer Lock Scalability vs. Microseconds in Critical Section}
+shows the results of running this test on a 224-core Xeon system
+with two hardware threads per core for a total of 448 software-visible
 CPUs.
 The \co{thinktime} parameter was zero for all these tests, and the
-\co{holdtime} parameter set to values ranging from one thousand (``1K''
-on the graph) to 100 million (``100M'' on the graph).
+\co{holdtime} parameter set to values ranging from one microsecond (``1us''
+on the graph) to 1000\,microseconds (``1000us'' on the graph).
 The actual value plotted is:
 \begin{equation}
 	\frac{L_N}{N L_1}
@@ -877,11 +877,11 @@ sections.
 To see why read-acquisition can be so slow, consider
 that all the acquiring threads must update the \co{pthread_rwlock_t}
 data structure.
-Therefore, if all 128 executing threads attempt to
+Therefore, if all 448 executing threads attempt to
 read-acquire the reader-writer lock concurrently, they must update
 this underlying \co{pthread_rwlock_t} one at a time.
 One lucky thread might do so almost immediately, but the least-lucky
-thread must wait for all the other 127 threads to do their updates.
+thread must wait for all the other 447 threads to do their updates.
 This situation will only get worse as you add CPUs.
 
 \QuickQuiz{
@@ -894,10 +894,10 @@ This situation will only get worse as you add CPUs.
 }\QuickQuizEnd
 
 \QuickQuiz{
-	But 1,000 instructions is not a particularly small size for
+	But one microsecond is not a particularly small size for
 	a critical section.
 	What do I do if I need a much smaller critical section, for
-	example, one containing only a few tens of instructions?
+	example, one containing only a few instructions?
 }\QuickQuizAnswer{
 	If the data being read \emph{never} changes, then you do not
 	need to hold any locks while accessing it.
@@ -918,50 +918,14 @@ This situation will only get worse as you add CPUs.
 }\QuickQuizEnd
 
 \QuickQuiz{
-	In
-	Figure~\ref{fig:toolsoftrade:Reader-Writer Lock Scalability vs. Number of Instructions in Critical Section},
-	all of the traces other than the 100M trace deviate gently
-	from the ideal line.
-	In contrast, the 100M trace breaks sharply from the ideal
-	line at 64 CPUs.
-	In addition, the spacing between the 100M trace and the 10M
-	trace is much smaller than that between the 10M trace and the
-	1M trace.
-	Why does the 100M trace behave so much differently than the
-	other traces?
-}\QuickQuizAnswer{
-	Your first clue is that 64 CPUs is exactly half of the 128
-	CPUs on the machine.
-	The difference is an artifact of hardware threading.
-	This system has 64 cores with two hardware threads per core.
-	As long as fewer than 64 threads are running, each can run
-	in its own core.
-	But as soon as there are more than 64 threads, some of the threads
-	must share cores.
-	Because the pair of threads in any given core share some hardware
-	resources, the throughput of two threads sharing a core is not
-	quite as high as that of two threads each in their own core.
-	So the performance of the 100M trace is limited not by the
-	reader-writer lock, but rather by the sharing of hardware resources
-	between hardware threads in a single core.
-
-	This can also be seen in the 10M trace, which deviates gently from
-	the ideal line up to 64 threads, then breaks sharply down, parallel
-	to the 100M trace.
-	Up to 64 threads, the 10M trace is limited primarily by reader-writer
-	lock scalability, and beyond that, also by sharing of hardware
-	resources between hardware threads in a single core.
-}\QuickQuizEnd
-
-\QuickQuiz{
-	\Power{5} is more than a decade old, and new hardware should
+	The system used is a few years old, and new hardware should
 	be faster.
 	So why should anyone worry about reader-writer locks being slow?
 }\QuickQuizAnswer{
 	In general, newer hardware is improving.
-	However, it will need to improve more than two orders of magnitude
+	However, it will need to improve several orders of magnitude
 	to permit reader-writer lock to achieve ideal performance on
-	128 CPUs.
+	448 CPUs.
 	Worse yet, the greater the number of CPUs, the larger the
 	required performance improvement.
 	The performance problems of reader-writer locking are therefore
@@ -976,7 +940,7 @@ Chapters~\ref{chp:Counting} and \ref{chp:Deferred Processing}.
 \subsection{Atomic Operations (\GCC\ Classic)}
 \label{sec:toolsoftrade:Atomic Operations (gcc Classic)}
 
-Figure~\ref{fig:toolsoftrade:Reader-Writer Lock Scalability vs. Number of Instructions in Critical Section}
+Figure~\ref{fig:toolsoftrade:Reader-Writer Lock Scalability vs. Microseconds in Critical Section}
 shows that the overhead of reader-writer locking is most severe for the
 smallest critical sections, so it would be nice to have some other way
 of protecting tiny critical sections.
