@@ -26,14 +26,21 @@
 maxcpu="`grep '^processor' /proc/cpuinfo | tail -1 | awk '{ print $3 }'`"
 lastcpu=${1-$maxcpu}
 
-for ((ncpus = 1; ncpus <= lastcpu; ncpus += 2))
+incr=1
+for ((ncpus = 1; ncpus <= lastcpu; ncpus += incr))
 do
-	for hold in 1 10 100 1000 10000 100000
+	for ((i = 0; i < 6; i++))
 	do
-		for ((i = 0; i < 3; i++))
+		for hold in 1 10 100 1000
 		do
 			./rwlockscale $ncpus $hold 0
-			./rwlockscale $ncpus 0 $hold
 		done
 	done
+	if ((ncpus >= 128))
+	then
+		incr=4
+	elif ((ncpus >= 16))
+	then
+		incr=2
+	fi
 done
