@@ -16,7 +16,7 @@ LST_SOURCES := $(wildcard CodeSamples/formal/promela/*.lst) \
 
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
 
-ABBREVTARGETS := tcb 1c hb msns mss mstx msr msn msnt 1csf 2cqq 1cqq noqq
+ABBREVTARGETS := tcb 1c hb msns mss mstx msr msn msnt 1csf qq 1cqq nq 1cnq
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
@@ -293,13 +293,16 @@ endif
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' \
 	    -e 's/%msfontstub/\\usepackage[var0]{inconsolata}[2013\/07\/17]/' < $< > $@
 
-perfbook-2cqq.tex: perfbook.tex
+perfbook-qq.tex: perfbook.tex
 	sed -e 's/{qqzbg}{false}/{qqzbg}{true}/' < $< > $@
 
 perfbook-1cqq.tex: perfbook-1c.tex
 	sed -e 's/{qqzbg}{false}/{qqzbg}{true}/' < $< > $@
 
-perfbook-noqq.tex: perfbook.tex
+perfbook-nq.tex: perfbook.tex
+	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' < $< > $@
+
+perfbook-1cnq.tex: perfbook-1c.tex
 	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' < $< > $@
 
 # Rules related to perfbook_html are removed as of May, 2016
@@ -409,8 +412,10 @@ help:
 	@echo
 	@echo "Experimental targets:"
 	@echo "  Full,              Abbr."
-	@echo "  perfbook-2cqq,     2cqq: 2c with Quick Quiz background"
-	@echo "  perfbook-1cqq,     1cqq: 1c with Quick Quiz background"
+	@echo "  perfbook-qq,       qq:   2c with framed Quick Quizzes"
+	@echo "  perfbook-1cqq,     1cqq: 1c with framed Quick Quizzes"
+	@echo "  perfbook-nq,       nq:   2c without inline Quick Quizzes"
+	@echo "  perfbook-1cnq,     1cnq: 1c without inline Quick Quizzes"
 	@echo "  perfbook-tcb,      tcb:  2c with table caption at bottom (prev default)"
 	@echo "  perfbook-msnt.pdf, msnt: 2c with newtxtt as monospace (non-slashed 0)"
 	@echo "  perfbook-mstx.pdf, mstx: 2c with txtt as monospace"
@@ -420,13 +425,15 @@ help:
 	@echo "  perfbook-1csf.pdf, 1csf: 1c with sans serif font"
 	@echo "  perfbook-msns.pdf, msns: 2c with non-scaled courier (orig default)"
 	@echo "  perfbook-mss.pdf,  mss:  2c with scaled courier (prev default)"
-	@echo "  \"msnt\" requires \"newtxtt\". \"mstx\" is fallback target for older TeX env."
-	@echo "  \"msr\" and \"msn\" require \"nimbus15\"."
-	@echo "  \"msn\" doesn't cover bold face for monospace."
-	@echo "  \"1csf\" requires \"newtxsf\"."
 	@echo
-	@echo "All targets except for \"msn\" use \"Latin Modern Typewriter\" font"
-	@echo "for code snippets."
+	@echo "Notes:"
+	@echo "  - \"msnt\" requires \"newtxtt\". \"mstx\" is a fallback target for older TeX env."
+	@echo "  - \"msr\" and \"msn\" require \"nimbus15\"."
+	@echo "  - \"msn\" doesn't cover bold face for monospace."
+	@echo "  - \"1csf\" requires \"newtxsf\"."
+	@echo "  - \"msnt\" and \"1csf\" have framed Quick Quizzes."
+	@echo "  - All targets except for \"msn\" use \"Latin Modern Typewriter\" font"
+	@echo "    for code snippets."
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
