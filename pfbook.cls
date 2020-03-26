@@ -4,14 +4,9 @@
 % Copyright (C) 2018 Akira Yokosawa
 \NeedsTeXFormat{LaTeX2e}[1995/12/01]
 \ProvidesClass{pfbook}
-              [2018/04/01 v1.4h-pem-ay
+              [2020/03/26 v1.4i-ay
  book class customized for perfbook]
-% (by Paul E. McKenney)
-% Add an option "letterpaperhb" in order to generate 10.75x8.25in pages
-% for hardcover books.
-\DeclareOption{letterpaperhb}
-   {\setlength\paperheight {10.75in}%
-    \setlength\paperwidth  {8.25in}}
+%
 \DeclareOption*{\PassOptionsToClass{\CurrentOption}{book}}
 \ProcessOptions\relax
 \LoadClass{book}
