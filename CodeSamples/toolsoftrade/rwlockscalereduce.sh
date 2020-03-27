@@ -22,9 +22,9 @@
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
 awk '	{
-		if ($7 == 0)
+		if ($5 == 0)
 			next;
-		i = $3 ":" $7;
+		i = $3 ":" $5;
 		n[i]++;
 		sum[i] += $9;
 		if ($9 > max[i])
