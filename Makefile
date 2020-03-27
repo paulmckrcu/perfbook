@@ -150,7 +150,7 @@ endif
 
 chkpagegroup = $(PERFBOOK_CHKPAGEGROUP)
 
-.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mslm perfbook-mslm.pdf mslmmsg help
+.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mslm perfbook-mslm.pdf mslmmsg help help-official help-full
 all: $(targ)
 
 ifeq ($(MAKECMDGOALS),clean)
@@ -403,26 +403,32 @@ $(FCVSNIPPETS_LTMS):
 	@echo "$< --> $@"
 	@utilities/reorder_ltms.pl $< > $@
 
-help:
+help-official:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
 	@echo "  Full,              Abbr."
 	@echo "  perfbook.pdf,      2c:   (default) 2-column layout"
 	@echo "  perfbook-1c.pdf,   1c:   1-column layout"
 	@echo "  perfbook-hb.pdf,   hb:   For hardcover books (2-column)"
+
+help: help-official
+	@echo
+	@echo "\"make help-full\" will show the list of available targets."
+
+help-full: help-official
 	@echo
 	@echo "Experimental targets:"
 	@echo "  Full,              Abbr."
-	@echo "  perfbook-qq,       qq:   2c with framed Quick Quizzes"
-	@echo "  perfbook-1cqq,     1cqq: 1c with framed Quick Quizzes"
-	@echo "  perfbook-nq,       nq:   2c without inline Quick Quizzes"
-	@echo "  perfbook-1cnq,     1cnq: 1c without inline Quick Quizzes"
-	@echo "  perfbook-tcb,      tcb:  2c with table caption at bottom (prev default)"
+	@echo "  perfbook-qq.pdf,   qq:   2c with framed Quick Quizzez (1cqq for 1c)"
+	@echo "  perfbook-nq.pdf,   nq:   2c without inline Quick Quizzes (1cnq for 1c)"
 	@echo "  perfbook-msnt.pdf, msnt: 2c with newtxtt as monospace (non-slashed 0)"
 	@echo "  perfbook-mstx.pdf, mstx: 2c with txtt as monospace"
 	@echo "  perfbook-msr.pdf,  msr:  2c with regular thickness courier clone"
 	@echo "  perfbook-msn.pdf,  msn:  2c with narrow courier clone"
 
 	@echo "  perfbook-1csf.pdf, 1csf: 1c with sans serif font"
+	@echo
+	@echo "Historical targets:"
+	@echo "  perfbook-tcb.pdf,  tcb:  2c with table caption at bottom (prev default)"
 	@echo "  perfbook-msns.pdf, msns: 2c with non-scaled courier (orig default)"
 	@echo "  perfbook-mss.pdf,  mss:  2c with scaled courier (prev default)"
 	@echo
@@ -432,7 +438,7 @@ help:
 	@echo "  - \"msn\" doesn't cover bold face for monospace."
 	@echo "  - \"1csf\" requires \"newtxsf\"."
 	@echo "  - \"msnt\" and \"1csf\" have framed Quick Quizzes."
-	@echo "  - All targets except for \"msn\" use \"Latin Modern Typewriter\" font"
+	@echo "  - All the targets except for \"msn\" use \"Latin Modern Typewriter\" font"
 	@echo "    for code snippets."
 
 clean:
