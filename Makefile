@@ -1,5 +1,7 @@
 SHELL = /bin/bash
 
+GITREFSTAGS := $(shell ls -d .git/refs/tags 2>/dev/null)
+
 LATEXSOURCES = \
 	perfbook.tex \
 	legal.tex \
@@ -193,7 +195,7 @@ ifeq ($(NEWTXTEXT),)
 endif
 	sh utilities/runfirstlatex.sh $(basename $@)
 
-autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET) utilities/fcvextract.pl
+autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET) $(GITREFSTAGS) utilities/fcvextract.pl
 	sh utilities/autodate.sh >autodate.tex
 
 perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(FCVSNIPPETS) $(FCVSNIPPETS_VIA_LTMS)
