@@ -16,7 +16,7 @@ LST_SOURCES := $(wildcard CodeSamples/formal/promela/*.lst) \
 
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
 
-ABBREVTARGETS := tcb 1c hb msns mss mstx msr msn msnt 1csf qq 1cqq nq 1cnq
+ABBREVTARGETS := tcb 1c hb msns mss mstx msr msn msnt 1csf qq 1cqq nq 1cnq a4
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
@@ -304,6 +304,10 @@ perfbook-nq.tex: perfbook.tex
 
 perfbook-1cnq.tex: perfbook-1c.tex
 	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' < $< > $@
+
+perfbook-a4.tex: perfbook.tex
+	sed -e 's/letterpaper/a4paper/' \
+	    -e 's/{afourpaper}{false}/{afourpaper}{true}/' < $< > $@
 
 # Rules related to perfbook_html are removed as of May, 2016
 
