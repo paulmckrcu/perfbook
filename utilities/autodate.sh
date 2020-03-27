@@ -19,11 +19,13 @@
 # along with this program; if not, you can access it online at
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
-# Copyright (C) Akira Yokosawa, 2017
+# Copyright (C) Akira Yokosawa, 2017--2020
 #
 # Authors: Akira Yokosawa <akiyks@gmail.com>
 
 export LC_TIME=C
+qqzbg="false"
+
 # check if we are in git repository
 if ! test -e .git
 then
@@ -50,10 +52,12 @@ else
 	v*)
 		release="Release $description"
 		commitid=$description
+		qqzbg="true"
 		;;
 	Edition*)
 		release="Edition"
 		commitid=$description
+		qqzbg="true"
 		case "$description" in
 		*P*)
 			release="Print $release"
@@ -89,3 +93,4 @@ fi
 env printf '\\date{%s %s, %s %s %s}\n' $month $day $year "$release" $modified
 env printf '\\newcommand{\\commityear}{%s}\n' $year
 env printf '\\newcommand{\\commitid}{%s}\n' $commitid$modified
+env printf '\\IfQqzBg{}{\\setboolean{qqzbg}{%s}}\n' $qqzbg

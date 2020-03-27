@@ -464,6 +464,7 @@ help-full: help-official
 	@echo "  - \"msn\" doesn't cover bold face for monospace."
 	@echo "  - \"sf\" requires \"newtxsf\"."
 	@echo "  - \"msnt\" and \"sf\" have framed Quick Quizzes."
+	@echo "    Release tags enable framed Quick Quizzes except for \"nq\" targets."
 	@echo "  - All the targets except for \"msn\" use \"Latin Modern Typewriter\" font"
 	@echo "    for code snippets."
 	@echo "  - Set enviroment variable PERFBOOK_PAPER as either A4 or HB to change paper size."
