@@ -17,7 +17,7 @@ LST_SOURCES := $(wildcard CodeSamples/formal/promela/*.lst) \
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
 
 TWOCOLTARGETS := mstx msr msn msnt sf qq nq
-ABBREVTARGETS := tcb 1c hb a4 msns mss $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
+ABBREVTARGETS := hb a4 1c tcb msns mss $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
@@ -154,7 +154,11 @@ chkpagegroup = $(PERFBOOK_CHKPAGEGROUP)
 ifeq ($(PERFBOOK_PAPER),A4)
 	PERFBOOK_BASE = perfbook-a4.tex
 else
+ifeq ($(PERFBOOK_PAPER),HB)
+	PERFBOOK_BASE = perfbook-hb.tex
+else
 	PERFBOOK_BASE = perfbook.tex
+endif
 endif
 
 .PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mslm perfbook-mslm.pdf mslmmsg help help-official help-full
@@ -426,14 +430,14 @@ $(FCVSNIPPETS_LTMS):
 help-official:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
 	@echo "  Full,              Abbr."
-	@echo "  perfbook.pdf,      2c:   (default) 2-column layout"
-	@echo "  perfbook-1c.pdf,   1c:   1-column layout"
-	@echo "  perfbook-hb.pdf,   hb:   For hardcover books (2-column)"
-	@echo "  perfbook-a4.pdf,   a4:   2c in a4paper"
+	@echo "  perfbook.pdf,      2c:   (default) 2-column layout on letterpaper"
+	@echo "  perfbook-hb.pdf,   hb:   2-column layout for hard cover book"
+	@echo "  perfbook-a4.pdf,   a4:   2-column layout on 4paper"
+	@echo "  perfbook-1c.pdf,   1c:   1-column layout (paper size of PERFBOOK_PAPER)"
 
 help: help-official
 	@echo
-	@echo "Notes: Setting env variable PERFBOOK_PAPER=A4 selects a4paper for \"1c\"."
+	@echo "Notes: Set PERFBOOK_PAPER=A4 or PERFBOOK_PAPER=HB to change paper size of \"1c\"."
 	@echo "       \"make help-full\" will show the full list of available targets."
 
 help-full: help-official
@@ -462,8 +466,8 @@ help-full: help-official
 	@echo "  - \"msnt\" and \"sf\" have framed Quick Quizzes."
 	@echo "  - All the targets except for \"msn\" use \"Latin Modern Typewriter\" font"
 	@echo "    for code snippets."
-	@echo "  - Enviroment variable PERFBOOK_PAPER=A4 selects a4paper for targets"
-	@echo "    other than \"2c\" and \"hb\"."
+	@echo "  - Set enviroment variable PERFBOOK_PAPER as either A4 or HB to change paper size."
+	@echo "    (Targets 2c, hb, and a4 are independent of PERFBOOK_PAPER.)"
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
