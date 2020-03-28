@@ -1,8 +1,4 @@
-#!/bin/bash
-#
-# Test script for rwlockscale
-#
-# Usage: rwlockscale.sh [ lastcpu ]
+#! /bin/sh
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,24 +19,26 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
-maxcpu="`grep '^processor' /proc/cpuinfo | tail -1 | awk '{ print $3 }'`"
-lastcpu=${1-$maxcpu}
+fontsize=10
+plotsize=0.7
 
-incr=1
-for ((ncpus = 1; ncpus <= lastcpu; ncpus += incr))
-do
-	for ((i = 0; i < 6; i++))
-	do
-		for hold in 1 10 100 1000 10000
-		do
-			./rwlockscale $ncpus $hold 0
-		done
-	done
-	if ((ncpus >= 128))
-	then
-		incr=4
-	elif ((ncpus >= 16))
-	then
-		incr=2
-	fi
-done
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "../../../../fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "rwlockscale.eps"
+set xlabel "Number of CPUs (Threads)"
+set ylabel "Critical Section Performance"
+set logscale y
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+set label 1 "ideal" at 200,1.5 left
+set label 2 "1000us" at 350,0.28 left
+set label 3 "100us" at 350,0.05 left
+set label 4 "10us" at 350,0.007 left
+set label 5 "1us" at 350,0.00055 left
+# set label 5 "100K" at 120,0.1 left
+# set label 6 "10K" at 20,0.2 left
+# set label 7 "1K" at 18,0.03 right
+plot "rwlockscale.hps.2020.03.25a.dat" w e, "rwlockscale.hps.2020.03.25a.dat" w l, 1
+---EOF---
