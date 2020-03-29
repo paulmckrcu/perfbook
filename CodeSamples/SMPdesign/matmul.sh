@@ -1,6 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 #
 # matmul.sh: simple script to run the matmul program.
+#
+# Usage: bash matmul.sh [ lastcpu ]
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,12 +21,33 @@
 # Copyright (c) 2009-2019 Paul E. McKenney, IBM.
 # Copyright (c) 2019 Paul E. McKenney, Facebook.
 
-for ncpus in 1 2 4 8 16 32 64
+maxcpu="`grep '^processor' /proc/cpuinfo | tail -1 | awk '{ print $3 }'`"
+lastcpu=${1-$maxcpu}
+
+for ((i = 0; i < 30; i++))
 do
-	for dim in 64 128 256 512 1024
+	incr=1
+	for ((ncpus = 1; ncpus <= lastcpu + 1; ncpus += incr))
 	do
-		./matmul $dim $ncpus
-		./matmul $dim $ncpus
-		./matmul $dim $ncpus
+		for dim in 64 128 256 512 1024
+		do
+			./matmul $dim $ncpus
+		done
 	done
+	if ((ncpus >= 128))
+	then
+		incr=32
+	elif ((ncpus >= 64))
+	then
+		incr=16
+	elif ((ncpus >= 32))
+	then
+		incr=8
+	elif ((ncpus >= 16))
+	then
+		incr=4
+	elif ((ncpus >= 8))
+	then
+		incr=2
+	fi
 done
