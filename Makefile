@@ -294,7 +294,7 @@ ifeq ($(NIMBUSMONO),)
 	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
 endif
 	sed -e 's/%msfontstub/\\usepackage[zerostyle=a]{newtxtt}/' \
-	    -e 's/{qqzgb}{false}/{qqzbg}{true}/' \
+	    -e 's/{qqzbg}{false}/{qqzbg}{true}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
 
 perfbook-sf.tex: $(PERFBOOK_BASE)
