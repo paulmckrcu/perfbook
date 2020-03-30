@@ -3,7 +3,7 @@ SHELL = /bin/bash
 GITREFSTAGS := $(shell ls -d .git/refs/tags 2>/dev/null)
 
 LATEXSOURCES = \
-	perfbook.tex \
+	perfbook-lt.tex \
 	legal.tex \
 	glossary.tex \
 	qqz.sty origpub.sty \
@@ -19,7 +19,7 @@ LST_SOURCES := $(wildcard CodeSamples/formal/promela/*.lst) \
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
 
 TWOCOLTARGETS := mstx msr msn msnt sf qq nq
-ABBREVTARGETS := hb a4 1c tcb msns mss $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
+ABBREVTARGETS := lt hb a4 1c tcb msns mss $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
@@ -159,7 +159,7 @@ else
 ifeq ($(PERFBOOK_PAPER),HB)
 	PERFBOOK_BASE = perfbook-hb.tex
 else
-	PERFBOOK_BASE = perfbook.tex
+	PERFBOOK_BASE = perfbook-lt.tex
 endif
 endif
 
@@ -195,7 +195,7 @@ ifeq ($(NEWTXTEXT),)
 endif
 	sh utilities/runfirstlatex.sh $(basename $@)
 
-autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET) $(GITREFSTAGS) utilities/fcvextract.pl
+autodate.tex: perfbook-lt.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET) $(GITREFSTAGS) utilities/fcvextract.pl
 	sh utilities/autodate.sh >autodate.tex
 
 perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(FCVSNIPPETS) $(FCVSNIPPETS_VIA_LTMS)
@@ -233,7 +233,7 @@ endif
 	echo > qqz.tex
 	echo > contrib.tex
 	echo > origpub.tex
-	latexpand --empty-comments perfbook.tex 1> $@ 2> /dev/null
+	latexpand --empty-comments perfbook-lt.tex 1> $@ 2> /dev/null
 
 qqz.tex: perfbook_flat.tex
 	sh utilities/extractqqz.sh < $< | perl utilities/qqzreorder.pl > $@
@@ -244,13 +244,16 @@ contrib.tex: perfbook_flat.tex qqz.tex
 origpub.tex: perfbook_flat.tex
 	sh utilities/extractorigpub.sh < $< > $@
 
+perfbook.tex: $(PERFBOOK_BASE)
+	cp $< $@
+
 perfbook-tcb.tex: $(PERFBOOK_BASE)
 	sed -e 's/{tblcptop}{true}/{tblcptop}{false}/' < $< > $@
 
 perfbook-1c.tex: $(PERFBOOK_BASE)
 	sed -e 's/,twocolumn//' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < $< > $@
 
-perfbook-hb.tex: perfbook.tex
+perfbook-hb.tex: perfbook-lt.tex
 	sed -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < $< > $@
 
 perfbook-msns.tex: $(PERFBOOK_BASE)
@@ -326,7 +329,7 @@ perfbook-1cnq.tex: perfbook-1c.tex
 perfbook-nq.tex perfbook-1cnq.tex:
 	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' < $< > $@
 
-perfbook-a4.tex: perfbook.tex
+perfbook-a4.tex: perfbook-lt.tex
 perfbook-a4.tex:
 	sed -e 's/letterpaper/a4paper/' \
 	    -e 's/{afourpaper}{false}/{afourpaper}{true}/' < $< > $@
@@ -432,17 +435,24 @@ $(FCVSNIPPETS_LTMS):
 help-official:
 	@echo "Official targets (Latin Modern Typewriter for monospace font):"
 	@echo "  Full,              Abbr."
-	@echo "  perfbook.pdf,      2c:   (default) 2-column layout on letterpaper"
-	@echo "  perfbook-hb.pdf,   hb:   2-column layout for hard cover book"
-	@echo "  perfbook-a4.pdf,   a4:   2-column layout on 4paper"
-	@echo "  perfbook-1c.pdf,   1c:   1-column layout (paper size of PERFBOOK_PAPER)"
+	@echo "  perfbook.pdf,      2c:   (default) 2-column layout"
+	@echo "  perfbook-1c.pdf,   1c:   1-column layout"
 
 help: help-official
 	@echo
-	@echo "Notes: Set PERFBOOK_PAPER=A4 or PERFBOOK_PAPER=HB to change paper size of \"1c\"."
-	@echo "       \"make help-full\" will show the full list of available targets."
+	@echo "Set env variable PERFBOOK_PAPER to change paper size:"
+	@echo "   PERFBOOK_PAPER=A4: a4paper"
+	@echo "   PERFBOOK_PAPER=HB: hard cover book"
+	@echo "   other (default):   letterpaper"
+	@echo
+	@echo "\"make help-full\" will show the full list of available targets."
 
 help-full: help-official
+	@echo
+	@echo "Paper size variations (independent of PERFBOOK_PAPER):"
+	@echo "  perfbook-lt.pdf,   lt:   2-column layout on letterpaper"
+	@echo "  perfbook-hb.pdf,   hb:   2-column layout for hard cover book"
+	@echo "  perfbook-a4.pdf,   a4:   2-column layout on a4paper"
 	@echo
 	@echo "Experimental targets:"
 	@echo "  Full,              Abbr."
@@ -469,8 +479,11 @@ help-full: help-official
 	@echo "    Release tags enable framed Quick Quizzes except for \"nq\" targets."
 	@echo "  - All the targets except for \"msn\" use \"Latin Modern Typewriter\" font"
 	@echo "    for code snippets."
-	@echo "  - Set enviroment variable PERFBOOK_PAPER as either A4 or HB to change paper size."
-	@echo "    (Targets 2c, hb, and a4 are independent of PERFBOOK_PAPER.)"
+	@echo "  - Set env variable PERFBOOK_PAPER to change paper size:"
+	@echo "      PERFBOOK_PAPER=A4: a4paper"
+	@echo "      PERFBOOK_PAPER=HB: hard cover book"
+	@echo "      other (default):   letterpaper"
+	@echo "    (PERFBOOK_PAPER has no effect on targets \"lt\", \"hb\", and \"a4\".)"
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
