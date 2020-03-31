@@ -1,7 +1,9 @@
 SHELL = /bin/bash
 
+GITREFSTAGS := $(shell ls -d .git/refs/tags 2>/dev/null)
+
 LATEXSOURCES = \
-	perfbook.tex \
+	perfbook-lt.tex \
 	legal.tex \
 	glossary.tex \
 	qqz.sty origpub.sty \
@@ -16,7 +18,8 @@ LST_SOURCES := $(wildcard CodeSamples/formal/promela/*.lst) \
 
 LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
 
-ABBREVTARGETS := tcb 1c hb msns mss mstx msr msn msnt 1csf qq 1cqq nq 1cnq
+TWOCOLTARGETS := mstx msr msn msnt sf qq nq
+ABBREVTARGETS := lt hb a4 1c tcb msns mss $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 
@@ -150,6 +153,16 @@ endif
 
 chkpagegroup = $(PERFBOOK_CHKPAGEGROUP)
 
+ifeq ($(PERFBOOK_PAPER),A4)
+	PERFBOOK_BASE = perfbook-a4.tex
+else
+ifeq ($(PERFBOOK_PAPER),HB)
+	PERFBOOK_BASE = perfbook-hb.tex
+else
+	PERFBOOK_BASE = perfbook-lt.tex
+endif
+endif
+
 .PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mslm perfbook-mslm.pdf mslmmsg help help-official help-full
 all: $(targ)
 
@@ -182,7 +195,7 @@ ifeq ($(NEWTXTEXT),)
 endif
 	sh utilities/runfirstlatex.sh $(basename $@)
 
-autodate.tex: perfbook.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET) utilities/fcvextract.pl
+autodate.tex: perfbook-lt.tex $(LATEXSOURCES) $(BIBSOURCES) $(SVGSOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) $(SOURCES_OF_SNIPPET) $(GITREFSTAGS) utilities/fcvextract.pl
 	sh utilities/autodate.sh >autodate.tex
 
 perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(FCVSNIPPETS) $(FCVSNIPPETS_VIA_LTMS)
@@ -220,7 +233,7 @@ endif
 	echo > qqz.tex
 	echo > contrib.tex
 	echo > origpub.tex
-	latexpand --empty-comments perfbook.tex 1> $@ 2> /dev/null
+	latexpand --empty-comments perfbook-lt.tex 1> $@ 2> /dev/null
 
 qqz.tex: perfbook_flat.tex
 	sh utilities/extractqqz.sh < $< | perl utilities/qqzreorder.pl > $@
@@ -231,35 +244,44 @@ contrib.tex: perfbook_flat.tex qqz.tex
 origpub.tex: perfbook_flat.tex
 	sh utilities/extractorigpub.sh < $< > $@
 
-perfbook-tcb.tex: perfbook.tex
+perfbook.tex: $(PERFBOOK_BASE)
+	cp $< $@
+
+perfbook-tcb.tex: $(PERFBOOK_BASE)
 	sed -e 's/{tblcptop}{true}/{tblcptop}{false}/' < $< > $@
 
-perfbook-1c.tex: perfbook.tex
+perfbook-1c.tex: $(PERFBOOK_BASE)
 	sed -e 's/,twocolumn//' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < $< > $@
 
-perfbook-hb.tex: perfbook.tex
+perfbook-hb.tex: perfbook-lt.tex
 	sed -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < $< > $@
 
-perfbook-msns.tex: perfbook.tex
+perfbook-msns.tex: $(PERFBOOK_BASE)
 	sed -e 's/%msfontstub/\\usepackage{courier}/' < $< > $@
 
-perfbook-mss.tex: perfbook.tex
+perfbook-mss.tex: $(PERFBOOK_BASE)
 ifeq ($(COURIERS),)
 	$(error Font package 'courier-scaled' not found. See #9 in FAQ-BUILD.txt)
 endif
 	sed -e 's/%msfontstub/\\usepackage[scaled=.94]{couriers}/' < $< > $@
 
-perfbook-mstx.tex: perfbook.tex
+perfbook-mstx.tex: $(PERFBOOK_BASE)
+perfbook-1cmstx.tex: perfbook-1c.tex
+perfbook-mstx.tex perfbook-1cmstx.tex:
 	sed -e 's/%msfontstub/\\renewcommand*\\ttdefault{txtt}/' < $< > $@
 
-perfbook-msr.tex: perfbook.tex
+perfbook-msr.tex: $(PERFBOOK_BASE)
+perfbook-1cmsr.tex: perfbook-1c.tex
+perfbook-msr.tex perfbook-1cmsr.tex:
 ifeq ($(NIMBUSMONO),)
 	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
 endif
 	sed -e 's/%msfontstub/\\usepackage[scaled=.94]{nimbusmono}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
 
-perfbook-msn.tex: perfbook.tex
+perfbook-msn.tex: $(PERFBOOK_BASE)
+perfbook-1cmsn.tex: perfbook-1c.tex
+perfbook-msn.tex perfbook-1cmsn.tex:
 ifeq ($(NIMBUSMONO),)
 	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
 endif
@@ -267,7 +289,9 @@ endif
 	    -e 's/{lmttforcode}{true}/{lmttforcode}{false}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
 
-perfbook-msnt.tex: perfbook.tex
+perfbook-msnt.tex: $(PERFBOOK_BASE)
+perfbook-1cmsnt.tex: perfbook-1c.tex
+perfbook-msnt.tex perfbook-1cmsnt.tex:
 ifeq ($(NEWTXTT),)
 	$(error Font package 'newtxtt' not found.$nInstall it or try 'make mstx' instead. See #9 in FAQ-BUILD.txt)
 endif
@@ -275,10 +299,12 @@ ifeq ($(NIMBUSMONO),)
 	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
 endif
 	sed -e 's/%msfontstub/\\usepackage[zerostyle=a]{newtxtt}/' \
-	    -e 's/{qqzgb}{false}/{qqzbg}{true}/' \
+	    -e 's/{qqzbg}{false}/{qqzbg}{true}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' < $< > $@
 
+perfbook-sf.tex: $(PERFBOOK_BASE)
 perfbook-1csf.tex: perfbook-1c.tex
+perfbook-sf.tex perfbook-1csf.tex:
 ifeq ($(NEWTXSF),)
 	$(error Font package 'newtxsf' not found. See #9 in FAQ-BUILD.txt)
 endif
@@ -293,17 +319,20 @@ endif
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' \
 	    -e 's/%msfontstub/\\usepackage[var0]{inconsolata}[2013\/07\/17]/' < $< > $@
 
-perfbook-qq.tex: perfbook.tex
-	sed -e 's/{qqzbg}{false}/{qqzbg}{true}/' < $< > $@
-
+perfbook-qq.tex: $(PERFBOOK_BASE)
 perfbook-1cqq.tex: perfbook-1c.tex
+perfbook-qq.tex perfbook-1cqq.tex:
 	sed -e 's/{qqzbg}{false}/{qqzbg}{true}/' < $< > $@
 
-perfbook-nq.tex: perfbook.tex
+perfbook-nq.tex: $(PERFBOOK_BASE)
+perfbook-1cnq.tex: perfbook-1c.tex
+perfbook-nq.tex perfbook-1cnq.tex:
 	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' < $< > $@
 
-perfbook-1cnq.tex: perfbook-1c.tex
-	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' < $< > $@
+perfbook-a4.tex: perfbook-lt.tex
+perfbook-a4.tex:
+	sed -e 's/letterpaper/a4paper/' \
+	    -e 's/{afourpaper}{false}/{afourpaper}{true}/' < $< > $@
 
 # Rules related to perfbook_html are removed as of May, 2016
 
@@ -408,27 +437,36 @@ help-official:
 	@echo "  Full,              Abbr."
 	@echo "  perfbook.pdf,      2c:   (default) 2-column layout"
 	@echo "  perfbook-1c.pdf,   1c:   1-column layout"
-	@echo "  perfbook-hb.pdf,   hb:   For hardcover books (2-column)"
 
 help: help-official
 	@echo
-	@echo "\"make help-full\" will show the list of available targets."
+	@echo "Set env variable PERFBOOK_PAPER to change paper size:"
+	@echo "   PERFBOOK_PAPER=A4: a4paper"
+	@echo "   PERFBOOK_PAPER=HB: hard cover book"
+	@echo "   other (default):   letterpaper"
+	@echo
+	@echo "\"make help-full\" will show the full list of available targets."
 
 help-full: help-official
 	@echo
+	@echo "Paper size variations (independent of PERFBOOK_PAPER):"
+	@echo "  perfbook-lt.pdf,   lt:   2-column layout on letterpaper"
+	@echo "  perfbook-hb.pdf,   hb:   2-column layout for hard cover book"
+	@echo "  perfbook-a4.pdf,   a4:   2-column layout on a4paper"
+	@echo
 	@echo "Experimental targets:"
 	@echo "  Full,              Abbr."
-	@echo "  perfbook-qq.pdf,   qq:   2c with framed Quick Quizzez (1cqq for 1c)"
-	@echo "  perfbook-nq.pdf,   nq:   2c without inline Quick Quizzes (1cnq for 1c)"
-	@echo "  perfbook-msnt.pdf, msnt: 2c with newtxtt as monospace (non-slashed 0)"
-	@echo "  perfbook-mstx.pdf, mstx: 2c with txtt as monospace"
-	@echo "  perfbook-msr.pdf,  msr:  2c with regular thickness courier clone"
-	@echo "  perfbook-msn.pdf,  msn:  2c with narrow courier clone"
-
-	@echo "  perfbook-1csf.pdf, 1csf: 1c with sans serif font"
+	@echo "  perfbook-qq.pdf,   qq:   framed Quick Quizzes"
+	@echo "  perfbook-nq.pdf,   nq:   without inline Quick Quizzes"
+	@echo "  perfbook-msnt.pdf, msnt: newtxtt as monospace (non-slashed 0)"
+	@echo "  perfbook-mstx.pdf, mstx: txtt as monospace"
+	@echo "  perfbook-msr.pdf,  msr:  regular thickness courier clone as monospace"
+	@echo "  perfbook-msn.pdf,  msn:  narrow courier clone as monospace"
+	@echo "  perfbook-sf.pdf,   sf:   sans serif font"
+	@echo "      (\"1cqq\", \"1cnq\", and so on disable 2-column mode.)"
 	@echo
 	@echo "Historical targets:"
-	@echo "  perfbook-tcb.pdf,  tcb:  2c with table caption at bottom (prev default)"
+	@echo "  perfbook-tcb.pdf,  tcb:  2c with table caption at bottom (orig default)"
 	@echo "  perfbook-msns.pdf, msns: 2c with non-scaled courier (orig default)"
 	@echo "  perfbook-mss.pdf,  mss:  2c with scaled courier (prev default)"
 	@echo
@@ -436,10 +474,16 @@ help-full: help-official
 	@echo "  - \"msnt\" requires \"newtxtt\". \"mstx\" is a fallback target for older TeX env."
 	@echo "  - \"msr\" and \"msn\" require \"nimbus15\"."
 	@echo "  - \"msn\" doesn't cover bold face for monospace."
-	@echo "  - \"1csf\" requires \"newtxsf\"."
-	@echo "  - \"msnt\" and \"1csf\" have framed Quick Quizzes."
+	@echo "  - \"sf\" requires \"newtxsf\"."
+	@echo "  - \"msnt\" and \"sf\" have framed Quick Quizzes."
+	@echo "    Release tags enable framed Quick Quizzes except for \"nq\" targets."
 	@echo "  - All the targets except for \"msn\" use \"Latin Modern Typewriter\" font"
 	@echo "    for code snippets."
+	@echo "  - Set env variable PERFBOOK_PAPER to change paper size:"
+	@echo "      PERFBOOK_PAPER=A4: a4paper"
+	@echo "      PERFBOOK_PAPER=HB: hard cover book"
+	@echo "      other (default):   letterpaper"
+	@echo "    (PERFBOOK_PAPER has no effect on targets \"lt\", \"hb\", and \"a4\".)"
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
