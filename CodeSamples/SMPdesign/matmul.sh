@@ -33,21 +33,21 @@ do
 		do
 			./matmul $dim $ncpus
 		done
+		if ((ncpus >= 128))
+		then
+			incr=32
+		elif ((ncpus >= 64))
+		then
+			incr=16
+		elif ((ncpus >= 32))
+		then
+			incr=8
+		elif ((ncpus >= 16))
+		then
+			incr=4
+		elif ((ncpus >= 8))
+		then
+			incr=2
+		fi
 	done
-	if ((ncpus >= 128))
-	then
-		incr=32
-	elif ((ncpus >= 64))
-	then
-		incr=16
-	elif ((ncpus >= 32))
-	then
-		incr=8
-	elif ((ncpus >= 16))
-	then
-		incr=4
-	elif ((ncpus >= 8))
-	then
-		incr=2
-	fi
 done
