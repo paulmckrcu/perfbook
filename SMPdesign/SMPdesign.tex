@@ -667,8 +667,7 @@ computing the corresponding columns of the result matrix.
 The threads can therefore operate entirely independently, with no
 synchronization overhead whatsoever, as is done in
 \path{matmul.c}.
-One might therefore expect a parallel matrix multiply to have a
-perfect efficiency of 1.0.
+One might therefore expect a perfect efficiency of 1.0.
 
 \begin{figure}[tbp]
 \centering
@@ -680,8 +679,12 @@ perfect efficiency of 1.0.
 However,
 Figure~\ref{fig:SMPdesign:Matrix Multiply Efficiency}
 tells a different story, especially for a 64-by-64 matrix multiply,
-which never gets above an efficiency of about 0.7, even when running
-single-threaded.
+which never gets above an efficiency of about 0.3, even when running
+single-threaded, and drops sharply as more threads are added.
+The 128-by-128 matrix does better, but still fails to demonstrate
+much performance increase with added threads.
+The 256-by-256 matrix does scale reasonably well, but only up to a handful
+of CPUs.
 The 512-by-512 matrix multiply's efficiency is measurably less
 than 1.0 on as few as 10 threads, and even the 1024-by-1024 matrix
 multiply deviates noticeably from perfection at a few tens of threads.
@@ -727,7 +730,13 @@ or the parallel-fastpath approach discussed in the next section.
 	For example, if you split a 64-by-64 matrix multiply across
 	64 threads, each thread gets only 64 floating-point multiplies.
 	The cost of a floating-point multiply is minuscule compared to
-	the overhead of thread creation.
+	the overhead of thread creation, and cache-miss overhead
+	also plays a role in spoiling the theoretically perfect scalability
+	(and also in making the traces so jagged).
+	The full 448~hardware threads would require a matrix with
+	hundreds of thousands of rows and columns to attain good
+	scalability, but by that point GPGPUs become quite attractive,
+	especially from a price/performance viewpoint.
 
 	Moral: If you have a parallel program with variable input,
 	always include a check for the input size being too small to
