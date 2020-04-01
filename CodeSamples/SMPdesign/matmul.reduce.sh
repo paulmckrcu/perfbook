@@ -24,7 +24,7 @@ tr -d ',' |
 awk '	{
 	if ($3 != olddim || $6 != nthread) {
 		if (olddim != "") {
-			print nthread, compdur / fulldur, minfrac, maxfrac
+			print nthread, compdur / fulldur / nthread, minfrac, maxfrac
 			if ($3 != olddim)
 				print ""
 		}
@@ -34,13 +34,13 @@ awk '	{
 		nthread = $6;
 		fulldur = $9;
 		compdur = $11;
-		maxfrac = $11 / $9;
-		minfrac = $11 / $9;
+		maxfrac = $11 / $9 / nthread;
+		minfrac = $11 / $9 / nthread;
 		n = 1;
 	} else {
 		fulldur += $9;
 		compdur += $11;
-		frac = $11 / $9;
+		frac = $11 / $9 / nthread;
 		if (frac > maxfrac)
 			maxfrac = frac;
 		if (frac < minfrac)
@@ -50,5 +50,5 @@ awk '	{
 	}
 
 END	{
-	print nthread, compdur / fulldur, minfrac, maxfrac
+	print nthread, compdur / fulldur / nthread, minfrac, maxfrac
 	}'
