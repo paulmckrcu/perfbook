@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 
 	if ((en = pthread_create(&tid, NULL,		//\lnlbl{create:a}
 	                         mythread, NULL)) != 0) {//\lnlbl{create:b}
-		fprintf(stderr, "pthread_join: %s\n", strerror(en));
+		fprintf(stderr, "pthread_create: %s\n", strerror(en));
 		exit(EXIT_FAILURE);
 	}
 
