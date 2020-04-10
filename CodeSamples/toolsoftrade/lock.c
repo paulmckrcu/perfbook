@@ -55,7 +55,7 @@ void *lock_reader(void *arg)				//\lnlbl{reader:b}
 		poll(NULL, 0, 1);			//\lnlbl{reader:sleep}
 	}						//\lnlbl{reader:loop:e}
 	if ((en = pthread_mutex_unlock(pmlp)) != 0) {	//\lnlbl{reader:rel:b}
-		fprintf(stderr, "lock_reader:pthread_mutex_lock: %s\n",
+		fprintf(stderr, "lock_reader:pthread_mutex_unlock: %s\n",
 			strerror(en));
 		exit(EXIT_FAILURE);
 	}						//\lnlbl{reader:rel:e}
@@ -78,7 +78,7 @@ void *lock_writer(void *arg)				//\lnlbl{writer:b}
 		poll(NULL, 0, 5);
 	}						//\lnlbl{writer:loop:e}
 	if ((en = pthread_mutex_unlock(pmlp)) != 0) {	//\lnlbl{writer:rel:b}
-		fprintf(stderr, "lock_writer:pthread_mutex_lock: %s\n",
+		fprintf(stderr, "lock_writer:pthread_mutex_unlock: %s\n",
 			strerror(en));
 		exit(EXIT_FAILURE);
 	}						//\lnlbl{writer:rel:e}
