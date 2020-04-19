@@ -69,7 +69,7 @@ FIG2EPS := $(shell which fig2eps 2>/dev/null)
 A2PING := $(shell which a2ping 2>/dev/null)
 INKSCAPE := $(shell which inkscape 2>/dev/null)
 ifdef INKSCAPE
-  INKSCAPE_ONE := $(shell inkscape --version | grep -c "Inkscape 1")
+  INKSCAPE_ONE := $(shell inkscape --version 2>/dev/null | grep -c "Inkscape 1")
 endif
 LATEXPAND := $(shell which latexpand 2>/dev/null)
 QPDF := $(shell which qpdf 2>/dev/null)
@@ -402,7 +402,7 @@ endif
 ifeq ($(INKSCAPE_ONE),0)
 	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
 else
-	@inkscape --export-file=$@ $<i > /dev/null 2>&1
+	@inkscape -o $@ $<i > /dev/null 2>&1
 endif
 	@rm -f $<i
 ifeq ($(chkpagegroup),on)
