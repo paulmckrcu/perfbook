@@ -70,7 +70,7 @@ END {
 	n = asorti(catcpu, catcpusorted);
 	lastcat = 0;
 	cpustring = "";
-	for (i in catcpusorted) {
+	for (i = 1; i <= length(catcpusorted); i++) {
 		split(catcpusorted[i], catpluscpu, ":");
 		curcat = catpluscpu[1] + 0;
 		curcpu = catpluscpu[2] + 0;
