@@ -16,9 +16,9 @@ awk '
 		gsub(/user .*$/, "", curtesttime);
 		testtime_n[curtest]++;
 		testtime_sum[curtest] += curtesttime;
-		if (testtime_max[curtest] == "" || curtesttime > testtime_max[curtest])
+		if (testtime_max[curtest] == "" || curtesttime + 0 > testtime_max[curtest] + 0)
 			testtime_max[curtest] = curtesttime;
-		if (testtime_min[curtest] == "" || curtesttime < testtime_min[curtest])
+		if (testtime_min[curtest] == "" || curtesttime + 0 < testtime_min[curtest] + 0)
 			testtime_min[curtest] = curtesttime;
 	}
 }
