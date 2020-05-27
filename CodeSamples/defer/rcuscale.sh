@@ -44,6 +44,16 @@ maxcpu="`grep '^processor' /proc/cpuinfo | tail -1 | awk '{ print $3 }'`"
 lastcpu=${1-$maxcpu}
 primlist="`grep '\.name[ 	]*=' kernel/rcu/refperf*.c |
 	   sed -e 's/^[^"]*"//' -e 's/".*$//'`"
+if ((lastcpu > 100))
+then
+	holdoff=20
+else
+	holdoff=10
+fi
+if ((lastcpu * 2 >= maxcpu))
+then
+	holdoff=$((holdoff * 2))
+fi
 
 incr=1
 for ((ncpus = 1; ncpus <= lastcpu + 1; ncpus += incr))
@@ -57,14 +67,14 @@ do
 	fi
 	for prim in $primlist
 	do
-		taskset -c $cpulist tools/testing/selftests/rcutorture/bin/kvm.sh --cpus $ncpus --duration 10 --torture refperf --configs NOPREEMPT --bootargs "refperf.perf_type=$prim refperf.nreaders=$ncpus refperf.loops=10000" --trust-make > $T 2>&1
+		taskset -c $cpulist tools/testing/selftests/rcutorture/bin/kvm.sh --cpus $ncpus --duration 10 --torture refperf --configs NOPREEMPT --bootargs "refperf.perf_type=$prim refperf.nreaders=$ncpus refperf.loops=10000 refperf.holdoff=$holdoff" --kconfig "CONFIG_NR_CPUS=$((lastcpu + 1))" --trust-make > $T 2>&1
 		ret=$?
 		fstr=""
+		resdir="`grep -m 1 '^Results directory: ' $T | sed -e 's/^Results directory: *//'`"
 		if test "$ret" != 0
 		then
-			fstr=" FAILED"
+			fstr=" FAILED $T"
 		else
-			resdir="`grep -m 1 '^Results directory: ' /tmp/kvm.sh.out | sed -e 's/^Results directory: *//'`"
 			if test -d "$resdir"
 			then
 				rm -rf "$resdir"
