@@ -127,6 +127,44 @@ plot "rcu-eb.$tag.preempt.dat" w l, "rcu-eb.$tag.preempt.dat" w e, "refcnt-eb.$t
 ---EOF---
 cp refRCUperfPREEMPT.eps ../../../../defer
 
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "rwlockRCUperfwt.eps"
+set xlabel "Critical-Section Duration (microseconds)"
+set ylabel "Nanoseconds per operation"
+set logscale y
+#set yrange [1:10000]
+set xrange [0:10]
+set nokey
+set label 1 "rcu" at 0.6,5 left
+set label 2 "rwlock 100 CPUs" at 0.7,14000 left
+set label 3 "10" at 0.2,2300 left
+set label 4 "1" at 0.2,200 left
+# set label 5 "RCU" at 400,1.4e7 right
+plot "rcu-1-eb.$tag.dat" w l, "rwlock-1-eb.$tag.dat" w l, "rwlock-10-eb.$tag.dat" w l, "rwlock-100-eb.$tag.dat" w l
+---EOF---
+cp rwlockRCUperfwt.eps ../../../../defer
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "refRCUperfwt.eps"
+set xlabel "Critical-Section Duration (microseconds)"
+set ylabel "Nanoseconds per operation"
+set logscale y
+#set yrange [1:10000]
+set xrange [0:10]
+set nokey
+set label 1 "rcu" at 0.6,5 left
+set label 2 "refcnt 100 CPUs" at 0.7,14000 left
+set label 3 "10" at 0.2,2300 left
+set label 4 "1" at 0.2,200 left
+# set label 5 "RCU" at 400,1.4e7 right
+plot "rcu-1-eb.$tag.dat" w l, "refcnt-1-eb.$tag.dat" w l, "refcnt-10-eb.$tag.dat" w l, "refcnt-100-eb.$tag.dat" w l
+---EOF---
+cp refRCUperfwt.eps ../../../../defer
+
 exit 0
 @@@  The following are needed when regenerating the pre-BSD routing plots
 

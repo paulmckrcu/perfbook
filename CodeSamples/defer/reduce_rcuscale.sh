@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Reduce data gathered by rcuscale.sh.
+# Reduce data gathered by rcuscale.sh or rcudelay.sh.
 #
 # Usage: bash reduce_rcuscale.sh [ tag ] < rcuscale.sh.out
 #
@@ -35,6 +35,18 @@ awk -v tag="$tag" '
 /^Run for/ {
 	prim = $3;
 	ncpus = $5;
+	if (NF >= 9) {
+		delay = $9
+		if (nodelay == "y") {
+			print "Mixed rcuscale/rcudelay input!" > "/dev/stderr";
+			exit 1;
+		}
+	} else if (delay != "") {
+		print "Mixed rcuscale/rcudelay input!" > "/dev/stderr";
+		exit 1;
+	} else {
+		nodelay = "y";
+	}
 	next;
 }
 
@@ -42,7 +54,10 @@ awk -v tag="$tag" '
 	# print "> " prim "-points." tag ".dat"
 	for (i = 2; i <= NF; i++) {
 		# print ncpus, $i
-		print ncpus, $i > prim "-points." tag ".dat"
+		if (nodelay == "y")
+			print ncpus, $i > prim "-points." tag ".dat"
+		else
+			print delay, $i > prim "-" ncpus "-points." tag ".dat"
 	}
 }
 
@@ -58,5 +73,8 @@ awk -v tag="$tag" '
 	maxval = $4;
 	# print "> " prim "-eb." tag ".dat"
 	# print ncpus, medval, minval, maxval
-	print ncpus, medval, minval, maxval > prim "-eb." tag ".dat"
+	if (nodelay == "y")
+		print ncpus, medval, minval, maxval > prim "-eb." tag ".dat"
+	else
+		print delay, medval, minval, maxval > prim "-" ncpus "-eb." tag ".dat"
 }'
