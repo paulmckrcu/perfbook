@@ -4,7 +4,11 @@
 #
 # Usage: bash rcuscale.sh [ lastcpu ]
 #
-# Run this in a recent Linux-kernel source tree.
+# Run this in a recent Linux-kernel source tree.  On large systems,
+# it may be necessary to adjust this script, for example, the
+# taskset CPU list and the --cpus argument.  (If for no other reason
+# than kernel build times can be very long when restricted to a
+# single CPU.)
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
