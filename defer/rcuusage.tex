@@ -293,6 +293,44 @@ which was generated on a 448-CPU 2.10\,GHz Intel x86 system.
 }\QuickQuizEnd
 
 \QuickQuiz{
+	Didn't an earlier release of this book show RCU read-side
+	overhead way down in the sub-picosecond range?
+	What happened???
+}\QuickQuizAnswer{
+	Excellent memory!!!
+	The overhead in some early releases was in fact roughly
+	100~femtoseconds.
+
+	What happened was that RCU usage spread more broadly through the
+	Linux kernel, including into code that takes page faults.
+	Back at that time, \co{rcu_read_lock()} and \co{rcu_read_unlock()}
+	were complete no-ops in \co{CONFIG_PREEMPT=n} kernels.
+	Unfortunately, that situation allowed the compiler to reorder
+	page-faulting memory accesses into RCU read-side critical
+	sections.
+	Of course, page faults can block, which destroys those critical
+	section.
+
+	Nor was this a theoretical problem:
+	A failure actually manifested in 2019.
+	Herbert Xu tracked down this failure down and Linus Torvalds
+	therefore queued a commit to upgrade \co{rcu_read_lock()} and
+	\co{rcu_read_unlock()} to unconditionally include a call to
+	\co{barrier()}~\cite{LinusTorvalds2019:RCUreader.barrier}.
+	And although \co{barrier()} emits no code, it does constrain
+	compiler optimizations.
+	And so the price of widespread RCU usage is slightly higher
+	\co{rcu_read_lock()} and \co{rcu_read_unlock()} overhead.
+
+	Of course, it is also the case that the older results were obtained
+	on a different system than were those shown in
+	Figure~\ref{fig:defer:Performance Advantage of RCU Over Reader-Writer Locking}.
+	So which change had the most effect, Linus's commit or the change in
+	the system?
+	This question is left as an exercise to the reader.
+}\QuickQuizEnd
+
+\QuickQuiz{
 	Why is there such large variation for the \co{rcu} trace in
 	Figure~\ref{fig:defer:Performance Advantage of RCU Over Reader-Writer Locking}?
 }\QuickQuizAnswer{
