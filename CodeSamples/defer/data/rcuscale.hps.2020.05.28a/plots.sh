@@ -147,7 +147,11 @@ set label 3 "10" at 0.2,2300 left
 set label 4 "1" at 0.2,200 left
 # set label 5 "RCU" at 400,1.4e7 right
 plot "rcu-1-eb.$tag.dat" w l, "rwlock-1-eb.$tag.dat" w l, "rwlock-10-eb.$tag.dat" w l, "rwlock-100-eb.$tag.dat" w l
+set output "prz-rwlockRCUperfwt.eps"
+set size $przsize
+replot
 set output "rwlockRCUperfwtlin.eps"
+set size square ${plotsize},${plotsize}
 set nologscale y
 set label 1 "rcu" at 5,4200 left
 set label 2 "rwlock" at 0.7,8500 left
@@ -155,6 +159,9 @@ set nolabel 3
 set nolabel 4
 set xrange [0:20]
 plot "rcu-1-eb.$tag.dat" w l, "rwlock-100-eb.$tag.dat" w l
+set output "prz-rwlockRCUperfwtlin.eps"
+set size $przsize
+replot
 ---EOF---
 cp rwlockRCUperfwt.eps ../../../../defer
 
