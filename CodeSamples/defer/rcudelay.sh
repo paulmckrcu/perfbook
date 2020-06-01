@@ -10,6 +10,9 @@
 # than kernel build times can be very long when restricted to a
 # single CPU.)
 #
+# Note: "lastdelay" is in nanoseconds.  The script starts at 100ns
+# and steps logarithmically, as in 100, 200, 500, 1000, ...
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -76,7 +79,8 @@ do
 	else
 		cpulist=0-$endcpu
 	fi
-	for ((curdelay = 0; curdelay <= lastdelay; curdelay++))
+	curdelay=100
+	while ((curdelay <= lastdelay))
 	do
 		for prim in $primlist
 		do
@@ -96,5 +100,6 @@ do
 			echo Run for $prim with $ncpus CPUs and delay $curdelay$fstr
 			egrep '^Points: | reader duration:' $T
 		done
+		curdelay=`echo $curdelay | sed -e 's/5/10/' -e t -e 's/2/5/' -e t -e 's/1/2/'`
 	done
 done
