@@ -135,29 +135,33 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "rwlockRCUperfwt.eps"
-set xlabel "Critical-Section Duration (microseconds)"
+set xlabel "Critical-Section Duration (nanoseconds)"
 set ylabel "Nanoseconds per operation"
-set logscale y
+set logscale xy
 #set yrange [1:10000]
-set xrange [0:10]
+# set xrange [0:10]
 set nokey
-set label 1 "rcu" at 0.6,5 left
-set label 2 "rwlock 100 CPUs" at 0.7,14000 left
-set label 3 "10" at 0.2,2300 left
-set label 4 "1" at 0.2,200 left
+set label 1 "rcu" at 520,480 left
+set label 2 "rwlock 100 CPUs" at 200,10000 left
+set label 3 "10 CPUs" at 110,1900 left
+set label 4 "1 CPU" at 120,500 left
 # set label 5 "RCU" at 400,1.4e7 right
-plot "rcu-1-eb.$tag.dat" w l, "rwlock-1-eb.$tag.dat" w l, "rwlock-10-eb.$tag.dat" w l, "rwlock-100-eb.$tag.dat" w l
+plot "rcu-1-eb.$tag.dat" w l, "rwlock-1-eb.$tag.dat" w l, "rwlock-1-eb.$tag.dat" w e, "rwlock-10-eb.$tag.dat" w l, "rwlock-10-eb.$tag.dat" w e, "rwlock-100-eb.$tag.dat" w l, "rwlock-100-eb.$tag.dat" w e
 set output "prz-rwlockRCUperfwt.eps"
 set size $przsize
+set label 1 "rcu" at 500,500 left
+set label 2 "rwlock 100 CPUs" at 200,9000 left
+set label 3 "10 CPUs" at 130,1800 left
+set label 4 "1 CPU" at 120,440 left
 replot
 set output "rwlockRCUperfwtlin.eps"
 set size square ${plotsize},${plotsize}
-set nologscale y
-set label 1 "rcu" at 5,4200 left
-set label 2 "rwlock" at 0.7,8500 left
+set nologscale xy
+set label 1 "rcu" at 5800,5000 left
+set label 2 "rwlock" at 300,8400 left
 set nolabel 3
 set nolabel 4
-set xrange [0:20]
+set xrange [0:20000]
 plot "rcu-1-eb.$tag.dat" w l, "rwlock-100-eb.$tag.dat" w l
 set output "prz-rwlockRCUperfwtlin.eps"
 set size $przsize
@@ -169,18 +173,18 @@ gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
 set output "refRCUperfwt.eps"
-set xlabel "Critical-Section Duration (microseconds)"
+set xlabel "Critical-Section Duration (nanoseconds)"
 set ylabel "Nanoseconds per operation"
-set logscale y
+set logscale xy
 #set yrange [1:10000]
-set xrange [0:10]
+#set xrange [0:10]
 set nokey
-set label 1 "rcu" at 0.6,5 left
-set label 2 "refcnt 100 CPUs" at 0.7,14000 left
-set label 3 "10" at 0.2,2300 left
-set label 4 "1" at 0.2,200 left
+set label 1 "rcu" at 1200,1000 left
+set label 2 "refcnt 100 CPUs" at 200,10000 left
+set label 3 "10 CPUs" at 150,2200 left
+set label 4 "1 CPU" at 120,500 left
 # set label 5 "RCU" at 400,1.4e7 right
-plot "rcu-1-eb.$tag.dat" w l, "refcnt-1-eb.$tag.dat" w l, "refcnt-10-eb.$tag.dat" w l, "refcnt-100-eb.$tag.dat" w l
+plot "rcu-1-eb.$tag.dat" w l, "refcnt-1-eb.$tag.dat" w l, "refcnt-1-eb.$tag.dat" w e, "refcnt-10-eb.$tag.dat" w l, "refcnt-10-eb.$tag.dat" w e, "refcnt-100-eb.$tag.dat" w l, "refcnt-100-eb.$tag.dat" w e
 ---EOF---
 cp refRCUperfwt.eps ../../../../defer
 
