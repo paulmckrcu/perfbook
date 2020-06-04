@@ -55,6 +55,28 @@ plot "rwlock-eb.$tag.dat" w l, "rwlock-eb.$tag.dat" w e
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
+set output "rwlockRCUperf.eps"
+set xlabel "Number of CPUs (Threads)"
+set ylabel "Nanoseconds per operation"
+set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+set label 1 "rcu" at 30,9 left
+set label 2 "rwlock" at 4,750 left
+# set label 3 "hazptr" at 360,3.5e6 left
+# set label 4 "seqlock" at 250,5.6e6 right
+# set label 5 "RCU" at 400,1.4e7 right
+plot "rcu-eb.$tag.dat" w l, "rcu-eb.$tag.dat" w e, "rwlock-eb.$tag.dat" w l, "rwlock-eb.$tag.dat" w e
+set output "prz-rwlockRCUperf.eps"
+set size $przsize
+replot
+---EOF---
+cp rwlockRCUperf.eps ../../../../defer
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
 set output "rwlockRCUperfPREEMPT.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Nanoseconds per operation"
