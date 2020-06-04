@@ -72,8 +72,8 @@ set label 3 "cmpxchg" at 120,850 left
 set label 5 "local lock" at 75,100 left
 set label 6 "local cmpxchg" at 75,55 left
 plot "hps.2020.02.24a.blindcmpxchg.sctr.dat" w p pt 0, "hps.2020.02.24a.cmpxchg.sctr.dat" w p pt 0, "hps.2020.02.24a.blindcmpxchg.dat" w l, "hps.2020.02.24a.cmpxchg.dat" w l, 7.0862, 15.479
-set term jpeg large
-set size square 1.0,1.0
+set term jpeg giant size 960,480
+set size nosquare 1.0,1.0
 set output "cachetorture-latency-scatter.jpg
 replot
 ---EOF---
