@@ -7,7 +7,7 @@
 \Epigraph{If it is not tested, it doesn't work.}{\emph{Unknown}}
 
 I have had a few parallel programs work the first time, but that is only
-because I have written a large number parallel programs over the past two
+because I have written a large number parallel programs over the past three
 decades.
 And I have had far more parallel programs that fooled me into thinking
 that they were working correctly the first time than actually were working
@@ -103,7 +103,7 @@ By attempting to relate to users as people, these two products raised
 common-sense and theory-of-mind expectations that they proved incapable
 of meeting.
 Perhaps the set of software assistants that have recently started appearing
-on smartphones will fare better.
+on smartphones will fare better, but as of 2020 reviews are mixed.
 That said, the developers working on them by all accounts still develop
 the old way: The assistants might well benefit end users, but not so
 much their own developers.
@@ -133,15 +133,14 @@ requires almost insane levels of optimism---a level of optimism that actually
 is present in most human beings.
 These insane levels of optimism extend to self-assessments of programming
 ability, as evidenced by the effectiveness of (and the controversy over)
-interviewing techniques involving coding trivial
-programs~\cite{RegBraithwaite2007FizzBuzz}.
+code-interviewing techniques~\cite{RegBraithwaite2007FizzBuzz}.
 In fact, the clinical term for a human being with less-than-insane
 levels of optimism is ``clinically depressed.'' Such people usually have
 extreme difficulty functioning in their daily lives, underscoring the
 perhaps counter-intuitive importance of insane levels of optimism to a
 normal, healthy life.
-If you are not insanely optimistic, you are less likely to start a difficult
-but worthwhile project.\footnote{
+Furtheremore, if you are not insanely optimistic, you are less likely
+to start a difficult but worthwhile project.\footnote{
 	There are some famous exceptions to this rule of thumb.
 	One set of exceptions is people who take on difficult or risky
 	projects in order to make at least a temporary escape
@@ -186,8 +185,8 @@ either completing it, canceling it, or being killed by it.
 A given project might well succeed only after killing several
 organizations.
 One can only hope that the organization that eventually makes a success
-of a serial-organization-killer project manages maintains a suitable
-level of humility, lest it be killed by the next project.
+of a serial-organization-killer project maintains a suitable
+level of humility, lest it be killed by its next project.
 
 Important though insane levels of optimism might be, they are a key source
 of bugs (and perhaps failure of organizations).
@@ -214,7 +213,7 @@ Therefore, any validation effort undertaken on a non-trivial program
 that fails to find any bugs is itself a failure.
 A good validation is therefore an exercise in destruction.
 This means that if you are the type of person who enjoys breaking things,
-validation is just the right type of job for you.
+validation is just job for you.
 
 \begin{SaveVerbatim}{VerbDebuggingQQZ}
         real    0m0.132s
@@ -382,7 +381,7 @@ lifetime validation should start, a topic taken up by the next section.
 \subsection{When Should Validation Start?}
 \label{sec:debugging:When Should Validation Start?}
 
-Validation should start at the same time that the project starts.
+Validation should start exactly when the project starts.
 
 To see this, consider that tracking down a bug is much harder in a large
 program than in a small one.
@@ -657,7 +656,7 @@ For example, although the machine really does know all,
 what it knows is almost always way more than your head can hold.
 For this reason, high-quality test suites normally come with sophisticated
 scripts to analyze the voluminous output.
-But beware---scripts won't necessarily notice surprising things.
+But beware---scripts will only notice what you tell them to.
 My rcutorture scripts are a case in point: Early versions of those
 scripts were quite satisfied with a test run in which RCU grace periods
 stalled indefinitely.
@@ -715,15 +714,13 @@ without that lock being held.
 Such functions sometimes have header comments stating something like
 ``The caller must hold \co{foo_lock} when calling this function'', but
 such a comment does no good unless someone actually reads it.
-An executable statement like \co{lock_is_held(&foo_lock)} carries far
-more weight.
-
+An executable statement carries far more weight.
 The Linux kernel's lockdep
 facility~\cite{JonathanCorbet2006lockdep,StevenRostedt2011locdepCryptic}
-takes this a step farther, reporting potential deadlocks as well as
-allowing functions to verify that the proper locks are held.
-Of course, this additional functionality incurs significant overhead,
-so that lockdep is not necessarily appropriate for production use.
+therefore provides a \co{lockdep_assert_held()} function that allows
+functions to verify that the proper locks are held.
+Of course, lockdep incurs significant overhead, so that it is not
+necessarily appropriate for production use.
 
 So what can be done in cases where checking is necessary, but where the
 overhead of runtime checking cannot be tolerated?
@@ -1035,6 +1032,37 @@ more bugs more quickly, especially if those users are doing things
 that the original developers did not consider.
 The next section describes how to handle the probabilistic bugs that
 occur all too commonly when validating parallel software.
+
+\QuickQuiz{
+	Wait!
+	Why on earth would an abstract piece of software fail only
+	sometimes???
+}\QuickQuizAnswer{
+	Because complexity and concurrency can produce results that
+	are indistinguishable from
+	randomness~\cite{PeterOkech2009InherentRandomness}.
+	For example, a bug in Linux-kernel RCU required the following
+	to hold before that bug would manifest:
+	\begin{enumerate}
+	\item	The kernel was built for HPC or real-time use, so that
+		a given CPU's RCU work could be offloaded to some other
+		CPU.
+	\item	An offloaded CPU went offline just after generating a
+		large quantity of RCU work.
+	\item	A special \co{rcu_barrier()} API was invoked just at
+		this time.
+	\item	The RCU work from the newly offlined CPU was still being
+		processed after \co{rcu_barrier()} returned.
+	\item	One of these remaining RCU work items was related to
+		the code invoking the \co{rcu_barrier()}.
+	\end{enumerate}
+	Making this bug manifest therefore required considerable luck
+	or great testing skill.
+	But the testing skill could be effective only if the bug was
+	known, which of course it was not.
+	Therefore, the manifesting of this bug was very well modeled
+	as a probabilistic process.
+}\QuickQuizEnd
 
 \section{Probability and Heisenbugs}
 \label{sec:debugging:Probability and Heisenbugs}
