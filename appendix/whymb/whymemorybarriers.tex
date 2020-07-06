@@ -704,7 +704,7 @@ shown in
 \cref{fig:app:whymb:Caches With Store Buffers},
 one would be surprised.
 Such a system could potentially see the following sequence of events:
-\begin{enumerate}
+\begin{sequence}
 \item	CPU~0 starts executing the \co{a = 1}.
 \item	CPU~0 looks ``a'' up in the cache, and finds that it is missing.
 \item	CPU~0 therefore sends a ``read invalidate'' message in order to
@@ -725,7 +725,7 @@ Such a system could potentially see the following sequence of events:
 	and stores it into the cache line containing ``b''
 	(which we will assume is already owned by CPU~0).
 \item	CPU~0 executes \co{assert(b == 2)}, which fails.
-\end{enumerate}
+\end{sequence}
 
 The problem is that we have two copies of ``a'', one in the cache and
 the other in the store buffer.
@@ -778,10 +778,11 @@ Suppose CPU~0 executes foo() and CPU~1 executes bar().
 Suppose further that the cache line containing ``a'' resides only in CPU~1's
 cache, and that the cache line containing ``b'' is owned by CPU~0.
 Then the sequence of operations might be as follows:
-\begin{enumerate}
+\begin{sequence}
 \item	CPU~0 executes \co{a = 1}.  The cache line is not in
 	CPU~0's cache, so CPU~0 places the new value of ``a'' in its
 	store buffer and transmits a ``read invalidate'' message.
+	\label{seq:app:whymb:Store Buffers and Memory Barriers}
 \item	CPU~1 executes \co{while (b == 0) continue}, but the cache line
 	containing ``b'' is not in its cache.
 	It therefore transmits a ``read'' message.
@@ -806,10 +807,11 @@ Then the sequence of operations might be as follows:
 \item	CPU~0 receives the cache line containing ``a'' and applies
 	the buffered store just in time to fall victim to CPU~1's
 	failed assertion.
-\end{enumerate}
+\end{sequence}
 
 \QuickQuiz{
-	In step~1 above, why does CPU~0 need to issue a ``read invalidate''
+	In \cref{seq:app:whymb:Store Buffers and Memory Barriers} above,
+	why does CPU~0 need to issue a ``read invalidate''
 	rather than a simple ``invalidate''?
 }\QuickQuizAnswer{
 	Because the cache line in question contains more than just the
@@ -845,7 +847,7 @@ stores until all of the prior entries in the store buffer had been
 applied.
 
 With this latter approach the sequence of operations might be as follows:
-\begin{enumerate}
+\begin{sequence}
 \item	CPU~0 executes \co{a = 1}.  The cache line is not in
 	CPU~0's cache, so CPU~0 places the new value of ``a'' in its
 	store buffer and transmits a ``read invalidate'' message.
@@ -896,7 +898,7 @@ With this latter approach the sequence of operations might be as follows:
 	cache line containing the new value of ``b''
 	to CPU~1.
 	It also marks its own copy of this cache line as ``shared''.
-	\label{label:app:whymb:Store buffers: All copies shared}
+	\label{seq:app:whymb:Store buffers: All copies shared}
 \item	CPU~1 receives the cache line containing ``b'' and installs
 	it in its cache.
 \item	CPU~1 can now load the value of ``b'',
@@ -908,12 +910,12 @@ With this latter approach the sequence of operations might be as follows:
 	Once it gets this cache from CPU~0, it will be
 	working with the up-to-date value of ``a'', and the assertion
 	therefore passes.
-\end{enumerate}
+\end{sequence}
 
 \QuickQuiz{
-	After \cref{label:app:whymb:Store buffers: All copies shared}
+	After \cref{seq:app:whymb:Store buffers: All copies shared}
 	in \cref{sec:app:whymb:Store Buffers and Memory Barriers} on
-	page~\pageref{label:app:whymb:Store buffers: All copies shared},
+	page~\pageref{seq:app:whymb:Store buffers: All copies shared},
 	both CPUs might drop the cache line containing the new value of
 	``b''.
 	Wouldn't that cause this new value to be lost?
@@ -1037,12 +1039,13 @@ void bar(void)
 
 Then the sequence of operations might be as follows:
 \begin{fcvref}[ln:app:whymb:Breaking mb]
-\begin{enumerate}
+\begin{sequence}
 \item	CPU~0 executes \co{a = 1}.  The corresponding
 	cache line is read-only in
 	CPU~0's cache, so CPU~0 places the new value of ``a'' in its
 	store buffer and transmits an ``invalidate'' message in order
 	to flush the corresponding cache line from CPU~1's cache.
+	\label{seq:app:whymb:Invalidate Queues and Memory Barriers}
 \item	CPU~1 executes \co{while (b == 0) continue}, but the cache line
 	containing ``b'' is not in its cache.
 	It therefore transmits a ``read'' message.
@@ -1069,11 +1072,12 @@ Then the sequence of operations might be as follows:
 \item	Despite the assertion failure, CPU~1 processes the queued
 	``invalidate'' message, and (tardily)
 	invalidates the cache line containing ``a'' from its own cache.
-\end{enumerate}
+\end{sequence}
 \end{fcvref}
 
 \QuickQuiz{
-	In step~1 of the first scenario in
+	In \cref{seq:app:whymb:Invalidate Queues and Memory Barriers}
+	of the first scenario in
 	\cref{sec:app:whymb:Invalidate Queues and Memory Barriers},
 	why is an ``invalidate'' sent instead of a ''read invalidate''
 	message?
@@ -1161,7 +1165,7 @@ void bar(void)
 
 \begin{fcvref}[ln:app:whymb:Add mb]
 With this change, the sequence of operations might be as follows:
-\begin{enumerate}
+\begin{sequence}
 \item	CPU~0 executes \co{a = 1}.  The corresponding
 	cache line is read-only in
 	CPU~0's cache, so CPU~0 places the new value of ``a'' in its
@@ -1199,7 +1203,7 @@ With this change, the sequence of operations might be as follows:
 	containing the new value of ``a''.
 \item	CPU~1 receives this cache line, which contains a value of 1 for
 	``a'', so that the assertion does not trigger.
-\end{enumerate}
+\end{sequence}
 \end{fcvref}
 
 With much passing of MESI messages, the CPUs arrive at the correct answer.
