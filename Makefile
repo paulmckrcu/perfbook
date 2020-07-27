@@ -16,7 +16,12 @@ LATEXSOURCES = \
 LST_SOURCES := $(wildcard CodeSamples/formal/promela/*.lst) \
 	$(wildcard appendix/styleguide/*.c)
 
-LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex
+SUB_QQZ := qqzhowto.tex qqzintro.tex qqzcpu.tex qqztoolsoftrade.tex \
+	qqzcount.tex qqzSMPdesign.tex qqzlocking.tex qqzowned.tex \
+	qqzdefer.tex qqzdatastruct.tex qqzdebugging.tex qqzformal.tex \
+	qqztogether.tex	qqzadvsync.tex qqzmemorder.tex qqzeasy.tex \
+	qqzfuture.tex qqzquestions.tex qqztoyrcu.tex qqzwhymb.tex
+LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex $(SUB_QQZ)
 
 TWOCOLTARGETS := mstx msr msn msnt sf qq nq
 ABBREVTARGETS := lt hb a4 1c tcb msns mss $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
@@ -245,6 +250,9 @@ contrib.tex: perfbook_flat.tex qqz.tex
 origpub.tex: perfbook_flat.tex
 	sh utilities/extractorigpub.sh < $< > $@
 
+$(SUB_QQZ): qqz.tex
+	utilities/divideqqz.pl
+
 perfbook.tex: $(PERFBOOK_BASE)
 	cp $< $@
 
@@ -328,7 +336,8 @@ perfbook-qq.tex perfbook-1cqq.tex:
 perfbook-nq.tex: $(PERFBOOK_BASE)
 perfbook-1cnq.tex: perfbook-1c.tex
 perfbook-nq.tex perfbook-1cnq.tex:
-	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' < $< > $@
+	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' \
+	    -e 's/{qqzchpend}{false}/{qqzchpend}{true}/' < $< > $@
 
 perfbook-a4.tex: perfbook-lt.tex
 perfbook-a4.tex:
@@ -458,7 +467,7 @@ help-full: help-official
 	@echo "Experimental targets:"
 	@echo "  Full,              Abbr."
 	@echo "  perfbook-qq.pdf,   qq:   framed Quick Quizzes"
-	@echo "  perfbook-nq.pdf,   nq:   without inline Quick Quizzes"
+	@echo "  perfbook-nq.pdf,   nq:   no inline Quick Quizzes (chapterwise Answers)"
 	@echo "  perfbook-msnt.pdf, msnt: newtxtt as monospace (non-slashed 0)"
 	@echo "  perfbook-mstx.pdf, mstx: txtt as monospace"
 	@echo "  perfbook-msr.pdf,  msr:  regular thickness courier clone as monospace"
