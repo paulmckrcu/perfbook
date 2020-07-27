@@ -34,41 +34,36 @@ awk < $T/filt '
 /^nlookups:/ {
 		for (i = 1; i <= NF; i++) {
 			if ($i ~ /[0-9][0-9]*/)
-				l[i] += $i;
+				l[old][i] += $i;
 			else
-				l[i] = $i;
+				l[old][i] = $i;
 		}
 	}
 
-/^hash/ && $0 != old && old != "" {
-		n = 0;
-		for (i in l)
-			n++;
-		for (i = 1; i <= n; i++) {
-			printf "%s", l[i] " ";
-			l[i] = "";
-		}
-		print "@@@ " old;
+/^hash/ {
 		old = $0;
-	}
-
-/^hash/ && old == "" {
-		old = $0;
+		sig[$0] = 1;
 	}
 
 END	{
-		n = 0;
-		for (i in l)
-			n++;
-		for (i = 1; i <= n; i++) {
-			printf "%s", l[i] " ";
-			l[i] = "";
+		for (old in sig) {
+			n = 0;
+			for (i in l[old])
+				n++;
+			for (i = 1; i <= n; i++)
+				printf "%s", l[old][i] " ";
+			print "@@@ " old;
 		}
-		print "@@@ " old;
 	}' > $T/sum
 
+# Find little and big numbers of buckets
+nb="`grep -e --nbuckets $T/sum |
+	sed -e 's/^.*--nbuckets //' | sed -e 's/ .*$//' | sort -u -k1n`"
+nbs="`echo $nb | awk '{ print $1 }'`"
+nbl="`echo $nb | awk '{ print $2 }'`"
+
 # Produce .dat files for small fixed-size hash-table runs
-grep -v -e '--resizemult' $T/sum | grep -e '--nbuckets 1024' |
+grep -v -e '--resizemult' $T/sum | grep -e "--nbuckets $nbs" |
 awk -v tag="$tag" \
 	'{
 		dur = $9;
@@ -84,7 +79,7 @@ awk -v tag="$tag" \
 	}'
 
 # Produce .dat files for large fixed-size hash-table runs
-grep -v -e '--resizemult' $T/sum | grep -e '--nbuckets 2048' |
+grep -v -e '--resizemult' $T/sum | grep -e "--nbuckets $nbl" |
 awk -v tag="$tag" \
 	'{
 		dur = $9;
