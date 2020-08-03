@@ -64,27 +64,33 @@ nbl="`echo $nb | awk '{ print $2 }'`"
 
 # Produce .dat files for small fixed-size hash-table runs
 grep -v -e '--resizemult' $T/sum | grep -e "--nbuckets $nbs" |
-awk -v tag="$tag" \
+awk -v tag="$tag" -v T=$T \
 	'{
 		dur = $9;
-		print($14, $2 / dur) > "perftestS." $18 "." tag ".dat"
+		print($14, $2 / dur) > T "/perftestS." $18 "." tag ".dat"
 	}'
 
 # Produce .dat files for resizable hash-table runs
 grep -e '--resizemult' $T/sum |
-awk -v tag="$tag" \
+awk -v tag="$tag" -v T=$T \
 	'{
 		dur = $9;
-		print($14, $2 / dur) > "perftestR." $18 "." tag ".dat"
+		print($14, $2 / dur) > T "/perftestR." $18 "." tag ".dat"
 	}'
 
 # Produce .dat files for large fixed-size hash-table runs
 grep -v -e '--resizemult' $T/sum | grep -e "--nbuckets $nbl" |
-awk -v tag="$tag" \
+awk -v tag="$tag" -v T=$T \
 	'{
 		dur = $9;
-		print($14, $2 / dur) > "perftestL." $18 "." tag ".dat"
+		print($14, $2 / dur) > T "/perftestL." $18 "." tag ".dat"
 	}'
+
+datfiles="`cd $T; ls perftest*.dat`"
+for i in $datfiles
+do
+	sort -k1n $T/$i > $i
+done
 
 echo "Hit ^C to continue:"
 sleep 10000
