@@ -86,21 +86,20 @@ for ((i = 0; i < $nsamples; i++))
 do
 	for epwmult in '/8' '' '*8'
 	do
-		epwlo=$((nbucketslo$epwmult))
-		epwhi=$((nbucketshi$epwmult))
+		epw=$((nbucketslo$epwmult))
 		ncpu=1
 		while test $ncpu -le $lastcpu
 		do
-			echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epwlo --duration 1000 --updatewait 0
-			./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epwlo --duration 1000 --updatewait 0
+			echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --duration 1000 --updatewait 0
+			./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --duration 1000 --updatewait 0
 			sleep 1
 
-			echo hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epwlo --resizemult 2 --duration 1000 --updatewait 0
-			./hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epwlo --resizemult 2 --duration 1000 --updatewait 0
+			echo hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --resizemult 2 --duration 1000 --updatewait 0
+			./hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --resizemult 2 --duration 1000 --updatewait 0
 			sleep 1
 
-			echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketshi --elems/writer $epwhi --duration 1000 --updatewait 0
-			./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketshi --elems/writer $epwhi --duration 1000 --updatewait 0
+			echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketshi --elems/writer $epw --duration 1000 --updatewait 0
+			./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketshi --elems/writer $epw --duration 1000 --updatewait 0
 			sleep 1
 
 			incr=`power2inc $ncpu 8`
