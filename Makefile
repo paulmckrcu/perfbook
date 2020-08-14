@@ -21,7 +21,10 @@ SUB_QQZ := qqzhowto.tex qqzintro.tex qqzcpu.tex qqztoolsoftrade.tex \
 	qqzdefer.tex qqzdatastruct.tex qqzdebugging.tex qqzformal.tex \
 	qqztogether.tex	qqzadvsync.tex qqzmemorder.tex qqzeasy.tex \
 	qqzfuture.tex qqzquestions.tex qqztoyrcu.tex qqzwhymb.tex
-LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex $(SUB_QQZ)
+
+LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex sub_qqz
+# Note: Empty target "sub_qqz" is used on behalf of $(SUB_QQZ) to prevent
+# parallel runs of divideqqz.pl.
 
 TWOCOLTARGETS := mstx msr msn msnt sf qq nq
 ABBREVTARGETS := lt hb a4 1c tcb msns mss $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
@@ -250,8 +253,10 @@ contrib.tex: perfbook_flat.tex qqz.tex
 origpub.tex: perfbook_flat.tex
 	sh utilities/extractorigpub.sh < $< > $@
 
-$(SUB_QQZ): qqz.tex
+# Empty target to generate $(SUB_QQZ) files
+sub_qqz: qqz.tex
 	utilities/divideqqz.pl
+	@touch sub_qqz
 
 perfbook.tex: $(PERFBOOK_BASE)
 	cp $< $@
@@ -502,6 +507,7 @@ clean:
 		-o -name '*.pdfp' -o -name '*.pdfq' | xargs rm -f
 	rm -f perfbook_flat.tex perfbook*.out $(GENERATED_MAIN)
 	rm -f $(LATEXGENERATED)
+	rm -f qqz*.tex
 	rm -f CodeSamples/snippets.d
 	rm -f *.synctex*
 	@rm -f $(OBSOLETE_FILES)
