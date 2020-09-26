@@ -84,7 +84,7 @@ nbucketshi=$((nbucketslo*2))
 # Simple hash tables, read-only.
 for ((i = 0; i < $nsamples; i++))
 do
-	for epwmult in '/8' '' '*8'
+	for epwmult in '' '*8'
 	do
 		epw=$((nbucketslo$epwmult))
 		ncpu=1
@@ -94,8 +94,8 @@ do
 			./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --duration 1000 --updatewait 0
 			sleep 1
 
-			echo hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --resizemult 2 --duration 1000 --updatewait 0
-			./hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --resizemult 2 --duration 1000 --updatewait 0
+			echo hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --resizemult 8 --duration 1000 --updatewait 0
+			./hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --resizemult 8 --duration 1000 --updatewait 0
 			sleep 1
 
 			echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketshi --elems/writer $epw --duration 1000 --updatewait 0
