@@ -1332,58 +1332,66 @@ the old hash table, and finally line~\lnref{ret_success} returns success.
 \begin{figure}[tb]
 \centering
 \resizebox{2.7in}{!}{\includegraphics{datastruct/perftestresize}}
-\caption{Overhead of Resizing Hash Tables Between 1024 and 2048 Buckets vs. Total Number of Elements}
-\label{fig:datastruct:Overhead of Resizing Hash Tables Between 1024 and 2048 Buckets vs. Total Number of Elements}
+\caption{Overhead of Resizing Hash Tables Between 262,144 and 524,288 Buckets vs. Total Number of Elements}
+\label{fig:datastruct:Overhead of Resizing Hash Tables Between 262,144 and 524,288 Buckets vs. Total Number of Elements}
 \end{figure}
+% Data from CodeSamples/datastruct/hash/data/hps.resize.2020.09.05a
 
-Figure~\ref{fig:datastruct:Overhead of Resizing Hash Tables Between 1024 and 2048 Buckets vs. Total Number of Elements}
+Figure~\ref{fig:datastruct:Overhead of Resizing Hash Tables Between 262,144 and 524,288 Buckets vs. Total Number of Elements}
 compares resizing hash tables to their fixed-sized counterparts
-for 2048, 16,384, and 131,072 elements in the hash table.
+for 262,144 and 2,097,152 elements in the hash table.
 The figure shows three traces for each element count, one
-for a fixed-size 1024-bucket hash table, another for a
-fixed-size 2048-bucket hash table, and a third for a resizable
-hash table that shifts back and forth between 1024 and 2048
+for a fixed-size 262,144-bucket hash table, another for a
+fixed-size 524,288-bucket hash table, and a third for a resizable
+hash table that shifts back and forth between 262,144 and 524,288
 buckets, with a one-millisecond pause between each resize operation.
 
-The uppermost three traces are for the 2048-element hash table.
-The upper trace corresponds to the 2048-bucket fixed-size hash
-table, the middle trace to the 1024-bucket fixed-size hash table,
-and the lower trace to the resizable hash table.
+The uppermost three traces are for the 262,144-element hash table.
+The dashed trace corresponds to the two fixed-size hash tables,
+and the solid trace to the resizable hash table.
 In this case, the short hash chains cause normal lookup overhead
-to be so low that the overhead of resizing dominates.
-Nevertheless, the larger fixed-size hash table has a significant
-performance advantage, so that resizing can be quite beneficial,
-at least given sufficient time between resizing operations: One
-millisecond is clearly too short a time.
+to be so low that the overhead of resizing dominates over most
+of the range.
+In particular, the entire hash table fits into L3 cache.
+% Nevertheless, the larger fixed-size hash table has a significant
+% performance advantage, so that resizing can be quite beneficial,
+% at least given sufficient time between resizing operations: One
+% millisecond is clearly too short a time.
 
-The middle three traces are for the 16,384-element hash table.
-Again, the upper trace corresponds to the 2048-bucket fixed-size hash
-table, but the middle trace now corresponds to the resizable hash
-table and the lower trace to the 1024-bucket fixed-size hash table.
-However, the performance difference between the resizable and the
-1024-bucket hash table is quite small.
-One consequence of the eight-fold increase in number of elements
-(and thus also in hash-chain length) is that incessant resizing
-is now no worse than maintaining a too-small hash table.
+The lower three traces are for the 2,097,152-element hash table.
+The upper trace corresponds to the 262,144-bucket fixed-size hash table,
+the trace in the middle for low CPU counts and at the bottom for high
+CPU counts to the resizable hash table, and the other trace
+to the 524,288-bucket fixed-size hash table.
+The fact that there are now an average of eight elements per bucket
+can only be expected to produce a sharp decrease in performance,
+as in fact is shown in the graph.
+But worse yet, the hash-table elements occupy 128\,MB, which overflows
+each socket's 39\,MB L3 cache, with performance consequences analogous
+to those described in Section~\ref{sec:cpu:Costs of Operations}.
+The resulting cache overflow means that the memory system is involved
+even for a read-only benchmark, and as you can see from the sublinear
+portions of the lower three traces, the memory system can be a serious
+bottleneck.
 
-The lower three traces are for the 131,072-element hash table.
-The upper trace corresponds to the 2048-bucket fixed-size hash table,
-the middle trace to the resizable hash table, and the lower trace
-to the 1024-bucket fixed-size hash table.
-In this case, longer hash chains result in higher lookup overhead,
-so that this lookup overhead dominates that of resizing the hash
-table.
-However, the performance of all three approaches at the 131,072-element
-level is more than an order of magnitude worse than that at the
-2048-element level, suggesting that the best strategy would be
-a single 64-fold increase to 65,536 buckets.
+Referring to the last column of
+Table~\ref{tab:cpu:CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel Xeon Platinum 8176 CPUs at 2.10GHz},
+we recall that the first 28~CPUs are in the first socket, on a
+one-CPU-per-core basis, which explains the sharp decrease in performance
+of the resizable hash table beyond 28~CPUs.
+Sharp though this decrease is, please recall that it is due to constant
+resizing back and forth.
+It would clearly be better to resize once to 524,288 buckets,
+or, even better, do a single eight-fold resize to 2,097,152 elements,
+thus dropping the average number of elements per bucket down to the
+level enjoyed by the runs producing the upper three traces.
 
 The key point from this data is that the RCU-protected resizable hash
 table performs and scales almost as well as does its fixed-size counterpart.
 The performance during an actual resize operation of course suffers
 somewhat due to the cache misses causes by the updates to each element's
-pointers, and this effect is most pronounced when the hash-tables
-bucket lists are short.
+pointers, and this effect is most pronounced when the memory system
+becomes a bottleneck.
 This indicates that hash tables should be resized by substantial amounts,
 and that hysteresis should be applied to prevent performance degradation
 due to too-frequent resize operations.
