@@ -1374,6 +1374,71 @@ even for a read-only benchmark, and as you can see from the sublinear
 portions of the lower three traces, the memory system can be a serious
 bottleneck.
 
+\QuickQuiz{
+	How much of the difference in performance between the large and
+	small hash tables shown in
+	Figure~\ref{fig:datastruct:Overhead of Resizing Hash Tables Between 262,144 and 524,288 Buckets vs. Total Number of Elements}
+	was due to long hash chains and how much was due to
+	memory-system bottlenecks?
+}\QuickQuizAnswer{
+	The easy way to answer this question is to do another run with
+	2,097,152 elements, but this time also with 2,097,152 buckets,
+	thus bringing the average number of elements per bucket back down
+	to unity.
+
+\begin{figure}[tb]
+\centering
+\resizebox{2.7in}{!}{\includegraphics{datastruct/perftestresizebig}}
+\caption{Effect of Memory-System Bottlenecks on Hash Tables}
+\label{fig:datastruct:Effect of Memory-System Bottlenecks on Hash Tables}
+\end{figure}
+% Data from CodeSamples/datastruct/hash/data/hps.resize.2020.09.27a
+
+	The results are shown by the triple-dashed new trace in
+	the middle of
+	\cref{fig:datastruct:Effect of Memory-System Bottlenecks on Hash Tables}.
+	The other six traces are identical to their counterparts in
+	Figure~\ref{fig:datastruct:Overhead of Resizing Hash Tables Between 262,144 and 524,288 Buckets vs. Total Number of Elements}
+	on page~\pageref{fig:datastruct:Overhead of Resizing Hash Tables Between 262,144 and 524,288 Buckets vs. Total Number of Elements}.
+	The gap between this new trace and the lower set of three
+	traces is a rough measure of how much of the difference in
+	performance was due to hash-chain length, and the gap between
+	the new trace and the upper set of three traces is a rough measure
+	of how much of that difference was due to memory-system bottlenecks.
+	The new trace starts out slightly below its 262,144-element
+	counterpart at a single CPU, showing that cache capacity is
+	degrading performance slightly even on that single CPU.\footnote{
+		Yes, as far as hardware architects are concerned,
+		caches are part of the memory system.}
+	This is to be expected, given that unlike its smaller counterpart,
+	the 2,097,152-bucket hash table does not fit into the L3 cache.
+	This new trace rises just past 28~CPUs, which is also to be
+	expected.
+	This rise is due to the fact that the 29\textsuperscript{th}
+	CPU is on another socket, which brings with it an additional
+	39\,MB of cache as well as additional memory bandwidth.
+
+	But the large hash table's advantage over that of the hash table
+	with 524,288~buckets (but still 2,097,152 elements) decreases
+	with additional CPUs, which is consistent with the bottleneck
+	residing in the memory system.
+	Above about 400~CPUs, the 2,097,152-bucket hash table is
+	actually outperformed slightly by the 524,288-bucket hash
+	table.
+	This should not be a surprise because the memory system is
+	the bottleneck and the larger number of buckets increases this
+	workload's memory footprint.
+
+	The alert reader will have noted the word ``roughly'' above
+	and might be interested in a more detailed analysis.
+	Such readers are invited to run similar benchmarks, using
+	whatever performance counters or hardware-analysis tools
+	they might have available.
+	This can be a long and complex journey, but those brave enough
+	to embark on it will be rewarded with detailed knowledge of
+	hardware performance and its effect on software.
+}\QuickQuizEnd
+
 Referring to the last column of
 Table~\ref{tab:cpu:CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel Xeon Platinum 8176 CPUs at 2.10GHz},
 we recall that the first 28~CPUs are in the first socket, on a
