@@ -74,3 +74,4 @@ then
 	echo $0: Specified $lastcpu CPUs, only $maxcpu available!!!
 	exit
 fi
+cpusperpwr2=8

@@ -1,6 +1,7 @@
 #!/bin/bash
 #
-# Runs hash-table performance tests.
+# Runs hash-table performance tests.  Note that resizing is tested
+# by perf-resize.sh.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,80 +22,83 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
-nsamples=17
+nsamples=30
 
-for hash in hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global # hash_resize
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
+
+nbuckets=$((lastcpu*5*100))
+nbuckets=`power2up $nbuckets`
+epw=$nbuckets
+
+for ((i = 0; i < $nsamples; i++))
 do
-
-	# Simple hash tables.
-	for ncpu in 1 2 4 6 8 12 16 24 32 40 48 56 60
+	for hash in hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global
 	do
-		for ((i = 0; i < $nsamples; i++))
-		do
-			echo $hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0
-			./$hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0
-			sleep 1
-		done
-	done
 
-	# Schroedinger hash tables, read-only.
-	for ncpu in 1 2 4 6 8 12 16 24 32 40 48 56 60
-	do
-		for ((i = 0; i < $nsamples; i++))
+		# Simple hash tables.
+		ncpu=1
+		while test $ncpu -le $lastcpu
 		do
-			echo $hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0
-			./$hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0
-			sleep 1
+			echo $hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+			./$hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+			sleep 0.1
+			incr=`power2inc $ncpu $cpusperpwr2`
+			ncpu=$((ncpu + incr))
 		done
-		for bkts in 2048 4096 8192 16384
+
+		# Schroedinger hash tables, read-only.
+		ncpu=1
+		while test $ncpu -le $lastcpu
 		do
-			for ((i = 0; i < $nsamples; i++))
+			echo $hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+			./$hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+			sleep 0.1
+			for bktmult in /4 /2 *1 *2 *4
 			do
-				echo $hash --schroedinger --nreaders $ncpu --nbuckets $bkts --duration 1000 --updatewait 0
-				./$hash --schroedinger --nreaders $ncpu --nbuckets $bkts --duration 1000 --updatewait 0
-				sleep 1
+				bkts=$((nbuckets$bktmult))
+				echo $hash --schroedinger --nreaders $ncpu --nbuckets $bkts --duration 1000 --updatewait 0 --elems/writer $epw
+				./$hash --schroedinger --nreaders $ncpu --nbuckets $bkts --duration 1000 --updatewait 0 --elems/writer $epw
+				sleep 0.1
 			done
+			incr=`power2inc $ncpu $cpusperpwr2`
+			ncpu=$((ncpu + incr))
 		done
-	done
 
-	# Schroedinger hash tables, read-only, with cats.
-	for ncpu in 1 2 4 6 8 12 16 24 32 40 48 56 60
-	do
-		for ((i = 0; i < $nsamples; i++))
+		# Schroedinger hash tables, read-only, with cats.
+		ncpu=1
+		while test $ncpu -le $lastcpu
 		do
-			echo $hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0
-			./$hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0
-			sleep 1
+			echo $hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+			./$hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+			sleep 0.1
+			incr=`power2inc $ncpu $cpusperpwr2`
+			ncpu=$((ncpu + incr))
 		done
-	done
 
-	# Schroedinger hash tables, read-write, no cats.
-	nread=60
-	for ((i = 0; i < $nsamples; i++))
-	do
-		echo $hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0
-		./$hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0
-		sleep 1
-	done
-	for nupd in 1 2 4 6 8 12 16 24 32 40 48 56 60
-	do
-		nread=$((60-nupd))
-		for ((i = 0; i < $nsamples; i++))
+		# Schroedinger hash tables, read-write, no cats.
+		nread=$((lastcpu-1))
+		echo $hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+		./$hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+		sleep 0.1
+		nupd=1
+		while test $nupd -le $lastcpu
 		do
-			echo $hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1
-			./$hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1
-			sleep 1
+			epwu=$((epw/nupd))
+			nread=$((lastcpu-nupd))
+			echo $hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epwu
+			./$hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epwu
+			sleep 0.1
+			incr=`power2inc $nupd $cpusperpwr2`
+			nupd=$((nupd + incr))
 		done
-	done
 
-	# Schroedinger hash tables, read-write, with cats.
-	ncats=15
-	nupd=15
-	nread=30
-	for ((i = 0; i < $nsamples; i++))
-	do
-		echo $hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1
-		./$hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1
-		sleep 1
+		# Schroedinger hash tables, read-write, with cats.
+		ncats=$((maxcpu/4))
+		nupd=$((maxcpu/4))
+		nread=$((maxcpu/2))
+		echo $hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw
+		./$hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw
+		sleep 0.1
 	done
 done
