@@ -94,3 +94,13 @@ env printf '\\date{%s %s, %s %s %s}\n' $month $day $year "$release" $modified
 env printf '\\newcommand{\\commityear}{%s}\n' $year
 env printf '\\newcommand{\\commitid}{%s}\n' $commitid$modified
 env printf '\\IfQqzBg{}{\\setboolean{qqzbg}{%s}}\n' $qqzbg
+
+# command for newer tcolorbox (4.40 or later) to have backward-compatible skips
+tcolorbox_sty=`kpsewhich tcolorbox.sty`
+tcbversion=`grep ProvidesPackage $tcolorbox_sty | sed -e 's/.*version \([0-9]\+\.[0-9]\+\).*/\1/g'`
+tcbold=4.39
+env printf '%% tcolorbox version: %s\n' $tcbversion
+if [ $(echo $tcbversion $tcbold | awk '{if ($1 > $2) print 1;}') ] ;
+then
+	env printf '\\tcbsetforeverylayer{autoparskip}\n';
+fi
