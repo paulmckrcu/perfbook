@@ -1211,6 +1211,7 @@ void zoo_test(void)
 	for (i = 0; i < nupdaters * elperupdater; i++) {
 		sprintf(&zoo_names[ZOO_NAMELEN * i], "a%ld", i);
 	}
+	hash_register_thread();
 
 	zhep = malloc(sizeof(*zhep));
 	BUG_ON(!zhep);
