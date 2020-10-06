@@ -34,40 +34,36 @@ awk < $T/filt '
 /^nlookups:/ {
 		for (i = 1; i <= NF; i++) {
 			if ($i ~ /[0-9][0-9]*/)
-				l[i] += $i;
+				l[old][i] += $i;
 			else
-				l[i] = $i;
+				l[old][i] = $i;
 		}
 	}
 
-/^hash/ && $0 != old && old != "" {
-		n = 0;
-		for (i in l)
-			n++;
-		for (i = 1; i <= n; i++) {
-			printf "%s", l[i] " ";
-			l[i] = "";
-		}
-		print "@@@ " old;
+/^hash/ {
 		old = $0;
-	}
-
-/^hash/ && old == "" {
-		old = $0;
+		sig[$0] = 1; # Signature of test will allow later collation
 	}
 
 END	{
-		n = 0;
-		for (i in l)
-			n++;
-		for (i = 1; i <= n; i++) {
-			printf "%s", l[i] " ";
-			l[i] = "";
+		for (old in sig) {
+			n = 0;
+			for (i in l[old])
+				n++;
+			for (i = 1; i <= n; i++)
+				printf "%s", l[old][i] " ";
+			print "@@@ " old;
 		}
-		print "@@@ " old;
 	}' > $T/sum
 
-# Produce .dat files for perftest
+# Find little and big numbers of buckets @@@ Needed???
+# nb="`grep -e --nbuckets $T/sum |
+# 	sed -e 's/^.*--nbuckets //' | sed -e 's/ .*$//' | sort -u -k1n`"
+# nbs="`echo $nb | awk '{ print $1 }'`"
+# nbl="`echo $nb | awk '{ print $2 }'`"
+
+# @@@ Produce .dat files for perftest
+echo "# Produce .dat files for perftest" 1>&2
 grep -e '--perftest' $T/sum |
 awk -v tag="$tag" \
 	'{
@@ -76,6 +72,7 @@ awk -v tag="$tag" \
 	}'
 
 # Produce .dat files for zoo scenario varying ncpus
+echo '# Produce .dat files for zoo scenario varying ncpus' 1>&2
 grep -e '--schroedinger' $T/sum | grep -v -e '--nbuckets' |
 grep -v -e '--nupdaters' | grep -v -e '--ncats' |
 awk -v tag="$tag" \
@@ -83,9 +80,10 @@ awk -v tag="$tag" \
 		dur = $11;
 		print($16, $2 / dur) > "zoo.cpus." $13 "." tag ".dat"
 	}'
+echo '# Produce .dat files for zoo scenario varying hash size' 1>&2
 for i in 2048 4096 8192 16384
 do
-	grep -e '--schroedinger' $T/sum | grep -e "--nbuckets $i" |
+	grep -e '--schroedinger' $T/sum | grep -e "--nbuckets $i --duration" |
 	grep -v -e '--nupdaters' | grep -v -e '--ncats' |
 	awk -v tag="$tag" -v i="$i" \
 		'{
@@ -95,6 +93,7 @@ do
 done
 
 # Produce .dat files for zoo scenario varying ncats.
+echo '# Produce .dat files for zoo scenario varying ncats.' 1>&2
 grep -e '--ncats' $T/sum | grep -v -e '--nupdaters' |
 awk -v tag="$tag" \
 	'{
@@ -104,6 +103,7 @@ awk -v tag="$tag" \
 	}'
 
 # Produce .dat files for zoo scenario varying updaters
+echo '# Produce .dat files for zoo scenario varying updaters' 1>&2
 grep -v -e '--ncats' $T/sum | grep -e '--nupdaters' |
 awk -v tag="$tag" \
 	'{
@@ -114,6 +114,7 @@ awk -v tag="$tag" \
 	}'
 
 # Produce .dat files for mixed zoo scenario.
+echo '# Produce .dat files for mixed zoo scenario.' 1>&2
 sort -k18n $T/sum | grep -e '--ncats' | grep -e '--nupdaters' |
 awk -v tag="$tag" \
 	'{

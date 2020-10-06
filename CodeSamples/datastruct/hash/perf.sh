@@ -40,7 +40,7 @@ do
 		ncpu=1
 		while test $ncpu -le $lastcpu
 		do
-			echo $hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+			echo $hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw # A
 			./$hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
 			sleep 0.1
 			incr=`power2inc $ncpu $cpusperpwr2`
@@ -51,13 +51,13 @@ do
 		ncpu=1
 		while test $ncpu -le $lastcpu
 		do
-			echo $hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+			echo $hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw # B
 			./$hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
 			sleep 0.1
 			for bktmult in /4 /2 *1 *2 *4
 			do
 				bkts=$((nbuckets$bktmult))
-				echo $hash --schroedinger --nreaders $ncpu --nbuckets $bkts --duration 1000 --updatewait 0 --elems/writer $epw
+				echo $hash --schroedinger --nreaders $ncpu --nbuckets $bkts --duration 1000 --updatewait 0 --elems/writer $epw # C
 				./$hash --schroedinger --nreaders $ncpu --nbuckets $bkts --duration 1000 --updatewait 0 --elems/writer $epw
 				sleep 0.1
 			done
@@ -69,7 +69,7 @@ do
 		ncpu=1
 		while test $ncpu -le $lastcpu
 		do
-			echo $hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+			echo $hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw # D
 			./$hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
 			sleep 0.1
 			incr=`power2inc $ncpu $cpusperpwr2`
@@ -78,7 +78,7 @@ do
 
 		# Schroedinger hash tables, read-write, no cats.
 		nread=$((lastcpu-1))
-		echo $hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+		echo $hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw # E
 		./$hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
 		sleep 0.1
 		nupd=1
@@ -86,7 +86,7 @@ do
 		do
 			epwu=$((epw/nupd))
 			nread=$((lastcpu-nupd))
-			echo $hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epwu
+			echo $hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epwu # F
 			./$hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epwu
 			sleep 0.1
 			incr=`power2inc $nupd $cpusperpwr2`
@@ -97,7 +97,7 @@ do
 		ncats=$((maxcpu/4))
 		nupd=$((maxcpu/4))
 		nread=$((maxcpu/2))
-		echo $hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw
+		echo $hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw # G
 		./$hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw
 		sleep 0.1
 	done
