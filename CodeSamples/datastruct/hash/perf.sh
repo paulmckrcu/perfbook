@@ -23,6 +23,11 @@
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
 nsamples=30
+smallncpus=64
+if test $smallncpus -gt $maxcpu
+then
+	smallncpus=$maxcpu
+fi
 
 csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
 . $csdir/functions.bash
@@ -38,7 +43,7 @@ do
 
 		# Simple hash tables.
 		ncpu=1
-		while test $ncpu -le $lastcpu
+		while test $ncpu -le $lastcpu && (test $hash != hash_global || test $ncpu -le $smallncpus)
 		do
 			echo $hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw # A
 			./$hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
@@ -49,7 +54,7 @@ do
 
 		# Schroedinger hash tables, read-only.
 		ncpu=1
-		while test $ncpu -le $lastcpu
+		while test $ncpu -le $lastcpu && (test $hash != hash_global || test $ncpu -le $smallncpus)
 		do
 			echo $hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw # B
 			./$hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
@@ -66,11 +71,14 @@ do
 		done
 
 		# Schroedinger hash tables, read-only, with cats.
+		# Stick with a small number of CPUs to get meaningful
+		# measurements for global locking and single-bucket
+		# per-bucket locking.
 		ncpu=1
-		while test $ncpu -le $lastcpu
+		while test $ncpu -le $smallncpus
 		do
-			echo $hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw # D
-			./$hash --schroedinger --nreaders 60 --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
+			echo $hash --schroedinger --nreaders $smallncpus --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw # D
+			./$hash --schroedinger --nreaders $smallncpus --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
 			sleep 0.1
 			incr=`power2inc $ncpu $cpusperpwr2`
 			ncpu=$((ncpu + incr))
@@ -82,7 +90,7 @@ do
 		./$hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
 		sleep 0.1
 		nupd=1
-		while test $nupd -le $lastcpu
+		while test $nupd -le $lastcpu && (test $hash != hash_global || test $nupd -le $smallncpus)
 		do
 			epwu=$((epw/nupd))
 			nread=$((lastcpu-nupd))
@@ -94,9 +102,12 @@ do
 		done
 
 		# Schroedinger hash tables, read-write, with cats.
-		ncats=$((maxcpu/4))
-		nupd=$((maxcpu/4))
-		nread=$((maxcpu/2))
+		# Again, stick with a small number of CPUs to get
+		# meaningful measurements for global locking and
+		# single-bucket per-bucket locking.
+		ncats=$((smallncpus/4))
+		nupd=$((smallncpus/4))
+		nread=$((smallncpus/2))
 		echo $hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw # G
 		./$hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw
 		sleep 0.1
