@@ -24,13 +24,13 @@
 
 nsamples=30
 smallncpus=64
+
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
 if test $smallncpus -gt $maxcpu
 then
 	smallncpus=$maxcpu
 fi
-
-csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
-. $csdir/functions.bash
 
 nbuckets=$((lastcpu*5*100))
 nbuckets=`power2up $nbuckets`
@@ -93,7 +93,12 @@ do
 		while test $nupd -le $lastcpu && (test $hash != hash_global || test $nupd -le $smallncpus)
 		do
 			epwu=$((epw/nupd))
-			nread=$((lastcpu-nupd))
+			if test $hash != hash_global
+			then
+				nread=$((lastcpu-nupd))
+			else
+				nread=$((smallncpus-nupd))
+			fi
 			echo $hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epwu '#' F
 			./$hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epwu
 			sleep 0.1
