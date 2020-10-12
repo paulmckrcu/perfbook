@@ -48,6 +48,10 @@ awk < $T/filt '
 END	{
 		for (old in sig) {
 			n = 0;
+			if (!(old in l)) {
+				print("Missing element: " old) > "/dev/stderr";
+				continue;
+			}
 			for (i in l[old])
 				n++;
 			for (i = 1; i <= n; i++)
