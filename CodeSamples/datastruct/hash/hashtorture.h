@@ -30,6 +30,7 @@
 #include <stdarg.h>
 #include <sched.h>
 #include <string.h>
+#include "../../lib/random.h"
 
 #ifndef hash_resize_test
 #define hashtab_alloc(n, cmp, tgh, testgk) hashtab_alloc(n, cmp)
