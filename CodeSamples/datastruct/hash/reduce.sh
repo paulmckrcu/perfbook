@@ -78,7 +78,9 @@ awk -v tag="$tag" -v T="$T" \
 		print($16, $2 / dur) > T "/zoo.cpus." $13 "." tag ".dat"
 	}'
 echo '# Produce .dat files for zoo scenario varying hash size' 1>&2
-for i in 2048 4096 8192 16384
+nb="`grep -e "# C$" $T/sum | grep -e "--nbuckets" |
+	sed -e 's/^.*--nbuckets //' | sed -e 's/ .*$//' | sort -u -k1n`"
+for i in $nb
 do
 	grep -e "# C$" $T/sum | grep -e "--nbuckets $i" |
 	awk -v tag="$tag" -v i="$i" -v T="$T" \
