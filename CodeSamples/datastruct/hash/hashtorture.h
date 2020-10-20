@@ -62,6 +62,10 @@ void (*defer_del_done)(struct ht_elem *htep) = NULL;
 #define quiescent_state() do ; while (0)
 #define synchronize_rcu() do ; while (0)
 #define rcu_barrier() do ; while (0)
+#define create_call_rcu_data(a, b) NULL
+#define set_thread_call_rcu_data(c) do ; while (0)
+#define call_rcu_data_free(c) do (void)(c); while (0)
+struct call_rcu_data { };
 #else /* #ifndef quiescent_state */
 # ifndef rcu_barrier
 #  error You need a modern version of liburcu which has "rcu_barrier()".
@@ -686,11 +690,14 @@ struct hashtab *perftest_htp = NULL;
 /* Repeatedly resize a hash table. */
 void *perftest_resize(void *arg)
 {
+	struct call_rcu_data *crdp;
 	long els[2];
 	int i = 0;
 
 	hash_register_thread();
 	run_on(0);
+	crdp = create_call_rcu_data(0, 0);
+	set_thread_call_rcu_data(crdp);
 	els[0]= nbuckets;
 	els[1] = els[0] * resizemult / resizediv;
 	while (READ_ONCE(goflag) == GOFLAG_INIT)
@@ -707,6 +714,7 @@ void *perftest_resize(void *arg)
 	}
 	nresizes = i;
 	hash_unregister_thread();
+	call_rcu_data_free(crdp);
 	return NULL;
 }
 
@@ -754,6 +762,7 @@ void perftest_del(struct testhe *thep)
 /* Performance test reader thread. */
 void *perftest_reader(void *arg)
 {
+	struct call_rcu_data *crdp;
 	int gf;
 	long i;
 	struct perftest_attr *pap = arg;
@@ -764,6 +773,8 @@ void *perftest_reader(void *arg)
 	long long nlookupfails = 0;
 
 	run_on(pap->mycpu);
+	crdp = create_call_rcu_data(0, pap->mycpu);
+	set_thread_call_rcu_data(crdp);
 	hash_register_thread();
 
 	/* Warm up cache. */
@@ -797,12 +808,14 @@ void *perftest_reader(void *arg)
 	pap->nlookups = nlookups;
 	pap->nlookupfails = nlookupfails;
 	hash_unregister_thread();
+	call_rcu_data_free(crdp);
 	return NULL;
 }
 
 /* Performance test updater thread. */
 void *perftest_updater(void *arg)
 {
+	struct call_rcu_data *crdp;
 	long i;
 	long j;
 	int gf;
@@ -820,6 +833,8 @@ void *perftest_updater(void *arg)
 		thep[i].in_table = 0;
 	}
 	run_on(pap->mycpu);
+	crdp = create_call_rcu_data(0, pap->mycpu);
+	set_thread_call_rcu_data(crdp);
 	hash_register_thread();
 
 	/* Start with some random half of the elements in the hash table. */
@@ -885,6 +900,7 @@ void *perftest_updater(void *arg)
 	free(thep);
 	pap->nadds = nadds;
 	pap->ndels = ndels;
+	call_rcu_data_free(crdp);
 	return NULL;
 }
 
@@ -1036,6 +1052,7 @@ char *zoo_names;
 void *zoo_reader(void *arg)
 {
 	char *cp;
+	struct call_rcu_data *crdp;
 	int gf;
 	long i;
 	struct perftest_attr *pap = arg;
@@ -1046,6 +1063,8 @@ void *zoo_reader(void *arg)
 	long long nlookupfails = 0;
 
 	run_on(pap->mycpu);
+	crdp = create_call_rcu_data(0, pap->mycpu);
+	set_thread_call_rcu_data(crdp);
 	hash_register_thread();
 
 	/* Warm up cache. */
@@ -1083,12 +1102,14 @@ void *zoo_reader(void *arg)
 	pap->nlookups = nlookups;
 	pap->nlookupfails = nlookupfails;
 	hash_unregister_thread();
+	call_rcu_data_free(crdp);
 	return NULL;
 }
 
 /* Performance test updater thread. */
 void *zoo_updater(void *arg)
 {
+	struct call_rcu_data *crdp;
 	long i;
 	long j;
 	int gf;
@@ -1105,6 +1126,8 @@ void *zoo_updater(void *arg)
 	for (i = 0; i < elperupdater; i++)
 		zheplist[i] = NULL;
 	run_on(pap->mycpu);
+	crdp = create_call_rcu_data(0, pap->mycpu);
+	set_thread_call_rcu_data(crdp);
 	hash_register_thread();
 
 	/* Start with some random half of the elements in the hash table. */
@@ -1179,6 +1202,7 @@ void *zoo_updater(void *arg)
 	pap->nadds = nadds;
 	pap->ndels = ndels;
 	free(zheplist);
+	call_rcu_data_free(crdp);
 	return NULL;
 }
 
