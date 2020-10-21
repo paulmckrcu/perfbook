@@ -816,9 +816,9 @@ void *perftest_reader(void *arg)
 void *perftest_updater(void *arg)
 {
 	struct call_rcu_data *crdp;
+	int gf;
 	long i;
 	long j;
-	int gf;
 	struct perftest_attr *pap = arg;
 	int myid = pap->myid;
 	int mylowkey = myid * elperupdater;
@@ -838,13 +838,14 @@ void *perftest_updater(void *arg)
 	hash_register_thread();
 
 	/* Start with some random half of the elements in the hash table. */
-	for (i = 0; i < elperupdater / 2; i++) {
-		j = random() % elperupdater;
-		while (thep[j].in_table)
-			if (++j >= elperupdater)
-				j = 0;
-		perftest_add(&thep[j]);
-		BUG_ON(!perftest_lookup(thep[j].data));
+	i = j = 0;
+	while (j < elperupdater / 2) {
+		if (elperupdater / 2 - j <= elperupdater - i || random() % 2) {
+			perftest_add(&thep[i]);
+			BUG_ON(!perftest_lookup(thep[i].data));
+			j++;
+		}
+		i++;
 	}
 
 	/* Announce our presence and enter the test loop. */
@@ -1131,17 +1132,19 @@ void *zoo_updater(void *arg)
 	hash_register_thread();
 
 	/* Start with some random half of the elements in the hash table. */
-	for (i = 0; i < elperupdater / 2; i++) {
-		j = random() % elperupdater;
-		while (zheplist[j])
-			if (++j >= elperupdater)
-				j = 0;
-		zhep = malloc(sizeof(*zhep));
-		BUG_ON(!zhep);
-		strcpy(zhep->name, &zoo_names[ZOO_NAMELEN * (j + mylowkey)]);
-		zoo_add(zhep);
-		zheplist[j] = zhep;
-		BUG_ON(!zoo_lookup(zhep->name));
+	i = j = 0;
+	while (j < elperupdater / 2) {
+		if (elperupdater / 2 - j <= elperupdater - i || random() % 2) {
+			zhep = malloc(sizeof(*zhep));
+			BUG_ON(!zhep);
+			strcpy(zhep->name,
+			       &zoo_names[ZOO_NAMELEN * (i + mylowkey)]);
+			zoo_add(zhep);
+			zheplist[i] = zhep;
+			BUG_ON(!zoo_lookup(zhep->name));
+			j++;
+		}
+		i++;
 	}
 
 	/* Announce our presence and enter the test loop. */
