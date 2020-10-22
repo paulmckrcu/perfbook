@@ -714,6 +714,7 @@ void *perftest_resize(void *arg)
 	}
 	nresizes = i;
 	hash_unregister_thread();
+	set_thread_call_rcu_data(NULL);
 	call_rcu_data_free(crdp);
 	return NULL;
 }
@@ -808,6 +809,7 @@ void *perftest_reader(void *arg)
 	pap->nlookups = nlookups;
 	pap->nlookupfails = nlookupfails;
 	hash_unregister_thread();
+	set_thread_call_rcu_data(NULL);
 	call_rcu_data_free(crdp);
 	return NULL;
 }
@@ -901,6 +903,7 @@ void *perftest_updater(void *arg)
 	free(thep);
 	pap->nadds = nadds;
 	pap->ndels = ndels;
+	set_thread_call_rcu_data(NULL);
 	call_rcu_data_free(crdp);
 	return NULL;
 }
@@ -1103,6 +1106,7 @@ void *zoo_reader(void *arg)
 	pap->nlookups = nlookups;
 	pap->nlookupfails = nlookupfails;
 	hash_unregister_thread();
+	set_thread_call_rcu_data(NULL);
 	call_rcu_data_free(crdp);
 	return NULL;
 }
@@ -1205,6 +1209,7 @@ void *zoo_updater(void *arg)
 	pap->nadds = nadds;
 	pap->ndels = ndels;
 	free(zheplist);
+	set_thread_call_rcu_data(NULL);
 	call_rcu_data_free(crdp);
 	return NULL;
 }
