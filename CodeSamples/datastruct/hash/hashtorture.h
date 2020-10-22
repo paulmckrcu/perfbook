@@ -1268,6 +1268,7 @@ void zoo_test(void)
 		pap[i].nelements = nupdaters * elperupdater;
 		create_thread(i < nreaders ? zoo_reader : zoo_updater, &pap[i]);
 	}
+	hash_unregister_thread();
 
 	/* Wait for all threads to initialize. */
 	while (atomic_read(&nthreads_running) < nreaders + nupdaters)
