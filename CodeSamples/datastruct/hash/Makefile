@@ -17,7 +17,7 @@
 
 include ../../Makefile.arch
 
-PROGS =	hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global hash_ideal hash_resize hash_resize_s
+PROGS =	hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global hash_resize hash_resize_s hash_unsync
 LIB = ../../lib
 
 top := ../..
@@ -48,14 +48,14 @@ hash_bkt_hazptr: hash_bkt_hazptr.c ../../defer/hazptr.c ../../defer/hazptr.h ../
 hash_global: hash_global.c ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_global hash_global.c $(LIB)/random.c -lpthread
 
-hash_ideal: hash_ideal.c ../../api.h hashtorture.h
-	cc $(GCC_ARGS) -DTEST_HASH -o hash_ideal hash_ideal.c $(LIB)/random.c -lpthread
-
 hash_resize: hash_resize.c ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_resize hash_resize.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
 
 hash_resize_s: hash_resize_s.c ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_resize_s hash_resize_s.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
+
+hash_unsync: hash_unsync.c ../../api.h hashtorture.h
+	cc $(GCC_ARGS) -DTEST_HASH -o hash_unsync hash_unsync.c $(LIB)/random.c -lpthread
 
 clean:
 	rm -f $(PROGS)
