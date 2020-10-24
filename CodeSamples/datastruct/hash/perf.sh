@@ -38,7 +38,7 @@ epw=$nbuckets
 
 for ((i = 0; i < $nsamples; i++))
 do
-	for hash in hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global
+	for hash in hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global hash_unsync
 	do
 
 		# Simple hash tables.
@@ -90,7 +90,7 @@ do
 		./$hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
 		sleep 0.1
 		nupd=1
-		while test $nupd -le $lastcpu && (test $hash != hash_global || test $nupd -le $smallncpus)
+		while test $nupd -le $lastcpu && (test $hash != hash_global || test $nupd -le $smallncpus) && test $hash != hash_unsync
 		do
 			epwu=$((epw/nupd))
 			if test $hash != hash_global
@@ -106,15 +106,18 @@ do
 			nupd=$((nupd + incr))
 		done
 
-		# Schroedinger hash tables, read-write, with cats.
-		# Again, stick with a small number of CPUs to get
-		# meaningful measurements for global locking and
-		# single-bucket per-bucket locking.
-		ncats=$((smallncpus/4))
-		nupd=$((smallncpus/4))
-		nread=$((smallncpus/2))
-		echo $hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw '#' G
-		./$hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw
-		sleep 0.1
+		if test $hash != hash_unsync
+		then
+			# Schroedinger hash tables, read-write, with cats.
+			# Again, stick with a small number of CPUs to get
+			# meaningful measurements for global locking and
+			# single-bucket per-bucket locking.
+			ncats=$((smallncpus/4))
+			nupd=$((smallncpus/4))
+			nread=$((smallncpus/2))
+			echo $hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw '#' G
+			./$hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw
+			sleep 0.1
+		fi
 	done
 done
