@@ -29,26 +29,32 @@ nbucketshi=$((nbucketslo*2))
 # Simple hash tables, read-only.
 for ((i = 0; i < $nsamples; i++))
 do
-	for epwmult in '' '*8'
+	ncpu=1
+	while test $ncpu -le $lastcpu
 	do
-		epw=$((nbucketslo$epwmult))
-		ncpu=1
-		while test $ncpu -le $lastcpu
+		for epwmult in '' '*8'
 		do
-			echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --duration 1000 --updatewait 0
+			epw=$((nbucketslo$epwmult))
+			echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --duration 1000 --updatewait 0 '#' S
 			./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --duration 1000 --updatewait 0
-			sleep 1
+			sleep 0.1
 
-			echo hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --resizemult 8 --duration 1000 --updatewait 0
-			./hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --resizemult 8 --duration 1000 --updatewait 0
-			sleep 1
+			# resizemult is 8/2, should compute...
+			echo hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --resizemult 4 --duration 1000 --updatewait 0 '#' R
+			./hash_resize --perftest --nreaders $ncpu --nbuckets $nbucketslo --elems/writer $epw --resizemult 4 --duration 1000 --updatewait 0
+			sleep 0.1
 
-			echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketshi --elems/writer $epw --duration 1000 --updatewait 0
+			echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketshi --elems/writer $epw --duration 1000 --updatewait 0 '#' L
 			./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $nbucketshi --elems/writer $epw --duration 1000 --updatewait 0
-			sleep 1
+			sleep 0.1
 
-			incr=`power2inc $ncpu 8`
-			ncpu=$((ncpu + incr))
 		done
+
+		echo hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $epw --elems/writer $epw --duration 1000 --updatewait 0 '#' LL
+		./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $epw --elems/writer $epw --duration 1000 --updatewait 0
+		sleep 0.1
+
+		incr=`power2inc $ncpu 8`
+		ncpu=$((ncpu + incr))
 	done
 done
