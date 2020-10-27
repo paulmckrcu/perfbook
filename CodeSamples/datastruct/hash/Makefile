@@ -17,7 +17,7 @@
 
 include ../../Makefile.arch
 
-PROGS =	hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global hash_resize hash_resize_s hash_unsync
+PROGS =	hash_bkt hash_bkt_hazptr hash_bkt_qsbr hash_bkt_rcu hash_global hash_resize hash_resize_s hash_unsync
 LIB = ../../lib
 
 top := ../..
@@ -38,9 +38,11 @@ hash_bkt: hash_bkt.c ../../api.h hashtorture.h
 hash_bkt_ref: hash_bkt_ref.c ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_bkt_ref hash_bkt_ref.c $(LIB)/random.c -lpthread
 
+hash_bkt_qsbr: hash_bkt_rcu.c ../../api.h hashtorture.h
+	cc $(GCC_ARGS) -DTEST_HASH -DPERFBOOK_RCU_QSBR -o hash_bkt_qsbr hash_bkt_rcu.c $(LIB)/random.c -lpthread -lurcu -lurcu-qsbr
+
 hash_bkt_rcu: hash_bkt_rcu.c ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_bkt_rcu hash_bkt_rcu.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
-	# cc $(GCC_ARGS) -DTEST_HASH -o hash_bkt_rcu hash_bkt_rcu.c $(LIB)/random.c -lpthread -lurcu -lurcu-qsbr
 
 hash_bkt_hazptr: hash_bkt_hazptr.c ../../defer/hazptr.c ../../defer/hazptr.h ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_bkt_hazptr hash_bkt_hazptr.c ../../defer/hazptr.c $(LIB)/random.c -lpthread

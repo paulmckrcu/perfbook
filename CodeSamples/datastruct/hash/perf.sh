@@ -38,7 +38,7 @@ epw=$nbuckets
 
 for ((i = 0; i < $nsamples; i++))
 do
-	for hash in hash_bkt hash_bkt_hazptr hash_bkt_rcu hash_global hash_unsync
+	for hash in hash_bkt hash_bkt_hazptr hash_bkt_qsbr hash_bkt_rcu hash_global hash_unsync
 	do
 
 		# Simple hash tables.

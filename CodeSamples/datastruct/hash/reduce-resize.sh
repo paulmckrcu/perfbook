@@ -63,7 +63,7 @@ nbs="`echo $nb | awk '{ print $1 }'`"
 nbl="`echo $nb | awk '{ print $2 }'`"
 
 # Produce .dat files for small fixed-size hash-table runs
-grep -v -e '--resizemult' $T/sum | grep -e "--nbuckets $nbs" |
+ggrep -e '# S$' $T/sum |
 awk -v tag="$tag" -v T=$T \
 	'{
 		dur = $9;
@@ -71,7 +71,7 @@ awk -v tag="$tag" -v T=$T \
 	}'
 
 # Produce .dat files for resizable hash-table runs
-grep -e '--resizemult' $T/sum |
+grep -e '# R$' $T/sum |
 awk -v tag="$tag" -v T=$T \
 	'{
 		dur = $9;
@@ -79,11 +79,19 @@ awk -v tag="$tag" -v T=$T \
 	}'
 
 # Produce .dat files for large fixed-size hash-table runs
-grep -v -e '--resizemult' $T/sum | grep -e "--nbuckets $nbl" |
+grep -e '# L$' $T/sum |
 awk -v tag="$tag" -v T=$T \
 	'{
 		dur = $9;
 		print($14, $2 / dur) > T "/perftestL." $18 "." tag ".dat"
+	}'
+
+# Produce .dat files for large fixed-size large-buckets hash-table runs
+grep -e '# LL$' $T/sum |
+awk -v tag="$tag" -v T=$T \
+	'{
+		dur = $9;
+		print($14, $2 / dur) > T "/perftestLL." $18 "." tag ".dat"
 	}'
 
 datfiles="`cd $T; ls perftest*.dat`"

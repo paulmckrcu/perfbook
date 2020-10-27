@@ -23,12 +23,12 @@
 #define _GNU_SOURCE
 #define _LGPL_SOURCE
 
-// Uncomment to enable signal-based RCU.  (Need corresponding Makefile change!)
+#ifdef PERFBOOK_RCU_QSBR
+#include <urcu-qsbr.h>
+#else
 #define RCU_SIGNAL
 #include <urcu.h>
-
-// Uncomment to enable QSBR.  (Need corresponding Makefile change!)
-//#include <urcu-qsbr.h>
+#endif
 
 #include "../../api.h"
 
