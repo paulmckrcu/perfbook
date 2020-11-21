@@ -347,7 +347,8 @@ perfbook-nq.tex perfbook-1cnq.tex:
 perfbook-ix.tex: $(PERFBOOK_BASE)
 perfbook-1cix.tex: perfbook-1c.tex
 perfbook-ix.tex perfbook-1cix.tex:
-	sed -e 's/setboolean{indexon}{false}/setboolean{indexon}{true}/' < $< > $@
+	sed -e 's/setboolean{indexon}{false}/setboolean{indexon}{true}/' \
+	    -e 's/setboolean{indexhl}{false}/setboolean{indexhl}{true}/' < $< > $@
 
 perfbook-a4.tex: perfbook-lt.tex
 perfbook-a4.tex:
