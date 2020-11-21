@@ -26,7 +26,7 @@ LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex sub_qqz
 # Note: Empty target "sub_qqz" is used on behalf of $(SUB_QQZ) to prevent
 # parallel runs of divideqqz.pl.
 
-TWOCOLTARGETS := mstx msr msn msnt sf qq nq
+TWOCOLTARGETS := mstx msr msn msnt sf qq nq ix
 ABBREVTARGETS := lt hb a4 1c tcb msns mss $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
@@ -344,6 +344,11 @@ perfbook-nq.tex perfbook-1cnq.tex:
 	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' \
 	    -e 's/{qqzchpend}{false}/{qqzchpend}{true}/' < $< > $@
 
+perfbook-ix.tex: $(PERFBOOK_BASE)
+perfbook-1cix.tex: perfbook-1c.tex
+perfbook-ix.tex perfbook-1cix.tex:
+	sed -e 's/setboolean{indexon}{false}/setboolean{indexon}{true}/' < $< > $@
+
 perfbook-a4.tex: perfbook-lt.tex
 perfbook-a4.tex:
 	sed -e 's/letterpaper/a4paper/' \
@@ -478,6 +483,7 @@ help-full: help-official
 	@echo "  perfbook-msr.pdf,  msr:  regular thickness courier clone as monospace"
 	@echo "  perfbook-msn.pdf,  msn:  narrow courier clone as monospace"
 	@echo "  perfbook-sf.pdf,   sf:   sans serif font"
+	@echo "  perfbook-ix.pdf,   ix:   enable index"
 	@echo "      (\"1cqq\", \"1cnq\", and so on disable 2-column mode.)"
 	@echo
 	@echo "Historical targets:"
@@ -508,6 +514,7 @@ clean:
 	rm -f perfbook_flat.tex perfbook*.out $(GENERATED_MAIN)
 	rm -f $(LATEXGENERATED)
 	rm -f qqz*.tex
+	rm -f perfbook*.idx perfbook*.ind perfbook*.ilg
 	rm -f CodeSamples/snippets.d
 	rm -f *.synctex*
 	@rm -f $(OBSOLETE_FILES)
