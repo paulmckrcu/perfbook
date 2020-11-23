@@ -265,7 +265,7 @@ perfbook-tcb.tex: $(PERFBOOK_BASE)
 	sed -e 's/{tblcptop}{true}/{tblcptop}{false}/' < $< > $@
 
 perfbook-1c.tex: $(PERFBOOK_BASE)
-	sed -e 's/,twocolumn//' -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < $< > $@
+	sed -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < $< > $@
 
 perfbook-hb.tex: perfbook-lt.tex
 	sed -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < $< > $@
@@ -352,8 +352,7 @@ perfbook-ix.tex perfbook-1cix.tex:
 
 perfbook-a4.tex: perfbook-lt.tex
 perfbook-a4.tex:
-	sed -e 's/letterpaper/a4paper/' \
-	    -e 's/{afourpaper}{false}/{afourpaper}{true}/' < $< > $@
+	sed -e 's/{afourpaper}{false}/{afourpaper}{true}/' < $< > $@
 
 # Rules related to perfbook_html are removed as of May, 2016
 
