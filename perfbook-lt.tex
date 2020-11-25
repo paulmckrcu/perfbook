@@ -71,6 +71,9 @@
 \SetWatermarkVerCenter{.95\paperheight}
 \SetWatermarkText{\texttt{\commitid}}
 \usepackage[breakable,skins]{tcolorbox}
+\usepackage[split,makeindex]{splitidx}
+\usepackage[nottoc]{tocbibind}
+\usepackage[columns=3,totoc,indentunit=12pt,justific=raggedright,font=small,columnsep=.15in,unbalanced]{idxlayout}
 \usepackage[bookmarks=true,bookmarksnumbered=true,pdfborder={0 0 0},linktoc=all]{hyperref}
 \usepackage{footnotebackref} % to enable cross-ref of footnote
 \usepackage[all]{hypcap} % for going to the top of figure and table
@@ -133,6 +136,39 @@
 \newboolean{toarxiv}
 \setboolean{toarxiv}{false}
 \newcommand{\IfToArxiv}[2]{\ifthenelse{\boolean{toarxiv}}{#1}{#2}}
+\newboolean{indexon}
+\setboolean{indexon}{false}
+\newcommand{\IfIndexOn}[2]{\ifthenelse{\boolean{indexon}}{#1}{#2}}
+\newboolean{indexhl}
+\setboolean{indexhl}{false}
+\newcommand{\IfIndexHl}[2]{\ifthenelse{\boolean{indexhl}}{#1}{#2}}
+
+% Custom commands for index
+\newindex[API Index]{api} % index for API
+\newindex[People Name Index]{ppl} % index for People Name
+\newcommand{\categapi}[1]{~{\scriptsize (#1)}}
+\IfIndexHl{
+\newcommand{\hlindex}[1]{\textcolor{DarkGreen}{#1}}
+}{
+\newcommand{\hlindex}[1]{#1}
+}
+\newcommand{\IX}[1]{\hlindex{#1}\index{#1}} % put as is into general index
+\newcommand{\IXalt}[2]{\hlindex{#1}\index{#2}} % put alternative into general index
+\newcommand{\apic}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}\categapi{c}}}
+\newcommand{\apig}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}\categapi{g}}}
+\newcommand{\apipx}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}\categapi{px}}}
+\newcommand{\apik}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}\categapi{k}}}
+\newcommand{\apikh}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}\categapi{k historic}}}
+\newcommand{\apipf}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}\categapi{pf}}}
+\newcommand{\apiur}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}\categapi{userspace RCU}}}
+\newcommand{\api}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}}}
+\newcommand{\apialtc}[2]{\hlindex{\co{#1}}\sindex[api]{#2@\co{#2}\categapi{c}}}
+\newcommand{\apialtg}[2]{\hlindex{\co{#1}}\sindex[api]{#2@\co{#2}\categapi{g}}}
+\newcommand{\apialtk}[2]{\hlindex{\co{#1}}\sindex[api]{#2@\co{#2}\categapi{k}}}
+\newcommand{\ppl}[2]{\hlindex{#1 #2}\index{#2, #1}} % forename surname in text, "surname, forename" into ppl index
+\newcommand{\pplmdl}[2]{\hlindex{#1~#2}\index{#2, #1}} % for abbreviated middle name
+\newcommand{\pplsur}[2]{\hlindex{#2}\index{#2, #1}} % surname in text, "surname, givenname" into ppl index
+\newcommand{\pplalt}[2]{\hlindex{#1}\index{#2}} % put 1st arg in text, put 2nd arg into ppl index
 
 \IfTwoColumn{}{
   \setboolean{colorlinks}{true}
@@ -267,12 +303,35 @@
 \newcommand{\pararef}[1]{Paragraph ``\nameref{#1}'' on Page~\pageref{#1}}
 \newcommand{\Pararef}[1]{Paragraph ``\nameref{#1}'' on Page~\pageref{#1}}
 
-\IfHardCover{
+% geometry setting
+\newlength{\twocolumnwidth}
 \IfTwoColumn{
-\usepackage[paperheight=10.75in,paperwidth=8.25in,twocolumn]{geometry}
+  \setlength{\twocolumnwidth}{\columnwidth}
+  \renewcommand\floatpagefraction{.75}
+  \IfHardCover{
+    \usepackage[papersize={8.25in,10.75in},body={6.5in,8.25in},twocolumn,columnsep=0.25in]{geometry}
+  }{
+    \IfAfourPaper{
+      \usepackage[a4paper,body={6.5in,8.25in},twocolumn,columnsep=0.25in]{geometry}
+    }{
+      \usepackage[letterpaper,body={6.5in,8.25in},twocolumn,columnsep=0.25in]{geometry}      
+}}}{ % One Column
+  \setlength{\twocolumnwidth}{3.125in}
+  \IfHardCover{
+    \usepackage[papersize={8.25in,10.75in},body={4.75in,8.25in},onecolumn]{geometry}
+  }{
+    \IfAfourPaper{
+    \usepackage[a4paper,body={4.75in,8.25in},onecolumn]{geometry}
+    }{
+    \usepackage[letterpaper,body={4.75in,8.25in},onecolumn]{geometry}
+  }}
+  \geometry{hcentering=true} % horizontal centering for 1c layouts
+}
+\IfAfourPaper{
+  \geometry{vcentering=true} % vertical centering for A4 paper
 }{
-\usepackage[paperheight=10.75in,paperwidth=8.25in,onecolumn]{geometry}
-}}{}
+  \geometry{vmarginratio=3:4}
+}
 
 \setcounter{topnumber}{3}
 \renewcommand\topfraction{.75}
@@ -285,42 +344,11 @@
 \renewcommand\dbltopfraction{.75}
 \renewcommand\dblfloatpagefraction{.5}
 
-\newlength{\twocolumnwidth}
-\IfTwoColumn{
-\setlength{\textheight}{8.25in}
-\setlength{\textwidth}{6.5in}
-\setlength{\columnsep}{0.25in}
-\setlength{\twocolumnwidth}{\columnwidth}
-\renewcommand\floatpagefraction{.75}
-}{
-\setlength{\textheight}{8.25in}
-\setlength{\textwidth}{4.75in}
-\setlength{\columnsep}{0in}
-\setlength{\twocolumnwidth}{3.125in}
-\addtolength{\oddsidemargin}{0.3in}
-\addtolength{\evensidemargin}{-0.3in}
-}
-
 \IfAfourPaper{
-\addtolength{\topmargin}{7mm}
 \SetWatermarkVerCenter{.92\paperheight}
-\IfTwoColumn{
-\addtolength{\evensidemargin}{-5.9mm}
-}{
-\addtolength{\oddsidemargin}{3.5mm}
-\addtolength{\evensidemargin}{-3mm}
-}
 }{}
 
 \IfHardCover{
-\IfTwoColumn{
-\addtolength{\oddsidemargin}{0.05in}
-\addtolength{\evensidemargin}{-0.78in}
-}{
-\addtolength{\oddsidemargin}{0.6in}
-\addtolength{\evensidemargin}{0.43in}
-}
-\addtolength{\topmargin}{0.2in}
 \SetWatermarkVerCenter{.95\paperheight}
 }{}
 
@@ -430,7 +458,50 @@
 
 \input{appendix/appendix.tex}
 
-% Index at some point...
+\backmatter
+
+% Glossary
+\input{glossary.tex}
+
+% Bibliograpy
+\IfTwoColumn{
+  \onecolumn\begin{adjustwidth*}{.8in}{.7in}
+  %\bibliographystyle{alpha}   % Use genuine alpha style (In case of build failure, use this instead)
+  \bibliographystyle{alphapf} % Use alpha style customized by urlbst with --inlinelinks option
+}{
+  \bibliographystyle{alphapf} % Use alpha style customized by urlbst with --inlinelinks option
+}
+\IfColorLinks{}{
+  \hypersetup{pdfborder=0 0 1,urlbordercolor=0.4 1 1}
+}
+\bibliography{bib/RCU,bib/WFS,bib/hw,bib/os,bib/parallelsys,bib/patterns,bib/perfmeas,bib/refs,bib/syncrefs,bib/search,bib/swtools,bib/realtime,bib/TM,bib/standards,bib/OSS,bib/maze,bib/energy,bib/QC,bib/NP}
+\IfColorLinks{}{
+  \hypersetup{pdfborder=0 0 0}
+}
+\IfTwoColumn{
+  \end{adjustwidth*}\twocolumn
+}{
+}
+
+% Credits
+\setcounter{secnumdepth}{-1} % surpress section numbering in backmatter
+\include{ack}
+
+% Index if enabled
+\IfIndexOn{
+\cleardoublepage
+\phantomsection
+\IfTwoColumn{}{
+\newgeometry{body={6.5in,8.25in},centering=true,columnsep=0.25in}
+}
+\printindex
+\cleardoublepage
+\phantomsection
+\printindex[api]
+\IfTwoColumn{}{
+\restoregeometry
+}
+}{}
 
 % page-layout dimensions
 % \cleardoublepage
