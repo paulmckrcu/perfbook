@@ -683,6 +683,7 @@ struct perftest_attr {
 	int mycpu;
 	long nelements;
 	int cat;
+	void *myelp;
 };
 
 struct hashtab *perftest_htp = NULL;
@@ -1122,14 +1123,11 @@ void *zoo_updater(void *arg)
 	int myid = pap->myid;
 	int mylowkey = myid * elperupdater;
 	struct zoo_he *zhep;
-	struct zoo_he **zheplist;
+	struct zoo_he **zheplist = pap->myelp;
 	long long nadds = 0;
 	long long ndels = 0;
 
-	zheplist = malloc(sizeof(struct zoo_he *) * elperupdater);
 	BUG_ON(!zheplist);
-	for (i = 0; i < elperupdater; i++)
-		zheplist[i] = NULL;
 	run_on(pap->mycpu);
 	crdp = create_call_rcu_data(0, pap->mycpu);
 	set_thread_call_rcu_data(crdp);
@@ -1208,7 +1206,6 @@ void *zoo_updater(void *arg)
 	hash_unregister_thread();
 	pap->nadds = nadds;
 	pap->ndels = ndels;
-	free(zheplist);
 	set_thread_call_rcu_data(NULL);
 	call_rcu_data_free(crdp);
 	return NULL;
@@ -1234,14 +1231,18 @@ void zoo_test(void)
 	long long ndels = 0;
 	long long starttime;
 	struct zoo_he *zhep;
+	struct zoo_he **zheplist;
 
 	BUG_ON(maxcpus <= 0);
 	perftest_htp = hashtab_alloc(nbuckets, zoo_cmp, zoo_hash, zoo_gk);
 	BUG_ON(perftest_htp == NULL);
 	defer_del_done = defer_del_free;
+	zheplist = malloc(sizeof(zheplist[0]) * nupdaters * elperupdater);
+	BUG_ON(zheplist == NULL);
 	zoo_names = malloc(ZOO_NAMELEN * nupdaters * elperupdater);
 	BUG_ON(zoo_names == NULL);
 	for (i = 0; i < nupdaters * elperupdater; i++) {
+		zheplist[i] = NULL;
 		sprintf(&zoo_names[ZOO_NAMELEN * i], "a%ld", i);
 	}
 	hash_register_thread();
@@ -1266,6 +1267,10 @@ void zoo_test(void)
 		pap[i].ndels = 0;
 		pap[i].mycpu = (i * cpustride) % maxcpus;
 		pap[i].nelements = nupdaters * elperupdater;
+		if (i < nreaders)
+			pap[i].myelp = NULL;
+		else
+			pap[i].myelp = &zheplist[(i - nreaders) * elperupdater];
 		create_thread(i < nreaders ? zoo_reader : zoo_updater, &pap[i]);
 	}
 	hash_unregister_thread();
@@ -1298,6 +1303,7 @@ void zoo_test(void)
 	       (starttime * 1000. * (double)nreaders) / (double)nlookups,
 	       ((starttime * 1000. * (double)nupdaters) /
 	        (double)(nadds + ndels)));
+	free(zheplist);
 }
 
 
