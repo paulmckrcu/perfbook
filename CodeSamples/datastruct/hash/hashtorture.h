@@ -825,11 +825,10 @@ void *perftest_updater(void *arg)
 	struct perftest_attr *pap = arg;
 	int myid = pap->myid;
 	int mylowkey = myid * elperupdater;
-	struct testhe *thep;
+	struct testhe *thep = pap->myelp;
 	long long nadds = 0;
 	long long ndels = 0;
 
-	thep = malloc(sizeof(*thep) * elperupdater);
 	BUG_ON(thep == NULL);
 	for (i = 0; i < elperupdater; i++) {
 		thep[i].data = i + mylowkey;
@@ -901,7 +900,6 @@ void *perftest_updater(void *arg)
 	rcu_barrier();
 
 	hash_unregister_thread();
-	free(thep);
 	pap->nadds = nadds;
 	pap->ndels = ndels;
 	set_thread_call_rcu_data(NULL);
@@ -920,11 +918,14 @@ void perftest(void)
 	long long nadds = 0;
 	long long ndels = 0;
 	long long starttime;
+	struct testhe *thep;
 
 	BUG_ON(maxcpus <= 0);
 	perftest_htp = hashtab_alloc(nbuckets, testcmp, tgh, testgk);
 	BUG_ON(perftest_htp == NULL);
 	defer_del_done = defer_del_done_perftest;
+	thep = malloc(sizeof(*thep) * nupdaters * elperupdater);
+	BUG_ON(thep == NULL);
 	pap = malloc(sizeof(*pap) * (nreaders + nupdaters));
 	BUG_ON(pap == NULL);
 	atomic_set(&nthreads_running, 0);
@@ -938,6 +939,10 @@ void perftest(void)
 		pap[i].ndels = 0;
 		pap[i].mycpu = (i * cpustride) % maxcpus;
 		pap[i].nelements = nupdaters * elperupdater;
+		if (i < nreaders)
+			pap[i].myelp = NULL;
+		else
+			pap[i].myelp = &thep[(i - nreaders) * elperupdater];
 		create_thread(i < nreaders ? perftest_reader : perftest_updater,
 			      &pap[i]);
 	}
@@ -970,6 +975,7 @@ void perftest(void)
 	        (double)(nadds + ndels)));
 
 	free(pap);
+	free(thep);
 	hashtab_free(perftest_htp);
 }
 
