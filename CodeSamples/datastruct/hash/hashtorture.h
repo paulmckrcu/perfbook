@@ -815,6 +815,23 @@ void *perftest_reader(void *arg)
 	return NULL;
 }
 
+/* Pre-load specified updater's portion of hash table. */
+void perftest_updater_init(struct testhe *thep)
+{
+	long i;
+	long j;
+
+	i = j = 0;
+	while (j < elperupdater / 2) {
+		if (elperupdater / 2 - j <= elperupdater - i || random() % 2) {
+			perftest_add(&thep[i]);
+			BUG_ON(!perftest_lookup(thep[i].data));
+			j++;
+		}
+		i++;
+	}
+}
+
 /* Performance test updater thread. */
 void *perftest_updater(void *arg)
 {
@@ -840,15 +857,7 @@ void *perftest_updater(void *arg)
 	hash_register_thread();
 
 	/* Start with some random half of the elements in the hash table. */
-	i = j = 0;
-	while (j < elperupdater / 2) {
-		if (elperupdater / 2 - j <= elperupdater - i || random() % 2) {
-			perftest_add(&thep[i]);
-			BUG_ON(!perftest_lookup(thep[i].data));
-			j++;
-		}
-		i++;
-	}
+	perftest_updater_init(thep);
 
 	/* Announce our presence and enter the test loop. */
 	atomic_inc(&nthreads_running);
