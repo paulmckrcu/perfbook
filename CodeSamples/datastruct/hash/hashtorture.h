@@ -1171,9 +1171,6 @@ void *zoo_updater(void *arg)
 	set_thread_call_rcu_data(crdp);
 	hash_register_thread();
 
-	/* Start with some random half of the elements in the hash table. */
-	zoo_updater_init(mylowkey, zheplist);
-
 	/* Announce our presence and enter the test loop. */
 	atomic_inc(&nthreads_running);
 	i = 0;
@@ -1292,10 +1289,16 @@ void zoo_test(void)
 		pap[i].ndels = 0;
 		pap[i].mycpu = (i * cpustride) % maxcpus;
 		pap[i].nelements = nupdaters * elperupdater;
-		if (i < nreaders)
+		if (i < nreaders) {
 			pap[i].myelp = NULL;
-		else
-			pap[i].myelp = &zheplist[(i - nreaders) * elperupdater];
+		} else {
+			int mylowkey = pap[i].myid * elperupdater;
+			struct zoo_he **myzheplist;
+
+			myzheplist = &zheplist[mylowkey];
+			zoo_updater_init(mylowkey, myzheplist);
+			pap[i].myelp = myzheplist;
+		}
 		create_thread(i < nreaders ? zoo_reader : zoo_updater, &pap[i]);
 	}
 	hash_unregister_thread();
