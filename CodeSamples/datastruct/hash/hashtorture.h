@@ -1118,6 +1118,29 @@ void *zoo_reader(void *arg)
 	return NULL;
 }
 
+/* Pre-load specified updater's portion of hash table. */
+void zoo_updater_init(int mylowkey, struct zoo_he **zheplist)
+{
+	long i;
+	long j;
+	struct zoo_he *zhep;
+
+	i = j = 0;
+	while (j < elperupdater / 2) {
+		if (elperupdater / 2 - j <= elperupdater - i || random() % 2) {
+			zhep = malloc(sizeof(*zhep));
+			BUG_ON(!zhep);
+			strcpy(zhep->name,
+			       &zoo_names[ZOO_NAMELEN * (i + mylowkey)]);
+			zoo_add(zhep);
+			zheplist[i] = zhep;
+			BUG_ON(!zoo_lookup(zhep->name));
+			j++;
+		}
+		i++;
+	}
+}
+
 /* Performance test updater thread. */
 void *zoo_updater(void *arg)
 {
@@ -1140,20 +1163,7 @@ void *zoo_updater(void *arg)
 	hash_register_thread();
 
 	/* Start with some random half of the elements in the hash table. */
-	i = j = 0;
-	while (j < elperupdater / 2) {
-		if (elperupdater / 2 - j <= elperupdater - i || random() % 2) {
-			zhep = malloc(sizeof(*zhep));
-			BUG_ON(!zhep);
-			strcpy(zhep->name,
-			       &zoo_names[ZOO_NAMELEN * (i + mylowkey)]);
-			zoo_add(zhep);
-			zheplist[i] = zhep;
-			BUG_ON(!zoo_lookup(zhep->name));
-			j++;
-		}
-		i++;
-	}
+	zoo_updater_init(mylowkey, zheplist);
 
 	/* Announce our presence and enter the test loop. */
 	atomic_inc(&nthreads_running);
