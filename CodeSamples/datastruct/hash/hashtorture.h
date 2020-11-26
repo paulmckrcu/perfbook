@@ -847,8 +847,6 @@ void *perftest_updater(void *arg)
 	long i;
 	long j;
 	struct perftest_attr *pap = arg;
-	int myid = pap->myid;
-	int mylowkey = myid * elperupdater;
 	struct testhe *thep = pap->myelp;
 	long long nadds = 0;
 	long long ndels = 0;
@@ -858,9 +856,6 @@ void *perftest_updater(void *arg)
 	crdp = create_call_rcu_data(0, pap->mycpu);
 	set_thread_call_rcu_data(crdp);
 	hash_register_thread();
-
-	/* Start with some random half of the elements in the hash table. */
-	perftest_updater_init(mylowkey, thep);
 
 	/* Announce our presence and enter the test loop. */
 	atomic_inc(&nthreads_running);
@@ -943,6 +938,7 @@ void perftest(void)
 	atomic_set(&nthreads_running, 0);
 	goflag = GOFLAG_INIT;
 
+	hash_register_thread();
 	for (i = 0; i < nreaders + nupdaters; i++) {
 		pap[i].myid = i < nreaders ? i : i - nreaders;
 		pap[i].nlookups = 0;
@@ -951,13 +947,19 @@ void perftest(void)
 		pap[i].ndels = 0;
 		pap[i].mycpu = (i * cpustride) % maxcpus;
 		pap[i].nelements = nupdaters * elperupdater;
-		if (i < nreaders)
+		if (i < nreaders) {
 			pap[i].myelp = NULL;
-		else
-			pap[i].myelp = &thep[(i - nreaders) * elperupdater];
+		} else {
+			int mylowkey = pap[i].myid * elperupdater;
+			struct testhe *mythep = &thep[mylowkey];
+
+			perftest_updater_init(mylowkey, mythep);
+			pap[i].myelp = mythep;
+		}
 		create_thread(i < nreaders ? perftest_reader : perftest_updater,
 			      &pap[i]);
 	}
+	hash_unregister_thread();
 
 	/* Wait for all threads to initialize. */
 	while (atomic_read(&nthreads_running) < nreaders + nupdaters)
