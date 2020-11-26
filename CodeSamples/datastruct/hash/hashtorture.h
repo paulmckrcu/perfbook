@@ -816,19 +816,25 @@ void *perftest_reader(void *arg)
 }
 
 /* Pre-load specified updater's portion of hash table. */
-void perftest_updater_init(struct testhe *thep)
+void perftest_updater_init(int mylowkey, struct testhe *thep)
 {
 	long i;
 	long j;
 
 	i = j = 0;
 	while (j < elperupdater / 2) {
+		thep[i].data = i + mylowkey;
 		thep[i].in_table = 0;
 		if (elperupdater / 2 - j <= elperupdater - i || random() % 2) {
 			perftest_add(&thep[i]);
 			BUG_ON(!perftest_lookup(thep[i].data));
 			j++;
 		}
+		i++;
+	}
+	while (i < elperupdater) {
+		thep[i].data = i + mylowkey;
+		thep[i].in_table = 0;
 		i++;
 	}
 }
@@ -848,16 +854,13 @@ void *perftest_updater(void *arg)
 	long long ndels = 0;
 
 	BUG_ON(thep == NULL);
-	for (i = 0; i < elperupdater; i++) {
-		thep[i].data = i + mylowkey;
-	}
 	run_on(pap->mycpu);
 	crdp = create_call_rcu_data(0, pap->mycpu);
 	set_thread_call_rcu_data(crdp);
 	hash_register_thread();
 
 	/* Start with some random half of the elements in the hash table. */
-	perftest_updater_init(thep);
+	perftest_updater_init(mylowkey, thep);
 
 	/* Announce our presence and enter the test loop. */
 	atomic_inc(&nthreads_running);
