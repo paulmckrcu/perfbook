@@ -823,6 +823,7 @@ void perftest_updater_init(struct testhe *thep)
 
 	i = j = 0;
 	while (j < elperupdater / 2) {
+		thep[i].in_table = 0;
 		if (elperupdater / 2 - j <= elperupdater - i || random() % 2) {
 			perftest_add(&thep[i]);
 			BUG_ON(!perftest_lookup(thep[i].data));
@@ -849,7 +850,6 @@ void *perftest_updater(void *arg)
 	BUG_ON(thep == NULL);
 	for (i = 0; i < elperupdater; i++) {
 		thep[i].data = i + mylowkey;
-		thep[i].in_table = 0;
 	}
 	run_on(pap->mycpu);
 	crdp = create_call_rcu_data(0, pap->mycpu);
