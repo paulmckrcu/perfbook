@@ -36,7 +36,7 @@ plotsize=0.5
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > perftest.eps"
+set output "perftest.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Lookups per Millisecond"
 set logscale xy
@@ -54,7 +54,7 @@ plot "perftest.hash_bkt.${tag}.dat" w l, "perftest.hash_bkt_hazptr.${tag}.dat" w
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > perftestlin.eps"
+set output "perftestlin.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Lookups per Millisecond"
 # set logscale xy
@@ -72,7 +72,7 @@ plot "perftest.hash_bkt.${tag}.dat" w l, "perftest.hash_bkt_hazptr.${tag}.dat" w
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocpu.eps"
+set output "zoocpu.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 set logscale xy
@@ -90,7 +90,7 @@ plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocpulin.eps"
+set output "zoocpulin.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
@@ -108,7 +108,7 @@ plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.da
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocpu-unsync.eps"
+set output "zoocpu-unsync.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 set logscale xy
@@ -126,7 +126,7 @@ plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocpu-unsynclin.eps"
+set output "zoocpu-unsynclin.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
@@ -144,7 +144,7 @@ plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.da
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocpubktlin8.eps"
+set output "zoocpubktlin8.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
@@ -163,7 +163,7 @@ plot "zoo.cpus.hash_bkt.${tag}.dat" w l, x*44666.3 w l
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocpubktlin.eps"
+set output "zoocpubktlin.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
@@ -181,7 +181,7 @@ plot "zoo.cpus.hash_bkt.${tag}.dat" w l
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocpubktsizelin.eps"
+set output "zoocpubktsizelin.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
@@ -199,7 +199,7 @@ plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt-65536.${tag}.dat" w 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocatall.eps"
+set output "zoocatall.eps"
 set xlabel "Number of CPUs (Threads) Looking Up The Cat"
 set ylabel "Total Lookups per Millisecond"
 set logscale xy
@@ -217,7 +217,7 @@ plot "zoo.catall.hash_bkt.${tag}.dat" w l, "zoo.catall.hash_bkt_hazptr.${tag}.da
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocatalllin.eps"
+set output "zoocatalllin.eps"
 set xlabel "Number of CPUs (Threads) Looking Up The Cat"
 set ylabel "Total Lookups per Millisecond"
 #set logscale xy
@@ -235,7 +235,7 @@ plot "zoo.catall.hash_bkt.${tag}.dat" w l, "zoo.catall.hash_bkt_hazptr.${tag}.da
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocatall-unsync.eps"
+set output "zoocatall-unsync.eps"
 set xlabel "Number of CPUs (Threads) Looking Up The Cat"
 set ylabel "Total Lookups per Millisecond"
 set logscale xy
@@ -254,7 +254,7 @@ plot "zoo.catall.hash_bkt.${tag}.dat" w l, "zoo.catall.hash_bkt_hazptr.${tag}.da
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocatonly.eps"
+set output "zoocatonly.eps"
 set xlabel "Number of CPUs (Threads) Looking Up The Cat"
 set ylabel "Cat Lookups per Millisecond"
 set logscale xy
@@ -272,7 +272,7 @@ plot "zoo.cat.hash_bkt.${tag}.dat" w l, "zoo.cat.hash_bkt_hazptr.${tag}.dat" w l
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zoocatonlylin.eps"
+set output "zoocatonlylin.eps"
 set xlabel "Number of CPUs (Threads) Looking Up The Cat"
 set ylabel "Cat Lookups per Millisecond"
 #set logscale xy
@@ -290,7 +290,7 @@ plot "zoo.cat.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cat.hash_bkt_rcu.${tag}.dat"
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zooupdatelu.eps"
+set output "zooupdatelu.eps"
 set xlabel "Number of CPUs Doing Updates"
 set ylabel "Lookups per Millisecond"
 set logscale xy
@@ -308,7 +308,7 @@ plot "zoo.updrd.hash_global.${tag}.dat" w l, "zoo.updrd.hash_bkt.${tag}.dat" w l
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zooupdatelulin.eps"
+set output "zooupdatelulin.eps"
 set xlabel "Number of CPUs Doing Updates"
 set ylabel "Lookups per Millisecond"
 set logscale y
@@ -326,7 +326,7 @@ plot "zoo.updrd.hash_global.${tag}.dat" w l, "zoo.updrd.hash_bkt.${tag}.dat" w l
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
-set output "|../../../../../utilities/gnuplotepsfix > zooupdate.eps"
+set output "zooupdate.eps"
 set xlabel "Number of CPUs Doing Updates"
 set ylabel "Updates per Millisecond"
 set logscale xy
