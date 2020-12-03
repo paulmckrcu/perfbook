@@ -1124,11 +1124,14 @@ void bar(void)
 	possibly execute the \co{assert()} until after the
 	\co{while} loop completes?
 }\QuickQuizAnswer{
-	CPUs are free to speculatively execute, which can have the effect
-	of executing the assertion before the \co{while} loop completes.
-	Furthermore, compilers normally assume that only the currently
-	executing thread is updating the variables, and this assumption
-	allows the compiler to hoist the load of \co{a} to precede the
+	Suppose that memory barrier was omitted.
+
+	Keep in mind that CPUs are free to speculatively execute later
+	loads, which can have the effect of executing the assertion
+	before the \co{while} loop completes.
+	Furthermore, compilers assume that only the currently executing
+	thread is updating the variables, and this assumption allows
+	the compiler to hoist the load of \co{a} to precede the
 	loop.
 
 	In fact, some compilers would transform the loop to a branch
@@ -1147,22 +1150,31 @@ void bar(void)
 	if (b == 0)
 		for (;;)
 			continue;
-	smp_mb();
 	assert(a == 1);
 }
 \end{VerbatimN}
 
 	Given this optimization, the code would behave in a completely
-	different way than the original intention.
-	If \co{bar()} observed \qco{b == 0}, the assertion could not
-	be reached due to the infinite loop.
-	You should use volatile casts or (where available) C++
-	relaxed atomics to prevent the compiler from optimizing
-	your parallel code into oblivion.
+	different way than the original code.
+	If \co{bar()} observed \qco{b == 0}, the assertion could of
+	course not be reached at all due to the infinite loop.
+	However, if \co{bar()} loaded the value \qco{1} just as
+	\qco{foo()} stored it, the CPU might still have the old
+	zero value of \qco{a} in its cache, which would cause
+	the assertion to fire.
+	You should of course use volatile casts (for example, those
+	volatile casts implied by the C11 relaxed atomic load operation)
+	to prevent the compiler from optimizing your parallel code
+	into oblivion.
+	But volatile casts would not prevent a weakly ordered CPU
+	from loading the old value for \qco{a} from its cache, which
+	means that this code also requires the explicit memory barrier
+	in \qco{bar()}.
 
-	In short, both compilers and CPUs are quite aggressive about
-	optimizing, so you must clearly communicate your constraints
-	to them, using compiler directives and memory barriers.
+	In short, both compilers and CPUs aggressively apply
+	code-reordering optimizations, so you must clearly communicate
+	your constraints using the compiler directives and memory barriers
+	provided for this purpose.
 %
 }\QuickQuizEnd
 
