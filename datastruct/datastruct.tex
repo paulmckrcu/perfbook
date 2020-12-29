@@ -659,19 +659,22 @@ Each hash bucket (\co{struct ht_bucket}) occupies 56~bytes and each
 element (\co{struct zoo_he}) occupies 72~bytes for the RCU and QSBR runs.
 The benchmark generating
 Figure~\ref{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo including QSBR and Unsynchronized, Linear Scale}
-used 262,144 buckets and up to 262,144 elements, for a total
-of 33,554,448~bytes, which is uncomfortably close to the L3 cache size
-of 40,370,176~bytes, especially given that this cache has only 11~ways.
-This means that L3 cache collisions are to be expected, and that the
-resulting cache misses will degrade performance.
+used 262,144 buckets and up to 262,144 elements, for a total of
+33,554,448~bytes, which not only overflows the 1,048,576-byte L2 caches
+by more than a factor of thirty, but is also uncomfortably close to the
+L3 cache size of 40,370,176~bytes, especially given that this cache has
+only 11~ways.
+This means that L2 cache collisions will be the rule and also that L3
+cache collisions will not be uncommon, so that the resulting cache misses
+will degrade performance.
 In this case, the bottleneck is not in the CPU, but rather in the hardware
 memory system.
 % This data was generated wtih 262,144 buckets and elements.
 % RCU hash ht_elem structure is 40 bytes plus 32 more from zoo_he for 72.
 % struct ht_bucket is 56 bytes.
-% For "#B" runs, hash buckets weigh in at 14,680,080 bytes and the hash elements
-%    up to 18,874,368 bytes.  The total is 33,554,448 bytes, which in
-%    theory fits into the 40,370,176-byte L3 cache, but definitely not
+% For "# B" RCU runs, hash buckets weigh in at 14,680,080 bytes and the hash
+%    elements up to 18,874,368 bytes.  The total is 33,554,448 bytes, which
+%    in theory fits into the 40,370,176-byte L3 cache, but definitely not
 %    the 1,048,576-byte L2 cache, much less the 32,768-byte L0 and L1 caches.
 %    The L3 is 11-way set associative.
 %    So we have 8192 4K pages of data (buckets and elements) that must
@@ -684,8 +687,64 @@ compared to the 56~bytes for RCU and QSBR.
 signal-based).
 Similarly, each hash-table element occupies only 56~bytes compared to the
 72~bytes for RCU and QSBR.
-So it is unsurprising that the single-CPU unsynchronized run is about
-half again faster than that of either QSBR or RCU.
+So it is unsurprising that the single-CPU unsynchronized run performs up
+to about half again faster than that of either QSBR or RCU.
+
+\QuickQuiz{
+	How can we be so sure that the hash-table size is at fault here,
+	especially given that
+	Figure~\ref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo, Varying Buckets}
+	on page~\pageref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo, Varying Buckets}
+	shows that varying hash-table size has almost
+	no effect?
+	Might the problem instead be something like false sharing?
+}\QuickQuizAnswer{
+	False sharing requires writes, which are not featured in the
+	unsynchronized, hazard-pointer, or RCU runs of this lookup-only
+	benchmark.
+	The problem is therefore not false sharing.
+
+\begin{figure}[tb]
+\centering
+\resizebox{3in}{!}{\includegraphics{CodeSamples/datastruct/hash/data/hps.perf-hashsize.2020.12.29a/zoohashsize}}
+\caption{Read-Only RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo at 448 CPUs, Varying Table Size}
+\label{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo at 448 CPUs, Varying Table Size}
+\end{figure}
+
+	Still unconvinced?
+	Then look at the log-log plot in
+	Figure~\ref{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo at 448 CPUs, Varying Table Size},
+	which shows performance as a function of the hash-table size,
+	measured in number of buckets and maximum number of elements.
+	Thus, at a hash-table size of 1,024, there were 1,024~buckets
+	and at most 1,024~elements, with the average occupancy being
+	512~elements.
+	This figure shows the performance dropping off slightly at about
+	8,000~elements, where the 1,048,576-byte L2 cache overflows,
+	and much more sharply at about 300,000~elements, where the
+	40,370,176-byte L3 cache overflows.
+	The memory-system bottleneck is quite profound, degrading
+	performance by more than an order of magnitude for the large
+	hash tables.
+	This should not be a surprise, as the size-8,388,608 hash table
+	occupies about 1\,GB of memory, overflowing the L3 caches by
+	about a factor of 25.
+
+	The reason that
+	Figure~\ref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo, Varying Buckets}
+	shows little effect is that its data was gathered from
+	bucket-locked hash tables, where locking overhead and contention
+	drowned out cache-capacity effects.
+	In contrast, both RCU and hazard-pointers readers avoid stores
+	to shared data, which means that the cache-capacity effects come
+	to the fore.
+
+	Still not satisfied?
+	Find a multi-socket system and run this code, making use of
+	whatever performance-counter hardware is available.
+	This hardware should allow you to track down the precise cause
+	of any slowdowns exhibited on your particular system.
+}\QuickQuizEnd
 
 What if the memory footprint is reduced still further?
 \cref{fig:defer:Pre-BSD Routing Table Protected by RCU QSBR}
