@@ -695,20 +695,20 @@ data structure represented by the pre-BSD routing table.
 
 \begin{figure}[tb]
 \centering
-\resizebox{2.5in}{!}{\includegraphics{datastruct/zoocatonly}}
-\caption{Read-Side Cat-Only RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo at 60 CPUs}
-\label{fig:datastruct:Read-Side Cat-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
+\resizebox{2.5in}{!}{\includegraphics{CodeSamples/datastruct/hash/data/hps.perf.2020.11.26a/zoocatonly}}
+\caption{Read-Side Cat-Only RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo at 64 CPUs}
+\label{fig:datastruct:Read-Side Cat-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 64 CPUs}
 \end{figure}
 
 As noted earlier, Schr\"odinger is surprised by the popularity of his
 cat~\cite{ErwinSchroedinger1935Cat}, but recognizes the need to reflect
 this popularity in his design.
-Figure~\ref{fig:datastruct:Read-Side Cat-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
-shows the results of 60-CPU runs, varying the number of CPUs that are
+Figure~\ref{fig:datastruct:Read-Side Cat-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 64 CPUs}
+shows the results of 64-CPU runs, varying the number of CPUs that are
 doing nothing but looking up the cat.
-Both RCU and hazard pointers respond well to this challenge, but
-bucket locking scales negatively, eventually performing even worse
-than global locking.
+Both RCU and hazard pointers respond well to this challenge, but bucket
+locking scales negatively, eventually performing as badly as global
+locking.
 This should not be a surprise because if all CPUs are doing nothing
 but looking up the cat, the lock corresponding to the cat's bucket
 is for all intents and purposes a global lock.
@@ -727,45 +727,49 @@ in point.
 
 \begin{figure}[tb]
 \centering
-\resizebox{2.5in}{!}{\includegraphics{datastruct/zooupdatelu}}
-\caption{Read-Side RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo at 60 CPUs}
-\label{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
+\resizebox{2.5in}{!}{\includegraphics{CodeSamples/datastruct/hash/data/hps.perf.2020.11.26a/zooupdatelu}}
+\caption{Read-Side RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo in the Presence of Updates}
+\label{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo in the Presence of Updates}
 \end{figure}
 
-Of course, if we were only ever going to read the data, we would not need
-any concurrency control to begin with.
-Figure~\ref{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
-therefore shows the effect of updates.
-At the extreme left-hand side of this graph, all 60 CPUs are doing lookups,
-while to the right all 60 CPUs are doing updates.
+If we were only ever going to read the data, we would not need any
+concurrency control to begin with.
+Figure~\ref{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo in the Presence of Updates}
+therefore shows the effect of updates on readers.
+At the extreme left-hand side of this graph, all but one of the CPUs
+are doing lookups, while to the right all 448 CPUs are doing updates.
 For all four implementations, the number of lookups per millisecond
 decreases as the number of updating CPUs increases, of course reaching
-zero lookups per millisecond when all 60 CPUs are updating.
-RCU does well relative to hazard pointers due to the latter's read-side
-memory barriers, which incur greater overhead, especially in the presence
-of updates.
+zero lookups per millisecond when all 448 CPUs are updating.
+Both hazard pointers and RCU do well compared to per-bucket locking
+because their readers do not increase update-side lock contention.
+RCU does well relative to hazard pointers as the number of updaters
+increases due to the latter's read-side memory barriers, which incur
+greater overhead, especially in the presence of updates.
 It therefore seems likely that modern hardware heavily optimizes memory-barrier
 execution, greatly reducing memory-barrier overhead in the read-only case.
 
 \begin{figure}[tb]
 \centering
-\resizebox{2.5in}{!}{\includegraphics{datastruct/zooupdate}}
-\caption{Update-Side RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo at 60 CPUs}
-\label{fig:datastruct:Update-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
+\resizebox{2.5in}{!}{\includegraphics{CodeSamples/datastruct/hash/data/hps.perf.2020.11.26a/zooupdate}}
+\caption{Update-Side RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo}
+\label{fig:datastruct:Update-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo}
 \end{figure}
 
 Where
-Figure~\ref{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
+Figure~\ref{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo in the Presence of Updates}
 showed the effect of increasing update rates on lookups,
-Figure~\ref{fig:datastruct:Update-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo at 60 CPUs}
+Figure~\ref{fig:datastruct:Update-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo}
 shows the effect of increasing update rates on the updates themselves.
+Again, at the left-hand side of the figure all but one of the CPUs are
+doing lookups and at the right-hand side of the figure all 448 CPUs are
+doing updates.
 Hazard pointers and RCU start off with a significant advantage because,
 unlike bucket locking, readers do not exclude updaters.
 However, as the number of updating CPUs increases, update-side overhead
 starts to make its presence known, first for RCU and then for hazard
 pointers.
-Of course, all three of these implementations fare much better than does
-global locking.
+Of course, all three of these implementations beat global locking.
 
 Of course, it is quite possible that the differences in lookup performance
 are affected by the differences in update rates.
@@ -782,14 +786,16 @@ usually be reliable enough for benchmarking purposes, it is absolutely
 not recommended for production use.
 
 \QuickQuiz{
-	The dangers of extrapolating from eight CPUs to 60 CPUs was
+	The dangers of extrapolating from 28 CPUs to 448 CPUs was
 	made quite clear in
 	Section~\ref{sec:datastruct:Hash-Table Performance}.
-	But why should extrapolating up from 60 CPUs be any safer?
+	But why should extrapolating up from 448 CPUs be any safer?
 }\QuickQuizAnswer{
-	It isn't any safer, and a useful exercise would be to run these
-	programs on larger systems.
-	That said, other testing has shown that RCU read-side primitives
+	In theory, it isn't any safer, and a useful exercise would be
+	to run these programs on larger systems.
+	In practice, there are a lot more systems with more than 28~CPUs
+	than there are systems with more than 448 CPUs.
+	In addition, other testing has shown that RCU read-side primitives
 	offer consistent performance and scalability up to at least 1024 CPUs.
 }\QuickQuizEnd
 

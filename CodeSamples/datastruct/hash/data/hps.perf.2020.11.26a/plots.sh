@@ -370,9 +370,9 @@ set logscale xy
 #set yrange [100:10000]
 set nokey
 set label 1 "global" at 10,150 left
-set label 2 "hazptr" at 300,280000 right
+set label 2 "bucket" at 300,280000 right
 set label 3 "RCU" at 120,12000 left
-set label 4 "bucket" at 50,45000 right
+set label 4 "hazptr" at 50,45000 right
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "zoo.upd.hash_global.${tag}.dat" w l, "zoo.upd.hash_bkt.${tag}.dat" w l, "zoo.upd.hash_bkt_hazptr.${tag}.dat" w l, "zoo.upd.hash_bkt_rcu.${tag}.dat" w l
 ---EOF---
