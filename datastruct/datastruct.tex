@@ -574,7 +574,7 @@ freeing or otherwise reusing the memory for the newly deleted element.
 
 \begin{figure}[tb]
 \centering
-\resizebox{2.5in}{!}{\includegraphics{datastruct/zoocpu}}
+\resizebox{2.5in}{!}{\includegraphics{CodeSamples/datastruct/hash/data/hps.perf.2020.11.26a/zoocpu}}
 \caption{Read-Only RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo}
 \label{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo}
 \end{figure}
@@ -582,16 +582,17 @@ freeing or otherwise reusing the memory for the newly deleted element.
 Figure~\ref{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo}
 shows the read-only performance of RCU-protected and hazard-pointer-protected
 hash tables against the previous section's per-bucket-locked implementation.
-As you can see, both RCU and hazard pointers achieve near-ideal performance
-and scalability despite the larger numbers of threads and the NUMA effects.
+As you can see, both RCU and hazard pointers perform and scale and
+scalability much better than per-bucket locking despite NUMA effects.
+The difference increases with larger numbers of threads.
 Results from a globally locked implementation are also shown, and as expected
 the results are even worse than those of the per-bucket-locked implementation.
 RCU does slightly better than hazard pointers, but the difference is not
-readily visible in this log-scale plot.
+so noticeable in this log-scale plot.
 
 \begin{figure}[tb]
 \centering
-\resizebox{2.5in}{!}{\includegraphics{datastruct/zoocpulin}}
+\resizebox{2.5in}{!}{\includegraphics{CodeSamples/datastruct/hash/data/hps.perf.2020.11.26a/zoocpulin}}
 \caption{Read-Only RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo, Linear Scale}
 \label{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo, Linear Scale}
 \end{figure}
@@ -600,8 +601,9 @@ Figure~\ref{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Sc
 shows the same data on a linear scale.
 This drops the global-locking trace into the x-axis, but allows the
 relative performance of RCU and hazard pointers to be more readily
-discerned.
-Both show a change in slope at 32 CPUs, and this is due to hardware
+discerned, including the extent to which they fail to achieve ideal
+performance.
+Both show a change in slope at 224 CPUs, and this is due to hardware
 multithreading.
 At 32 and fewer CPUs, each thread has a core to itself.
 In this regime, RCU does better than does hazard pointers because the
@@ -609,16 +611,87 @@ latter's read-side memory barriers result in dead time within the core.
 In short, RCU is better able to utilize a core from a single hardware
 thread than is hazard pointers.
 
-This situation changes above 32 CPUs.
+This situation changes above 224 CPUs.
 Because RCU is using more than half of each core's resources from a
 single hardware thread, RCU gains relatively little benefit from the
 second hardware thread in each core.
-The slope of the hazard-pointers trace also decreases at 32 CPUs, but
+The slope of the hazard-pointers trace also decreases at 224 CPUs, but
 less dramatically,
 because the second hardware thread is able to fill in the time
 that the first hardware thread is stalled due to memory-barrier latency.
 As we will see in later sections, this second-hardware-thread
 advantage depends on the workload.
+
+\begin{figure}[tb]
+\centering
+\resizebox{2.5in}{!}{\includegraphics{CodeSamples/datastruct/hash/data/hps.perf.2020.11.26a/zoocpulinqsbr}}
+\caption{Read-Only RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo including QSBR, Linear Scale}
+\label{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo including QSBR, Linear Scale}
+\end{figure}
+
+But why is RCU's performance a factor of five less than ideal?
+One possibility is that the per-thread counters manipulated by
+\co{rcu_read_lock()} and \co{rcu_read_unlock()} are slowing things down.
+Figure~\ref{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo including QSBR, Linear Scale}
+therefore adds the results for the QSBR variant of RCU, whose read-side
+primitives do nothing.
+And although QSBR does perform slightly better than does RCU, it is still
+about a factor of five short of ideal.
+
+\begin{figure}[tb]
+\centering
+\resizebox{2.5in}{!}{\includegraphics{CodeSamples/datastruct/hash/data/hps.perf.2020.11.26a/zoocpulinqsbrunsync}}
+\caption{Read-Only RCU-Protected Hash-Table Performance For Schr\"odinger's Zoo including QSBR and Unsynchronized, Linear Scale}
+\label{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo including QSBR and Unsynchronized, Linear Scale}
+\end{figure}
+
+Figure~\ref{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo including QSBR and Unsynchronized, Linear Scale}
+adds completely unsynchronized results, courtesy of the fact that this
+is a read-only benchmark.
+And we see that even without any synchronization whatsoever, performance
+falls short of ideal.
+
+The problem is that this system has sockets with 28 cores, which have
+the modest cache sizes shown in
+Figure~\ref{tab:cpu:Cache Geometry for 8-Socket System With Intel Xeon Platinum 8176 CPUs @ 2.10GHz}
+on page~\pageref{tab:cpu:Cache Geometry for 8-Socket System With Intel Xeon Platinum 8176 CPUs @ 2.10GHz}.
+Each hash bucket (\co{struct ht_bucket}) occupies 56~bytes and each
+element (\co{struct zoo_he}) occupies 72~bytes for the RCU and QSBR runs.
+The benchmark generating
+Figure~\ref{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo including QSBR and Unsynchronized, Linear Scale}
+used 262,144 buckets and up to 262,144 elements, for a total
+of 33,554,448~bytes, which is uncomfortably close to the L3 cache size
+of 40,370,176~bytes, especially given that this cache has only 11~ways.
+This means that L3 cache collisions are to be expected, and that the
+resulting cache misses will degrade performance.
+In this case, the bottleneck is not in the CPU, but rather in the hardware
+memory system.
+% This data was generated wtih 262,144 buckets and elements.
+% RCU hash ht_elem structure is 40 bytes plus 32 more from zoo_he for 72.
+% struct ht_bucket is 56 bytes.
+% For "#B" runs, hash buckets weigh in at 14,680,080 bytes and the hash elements
+%    up to 18,874,368 bytes.  The total is 33,554,448 bytes, which in
+%    theory fits into the 40,370,176-byte L3 cache, but definitely not
+%    the 1,048,576-byte L2 cache, much less the 32,768-byte L0 and L1 caches.
+%    The L3 is 11-way set associative.
+%    So we have 8192 4K pages of data (buckets and elements) that must
+%    fit into 896 11-way set-associated cache sets.
+
+Additional evidence for this memory-system bottleneck may be found by
+examining the unsynchronized code.
+This code does not need locks, so each hash bucket occupies only 16~bytes
+compared to the 56~bytes for RCU and QSBR.
+signal-based).
+Similarly, each hash-table element occupies only 56~bytes compared to the
+72~bytes for RCU and QSBR.
+So it is unsurprising that the single-CPU unsynchronized run is about
+half again faster than that of either QSBR or RCU.
+
+What if the memory footprint is reduced still further?
+\cref{fig:defer:Pre-BSD Routing Table Protected by RCU QSBR}
+on page~\pageref{fig:defer:Pre-BSD Routing Table Protected by RCU QSBR With Non-Initial rcu-head}
+shows that RCU attains very nearly ideal performance on the much smaller
+data structure represented by the pre-BSD routing table.
 
 \begin{figure}[tb]
 \centering

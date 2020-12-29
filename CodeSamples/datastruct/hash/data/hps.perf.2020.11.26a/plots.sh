@@ -108,6 +108,42 @@ plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.da
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
 set size square ${plotsize},${plotsize}
+set output "zoocpulinqsbr.eps"
+set xlabel "Number of CPUs (Threads)"
+set ylabel "Total Lookups per Millisecond"
+#set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+set label 1 "QSBR,RCU" at 200,4000000 left
+set label 2 "hazptr" at 300,1900000 left
+set label 3 "ideal" at 400,14000000 right
+# set label 4 "qsbr" at 400,14000000 right
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, "zoo.cpus.hash_bkt_qsbr.${tag}.dat" w l, x*44666.3 w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
+set output "zoocpulinqsbrunsync.eps"
+set xlabel "Number of CPUs (Threads)"
+set ylabel "Total Lookups per Millisecond"
+#set logscale xy
+#set yrange [1:10000]
+#set yrange [100:10000]
+set nokey
+set label 1 "unsync,QSBR,RCU" at 170,5200000 left
+set label 2 "hazptr" at 300,1900000 left
+set label 3 "ideal" at 400,14000000 right
+# set label 4 "qsbr" at 400,14000000 right
+# set label 5 "refcnt" at 0.15,2.8 left
+plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, "zoo.cpus.hash_bkt_qsbr.${tag}.dat" w l, "zoo.cpus.hash_unsync.${tag}.dat" w l, x*44666.3 w l
+---EOF---
+
+gnuplot << ---EOF---
+set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
+set size square ${plotsize},${plotsize}
 set output "zoocpu-unsync.eps"
 set xlabel "Number of CPUs (Threads)"
 set ylabel "Total Lookups per Millisecond"
