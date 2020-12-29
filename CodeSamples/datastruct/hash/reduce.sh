@@ -122,6 +122,15 @@ awk -v tag="$tag" -v T="$T" \
 		print($18, ($7 + $9) / dur) > T "/zoo.updates." $13 "." tag ".dat"
 	}'
 
+# Produce .dat files for zoo scenario varying hash-table size.
+echo '# Produce .dat files for zoo scenario varying hash-table size.' 1>&2
+grep -e "# H$" $T/sum |
+awk -v tag="$tag" -v T="$T" \
+	'{
+		dur = $11;
+		print($22, $2 / dur) > T "/zoo.hashsize." $13 "." tag ".dat"
+	}'
+
 datfiles="`cd $T; ls *.dat`"
 for i in $datfiles
 do

@@ -119,5 +119,18 @@ do
 			./$hash --schroedinger --nreaders $nread --ncats $ncats --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epw
 			sleep 0.1
 		fi
+
+		# Schroedinger hash tables varying hash table size,
+		# but maintaining constant occupancy.
+		curepw=16
+		maxepw=$((epw*32))
+		while test $curepw -le $maxepw && test $hash != hash_global
+		do
+			echo $hash --schroedinger --nreaders $lastcpu --duration 1000 --updatewait 0 --nbuckets $curepw --elems/writer $curepw '#' H
+			./$hash --schroedinger --nreaders $lastcpu --duration 1000 --updatewait 0 --nbuckets $curepw --elems/writer $curepw
+			sleep 0.1
+			incr=`power2inc $curepw 1`
+			curepw=$((curepw + incr))
+		done
 	done
 done
