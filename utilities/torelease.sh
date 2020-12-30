@@ -103,5 +103,5 @@ fi
 git request-pull ${oldtag} ${repo_url} ${gittag} | sed -n '/^--*$/,$p' | tail +2 > "${destdir}/Changes.${tag}.txt"
 
 ls -l "${destdir}/perfbook.${tag}.pdf" "${destdir}/perfbook-1c.${tag}.pdf" "${destdir}/Changes.${tag}.txt"
-echo Release v${tag} prepared in ${destdir}
+echo Release ${gittag} prepared in ${destdir}
 exit 0
