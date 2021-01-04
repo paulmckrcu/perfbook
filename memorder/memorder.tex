@@ -434,8 +434,6 @@ memory-ordering instructions at all.
 		   Y &   &   &     &      &   &   &  Y &  Y &     &  Y \\
 	\tco{_relaxed()} RMW operation &  &
 		   Y &   &   &     &      &   &   &  Y &  Y &     &  Y \\
-	\tco{smp_read_barrier_depends()} &  &
-		     & Y &   &     &      &   &   &  Y &  Y &     &    \\
 	\tco{*_dereference()} &  &
 		   Y &   &   &     &      &   &   &  Y &  Y &     &  Y \\
 	Successful \tco{*_acquire()} &   &
@@ -550,15 +548,6 @@ are at most two threads involved.
 	that a value-returning \co{_relaxed()} RMW has done a load and a
 	store, which are every bit as good as a \co{READ_ONCE()} and a
 	\co{WRITE_ONCE()}, respectively.
-
-	The \co{smp_read_barrier_depends()} row captures the fact that, with the
-	notable exception of DEC Alpha, compilers and CPUs do not indulge
-	in user-visible breakage of address dependencies, again assuming
-	that these dependencies have been constructed carefully as described in
-	\cref{sec:memorder:Address- and Data-Dependency Difficulties}.
-	However, as of version v4.15 of the Linux kernel, the fact that
-	\co{READ_ONCE()} provides dependency ordering should mean that
-	there is little further need for \co{smp_read_barrier_depends()}.
 
 	The \co{*_dereference()} row captures the address and data
 	dependency ordering provided by \co{rcu_dereference()} and friends.
@@ -1859,8 +1848,7 @@ same variable.
 \end{listing}
 
 Dependencies do not provide cumulativity,
-which is why the ``C'' column is blank for
-both the \co{READ_ONCE()} and the \co{smp_read_barrier_depends()} rows
+which is why the ``C'' column is blank for the \co{READ_ONCE()} row
 of \cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
 However, as indicated by the ``C'' in their ``C'' column,
 release operations do provide cumulativity.
@@ -3873,11 +3861,6 @@ set of memory-ordering primitives, which are as follows:
 	following the memory barrier.
 \item	[\tco{smp_rmb()}] (read memory barrier) that orders only loads.
 \item	[\tco{smp_wmb()}] (write memory barrier) that orders only stores.
-\item	[\tco{smp_read_barrier_depends()}] that forces subsequent operations
-	that depend on prior operations to be ordered.
-	This primitive is a no-op on all platforms except Alpha, but
-	is normally not used directly, but rather as part of
-	something like \co{READ_ONCE()} or \co{rcu_dereference()}.
 \item	[\tco{smp_mb__before_atomic()}] that forces ordering of accesses
 	preceding the \co{smp_mb__before_atomic()} against accesses following
 	a later RMW atomic operation.
@@ -3894,19 +3877,17 @@ The \co{smp_mb()}, \co{smp_rmb()}, and \co{smp_wmb()}
 primitives also force
 the compiler to eschew any optimizations that would have the effect
 of reordering memory optimizations across the barriers.
-The \co{smp_read_barrier_depends()} primitive has a similar effect, but
-only on Alpha CPUs.
 
 These primitives generate code only in SMP kernels, however, several
-have UP versions ({\tt mb()}, {\tt rmb()}, {\tt wmb()},
-and \co{read_barrier_depends()},
-respectively) that generate a memory barrier even in UP kernels. The \co{smp_}
-versions should be used in most cases. However, these latter primitives
-are useful when writing drivers, because MMIO accesses must remain
-ordered even in UP kernels. In absence of memory-ordering operations,
-both CPUs and compilers would happily rearrange these accesses, which at
-best would make the device act strangely, and could crash your kernel or,
-in some cases, even damage your hardware.
+have UP versions ({\tt mb()}, {\tt rmb()}, and {\tt wmb()},
+respectively) that generate a memory barrier even in UP kernels.
+The \co{smp_} versions should be used in most cases.
+However, these latter primitives are useful when writing drivers,
+because MMIO accesses must remain ordered even in UP kernels.
+In absence of memory-ordering operations, both CPUs and compilers would
+happily rearrange these accesses, which at best would make the device
+act strangely, and could crash your kernel or, in some cases, even damage
+your hardware.
 
 So most kernel programmers need not worry about the memory-ordering
 peculiarities of each and every CPU, as long as they stick to these
@@ -3939,8 +3920,17 @@ It may seem strange to say much of anything about a CPU whose end of life
 has long since past, but Alpha is interesting because it is the only
 mainstream CPU that reorders dependent loads, and has thus had outsized
 influence on concurrency APIs, including within the Linux kernel.
-Understanding Alpha is therefore surprisingly important to the Linux kernel
-hacker.
+The need for core Linux-kernel code to accommodate Alpha ended
+with version v4.15 of the Linux kernel, and all traces of this
+accommodation were removed in v5.9 with the removal of the
+\co{smp_read_barrier_depends()} and \co{read_barrier_depends()} APIs.
+This section is nevertheless retained in the Second Edition
+% @@@ Update after release of Second Edition.
+because here in early 2021 there are quite a few Linux kernel hackers
+still working on pre-v4.15 versions of the Linux kernel.
+In addition, the modifications to \co{READ_ONCE()} that permitted
+these APIs to be removed have not necessarily propagated to all
+userspace projects that might still support Alpha.
 
 \begin{fcvref}[ln:memorder:Insert and Lock-Free Search (No Ordering)]
 The dependent-load difference between Alpha and the other CPUs is
@@ -3975,13 +3965,13 @@ struct el *insert(long key, long data)
 struct el *search(long key)
 {
 	struct el *p;
-	p = READ_ONCE(head.next);	\lnlbl[h:next]
+	p = READ_ONCE_OLD(head.next);	\lnlbl[h:next]
 	while (p != &head) {
 		/* Prior to v4.15, BUG ON ALPHA!!! */ \lnlbl[BUG]
 		if (p->key == key) {	\lnlbl[key]
 			return (p);
 		}
-		p = READ_ONCE(p->next);	\lnlbl[next]
+		p = READ_ONCE_OLD(p->next);	\lnlbl[next]
 	};
 	return (NULL);
 }
@@ -3992,13 +3982,14 @@ struct el *search(long key)
 \end{listing}
 
 \begin{fcvref}[ln:memorder:Insert and Lock-Free Search (No Ordering)]
-Alpha actually allows the code on \clnref{key} of
+Given the pre-v4.15 implementation of \co{READ_ONCE()}, indicated by
+\co{READ_ONCE_OLD()} in the listing, Alpha actually allows the code on
+\clnref{key} of
 \cref{lst:memorder:Insert and Lock-Free Search (No Ordering)}
-could see the old
-garbage values that were present before the initialization on
-\clnrefrange{init:b}{init:e}.
+to see the old garbage values that were present before the initialization
+on \clnrefrange{init:b}{init:e}.
 
-\Cref{fig:memorder:Why smp-read-barrier-depends() is Required}
+\Cref{fig:memorder:fig:memorder:Why smp-read-barrier-depends() is Required in Pre-v4.15 Linux Kernels}
 shows how this can happen on
 an aggressively parallel machine with partitioned caches, so that
 alternating cache lines are processed by the different partitions
@@ -4040,8 +4031,8 @@ in Alpha's heyday.
 \begin{figure}[tbp]
 \centering
 \resizebox{\twocolumnwidth}{!}{\includegraphics{memorder/Alpha}}
-\caption{Why \tco{smp_read_barrier_depends()} is Required}
-\label{fig:memorder:Why smp-read-barrier-depends() is Required}
+\caption{Why \tco{smp_read_barrier_depends()} is Required in Pre-v4.15 Linux Kernels}
+\label{fig:memorder:fig:memorder:Why smp-read-barrier-depends() is Required in Pre-v4.15 Linux Kernels}
 \end{figure}
 
 One could place an \co{smp_rmb()} primitive
@@ -4049,13 +4040,15 @@ between the pointer fetch and dereference in order to force Alpha
 to order the pointer fetch with the later dependent load.
 However, this imposes unneeded overhead on systems (such as \ARM,
 Itanium, PPC, and SPARC) that respect data dependencies on the read side.
-A \co{smp_read_barrier_depends()} primitive has therefore been added to the
-Linux kernel to eliminate overhead on these systems, and was also added
-to \co{READ_ONCE()} in v4.15 of the Linux kernel so that core kernel
-code no longer needs to concern itself with this aspect of DEC Alpha.
+A \co{smp_read_barrier_depends()} primitive was therefore added to the
+Linux kernel to eliminate overhead on these systems, but was removed
+in v5.9 of the Linux kernel in favor of augmenting Alpha's definition
+of \co{READ_ONCE()}.
+Thus, as of v5.9, core kernel code no longer needs to concern itself
+with this aspect of DEC Alpha.
 \begin{fcvref}[ln:memorder:Insert and Lock-Free Search (No Ordering)]
-This \co{smp_read_barrier_depends()} primitive could be inserted in
-place of \clnref{BUG} of
+In older kernels, \co{smp_read_barrier_depends()} primitive could be
+inserted in place of \clnref{BUG} of
 \cref{lst:memorder:Insert and Lock-Free Search (No Ordering)},
 \end{fcvref}
 \begin{fcvref}[ln:memorder:Safe Insert and Lock-Free Search]
@@ -4076,7 +4069,7 @@ Additional logic is required to avoid deadlocks.
 Of course, CPUs that respect data dependencies would define such a barrier
 to simply be \co{smp_wmb()}.
 However, this approach was deemed by the Linux community
-to impose excessive overhead, and furthermore would
+to impose excessive overhead\cite{McKenney01f}, and furthermore would
 not be considered a reasonable approach by those whose systems must meet
 aggressive real-time response requirements.
 
@@ -4117,31 +4110,25 @@ struct el *search(long key)
 The Linux memory-barrier primitives took their names from the Alpha
 instructions, so \co{smp_mb()} is {\tt mb}, \co{smp_rmb()} is {\tt rmb},
 and \co{smp_wmb()} is {\tt wmb}.
-Alpha is the only CPU where \co{smp_read_barrier_depends()} is
-an \co{smp_mb()} rather than a no-op.
+Alpha is the only CPU whose \co{READ_ONCE()} includes an \co{smp_mb()}.
 
 \QuickQuizSeries{%
 \QuickQuizB{
-	Why is Alpha's \co{smp_read_barrier_depends()} an
-	\co{smp_mb()} rather than \co{smp_rmb()}?
+	Why does Alpha's \co{READ_ONCE()} include an
+	\co{mb()} rather than \co{rmb()}?
 }\QuickQuizAnswerB{
 	Alpha has only \co{mb} and \co{wmb} instructions,
 	so \co{smp_rmb()} would be implemented by the Alpha \co{mb}
 	instruction in either case.
-	In addition, at the time that \co{smp_read_barrier_depends()}
-	was added to the Linux kernel, it was not clear that
-	Alpha ordered dependent stores, and thus \co{smp_mb()}
-	was therefore the safe choice.
+	In addition, at the time that the Linux kernel started relying on
+	dependency ordering, it was not clear that Alpha ordered dependent
+	stores, and thus \co{smp_mb()} was therefore the safe choice.
 
-	However, v4.15 of the Linux kernel has added
-	\co{smp_read_barrier_depends()} to \co{READ_ONCE()} and a few
-	of Alpha's atomic read-modify-write operations, thus making it
-	unnecessary to use \co{smp_read_barrier_depends()} anywhere else
-	in the core kernel.
-	This means that other than \co{READ_ONCE()}, no Linux-kernel
-	core code need concern itself with DEC Alpha, thus greatly reducing
-	Paul E.~McKenney's incentive to remove Alpha support from the
-	kernel.
+	However, given the aforementioned v5.9 changes to \co{READ_ONCE()}
+	and a few of Alpha's atomic read-modify-write operations,
+	no Linux-kernel core code need concern itself with DEC Alpha,
+	thus greatly reducing Paul E.~McKenney's incentive to remove
+	Alpha support from the kernel.
 }\QuickQuizEndB
 %
 \QuickQuizE{
