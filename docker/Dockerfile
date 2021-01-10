@@ -18,4 +18,6 @@ ARG user=perfbook
 ARG group=perfbook
 RUN groupadd -g $gid $group && useradd -u $uid -g $gid -m $user
 VOLUME /work
+USER $uid:$gid
 WORKDIR /work
+CMD /bin/bash
