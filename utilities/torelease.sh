@@ -36,7 +36,7 @@ unset PERFBOOK_PAPER
 destdir="${1-/tmp}"
 tag="${2-`date +%Y.%m.%d`a}"
 repo_url=${3-git@gitolite.kernel.org:pub/scm/linux/kernel/git/paulmck/perfbook.git}
-remote=${4-origin}
+remote=${4-perfbook}
 
 if ! test -d "${destdir}" -o ! -w "${destdir}"
 then
