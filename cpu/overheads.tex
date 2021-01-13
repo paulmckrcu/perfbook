@@ -28,8 +28,8 @@ Figure~\ref{fig:cpu:System Hardware Architecture}
 shows a rough schematic of an eight-core computer system.
 Each die has a pair of CPU cores, each with its cache, as well as an
 interconnect allowing the pair of CPUs to communicate with each other.
-The system interconnect in the middle of the diagram allows the
-four dies to communicate, and also connects them to main memory.
+The system interconnect allows the four dies to communicate with each
+other and with main memory.
 
 Data moves through this system in units of ``cache lines'', which
 are power-of-two fixed-size aligned blocks of memory, usually ranging
@@ -41,18 +41,20 @@ memory, it must also load the cacheline containing that variable into
 its cache, but must also ensure that no other CPU has a copy of that
 cacheline.
 
-For example, if CPU~0 were to perform a compare-and-swap (CAS) operation on a
-variable whose cacheline resided in CPU~7's cache, the following
-over-simplified sequence of events might ensue:
+For example, if CPU~0 were to write to a variable whose cacheline
+resided in CPU~7's cache, the following over-simplified sequence of
+events might ensue:
 
 \begin{enumerate}
 \item	CPU~0 checks its local cache, and does not find the cacheline.
-\item	The request is forwarded to CPU~0's and 1's interconnect,
-	which checks CPU~1's local cache, and does not find the cacheline.
-\item	The request is forwarded to the system interconnect, which
+	It therefore records the write in its store buffer.
+\item	A request for this cacheline is forwarded to CPU~0's and 1's
+	interconnect, which checks CPU~1's local cache, and does not
+	find the cacheline.
+\item	This request is forwarded to the system interconnect, which
 	checks with the other three dies, learning that the cacheline
 	is held by the die containing CPU~6 and 7.
-\item	The request is forwarded to CPU~6's and 7's interconnect, which
+\item	This request is forwarded to CPU~6's and 7's interconnect, which
 	checks both CPUs' caches, finding the value in CPU~7's cache.
 \item	CPU~7 forwards the cacheline to its interconnect, and also
 	flushes the cacheline from its cache.
@@ -62,7 +64,9 @@ over-simplified sequence of events might ensue:
 	interconnect.
 \item	CPU~0's and 1's interconnect forwards the cacheline to CPU~0's
 	cache.
-\item	CPU~0 can now perform the CAS operation on the value in its cache.
+\item	CPU~0 can now complete the write, updating the relevant portions
+	of the newly arrived cacheline from the value previously
+	recorded in the store buffer.
 \end{enumerate}
 
 \QuickQuizSeries{%
@@ -75,7 +79,7 @@ over-simplified sequence of events might ensue:
 
 	\begin{enumerate}
 	\item	Other CPUs might be concurrently attempting to perform
-		CAS operations involving this same cacheline.
+		memory-reference operations involving this same cacheline.
 	\item	The cacheline might have been replicated read-only in
 		several CPUs' caches, in which case, it would need to
 		be flushed from their caches.
@@ -104,9 +108,8 @@ over-simplified sequence of events might ensue:
 	If the cacheline was not flushed from CPU~7's cache, then
 	CPUs~0 and 7 might have different values for the same set
 	of variables in the cacheline.
-	This sort of incoherence would greatly complicate parallel
-	software, and so hardware architects have been convinced to
-	avoid it.
+	This sort of incoherence greatly complicates parallel software,
+	which is why so wise hardware architects avoid it.
 }\QuickQuizEndE
 }
 
@@ -180,12 +183,22 @@ the ratios.
 
 The same-CPU compare-and-swap (CAS) operation consumes about seven
 nanoseconds, a duration more than ten times that of the clock period.
-Here, ``same-CPU'' means that the same CPU now performing the CAS operation
-on a given variable was the last CPU to operate on this variable, so
-that the corresponding cache line is already held in that CPU's cache.
+CAS is an atomic operation in which the hardware compares the contents
+of the specified memory location to a specified ``old'' value, and if
+they compare equal, stores a specified ``new'' value, in which case the
+CAS operation succeeds.
+If they compare unequal, the memory location keeps its (unexpected) value,
+and the CAS operation fails.
+The operation is atomic in that the hardware guarantees that the memory
+location will not be changed between the compare and the store.
+CAS functionality is provided by the \co{lock;cmpxchg} instruction on x86.
+
+The ``same-CPU'' prefix means that the CPU now performing the CAS operation
+on a given variable was also the last CPU to access this variable, so
+that the corresponding cacheline is already held in that CPU's cache.
 Similarly, the same-CPU lock operation (a ``round trip'' pair consisting
-of a lock acquisition followed by a lock release) consumes more than
-fifteen nanoseconds, or more than thirty clock cycles.
+of a lock acquisition and release) consumes more than fifteen nanoseconds,
+or more than thirty clock cycles.
 The lock operation is more expensive than CAS because it requires two
 atomic operations on the lock data structure, one for acquisition and
 the other for release.
@@ -194,15 +207,6 @@ In-core operations involving interactions between the hardware threads
 sharing a single core are about the same cost as same-CPU operations.
 This should not be too surprising, given that these two hardware threads
 also share the full cache hierarchy.
-CAS stands for an atomic compare-and-swap operation, where the hardware
-compares the contents of the specified memory location to a specified
-``old'' value, and if they compare equal, stores a specified ``new'' value,
-in which case the CAS operation is said to have succeeded.
-If they compare unequal, the memory location keeps its (unexpected) value,
-and the CAS operation is said to have failed.
-The operation is atomic in that the hardware guarantees that the memory
-location will not be changed between the compare and the store.
-CAS functionality is provided by the \co{lock;cmpxchg} instruction on x86.
 
 In the case of the blind CAS, the software specifies the old value
 without looking at the memory location.
@@ -217,7 +221,7 @@ location, namely the CAS operation itself.
 In contrast, a normal CAS operation's old value is derived from
 some earlier load.
 For example, to implement an atomic increment, the current value of
-that location could be loaded, that value incremented to produce the
+that location is loaded and that value is incremented to produce the
 new value.
 Then in the CAS operation, the value actually loaded would be specified
 as the old value and the incremented value as the new value.
@@ -254,8 +258,7 @@ CAS and lock, respectively.
 }\QuickQuizEnd
 
 An blind CAS involving CPUs in different cores but on the same socket
-misses the cache consumes almost fifty
-nanoseconds, or almost one hundred clock cycles.
+consumes almost fifty nanoseconds, or almost one hundred clock cycles.
 The code used for this cache-miss measurement passes the cache line
 back and forth between a pair of CPUs, so this cache miss is satisfied
 not from memory, but rather from the other CPU's cache.
@@ -273,7 +276,7 @@ If the pair of CPUs are on different sockets, the operations are considerably
 more expensive.
 A blind CAS operation consumes almost 150~nanoseconds, or more than
 three hundred clock cycles.
-A CAS operation consumes more than 400~nanoseconds, or almost
+A normal CAS operation consumes more than 400~nanoseconds, or almost
 \emph{one thousand} clock cycles.
 
 Worse yet, not all pairs of sockets are created equal.
@@ -342,7 +345,7 @@ thousand clock cycles.
 	The first problem limits raw speed, and the second limits
 	miniaturization, which in turn limits frequency.
 	And even this sidesteps the power-consumption issue that
-	is currently holding production frequencies to well below
+	is currently limiting production frequencies to well below
 	10\,GHz.
 
 	In addition,
@@ -575,13 +578,13 @@ Chapter~\ref{chp:Deferred Processing}.
 \ContributedBy{Figure}{fig:cpu:Hardware and Software: On Same Side}{Melissa Broussard}
 \end{figure}
 
-In short, hardware and software engineers are really fighting on the same
-side, trying to make computers go fast despite the best efforts of the
-laws of physics, as fancifully depicted in
+In short, hardware and software engineers are really on the same side,
+with both trying to make computers go fast despite the best efforts of
+the laws of physics, as fancifully depicted in
 Figure~\ref{fig:cpu:Hardware and Software: On Same Side}
 where our data stream is trying its best to exceed the speed of light.
 The next section discusses some additional things that the hardware engineers
 might (or might not) be able to do, depending on how well recent
 research translates to practice.
-Software's contribution to this fight is outlined in the remaining chapters
-of this book.
+Software's contribution to this noble goal is outlined in the remaining
+chapters of this book.
