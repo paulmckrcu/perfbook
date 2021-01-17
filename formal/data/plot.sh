@@ -16,12 +16,12 @@ set y2label "\% Test"
 set boxwidth 0.7 relative
 unset xtics
 set xtics 1,2 nomirror rotate by 90 right scale 0
-set ytics 1 2000
+set ytics 1 5000
 set ytics out
 set y2tics 1 10
 set y2tics out
 set ytics nomirror
-set yrange [0:24000]
+set yrange [0:30000]
 set y2range [0:50]
 set style data histogram
 set style histogram rowstacked
