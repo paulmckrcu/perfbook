@@ -74,8 +74,8 @@ then
 	echo "Giving up."
 	exit 5
 fi
-touch perfbook.tex # Force re-run of "utilities/autodate.sh"
 
+touch perfbook-lt.tex # Force re-run of "utilities/autodate.sh"
 if ! make
 then
 	git tag -d "${gittag}"
@@ -84,6 +84,7 @@ then
 fi
 cp perfbook.pdf "${destdir}/perfbook.${tag}.pdf"
 
+touch perfbook-lt.tex # Force re-run of "utilities/autodate.sh"
 if ! make 1c
 then
 	git tag -d "${gittag}"
