@@ -67,9 +67,9 @@ counting.
 	structures allocated in order to fail any allocations
 	once the number of structures in use exceeds a limit
 	(say, 10,000).
-	Suppose further that these structures are short-lived,
-	that the limit is rarely exceeded, and that a ``sloppy''
-	approximate limit is acceptable.
+	Suppose further that the structures are short-lived, the
+	limit is rarely exceeded, and a ``sloppy'' approximate limit
+	is acceptable.
 }\EQuickQuizAnswer{
 	Hint: The act of updating the counter must again be blazingly
 	fast, but the counter is read out each time that the
@@ -139,22 +139,21 @@ counting.
 
 \QuickQuizLabel{\QcountQIOcnt}
 
-The remainder of this chapter will develop answers to these questions.
 Section~\ref{sec:count:Why Isn't Concurrent Counting Trivial?}
-asks why counting on multicore systems isn't trivial, and
-Section~\ref{sec:count:Statistical Counters}
-looks into ways of solving the network-packet counting problem.
-Section~\ref{sec:count:Approximate Limit Counters}
-investigates the approximate structure-allocation limit problem, while
+shows why counting is non-trivial.
+\cref{sec:count:Statistical Counters} and
+\cref{sec:count:Approximate Limit Counters}
+investigate network-packet counting and approximate structure-allocation
+limits, respectively.
 Section~\ref{sec:count:Exact Limit Counters}
-takes on the exact structure-allocation limit problem.
+takes on exact structure-allocation limits.
 Finally, Section~\ref{sec:count:Parallel Counting Discussion}
-concludes the chapter with performance measurements.
+presents performance measurements and discussion.
 
 \Cref{sec:count:Why Isn't Concurrent Counting Trivial?,%
 sec:count:Statistical Counters}
 contain introductory material, while the remaining sections
-are more appropriate for advanced students.
+are more advanced.
 
 \section{Why Isn't Concurrent Counting Trivial?}
 \label{sec:count:Why Isn't Concurrent Counting Trivial?}
@@ -170,6 +169,18 @@ line~\lnref{inc}, and we read out its value on line~\lnref{read}.
 What could be simpler?
 \end{fcvref}
 
+\QuickQuiz{
+	One thing that could be simpler is \co{++} instead of that
+	concatenation of \co{READ_ONCE()} and \co{WRITE_ONCE()}.
+	Why all that extra typing???
+}\QuickQuizAnswer{
+	See \cref{sec:toolsoftrade:Shared-Variable Shenanigans}
+	on page~\pageref{sec:toolsoftrade:Shared-Variable Shenanigans}
+	for more information on how the compiler can cause trouble,
+	as well as how \co{READ_ONCE()} and \co{WRITE_ONCE()} can avoid
+	this trouble.
+}\QuickQuizEnd
+
 \begin{listing}[tbp]
 \input{CodeSamples/count/count_nonatomic@inc-read.fcv}
 \caption{Just Count!}
@@ -182,15 +193,15 @@ systems, the performance is excellent.
 
 There is just one large fly in the ointment: this approach can lose
 counts.
-On my dual-core laptop, a short run invoked \co{inc_count()}
-100,014,000 times, but the final value of the counter was only
-52,909,118.
-Although approximate values do have their place in computing,
-accuracies far greater than 50\,\% are almost always necessary.
+On my six-core x86 laptop, a short run invoked \co{inc_count()}
+285,824,000 times, but the final value of the counter was only
+35,385,525.
+Although approximation does have a large place in computing, loss of
+seven out of eight counts is a bit excessive.
 
 \QuickQuizSeries{%
 \QuickQuizB{
-	But can't a smart compiler prove
+	But can't a smart compiler prove that
 	line~\ref{ln:count:count_nonatomic:inc-read:inc}
 	of
 	Listing~\ref{lst:count:Just Count!}
@@ -210,9 +221,8 @@ accuracies far greater than 50\,\% are almost always necessary.
 	\co{READ_ONCE()} and \co{WRITE_ONCE()}, which tell
 	the compiler that the location might well be an MMIO
 	device register.
-	Because MMIO registers are not cached, it would be unwise
-	for the compiler to assume that the increment operation would in
-	fact be way atomic.
+	Because MMIO registers are not cached, it would be unwise for
+	the compiler to assume that the increment operation is atomic.
 }\QuickQuizEndB
 %
 \QuickQuizE{
@@ -235,7 +245,7 @@ accuracies far greater than 50\,\% are almost always necessary.
 	\path{counttorture.h} test setup used here.
 	After all, proofs are only as good as the assumptions that they
 	are based on.
-	Furthermore, proofs can have bugs just as easily as programs can!
+	Finally, proofs can be every bit as buggy as are programs!
 }\QuickQuizEndE
 }
 
@@ -261,20 +271,19 @@ line~\lnref{inc} atomically increments it, and
 line~\lnref{read} reads it out.
 \end{fcvref}
 Because this is atomic, it keeps perfect count.
-However, it is slower: on a Intel Core Duo laptop, it is about
-six times slower than non-atomic increment
-when a single thread is incrementing, and more than \emph{ten times}
-slower if two threads are incrementing.\footnote{
-	Interestingly enough, a pair of threads non-atomically incrementing
-	a counter will cause the counter to increase more quickly than
-	a pair of threads atomically incrementing the counter.
+However, it is slower: on my six-core x86 laptop, it is more than
+twenty times slower than non-atomic increment, even
+when only a single thread is incrementing.\footnote{
+	Interestingly enough, non-atomically incrementing a counter will
+	advance the counter more quickly than atomically incrementing
+	the counter.
 	Of course, if your only goal is to make the counter increase
 	quickly, an easier approach is to simply assign a large value
 	to the counter.
 	Nevertheless, there is likely to be a role for algorithms that
 	use carefully relaxed notions of correctness in order to gain
 	greater performance and
-	scalability~\cite{Andrews91textbook,Arcangeli03,DavidUngar2011unsync}.}
+	scalability~\cite{Andrews91textbook,Arcangeli03,10.5555/3241639.3241645,DavidUngar2011unsync}.}
 
 This poor performance should not be a surprise, given the discussion in
 Chapter~\ref{chp:Hardware and its Habits},
@@ -292,7 +301,7 @@ additional CPUs.
 
 \QuickQuizSeries{%
 \QuickQuizB{
-	Why doesn't the dashed line on the x~axis meet the
+	Why doesn't the horizontal dashed line on the x~axis meet the
 	diagonal line at $x=1$?
 }\QuickQuizAnswerB{
 	Because of the overhead of the atomic operation.
@@ -433,12 +442,14 @@ posed in \QuickQuizRef{\QcountQstatcnt}.
 Statistical counting is typically handled by providing a counter per
 thread (or CPU, when running in the kernel), so that each thread
 updates its own counter, as was foreshadowed in
-Section~\ref{sec:toolsoftrade:Per-CPU Variables}.
+Section~\ref{sec:toolsoftrade:Per-CPU Variables}
+on page~\pageref{sec:toolsoftrade:Per-CPU Variables}.
 The aggregate value of the counters is read out by simply summing up
 all of the threads' counters,
 relying on the commutative and associative properties of addition.
 This is an example of the Data Ownership pattern that will be introduced in
-Section~\ref{sec:SMPdesign:Data Ownership}.
+Section~\ref{sec:SMPdesign:Data Ownership}
+on page~\pageref{sec:SMPdesign:Data Ownership}.
 
 \QuickQuiz{
 	But doesn't the fact that C's ``integers'' are limited in size
@@ -452,7 +463,7 @@ Section~\ref{sec:SMPdesign:Data Ownership}.
 	Unfortunately, compilers frequently carry out optimizations that
 	assume that signed integers will not overflow, so if your code
 	allows signed integers to overflow, you can run into trouble
-	even on twos-complement hardware.
+	even on modern twos-complement hardware.
 
 	That said, one potential source of additional complexity arises
 	when attempting to gather (say) a 64-bit sum from 32-bit
@@ -513,78 +524,13 @@ The use of \co{WRITE_ONCE()} prevents this optimization and others besides.
 \QuickQuiz{
 	What other nasty optimizations could \GCC\ apply?
 }\QuickQuizAnswer{
-	According to the C standard, the effects of doing a normal store
-	to a variable that might be concurrently loaded by some other
-	thread are undefined.
-	It turns out that the C standard really has no other choice,
-	given that C must support (for example) eight-bit architectures
-	which are incapable of atomically loading a \co{long}.
-	Recent versions of the C standard have introduced atomics, which
-	are intended to fill this gap.
-	However, an attempt to apply them to the Linux kernel gave
-	at best mixed results~\cite{JonathanCorbet2016C11atomics},
-	in part due to the poor quality of code emitted for atomics.
-	In addition, the Linux kernel expects much more from its
-	memory model than C11 atomics provide, including control
-	dependencies, full barriers/fences, and low-overhead address
-	and data dependencies~\cite{PaulEMcKenney2016P0124R5-LKMM}.
-
-	At some point, C11 atomics might close these gaps,
-	but until then, the Linux kernel uses a combination of
-	volatile accesses, inline assembly, compiler directives,
-	and coding standards to safely access shared variables.
-	This approach allows the Linux kernel to maintain excellent
-	performance and also to make good use of older compilers
-	that do not support C11 atomics, however, it also requires
-	some effort to port the Linux kernel to a new CPU architecture.
-	That said, significant effort would be required even if C11
-	atomics could be used directly due to the need to handle context
-	switches, interrupts, exceptions, memory-management units,
-	power control for energy efficiency, and much else besides.
-	It is therefore reasonable to expect that any Linux-kernel
-	adoption of C11 atomics will be incremental at best.
-
-	But if the code is doing loads and stores that the underlying
-	hardware can implement with single instructions, why not just
-	use plain old C-language assignment statements to access shared
-	variables?
-	The problem is that the compiler is within its rights to assume
-	that no other thread is modifying the variable being accessed.
-	Given a plain old C-language load, the compiler would therefore
-	be within its rights to do the load byte at a time
-	(``load tearing''), repeat the load (popular if register
-	pressure is high), or fuse a pair of consecutive loads from
-	the same variable.
-	Given a plain old C-language store, the compiler would be within
-	its rights to do the store byte at a time (``store tearing''),
-	invent a store (for example, using the stored-to variable as
-	a temporary just prior to the intended store), or omit a store
-	in favor of a later store to the same variable.
-	Although each of these actions would preserve the correctness
-	of a single-threaded algorithm, any of them could easily destroy
-	the correctness of a concurrent algorithm.
-	Given a major tenet of shared-memory concurrency is to support
-	such conflicting accesses, it is quite unwise to use normal
-	C-language loads and stores when accessing variables that might
-	be concurrently updated by other threads.
-	Further, given that current C11 atomics are not (yet?) a good
-	match for the Linux kernel, something else is required.
-
-	One approach is to prevent concurrent updates by using
-	blocking synchronization primitives such as locking
-	(see Chapter~\ref{chp:Locking}).
-	Alternatively, volatile accesses may be used, such as those provided
-	by \co{READ_ONCE()} and \co{WRITE_ONCE()},\footnote{
-		Simple definitions of \co{READ_ONCE()} and
-		\co{WRITE_ONCE()} are shown in
-		Listing~\ref{lst:toolsoftrade:Compiler Barrier Primitive (for GCC)}.}
-	at least in cases where the hardware is capable of accessing
-	the value with a single memory-reference instruction.
-	However, volatile accesses do not by themselves suffice for
-	high-performance and reliable synchronization mechanisms.
-	The Linux kernel therefore combines volatile accesses with
-	the aforementioned inline assembly, compiler directives, and
-	coding standards.
+	See \cref{sec:toolsoftrade:Shared-Variable Shenanigans,%
+	sec:memorder:Compile-Time Consternation}
+	for more information.
+	One nasty optimization would be to apply common subexpression
+	elimination to successive calls to the \co{read_count()} function,
+	which might come as a surprise to code expecting changes in the
+	values returned from successive calls to that function.
 }\QuickQuizEnd
 
 \Clnrefrange{read:b}{read:e}
@@ -599,7 +545,8 @@ might be inlined, and an intrepid optimizer might notice that the same
 locations were being summed and thus incorrectly conclude that it would
 be simply wonderful to sum them once and use the resulting value twice.
 This sort of optimization might be rather frustrating to people expecting
-later \co{read_count()} calls to return larger values.
+later \co{read_count()} calls to account for the activities of other
+threads.
 The use of \co{READ_ONCE()} prevents this optimization and others besides.
 \end{fcvref}
 
@@ -610,12 +557,12 @@ The use of \co{READ_ONCE()} prevents this optimization and others besides.
 	get initialized?
 }\QuickQuizAnswerB{
 	The C standard specifies that the initial value of
-	global variables is zero, unless they are explicitly initialized.
-	So the initial value of all the instances of \co{counter}
-	will be zero.
-	Furthermore, in the common case where the user is interested only
-	in differences between consecutive reads
-	from statistical counters, the initial value is irrelevant.
+	global variables is zero, unless they are explicitly initialized,
+	thus implicitly initializing all the instances of \co{counter}
+	to zero.
+	Besides, in the common case where the user is interested only in
+	differences between consecutive reads from statistical counters,
+	the initial value is irrelevant.
 }\QuickQuizEndB
 %
 \QuickQuizE{
@@ -825,8 +772,12 @@ summing the per-thread local \co{counter} and storing the
 sum to the \co{global_count} variable.
 The \co{eventual()} thread waits an arbitrarily chosen one millisecond
 between passes.
+
 The \co{count_cleanup()} function on
 \clnrefrange{cleanup:b}{cleanup:e} coordinates termination.
+The calls to \co{smp_mb()} here and in \co{eventual()} ensure
+that all updates to \co{global_count} are visible to code following
+the call to \co{count_cleanup()}.
 
 This approach gives extremely fast counter read-out while still
 supporting linear counter-update performance.
@@ -1004,8 +955,8 @@ value of the counter and exiting threads.
 	A key limitation that the Linux kernel imposes is a compile-time
 	maximum bound on the number of CPUs, namely, \co{CONFIG_NR_CPUS},
 	along with a typically tighter boot-time bound of \co{nr_cpu_ids}.
-	In contrast, in user space, there is no hard-coded upper limit
-	on the number of threads.
+	In contrast, in user space, there is not necessarily a hard-coded
+	upper limit on the number of threads.
 
 	Of course, both environments must handle dynamically loaded
 	code (dynamic libraries in user space, kernel modules in the
@@ -1162,9 +1113,9 @@ variables vanish when that thread exits.
 
 \subsection{Discussion}
 
-These three implementations show that it is possible to obtain uniprocessor
-performance for statistical counters, despite running on a parallel
-machine.
+These three implementations show that it is possible to obtain
+near-uniprocessor performance for statistical counters, despite running
+on a parallel machine.
 
 \QuickQuizSeries{%
 \QuickQuizB{
@@ -1202,19 +1153,26 @@ machine.
 }\QuickQuizEndB
 %
 \QuickQuizE{
-	Given that the reader must sum all the threads' counters,
-	this could take a long time given large numbers of threads.
+	Given that the reader must sum all the threads' counters, this
+	counter-read operation could take a long time given large numbers
+	of threads.
 	Is there any way that the increment operation can remain
 	fast and scalable while allowing readers to also enjoy
 	reasonable performance and scalability?
 }\QuickQuizAnswerE{
 	One approach would be to maintain a global approximation
-	to the value.
+	to the value, similar to the approach described in
+	\cref{sec:count:Eventually Consistent Implementation}.
 	Updaters would increment their per-thread variable, but when it
 	reached some predefined limit, atomically add it to a global
 	variable, then zero their per-thread variable.
 	This would permit a tradeoff between average increment overhead
 	and accuracy of the value read out.
+
+	Another approach makes use of the fact that readers often care
+	only about certain transitions in value, not in the exact value.
+	This approach is examined in
+	\cref{sec:count:Approximate Limit Counters}.
 
 	The reader is encouraged to think up and try out other approaches,
 	for example, using a combining tree.
@@ -1356,7 +1314,7 @@ on line~\lnref{globalcount} is the global counter.
 The sum of \co{globalcount} and each thread's \co{counter} gives
 the aggregate value of the overall counter.
 The \co{globalreserve} variable on
-line~\lnref{globalreserve} is the sum of all of the
+line~\lnref{globalreserve} is at least the sum of all of the
 per-thread \co{countermax} variables.
 \end{fcvref}
 The relationship among these variables is shown by
@@ -1586,6 +1544,12 @@ line~\lnref{return:gs} returns success.
 	And unless you have some anti-matter memory, there is little
 	point in allowing negative numbers when counting the number
 	of structures in use!
+
+	All kidding aside, it would of course be possible to combine
+	\co{add_count()} and \co{sub_count()}, however, the \co{if}
+	conditions on the combined function would be more complex
+	than in the current pair of functions, which would in turn
+	mean slower execution of these fast paths.
 }\QuickQuizEnd
 
 \begin{fcvref}[ln:count:count_lim:add_sub_read:read]
@@ -2208,8 +2172,7 @@ line~\lnref{glbrsv} subtracts this thread's \co{countermax} from \co{globalreser
 	the \co{counterandmax} variable while
 	\co{flush_local_count()} is accessing it on
         line~\ref{ln:count:count_lim_atomic:utility1:flush:atmxchg} of
-	Listing~\ref{lst:count:Atomic Limit Counter Utility Functions 1}
-	empties it?
+	Listing~\ref{lst:count:Atomic Limit Counter Utility Functions 1}?
 }\QuickQuizAnswerE{
 	Nothing.
 	Consider the following three cases:
@@ -2642,8 +2605,8 @@ reader.
 
 \subsection{Signal-Theft Limit Counter Discussion}
 
-The signal-theft implementation runs more than twice as fast as the
-atomic implementation on my Intel Core Duo laptop.
+The signal-theft implementation runs more than eight times as fast as the
+atomic implementation on my six-core x86 laptop.
 Is it always preferable?
 
 The signal-theft implementation would be vastly preferable on Pentium-4
@@ -2959,9 +2922,9 @@ courtesy of eventual consistency.
 
 The bottom half of \cref{tab:count:Statistical/Limit Counter Performance on x86}
 shows the performance of the parallel limit-counting algorithms.
-Exact enforcement of the limits incurs a substantial performance
-penalty, although on this x86 system that penalty can be reduced
-by substituting signals for atomic operations.
+Exact enforcement of the limits incurs a substantial update-side
+performance penalty, although on this x86 system that penalty can be
+reduced by substituting signals for atomic operations.
 All of these implementations suffer from read-side lock contention
 in the face of concurrent readers.
 
@@ -3146,7 +3109,7 @@ Section~\ref{sec:SMPdesign:Data Ownership}
 and discussed in more detail in
 Chapter~\ref{chp:Data Ownership}.
 
-Because integer addition and subtraction are extremely cheap operations
+Because integer addition and subtraction are extremely cheap
 compared to typical synchronization operations, achieving reasonable
 scalability requires synchronization operations be used sparingly.
 One way of achieving this is to batch the addition and subtraction
