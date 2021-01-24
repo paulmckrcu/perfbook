@@ -10,6 +10,7 @@ LATEXSOURCES = \
 	noindentafter.sty \
 	pfbook.cls \
 	ushyphex.tex pfhyphex.tex \
+	ack.tex \
 	*/*.tex \
 	*/*/*.tex
 
