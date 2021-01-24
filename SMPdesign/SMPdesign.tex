@@ -392,7 +392,7 @@ structure having its own \co{alloc_lock} and \co{pi_lock}.
 
 A key challenge with data locking on dynamically allocated structures
 is ensuring that the structure remains in existence while the lock is
-being acquired.
+being acquired~\cite{Gamsa99}.
 The code in
 Listing~\ref{lst:SMPdesign:Data-Locking Hash Table Search}
 finesses this challenge by placing the locks in the statically allocated
@@ -562,7 +562,7 @@ $\lambda$ is an inverse measure of the overhead of each non-synchronization
 unit of work.
 For example, if each unit of work was a transaction, and if each transaction
 took one millisecond to process, excluding synchronization overhead,
-then $\lambda$ would be 1,000 transactions per second.
+then $\lambda$ would be 1,000~transactions per second.
 
 The service rate $\mu$ is defined similarly, but for the average
 number of synchronization operations per second that the system
@@ -570,31 +570,32 @@ would process if the overhead of each transaction was zero, and
 ignoring the fact that CPUs must wait on each other to complete
 their synchronization operations, in other words, $\mu$ can be roughly
 thought of as the synchronization overhead in absence of contention.
-For example, suppose that each synchronization operation involves an atomic
-increment instruction, and that a computer system is able to do
-an atomic increment every 25 nanoseconds on each CPU
-to a private variable.\footnote{
+For example, suppose that each transaction's synchronization operation
+involves an atomic increment instruction, and that a computer system is
+able to do a private-variable atomic increment every 5~nanoseconds on
+each CPU
+(see \cref{fig:count:Atomic Increment Scalability on x86}).\footnote{
 	Of course, if there are 8 CPUs all incrementing the same
-	shared variable, then each CPU must wait at least 175 nanoseconds
+	shared variable, then each CPU must wait at least 35~nanoseconds
 	for each of the other CPUs to do its increment before consuming
-	an additional 25 nanoseconds doing its own increment.
+	an additional 5~nanoseconds doing its own increment.
 	In fact, the wait will be longer due to the need
 	to move the variable from one CPU to another.}
-The value of $\mu$ is therefore about 40,000,000 atomic increments
+The value of $\mu$ is therefore about 200,000,000 atomic increments
 per second.
 
-Of course, the value of $\lambda$ increases with increasing numbers of
-CPUs, as each CPU is capable of processing transactions independently
-(again, ignoring synchronization):
+Of course, the value of $\lambda$ increases as increasing numbers of CPUs
+increment a shared variable because each CPU is capable of processing
+transactions independently (again, ignoring synchronization):
 
 \begin{equation}
 	\lambda = n \lambda_0
 \end{equation}
 
-where $n$ is the number of CPUs and $\lambda_0$ is the transaction-processing
+Here, $n$ is the number of CPUs and $\lambda_0$ is the transaction-processing
 capability of a single CPU.
 Note that the expected time for a single CPU to execute a single transaction
-is $1 / \lambda_0$.
+in the absence of contention is $1 / \lambda_0$.
 
 Because the CPUs have to ``wait in line'' behind each other to get their
 chance to increment the single shared variable, we can use the M/M/1
@@ -643,21 +644,23 @@ If we call this ratio $f$, we have:
 Figure~\ref{fig:SMPdesign:Synchronization Efficiency} plots the synchronization
 efficiency $e$ as a function of the number of CPUs/threads $n$ for
 a few values of the overhead ratio $f$.
-For example, again using the 25-nanosecond atomic increment, the
-$f=10$ line corresponds to each CPU attempting an atomic increment
-every 250 nanoseconds, and the $f=100$ line corresponds to each
-CPU attempting an atomic increment every 2.5 microseconds,
-which in turn corresponds to several thousand instructions.
+For example, again using the 5-nanosecond atomic increment, the $f=10$
+line corresponds to each CPU attempting an atomic increment every
+50~nanoseconds, and the $f=100$ line corresponds to each CPU attempting
+an atomic increment every 500~nanoseconds, which in turn corresponds to
+some hundreds (perhaps thousands) of instructions.
 Given that each trace drops off sharply with increasing numbers of
 CPUs or threads, we can conclude that
 synchronization mechanisms based on
 atomic manipulation of a single global shared variable will not
 scale well if used heavily on current commodity hardware.
-This is a mathematical depiction of the forces leading to the parallel
-counting algorithms that were discussed in Chapter~\ref{chp:Counting}.
+This is an abstract mathematical depiction of the forces leading
+to the parallel counting algorithms that were discussed in
+Chapter~\ref{chp:Counting}.
+Your real-world mileage may differ.
 
-The concept of efficiency is useful even in cases having little or
-no formal synchronization.
+Nevertheless, the concept of efficiency is useful, and even in cases
+having little or no formal synchronization.
 Consider for example a matrix multiply, in which the columns of one
 matrix are multiplied (via ``dot product'') by the rows of another,
 resulting in an entry in a third matrix.
@@ -680,7 +683,12 @@ However,
 Figure~\ref{fig:SMPdesign:Matrix Multiply Efficiency}
 tells a different story, especially for a 64-by-64 matrix multiply,
 which never gets above an efficiency of about 0.3, even when running
-single-threaded, and drops sharply as more threads are added.
+single-threaded, and drops sharply as more threads are added.\footnote{
+	In contrast to the smooth traces of
+	\cref{fig:SMPdesign:Synchronization Efficiency},
+	the wide error bars and jagged traces of
+	\cref{fig:SMPdesign:Matrix Multiply Efficiency}
+	gives evidence of its real-world nature.}
 The 128-by-128 matrix does better, but still fails to demonstrate
 much performance increase with added threads.
 The 256-by-256 matrix does scale reasonably well, but only up to a handful
@@ -697,7 +705,7 @@ overhead, you may as well get your money's worth.
 	have an efficiency of less than 1.0?
 	Shouldn't all of the traces in
 	Figure~\ref{fig:SMPdesign:Matrix Multiply Efficiency}
-	have efficiency of exactly 1.0 when running on only one thread?
+	have efficiency of exactly 1.0 when running on one thread?
 }\QuickQuizAnswer{
 	The \path{matmul.c} program creates the specified number of
 	worker threads, so even the single-worker-thread case incurs
@@ -785,8 +793,11 @@ as depicted in Figure~\ref{fig:SMPdesign:Parallel-Fastpath Design Patterns}:
 	(described below in Section~\ref{sec:SMPdesign:Reader/Writer Locking}).
 \item	Read-copy update (RCU), which may be used as a high-performance
 	replacement for reader/writer locking, is introduced in
-	Section~\ref{sec:defer:Read-Copy Update (RCU)}, and will not
-	be discussed further in this chapter.
+	Section~\ref{sec:defer:Read-Copy Update (RCU)}.
+	Other alternatives include hazard pointers
+	(\cref{sec:defer:Hazard Pointers})
+	and sequence locking (\cref{sec:defer:Sequence Locks}).
+	These alternatives will not be discussed further in this chapter.
 \item   Hierarchical Locking~(\cite{McKenney95b}), which is touched upon
 	in Section~\ref{sec:SMPdesign:Hierarchical Locking}.
 \item	Resource Allocator Caches~(\cite{McKenney95b,McKenney93}).
@@ -933,7 +944,7 @@ int hash_search(struct hash_table *h, long key)
 This section presents a simplified schematic of a parallel fixed-block-size
 memory allocator.
 More detailed descriptions may be found in the
-literature~\cite{McKenney92a,McKenney93,Bonwick01slab,McKenney01e}
+literature~\cite{McKenney92a,McKenney93,Bonwick01slab,McKenney01e,JasonEvans2011jemalloc,ChrisKennelly2020tcmalloc}
 or in the Linux kernel~\cite{Torvalds2.6kernel}.
 
 \subsubsection{Parallel Resource Allocation Problem}
@@ -946,11 +957,11 @@ memory in face of unfavorable allocation and freeing patterns.
 To see this tension, consider a straightforward application of
 data ownership to this problem---simply carve up memory so that
 each CPU owns its share.
-For example, suppose that a system with two CPUs has two gigabytes
-of memory (such as the one that I am typing on right now).
-We could simply assign each CPU one gigabyte of memory, and allow each
-CPU to allocate from its own gigabyte, without the need for locking and
-its complexities and overheads.
+For example, suppose that a system with 12~CPUs has 64~gigabytes
+of memory, for example, the laptop I am using right now.
+We could simply assign each CPU a five-gigabyte region of memory,
+and allow each CPU to allocate from its own region, without the need
+for locking and its complexities and overheads.
 Unfortunately, this scheme fails when CPU~0 only allocates memory and
 CPU~1 only frees it, as happens in simple producer-consumer workloads.
 
