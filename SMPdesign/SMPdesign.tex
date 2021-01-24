@@ -82,15 +82,15 @@ increasing performance will increasingly require parallelism.\footnote{
 	The reason for taking this approach is that the newer CPUs'
 	ability to retire multiple instructions per clock is typically
 	limited by memory-system performance.}
-The debate as to whether this new trend will result in single chips
-with thousands
-of CPUs will not be settled soon, but given that Paul is typing this
-sentence on a dual-core laptop, the age of SMP does seem to be upon us.
-It is also important to note that Ethernet bandwidth is continuing
-to grow, as shown in
+Given that back in 2006 Paul typed the first version of this sentence
+on a dual-core laptop, and further given that many of the graphs added
+in 2020 were generated on a system with 56~hardware threads per socket,
+parallelism is well and truly here.
+It is also important to note that Ethernet bandwidth is continuing to
+grow, as shown in
 Figure~\ref{fig:SMPdesign:Ethernet Bandwidth vs. Intel x86 CPU Performance}.
-This growth will motivate multithreaded servers in order to handle
-the communications load.
+This growth will continue to motivate multithreaded servers in order to
+handle the communications load.
 
 \begin{figure}[tbp]
 \centering
@@ -121,6 +121,8 @@ A key point is that speedups due to parallelism are normally
 limited to the number of CPUs.
 In contrast, speedups due to sequential optimizations, for example,
 careful choice of data structure, can be arbitrarily large.
+
+On the other hand, if you are not in this happy situation, read on!
 
 \begin{listing}[tbhp]
 \begin{VerbatimL}[commandchars=\\\[\]]
@@ -160,8 +162,6 @@ int hash_search(struct hash_table *h, long key)
 % ./test_hash_null.exe: avg = 91.5592  max = 97.3315  min = 89.9885  std = 2.88925
 % ./test_hash_null.exe: nmilli: 1000 update/total: 0/100 nelements: 1 nbuckets: 1024 nthreads: 1
 % ./test_hash_null.exe: avg = 93.3568  max = 106.162  min = 89.8828  std = 6.40418
-
-On the other hand, if you are not in this happy situation, read on!
 
 \subsection{Code Locking}
 \label{sec:SMPdesign:Code Locking}
@@ -335,9 +335,8 @@ data locking helps promote harmony, as illustrated by
 Figure~\ref{fig:SMPdesign:Data Locking}---and in parallel programs,
 this \emph{almost} always translates into increased performance and
 scalability.
-For this reason, data locking was heavily used by Sequent in
-both its DYNIX and DYNIX/ptx operating
-systems~\cite{Beck85,Inman85,Garg90,Dove90,McKenney92b,McKenney92a,McKenney93}.
+For this reason, data locking was heavily used by Sequent in its
+kernels~\cite{Beck85,Inman85,Garg90,Dove90,McKenney92b,McKenney92a,McKenney93}.
 
 \begin{figure}[tbh]
 \centering
@@ -383,12 +382,13 @@ shown in Figure~\ref{fig:SMPdesign:Data and Skew}.
 
 In many cases, algorithms can be designed to reduce the instance of
 data skew, and in some cases eliminate it entirely
-(as appears to be possible with the Linux kernel's dcache~\cite{McKenney04a}).
+(for example, in the Linux kernel's
+dcache~\cite{McKenney04a,JonathanCorbet2010dcacheRCU,NeilBrown2015PathnameLookup,NeilBrown2015RCUwalk,NeilBrown2015PathnameSymlinks}).
 Data locking is often used for partitionable data structures such as
 hash tables, as well as in situations where multiple entities are each
 represented by an instance of a given data structure.
-The task list in version 2.6.17 of the Linux kernel is an example of the
-latter, each task structure having its own \co{proc_lock}.
+The Linux-kernel task list is an example of the latter, each task
+structure having its own \co{alloc_lock} and \co{pi_lock}.
 
 A key challenge with data locking on dynamically allocated structures
 is ensuring that the structure remains in existence while the lock is
