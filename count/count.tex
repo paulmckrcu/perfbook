@@ -711,8 +711,235 @@ at the beginning of this chapter.
 
 \QuickQuizLabel{\StatisticalCounterAccuracy}
 
-However, this excellent update-side scalability comes at great read-side
-expense for large numbers of threads.
+However, many implementations provide cheaper mechanisms for
+per-thread data that are free from arbitrary array-size limits.
+This is the topic of the next section.
+
+\subsection{Per-Thread-Variable-Based Implementation}
+\label{sec:count:Per-Thread-Variable-Based Implementation}
+
+\GCC\ provides an \co{__thread} storage class that provides
+per-thread storage.
+This can be used as shown in
+Listing~\ref{lst:count:Per-Thread Statistical Counters} (\path{count_end.c})
+to implement
+a statistical counter that not only scales well and avoids arbitrary
+thread-number limits, but that also incurs little or no performance
+penalty to incrementers compared to simple non-atomic increment.
+
+\begin{listing}[tb]
+\input{CodeSamples/count/count_end@whole.fcv}
+\caption{Per-Thread Statistical Counters}
+\label{lst:count:Per-Thread Statistical Counters}
+\end{listing}
+
+\begin{fcvref}[ln:count:count_end:whole]
+\Clnrefrange{var:b}{var:e} define needed variables:
+\co{counter} is the per-thread counter
+variable, the \co{counterp[]} array allows threads to access each others'
+counters, \co{finalcount} accumulates the total as individual threads exit,
+and \co{final_mutex} coordinates between threads accumulating the total
+value of the counter and exiting threads.
+\end{fcvref}
+
+\QuickQuiz{
+	Doesn't that explicit \co{counterp} array in
+	\cref{lst:count:Per-Thread Statistical Counters}
+	reimpose an arbitrary limit on the number of threads?
+	Why doesn't \GCC\ provide a \co{per_thread()} interface, similar
+	to the Linux kernel's \co{per_cpu()} primitive, to allow
+	threads to more easily access each others' per-thread variables?
+}\QuickQuizAnswer{
+	Why indeed?
+
+	To be fair, \GCC\ faces some challenges that the Linux kernel
+	gets to ignore.
+	When a user-level thread exits, its per-thread variables all
+	disappear, which complicates the problem of per-thread-variable
+	access, particularly before the advent of user-level RCU
+	(see Section~\ref{sec:defer:Read-Copy Update (RCU)}).
+	In contrast, in the Linux kernel, when a CPU goes offline,
+	that CPU's per-CPU variables remain mapped and accessible.
+
+	Similarly, when a new user-level thread is created, its
+	per-thread variables suddenly come into existence.
+	In contrast, in the Linux kernel, all per-CPU variables are
+	mapped and initialized at boot time, regardless of whether
+	the corresponding CPU exists yet, or indeed, whether the
+	corresponding CPU will ever exist.
+
+	A key limitation that the Linux kernel imposes is a compile-time
+	maximum bound on the number of CPUs, namely, \co{CONFIG_NR_CPUS},
+	along with a typically tighter boot-time bound of \co{nr_cpu_ids}.
+	In contrast, in user space, there is not necessarily a hard-coded
+	upper limit on the number of threads.
+
+	Of course, both environments must handle dynamically loaded
+	code (dynamic libraries in user space, kernel modules in the
+	Linux kernel), which increases the complexity of per-thread
+	variables.
+
+	These complications make it significantly harder for user-space
+	environments to provide access to other threads' per-thread
+	variables.
+	Nevertheless, such access is highly useful, and it is hoped
+	that it will someday appear.
+
+	In the meantime, textbook examples such as this one can use
+	arrays whose limits can be easily adjusted by the user.
+	Alternatively, such arrays can be dynamically allocated and
+	expanded as needed at runtime.
+	Finally, variable-length data structures such as linked
+	lists can be used, as is done in the userspace RCU
+	library~\cite{MathieuDesnoyers2009URCU,MathieuDesnoyers2012URCU}.
+	This last approach can also reduce false sharing in some cases.
+}\QuickQuizEnd
+
+\begin{fcvref}[ln:count:count_end:whole:inc]
+The \co{inc_count()} function used by updaters is quite simple, as can
+be seen on \clnrefrange{b}{e}.
+\end{fcvref}
+
+\begin{fcvref}[ln:count:count_end:whole:read]
+The \co{read_count()} function used by readers is a bit more complex.
+Line~\lnref{acquire} acquires a lock to exclude exiting threads, and
+line~\lnref{release} releases it.
+Line~\lnref{sum:init} initializes the sum to the count accumulated by those threads that
+have already exited, and
+\clnrefrange{loop:b}{loop:e} sum the counts being accumulated
+by threads currently running.
+Finally, line~\lnref{return} returns the sum.
+\end{fcvref}
+
+\QuickQuizSeries{%
+\QuickQuizB{
+	\begin{fcvref}[ln:count:count_end:whole:read]
+	Doesn't the check for \co{NULL} on line~\lnref{check} of
+	Listing~\ref{lst:count:Per-Thread Statistical Counters}
+	add extra branch mispredictions?
+	Why not have a variable set permanently to zero, and point
+	unused counter-pointers to that variable rather than setting
+	them to \co{NULL}?
+	\end{fcvref}
+}\QuickQuizAnswerB{
+	This is a reasonable strategy.
+	Checking for the performance difference is left as an exercise
+	for the reader.
+	However, please keep in mind that the fastpath is not
+	\co{read_count()}, but rather \co{inc_count()}.
+}\QuickQuizEndB
+%
+\QuickQuizE{
+	Why on earth do we need something as heavyweight as a \emph{lock}
+	guarding the summation in the function \co{read_count()} in
+	Listing~\ref{lst:count:Per-Thread Statistical Counters}?
+}\QuickQuizAnswerE{
+	Remember, when a thread exits, its per-thread variables disappear.
+	Therefore, if we attempt to access a given thread's per-thread
+	variables after that thread exits, we will get a segmentation
+	fault.
+	The lock coordinates summation and thread exit, preventing this
+	scenario.
+
+	Of course, we could instead read-acquire a reader-writer lock,
+	but Chapter~\ref{chp:Deferred Processing} will introduce even
+	lighter-weight mechanisms for implementing the required coordination.
+
+	Another approach would be to use an array instead of a per-thread
+	variable, which, as Alexey Roytman notes, would eliminate
+	the tests against \co{NULL}.
+	However, array accesses are often slower than accesses to
+	per-thread variables, and use of an array would imply a
+	fixed upper bound on the number of threads.
+	Also, note that neither tests nor locks are needed on the
+	\co{inc_count()} fastpath.
+}\QuickQuizEndE
+}
+
+\begin{fcvref}[ln:count:count_end:whole:reg]
+\Clnrefrange{b}{e} show the \co{count_register_thread()}
+function, which
+must be called by each thread before its first use of this counter.
+This function simply sets up this thread's element of the \co{counterp[]}
+array to point to its per-thread \co{counter} variable.
+\end{fcvref}
+
+\QuickQuiz{
+	Why on earth do we need to acquire the lock in
+	\co{count_register_thread()} in
+	Listing~\ref{lst:count:Per-Thread Statistical Counters}?
+	It is a single properly aligned machine-word store to a location
+	that no other thread is modifying, so it should be atomic anyway,
+	right?
+}\QuickQuizAnswer{
+	This lock could in fact be omitted, but better safe than
+	sorry, especially given that this function is executed only at
+	thread startup, and is therefore not on any critical path.
+	Now, if we were testing on machines with thousands of CPUs,
+	we might need to omit the lock, but on machines with ``only''
+	a hundred or so CPUs, there is no need to get fancy.
+}\QuickQuizEnd
+
+\begin{fcvref}[ln:count:count_end:whole:unreg]
+\Clnrefrange{b}{e} show the \co{count_unregister_thread()}
+function, which
+must be called prior to exit by each thread that previously called
+\co{count_register_thread()}.
+Line~\lnref{acquire} acquires the lock, and
+line~\lnref{release} releases it, thus excluding any
+calls to \co{read_count()} as well as other calls to
+\co{count_unregister_thread()}.
+Line~\lnref{add} adds this thread's \co{counter} to the global
+\co{finalcount},
+and then line~\lnref{NULL} \co{NULL}s out its \co{counterp[]} array entry.
+A subsequent call to \co{read_count()} will see the exiting thread's
+count in the global \co{finalcount}, and will skip the exiting thread
+when sequencing through the \co{counterp[]} array, thus obtaining
+the correct total.
+\end{fcvref}
+
+This approach gives updaters almost exactly the same performance as
+a non-atomic add, and also scales linearly.
+On the other hand, concurrent reads contend for a single global lock,
+and therefore perform poorly and scale abysmally.
+However, this is not a problem for statistical counters, where incrementing
+happens often and readout happens almost never.
+Of course, this approach is considerably more complex than the
+array-based scheme, due to the fact that a given thread's per-thread
+variables vanish when that thread exits.
+
+\QuickQuiz{
+	Fine, but the Linux kernel doesn't have to acquire a lock
+	when reading out the aggregate value of per-CPU counters.
+	So why should user-space code need to do this???
+}\QuickQuizAnswer{
+	Remember, the Linux kernel's per-CPU variables are always
+	accessible, even if the corresponding CPU is offline---even
+	if the corresponding CPU never existed and never will exist.
+
+\begin{listing}[tb]
+\input{CodeSamples/count/count_tstat@whole.fcv}
+\caption{Per-Thread Statistical Counters With Lockless Summation}
+\label{lst:count:Per-Thread Statistical Counters With Lockless Summation}
+\end{listing}
+
+	One workaround is to ensure that each thread continues to exist
+	until all threads are finished, as shown in
+	Listing~\ref{lst:count:Per-Thread Statistical Counters With Lockless Summation}
+	(\path{count_tstat.c}).
+	Analysis of this code is left as an exercise to the reader,
+	however, please note that it requires tweaks in the
+	\path{counttorture.h} counter-evaluation scheme.
+	(Hint: See \co{#ifndef KEEP_GCC_THREAD_LOCAL}.)
+	Chapter~\ref{chp:Deferred Processing} will introduce
+	synchronization mechanisms that handle this situation in a much
+	more graceful manner.
+}\QuickQuizEnd
+
+Both the array-based and \co{__thread}-based approaches offer excellent
+read-side performance and scalability.
+However, these benefits result in large read-side expense for large
+numbers of threads.
 The next section shows one way to reduce read-side expense while
 still retaining the update-side scalability.
 
@@ -900,217 +1127,6 @@ comes at the cost of the additional thread running \co{eventual()}.
 }\QuickQuizEndE
 }
 
-\subsection{Per-Thread-Variable-Based Implementation}
-\label{sec:count:Per-Thread-Variable-Based Implementation}
-
-Fortunately, \GCC\ provides an \co{__thread} storage class that provides
-per-thread storage.
-This can be used as shown in
-Listing~\ref{lst:count:Per-Thread Statistical Counters} (\path{count_end.c})
-to implement
-a statistical counter that not only scales, but that also incurs little
-or no performance penalty to incrementers compared to simple non-atomic
-increment.
-
-\begin{listing}[tb]
-\input{CodeSamples/count/count_end@whole.fcv}
-\caption{Per-Thread Statistical Counters}
-\label{lst:count:Per-Thread Statistical Counters}
-\end{listing}
-
-\begin{fcvref}[ln:count:count_end:whole]
-\Clnrefrange{var:b}{var:e} define needed variables:
-\co{counter} is the per-thread counter
-variable, the \co{counterp[]} array allows threads to access each others'
-counters, \co{finalcount} accumulates the total as individual threads exit,
-and \co{final_mutex} coordinates between threads accumulating the total
-value of the counter and exiting threads.
-\end{fcvref}
-
-\QuickQuiz{
-	Why do we need an explicit array to find the other threads'
-	counters?
-	Why doesn't \GCC\ provide a \co{per_thread()} interface, similar
-	to the Linux kernel's \co{per_cpu()} primitive, to allow
-	threads to more easily access each others' per-thread variables?
-}\QuickQuizAnswer{
-	Why indeed?
-
-	To be fair, \GCC\ faces some challenges that the Linux kernel
-	gets to ignore.
-	When a user-level thread exits, its per-thread variables all
-	disappear, which complicates the problem of per-thread-variable
-	access, particularly before the advent of user-level RCU
-	(see Section~\ref{sec:defer:Read-Copy Update (RCU)}).
-	In contrast, in the Linux kernel, when a CPU goes offline,
-	that CPU's per-CPU variables remain mapped and accessible.
-
-	Similarly, when a new user-level thread is created, its
-	per-thread variables suddenly come into existence.
-	In contrast, in the Linux kernel, all per-CPU variables are
-	mapped and initialized at boot time, regardless of whether
-	the corresponding CPU exists yet, or indeed, whether the
-	corresponding CPU will ever exist.
-
-	A key limitation that the Linux kernel imposes is a compile-time
-	maximum bound on the number of CPUs, namely, \co{CONFIG_NR_CPUS},
-	along with a typically tighter boot-time bound of \co{nr_cpu_ids}.
-	In contrast, in user space, there is not necessarily a hard-coded
-	upper limit on the number of threads.
-
-	Of course, both environments must handle dynamically loaded
-	code (dynamic libraries in user space, kernel modules in the
-	Linux kernel), which increases the complexity of per-thread
-	variables.
-
-	These complications make it significantly harder for user-space
-	environments to provide access to other threads' per-thread
-	variables.
-	Nevertheless, such access is highly useful, and it is hoped
-	that it will someday appear.
-}\QuickQuizEnd
-
-\begin{fcvref}[ln:count:count_end:whole:inc]
-The \co{inc_count()} function used by updaters is quite simple, as can
-be seen on \clnrefrange{b}{e}.
-\end{fcvref}
-
-\begin{fcvref}[ln:count:count_end:whole:read]
-The \co{read_count()} function used by readers is a bit more complex.
-Line~\lnref{acquire} acquires a lock to exclude exiting threads, and
-line~\lnref{release} releases it.
-Line~\lnref{sum:init} initializes the sum to the count accumulated by those threads that
-have already exited, and
-\clnrefrange{loop:b}{loop:e} sum the counts being accumulated
-by threads currently running.
-Finally, line~\lnref{return} returns the sum.
-\end{fcvref}
-
-\QuickQuizSeries{%
-\QuickQuizB{
-	\begin{fcvref}[ln:count:count_end:whole:read]
-	Doesn't the check for \co{NULL} on line~\lnref{check} of
-	Listing~\ref{lst:count:Per-Thread Statistical Counters}
-	add extra branch mispredictions?
-	Why not have a variable set permanently to zero, and point
-	unused counter-pointers to that variable rather than setting
-	them to \co{NULL}?
-	\end{fcvref}
-}\QuickQuizAnswerB{
-	This is a reasonable strategy.
-	Checking for the performance difference is left as an exercise
-	for the reader.
-	However, please keep in mind that the fastpath is not
-	\co{read_count()}, but rather \co{inc_count()}.
-}\QuickQuizEndB
-%
-\QuickQuizE{
-	Why on earth do we need something as heavyweight as a \emph{lock}
-	guarding the summation in the function \co{read_count()} in
-	Listing~\ref{lst:count:Per-Thread Statistical Counters}?
-}\QuickQuizAnswerE{
-	Remember, when a thread exits, its per-thread variables disappear.
-	Therefore, if we attempt to access a given thread's per-thread
-	variables after that thread exits, we will get a segmentation
-	fault.
-	The lock coordinates summation and thread exit, preventing this
-	scenario.
-
-	Of course, we could instead read-acquire a reader-writer lock,
-	but Chapter~\ref{chp:Deferred Processing} will introduce even
-	lighter-weight mechanisms for implementing the required coordination.
-
-	Another approach would be to use an array instead of a per-thread
-	variable, which, as Alexey Roytman notes, would eliminate
-	the tests against \co{NULL}.
-	However, array accesses are often slower than accesses to
-	per-thread variables, and use of an array would imply a
-	fixed upper bound on the number of threads.
-	Also, note that neither tests nor locks are needed on the
-	\co{inc_count()} fastpath.
-}\QuickQuizEndE
-}
-
-\begin{fcvref}[ln:count:count_end:whole:reg]
-\Clnrefrange{b}{e} show the \co{count_register_thread()}
-function, which
-must be called by each thread before its first use of this counter.
-This function simply sets up this thread's element of the \co{counterp[]}
-array to point to its per-thread \co{counter} variable.
-\end{fcvref}
-
-\QuickQuiz{
-	Why on earth do we need to acquire the lock in
-	\co{count_register_thread()} in
-	Listing~\ref{lst:count:Per-Thread Statistical Counters}?
-	It is a single properly aligned machine-word store to a location
-	that no other thread is modifying, so it should be atomic anyway,
-	right?
-}\QuickQuizAnswer{
-	This lock could in fact be omitted, but better safe than
-	sorry, especially given that this function is executed only at
-	thread startup, and is therefore not on any critical path.
-	Now, if we were testing on machines with thousands of CPUs,
-	we might need to omit the lock, but on machines with ``only''
-	a hundred or so CPUs, there is no need to get fancy.
-}\QuickQuizEnd
-
-\begin{fcvref}[ln:count:count_end:whole:unreg]
-\Clnrefrange{b}{e} show the \co{count_unregister_thread()}
-function, which
-must be called prior to exit by each thread that previously called
-\co{count_register_thread()}.
-Line~\lnref{acquire} acquires the lock, and
-line~\lnref{release} releases it, thus excluding any
-calls to \co{read_count()} as well as other calls to
-\co{count_unregister_thread()}.
-Line~\lnref{add} adds this thread's \co{counter} to the global
-\co{finalcount},
-and then line~\lnref{NULL} \co{NULL}s out its \co{counterp[]} array entry.
-A subsequent call to \co{read_count()} will see the exiting thread's
-count in the global \co{finalcount}, and will skip the exiting thread
-when sequencing through the \co{counterp[]} array, thus obtaining
-the correct total.
-\end{fcvref}
-
-This approach gives updaters almost exactly the same performance as
-a non-atomic add, and also scales linearly.
-On the other hand, concurrent reads contend for a single global lock,
-and therefore perform poorly and scale abysmally.
-However, this is not a problem for statistical counters, where incrementing
-happens often and readout happens almost never.
-Of course, this approach is considerably more complex than the
-array-based scheme, due to the fact that a given thread's per-thread
-variables vanish when that thread exits.
-
-\QuickQuiz{
-	Fine, but the Linux kernel doesn't have to acquire a lock
-	when reading out the aggregate value of per-CPU counters.
-	So why should user-space code need to do this???
-}\QuickQuizAnswer{
-	Remember, the Linux kernel's per-CPU variables are always
-	accessible, even if the corresponding CPU is offline---even
-	if the corresponding CPU never existed and never will exist.
-
-\begin{listing}[tb]
-\input{CodeSamples/count/count_tstat@whole.fcv}
-\caption{Per-Thread Statistical Counters With Lockless Summation}
-\label{lst:count:Per-Thread Statistical Counters With Lockless Summation}
-\end{listing}
-
-	One workaround is to ensure that each thread continues to exist
-	until all threads are finished, as shown in
-	Listing~\ref{lst:count:Per-Thread Statistical Counters With Lockless Summation}
-	(\path{count_tstat.c}).
-	Analysis of this code is left as an exercise to the reader,
-	however, please note that it requires tweaks in the
-	\path{counttorture.h} counter-evaluation scheme.
-	(Hint: See \co{#ifndef KEEP_GCC_THREAD_LOCAL}.)
-	Chapter~\ref{chp:Deferred Processing} will introduce
-	synchronization mechanisms that handle this situation in a much
-	more graceful manner.
-}\QuickQuizEnd
-
 \subsection{Discussion}
 
 These three implementations show that it is possible to obtain
@@ -1158,7 +1174,8 @@ on a parallel machine.
 	of threads.
 	Is there any way that the increment operation can remain
 	fast and scalable while allowing readers to also enjoy
-	reasonable performance and scalability?
+	not only reasonable performance and scalability, but also
+	good accuracy?
 }\QuickQuizAnswerE{
 	One approach would be to maintain a global approximation
 	to the value, similar to the approach described in
@@ -1168,6 +1185,8 @@ on a parallel machine.
 	variable, then zero their per-thread variable.
 	This would permit a tradeoff between average increment overhead
 	and accuracy of the value read out.
+	In particular, it would allow sharp bounds on the read-side
+	inaccuracy.
 
 	Another approach makes use of the fact that readers often care
 	only about certain transitions in value, not in the exact value.
