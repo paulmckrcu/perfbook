@@ -10,13 +10,11 @@
 	  to the memory of Winston Churchill and to whoever he was
 	  quoting}}
 
-In recent concurrency research, the role of villain is often played
-by locking.
-In many papers and presentations,
-locking stands accused of promoting deadlocks, convoying, starvation,
+In recent concurrency research, locking often plays the role of villain.
+Locking stands accused of inciting deadlocks, convoying, starvation,
 unfairness, data races, and all manner of other concurrency sins.
 Interestingly enough, the role of workhorse in production-quality
-shared-memory parallel software is played by, you guessed it, locking.
+shared-memory parallel software is also played by locking.
 This chapter will look into this dichotomy between villain and
 hero, as fancifully depicted in
 Figures~\ref{fig:locking:Locking: Villain or Slob?}
@@ -53,8 +51,8 @@ There are a number of reasons behind this Jekyll-and-Hyde dichotomy:
 	and simple non-blocking data structures
 	(see Section~\ref{sec:advsync:Non-Blocking Synchronization}).
 \item	Until quite recently, almost all large shared-memory parallel
-	programs were developed in secret, so that it was difficult for
-	most researchers to learn of these pragmatic solutions.
+	programs were developed in secret, so that it was not easy
+	to learn of these pragmatic solutions.
 \item	Locking works extremely well for some software artifacts
 	and extremely poorly for others.
 	Developers who have worked on artifacts for which locking
@@ -107,8 +105,8 @@ unfairness, and inefficiency.
 \subsection{Deadlock}
 \label{sec:locking:Deadlock}
 
-Deadlock occurs when each of a group of threads is holding at least one
-lock while at the same time waiting on a lock held by a member
+Deadlock occurs when each member of a group of threads is holding at
+least one lock while at the same time waiting on a lock held by a member
 of that same group.
 This happens even in groups containing a single thread when that thread
 attempts to acquire a non-recursive lock that it already holds.
@@ -176,7 +174,7 @@ Although there are some software environments such as database systems
 that can recover from an existing deadlock, this approach requires either
 that one of the threads be killed or that a lock be forcibly stolen from
 one of the threads.
-This killing and forcible stealing can be appropriate for transactions,
+This killing and forcible stealing works well for transactions,
 but is often problematic for kernel and application-level use of locking:
 dealing with the resulting partially updated structures can be extremely
 complex, hazardous, and error-prone.
@@ -216,17 +214,18 @@ This violation permitted the deadlock to occur.
 
 Again, to apply a locking hierarchy, order the locks and prohibit
 out-of-order lock acquisition.
-In large program, it is wise to use tools to enforce your locking
-hierarchy~\cite{JonathanCorbet2006lockdep}.
+In large program, it is wise to use tools such as the Linux-kernel
+\co{lockdep}~\cite{JonathanCorbet2006lockdep}
+to enforce your locking hierarchy.
 
 \subsubsection{Local Locking Hierarchies}
 \label{sec:locking:Local Locking Hierarchies}
 
 However, the global nature of locking hierarchies make them difficult to
 apply to library functions.
-After all, the program using a given library function has not even been
-written yet, so how can the poor library-function implementor possibly
-hope to adhere to the yet-to-be-written program's locking hierarchy?
+After all, when a program using a given library function has not yet
+been written, how can the poor library-function implementor possibly
+follow the yet-to-be-defined locking hierarchy?
 
 One special (but common) case is when the library function does not
 invoke any of the caller's code.
@@ -275,11 +274,14 @@ containing locks from both the library and the caller.
 
 But suppose that a library function does invoke the caller's code.
 For example, \co{qsort()} invokes a caller-provided comparison function.
-A concurrent implementation of \co{qsort()} likely uses locking,
-which might result in deadlock in the perhaps-unlikely case where
-the comparison function is a
-complicated function involving also locking.
-How can the library function avoid deadlock?
+Now, normally this comparison function will operate on unchanging local
+data, so that it need not acquire locks, as shown in
+\cref{fig:locking:No qsort() Compare-Function Locking}.
+But maybe someone is crazy enough to sort a collection whose keys
+are changing, thus requiring that the comparison function acquire locks,
+which might result in deadlock, as shown in
+\cref{fig:locking:Without qsort() Local Locking Hierarchy}.
+How can the library function avoid this deadlock?
 
 The golden rule in this case is ``Release all locks before invoking
 unknown code.''
@@ -302,14 +304,21 @@ function acquires any of the caller's locks, thus avoiding deadlock.
 	in \cref{sec:locking:Layered Locking Hierarchies}.
 }\QuickQuizEnd
 
-\begin{figure}[tb]
+\begin{figure}[tbp]
+\centering
+\resizebox{3in}{!}{\includegraphics{locking/NoLockHierarchy}}
+\caption{No \tco{qsort()} Compare-Function Locking}
+\label{fig:locking:No qsort() Compare-Function Locking}
+\end{figure}
+
+\begin{figure}[tbp]
 \centering
 \resizebox{3in}{!}{\includegraphics{locking/NonLocalLockHierarchy}}
 \caption{Without \tco{qsort()} Local Locking Hierarchy}
 \label{fig:locking:Without qsort() Local Locking Hierarchy}
 \end{figure}
 
-\begin{figure}[tb]
+\begin{figure}[tbp]
 \centering
 \resizebox{3in}{!}{\includegraphics{locking/LocalLockHierarchy}}
 \caption{Local Locking Hierarchy for \tco{qsort()}}
@@ -450,8 +459,8 @@ the antithesis of information hiding, which is in turn a key design
 principle.
 
 \QuickQuiz{
-	Name one common exception where it is perfectly reasonable
-	to pass a pointer to a lock into a function.
+	Name one common situation where a pointer to a lock is passed
+	into a function.
 }\QuickQuizAnswer{
 	Locking primitives, of course!
 }\QuickQuizEnd
@@ -488,8 +497,9 @@ this is unlikely.
 \label{sec:locking:Conditional Locking}
 
 But suppose that there is no reasonable locking hierarchy.
-This can happen in real life, for example, in layered network protocol stacks
-where packets flow in both directions.
+This can happen in real life, for example, in some types of layered
+network protocol stacks where packets flow in both directions, for
+example, in implementations of distributed lock managers.
 In the networking case, it might be necessary to hold the locks from
 both layers when passing a packet from one layer to another.
 Given that packets travel both up and down the protocol stack, this
@@ -675,7 +685,7 @@ within a signal handler~\cite{OpenGroup1997pthreads}.
 However, it is possible (though often unwise) to hand-craft
 locking primitives that \emph{can} be invoked from signal handlers.
 Besides which, almost all operating-system kernels permit locks to
-be acquired from within interrupt handlers, which are the kernel analog
+be acquired from within interrupt handlers, which are analogous
 to signal handlers.
 
 The trick is to block signals (or disable interrupts, as the case may be)
@@ -1057,10 +1067,10 @@ especially Figure~\ref{fig:SMPdesign:Synchronization Efficiency}:
 Too coarse a granularity will limit scalability, while too fine a
 granularity will result in excessive synchronization overhead.
 
-That said, once a lock is held, the data protected by that lock can
-be accessed by the lock holder without interference.
 Acquiring a lock might be expensive, but once held, the CPU's caches
 are an effective performance booster, at least for large critical sections.
+In addition, once a lock is held, the data protected by that lock can
+be accessed by the lock holder without interference from other threads.
 
 \QuickQuiz{
 	How might the lock holder be interfered with?
@@ -1110,8 +1120,8 @@ Of course, this all assumes that this lock is held across all accesses
 to data purportedly protected by the lock.
 Although there are some tools that can help (see for example
 Section~\ref{sec:formal:Axiomatic Approaches and Locking}),
-the ultimate responsibility for ensuring that the lock is acquired in
-all necessary code paths rests with the developer.
+the ultimate responsibility for ensuring that the lock is always acquired
+when needed rests with the developer.
 
 \QuickQuiz{
 	Does it ever make sense to have an exclusive lock acquisition
@@ -1334,31 +1344,51 @@ The canonical use case for reader-writer locking involves very long
 read-side critical sections, preferably measured in hundreds of microseconds
 or even milliseconds.
 
-As with exclusive locks, unconditionally acquiring a reader-writer lock
-waits for all prior conflicting holders of that lock to release it.
-Here, readers conflict with writers, and writers with both readers and
-with other writers.
-Also as with exclusive locks, holding a reader-writer lock blocks any
-subsequent acquisition attempts until the lock is released.
-And again as with exclusive locks, at lock acquisition time any concurrent
-conflicting acquisitions must be partitioned into prior holders and
-subsequent holders.
-However, in contrast to exclusive locks, some reader-writer locks also
-similarly partition concurrent non-conflicting acquisitions in order to
-avoid starving conflicting acquisitions, for example:
+As with exclusive locks, a reader-writer lock acquisition cannot complete
+until all prior conflicting holders of that lock have released it.
+If a lock is read-held, then read acquisitions can complete immediately,
+but write acquisitions must wait until there are no longer any readers
+holding the lock.
+If a lock is write-held, then all acquisitions must wait until the writer
+releases the lock.
+As with exclusive locks, different reader-writer lock implementations
+provide different degrees of FIFO ordering to readers on the one hand
+and to writers on the other.
+
+But suppose a large number of readers hold the lock and a writer is waiting
+to acquire the lock.
+Should readers be allowed to continue to acquire the lock, possibly
+starving the writer?
+Similarly, suppose that a writer holds the lock and that a large number
+of both readers and writers are waiting to acquire the lock.
+When the current writer release the lock, should it be given to a reader
+or to another writer?
+If it is given to a reader, how many readers should be allowed to acquire
+the lock before the next writer is permitted to do so?
+
+There are many possible answers to these questions, with different
+levels of complexity, overhead, and fairness.
+Different implementations might have different costs, for example,
+some types of reader-writer locks incur extremely large latencies
+when switching from read-holder to write-holder mode.
+Here are a few possible approaches:
 
 \begin{enumerate}
-\item	Reader-preference implementations favor readers over writers,
-	possibly allowing write acquisitions to be indefinitely blocked.
-\item	Batch-fair implementations ensure that both readers and writers
-	have access by processing batches, for example, some number of
-	readers, some number of writers, and so on.
-\item	Writer-preference implementations favor writers over readers,
-	possibly allowing read acquisitions to be indefinitely blocked.
+\item	
+	Reader-preference implementations unconditionally favor readers
+	over writers, possibly allowing write acquisitions to be
+	indefinitely blocked.
+\item	Batch-fair implementations ensure that when both readers and writers
+	are acquiring the lock, both have reasonable access via batching.
+	For example, the lock might admit five readers per CPU, then two
+	writers, then five more readers per CPU, and so on.
+\item	Writer-preference implementations unconditionally favor
+	writers over readers, possibly allowing read acquisitions to be
+	indefinitely blocked.
 \end{enumerate}
 
-And once again, as with exclusive locking, these distinctions matter
-only under conditions of high lock contention.
+Of course, these distinctions matter only under conditions of high
+lock contention.
 
 Please keep the waiting/blocking dual nature of locks firmly in mind.
 This will be revisited in \cref{chp:Deferred Processing}'s discussion
