@@ -302,6 +302,9 @@ function acquires any of the caller's locks, thus avoiding deadlock.
 	Chapter~\ref{chp:Deferred Processing}).
 	Or through use of layered locking hierarchies, as described
 	in \cref{sec:locking:Layered Locking Hierarchies}.
+
+	On the other hand, changing a key in a list that is
+	currently being sorted is at best rather brave.
 }\QuickQuizEnd
 
 \begin{figure}[tbp]
@@ -785,9 +788,9 @@ tool, but there are jobs better addressed with other tools.
 		for a mechanical or electrical device, leave the
 		simulation single-threaded, but run many instances
 		of the simulation in parallel.
-		This retains the object-oriented design, and
-		gains parallelism at a higher level, and likely
-		also avoids synchronization overhead.
+		This retains the object-oriented design, and gains
+		parallelism at a higher level, and likely also avoids
+		both deadlocks and synchronization overhead.
 	\item	Partition the objects into groups such that there
 		is no need to operate on objects in
 		more than one group at a given time.
@@ -815,7 +818,7 @@ tool, but there are jobs better addressed with other tools.
 	\item	Use transactional memory.
 		This approach has a number of advantages and disadvantages
 		which will be discussed in
-		Section~\ref{sec:future:Transactional Memory}.
+		\crefrange{sec:future:Transactional Memory}{sec:future:Hardware Transactional Memory}.
 	\item	Refactor the application to be more concurrency-friendly.
 		This would likely also have the side effect of making
 		the application run faster even when single-threaded, but might
@@ -1128,7 +1131,8 @@ when needed rests with the developer.
 	immediately followed by a release of that same lock, that is,
 	an empty critical section?
 }\QuickQuizAnswer{
-	This usage is rare, but is occasionally used.
+	Empty lock-based critical sections are rarely used, but they
+	do have their uses.
 	The point is that the semantics of exclusive locks have two
 	components: (1)~the familiar data-protection semantic and
 	(2)~a messaging semantic, where releasing a given lock notifies
@@ -1144,17 +1148,21 @@ when needed rests with the developer.
 	Nevertheless, pressing on into this gray area \ldots
 
 	One historical use of empty critical sections appeared in the
-	networking stack of the 2.4 Linux kernel.
-	This usage pattern can be thought of as a way of approximating
-	the effects of read-copy update (RCU), which is discussed in
+	networking stack of the 2.4 Linux kernel through use of a
+	read-side-scalable reader-writer lock called \co{brlock}
+	for ``big reader lock''.
+	This use case is a way of approximating the semantics of read-copy
+	update (RCU), which is discussed in
 	Section~\ref{sec:defer:Read-Copy Update (RCU)}.
+	And in fact this Linux-kernel use case has been replaced
+	with RCU.
 
 	The empty-lock-critical-section idiom can also be used to
 	reduce lock contention in some situations.
 	For example, consider a multithreaded user-space application where
 	each thread processes units of work maintained in a per-thread
 	list, where threads are prohibited from touching each others'
-	lists.
+	lists~\cite{PaulEMcKenney2012EmptyLocks}.
 	There could also be updates that require that all previously
 	scheduled units of work have completed before the update can
 	progress.
@@ -1540,8 +1548,8 @@ RAII locking instead requires that the lock acquisition and release take
 place in the same level of scoping, making such encapsulation difficult or
 even impossible.
 
-RAII locking also prohibits overlapping critical sections, due to the fact
-that scopes must nest.
+Strict RAII locking also prohibits overlapping critical sections, due
+to the fact that scopes must nest.
 This prohibition makes it difficult or impossible to express a number of
 useful constructs, for example, locking trees
 that mediate between multiple concurrent attempts to assert an event.
@@ -1550,6 +1558,10 @@ and the best strategy for the remaining attempts is for them to fail as
 quickly and painlessly as possible.
 Otherwise, lock contention becomes pathological on large systems
 (where ``large'' is many hundreds of CPUs).
+Therefore, C++17~\cite{RichardSmith2019N4800} has escapes from strict RAII
+in its \co{unique_lock} class, which allows the scope of the critical
+section to be controlled to roughly the same extent as can be achieved
+with explicit lock acquisition and release primitives.
 
 \begin{figure}[tb]
 \centering
@@ -1558,8 +1570,8 @@ Otherwise, lock contention becomes pathological on large systems
 \label{fig:locking:Locking Hierarchy}
 \end{figure}
 
-Example data structures (taken from the Linux kernel's implementation
-of RCU) are shown in
+Example strict-RAII-unfriendly data structures from Linux-kernel RCU
+are shown in
 Figure~\ref{fig:locking:Locking Hierarchy}.
 Here, each CPU is assigned a leaf \co{rcu_node} structure, and each
 \co{rcu_node} structure has a pointer to its parent (named, oddly
@@ -1581,8 +1593,7 @@ This acquire-then-release sequence continues until either the
 one of the attempts to acquire an \co{->fqslock} fails, or
 the root \co{rcu_node} structure's \co{->fqslock} has been acquired.
 If the root \co{rcu_node} structure's \co{->fqslock} is acquired,
-a function named \co{do_force_quiescent_state()} is invoked, but this
-function should be invoked at most once every 100\,milliseconds.
+a function named \co{do_force_quiescent_state()} is invoked.
 
 \begin{listing}[tbp]
 \begin{fcvlabel}[ln:locking:Conditional Locking to Reduce Contention]
@@ -1605,7 +1616,6 @@ void force_quiescent_state(struct rcu_node *rnp_leaf)
 	if (!READ_ONCE(gp_flags)) {			\lnlbl[flag_not_set]
 		WRITE_ONCE(gp_flags, 1);		\lnlbl[set_flag]
 		do_force_quiescent_state();		\lnlbl[invoke]
-		schedule_timeout_interruptible(HZ / 10);\lnlbl[wait]
 		WRITE_ONCE(gp_flags, 0);		\lnlbl[clr_flag]
 	}
 	raw_spin_unlock(&rnp_old->fqslock);		\lnlbl[rel2]
@@ -1625,8 +1635,6 @@ At any given time, it only makes sense for one instance of
 concurrent callers, we need at most one of them to actually invoke
 \co{do_force_quiescent_state()}, and we need the rest to (as quickly and
 painlessly as possible) give up and leave.
-Furthermore, if \co{do_force_quiescent_state()} has been invoked within
-the past 100\,milliseconds, there is no need to invoke it again.
 
 \begin{fcvref}[ln:locking:Conditional Locking to Reduce Contention]
 To this end, each pass through the loop spanning \clnrefrange{loop:b}{loop:e} attempts
@@ -1649,7 +1657,7 @@ If control reaches line~\lnref{flag_not_set}, we won the tournament, and now hol
 root \co{rcu_node} structure's \co{->fqslock}.
 If line~\lnref{flag_not_set} still sees that the global variable \co{gp_flags} is zero,
 line~\lnref{set_flag} sets \co{gp_flags} to one, line~\lnref{invoke} invokes
-\co{do_force_quiescent_state()}, line~\lnref{wait} waits for 100\,milliseconds,
+\co{do_force_quiescent_state()},
 and line~\lnref{clr_flag} resets \co{gp_flags} back to zero.
 Either way, line~\lnref{rel2} releases the root \co{rcu_node} structure's
 \co{->fqslock}.
@@ -1693,9 +1701,9 @@ This pattern is difficult to implement using strict RAII locking,\footnote{
 	the scope in which it is to be released.
 	However, some object must mediate the scope leaking, which can
 	add complexity compared to non-RAII explicit locking primitives.}
-just like the iterator encapsulation noted earlier,
-and so explicit lock/unlock primitives will be needed for the foreseeable
-future.
+just like the iterator encapsulation noted earlier, and so explicit
+lock/unlock primitives (or C++17-style \co{unique_lock} escapes) will
+be required for the foreseeable future.
 
 \section{Locking Implementation Issues}
 \label{sec:locking:Locking Implementation Issues}
@@ -1771,7 +1779,7 @@ makes another attempt to acquire the lock.
 	In contrast, if these threads are spinning in the inner
 	loop on \clnrefrange{inner:b}{inner:e},
         they will each spin within their own
-	caches, putting negligible load on the interconnect.
+	caches, placing negligible load on the interconnect.
 	\end{fcvref}
 }\QuickQuizEnd
 
@@ -1804,8 +1812,8 @@ mechanisms have been used extensively as pure spinlocks in production.
 \subsection{Other Exclusive-Locking Implementations}
 \label{sec:locking:Other Exclusive-Locking Implementations}
 
-There are a great many other possible implementations of locking
-based on atomic instructions, many of which are reviewed
+There are a great many other possible implementations of locking based
+on atomic instructions, many of which are reviewed in the classic paper
 by Mellor-Crummey and Scott~\cite{MellorCrummey91a}.
 These implementations represent different points in a multi-dimensional
 design tradeoff~\cite{Guerraoui:2019:LPA:3319851.3301501,HugoGuirouxPhD,McKenney96a}.
@@ -1817,18 +1825,19 @@ It avoids giving the lock to threads that cannot use it, but as
 a result can suffer from unfairness or even starvation at high
 contention levels.
 
-In contrast, ticket lock~\cite{MellorCrummey91a}, which is used in the Linux
-kernel, avoids unfairness at high contention levels, but as a
-consequence of its first-in-first-out discipline can grant the
-lock to a thread that is currently unable to use it, for example,
-due to being preempted, interrupted, or otherwise out of action.
-However, it is important to avoid getting too worried about the
-possibility of preemption and interruption, given that this preemption
-and interruption might just as well happen just after the lock was
+In contrast, ticket lock~\cite{MellorCrummey91a}, which was once used
+in the Linux kernel, avoids unfairness at high contention levels.
+However, as a consequence of its strict FIFO discipline, it can grant
+the lock to a thread that is currently unable to use it, perhaps due
+to that thread being preempted or interrupted.
+On the other hand, it is important to avoid getting too worried about the
+possibility of preemption and interruption.
+After all, in many cases, this preemption and interruption could just
+as well happen just after the lock was
 acquired.\footnote{
 	Besides, the best way of handling high lock contention is to avoid
 	it in the first place!
-	However, there are some situations where high lock contention
+	There are nevertheless some situations where high lock contention
 	is the lesser of the available evils, and in any case, studying
 	schemes that deal with high levels of contention is a good mental
 	exercise.}
@@ -1851,7 +1860,9 @@ high contention.
 
 This negative scalability has motivated a number of different
 queued-lock
-implementations~\cite{Anderson90,Graunke90,MellorCrummey91a,Wisniewski94,Craig93,Magnusson94,Takada93}.
+implementations~\cite{Anderson90,Graunke90,MellorCrummey91a,Wisniewski94,Craig93,Magnusson94,Takada93},
+some of which are used in recent versions of the Linux
+kernel~\cite{JonathanCorbet2014qspinlocks}.
 Queued locks avoid high cache-invalidation overhead by assigning each
 thread a queue element.
 These queue elements are linked together into a queue that governs the
@@ -1906,7 +1917,8 @@ most proprietary UNIX kernels offer some form of scheduler-conscious
 synchronization mechanism~\cite{Kontothanassis97a},
 largely due to the efforts of a certain sizable database vendor.
 These mechanisms usually take the form of a hint that preemption
-would be inappropriate.
+should be avoided in a given region of code, with this hint typically
+being placed in a machine register.
 These hints frequently take the form of a bit set in a particular
 machine register, which enables extremely low per-lock-acquisition overhead
 for these mechanisms.
@@ -2002,8 +2014,10 @@ as flushing per-CPU caches used by memory allocators~\cite{McKenney93},
 garbage-collecting per-CPU data structures, or flushing per-CPU
 data to shared storage (or to mass storage, for that matter).
 
-The Linux kernel has also seen significant work on
-locking~\cite{JonathanCorbet2014qspinlocks,CatalinMarinas2018qspinlockTLA}.
+The Linux kernel now uses queued spinlocks~\cite{JonathanCorbet2014qspinlocks},
+but because of the complexity of implementations that provide good
+performance across the range of contention levels, the path has not
+always been smooth~\cite{CatalinMarinas2018qspinlockTLA,WillDeacon2018qspinlock}.
 As increasing numbers of people gain familiarity with parallel hardware
 and parallelize increasing amounts of code, we can continue to expect more
 special-purpose locking primitives to appear, see for example Guerraoui et
@@ -2051,11 +2065,12 @@ by the heavy use of locking in production-quality parallel software.
 Nevertheless, although such software usually bases most of its
 synchronization design on locking, such software also almost always
 makes use of other synchronization mechanisms, including
-special counting algorithms (Chapter~\ref{chp:Counting}),
-data ownership (Chapter~\ref{chp:Data Ownership}),
-reference counting (Section~\ref{sec:defer:Reference Counting}),
-sequence locking (Section~\ref{sec:defer:Sequence Locks}), and
-read-copy update (Section~\ref{sec:defer:Read-Copy Update (RCU)}).
+special counting algorithms (\cref{chp:Counting}),
+data ownership (\cref{chp:Data Ownership}),
+reference counting (\cref{sec:defer:Reference Counting}),
+hazard pointers (\cref{sec:defer:Hazard Pointers}),
+sequence locking (\cref{sec:defer:Sequence Locks}), and
+read-copy update (\cref{sec:defer:Read-Copy Update (RCU)}).
 In addition, practitioners use tools for deadlock
 detection~\cite{JonathanCorbet2006lockdep},
 lock acquisition/release balancing~\cite{JonathanCorbet2004sparse},
@@ -2110,6 +2125,7 @@ The following strategies may be used to avoid deadlock problems in these cases:
 \item	Parameterize the library API to delegate locking to caller.
 \item	Explicitly avoid callback deadlocks.
 \item	Explicitly avoid signal-handler deadlocks.
+\item	Avoid invoking \co{fork()}
 \end{enumerate}
 
 Each of these strategies is discussed in one of the following sections.
@@ -2176,8 +2192,8 @@ might have (unwisely) created home-brew locks from atomic operations.
 \subsubsection{Caller Controls Synchronization}
 \label{sec:locking:Caller Controls Synchronization}
 
-Let the caller control synchronization.
-This works extremely well when the library functions are operating
+Letting the caller control synchronization
+works extremely well when the library functions are operating
 on independent caller-visible instances of a data structure, each
 of which may be synchronized separately.
 For example, if the library functions operate on a search tree,
@@ -2285,9 +2301,18 @@ be released.
 Therefore, any attempt on the part of the child to invoke that same
 library function will result in deadlock.
 
-One approach to this problem would be to have the library function
-check to see if the owner of the lock is still running, and if not,
-``breaking'' the lock by re-initializing and then acquiring it.
+A pragmatic and straightforward way of solving this problem is
+to \co{fork()} a child process while the process is still single-threaded,
+and have this child process remain single-threaded.
+Requests to create further child processes can then be communicated
+to this initial child process, which can safely carry out any
+needed \co{fork()} and \co{exec()} system calls on behalf of its
+multi-threaded parent process.
+
+Another rather less pragmatic and straightforward solution to this problem
+is to have the library function check to see if the owner of the lock
+is still running, and if not, ``breaking'' the lock by re-initializing
+and then acquiring it.
 However, this approach has a couple of vulnerabilities:
 
 \begin{enumerate}
@@ -2400,8 +2425,7 @@ Times change, and code must change with them.
 That said, there might be a huge number of users of a popular library,
 in which case an incompatible change to the API would be quite foolish.
 Adding a parallel-friendly API to complement the existing heavily used
-sequential-only API is probably the best course of action in this
-situation.
+sequential-only API is usually the best course of action.
 
 Nevertheless, human nature being what it is, we can expect our hapless
 developer to be more likely to complain about locking than about his
@@ -2446,8 +2470,8 @@ and~\ref{chp:Deferred Processing}.
 \label{sec:locking:Object-Oriented Spaghetti Code}
 
 Object-oriented programming went mainstream sometime in the 1980s or
-1990s, and as a result there is a huge amount of object-oriented code
-in production, much of it single-threaded.
+1990s, and as a result there is a huge amount of single-threaded
+object-oriented code in production.
 Although object orientation can be a valuable software technique,
 undisciplined use of objects can easily result in object-oriented
 spaghetti code.
