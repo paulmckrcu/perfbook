@@ -6,7 +6,7 @@
 \label{sec:defer:Introduction to RCU}
 
 The approaches discussed in the preceding sections have provided
-some scalability but decidedly non-ideal performance for the
+good scalability but decidedly non-ideal performance for the
 Pre-BSD routing table.
 Therefore, in the spirit of ``only those who have gone too far
 know how far you can go'',\footnote{
@@ -31,7 +31,7 @@ questions, but we cannot possibly succeed if we don't even try!
 To minimize implementability concerns, we focus on a minimal
 data structure, which consists of a single global pointer that is either
 \co{NULL} or references a single structure.
-Interestingly enough, this simple data structure is used in
+Minimal though it might be, this data structure is heavily used in
 production~\cite{GeoffRomer2018C++DeferredReclamationP0561R4}.
 A classic approach for insertion is shown in
 Figure~\ref{fig:defer:Insertion With Concurrent Readers},
@@ -40,10 +40,12 @@ The first row shows the initial state, with \co{gptr} equal to \co{NULL}.
 In the second row, we have allocated a structure which is uninitialized,
 as indicated by the question marks.
 In the third row, we have initialized the structure.
-We might hope to assign \co{gptr} to reference this new element
-using a simple C-language assignment statement, resulting in the
-state shown in the fourth and final row.
-Unfortunately, a quick review of
+Finally, in the fourth and final row, we have updated \co{gptr} to
+reference the newly allocated and initialized element.
+
+We might hope that this assignment to \co{gptr} could use a simple
+C-language assignment statement.
+Unfortunately,
 Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
 dashes these hopes.
 Therefore, the updater cannot use a simple C-language assignment, but
@@ -51,17 +53,25 @@ must instead use \co{smp_store_release()} as shown in the figure,
 or, as will be seen, \co{rcu_assign_pointer()}.
 
 Similarly, one might hope that readers could use a single C-language
-assignment statement to fetch the value of \co{gptr}, and be guaranteed
-to either get the old value of \co{NULL} or to get the newly installed
-pointer, but either way see a valid result.
+assignment to fetch the value of \co{gptr}, and be guaranteed to either
+get the old value of \co{NULL} or to get the newly installed pointer,
+but either way see a valid result.
 Unfortunately, Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
-also dashes these hopes.
+dashes these hopes as well.
 To obtain this guarantee, readers must instead use \co{READ_ONCE()},
 or, as will be seen, \co{rcu_dereference()}.
-However, on most modern computer systems, each of these two primitives
+However, on most modern computer systems, each of these read-side primitives
 can be implemented with a single load instruction, exactly the instruction
 that would normally be used in single-threaded code.
 
+Reviewing \cref{fig:defer:Insertion With Concurrent Readers}
+from the viewpoint of readers, in the first three states all readers
+see \co{gptr} having the value \co{NULL}.
+Upon entering the fourth state, some readers might see \co{gptr} still
+having the value \co{NULL} while others might see it referencing the
+newly inserted element, but after some time, all readers will see this
+new element.
+At all times, all readers will see \co{gptr} as containing a valid pointer.
 Therefore, it really is possible to add new data to linked data structures
 while allowing concurrent readers to execute the same sequence of machine
 instructions that is normally used in single-threaded code.
@@ -82,11 +92,7 @@ Figure~\ref{fig:defer:Deletion With Concurrent Readers},
 the first step is easy.
 Again taking the lessons from
 Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
-to heart, \co{smp_store_release()} is used to \co{NULL} the pointer,\footnote{
-	Strictly speaking, \co{WRITE_ONCE()} suffices for a \co{NULL}
-	pointer, but \co{smp_store_release()} is absolutely required
-	when storing non-\co{NULL} pointers.
-	Or, as we will see, \co{rcu_assign_pointer()}.}
+to heart, \co{smp_store_release()} is used to \co{NULL} the pointer,
 thus moving from the first row to the second in the figure.
 At this point, pre-existing readers see the old structure with
 \co{->addr} of 42 and \co{->iface} of 1, but new readers will see
@@ -190,6 +196,8 @@ as we already saw in
 Section~\ref{sec:defer:Reference Counting}.
 Hazard pointers profoundly reduce this overhead, but, as we saw in
 Section~\ref{sec:defer:Hazard Pointers}, not to zero.
+Nevertheless, many RCU implementations make very careful cache-local
+use of counters.
 
 A second approach observes that memory synchronization is expensive,
 and therefore uses registers instead, namely each CPU's or thread's
@@ -214,7 +222,7 @@ This can work quite well in hard real-time systems~\cite{YuxinRen2018RTRCU},
 but in less exotic
 settings, Murphy says that it is critically important to be prepared
 even for unreasonably long-lived readers.
-To see this, consider the consequences of failing to wait long enough:
+To see this, consider the consequences of failing do so:
 A data item will be freed while the unreasonable reader is still
 referencing it, and that item might well be immediately reallocated,
 possibly even as a data item of some other type.
@@ -227,14 +235,16 @@ doing so will accommodate even the most unreasonable reader.
 This approach is also called ``leaking memory'', and has a bad reputation
 due to the fact that memory leaks often require untimely and
 inconvenient reboots.
-However, reputation notwithstanding, this is a viable strategy when
-the update rate and the uptime are both sharply bounded.
+Nevertheless, this is a viable strategy when the update rate and the
+uptime are both sharply bounded.
 For example, this approach could work well in a high-availability
 cluster where systems were periodically crashed in order to ensure
 that cluster really remained highly available.\footnote{
 	The program that forces the periodic crashing is sometimes
 	known as a ``chaos monkey'':
-	\url{https://netflix.github.io/chaosmonkey/}.}
+	\url{https://netflix.github.io/chaosmonkey/}.
+	However, it might also be a mistake to neglect chaos caused
+	by systems running for too long.}
 Leaking the memory is also a viable strategy in environments having
 garbage collectors, in which case the garbage collector can be thought
 of as plugging the leak~\cite{Kung80}.
@@ -249,8 +259,8 @@ off at the end of each working day.
 However, in today's always-connected always-on world, stopping the world
 can gravely degrade response times, which has been one motivation for the
 development of concurrent garbage collectors~\cite{DavidFBacon2003RTGC}.
-Furthermore, we only need all pre-existing readers to complete, not to
-complete all at the same time.
+Furthermore, although we need all pre-existing readers to complete, we do
+not need them all to complete at the same time.
 
 This observation leads to the sixth approach, which is stopping
 one CPU or thread at a time.
@@ -284,13 +294,13 @@ and~\ref{fig:defer:Deletion With Concurrent Readers}.
 This no-blocking constraint is consistent with similar constraints
 on pure spinlocks, where a CPU is forbidden from blocking while
 holding a spinlock.
-Without this prohibition, all CPUs might be consumed by threads
+Without this constraint, all CPUs might be consumed by threads
 spinning attempting to acquire a spinlock held by a blocked thread.
 The spinning threads will not relinquish their CPUs until they acquire
 the lock, but the thread holding the lock cannot possibly release it
 until one of the spinning threads relinquishes a CPU.
 This is a classic deadlock situation, and this deadlock is avoided
-by prohibiting blocking while holding a spinlock.
+by forbidding blocking while holding a spinlock.
 
 Again, this same constraint is imposed on reader threads dereferencing
 \co{gptr}: such threads are not allowed to block until after
@@ -326,9 +336,9 @@ CPU~1 does the \co{WRITE_ONCE()} that removes the current data
 item (presumably having previously read the pointer value and
 availed itself of appropriate synchronization), then waits
 for readers.
-This wait operation results in an immediate context switch, which is
-a quiescent state, which in turn means that all prior reads on CPU~1
-have completed.
+This wait operation results in an immediate context switch, which is a
+quiescent state (denoted by the pink circle), which in turn means that
+all prior reads on CPU~1 have completed.
 Next, CPU~2 does a context switch, so that all readers on CPUs~1 and~2
 are now known to have completed.
 Finally, CPU~3 does a context switch.
@@ -530,32 +540,20 @@ The next section summarizes RCU's high-level properties.
 \subsubsection{RCU Properties}
 \label{sec:defer:RCU Properties}
 
-RCU achieves scalability
-improvements by allowing reads to make useful forward progress
-concurrently with updates, which are also allowed to make useful
-forward progress.
+A key RCU property is that reads need not wait for updates.
 This property enables RCU implementations to provide low-cost or even
-no-cost readers, in contrast with conventional synchronization primitives
-that enforce strict mutual exclusion, thus prohibiting useful concurrent
-forward progress.
-RCU delimits readers with \co{rcu_read_lock()} and \co{rcu_read_unlock()},
-and ensures that each reader has a coherent view by
-maintaining multiple versions of objects and using update-side primitives
-such as \co{synchronize_rcu()} to ensure that objects are not
-freed until after the completion of all readers that might be using them.
-RCU defines and uses \co{rcu_assign_pointer()} and \co{rcu_dereference()}
-to provide efficient and scalable mechanisms for publishing
-and reading new versions of an object, respectively.
-These mechanisms distribute the work among read and
-update paths in such a way as to make read paths extremely fast, using
-replication and weakening optimizations in a manner similar to
-hazard pointers, but without the need for read-side retries.
-In some cases, including \co{CONFIG_PREEMPT=n} Linux kernels,
-RCU's read-side primitives have zero overhead.
+no-cost readers, resulting in low overhead and excellent scalability.
+This property also allows RCU readers and updaters to make useful
+concurrent forward progress.
+In contrast, conventional synchronization primitives must enforce strict
+mutual exclusion using expensive instructions, thus increasing overhead
+and degrading scalability, but also typically prohibiting readers and
+updaters from making useful concurrent forward progress.
 
 \QuickQuiz{
-	But doesn't Section~\ref{sec:defer:Sequence Locks}'s seqlock
-	also permit readers and updaters to get work done concurrently?
+	Doesn't Section~\ref{sec:defer:Sequence Locks}'s seqlock
+	also permit readers and updaters to make useful concurrent
+	forward progress?
 }\QuickQuizAnswer{
 	Yes and no.
 	Although seqlock readers can run concurrently with
@@ -581,6 +579,22 @@ RCU's read-side primitives have zero overhead.
 	deferred-reclamation problem.
 }\QuickQuizEnd
 
+RCU delimits readers with \co{rcu_read_lock()} and \co{rcu_read_unlock()},
+and ensures that each reader has a coherent view of each object
+(see \cref{fig:defer:Deletion With Concurrent Readers}) by
+maintaining multiple versions of objects and using update-side primitives
+such as \co{synchronize_rcu()} to ensure that objects are not
+freed until after the completion of all readers that might be using them.
+RCU uses \co{rcu_assign_pointer()} and \co{rcu_dereference()} to provide
+efficient and scalable mechanisms for publishing and reading new versions
+of an object, respectively.
+These mechanisms distribute the work among read and
+update paths in such a way as to make read paths extremely fast, using
+replication and weakening optimizations in a manner similar to
+hazard pointers, but without the need for read-side retries.
+In some cases, including \co{CONFIG_PREEMPT=n} Linux kernels,
+RCU's read-side primitives have zero overhead.
+
 But are these properties actually useful in practice?
 This question is taken up by the next section.
 
@@ -594,26 +608,17 @@ This question is taken up by the next section.
 \label{fig:defer:RCU Usage in the Linux Kernel}
 \end{figure}
 
-It turns out that RCU has been used in the Linux kernel since
+RCU has been used in the Linux kernel since
 October 2002~\cite{Torvalds2.5.43}.
 Use of the RCU API has increased substantially since that time,
 as can be seen in
 Figure~\ref{fig:defer:RCU Usage in the Linux Kernel}.
 In fact, code very similar to that in
 Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}
-could be used in the Linux kernel.
-
-Prior to that, RCU was used in production in Sequent Computer Systems's
-DYNIX/ptx operating system from the early 1990s~\cite{McKenney98},
-and prior to that, a similar mechanism was used in IBM's
-VM/XA, possibly as early as the mid-1980s~\cite{Hennessy89}.
-Finally, as discussed in
-Section~\ref{sec:defer:RCU Related Work},
-mechanisms roughly similar to RCU have also been used
-in academic and industrial-research projects as early as
-1980~\cite{Kung80},
-and more recently in production by a number of userspace
-applications~\cite{MathieuDesnoyers2009URCU,MikeDay2013RCUqemu,GeoffRomer2018C++DeferredReclamationP0561R4}.
+is used in the Linux kernel.
+RCU has enjoyed heavy use both prior to and since its acceptance
+in the Linux kernel, as discussed in
+\cref{sec:defer:RCU Related Work}.
 
 It is therefore safe to say that RCU enjoys wide practical applicability.
 

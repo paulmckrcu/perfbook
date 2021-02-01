@@ -80,15 +80,14 @@ subscribe operations must inform both the compiler and the CPU of the
 need to maintain the needed ordering.
 
 Publication is carried out by \co{rcu_assign_pointer()}, which ensures that
-\co{ins_route()}'s callers initialization is ordered before the actual
+\co{ins_route()}'s caller's initialization is ordered before the actual
 publication operation's store of the pointer.
 In addition, \co{rcu_assign_pointer()} must be atomic in the sense that 
 concurrent readers see either the old value of the pointer or the new
 value of the pointer, but not some mash-up of these two values.
-These requirements are met by the C11 store-release operation,
-and in fact in the Linux kernel, \co{rcu_assign_pointer()} is defined
-in terms of \co{smp_store_release()}, which is roughly similar to
-C11 store-release.
+These requirements are met by the C11 store-release operation, and in
+fact in the Linux kernel, \co{rcu_assign_pointer()} is defined in terms
+of \co{smp_store_release()}, which is similar to C11 store-release.
 
 Note that if concurrent updates are required, some sort of synchronization
 mechanism will be required to mediate among multiple concurrent
@@ -315,26 +314,44 @@ The general process is illustrated by the following pseudocode:
 \item	Clean up, for example, free the element that was replaced above.
 \end{enumerate}
 
-\begin{figure}[tb]
+\begin{figure}[tbp]
 \centering
-\resizebox{3in}{!}{\includegraphics{defer/RCUGPordering}}
-\caption{RCU Grace-Period Ordering Guarantees}
-\label{fig:defer:RCU Grace-Period Ordering Guarantees}
+\resizebox{2.5in}{!}{\includegraphics{defer/RCUGPorderingSummary}}
+\caption{Summary of RCU Grace-Period Ordering Guarantees}
+\label{fig:defer:Summary of RCU Grace-Period Ordering Guarantees}
 \end{figure}
 
 This more abstract procedure requires a more abstract diagram than
 \crefrange{fig:defer:RCU Reader and Later Grace Period}
 {fig:defer:RCU Reader Within Grace Period},
 which are specific to a particular litmus test.
-Figure~\ref{fig:defer:RCU Grace-Period Ordering Guarantees}
-fills this need, showing how the RCU read-side critical sections in the
-upper left and lower right are ordered with an asynchronous grace period
-that starts with a \co{call_rcu()}\footnote{
-	As opposed to the synchronous RCU grace periods waited for
-	by \co{synchronize_rcu()}.}
-at the upper right and ends at the lower left with the invocation of
-the callback functions that was passed to \co{call_rcu()}.
-This diagram illustrates RCU's wait-for-readers functionality:
+After all, and RCU implementation must work correctly regardless of
+the form of the RCU updates and the RCU read-side critical sections.
+Figure~\ref{fig:defer:Summary of RCU Grace-Period Ordering Guarantees}
+fills this need, showing the four possible scenarios, with time
+advancing from top to bottom within each scenario.
+Within each scenario, an RCU reader is represented by the left-hand
+stack of boxes and and RCU updater by the right-hand stack.
+
+In the first scenario, the reader starts execution before the
+updater starts the removal, so it is possible that this reader
+has a reference to the removed data element.
+Therefore, the updater must not free this element until after the
+reader completes.
+In the second scenario, the reader does not start execution until
+after the removal has completed.
+The reader cannot possibly obtain a reference to the already-removed
+data element, so this element may be freed before the reader completes.
+The third scenario is like the second, but illustrates that when the
+reader cannot possibly obtain a reference to element, it is still
+permissible to defer the freeing of that element until after the
+reader completes.
+In the fourth and final scenario, the reader starts execution before
+the updater starts removing the data element, but this element
+is (incorrectly) freed before the reader completed.
+A correct RCU implementation will not allow this fourth scenario to
+occur.
+This diagram thus illustrates RCU's wait-for-readers functionality:
 Given a grace period, each reader ends before the end of that grace
 period, starts after the beginning of that grace period, or both, in
 which case it is wholly contained within that grace period.
