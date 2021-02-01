@@ -23,6 +23,10 @@ Finally,
 Section~\ref{sec:defer:So, What is RCU Really?}
 presents concluding remarks.
 
+Readers who are not excited about kernel internals may wish to skip
+ahead to \cref{sec:defer:RCU Usage}
+on page~\pageref{sec:defer:RCU Usage}.
+
 \subsubsection{RCU has a Family of Wait-to-Finish APIs}
 \label{sec:defer:RCU has a Family of Wait-to-Finish APIs}
 
@@ -154,10 +158,12 @@ Any region of code that disables bottom halves, interrupts, or preemption
 also acts as an RCU read-side critical section.
 RCU read-side critical sections may be nested.
 The corresponding synchronous update-side primitives,
-\co{synchronize_rcu()}, along with its synonym
-\co{synchronize_net()}, wait for any type of currently executing
-RCU read-side critical sections to complete.
-The length of this wait is known as a ``grace period''.
+\co{synchronize_rcu()} and \co{synchronize_rcu_expedited()}, along with
+their synonym \co{synchronize_net()}, wait for any type of currently
+executing RCU read-side critical sections to complete.
+The length of this wait is known as a ``grace period'', and
+\co{synchronize_rcu_expedited()} is designed to reduce grace-period
+latency at the expense of increased CPU overhead and IPIs.
 The asynchronous update-side primitive, \co{call_rcu()},
 invokes a specified function with a specified argument after a
 subsequent grace period.
@@ -169,31 +175,6 @@ such as when unloading a Linux-kernel module that uses \co{call_rcu()},
 when it is necessary to wait for all
 outstanding RCU callbacks to complete~\cite{PaulEMcKenney2007rcubarrier}.
 The \co{rcu_barrier()} primitive does this job.
-
-Finally, RCU may be used to provide
-type-safe memory~\cite{Cheriton96a}, as described in
-Section~\ref{sec:defer:RCU Provides Type-Safe Memory}.
-In the context of RCU, type-safe memory guarantees that a given
-data element will not change type during any RCU read-side critical section
-that accesses it.
-To make use of RCU-based type-safe memory, pass
-\co{SLAB_TYPESAFE_BY_RCU} to \co{kmem_cache_create()}.
-It is important to note that \co{SLAB_TYPESAFE_BY_RCU} will
-\emph{in no way}
-prevent \co{kmem_cache_alloc()} from immediately reallocating
-memory that was just now freed via \co{kmem_cache_free()}!
-In fact, the \co{SLAB_TYPESAFE_BY_RCU}-protected data structure
-just returned by \co{rcu_dereference} might be freed and reallocated
-an arbitrarily large number of times, even when under the protection
-of \co{rcu_read_lock()}.
-Instead, \co{SLAB_TYPESAFE_BY_RCU} operates by preventing
-\co{kmem_cache_free()}
-from returning a completely freed-up slab of data structures
-to the system until after an RCU grace period elapses.
-In short, although a given RCU read-side critical section might see a
-given \co{SLAB_TYPESAFE_BY_RCU} data element being freed and reallocated
-arbitrarily often, the element's type is guaranteed not to change until
-that critical section has completed.
 
 \QuickQuizSeries{%
 \QuickQuizB{
@@ -230,6 +211,15 @@ that critical section has completed.
 }\QuickQuizEndE
 }
 
+Finally, RCU may be used to provide
+type-safe memory~\cite{Cheriton96a}, as described in
+Section~\ref{sec:defer:RCU Provides Type-Safe Memory}.
+In the context of RCU, type-safe memory guarantees that a given
+data element will not change type during any RCU read-side critical section
+that accesses it.
+To make use of RCU-based type-safe memory, pass
+\co{SLAB_TYPESAFE_BY_RCU} to \co{kmem_cache_create()}.
+
 The ``SRCU: Sleeping readers'' column in
 Table~\ref{tab:defer:RCU Wait-to-Finish APIs}
 displays a specialized RCU API that permits general sleeping in SRCU
@@ -241,16 +231,21 @@ must be passed into the corresponding \co{srcu_read_unlock()}.
 This difference is due to the fact that the SRCU user allocates an
 \co{srcu_struct} for each distinct SRCU usage.
 These distinct \co{srcu_struct} structures prevent SRCU read-side critical
-sections from blocking unrelated \co{synchronize_srcu()} invocations.
-Of course, use of \co{synchronize_srcu()} in an SRCU read-side critical
+sections from blocking unrelated \co{synchronize_srcu()} and
+\co{synchronize_srcu_expedited()} invocations.
+Of course, use of either \co{synchronize_srcu()} or
+\co{synchronize_srcu_expedited()} within an SRCU read-side critical
 section can result in self-deadlock, so should be avoided.
+As with RCU, SRCU's \co{synchronize_srcu_expedited()} decreases
+grace-period latency compared to \co{synchronize_srcu()}, but at
+the expense of increased CPU overhead.
 
 \QuickQuiz{
 	Under what conditions can \co{synchronize_srcu()} be safely
 	used within an SRCU read-side critical section?
 }\QuickQuizAnswer{
-	In principle, you can use
-	\co{synchronize_srcu()} with a given \co{srcu_struct}
+	In principle, you can use either \co{synchronize_srcu()} or
+	\co{synchronize_srcu_expedited()} with a given \co{srcu_struct}
 	within an SRCU read-side critical section that uses some other
 	\co{srcu_struct}.
 	In practice, however, doing this is almost certainly a bad idea.
@@ -276,19 +271,14 @@ srcu_read_unlock(&ssb, idx);
 }\QuickQuizEnd
 
 Similar to normal RCU, self-deadlock can be avoided using the
-asynchronous \co{call_srcu()} function, but special care must be taken
-when using \co{call_srcu()}.
-
-\QuickQuiz{
-	Why should you be careful with \co{call_srcu()}?
-}\QuickQuizAnswer{
-	A single task could register SRCU callbacks very quickly.
-	Given that SRCU allows readers to block for arbitrary periods of
-	time, this could consume an arbitrarily large quantity of memory.
-	In contrast, given the synchronous \co{synchronize_srcu()}
-	interface, a given task must finish waiting for a given grace period
-	before it can start waiting for the next one.
-}\QuickQuizEnd
+asynchronous \co{call_srcu()} function.
+However, special care must be taken when using \co{call_srcu()} because
+a single task could register SRCU callbacks very quickly.
+Given that SRCU allows readers to block for arbitrary periods of
+time, this could consume an arbitrarily large quantity of memory.
+In contrast, given the synchronous \co{synchronize_srcu()}
+interface, a given task must finish waiting for a given grace period
+before it can start waiting for the next one.
 
 Also similar to RCU, there is an \co{srcu_barrier()} function that waits
 for all prior \co{call_srcu()} callbacks to be invoked.

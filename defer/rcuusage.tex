@@ -1139,9 +1139,26 @@ for the duration of any pre-existing RCU read-side critical sections.
 	to the system after that grace period ends.
 }\QuickQuizEnd
 
-These algorithms typically use a validation step that checks to make
-sure that the newly referenced data structure really is the one that
-was requested~\cite[Section~2.5]{LaninShasha1986TSM}.
+It is important to note that \co{SLAB_TYPESAFE_BY_RCU} will
+\emph{in no way}
+prevent \co{kmem_cache_alloc()} from immediately reallocating
+memory that was just now freed via \co{kmem_cache_free()}!
+In fact, the \co{SLAB_TYPESAFE_BY_RCU}-protected data structure
+just returned by \co{rcu_dereference} might be freed and reallocated
+an arbitrarily large number of times, even when under the protection
+of \co{rcu_read_lock()}.
+Instead, \co{SLAB_TYPESAFE_BY_RCU} operates by preventing
+\co{kmem_cache_free()}
+from returning a completely freed-up slab of data structures
+to the system until after an RCU grace period elapses.
+In short, although a given RCU read-side critical section might see a
+given \co{SLAB_TYPESAFE_BY_RCU} data element being freed and reallocated
+arbitrarily often, the element's type is guaranteed not to change until
+that critical section has completed.
+
+These algorithms therefore typically use a validation step that checks
+to make sure that the newly referenced data structure really is the one
+that was requested~\cite[Section~2.5]{LaninShasha1986TSM}.
 These validation checks require that portions of the data structure
 remain untouched by the free-reallocate process.
 Such validation checks are usually very hard to get right, and can
