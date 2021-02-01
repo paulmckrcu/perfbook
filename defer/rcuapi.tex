@@ -287,6 +287,63 @@ In other words, SRCU compensates for its extremely weak
 forward-progress guarantees by permitting the developer to restrict
 its scope.
 
+The ``Tasks RCU: Free tracing trampolines'' column in
+\cref{tab:defer:RCU Wait-to-Finish APIs} displays a specialized
+RCU API that mediates freeing of the trampolines used in Linux-kernel
+tracing.
+These trampolines are used to transfer control from a point in the
+code being traced to the code doing the actual tracing.
+It is of course necessary to ensure that all code executing within
+a given trampoline has finished before freeing that trampoline.
+
+Changes to the code being traced are typically limited to a single jump
+or call instruction, and thus cannot accommodate the sequence of code
+required to implement \co{rcu_read_lock()} and \co{rcu_read_unlock()}.
+Nor can the trampoline contain calls to \co{rcu_read_lock()} and
+\co{rcu_read_unlock()}.
+To see this, consider a CPU that is just about to start executing a
+given trampoline.
+Because it has not yet executed the \co{rcu_read_lock()}, that
+trampoline could be freed at any time, which would come as a fatal
+surprise to this CPU.
+Therefore, trampolines cannot be protected by synchronization primitives
+executed in either the traced code or in the trampoline itself.
+Which does raise the question of exactly how the trampoline is to be
+protected.
+
+The key to answering this question is to note that trampoline code
+never contains code that either directly or indirectly does a
+voluntary context switch.
+This code might be preempted, but it will never directly or indirectly
+invoke \co{schedule()}.
+This suggests a variant of RCU having voluntary context switches and
+idle execution as its only quiescent states.
+This variant is Tasks RCU.
+
+Tasks RCU is unusual in having no read-side marking functions, which
+is good given that its main use case has nowhere to put such markings.
+Instead, calls to \co{schedule()} serve directly as quiescent states.
+Updates can use \co{synchronize_rcu_tasks()} to wait for all pre-existing
+trampoline execution to complete, or they can use its asynchronous
+counterpart, \co{call_rcu_tasks()}.
+There is also an \co{rcu_barrier_tasks()} that waits for completion
+of callbacks corresponding to all prior invocations of \co{call_rcu_tasks()}.
+There is no \co{synchronize_rcu_tasks_expedited()} because there has
+not yet been a request for it, though implementing a useful variant of
+it would not be free of challenges.
+
+\QuickQuiz{
+	In a kernel built with \co{CONFIG_PREEMPT_NONE=y}, won't
+	\co{synchronize_rcu()} wait for all trampolines, given
+	that preemption is disabled and that trampolines never
+	directly or indirectly invoke \co{schedule()}?
+}\QuickQuizAnswer{
+	You are quite right!
+
+	In fact, in nonpreemptible kernels, \co{synchronize_rcu_tasks()}
+	is a wrapper around \co{synchronize_rcu()}.
+}\QuickQuizEnd
+
 \subsubsection{RCU has Publish-Subscribe and Version-Maintenance APIs}
 \label{sec:defer:RCU has Publish-Subscribe and Version-Maintenance APIs}
 
