@@ -494,7 +494,7 @@ Use of \co{rcu_pointer_handoff()} indicates to such tooling that protection
 of the structure in question has been handed off from RCU to some other
 mechanism, such as locking or reference counting.
 
-The \co{RCU_INIT_POINTER()} macro can be used to initialized RCU-protected
+The \co{RCU_INIT_POINTER()} macro can be used to initialize RCU-protected
 pointers that have not yet been exposed to readers, or alternatively,
 to set RCU-protected pointers to \co{NULL}.
 In these restricted cases, the memory-barrier instructions provided by
@@ -507,15 +507,21 @@ The second category subscribes to pointers to data items, or,
 alternatively, safely traverses RCU-protected pointers.
 Again, simply loading these pointers using C-language accesses
 could result in seeing pre-initialization garbage in the pointed-to data.
+Similarly, loading these pointer by any means outside of an RCU
+read-side critical section could result in the pointed-to object being
+freed at any time.
 However, if the pointer is merely to be tested and not dereferenced,
-this protection is not needed.
+the freeing of the pointed-to object is not necessarily a problem.
 In this case, \co{rcu_access_pointer()} may be used.
-Normally, however, protection is required, and so the
-\co{rcu_dereference()} primitive ensures that subsequent code
-dereferencing the pointer will see the effects of initialization code
-prior to the corresponding \co{rcu_assign_pointer()}, even on Alpha CPUs.
-On non-Alpha CPUs, \co{rcu_dereference()} documents which pointer
-dereferences require RCU protection.
+Normally, however, RCU read-side protection is required, and so the
+\co{rcu_dereference()} primitive uses the Linux kernel's \co{lockdep}
+facility~\cite{JonathanCorbet2006lockdep} to verify that this
+\co{rcu_dereference()} invocation is under the protection of
+\co{rcu_read_lock()}, \co{srcu_read_lock()}, or some other RCU read-side
+marker.
+In contrast, the \co{rcu_access_pointer()} primitive does not involve
+\co{lockdep}, and thus will not provoke \co{lockdep} complaints when
+used outside of an RCU read-side critical section.
 
 Another situation where protection is not required is when update-side code
 accesses the RCU-protected pointer while holding the update-side lock.
@@ -588,8 +594,9 @@ which shows only the non-header (blue) elements.
 \end{figure}
 
 Linux's \co{hlist}\footnote{
-	The ``h'' stands for hashtable, where it enjoys half of the
-	storage requirements of Linux's circular linked list.}
+	The ``h'' stands for hashtable, in which it reduces memory
+	use by half compared to Linux's double-pointer circular
+	linked list.}
 is a linear list, which means that
 it needs only one pointer for the header rather than the two
 required for the circular list, as shown in
@@ -601,7 +608,7 @@ be abbreviated in the same way \co{list_head}-style lists are, as shown in
 Figure~\ref{fig:defer:Linux Linked List Abbreviated}.
 
 A variant of Linux's \co{hlist}, named \co{hlist_nulls}, provides multiple
-distinct \co{NULL} pointer, but otherwise uses the same layout as shown in
+distinct \co{NULL} pointers, but otherwise uses the same layout as shown in
 Figure~\ref{fig:defer:Linux Linear Linked List (hlist)}.
 In this variant, a \co{->next} pointer having a zero low-order bit is
 considered to be a pointer.
@@ -820,7 +827,7 @@ with \co{5,2,3} in such a way that any given reader sees one of these
 two values.
 
 \begin{fcvref}[ln:defer:Canonical RCU Replacement Example (2nd)]
-Line~\lnref{kmalloc} \co{kmalloc()}s a replacement element, as follows,
+Line~\lnref{kmalloc} allocates a replacement element,
 resulting in the state as shown in the second row of
 Figure~\ref{fig:defer:RCU Replacement in Linked List}.
 At this point, no reader can hold a reference to the newly allocated
@@ -837,6 +844,7 @@ Line~\lnref{update1} updates \co{q->b} to the value ``2'', and
 line~\lnref{update2} updates \co{q->c} to the value ``3'',
 as shown on the fourth row of
 Figure~\ref{fig:defer:RCU Replacement in Linked List}.
+Note that the newly allocated structure is still inaccessible to readers.
 
 Now, line~\lnref{replace} does the replacement, so that the new element is
 finally visible to readers, and hence is shaded red, as shown on
@@ -944,7 +952,7 @@ but before returning from the function.
 Debug-object support allows detection of bugs involving passing the
 same \co{rcu_head} structure to \co{call_rcu()} and friends in
 quick succession, which is the \co{call_rcu()} counterpart to the
-infamous double-free class of bugs.
+infamous double-free class of memory-allocation bugs.
 
 Stall-warning control is provided by \co{rcu_cpu_stall_reset()}, which
 allows the caller to suppress RCU CPU stall warnings for the remainder
@@ -970,7 +978,7 @@ each of which returns \co{true} if invoked within the corresponding
 type of RCU read-side critical section.
 
 \QuickQuiz{
-	Why isn't there a \co{rcu_read_lock_tasks()} for Tasks RCU?
+	Why isn't there a \co{rcu_read_lock_tasks_held()} for Tasks RCU?
 }\QuickQuizAnswer{
 	Because Tasks RCU does not have read-side markers.
 	Instead, Tasks RCU read-side critical sections are
@@ -994,6 +1002,9 @@ warning if invoked outside of an RCU read-side critical section.
 the statement that is passed in as the sole argument.
 For example, \co{RCU_NONIDLE(WARN_ON(!rcu_is_watching()))}
 would never emit a warning.
+However, changes in the 2020--2021 timeframe extend RCU's reach deeper
+into the idle loop, which should greatly reduce or even eliminate the
+need for \co{RCU_NONIDLE()}.
 
 Finally,  \co{rcu_sleep_check()} emits a warning if invoked within
 an RCU, RCU-bh, or RCU-sched read-side critical section.
