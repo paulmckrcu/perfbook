@@ -45,80 +45,108 @@ API~\cite{PaulEMcKenney2019RCUAPI}.\footnote{
 	Documetation for earlier versions of the Linux-kernel RCU API may
 	be found elsewhere~\cite{PaulEMcKenney2008WhatIsRCUAPI,PaulEMcKenney2014RCUAPI}.}
 
-\begin{table*}[tbp]
+\begin{sidewaystable*}[tbp]
 \rowcolors{1}{}{lightgray}
 \renewcommand*{\arraystretch}{1.3}
 \centering
 \caption{RCU Wait-to-Finish APIs}
 \label{tab:defer:RCU Wait-to-Finish APIs}
-\footnotesize\OneColumnHSpace{-.9in}
-\begin{tabularx}{6.5in}{>{\raggedright\arraybackslash}p{1.08in}
+\scriptsize\OneColumnHSpace{-.9in}
+\begin{tabularx}{8.5in}{>{\raggedright\arraybackslash}p{0.94in}
     >{\raggedright\arraybackslash}X
     >{\raggedright\arraybackslash}X
-    >{\raggedright\arraybackslash}p{1.3in}}
+    >{\raggedright\arraybackslash}p{1.1in}
+    >{\raggedright\arraybackslash}p{1.35in}
+    >{\raggedright\arraybackslash}p{1.45in}}
 \toprule
 &
     {\bf RCU}: Original &
 	{\bf SRCU}: Sleeping readers &
-	    {\bf Tasks RCU}: Free tracing trampolines \\
+	    {\bf Tasks RCU}: Free tracing trampolines &
+		{\bf Tasks RCU Rude}: Free idle-task tracing trampolines &
+		    {\bf Tasks RCU Trace}: Protect sleepable BPF programs \\
 \midrule
 {\bf Read-side critical-section markers} &
     \tco{rcu_read_lock()}~! \tco{rcu_read_unlock()}~!
     \tco{rcu_read_lock_bh()} \tco{rcu_read_unlock_bh()}
     \tco{rcu_read_lock_sched()} \tco{rcu_read_unlock_sched()}
-    \tco{rcu_read_lock_sched_notrace()} \tco{rcu_read_unlock_sched_notrace()}
     (Plus anything disabing bottom halves, preemption, or interrupts.) &
 	\tco{srcu_read_lock()} \tco{srcu_read_unlock()} &
-	    Voluntary context switch \\
+	    Voluntary context switch &
+		Voluntary context switch and preempt-enable regions of code &
+		    \tco{rcu_read_lock_trace()} \tco{rcu_read_unlock_trace} \\
 {\bf Update-side primitives (synchronous) } &
-    { \tco{synchronize_rcu()} \tco{synchronize_rcu_expedited()}
-      \tco{synchronize_net()} } &
+    { \tco{synchronize_rcu()}
+      \tco{synchronize_net()}
+      \tco{synchronize_rcu_expedited()} } &
 	\tco{synchronize_srcu()} \tco{synchronize_srcu_expedited()} &
-	    \tco{synchronize_rcu_tasks()} \\
-{\bf Update-side primitives (asynchronous/callback) } &
+	    \tco{synchronize_rcu_tasks()} &
+		\tco{synchronize_rcu_tasks_rude()} &
+		    \tco{synchronize_rcu_tasks_trace()} \\
+{\bf Update-side primitives (asynchronous / callback) } &
     \tco{call_rcu()} ! &
 	\tco{call_srcu()} &
-	    \tco{call_rcu_tasks()} \\
+	    \tco{call_rcu_tasks()} &
+		\tco{call_rcu_tasks_rude()} &
+		    \tco{call_rcu_tasks_trace()} \\
 {\bf Update-side primitives (wait for callbacks) } &
     \tco{rcu_barrier()} &
 	\tco{srcu_barrier()} &
-	    \tco{rcu_barrier_tasks()} \\
+	    \tco{rcu_barrier_tasks()} &
+		\tco{rcu_barrier_tasks_rude()} &
+		    \tco{rcu_barrier_tasks_trace()} \\
 {\bf Update-side primitives (initiate / wait)} &
     \tco{get_state_synchronize_rcu()}
     \tco{cond_synchronize_rcu()} &
 	&
-	    \\
+	    &
+		&
+		    \\
 {\bf Update-side primitives (free memory) } &
     \tco{kfree_rcu()} &
 	&
-	    \\
+	    &
+		&
+		    \\
 {\bf Type-safe memory } &
     \tco{SLAB_TYPESAFE_BY_RCU} &
 	&
-	    \\
+	    &
+		&
+		    \\
 {\bf Read side constraints } &
     No blocking (only preemption) &
 	No \tco{synchronize_srcu()} with same \tco{srcu_struct} &
-	    No voluntary context switch \\
+	    No voluntary context switch &
+		Neither blocking nor preemption &
+			No RCU tasks trace grace period \\
 {\bf Read side overhead } &
-    CPU-local accesses (free on \tco{PREEMPT=n}) &
+    CPU-local accesses (\tco{barrier()} on \tco{PREEMPT=n}) &
 	Simple instructions, memory barriers &
-	    Free \\
+	    Free &
+		CPU-local accesses (free on \tco{PREEMPT=n}) &
+		    CPU-local accesses \\
 {\bf Asynchronous update-side overhead } &
     sub-microsecond &
 	sub-microsecond &
-	    sub-microsecond \\
+	    sub-microsecond &
+		sub-microsecond &
+		    sub-microsecond \\
 {\bf Grace-period latency } &
     10s of milliseconds &
         Milliseconds &
-	    seconds \\
+	    Seconds &
+		Milliseconds &
+		    10s of milliseconds \\
 {\bf Expedited grace-period latency } &
     10s of microseconds &
         Microseconds &
-	    N/A \\
+	    N/A &
+		N/A &
+		    N/A \\
 \bottomrule
 \end{tabularx}
-\end{table*}
+\end{sidewaystable*}
 
 If you are new to RCU, you might consider focusing on just one
 of the columns in
@@ -147,7 +175,7 @@ serve as a useful reference.
 	he knew all that there is to know about RCU.
 }\QuickQuizEnd
 
-The ``RCU: Original'' column corresponds to the consolidation of the
+The ``RCU'' column corresponds to the consolidation of the
 three Linux-kernel RCU
 implementations~\cite{PaulEMcKenney2019RCUCVE,McKenney:2019:CRS:3319647.3325836},
 in which RCU read-side critical sections start with
@@ -220,7 +248,7 @@ that accesses it.
 To make use of RCU-based type-safe memory, pass
 \co{SLAB_TYPESAFE_BY_RCU} to \co{kmem_cache_create()}.
 
-The ``SRCU: Sleeping readers'' column in
+The ``SRCU'' column in
 Table~\ref{tab:defer:RCU Wait-to-Finish APIs}
 displays a specialized RCU API that permits general sleeping in SRCU
 read-side critical
@@ -287,7 +315,7 @@ In other words, SRCU compensates for its extremely weak
 forward-progress guarantees by permitting the developer to restrict
 its scope.
 
-The ``Tasks RCU: Free tracing trampolines'' column in
+The ``Tasks RCU'' column in
 \cref{tab:defer:RCU Wait-to-Finish APIs} displays a specialized
 RCU API that mediates freeing of the trampolines used in Linux-kernel
 tracing.
@@ -343,6 +371,27 @@ it would not be free of challenges.
 	In fact, in nonpreemptible kernels, \co{synchronize_rcu_tasks()}
 	is a wrapper around \co{synchronize_rcu()}.
 }\QuickQuizEnd
+
+The ``Tasks RCU Rude'' column provides a more effective variant
+of the toy implementation presented in
+\cref{sec:defer:Toy Implementation}.
+This variant causes each CPU to execute a context switch,
+so that any voluntary context switch or any preemptible region of
+code can serve as a quiescent state.
+The Tasks RCU Rude variant uses the Linux-kernel workqueues facility to
+force context switches to happen concurrently, in contrast to the serial
+CPU-by-CPU approach taken by the toy implementation.
+The API mirrors that of Tasks RCU.
+
+Finally, the ``Tasks RCU Trace'' column provides an RCU implementation
+with functionality similar to that of SRCU, except with much faster
+read-side markers.
+However, this speed is a consequence of the fact that these markers
+do not execute memory-barrier instructions, which means that Tasks RCU
+Trace grace periods must often send IPIs to all CPUs and must always
+scan the entire task list.
+Nevertheless, the resulting grace-period latency is reasonably short,
+rivaling that of RCU.
 
 \subsubsection{RCU has Publish-Subscribe and Version-Maintenance APIs}
 \label{sec:defer:RCU has Publish-Subscribe and Version-Maintenance APIs}
