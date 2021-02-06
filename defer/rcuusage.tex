@@ -610,13 +610,10 @@ Section~\ref{sec:defer:Reference Counting}.
 
 \paragraph{Low-Priority RCU Readers Can Block High-Priority Reclaimers}
 
-In Realtime RCU~\cite{DinakarGuniguntala2008IBMSysJ},
-SRCU~\cite{PaulEMcKenney2006c}, or
-QRCU~\cite{PaulEMcKenney2007QRCUspin} (see
-Section~\ref{sec:formal:Promela Example: QRCU}),
-a preempted reader will prevent
-a grace period from completing, even if a high-priority task is
-blocked waiting for that grace period to complete.
+In Realtime RCU~\cite{DinakarGuniguntala2008IBMSysJ} or
+SRCU~\cite{PaulEMcKenney2006c},
+a preempted reader will prevent a grace period from completing, even if
+a high-priority task is blocked waiting for that grace period to complete.
 Realtime RCU can avoid this problem by substituting \co{call_rcu()}
 for \co{synchronize_rcu()} or by using RCU priority
 boosting~\cite{PaulEMcKenney2007BoostRCU,DinakarGuniguntala2008IBMSysJ},
@@ -626,17 +623,19 @@ but not before a clear real-world need is demonstrated.
 
 \paragraph{RCU Grace Periods Extend for Many Milliseconds}
 
-With the exception of QRCU and several of the ``toy'' RCU implementations
-described in
+With the exception of userspace
+RCU~\cite{MathieuDesnoyers2009URCU,PaulMcKenney2013LWNURCU},
+expedited grace periods, and several of the ``toy''
+RCU implementations described in
 Appendix~\ref{chp:app:``Toy'' RCU Implementations},
-RCU grace periods extend for multiple milliseconds.
+RCU grace periods extend milliseconds.
 Although there are a number of techniques to render such long delays
 harmless, including use of the asynchronous interfaces where available
 (\co{call_rcu()} and \co{call_rcu_bh()}), this situation
 is a major reason for the rule of thumb that RCU be used in read-mostly
 situations.
 
-\paragraph{Comparison of Reader-Writer Locking and RCU Code}
+\paragraph{Code: Reader-Writer Locking vs. RCU Code}
 
 In the best case, the conversion from reader-writer locking to RCU
 is quite simple, as shown in
@@ -740,6 +739,48 @@ using reader-writer locking can be easily converted to RCU.
 More-elaborate cases of replacing reader-writer locking with RCU
 may be found
 elsewhere~\cite{NeilBrown2015PathnameLookup,NeilBrown2015RCUwalk}.
+
+\paragraph{Semantics: Reader-Writer Locking vs. RCU Semantics}
+
+Reader-writer locking semantics can be roughly and informally summarized
+by the following three temporal constraints:
+
+\begin{enumerate}
+\item	Write-side acquisitions wait for any read-holders to release
+	the lock.
+\item	Writer-side acquisitions wait for any write-holder to release
+	the lock.
+\item	Read-side acquisitions wait for any write-holder to release
+	the lock.
+\end{enumerate}
+
+RCU dispenses entirely with constraint~\#3 and weakens the other two
+as follows:
+
+\begin{enumerate}
+\item	Writers wait for any pre-existing read-holders before progressing
+	to the destructive phase of their update (usually the freeing of
+	memory).
+\item	Writers synchronize with each other as needed.
+\end{enumerate}
+
+It is of course this weakening that permits RCU implementations to attain
+excellent performance and scalability.
+RCU use cases compensate for this weakening in a surprisingly large number
+of ways, but most commonly by imposing spatial constraints:
+
+\begin{enumerate}
+\item	New data is placed in newly allocated memory.
+\item	Old data is freed, but only after:
+	\begin{enumerate}
+	\item	That data has been unlinked so as to be inaccessible
+		to later readers, and
+	\item	An RCU grace period has elapsed since unlinking.
+	\end{enumerate}
+\end{enumerate}
+
+In short, RCU attains its read-side performance and scalability by
+constructing semantics based on combined temporal and spatial constraints.
 
 \subsubsection{RCU is a Restricted Reference-Counting Mechanism}
 \label{sec:defer:RCU is a Restricted Reference-Counting Mechanism}
