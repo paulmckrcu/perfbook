@@ -794,7 +794,7 @@ A final approach is simply to get everything out of the way of the
 real-time process, clearing all other processing off of any CPUs that
 this process needs, as shown in \cref{fig:advsync:CPU Isolation}.
 This was implemented in the 3.10 Linux kernel via the \co{CONFIG_NO_HZ_FULL}
-Kconfig parameter~\cite{FredericWeisbecker2013nohz}.
+Kconfig parameter~\cite{JonCorbet2013NO-HZ-FULL,FredericWeisbecker2013nohz}.
 It is important to note that this approach requires at least one
 \emph{housekeeping CPU} to do background processing, for example running
 kernel daemons.
@@ -1309,7 +1309,7 @@ given CPU, avoiding all causes of interference.
 Although the reality is of course more complex, it is becoming
 possible to do just that,
 courtesy of the \co{NO_HZ_FULL} implementation led by
-Frederic Weisbecker~\cite{JonCorbet2013NO-HZ-FULL} that has been
+Frederic Weisbecker~\cite{JonCorbet2013NO-HZ-FULL,FredericWeisbecker2013nohz} that has been
 accepted into version 3.10 of the Linux kernel.
 Nevertheless, considerable care is required to properly set up such
 an environment, as it is necessary to control a number of possible
@@ -1436,24 +1436,10 @@ and each worker CPU's RCU callbacks would be invoked on one of the
 housekeeping CPUs.
 A CPU that has suppressed scheduling-clock interrupts due to there
 only being one runnable task on that CPU is said to be in
-\emph{adaptive ticks mode}.
-
-As an alternative to the \co{nohz_full=} boot parameter, you can build
-your kernel with \co{NO_HZ_FULL_ALL}, which will designate CPU~0 as
-a housekeeping CPU and all other CPUs as worker CPUs.
-Either way, it is important to ensure that you have designated enough
+\emph{adaptive ticks mode} or in \co{nohz_full} mode.
+It is important to ensure that you have designated enough
 housekeeping CPUs to handle the housekeeping load imposed by the
 rest of the system, which requires careful benchmarking and tuning.
-
-Of course, there is no free lunch, and \co{NO_HZ_FULL} is no exception.
-As noted earlier,
-\co{NO_HZ_FULL} makes kernel/user transitions more expensive due to the
-need for delta process accounting and the need to inform kernel subsystems
-(such as RCU) of the transitions.
-It also prevents CPUs running processes with POSIX CPU timers enabled
-from entering adaptive-ticks mode.
-Additional limitations, tradeoffs, and configuration advice may be
-found in \path{Documentation/timers/NO_HZ.txt}.
 
 An eighth source of OS jitter is page faults.
 Because most Linux implementations use an MMU for memory protection,
@@ -1499,6 +1485,18 @@ increased
 to show additional levels of function call within the kernel.
 The resulting trace can help track down the source of the OS jitter.
 \end{fcvref}
+
+As always, there is no free lunch, and \co{NO_HZ_FULL} is no exception.
+As noted earlier,
+\co{NO_HZ_FULL} makes kernel/user transitions more expensive due to the
+need for delta process accounting and the need to inform kernel subsystems
+(such as RCU) of the transitions.
+As a rough rule of thumb, \co{NO_HZ_FULL} helps with many types of
+real-time and heavy-compute workloads, but hurts other workloads
+that feature high rates of system calls and
+I/O~\cite{AbdullahAljuhni2018nohzfull}.
+Additional limitations, tradeoffs, and configuration advice may be
+found in \path{Documentation/timers/no_hz.rst}.
 
 As you can see, obtaining bare-metal performance when running
 CPU-bound real-time threads on a general-purpose OS such as Linux
