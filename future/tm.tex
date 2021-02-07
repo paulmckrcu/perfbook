@@ -920,6 +920,74 @@ It is interesting to note that many of the better performing and
 scaling STM implementations make use of RCU-like techniques
 internally~\cite{KeirAnthonyFraserPhD,KeirFraser2007withoutLocks,Gu:2019:PSE:3358807.3358885,Kim:2019:MSR:3297858.3304040}.
 
+\QuickQuiz{
+	MV-RLU looks pretty good!
+	Doesn't it beat RCU hands down?
+}\QuickQuizAnswer{
+	One might get that impression from a quick read of the abstract,
+	but more careful readers will notice the ``for a wide range of
+	workloads'' phrase in the last sentence.
+	It turns out that this phrase is quite important:
+
+	\begin{enumerate}
+	\item	Their RCU evaluation uses synchronous grace periods, which
+		needlessly throttle updates, as noted in their
+		Section~6.2.1.
+		See \cref{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo in the Presence of Updates}
+		on Page~\pageref{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo in the Presence of Updates}
+		of this book to see that the venerable asynchronous
+		\co{call_rcu()} primitive enables RCU to perform and
+		scale quite well with large numbers of updaters.
+		Furthermore, in Section~3.7 of their paper, the authors
+		admit that asynchronous grace periods are important to
+		MV-RLU scalability.
+		A fair comparison would also allow RCU the benefits of
+		asynchrony.
+	\item	They use a poorly tuned 1,000-bucket hash table containing
+		10,000~elements.
+		In addition, 448~hardware threads need considerably more
+		than 1,000~buckets to avoid the lock contention that
+		the correctly note limits RCU in their benchmarks.
+		A useful comparison would feature a properly tuned
+		hash table.
+	\item	Their RCU hash table used per-bucket locks, which they
+		call out as a bottleneck, which is not a surprise given
+		the long hash chains and small ratio of buckets to threads.
+		A number of their competing mechanisms instead use
+		lockfree techniques, thus avoiding the per-bucket-lock
+		bottleneck, which cynics might claim to shed some light
+		on the authors' otherwise inexplicable choice of poorly
+		tuned hash tables.
+		The first graph in the middle row of the authors'
+		Figure~4 show what RCU can achieve if not hobbled by
+		artificial bottlenecks, as does the first portion of
+		the second graph in that same row.
+	\item	Their linked-list operation permits RLU to do concurrent
+		modifications of different elements in the list, while
+		RCU is forced to serialize updates.
+		Again, RCU has always worked just fine in conjunction
+		with lockless updaters, a fact that has appeared in
+		the archival-quality academic literature, and which the
+		authors in fact cited~\cite{MathieuDesnoyers2012URCU}.
+		A fair comparison would use the same style of update
+		for RCU as it does for MV-RLU.
+	\item	The authors fail to consider combining RCU and sequence
+		locking, which is used in the Linux kernel to give
+		readers coherent views of multi-pointer updates.
+	\item	The authors fail to consider RCU-based solutions to the
+		Issaquah Challenge~\cite{PaulEMcKenney2016IssaquahCPPCON},
+		which also gives readers a coherent view of multi-pointer
+		updates, albeit with a weaker view of ``coherent''.
+	\end{enumerate}
+
+	It is surprising that the anonymous reviewers of this paper did
+	not demand an apples-to-apples comparison of MV-RCU and RCU.
+	Nevertheless, the authors should be congratulated on producing
+	an academic paper that presents an all-too-rare example of good
+	scalability combined with strong read-side coherence, even if
+	they did choose to hobble their competition.
+}\QuickQuizEnd
+
 \subsubsection{Extra-Transactional Accesses}
 \label{sec:future:Extra-Transactional Accesses}
 
