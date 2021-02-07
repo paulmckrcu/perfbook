@@ -8,53 +8,38 @@
 	  about data structures and their relationships.}
 	 {\emph{Linus Torvalds}}
 
-Efficient access to data is critically important, so that
-discussions of algorithms include time complexity of the related
+Serious discussions of algorithms include time complexity of their
 data structures~\cite{ThomasHCorman2001Algorithms}.
-However, for parallel programs, measures of time complexity must also
-include concurrency effects.
-These effects can be overwhelmingly large, as shown in
-Chapter~\ref{chp:Hardware and its Habits}, which means that
-concurrent data structure designs must focus as much on
-concurrency as they do on sequential time complexity.
-In other words, an important part of the data-structure relationships
-that good parallel programmers must worry about is that portion
-related to concurrency.
+However, for parallel programs, the time complexity includes concurrency
+effects because these effects can be overwhelmingly large, as shown in
+Chapter~\ref{chp:Hardware and its Habits}.
+In other words, a good programmer's data-structure relationships
+include those aspects related to concurrency.
 
 Section~\ref{sec:datastruct:Motivating Application}
-presents the motivating application used to evaluate
-the data structures presented in this chapter.
-
-As discussed in Chapter~\ref{cha:Partitioning and Synchronization Design},
-an excellent way to achieve high scalability is partitioning.
-This points the way to partitionable data structures, a topic taken up by
-Section~\ref{sec:datastruct:Partitionable Data Structures}.
-Chapter~\ref{chp:Deferred Processing} described how deferring some
-actions can greatly improve both performance and scalability.
-Section~\ref{sec:defer:Read-Copy Update (RCU)} in particular showed
-how to tap the awesome power of procrastination in pursuit of
-performance and scalability, a topic taken up by
-Section~\ref{sec:datastruct:Read-Mostly Data Structures}.
-
-Not all data structures are partitionable.
-Section~\ref{sec:datastruct:Non-Partitionable Data Structures}
-looks at a mildly non-partitionable example data structure.
-This section shows
-how to split it into read-mostly and partitionable portions,
-enabling a fast and scalable implementation.
-
+presents the motivating application for this chapter's data structures.
+\cref{cha:Partitioning and Synchronization Design} showed how
+partitioning improves scalability, so
+\cref{sec:datastruct:Partitionable Data Structures}
+discusses partitionable data structures.
+\cref{chp:Deferred Processing} described how deferring some
+actions can greatly improve both performance and scalability,
+a topic taken up by
+\cref{sec:datastruct:Read-Mostly Data Structures}.
+\cref{sec:datastruct:Non-Partitionable Data Structures}
+looks at a non-partitionable data structure, splitting
+it into read-mostly and partitionable portions,
+which improves both performance and scalability.
 Because this chapter cannot delve into the details of every concurrent
-data structure that has ever been used
-Section~\ref{sec:datastruct:Other Data Structures}
-provides a brief survey of the most common and important ones.
-Although the best performance and scalability results design rather
-than after-the-fact micro-optimization, it is nevertheless the case
-that micro-optimization has an important place in achieving the
-absolute best possible performance and scalability.
-This topic is therefore taken up in
-Section~\ref{sec:datastruct:Micro-Optimization}.
-
-Finally, Section~\ref{sec:datastruct:Summary}
+data structure,
+\cref{sec:datastruct:Other Data Structures}
+surveys a few  of the important ones.
+Although the best performance and scalability results from design rather
+than after-the-fact micro-optimization, micro-optimization is nevertheless
+necessary for the absolute best possible performance and scalability,
+as described in
+\cref{sec:datastruct:Micro-Optimization}.
+Finally, \cref{sec:datastruct:Summary}
 presents a summary of this chapter.
 
 \section{Motivating Application}
@@ -75,17 +60,16 @@ of data tracked for each animal.
 Births, captures, and purchases result in insertions, while deaths,
 releases, and sales result in deletions.
 Because Schr\"odinger's zoo contains a large quantity of short-lived
-animals, including mice and insects, the database must be able to
-support a high update rate.
+animals, including mice and insects, the database must handle
+high update rates.
+Those interested in Schr\"odinger's animals can query them, and
+Schr\"odinger has noted suspiciously query rates for his cat, so much
+so that he suspects that his mice might be checking up on their nemesis.
+Whatever their source, Schr\"odinger's application must handle high
+query rates to a single data element.
 
-Those interested in Schr\"odinger's animals can query them, however,
-Schr\"odinger has noted extremely high rates of queries for his cat,
-so much so that he suspects that his mice might be using the database
-to check up on their nemesis.
-This means that Schr\"odinger's application must be able to support a
-high rate of queries to a single data element.
-
-Please keep this application in mind as various data structures are presented.
+As we will see, this simple application can be a challenge to concurrent
+data structures.
 
 \section{Partitionable Data Structures}
 \label{sec:datastruct:Partitionable Data Structures}
@@ -96,13 +80,12 @@ Please keep this application in mind as various data structures are presented.
 
 There are a huge number of data structures in use today, so much so
 that there are multiple textbooks covering them.
-This small section focuses
-on a single data structure, namely the hash table.
+This section focuses on a single data structure, namely the hash table.
 This focused approach allows a much deeper investigation of how concurrency
 interacts with data structures, and also focuses on a data structure
 that is heavily used in practice.
 Section~\ref{sec:datastruct:Hash-Table Design}
-overviews of the design, and
+overviews the design, and
 Section~\ref{sec:datastruct:Hash-Table Implementation}
 presents the implementation.
 Finally,
@@ -125,12 +108,10 @@ to the hash bucket that this element will be stored in.
 Each hash bucket therefore heads up a linked list of elements,
 called a \emph{hash chain}.
 When properly configured, these hash chains will be quite short,
-permitting a hash table to access the element with a given key
-extremely efficiently.
+permitting a hash table to access its elements extremely efficiently.
 
 \QuickQuiz{
-	But there are many types of hash tables, of which the chained
-	hash tables described here are but one type.
+	But chained hash tables are but one type of many.
 	Why the focus on chained hash tables?
 }\QuickQuizAnswer{
 	Chained hash tables are completely partitionable, and thus
@@ -141,11 +122,11 @@ extremely efficiently.
 	We therefore start with chained hash tables.
 }\QuickQuizEnd
 
-In addition, each bucket can be given its own lock, so that
-elements in different buckets of the hash table may be added,
-deleted, and looked up completely independently.
-A large hash table containing a large number of elements therefore
-offers excellent scalability.
+In addition, each bucket has its own lock, so that elements in different
+buckets of the hash table may be added, deleted, and looked up completely
+independently.  A large hash table with a large number of buckets (and
+thus locks), with each bucket containing a small number of elements
+should therefore provide excellent scalability.
 
 \subsection{Hash-Table Implementation}
 \label{sec:datastruct:Hash-Table Implementation}
@@ -173,9 +154,8 @@ Listing~\ref{lst:datastruct:Hash-Table Data Structures})
 through their
 \co{->hte_next} fields, and each \co{ht_elem} structure also caches
 the corresponding element's hash value in the \co{->hte_hash} field.
-The \co{ht_elem} structure would be included in the larger structure
-being placed in the hash table, and this larger structure might contain
-a complex key.
+The \co{ht_elem} structure is included in a larger structure
+which might contain a complex key.
 \end{fcvref}
 
 \begin{listing}[tb]
@@ -191,9 +171,8 @@ a complex key.
 \label{fig:datastruct:Hash-Table Data-Structure Diagram}
 \end{figure}
 
-The diagram shown in
 Figure~\ref{fig:datastruct:Hash-Table Data-Structure Diagram}
-has bucket~0 with two elements and bucket~2 with one.
+shows bucket~0 containing two elements and bucket~2 containing one.
 
 \begin{fcvref}[ln:datastruct:hash_bkt:map_lock:map]
 Listing~\ref{lst:datastruct:Hash-Table Mapping and Locking}
@@ -337,17 +316,13 @@ on two or more CPUs.
 
 And things only get worse with more CPUs, as can be seen in
 Figure~\ref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo; 448 CPUs}.
-We do not need an additional line to show ideal performance: The performance
-for 29~CPUs and beyond is all too clearly worse than abysmal.
+We do not need to show ideal performance: The performance for 29~CPUs
+and beyond is all too clearly worse than abysmal.
 This clearly underscores the dangers of extrapolating performance from a
 modest number of CPUs.
 
 Of course, one possible reason for the collapse in performance might be
 that more hash buckets are needed.
-After all, we did not pad each hash bucket to a full cache line, so
-there are a number of hash buckets per cache line.
-It is possible that the resulting cache-thrashing comes into play at
-nine CPUs.
 We can test this by increasing the number of hash buckets.
 
 \QuickQuiz{
@@ -389,6 +364,16 @@ This can severely degrade performance, as was discussed in
 Section~\ref{sec:cpu:Hardware System Architecture}.
 In short, large multi-socket systems require good locality of reference
 in addition to full partitioning.
+The remainder of this chapter will discuss ways of providing good
+locality of reference within the hash table itself, but in the
+meantime please note that one other way to provide good locality
+of reference would be to place large data elements in the hash
+table.
+For example, Schr\"odinger might attain excellent cache locality by
+placing photographs or even videos of his animals in each element of
+the hash table.
+But for those needing hash tables containing small data elements,
+please read on!
 
 \QuickQuiz{
 	Given the negative scalability of the Schr\"odinger's
@@ -467,7 +452,7 @@ Although partitioned data structures can offer excellent scalability,
 NUMA effects can result in severe degradations of both performance and
 scalability.
 In addition,
-the need for readers to exclude writers can degrade performance in
+the need for read-side synchronization can degrade performance in
 read-mostly situations.
 However, we can achieve both performance and scalability by using
 RCU, which was introduced in
@@ -481,7 +466,7 @@ section~\cite{McKenney:2013:SDS:2483852.2483867}.
 \label{sec:datastruct:RCU-Protected Hash Table Implementation}
 
 For an RCU-protected hash table with per-bucket locking,
-updaters use locking exactly as described in
+updaters use locking as shown in
 Section~\ref{sec:datastruct:Partitionable Data Structures},
 but readers use RCU.
 The data structures remain as shown in
@@ -507,7 +492,7 @@ This is identical to that in
 Listing~\ref{lst:datastruct:Hash-Table Lookup}
 except that \co{cds_list_for_each_entry()} is replaced
 by \co{cds_list_for_each_entry_rcu()}.
-Both of these primitives sequence down the hash chain referenced
+Both of these primitives traverse the hash chain referenced
 by \co{htb->htb_head} but \co{cds_list_for_each_entry_rcu()} also
 correctly enforces memory ordering in case of concurrent insertion.
 This is an important difference between these two hash-table implementations:
@@ -583,12 +568,12 @@ Figure~\ref{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Sc
 shows the read-only performance of RCU-protected and hazard-pointer-protected
 hash tables against the previous section's per-bucket-locked implementation.
 As you can see, both RCU and hazard pointers perform and scale and
-scalability much better than per-bucket locking despite NUMA effects.
+scalability much better than per-bucket locking because read-only
+replication avoids NUMA effects.
 The difference increases with larger numbers of threads.
 Results from a globally locked implementation are also shown, and as expected
 the results are even worse than those of the per-bucket-locked implementation.
-RCU does slightly better than hazard pointers, but the difference is not
-so noticeable in this log-scale plot.
+RCU does slightly better than hazard pointers.
 
 \begin{figure}[tb]
 \centering
@@ -600,9 +585,8 @@ so noticeable in this log-scale plot.
 Figure~\ref{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo, Linear Scale}
 shows the same data on a linear scale.
 This drops the global-locking trace into the x-axis, but allows the
-relative performance of RCU and hazard pointers to be more readily
-discerned, including the extent to which they fail to achieve ideal
-performance.
+non-ideal performance of RCU and hazard pointers to be more readily
+discerned.
 Both show a change in slope at 224 CPUs, and this is due to hardware
 multithreading.
 At 32 and fewer CPUs, each thread has a core to itself.
@@ -646,10 +630,10 @@ about a factor of five short of ideal.
 \end{figure}
 
 Figure~\ref{fig:datastruct:Read-Only RCU-Protected Hash-Table Performance For Schroedinger's Zoo including QSBR and Unsynchronized, Linear Scale}
-adds completely unsynchronized results, courtesy of the fact that this
-is a read-only benchmark.
-And we see that even without any synchronization whatsoever, performance
-falls short of ideal.
+adds completely unsynchronized results, which works because this
+is a read-only benchmark with nothing to synchronize.
+Even with no synchronization whatsoever, performance still falls far
+short of ideal.
 
 The problem is that this system has sockets with 28 cores, which have
 the modest cache sizes shown in
