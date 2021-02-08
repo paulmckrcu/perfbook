@@ -55,7 +55,7 @@ then
 	exit 3
 fi
 
-oldtag="`git describe --tags HEAD | sed -e 's/-.*$//'`"
+oldtag="`git describe --tags HEAD | sed -e 's/-[0-9]\+-g[0-9a-fA-F]\+$//'`"
 case "${tag}" in
 [0-9]*)
 	gittag=v${tag}
@@ -101,7 +101,10 @@ then
 	echo Tag push failed, giving up.
 	exit 8
 fi
-git request-pull ${oldtag} ${repo_url} ${gittag} | sed -n '/^--*$/,$p' | tail +2 > "${destdir}/Changes.${tag}.txt"
+if ! test -f "${destdir}/Changes.${tag}.txt"
+then
+	git request-pull ${oldtag} ${repo_url} ${gittag} | sed -n '/^--*$/,$p' | tail +2 > "${destdir}/Changes.${tag}.txt"
+fi
 
 ls -l "${destdir}/perfbook.${tag}.pdf" "${destdir}/perfbook-1c.${tag}.pdf" "${destdir}/Changes.${tag}.txt"
 echo Release ${gittag} prepared in ${destdir}
