@@ -513,9 +513,9 @@ RCU read-side critical section, for example, the caller must invoke
 \end{listing}
 
 \QuickQuiz{
-	But if elements in a hash table can be deleted concurrently
+	But if elements in a hash table can be removed concurrently
 	with lookups, doesn't that mean that a lookup could return
-	a reference to a data element that was deleted immediately
+	a reference to a data element that was removed immediately
 	after it was looked up?
 }\QuickQuizAnswer{
 	Yes it can!
@@ -525,7 +525,10 @@ RCU read-side critical section, for example, the caller must invoke
 	RCU-aware list-manipulation primitives.
 	Finally, this is why the caller of \co{hashtab_del()} must
 	wait for a grace period (e.g., by calling \co{synchronize_rcu()})
-	before freeing the deleted element.
+	before freeing the removed element.
+	This will ensure that all RCU readers that might reference
+	the newly removed element have completed before that element
+	is freed.
 }\QuickQuizEnd
 
 \begin{listing}[tb]
@@ -683,8 +686,10 @@ to about half again faster than that of either QSBR or RCU.
 	no effect?
 	Might the problem instead be something like false sharing?
 }\QuickQuizAnswer{
+	Excellent question!
+
 	False sharing requires writes, which are not featured in the
-	unsynchronized, hazard-pointer, or RCU runs of this lookup-only
+	unsynchronized and RCU runs of this lookup-only
 	benchmark.
 	The problem is therefore not false sharing.
 
@@ -762,18 +767,25 @@ data structure represented by the pre-BSD routing table.
 }\QuickQuizAnswer{
 	It would indeed be a bad idea to use this large and expensive
 	system for a workload consisting solely of simple hash-table
-	lookups.
+	lookups of small data elements.
 	However, this system is extremely useful for a great many
 	workloads that feature more processing and less memory accessing.
 	For example, some in-memory databases run extremely well on
 	this class of system, albeit when running much more complex
 	sets of queries than performed by the benchmarks in this chapter.
+	For example, such systems might be processing images or video
+	streams stored in each element, providing further performance
+	benefits due to the that that the resulting sequential memory
+	accesses will make better use of the available memory bandwidth
+	than will a pure pointer-following workload.
 
 	But let this be a lesson to you.
 	Modern computer systems come in a great many shapes and sizes,
-	and some care is required to select one that suits your application.
-	And just as frequently, significant care and work is required to
-	adjust your application to the specific computer systems at hand.
+	and great care is frequently required to select one that suits
+	your application.
+	And perhaps even more frequently, significant care and work is
+	required to adjust your application to the specific computer
+	systems at hand.
 }\QuickQuizEnd
 
 \begin{figure}[tb]
@@ -828,7 +840,8 @@ Both hazard pointers and RCU do well compared to per-bucket locking
 because their readers do not increase update-side lock contention.
 RCU does well relative to hazard pointers as the number of updaters
 increases due to the latter's read-side memory barriers, which incur
-greater overhead, especially in the presence of updates.
+greater overhead, especially in the presence of updates, and particularly
+when execution involves more than one socket.
 It therefore seems likely that modern hardware heavily optimizes memory-barrier
 execution, greatly reducing memory-barrier overhead in the read-only case.
 
@@ -854,7 +867,7 @@ starts to make its presence known, first for RCU and then for hazard
 pointers.
 Of course, all three of these implementations beat global locking.
 
-Of course, it is quite possible that the differences in lookup performance
+It is quite possible that the differences in lookup performance
 are affected by the differences in update rates.
 One way to check this is to artificially throttle the update rates of
 per-bucket locking and hazard pointers to match that of RCU.
@@ -894,19 +907,18 @@ reader might have fetched this same pointer just afterwards.
 The first reader would then believe that the cat was alive, while
 the second reader would believe that the cat was dead.
 
-Of course, this situation is completely fitting for Schr\"odinger's
+This situation is completely fitting for Schr\"odinger's
 cat, but it turns out that it is quite reasonable for normal
 non-quantum cats as well.
-
-The reason for this is that it is impossible to determine exactly
-when an animal is born or dies.
+After all, it is impossible to determine exactly when an animal is born
+or dies.
 
 To see this, let's suppose that we detect a cat's death by heartbeat.
 This raise the question of exactly how long we should wait after the
 last heartbeat before declaring death.
 It is clearly ridiculous to wait only one millisecond, because then
 a healthy living cat would have to be declared dead---and then
-resurrected---more than once every second.
+resurrected---more than once per second.
 It is equally ridiculous to wait a full month, because by that time
 the poor cat's death would have made itself very clearly known
 via olfactory means.
@@ -932,14 +944,15 @@ cat for the second period of thirty seconds following the last heartbeat,
 as fancifully depicted in
 Figure~\ref{fig:datastruct:Even Veterinarians Disagree}.
 
-Of course, \pplsur{Weiner}{Heisenberg} taught us to live with this sort of
+\pplsur{Weiner}{Heisenberg} taught us to live with this sort of
 uncertainty~\cite{WeinerHeisenberg1927Uncertain}, which is a good
 thing because computing hardware and software acts similarly.
 For example, how do you know that a piece of computing hardware
 has failed?
 Often because it does not respond in a timely fashion.
 Just like the cat's heartbeat, this results in a window of
-uncertainty as to whether or not the hardware has failed.
+uncertainty as to whether or not the hardware has really failed,
+as opposed to just being slow.
 
 Furthermore, most computing systems are intended to interact with
 the outside world.
@@ -948,14 +961,16 @@ However, as we saw in
 Figure~\ref{fig:defer:Response Time of RCU vs. Reader-Writer Locking}
 on
 page~\pageref{fig:defer:Response Time of RCU vs. Reader-Writer Locking},
-increased internal consistency can come at the expense of external
-consistency.
+increased internal consistency can come at the expense of degraded
+external consistency.
 Techniques such as RCU and hazard pointers give up some degree of
 internal consistency to attain improved external consistency.
 
-In short, internal consistency is not a natural part of all problem domains,
-and often incurs great expense in terms of performance,
-scalability, external consistency, or all of the above.
+In short, internal consistency is not necessarily a natural part of all
+problem domains, and often incurs great expense in terms of performance,
+scalability, consistency with the outside
+world~\cite{AndreasHaas2012FIFOisnt,AndreasHaas2013CFRelaxedQueues,10.5555/3241639.3241645},
+or all of the above.
 
 \section{Non-Partitionable Data Structures}
 \label{sec:datastruct:Non-Partitionable Data Structures}
@@ -999,52 +1014,52 @@ concurrently with a resize operation (as well as with each other).
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{datastruct/hashxu-a}}
-\caption{Growing a Double-List Hash Table, State~(a)}
-\label{fig:datastruct:Growing a Double-List Hash Table; State (a)}
+\caption{Growing a Two-List Hash Table, State~(a)}
+\label{fig:datastruct:Growing a Two-List Hash Table; State (a)}
 \end{figure}
 
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{datastruct/hashxu-b}}
-\caption{Growing a Double-List Hash Table, State~(b)}
-\label{fig:datastruct:Growing a Double-List Hash Table; State (b)}
+\caption{Growing a Two-List Hash Table, State~(b)}
+\label{fig:datastruct:Growing a Two-List Hash Table; State (b)}
 \end{figure}
 
 The resize operation proceeds as shown in
-\crefrange{fig:datastruct:Growing a Double-List Hash Table; State (a)}
-{fig:datastruct:Growing a Double-List Hash Table; State (d)},
+\crefrange{fig:datastruct:Growing a Two-List Hash Table; State (a)}
+{fig:datastruct:Growing a Two-List Hash Table; State (d)},
 with the initial two-bucket state shown in
-\cref{fig:datastruct:Growing a Double-List Hash Table; State (a)}
+\cref{fig:datastruct:Growing a Two-List Hash Table; State (a)}
 and with time advancing from figure to figure.
 The initial state uses the zero-index links to chain the elements into
 hash buckets.
 A four-bucket array is allocated, and the one-index links are used to
 chain the elements into these four new hash buckets.
 This results in state~(b) shown in
-\cref{fig:datastruct:Growing a Double-List Hash Table; State (b)},
+\cref{fig:datastruct:Growing a Two-List Hash Table; State (b)},
 with readers still using the original two-bucket array.
 
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{datastruct/hashxu-c}}
-\caption{Growing a Double-List Hash Table, State~(c)}
-\label{fig:datastruct:Growing a Double-List Hash Table; State (c)}
+\caption{Growing a Two-List Hash Table, State~(c)}
+\label{fig:datastruct:Growing a Two-List Hash Table; State (c)}
 \end{figure}
 
 \begin{figure}[tb]
 \centering
 \resizebox{3in}{!}{\includegraphics{datastruct/hashxu-d}}
-\caption{Growing a Double-List Hash Table, State~(d)}
-\label{fig:datastruct:Growing a Double-List Hash Table; State (d)}
+\caption{Growing a Two-List Hash Table, State~(d)}
+\label{fig:datastruct:Growing a Two-List Hash Table; State (d)}
 \end{figure}
 
 The new four-bucket array is exposed to readers and then a grace-period
 operation waits for all readers, resulting in state~(c), shown in
-\cref{fig:datastruct:Growing a Double-List Hash Table; State (c)}.
+\cref{fig:datastruct:Growing a Two-List Hash Table; State (c)}.
 In this state, all readers are using the new four-bucket array,
 which means that the old two-bucket array may now be freed, resulting
 in state~(d), shown in
-\cref{fig:datastruct:Growing a Double-List Hash Table; State (d)}.
+\cref{fig:datastruct:Growing a Two-List Hash Table; State (d)}.
 
 This design leads to a relatively straightforward implementation,
 which is the subject of the next section.
@@ -1218,6 +1233,10 @@ already-resized hash bucket and
 line~\lnref{fastret1} returns with the selected hash bucket's
 lock held (thus preventing a concurrent resize operation from distributing
 this bucket) and also within an RCU read-side critical section.
+Deadlock is avoided because the old table's locks are always acquired
+before those of the new table, and because the use of RCU prevents more
+than two versions from existing at a given time, thus preventing a
+deadlock cycle.
 
 Otherwise, a concurrent resize operation has already distributed this
 bucket, so line~\lnref{new_hashtbl} proceeds to the new hash table,
@@ -1288,14 +1307,15 @@ line~\lnref{get_curbkt} searches the bucket corresponding to the
 specified key.
 Line~\lnref{ret} returns a pointer to the searched-for element
 or \co{NULL} when the search fails.
+The caller must be within an RCU read-side critical section.
 \end{fcvref}
 
 \QuickQuiz{
 	The \co{hashtab_lookup()} function in
 	Listing~\ref{lst:datastruct:Resizable Hash-Table Access Functions}
-	does not account for concurrent resize operations.
+	ignores concurrent resize operations.
 	Doesn't this mean that readers might miss an element that was
-	added during a resize operation?
+	previously added during a resize operation?
 }\QuickQuizAnswer{
 	No.
 	As we will see soon,
@@ -1440,7 +1460,7 @@ and line~\lnref{acq_oldcur} acquires that bucket's spinlock.
 	the reference to the new hash table.
 
 	And this is why the update-side \co{hashtab_add()} and
-	\co{hashtab_del()} functions must nevertheless be enclosed
+	\co{hashtab_del()} functions must be enclosed
 	in RCU read-side critical sections, courtesy of
 	\co{hashtab_lock_mod()} and \co{hashtab_unlock_mod()} in
 	Listing~\ref{lst:datastruct:Resizable Hash-Table Update-Side Concurrency
@@ -1898,7 +1918,7 @@ the branch prediction hardware must record a pointer in addition
 to branch-taken/branch-not-taken information.
 
 This overhead can be eliminated by specializing a hash-table implementation
-to a given key type and hash function.
+to a given key type and hash function, for example, by using C++ templates.
 Doing so eliminates the \co{->ht_cmp()}, \co{->ht_gethash()}, and
 \co{->ht_getkey()} function pointers in the \co{ht} structure shown in
 Listing~\ref{lst:datastruct:Resizable Hash-Table Data Structures} on
@@ -2018,7 +2038,7 @@ Fortunately, the relatively large memories available on modern
 systems have allowed us to prioritize performance and simplicity
 over memory overhead.
 However, even with today's large-memory systems\footnote{
-	Smartphones with hundreds of gigabytes of memory, anyone?}
+	Smartphones with gigabytes of memory, anyone?}
 it is sometimes necessary to take extreme measures to reduce
 memory overhead.
 
@@ -2033,8 +2053,8 @@ Section~\ref{sec:cpu:Overheads}.
 One timeworn way to kill both performance and scalability is to
 place incompatible variables into the same cacheline.
 For example, suppose that a resizable hash table data element had
-the \co{ht_elem} structure in the same cacheline as a counter that
-was incremented quite frequently.
+the \co{ht_elem} structure in the same cacheline as a frequently incremented
+counter.
 The frequent incrementing would cause the cacheline to be present at
 the CPU doing the incrementing, but nowhere else.
 If other CPUs attempted to traverse the hash bucket list containing
@@ -2069,6 +2089,9 @@ However, this would be more difficult if you wanted your application to
 also run on non-Linux systems.
 Furthermore, even if you were content to run only on Linux, such a
 self-modifying installation poses validation challenges.
+For example, systems with 32-byte cachelines might work well, but
+performance might suffer on systems with 64-byte cachelines due
+to false sharing.
 
 Fortunately, there are some rules of thumb that work reasonably well in
 practice, which were gathered into a 1995
@@ -2079,14 +2102,14 @@ The first group of rules involve rearranging structures to accommodate
 cache geometry:
 
 \begin{enumerate}
-\item	Separate read-mostly data from data that is frequently updated.
+\item	Place read-mostly data far from frequently updated data.
 	For example, place read-mostly data at the beginning of the
 	structure and frequently updated data at the end.
-	Where possible, place data that is rarely accessed in between.
+	Place data that is rarely accessed in between.
 \item	If the structure has groups of fields such that each group is
 	updated by an independent code path, separate these groups
 	from each other.
-	Again, it can make sense to place data that is rarely accessed
+	Again, it can be helpful to place rarely accessed data
 	between the groups.
 	In some cases, it might also make sense to place each such group
 	into a separate structure referenced by the original structure.
@@ -2095,13 +2118,13 @@ cache geometry:
 	We saw several very effective examples of this rule of thumb
 	in the counter implementations in
 	Chapter~\ref{chp:Counting}.
-\item	In fact, where possible, you should partition your data on
-	a per-CPU, per-thread, or per-task basis, as was discussed
-	in Chapter~\ref{chp:Data Ownership}.
+\item	Going one step further, partition your data on a per-CPU,
+	per-thread, or per-task basis, as was discussed in
+	Chapter~\ref{chp:Data Ownership}.
 \end{enumerate}
 
-There has recently been some work towards automated trace-based
-rearrangement of structure
+There has been some work towards automated trace-based rearrangement
+of structure
 fields~\cite{Golovanevsky:2010:TDL:2174824.2174835}.
 This work might well ease one of the more painstaking tasks
 required to get excellent performance and scalability from
@@ -2118,20 +2141,19 @@ An additional set of rules of thumb deal with locks:
 	\item	Use a lock that is adapted for high contention, such
 		as a queued lock.
 	\item	Redesign to reduce lock contention.
-		(This approach is best, but can require quite a bit
-		of work.)
+		(This approach is best, but is not always trivial.)
 	\end{enumerate}
 \item	Place uncontended locks into the same cache line as the data
 	that they protect.
-	This approach means that the cache miss that brought the
-	lock to the current CPU also brought its data.
-\item	Protect read-mostly data with RCU, or, if RCU cannot be used and
-	the critical sections are of very long duration, reader-writer locks.
+	This approach means that the cache miss that brings the
+	lock to the current CPU also brings its data.
+\item	Protect read-mostly data with hazard pointers, RCU, or, for
+	long-duration critical sections, reader-writer locks.
 \end{enumerate}
 
 Of course, these are rules of thumb rather than absolute rules.
 Some experimentation is required to work out which are most applicable
-to your particular situation.
+to a given situation.
 
 \section{Summary}
 \label{sec:datastruct:Summary}
@@ -2159,6 +2181,8 @@ including:
 	on larger systems.
 \item	Read-mostly techniques also work well on some types of
 	non-partitionable data structures, such as resizable hash tables.
+\item	Large data structures can overflow CPU caches, reducing performance
+	and scalability.
 \item	Additional performance and scalability can be obtained by
 	specializing the data structure to a specific workload,
 	for example, by replacing a general key with a 32-bit integer.
