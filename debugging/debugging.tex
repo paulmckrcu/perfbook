@@ -674,7 +674,7 @@ Section~\ref{sec:debugging:Probability and Heisenbugs}
 and especially Section~\ref{sec:debugging:Hunting Heisenbugs}.
 In the kernel, BPF can do data reduction in the kernel, reducing
 the overhead of transmitting the needed information from the kernel
-to userspace~\cite{BrendanGregg2018BPFperftools}.
+to userspace~\cite{BrendanGregg2019BPFperftools}.
 In userspace code, there is a huge number of tools that can help you.
 One good starting point is Brendan Gregg's blog.\footnote{
 	\url{http://www.brendangregg.com/blog/}}
@@ -722,21 +722,21 @@ in which case
 \QuickQuiz{
 	How can you implement \co{WARN_ON_ONCE()}?
 }\QuickQuizAnswer{
-	If you don't mind having a \co{WARN_ON_ONCE()} that
-	will sometimes warn twice or three times, simply maintain
-	a static variable that is initialized to zero.
-	If the condition triggers, check the static variable, and
+	If you don't mind \co{WARN_ON_ONCE()} sometimes warning more
+	than once, simply maintain a static variable that is initialized
+	to zero.
+	If the condition triggers, check the variable, and
 	if it is non-zero, return.
 	Otherwise, set it to one, print the message, and return.
 
 	If you really need the message to never appear more than once,
-	perhaps because it is huge, you can use an atomic exchange
-	operation in place of ``set it to one'' above.
+	you can use an atomic exchange operation in place of ``set it
+	to one'' above.
 	Print the message only if the atomic exchange operation returns
 	zero.
 }\QuickQuizEnd
 
-In parallel code, one especially bad something that might happen is that
+In parallel code, one bad something that might happen is that
 a function expecting to be called under a particular lock might be called
 without that lock being held.
 Such functions sometimes have header comments stating something like
@@ -745,10 +745,23 @@ such a comment does no good unless someone actually reads it.
 An executable statement carries far more weight.
 The Linux kernel's lockdep
 facility~\cite{JonathanCorbet2006lockdep,StevenRostedt2011locdepCryptic}
-therefore provides a \co{lockdep_assert_held()} function that allows
-functions to verify that the proper locks are held.
-Of course, lockdep incurs significant overhead, so that it is not
-necessarily appropriate for production use.
+therefore provides a \co{lockdep_assert_held()} function that checks
+whether the proper locks are held.
+Of course, lockdep incurs significant overhead, and thus not
+necessarily helpful in production.
+
+An especially bad parallel-code something is unexpected concurrent
+access to data.
+The Kernel Concurrency Sanitizer (KCSAN)~\cite{JonathanCorbet2019KCSAN}
+uses existing markings such as \co{READ_ONCE()} and \co{WRITE_ONCE()}
+to determine which concurrent accesses deserve warning messages.
+KCSAN has a significant false-positive rate, especially in from the
+viewpoint of developers thinking in terms of C as assembly language
+with additional syntax.
+KCSAN therefore provides a \co{data_race()} construct to forgive
+known-benign data races, and also the \co{ASSERT_EXCLUSIVE_ACCESS()}
+and \co{ASSERT_EXCLUSIVE_WRITER()} assertions to explicitly check
+for data races\cite{MarcoElver2020FearDataRaceDetector1,MarcoElver2020FearDataRaceDetector2}.
 
 So what can be done in cases where checking is necessary, but where the
 overhead of runtime checking cannot be tolerated?
@@ -761,24 +774,22 @@ One approach is static analysis, which is discussed in the next section.
 	  humans but of mind-numbing behavior.}
 	 {\emph{Summarized from Stewart Butterfield}}
 
-Static analysis is a validation technique were one program takes a second
+Static analysis is a validation technique where one program takes a second
 program as input, reporting errors and vulnerabilities located in this
 second program.
-Interestingly enough, almost all programs are subjected to static analysis
+Interestingly enough, almost all programs are statically analyzed
 by their compilers or interpreters.
-These tools are of course far from perfect, but their ability to locate
+These tools are far from perfect, but their ability to locate
 errors has improved immensely over the past few decades, in part because
 they now have much more than 64K bytes of memory in which to carry out their
-analysis.
+analyses.
 
 The original UNIX \co{lint} tool~\cite{StephenJohnson1977lint} was
 quite useful, though much of its functionality has since been incorporated
 into C compilers.
-There are nevertheless lint-like tools under development and in use to
-this day.
-
+There are nevertheless lint-like tools in use to this day.
 The sparse static analyzer~\cite{JonathanCorbet2004sparse}
-looks for higher-level issues in the Linux kernel, including:
+finds higher-level issues in the Linux kernel, including:
 
 \begin{enumerate}
 \item	Misuse of pointers to user-space structures.
@@ -793,6 +804,8 @@ Although it is likely that compilers will continue to increase their
 static-analysis capabilities, the sparse static analyzer demonstrates
 the benefits of static analysis outside of the compiler, particularly
 for finding application-specific bugs.
+\crefrange{sec:formal:SAT Solvers}{sec:formal:Stateless Model Checkers}
+describe more sophisticated forms of static analysis.
 
 \section{Code Review}
 \label{sec:debugging:Code Review}
@@ -801,8 +814,8 @@ for finding application-specific bugs.
 	  if he speaks of my vices, then he is my teacher.}
 	 {\emph{Chinese proverb}}
 
-Various code-review activities are special cases of static analysis, but
-with human beings doing the analysis.
+Code review isa special case of static analysis with human beings doing
+the analysis.
 This section covers inspection, walkthroughs, and self-inspection.
 
 \subsection{Inspection}
@@ -815,32 +828,26 @@ The developer reads through the code, explaining what it is doing and
 why it works.
 The one or two other participants ask questions and raise issues,
 hopefully exposing the author's invalid assumptions, while the moderator's
-job is to resolve any resulting conflicts and of course to take notes.
+job is to resolve any resulting conflicts and take notes.
 This process can be extremely effective at locating bugs, particularly
 if all of the participants are familiar with the code at hand.
 
 However, this face-to-face formal procedure does not necessarily
-work well in the global Linux kernel community, although it might work
-well via an IRC session.
+work well in the global Linux kernel community.
 Instead, individuals review code separately and provide comments via
 email or IRC.
 The note-taking is provided by email archives or IRC logs, and moderators
-volunteer their services as appropriate.
-Give or take the occasional flamewar, this process also works reasonably
-well, particularly if all of the participants are familiar with the
-code at hand.
-That said, one advantage of the Linux kernel community approach over
+volunteer their services as required by the occasional flamewar.
+This process also works reasonably well, particularly if all of the
+participants are familiar with the code at hand.
+In fact, one advantage of the Linux kernel community approach over
 traditional formal inspections is the greater probability of contributions
 from people \emph{not} familiar with the code, who might not be blinded
-by the author's invalid assumptions.
-Another advantage is that community members can and do test the code.
+by the author's invalid assumptions, and who might also test the code.
 
 \QuickQuiz{
-	The concerns about invalid assumptions are overblown.
-	After all, don't most Linux kernel hackers know what they
-	are doing?
-	Just what sorts of invalid assumptions are you accusing them
-	of harboring, anyway???
+	Just what invalid assumptions are you accusing Linux kernel
+	hackers of harboring???
 }\QuickQuizAnswer{
 	Those wishing a complete answer to this question are encouraged
 	to search the Linux kernel \emph{git} repository for commits
@@ -868,7 +875,7 @@ Another advantage is that community members can and do test the code.
 		hexidecimal arithmetic.
 	\end{enumerate}
 
-	Those who look at these commits in greater detail should conclude
+	Those who look at these commits in greater detail will conclude
 	that invalid assumptions are the rule, not the exception.
 }\QuickQuizEnd
 
@@ -880,7 +887,7 @@ is ripe for improvement:
 	expertise required to carry out an effective review.
 \item	Even though all review discussions are archived, they are
 	often ``lost'' in the sense that insights are forgotten and
-	people often fail to look up the discussions.
+	people fail to look up the discussions.
 	This can result in re-insertion of the same old bugs.
 \item	It is sometimes difficult to resolve flamewars when they do
 	break out, especially when the combatants have disjoint
@@ -918,7 +925,7 @@ One could imagine a particularly sadistic procedure as follows:
 	to predict the outcome of the statement and explain why
 	this outcome is correct.
 \item	If the outcome differs from that predicted by the developer,
-	this is taken as evidence of a potential bug.
+	this is taken as a potential bug.
 \item	In parallel code, a ``concurrency shark'' asks what code
 	might execute concurrently with this code, and why such
 	concurrency is harmless.
@@ -949,20 +956,19 @@ especially for complex parallel code:
 \begin{enumerate}
 \item	Write design document with requirements, diagrams for data structures,
 	and rationale for design choices.
-\item	Consult with experts, update the design document as needed.
-\item	Write the code in pen on paper, correct errors as you go.
+\item	Consult with experts, updating the design document as needed.
+\item	Write the code in pen on paper, correcting errors as you go.
 	Resist the temptation to refer to pre-existing nearly identical code
 	sequences, instead, copy them.
-\item	At each step, articulate and question your assumptions, where
-	possible, inserting assertions or constructing tests to check
-	them.
+\item	At each step, articulate and question your assumptions,
+	inserting assertions or constructing tests to check them.
 \item	If there were errors, copy the code in pen on fresh paper, correcting
 	errors as you go.
 	Repeat until the last two copies are identical.
 \item	Produce proofs of correctness for any non-obvious code.
 \item	Use a source-code control system.
 	Commit early; commit often.
-\item	Where possible, test the code fragments from the bottom up.
+\item	Test the code fragments from the bottom up.
 \item	When all the code is integrated (but preferably before),
 	do full-up functional and stress testing.
 \item	Once the code passes all tests, write code-level documentation,
@@ -970,8 +976,8 @@ especially for complex parallel code:
 	Fix both the code and the test code as needed.
 \end{enumerate}
 
-When I faithfully follow this procedure for new RCU code, there are
-normally only a few bugs left at the end.
+When I follow this procedure for new RCU code, there are normally only
+a few bugs left at the end.
 With a few prominent (and embarrassing)
 exceptions~\cite{PaulEMcKenney2011RCU3.0trainwreck},
 I usually manage to locate these bugs before others do.
@@ -1015,12 +1021,12 @@ variety of Linux-kernel users increases.
 	The Linux-kernel RCU implementation is a case in point.
 
 	On the other hand, if you are writing a simple single-threaded
-	shell script to manipulate some data, then you would be
-	best-served by a different methodology.
-	For example, you might enter each command one at a time
-	into an interactive shell with a test data set to make
-	sure that it did what you wanted, then copy-and-paste the
-	successful commands into your script.
+	shell script, then you would be best-served by a different
+	methodology.
+	For example, enter each command one at a time into an interactive
+	shell with a test data set to make sure that it does what you
+	want, then copy-and-paste the successful commands into your
+	script.
 	Finally, test the script as a whole.
 
 	If you have a friend or colleague who is willing to help out,
@@ -1038,10 +1044,9 @@ variety of Linux-kernel users increases.
 	a bug while typing in the resulting code?
 }\QuickQuizAnswerE{
 	The answer, as is often the case, is ``it depends''.
-	If the bug is a simple typo, it is best to fix that typo and
-	continue typing.
-	However, if the bug indicates a design flaw, it is best to
-	go back to the pen and paper.
+	If the bug is a simple typo, fix that typo and continue typing.
+	However, if the bug indicates a design flaw, go back to pen
+	and paper.
 }\QuickQuizEndE
 }
 
@@ -1065,7 +1070,7 @@ circumstances:
 
 This works because describing the code in detail is an excellent way to spot
 bugs~\cite{GlenfordJMyers1979}.
-Although this second procedure is also a good way to get your head around
+This second procedure is also a good way to get your head around
 someone else's code, in many cases, the first step suffices.
 
 Although review and inspection by others is probably more efficient and
@@ -1081,8 +1086,7 @@ Here are some time-tested ways of accomplishing this:
 	available parallel library functions.
 \item	Write sequential plug-ins for a parallel framework,
 	such as map-reduce, BOINC, or a web-application server.
-\item	Do such a good job of parallel design that the problem
-	is fully partitioned, then just implement sequential
+\item	Fully partition your problems, then implement sequential
 	program(s) that run in parallel without communication.
 \item	Stick to one of the application areas (such as linear algebra)
 	where tools can automatically decompose and parallelize
@@ -1144,9 +1148,7 @@ occur all too commonly when validating parallel software.
 	  get, the less you see.}
 	 {\emph{Unknown}}
 
-So your parallel program fails.
-Sometimes.
-
+So your parallel program fails sometimes.
 But you used techniques from the earlier sections to locate
 the problem and now have a fix in place!
 Congratulations!!!
@@ -1174,27 +1176,32 @@ is required to attain absolute certainty.
 	Suppose that you had a very large number of systems at your
 	disposal.
 	For example, at current cloud prices, you can purchase a
-	huge amount of CPU time at a reasonably low cost.
+	huge amount of CPU time at low cost.
 	Why not use this approach to get close enough to certainty
 	for all practical purposes?
 }\QuickQuizAnswer{
 	This approach might well be a valuable addition to your
 	validation arsenal.
-	But it does have a few limitations:
+	But it does have limitations that rule out ``for all practical
+	purposes'':
 	\begin{enumerate}
 	\item	Some bugs have extremely low probabilities of occurrence,
 		but nevertheless need to be fixed.
 		For example, suppose that the Linux kernel's RCU
 		implementation had a bug that is triggered only once
-		per century of machine time on average.
-		A century of CPU time is hugely expensive even on
+		per million years of machine time on average.
+		A million years of CPU time is hugely expensive even on
 		the cheapest cloud platforms, but we could expect
-		this bug to result in more than 2,000 failures per day
-		on the more than 100 million Linux instances in the
-		world as of 2011.
+		this bug to result in more than 50 failures per day
+		on the more than 20~billion Linux instances in the
+		world as of 2017.
 	\item	The bug might well have zero probability of occurrence
-		on your test setup, which means that you won't see it
-		no matter how much machine time you burn testing it.
+		on your particular cloud-computing test setup, which
+		means that you won't see it no matter how much machine
+		time you burn testing it.
+		For but one example, there are RCU bugs that appear
+		only in preemptible kernels, and also other RCU bugs
+		that appear only in non-preemptible kernels.
 	\end{enumerate}
 	Of course, if your code is small enough, formal validation
 	may be helpful, as discussed in
@@ -1210,19 +1217,18 @@ But suppose that we are willing to give up absolute certainty in favor
 of high probability.
 Then we can bring powerful statistical tools to bear on this problem.
 However, this section will focus on simple statistical tools.
-These tools are extremely helpful, but please note
-that reading this section not a substitute
-for taking a good set of statistics classes.\footnote{
+These tools are extremely helpful, but please note that reading this
+section is not a substitute for statistics classes.\footnote{
 	Which I most highly recommend.
 	The few statistics courses I have taken have provided value
-	way out of proportion to the time I spent studying for them.}
+	far beyond that of the time I spent on them.}
 
 For our start with simple statistical tools, we need to decide whether
 we are doing discrete or continuous testing.
 Discrete testing features well-defined individual test runs.
 For example, a boot-up test of a Linux kernel patch is an example
-of a discrete test.
-You boot the kernel, and it either comes up or it does not.
+of a discrete test:
+The kernel either comes up or it does not.
 Although you might spend an hour boot-testing your kernel, the number of
 times you attempted to boot the kernel and the number of times the
 boot-up succeeded would often be of more interest than the length
@@ -1235,41 +1241,37 @@ Unlike booting the kernel, where the appearance of a login prompt
 signals the successful end of a discrete test, rcutorture will happily
 continue torturing RCU until either the kernel crashes or until you
 tell it to stop.
-The duration of the rcutorture test is therefore (usually) of more
+The duration of the rcutorture test is usually of more
 interest than the number of times you started and stopped it.
 Therefore, rcutorture is an example of a continuous test, a category
 that includes many stress tests.
 
-The statistics governing discrete and continuous tests differ somewhat.
-However, the statistics for discrete tests is simpler and more
-familiar than that for continuous tests, and furthermore the
-statistics for discrete tests can often be pressed into service
-(with some loss of accuracy) for continuous tests.
+Statistics for discrete tests are simpler and more familiar than those
+for continuous tests, and furthermore the statistics for discrete tests
+can often be pressed into service for continuous tests, though with some
+loss of accuracy.
 We therefore start with discrete tests.
 
 \subsection{Statistics for Discrete Testing}
 \label{sec:debugging:Statistics for Discrete Testing}
 
-Suppose that the bug had a 10\,\% chance of occurring in
-a given run and that we do five runs.
-How do we compute that probability of at least one run failing?
-One way is as follows:
+Suppose a bug has a 10\,\% chance of occurring in a given run and that
+we do five runs.
+How do we compute the probability of at least one run failing?
+Here is one way:
 
 \begin{enumerate}
 \item	Compute the probability of a given run succeeding, which is 90\,\%.
 \item	Compute the probability of all five runs succeeding, which
 	is 0.9 raised to the fifth power, or about 59\,\%.
-\item	There are only two possibilities: either all five runs succeed,
-	or at least one fails.
-	Therefore, the probability of at least one failure is
-	59\,\% taken away from 100\,\%, or 41\,\%.
+\item	Because either all five runs succeed, or at least one fails,
+	subtract the 59\,\% expected success rate from 100\,\%, yielding
+	a 41\,\% expected failure rate.
 \end{enumerate}
 
-However, many people find it easier to work with a formula than a series
-of steps, although if you prefer the above series of steps, have at it!
-For those who like formulas, call the probability of a single failure $f$.
+For those preferring formulas, call the probability of a single failure $f$.
 The probability of a single success is then $1-f$ and the probability
-that all of $n$ tests will succeed is then:
+that all of $n$ tests will succeed is $S_n$:
 
 \begin{equation}
 	S_n = \left(1-f\right)^n
@@ -1284,9 +1286,8 @@ The probability of failure is $1-S_n$, or:
 
 \QuickQuiz{
 	Say what???
-	When I plug the earlier example of five tests each with a
-	10\,\% failure rate into the formula, I get 59,050\,\% and that
-	just doesn't make sense!!!
+	When I plug the earlier five-test 10\,\%-failure-rate example into
+	the formula, I get 59,050\,\% and that just doesn't make sense!!!
 }\QuickQuizAnswer{
 	You are right, that makes no sense at all.
 
@@ -1300,20 +1301,20 @@ The probability of failure is $1-S_n$, or:
 
 So suppose that a given test has been failing 10\,\% of the time.
 How many times do you have to run the test to be 99\,\% sure that
-your supposed fix has actually improved matters?
+your supposed fix actually helped?
 
 Another way to ask this question is ``How many times would we need
 to run the test to cause the probability of failure to rise above 99\,\%?''
 After all, if we were to run the test enough times that the probability
 of seeing at least one failure becomes 99\,\%, if there are no failures,
-there is only 1\,\% probability of this being due to dumb luck.
+there is only 1\,\% probability of this ``success'' being due to dumb luck.
 And if we plug $f=0.1$ into
 Equation~\ref{eq:debugging:Binomial Failure Rate} and vary $n$,
 we find that 43 runs gives us a 98.92\,\% chance of at least one test failing
 given the original 10\,\% per-test failure rate,
 while 44 runs gives us a 99.03\,\% chance of at least one test failing.
 So if we run the test on our fix 44 times and see no failures, there
-is a 99\,\% probability that our fix was actually a real improvement.
+is a 99\,\% probability that our fix really did help.
 
 But repeatedly plugging numbers into
 Equation~\ref{eq:debugging:Binomial Failure Rate}
@@ -1372,7 +1373,7 @@ bug, your testing job will be much easier if you can come up with
 a carefully targeted test with a much higher failure rate.
 For example, if your targeted test raised the failure rate from 1\,\%
 to 30\,\%, then the number of runs required for 99\,\% confidence
-would drop from 458 test runs to a mere thirteen test runs.
+would drop from 458 to a more tractable 13.
 
 But these thirteen test runs would only give you 99\,\% confidence that
 your fix had produced ``some improvement''.
@@ -1392,13 +1393,14 @@ Equation~\ref{eq:debugging:Binomial Number of Tests Required} yields:
 So our order of magnitude improvement requires roughly an order of
 magnitude more testing.
 Certainty is impossible, and high probabilities are quite expensive.
-Clearly making tests run more quickly and making failures more probable
-are essential skills in the development of highly reliable software.
+This is why making tests run more quickly and making failures more
+probable are essential skills in the development of highly reliable
+software.
 These skills will be covered in
 Section~\ref{sec:debugging:Hunting Heisenbugs}.
 
-\subsection{Abusing Statistics for Discrete Testing}
-\label{sec:debugging:Abusing Statistics for Discrete Testing}
+\subsection{Statistics Abuse for Discrete Testing}
+\label{sec:debugging:Statistics Abuse for Discrete Testing}
 
 But suppose that you have a continuous test that fails about three
 times every ten hours, and that you fix the bug that you believe was
@@ -1413,11 +1415,10 @@ Then the results of in the previous section tell us that if the test
 runs for 13 hours without failure, there is a 99\,\% probability that
 our fix actually improved the program's reliability.
 
-A dogmatic statistician might not approve of this approach, but the
-sad fact is that the errors introduced by this sort of abuse of
-statistical methodology are usually quite small compared to the
-errors inherent in your measurements of your program's failure rates.
-Nevertheless, the next section describes a slightly less dodgy approach.
+A dogmatic statistician might not approve of this approach, but the sad
+fact is that the errors introduced by this sort of statistical abuse are
+usually quite small compared to the errors in your failure-rate estimates.
+Nevertheless, the next section takes a more rigorous approach.
 
 \subsection{Statistics for Continuous Testing}
 \label{sec:debuggingStatistics for Continuous Testing}
@@ -1435,11 +1436,11 @@ $\lambda$ is the expected failure rate per unit time.
 A rigorous derivation may be found in any advanced probability
 textbook, for example, Feller's classic ``An Introduction to Probability
 Theory and Its Applications''~\cite{Feller58}, while a more
-intuitive approach may be found in the first edition of
+intuitive derivation may be found in the first edition of
 this book~\cite{McKenney2014ParallelProgramming-e1}.
 
 Let's try reworking the example from
-Section~\ref{sec:debugging:Abusing Statistics for Discrete Testing}
+Section~\ref{sec:debugging:Statistics Abuse for Discrete Testing}
 using the Poisson distribution.
 Recall that this example involved a test with a 30\,\% failure rate per
 hour, and that the question was how long the test would need to run
@@ -1463,12 +1464,11 @@ to 0.01 and solving for $\lambda$, resulting in:
 Because we get $0.3$ failures per hour, the number of hours required
 is $4.6/0.3 = 14.3$, which is within 10\,\% of the 13 hours
 calculated using the method in
-Section~\ref{sec:debugging:Abusing Statistics for Discrete Testing}.
-Given that you normally won't know your failure rate to within 10\,\%,
-this indicates that the method in
-Section~\ref{sec:debugging:Abusing Statistics for Discrete Testing}
-is a good and sufficient substitute for the Poisson distribution in
-a great many situations.
+Section~\ref{sec:debugging:Statistics Abuse for Discrete Testing}.
+Given that you normally won't know your failure rate to anywhere near
+10\,\%, the simpler method described in
+Section~\ref{sec:debugging:Statistics Abuse for Discrete Testing}
+is almost always good and sufficient.
 
 More generally, if we have $n$ failures per unit time, and we want to
 be $P$\,\% certain that a fix reduced the failure rate, we can use the
@@ -1523,7 +1523,7 @@ written more compactly as:
 \label{eq:debugging:Possion CDF}
 \end{equation}
 
-Here $m$ is the number of errors in the long test run
+Here $m$ is the actual number of errors in the long test run
 (in this case, two) and $\lambda$ is expected number of errors
 in the long test run (in this case, 24).
 Plugging $m=2$ and $\lambda=24$ into this expression gives the probability
@@ -1597,14 +1597,13 @@ that the fix actually had some relationship to the bug.\footnote{
 	you need a 30-hour error-free run.
 
 	Alternatively, you can use the rough-and-ready method described in
-	Section~\ref{sec:debugging:Abusing Statistics for Discrete Testing}.
+	Section~\ref{sec:debugging:Statistics Abuse for Discrete Testing}.
 }\QuickQuizEndB
 %
 \QuickQuizE{
 	But wait!!!
 	Given that there has to be \emph{some} number of failures
-	(including the possibility of zero failures),
-	shouldn't the summation shown in
+	(including the possibility of zero failures), shouldn't
 	Equation~\ref{eq:debugging:Possion CDF}
 	approach the value $1$ as $m$ goes to infinity?
 }\QuickQuizAnswerE{
@@ -1651,37 +1650,37 @@ it is impossible to
 exactly quantify a given particle's position and velocity at any given
 point in time~\cite{WeinerHeisenberg1927Uncertain}.
 Any attempt to more accurately measure that particle's position will
-result in increased uncertainty of its velocity.
-A roughly similar effect occurs for heisenbugs: attempts to track down
-the heisenbug causes it to radically change its symptoms or even disappear
+result in increased uncertainty of its velocity and vice versa.
+Similarly, attempts to track down
+the heisenbug causes its symptoms to radically change or even disappear
 completely.\footnote{
 	The term ``heisenbug'' is a misnomer, as most heisenbugs are
 	fully explained by the \emph{observer effect} from classical
 	physics.
-	Nevertheless, the name ``heisenbug'' has stuck.}
+	Nevertheless, the name has stuck.}
 
 If the field of physics inspired the name of this problem, it is only
-logical that the field of physics should inspire the solution.
+fair that the field of physics should inspire the solution.
 Fortunately, particle physics is up to the task:
 Why not create an anti-heisenbug to annihilate the heisenbug?
 Or, perhaps more accurately, to annihilate the heisen-ness of
 the heisenbug?
-
-This section describes a number of ways to do just that:
+Although producing an anti-heisenbug for a given heisenbug is more an
+art than a science, the following sections describe a number of ways to
+do just that:
 
 \begin{enumerate}
-\item	Add delay to race-prone regions.
-\item	Increase workload intensity.
-\item	Test suspicious subsystems in isolation.
-\item	Simulate unusual events.
-\item	Count near misses.
+\item	Add delay to race-prone regions (\cref{sec:debugging:Add Delay}).
+\item	Increase workload intensity
+	(\cref{sec:debugging:Increase Workload Intensity}).
+\item	Isolate suspicious subsystems
+	(\cref{sec:debugging:Isolate Suspicious Subsystems}).
+\item	Simulate unusual events (\cref{sec:debugging:Simulate Unusual Events}).
+\item	Count near misses (\cref{sec:debugging:Count Near Misses}).
 \end{enumerate}
 
-Although producing an anti-heisenbug for a given heisenbug is more an
-art than a science, the following sections give some tips on
-generating the corresponding species of anti-heisenbug.
-These are followed by a discussion section,
-Section~\ref{sec:debugging:Heisenbug Discussion}.
+These are followed by discussion in
+\cref{sec:debugging:Heisenbug Discussion}.
 
 \subsubsection{Add Delay}
 \label{sec:debugging:Add Delay}
@@ -1776,7 +1775,7 @@ low stress on a given subsystem, so that a small change in timing
 can cause a heisenbug to disappear.
 One way to create an anti-heisenbug for this case is to increase
 the workload intensity, which has a good chance of increasing the
-probability of the bug appearing.
+bug's probability.
 If the probability is increased sufficiently, it may be possible to
 add lightweight diagnostics such as tracing without causing the
 bug to vanish.
@@ -1813,10 +1812,10 @@ If the program is structured such that it is difficult or impossible
 to apply much stress to a subsystem that is under suspicion,
 a useful anti-heisenbug is a stress test that tests that subsystem in
 isolation.
-The Linux kernel's rcutorture module takes exactly this approach with
-RCU: By applying more stress to RCU than is feasible in a production
-environment, the probability that any RCU bugs will be found during
-rcutorture testing rather than during production use is increased.\footnote{
+The Linux kernel's rcutorture module takes exactly this approach with RCU:
+Applying more stress to RCU than is feasible in a production environment
+increases the probability that RCU bugs will be found during testing
+rather than in production.\footnote{
 	Though sadly not increased to probability one.}
 
 In fact, when creating a parallel program, it is wise to stress-test
@@ -1842,7 +1841,7 @@ Inducing spurious failures is an excellent way to bake robustness into
 sequential programs as well as parallel programs.
 
 \QuickQuiz{
-	Why don't existing conditional-locking primitives provide this
+	Why don't conditional-locking primitives provide this
 	spurious-failure functionality?
 }\QuickQuizAnswer{
 	There are locking algorithms that depend on conditional-locking
@@ -1856,12 +1855,12 @@ sequential programs as well as parallel programs.
 \subsubsection{Count Near Misses}
 \label{sec:debugging:Count Near Misses}
 
-Bugs are often an all-or-nothing thing, so that either the bug happens
-or it doesn't, with nothing in between.
+Bugs are often all-or-nothing things, so that a bug either happens
+or not, with nothing in between.
 However, it is sometimes possible to define a \emph{near miss} where
 the bug does not result in a failure, but has likely manifested.
 For example, suppose your code is making a robot walk.
-The robot's falling over constitutes a bug in your program, but
+The robot's falling down constitutes a bug in your program, but
 stumbling and recovering might constitute a near miss.
 If the robot falls over only once per hour, but stumbles every few
 minutes, you might be able to speed up your debugging progress by
@@ -1913,9 +1912,9 @@ This suggests using near misses as the error condition, however, this
 can be problematic because different CPUs can have different opinions
 as to exactly where a given
 grace period starts and ends, as indicated by the jagged lines.\footnote{
-	The jaggedness of these lines is seriously understated because
-	idle CPUs might well be completely unaware of the most recent
-	few hundred grace periods.}
+	In real life, these lines can be much more jagged because idle
+	CPUs can be completely unaware of a great many recent grace
+	periods.}
 Using the near misses as the error condition could therefore result
 in false positives, which need to be avoided in the automated
 \co{rcutorture} testing.
@@ -1950,7 +1949,7 @@ changes you make to add debugging code.
 The alert reader might have noticed that this section was fuzzy and
 qualitative, in stark contrast to the precise mathematics of
 Sections~\ref{sec:debugging:Statistics for Discrete Testing},
-~\ref{sec:debugging:Abusing Statistics for Discrete Testing},
+~\ref{sec:debugging:Statistics Abuse for Discrete Testing},
 and~\ref{sec:debuggingStatistics for Continuous Testing}.
 If you love precision and mathematics, you may be disappointed to
 learn that the situations to which this section applies are far
@@ -2124,7 +2123,7 @@ Creating a benchmark that approximates
 the application can help overcome these obstacles.
 A carefully constructed benchmark can help promote performance,
 scalability, energy efficiency, and much else besides.
-However, be careful to avoid investing too much into the benchmark
+However, be careful to avoid investing too much into the benchmarking
 effort.
 It is after all important to invest at least a little into the
 application itself~\cite{Gray91}.
@@ -2135,7 +2134,7 @@ application itself~\cite{Gray91}.
 In many cases, a fairly small portion of your software is responsible
 for the majority of the performance and scalability shortfall.
 However, developers are notoriously unable to identify the actual
-bottlenecks by hand.
+bottlenecks by inspection.
 For example, in the case of a kernel buffer allocator, all attention focused
 on a search of a dense array which turned out to represent only
 a few percent of the allocator's execution time.
@@ -2310,9 +2309,12 @@ your test at a high real-time priority, for example, by using
 the POSIX \co{sched_setscheduler()} system call.
 However, note that if you do this, you are implicitly taking on
 responsibility for avoiding infinite loops, because otherwise
-your test will prevent part of the kernel from functioning.\footnote{
-	This is an example of the Spiderman Principle: ``With great
-	power comes great responsibility.''}
+your test can prevent part of the kernel from functioning.
+This is an example of the Spiderman Principle: ``With great
+power comes great responsibility.''
+And although the default real-time throttling settings often address
+such problems, they might do so by causing your real-time threads
+to miss their deadlines.
 
 These approaches can greatly reduce, and perhaps even eliminate,
 interference from processes, threads, and tasks.
@@ -2325,10 +2327,12 @@ Each numerical directory contains \co{smp_affinity} and
 \co{smp_affinity_list}.
 Given sufficient permissions, you can write a value to these files
 to restrict interrupts to the specified set of CPUs.
-For example, ``\co{sudo echo 3 > /proc/irq/23/smp_affinity}''
-would confine interrupts on vector~23 to CPUs~0 and~1.
-The same results may be obtained via
-``\co{sudo echo 0-1 > /proc/irq/23/smp_affinity_list}''.
+For example, either
+``\co{echo 3 > /proc/irq/23/smp_affinity}''
+or
+``\co{echo 0-1 > /proc/irq/23/smp_affinity_list}''
+would confine interrupts on vector~23 to CPUs~0 and~1,
+at least given sufficient privileges.
 You can use ``\co{cat /proc/interrupts}'' to obtain a list of the interrupt
 vectors on your system, how many are handled by each CPU, and what
 devices use each interrupt vector.
@@ -2343,7 +2347,7 @@ that is running in user mode.\footnote{
 	adaptive-ticks project
 	that allows scheduling-clock interrupts to be disabled
 	on CPUs that have only one runnable task.
-	As of 2019, this is nearly complete.}
+	As of 2021, this is largely complete.}
 In addition you must take care to ensure that the set of CPUs that you
 confine the interrupts to is capable of handling the load.
 
@@ -2654,13 +2658,11 @@ Figure~\ref{fig:debugging:Choose Validation Methods Wisely}.
 
 A key choice is that of statistics.
 Although the methods described in this chapter work very well most of
-the time, they do have their limitations.
-These limitations are inherent because we are attempting to do something
-that is in general impossible, courtesy of the
-Halting Problem~\cite{AlanMTuring1937HaltingProblem,GeoffreyKPullum2000HaltingProblem}.
-Fortunately for us, there are a huge number of special cases in which
-we can not only work out whether a given program will halt, but also
-establish estimates for how long it will run before halting, as discussed in
+the time, they do have their limitations, courtesy of the Halting
+Problem~\cite{AlanMTuring1937HaltingProblem,GeoffreyKPullum2000HaltingProblem}.
+Fortunately for us, there is a huge number of special cases in which
+we can not only work out whether a program will halt, but also
+estimate how long it will run before halting, as discussed in
 Section~\ref{sec:debugging:Performance Estimation}.
 Furthermore, in cases where a given program might or might not work
 correctly, we can often establish estimates for what fraction of the
@@ -2675,15 +2677,14 @@ Even though we can get away with such bravery a surprisingly large
 fraction of the time, abstracting all that code and data away will
 occasionally cause severe problems.
 
-One possible problem is variability, where repeated runs might give
-wildly different results.
-This is often dealt with by maintaining a standard deviation as well
-as a mean, but the fact is that attempting to summarize the behavior
-of a large and complex program with two numbers is almost as brave as
-summarizing its behavior with only one number.
+One possible problem is variability, where repeated runs give wildly
+different results.
+This problem is often addressed using standard deviation, however, using
+two numbers to summarize the behavior of a large and complex program is
+about as brave as using only one number.
 In computer programming, the surprising thing is that use of the
-mean or the mean and standard deviation are often sufficient, but
-there are no guarantees.
+mean or the mean and standard deviation are often sufficient.
+Nevertheless, there are no guarantees.
 
 One cause of variation is confounding factors.
 For example, the CPU time consumed by a linked-list search will depend
@@ -2696,26 +2697,25 @@ holding the length constant or to measure CPU time as a function of
 list length.
 
 Of course, this advice assumes that you are aware of the confounding
-factors, and Murphy says that you probably will not be.
-I have been involved in projects that had confounding factors as
-diverse as air conditioners (which drew considerable power at startup,
-thus causing the voltage supplied to the computer to momentarily drop
-too low, sometimes resulting in failure), cache state (resulting in
-odd variations in performance), I/O errors (including disk errors,
-packet loss, and duplicate Ethernet MAC addresses), and even
-porpoises (which could not resist playing with an array of transponders,
-which, in the absence of porpoises, could be
-used for high-precision acoustic positioning and navigation).
-And this is but one reason why a good night's sleep is such an
-effective debugging tool.
+factors, and Murphy says that you will not be.
+I have been involved in projects that had confounding factors as diverse
+as air conditioners (which drew considerable power at startup, thus
+causing the voltage supplied to the computer to momentarily drop too
+low, sometimes resulting in failure), cache state (resulting in odd
+variations in performance), I/O errors (including disk errors, packet
+loss, and duplicate Ethernet MAC addresses), and even porpoises (which
+could not resist playing with an array of transponders, which could be
+otherwise used for high-precision acoustic positioning and navigation).
+And this is but one reason why a good night's sleep is such an effective
+debugging tool.
 
 In short, validation always will require some measure of the behavior of
 the system.
-Because this measure must be a severe summarization of the system,
-it can be misleading.
+To be at all useful, this measure must be a severe summarization of the
+system, which in turn means that it can be misleading.
 So as the saying goes, ``Be careful.  It is a real world out there.''
 
-But what if you are working on the Linux kernel, which as of 2017 is
+But what if you are working on the Linux kernel, which as of 2017 was
 estimated to have more than 20 billion instances running throughout
 the world?
 In that case, a bug that occurs once every million years on a single system
