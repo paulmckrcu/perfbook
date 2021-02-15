@@ -101,7 +101,7 @@ then
 	echo Tag push failed, giving up.
 	exit 8
 fi
-if ! test -f "${destdir}/Changes.${tag}.txt"
+if ! test -f "${destdir}/Changes.*.txt"
 then
 	git request-pull ${oldtag} ${repo_url} ${gittag} | sed -n '/^--*$/,$p' | tail +2 > "${destdir}/Changes.${tag}.txt"
 fi
