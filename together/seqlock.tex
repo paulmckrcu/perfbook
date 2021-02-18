@@ -1,24 +1,20 @@
-% together/hash.tex
+% together/seqlock.tex
 % mainfile: ../perfbook.tex
 % SPDX-License-Identifier: CC-BY-SA-3.0
 
-\section{Hashing Hassles}
-\label{sec:together:Hashing Hassles}
+\section{Sequence-Locking Specials}
+\label{sec:together:Sequence-Locking Specials}
 %
 \epigraph{The girl who can't dance says the band can't play.}
 	 {\emph{Yiddish proverb}}
 
-This section looks at some issues that can arise when dealing with
-hash tables.
-Please note that these issues also apply to many other search structures.
+This section looks at some special uses of sequence counters.
 
 \subsection{Correlated Data Elements}
 \label{sec:together:Correlated Data Elements}
 
-This situation is analogous to that in
-\cref{sec:together:Correlated Fields}:
-We have a hash table where we need correlated views of two or more of
-the elements.
+Suppose that have a hash table where we need correlated views of two or
+more of the elements.
 These elements are updated together, and we do not want to see an old
 version of the first element along with new versions of the other
 elements.
@@ -28,6 +24,8 @@ Although Schr\"odinger understands that marriages and divorces do not
 happen instantaneously, he is also a traditionalist.
 As such, he absolutely does not want his database ever to show that the
 bride is now married, but the groom is not, and vice versa.
+Plus, if you think Schr\"odinger is a traditionalist, you just
+try conversing with some of his family members!
 In other words, Schr\"odinger wants to be able to carry out a
 wedlock-consistent traversal of his database.
 
@@ -51,6 +49,8 @@ he does realize that this problem could well arise in other situations.
 One way to avoid this reader-starvation problem is to have the readers
 use the update-side primitives if there have been too many retries,
 but this can degrade both performance and scalability.
+Another way to avoid starvation is to have multiple sequence locks,
+in Schr\"odinger's case, perhaps one per species.
 
 In addition, if the update-side primitives are used too frequently,
 poor performance and scalability will result due to lock contention.
@@ -73,48 +73,5 @@ in the same group as the first one located.
 Other approaches using version numbering are left as exercises for the
 interested reader.
 
-\subsection{Update-Friendly Hash-Table Traversal}
-\label{sec:together:Update-Friendly Hash-Table Traversal}
-
-Suppose that a statistical scan of all elements in a hash table is
-required.
-For example, Schr\"odinger might wish to compute the average
-length-to-weight ratio over all of his animals.\footnote{
-	Why would such a quantity be useful?
-	Beats me!
-	But group statistics in general are often useful.}
-Suppose further that Schr\"odinger is willing to ignore slight
-errors due to animals being added to and removed from the hash
-table while this statistical scan is being carried out.
-What should Schr\"odinger do to control concurrency?
-
-One approach is to enclose the statistical scan in an RCU read-side
-critical section.
-This permits updates to proceed concurrently without unduly impeding
-the scan.
-In particular, the scan does not block the updates and vice versa,
-which allows scan of hash tables containing very large numbers of
-elements to be supported gracefully, even in the face of very high
-update rates.
-
-\QuickQuiz{
-	But how does this scan work while a resizable hash table
-	is being resized?
-	In that case, neither the old nor the new hash table is
-	guaranteed to contain all the elements in the hash table!
-}\QuickQuizAnswer{
-	True, resizable hash tables as described in
-	\cref{sec:datastruct:Non-Partitionable Data Structures}
-	cannot be fully scanned while being resized.
-	One simple way around this is to acquire the
-	\co{hashtab} structure's \co{->ht_lock} while scanning,
-	but this prevents more than one scan from proceeding
-	concurrently.
-
-	Another approach is for updates to mutate the old hash
-	table as well as the new one while resizing is in
-	progress.
-	This would allow scans to find all elements in the old
-	hash table.
-	Implementing this is left as an exercise for the reader.
-}\QuickQuizEnd
+Note that it is likely that similar schemes also work with hazard
+pointers.

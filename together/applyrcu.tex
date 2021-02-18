@@ -422,7 +422,12 @@ a single measurement update: If a reader sees an old value of
 \co{meas_1} but new values of \co{meas_2} and \co{meas_3}, that
 reader will become fatally confused.
 How can we guarantee that readers will see coordinated sets of these
-three values?
+three values?\footnote{
+	This situation is similar to that described in
+	\cref{sec:together:Correlated Data Elements},
+	except that readers need only see a consistent view of a
+	given single data element, not a consistent view of a
+	group of data elements.}
 
 \begin{listing}[tbp]
 \begin{VerbatimL}[tabsize=8]
@@ -537,6 +542,81 @@ struct animal {
 
 This approach enables readers to see correlated values for selected
 fields with minimal read-side overhead.
+
+\subsection{Update-Friendly Traversal}
+\label{sec:together:Update-Friendly Traversal}
+
+Suppose that a statistical scan of all elements in a hash table is
+required.
+For example, Schr\"odinger might wish to compute the average
+length-to-weight ratio over all of his animals.\footnote{
+	Why would such a quantity be useful?
+	Beats me!
+	But group statistics are often useful.}
+Suppose further that Schr\"odinger is willing to ignore slight
+errors due to animals being added to and removed from the hash
+table while this statistical scan is being carried out.
+What should Schr\"odinger do to control concurrency?
+
+One approach is to enclose the statistical scan in an RCU read-side
+critical section.
+This permits updates to proceed concurrently without unduly impeding
+the scan.
+In particular, the scan does not block the updates and vice versa,
+which allows scan of hash tables containing very large numbers of
+elements to be supported gracefully, even in the face of very high
+update rates.
+
+\QuickQuiz{
+	But how does this scan work while a resizable hash table
+	is being resized?
+	In that case, neither the old nor the new hash table is
+	guaranteed to contain all the elements in the hash table!
+}\QuickQuizAnswer{
+	True, resizable hash tables as described in
+	\cref{sec:datastruct:Non-Partitionable Data Structures}
+	cannot be fully scanned while being resized.
+	One simple way around this is to acquire the
+	\co{hashtab} structure's \co{->ht_lock} while scanning,
+	but this prevents more than one scan from proceeding
+	concurrently.
+
+	Another approach is for updates to mutate the old hash
+	table as well as the new one while resizing is in
+	progress.
+	This would allow scans to find all elements in the old
+	hash table.
+	Implementing this is left as an exercise for the reader.
+}\QuickQuizEnd
+
+\subsection{Scalable Reference Count Two}
+\label{sec:together:Scalable Reference Count Two}
+
+Suppose a reference count is becoming a performance or scalability
+bottleneck.
+What can you do?
+
+Another approach is to use per-CPU counters for each reference count,
+somewhat similar to the algorithms in \cref{chp:Counting}, in particular,
+the exact limit counters described in
+\cref{sec:count:Exact Limit Counters}.
+The need to switch between per-CPU and global modes for these counters
+results either in expensive increments and decrements on the one hand
+(\cref{sec:count:Atomic Limit Counter Implementation})
+or in the use of POSIX signals on the other
+(\cref{sec:count:Signal-Theft Limit Counter Design}).
+
+Another alternative is to use RCU to mediate the switch between per-CPU
+and global counting modes.
+Each update is carried out within an RCU read-side critical section,
+and each update checks a flag to determine whether to update the
+per-CPU counters on the one hand or the global on the other.
+To switch modes, update the flag, wait for a grace period, and then
+move any remaining counts from the per-CPU counters to the global
+counter or vice versa.
+
+The Linux kernel uses this approach in its \co{percpu_ref} style of
+reference counter, to which interested readers are referred.
 
 % Birthstone/tombstone for moving records when readers cannot be permitted
 % to see extraneous records.
