@@ -26,15 +26,17 @@ use in concurrent software, including:
 \item	The object is created with a non-zero reference count, and new
 	references may be acquired only when the current value of
 	the reference counter is non-zero.
-	If a thread does not have a reference to a given object,
-	it may obtain one with the help of another thread that
-	already has a reference.
-\item	An existence guarantee is provided for the object, preventing
-	it from being freed while some other
-	entity might be attempting to acquire a reference.
+	If a thread does not have a reference to a given object, it
+	might seek help from another thread that already has a reference.
+\item	In some cases, hazard pointers may be used as a drop-in
+	replacement for reference counters.
+\item	An existence guarantee is provided for the object, thus preventing
+	it from being freed while some other entity might be attempting
+	to acquire a reference.
 	Existence guarantees are often provided by automatic
 	garbage collectors, and, as is seen in
-	\cref{sec:defer:Read-Copy Update (RCU)}, by RCU.
+	\cref{sec:defer:Hazard Pointers,sec:defer:Read-Copy Update (RCU)},
+	by hazard pointers and RCU, respectively.
 \item	A type-safety guarantee is provided for the object.
 	An additional identity check must be performed once
 	the reference is acquired.
@@ -46,10 +48,9 @@ use in concurrent software, including:
 
 Of course, any mechanism that provides existence guarantees
 by definition also provides type-safety guarantees.
-This section will therefore group the last two answers together under the
-rubric of RCU, leaving us with three general categories of
-reference-acquisition protection: Reference counting, sequence
-locking, and RCU.
+This results in four general categories of reference-acquisition
+protection:
+Reference counting, hazard pointers, sequence locking, and RCU.
 
 \QuickQuiz{
 	Why not implement reference-acquisition using
@@ -75,30 +76,32 @@ locking, and RCU.
 \rowcolors{3}{}{lightgray}
 \small
 \centering
-\begin{tabular}{lccc}
+\begin{tabular}{lcccc}
 	\toprule
-	& \multicolumn{3}{c}{Release Synchronization} \\
-	\cmidrule(l){2-4}
-	\parbox[c]{.8in}{Acquisition\\Synchronization}
-			& Locking
-				& \parbox[c]{.5in}{Reference\\Counting}
-				        & RCU \\
-	\cmidrule{1-1} \cmidrule(l){2-4}
-	Locking		& $-$	  & CAM	      & CA  \\
-	\parbox[c][6ex]{.8in}{Reference\\Counting}
-			& A	  & AM        & A   \\
-	RCU		& CA	  & MCA	      & CA  \\
+	& \multicolumn{4}{c}{Release} \\
+	\cmidrule(l){2-5}
+	Acquisition	& Locks
+				& \parbox[c]{.5in}{Reference\\Counts}
+					& \parbox[c]{.5in}{Hazard\\Pointers}
+						& RCU \\
+	\cmidrule{1-1} \cmidrule(l){2-5}
+	Locks		& $-$	& CAM	& M	& CA  \\
+	\parbox[c][6ex]{.6in}{Reference\\Counts}
+			& A	& AM    & M	& A   \\
+	\parbox[c][6ex]{.6in}{Hazard\\Pointers}
+			& M	& M	& M	& M   \\
+	RCU		& CA	& MCA	& M	& CA  \\
 	\bottomrule
 \end{tabular}
-\caption{Reference Counting and Synchronization Mechanisms}
-\label{tab:together:Reference Counting and Synchronization Mechanisms}
+\caption{Synchronizing Reference Counting}
+\label{tab:together:Synchronizing Reference Counting}
 \end{table}
 
 Given that the key reference-counting issue
 is synchronization between acquisition
 of a reference and freeing of the object, we have nine possible
 combinations of mechanisms, as shown in
-\cref{tab:together:Reference Counting and Synchronization Mechanisms}.
+\cref{tab:together:Synchronizing Reference Counting}.
 This table
 divides reference-counting mechanisms into the following broad categories:
 \begin{enumerate}
@@ -112,6 +115,8 @@ divides reference-counting mechanisms into the following broad categories:
 	(``CAM'').
 \item	Atomic counting with a check combined with the atomic acquisition
 	operation (``CA'').
+\item	Simple counting with a check combined with full memory barriers
+	(``M'').
 \item	Atomic counting with a check combined with the atomic acquisition
 	operation, and with memory barriers also required on acquisition
 	(``MCA'').
@@ -124,8 +129,8 @@ all release operations
 contain memory barriers, and all checked acquisition operations also
 contain memory barriers.
 Therefore, cases ``CA'' and ``MCA'' are equivalent to ``CAM'', so that
-there are sections below for only the first four cases:
-``$-$'', ``A'', ``AM'', and ``CAM''.
+there are sections below for only the first four cases and the sixth case:
+``$-$'', ``A'', ``AM'', ``CAM'', and ``M''.
 The Linux primitives that support reference counting are presented in
 \cref{sec:together:Linux Primitives Supporting Reference Counting}.
 Later sections cite optimizations that can improve performance
