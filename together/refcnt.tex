@@ -69,6 +69,15 @@ Reference counting, hazard pointers, sequence locking, and RCU.
 
 	In short, use of atomic operations such as compare-and-swap
 	absolutely requires either type-safety or existence guarantees.
+
+	But what if it is absolutely necessary to let the type change?
+
+	One approach is for each such type to have the reference counter
+	at the same location, so that as long as the reallocation results
+	in an object from this group of types, all is well.
+	If you do this in C, make sure you comment the reference counter
+	in each structure in which it appears.
+	In C++, use inheritance and templates.
 }\QuickQuizEnd
 
 \begin{table}[tb]
@@ -256,11 +265,10 @@ RCU read-side critical sections.
 	acquires a reference just after another CPU releases the last
 	reference?
 }\QuickQuizAnswer{
-	Because a CPU must already hold a reference in order
-	to legally acquire another reference.
-	Therefore, if one CPU releases the last reference,
-	there cannot possibly be any CPU that is permitted
-	to acquire a new reference.
+	Because a CPU must already hold a reference in order to legally
+	acquire another reference.
+	Therefore, if one CPU releases the last reference, there had
+	better not be any CPU acquiring a new reference!
 }\QuickQuizEnd
 
 \begin{listing}[tbp]
@@ -358,6 +366,9 @@ Otherwise, \co{kref_sub()} returns zero, informing the caller that
 	Normally, the caller will have no way of knowing this, and
 	must therefore carefully avoid referencing the object after
 	the call to \co{kref_sub()}.
+
+	Interested readers are encouraged to work around this limitation
+	using RCU, in particular, \co{call_rcu()}.
 }\QuickQuizEndM
 %
 \QuickQuizE{
@@ -466,6 +477,9 @@ as shown below.
 	But now the ``then'' clause can increment the counter
 	back to a value of one, allowing the object to be
 	used after it has been cleaned up.
+
+	This use-after-cleanup bug is every bit as bad as a
+	full-fledged use-after-free bug.
 }\QuickQuizEnd
 
 The Linux kernel's \co{fget()} and \co{fput()} primitives

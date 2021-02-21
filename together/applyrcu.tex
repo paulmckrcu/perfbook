@@ -58,52 +58,6 @@ And in fact, one of the purposes of \co{final_mutex} is to
 ensure that threads do not come and go in the middle of \co{read_count()}
 execution.
 
-\QuickQuiz{
-	Just what is the accuracy of \co{read_count()}, anyway?
-}\QuickQuizAnswer{
-	Refer to
-	\cref{lst:count:Per-Thread Statistical Counters} on
-	Page~\pageref{lst:count:Per-Thread Statistical Counters}.
-	Clearly, if there are no concurrent invocations of \co{inc_count()},
-	\co{read_count()} will return an exact result.
-	However, if there \emph{are} concurrent invocations of
-	\co{inc_count()}, then the sum is in fact changing as
-	\co{read_count()} performs its summation.
-	That said, because thread creation and exit are excluded by
-	\co{final_mutex}, the pointers in \co{counterp} remain constant.
-
-	Let's imagine a mythical machine that is able to take an
-	instantaneous snapshot of its memory.
-	Suppose that this machine takes such a snapshot at the
-	beginning of \co{read_count()}'s execution, and another
-	snapshot at the end of \co{read_count()}'s execution.
-	Then \co{read_count()} will access each thread's counter
-	at some time between these two snapshots, and will therefore
-	obtain a result that is bounded by those of the two snapshots,
-	inclusive.
-	The overall sum will therefore be bounded by the pair of sums that
-	would have been obtained from each of the two snapshots (again,
-	inclusive).
-
-	The expected error is therefore half of the difference between
-	the pair of sums that would have been obtained from each of the
-	two snapshots, that is to say, half of the execution time of
-	\co{read_count()} multiplied by the number of expected calls to
-	\co{inc_count()} per unit time.
-
-	Or, for those who prefer equations:
-	\begin{equation}
-	\epsilon = \frac{T_\mathrm{r} R_\mathrm{i}}{2}
-	\end{equation}
-	where $\epsilon$ is the expected error in \co{read_count()}'s
-	return value,
-	$T_\mathrm{r}$ is the time that \co{read_count()} takes to execute,
-	and $R_\mathrm{i}$ is the rate of \co{inc_count()} calls per unit time.
-	(And of course, $T_\mathrm{r}$ and $R_\mathrm{i}$ should use the same units of
-	time: microseconds and calls per microsecond, seconds and calls
-	per second, or whatever, as long as they are the same units.)
-}\QuickQuizEnd
-
 Therefore, if we are to dispense with \co{final_mutex}, we will need
 to come up with some other method for ensuring consistency.
 One approach is to place the total count for all previously exited
@@ -197,6 +151,15 @@ is invoked by each newly created thread.
 	So, interestingly enough, when adding a new thread, this
 	implementation gets the effect of allocating a new structure,
 	but without actually having to do the allocation.
+
+	\begin{fcvref}[ln:count:count_end_rcu:whole:unreg]
+	On the other hand, \co{count_unregister_thread()} can result
+	in the outgoing thread's work being double counted.
+	This can happen when \co{read_count()} is invoked between
+	lines~\Clnref{add} and~\Clnref{null}.
+	There are efficient ways of avoiding this double-counting, but
+	these are left as an exercise for the reader.
+	\end{fcvref}
 }\QuickQuizEnd
 
 \begin{fcvref}[ln:count:count_end_rcu:whole:unreg]
@@ -218,6 +181,18 @@ to exit their RCU read-side critical sections, thus dropping any such
 references.
 \Clnref{free} can then safely free the old \co{countarray} structure.
 \end{fcvref}
+
+\QuickQuiz{
+	Given the fixed-size \co{counterp} array, exactly how does this
+	code avoid a fixed upper bound on the number of threads???
+}\QuickQuizAnswer{
+	You are quite right, that array does in fact reimpose the fixed
+	upper limit.
+	This limit may be avoided by tracking threads with a linked list,
+	as is done in userspace RCU~\cite{MathieuDesnoyers2012URCU}.
+	Doing something similar for this code is left as an exercise for
+	the reader.
+}\QuickQuizEnd
 
 \subsubsection{Discussion}
 
@@ -382,12 +357,11 @@ struct foo {
 
 A better approach is to put the value and the array into the same structure,
 as shown in
-\cref{lst:together:Improved RCU-Protected Variable-Length Array}.
+\cref{lst:together:Improved RCU-Protected Variable-Length Array}~\cite{Arcangeli03}.
 Allocating a new array (\co{foo_a} structure) then automatically provides
 a new place for the array length.
 This means that if any CPU picks up a reference to \co{->fa}, it is
-guaranteed that the \co{->length} will match the \co{->a[]}
-length~\cite{Arcangeli03}.
+guaranteed that the \co{->length} will match the \co{->a[]}.
 
 \begin{enumerate}
 \item	The array is initially 16 characters long, and thus \co{->length}
@@ -473,8 +447,8 @@ struct animal {
 \label{lst:together:Correlated Measurement Fields}
 \end{listing}
 
-Another approach is to insert a level of indirection, as shown in
-\cref{lst:together:Correlated Measurement Fields}.
+Another approach is to impose a level of indirection, as shown in
+\cref{lst:together:Correlated Measurement Fields}~\cite[Section 5.3.4]{PaulEdwardMcKenneyPhD}.
 When a new measurement is taken, a new \co{measurement} structure
 is allocated, filled in with the measurements, and the \co{animal}
 structure's \co{->mp} field is updated to point to this new
@@ -541,7 +515,15 @@ struct animal {
 }\QuickQuizEnd
 
 This approach enables readers to see correlated values for selected
-fields with minimal read-side overhead.
+fields, but while incurring minimal read-side overhead.
+This per-data-element consistency suffices in the common case where
+a reader looks only at a single data element.
+
+% @@@ Birthstone/tombstone for moving records when readers cannot be permitted
+% to see extraneous records.
+% Flag for deletion (if not already covered in the defer chapter).
+% @@@ Issaquah Challenge.
+% @@@ RLU & MV-RLU (Eventually the corresponding patents.)
 
 \subsection{Update-Friendly Traversal}
 \label{sec:together:Update-Friendly Traversal}
@@ -618,7 +600,5 @@ counter or vice versa.
 The Linux kernel uses this approach in its \co{percpu_ref} style of
 reference counter, to which interested readers are referred.
 
-% Birthstone/tombstone for moving records when readers cannot be permitted
-% to see extraneous records.
-
-% Flag for deletion (if not already covered in the defer chapter).
+% @@@ RCU link counts
+% @@@ Minimize memory footprint, for example, SRCU.

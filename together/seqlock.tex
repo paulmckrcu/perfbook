@@ -72,14 +72,46 @@ in the same group as the first one located.
 
 This technique is used heavily in the Linux kernel, perhaps most
 notably in the dcache subsystem~\cite{NeilBrown2015RCUwalk}.
-
-Other approaches using version numbering are left as exercises for the
-interested reader.
-
 Note that it is likely that similar schemes also work with hazard
 pointers.
+
+Another approach is to shard the data elements, and then have each update
+write-acquire all the sequence locks needed to cover the data elements
+affected by by that update.
+Of course, these write-acquisitions must be done carefully in order to
+avoid deadlock.
+Readers would also need to read-acquire multiple sequence locks, but
+in the surprisingly common case where readers only look up one data
+element, only one sequence lock need be read-acquired.
+
+This approach provides sequential consistency to readers, each of which
+will either see the effects of a given update or not, with any partial
+updates resulting in a read-side retry.
+Sequential consistency is an extremely strong guarantee, incurring equally
+strong restrictions and equally high overheads.
+In this case, we saw that readers might be starved on the one hand, or
+might need to acquire the update-side lock on the other.
+Although this works very well in cases where updates are infrequent,
+it unnecessarily forces read-side retries even when the update did not
+affect any of the data that a retried reader accesses.
+\Cref{sec:together:Correlated Fields} therefore covers a much weaker form
+of consistency that not only avoids reader starvation, but also avoids
+any form of read-side retry.
 
 \subsection{Upgrade to Writer}
 \label{sec:together:Upgrade to Writer}
 
-@@@ \co{sdma_flush()} in \path{drivers/infiniband/hw/hfi1/sdma.c}
+As discussed in
+\cref{sec:defer:RCU is a Reader-Writer Lock Replacement},
+RCU permits readers to upgrade to writers.
+This capability can be quite useful when a reader scanning an
+RCU-protected data structure notices that the current element
+needs to be updated.
+What happens when you try this trick with sequence locking?
+
+It turns out that this sequence-locking trick is actually used in
+the Linux kernel, for example, by the \co{sdma_flush()} function in
+\path{drivers/infiniband/hw/hfi1/sdma.c}.
+The effect is to doom the enclosing reader to retry.
+This trick is therefore used when the reader detects some condition
+that requires a retry.
