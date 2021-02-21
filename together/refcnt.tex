@@ -131,9 +131,7 @@ contain memory barriers.
 Therefore, cases ``CA'' and ``MCA'' are equivalent to ``CAM'', so that
 there are sections below for only the first four cases and the sixth case:
 ``$-$'', ``A'', ``AM'', ``CAM'', and ``M''.
-The Linux primitives that support reference counting are presented in
-\cref{sec:together:Linux Primitives Supporting Reference Counting}.
-Later sections cite optimizations that can improve performance
+Later sections describe optimizations that can improve performance
 if reference acquisition and release is very frequent, and the
 reference count need be checked for zero only very rarely.
 
@@ -149,6 +147,11 @@ atomic counting with acquisition memory barrier (``AM'') is described in
 and
 atomic counting with check and release memory barrier (``CAM'') is described in
 \cref{sec:together:Atomic Counting With Check and Release Memory Barrier}.
+Use of hazard pointers is described in
+\cref{sec:defer:Hazard Pointers}
+on page~\ref{sec:defer:Hazard Pointers}
+and in
+\cref{sec:together:Hazard-Pointer Helpers}.
 
 \subsubsection{Simple Counting}
 \label{sec:together:Simple Counting}
@@ -208,37 +211,41 @@ int sref_put(struct sref *sref,
 
 Simple atomic counting may be used in cases where any CPU acquiring
 a reference must already hold a reference.
-This style is used when a single CPU creates an object for its
-own private use, but must allow other CPU, tasks, timer handlers,
-or I/O completion handlers that it later spawns to also access this object.
-Any CPU that hands the object off must first acquire a new reference
-on behalf of the recipient object.
+This style is used when a single CPU creates an object for its own private
+use, but must allow for accesses from other CPUs, tasks, timer handlers,
+and so on.
+Any CPU that hands the object off must first acquire a new reference on
+behalf of the recipient on the one hand, or refrain from further accesses
+after the handoff on the other.
 In the Linux kernel, the \co{kref} primitives are used to implement
 this style of reference counting, as shown in
-\cref{lst:together:Linux Kernel kref API} (as of Linux v3.3).
+\cref{lst:together:Linux Kernel kref API}.\footnote{
+	As of Linux v4.10.
+	Linux v4.11 introduced a \co{refcount_t} API that improves
+	efficiency weakly ordered platforms, but which is functionally
+	equivalent to the \co{atomic_t} that it replaced.}
 
-Atomic counting is required
-because locking is not used to protect all reference-count operations,
-which means that it is possible for two different CPUs to concurrently
-manipulate the reference count.
+Atomic counting is required in this case because locking does not protect
+all reference-count operations, which means that two different CPUs
+might concurrently manipulate the reference count.
 If normal increment and decrement were used, a pair of CPUs might both
 fetch the reference count concurrently, perhaps both obtaining
 the value ``3''.
 If both of them increment their value, they will both obtain ``4'',
 and both will store this value back into the counter.
 Since the new value of the counter should instead be ``5'', one
-of the two increments has been lost.
+of the increments has been lost.
 Therefore, atomic operations must be used both for counter increments
 and for counter decrements.
 
-If releases are guarded by locking or RCU,
+If releases are guarded by locking, hazard pointers, or RCU,
 memory barriers are \emph{not} required, but for different reasons.
 In the case of locking, the locks provide any needed memory barriers
 (and disabling of compiler optimizations), and the locks also
 prevent a pair of releases from running concurrently.
-In the case of RCU, cleanup must be deferred until all currently
-executing RCU read-side critical sections have completed, and
-any needed memory barriers or disabling of compiler optimizations
+In the case of hazard pointers and RCU, cleanup must be deferred until
+all currently executing RCU read-side critical sections have completed,
+and any needed memory barriers or disabling of compiler optimizations
 will be provided by the RCU infrastructure.
 Therefore, if two CPUs release the final two references concurrently,
 the actual cleanup will be deferred until both CPUs exit their
@@ -367,13 +374,17 @@ Otherwise, \co{kref_sub()} returns zero, informing the caller that
 \subsubsection{Atomic Counting With Release Memory Barrier}
 \label{sec:together:Atomic Counting With Release Memory Barrier}
 
-This style of reference is used in the Linux kernel's networking
-layer to track the destination caches that are used in packet routing.
+Atomic reference counting with release memory barriers is used by the
+Linux kernel's networking layer to track the destination caches that
+are used in packet routing.
 The actual implementation is quite a bit more involved; this section
 focuses on the aspects of \co{struct dst_entry} reference-count
 handling that matches this use case,
-shown in \cref{lst:together:Linux Kernel dst-clone API}
-(as of Linux v2.6.25).
+shown in \cref{lst:together:Linux Kernel dst-clone API}.\footnote{
+	As of Linux v4.13.
+	Linux v4.14 added a level of indirection to permit more
+	comprehensive debugging checks, but the overall effect in the
+	absence of bugs is identical.}
 
 \begin{listing}[tbp]
 \begin{fcvlabel}[ln:together:Linux Kernel dst-clone API]
@@ -429,7 +440,8 @@ of the rules for using these two primitives.
 \label{sec:together:Atomic Counting With Check and Release Memory Barrier}
 
 Consider a situation where the caller must be able to acquire a new
-reference to an object to which it does not already hold a reference.
+reference to an object to which it does not already hold a reference,
+but where that object's existence is guaranteed.
 The fact that initial reference-count acquisition can now run concurrently
 with reference-count release adds further complications.
 Suppose that a reference-count release finds that the new
@@ -459,7 +471,11 @@ as shown below.
 The Linux kernel's \co{fget()} and \co{fput()} primitives
 use this style of reference counting.
 Simplified versions of these functions are shown in
-\cref{lst:together:Linux Kernel fget/fput API} (as of Linux v2.6.25).
+\cref{lst:together:Linux Kernel fget/fput API}.\footnote{
+	As of Linux v2.6.38.
+	Additional \co{O_PATH} functionality was added in v2.6.39,
+	refactoring was applied in v3.14, and \co{mmap_sem} contention
+	was reduced in v4.1.}
 
 \begin{listing}[tbp]
 \begin{fcvlabel}[ln:together:Linux Kernel fget/fput API]
@@ -533,12 +549,8 @@ critical section and return a pointer to the file structure.
 
 The \co{fcheck_files()} primitive is a helper function for
 \co{fget()}.
-It uses the \co{rcu_dereference()} primitive to safely fetch an
-RCU-protected pointer for later dereferencing (this emits a
-memory barrier on CPUs such as DEC Alpha in which data dependencies
-do not enforce memory ordering).
-\Clnref{deref:fdt} uses \co{rcu_dereference()} to fetch a pointer to this
-task's current file-descriptor table,
+\Clnref{deref:fdt} uses \co{rcu_dereference()} to safely fetch an
+RCU-protected pointer to this task's current file-descriptor table,
 and \clnref{range} checks to see if the specified file descriptor is in range.
 If so, \clnref{deref:fd} fetches the pointer to the file structure, again using
 the \co{rcu_dereference()} primitive.
@@ -546,114 +558,20 @@ the \co{rcu_dereference()} primitive.
 in case of failure.
 
 The \co{fput()} primitive releases a reference to a file structure.
-\Clnref{dec} atomically decrements the reference count, and, if the result
-was zero, \clnref{call} invokes the \co{call_rcu()} primitives in order to
-free up the file structure (via the \co{file_free_rcu()} function
-specified in \co{call_rcu()}'s second argument),
-but only after all currently-executing
-RCU read-side critical sections complete.
-The time period required for all currently-executing RCU read-side
-critical sections to complete is termed a ``grace period''.
-Note that the \co{atomic_dec_and_test()} primitive contains
-a memory barrier.
-This memory barrier is not necessary in this example, since the structure
-cannot be destroyed until the RCU read-side critical section completes,
-but in Linux, all atomic operations that return a result must
-by definition contain memory barriers.
+\Clnref{dec} atomically decrements the reference count, and, if the
+result was zero, \clnref{call} invokes the \co{call_rcu()} primitives
+in order to free up the file structure (via the \co{file_free_rcu()}
+function specified in \co{call_rcu()}'s second argument), but only after
+all currently-executing RCU read-side critical sections complete, that
+is, after an RCU grace period has elapsed.
 
 Once the grace period completes, the \co{file_free_rcu()} function
 obtains a pointer to the file structure on \clnref{obtain}, and frees it
 on \clnref{free}.
-
-This approach is also used by Linux's virtual-memory system,
-see \co{get_page_unless_zero()} and \co{put_page_testzero()} for
-page structures as well as \co{try_to_unuse()} and \co{mmput()}
-for memory-map structures.
 \end{fcvref}
 
-\subsection{Linux Primitives Supporting Reference Counting}
-\label{sec:together:Linux Primitives Supporting Reference Counting}
-
-The Linux-kernel primitives used in the above examples are
-summarized in the following list (as of Linux v3.3).
-\IfInBook{}{The RCU primitives may be unfamiliar to some readers,
-	    so a brief overview with citations is included in
-	    \cref{sec:together:Background on RCU}.}
-
-\begin{description}[style=nextline]
-\item	[\tco{atomic_t}]
-	Type definition for 32-bit quantity to be manipulated atomically.
-\item	[\tco{void atomic_dec(atomic_t *var);}]
-	Atomically decrements the referenced variable without necessarily
-	issuing a memory barrier or disabling compiler optimizations.
-\item	[\tco{int atomic_dec_and_test(atomic_t *var);}]
-	Atomically decrements the referenced variable, returning
-	\co{true} (non-zero) if the result is zero.
-	Issues a memory barrier and disables compiler optimizations that
-	might otherwise move memory references across this primitive.
-\item	[\tco{void atomic_inc(atomic_t *var);}]
-	Atomically increments the referenced variable without necessarily
-	issuing a memory barrier or disabling compiler optimizations.
-\item	[\tco{int atomic_inc_not_zero(atomic_t *var);}]
-	Atomically increments the referenced variable, but only if the
-	value is non-zero, and returning \co{true} (non-zero) if the
-	increment occurred.
-	Issues a memory barrier and disables compiler optimizations that
-	might otherwise move memory references across this primitive.
-\item	[\tco{int atomic_read(atomic_t *var);}]
-	Returns the integer value of the referenced variable.
-	This need not be an atomic operation, and it need not issue any
-	memory-barrier instructions.
-	Instead of thinking of as ``an atomic read'', think of it as
-	``a normal read from an atomic variable''.
-\item	[\tco{void atomic_set(atomic_t *var, int val);}]
-	Sets the value of the referenced atomic variable to ``val''.
-	This need not be an atomic operation, and it is not required
-	to either issue memory
-	barriers or disable compiler optimizations.
-	Instead of thinking of as ``an atomic set'', think of it as
-	``a normal set of an atomic variable''.
-\item	[\tco{void call_rcu(struct rcu_head *head, void (*func)(struct rcu_head *head));}]
-	Invokes \co{func(head)} some time after all currently executing RCU
-	read-side critical sections complete, however, the \co{call_rcu()}
-	primitive returns immediately.
-	Note that \co{head} is normally a field within an RCU-protected
-	data structure, and that \co{func} is normally a function that
-	frees up this data structure.
-	The time interval between the invocation of \co{call_rcu()} and
-	the invocation of \co{func} is termed a ``grace period''.
-	Any interval of time containing a grace period is itself a
-	grace period.
-\item	[\tco{type *container_of(p, type, f);}]
-	Given a pointer \co{p} to a field \co{f} within a structure
-	of the specified type, return a pointer to the structure.
-\item	[\tco{void rcu_read_lock(void);}]
-	Marks the beginning of an RCU read-side critical section.
-\item	[\tco{void rcu_read_unlock(void);}]
-	Marks the end of an RCU read-side critical section.
-	RCU read-side critical sections may be nested.
-\item	[\tco{void smp_mb__before_atomic_dec(void);}]
-	Issues a memory barrier and disables code-motion compiler
-	optimizations only if the platform's \co{atomic_dec()}
-	primitive does not already do so.
-\item	[\tco{struct rcu_head}]
-	A data structure used by the RCU infrastructure to track
-	objects awaiting a grace period.
-	This is normally included as a field within an RCU-protected
-	data structure.
-\end{description}
-
-\QuickQuiz{
-	An \co{atomic_read()} and an \co{atomic_set()} that are
-	non-atomic?
-	Is this some kind of bad joke???
-}\QuickQuizAnswer{
-	It might well seem that way, but in situations where no other
-	CPU has access to the atomic variable in question, the overhead
-	of an actual atomic instruction would be wasteful.
-	Two examples where no other CPU has access are
-	during initialization and cleanup.
-}\QuickQuizEnd
+This code fragment thus demonstrates how RCU can be used to guarantee
+existence while an in-object reference count is being incremented.
 
 \subsection{Counter Optimizations}
 \label{sec:together:Counter Optimizations}
@@ -661,9 +579,8 @@ summarized in the following list (as of Linux v3.3).
 In some cases where increments and decrements are common, but checks
 for zero are rare, it makes sense to maintain per-CPU or per-task
 counters, as was discussed in \cref{chp:Counting}.
-See the paper on sleepable read-copy update
-(SRCU) for an example of this technique applied to
-RCU~\cite{PaulEMcKenney2006c}.
+For example, see the paper on sleepable read-copy update (SRCU), which
+applies this technique to RCU~\cite{PaulEMcKenney2006c}.
 This approach eliminates the need for atomic instructions or memory
 barriers on the increment and decrement primitives, but still requires
 that code-motion compiler optimizations be disabled.
