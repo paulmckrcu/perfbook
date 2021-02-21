@@ -42,15 +42,17 @@ __inline__ void inc_count(void)			//\lnlbl{inc:b}
 unsigned long read_count(void)			//\lnlbl{read:b}
 {
 	struct countarray *cap;
+	unsigned long *ctrp;
 	unsigned long sum;
 	int t;
 
 	rcu_read_lock();			//\lnlbl{read:rrl}
 	cap = rcu_dereference(countarrayp);	//\lnlbl{read:deref}
-	sum = cap->total;			//\lnlbl{read:init}
-	for_each_thread(t)			//\lnlbl{read:add:b}
-		if (cap->counterp[t] != NULL)
-			sum += *cap->counterp[t]; //\lnlbl{read:add:e}
+	sum = READ_ONCE(cap->total);		//\lnlbl{read:init}
+	for_each_thread(t) {			//\lnlbl{read:add:b}
+		ctrp = READ_ONCE(cap->counterp[t]);
+		if (ctrp != NULL) sum += *ctrp;	//\lnlbl{read:add:e}
+	}
 	rcu_read_unlock();			//\lnlbl{read:rru}
 	return sum;				//\lnlbl{read:ret}
 }						//\lnlbl{read:e}
@@ -87,7 +89,7 @@ void count_unregister_thread(int nthreadsexpected)	//\lnlbl{unreg:b}
 	}						//\lnlbl{unreg:alloc:e}
 	spin_lock(&final_mutex);			//\lnlbl{unreg:acq}
 	*cap = *countarrayp;				//\lnlbl{unreg:copy}
-	cap->total += counter;				//\lnlbl{unreg:add}
+	WRITE_ONCE(cap->total, cap->total + counter);	//\lnlbl{unreg:add}
 	cap->counterp[idx] = NULL;			//\lnlbl{unreg:null}
 	capold = countarrayp;				//\lnlbl{unreg:retain}
 	rcu_assign_pointer(countarrayp, cap);		//\lnlbl{unreg:assign}
