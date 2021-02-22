@@ -7,16 +7,16 @@
 \Epigraph{If a little knowledge is a dangerous thing, just think what
 	  you could do with a lot of knowledge!}{\emph{Unknown}}
 
-This chapter covers two categories of advanced
-synchronization, namely lockless and real-time synchronization.
+This chapter covers synchronization techniques used for lockless
+algorithms and parallel real-time systems.
 
-Lockless synchronization can be quite helpful when faced with extreme
-requirements, but sadly, lockless synchronization is no panacea.
+Although lockless algorithms can be quite helpful when faced with
+extreme requirements, they are no panacea.
 For example, as noted at the end of \cref{chp:Counting},
 you should thoroughly apply partitioning, batching, and
 well-tested packaged weak APIs
 (see \cref{chp:Data Ownership,chp:Deferred Processing})
-before even thinking about lockless synchronization.
+before even thinking about lockless algorithms.
 
 But after doing all that, you still might find yourself needing the
 advanced techniques described in this chapter.
@@ -25,13 +25,12 @@ To that end,
 summarizes techniques used thus far for avoiding locks and
 \cref{sec:advsync:Non-Blocking Synchronization}
 gives a brief overview of non-blocking synchronization.
-Memory ordering is also quite important, but is sufficiently large
-to warrant its own chapter, namely
+Memory ordering is also quite important, but it warrants its own
 \cref{chp:Advanced Synchronization: Memory Ordering}.
 
-The second form of advanced synchronization provides stronger forward-progress
-guarantees, as needed for parallel real-time computing.
-Real-time synchronization is therefore the topic of
+The second form of advanced synchronization provides the stronger
+forward-progress guarantees needed for parallel real-time computing,
+which is the topic of
 \cref{sec:advsync:Parallel Real-Time Computing}.
 
 \section{Avoiding Locks}
@@ -56,28 +55,22 @@ Other examples we have covered include:
 \item	The fastpath through resource allocator caches in
 	\cref{sec:SMPdesign:Resource Allocator Caches}.
 \item	The maze solver in \cref{sec:SMPdesign:Beyond Partitioning}.
-\item	The data-ownership techniques described in
-	\cref{chp:Data Ownership}.
+\item	The data-ownership techniques in \cref{chp:Data Ownership}.
 \item	The reference-counting, hazard-pointer, and RCU techniques
-	described in \cref{chp:Deferred Processing}.
-\item	The lookup code paths described in \cref{chp:Data Structures}.
-\item	Many of the techniques described in
-	\cref{chp:Putting It All Together}.
+	in \cref{chp:Deferred Processing}.
+\item	The lookup code paths in \cref{chp:Data Structures}.
+\item	Many of the techniques in \cref{chp:Putting It All Together}.
 \end{enumerate}
 
 In short, lockless techniques are quite useful and are heavily used.
-
 However, it is best if lockless techniques are hidden behind a
 well-defined API, such as the \co{inc_count()}, \co{memblock_alloc()},
 \co{rcu_read_lock()}, and so on.
 The reason for this is that undisciplined use of lockless techniques
 is a good way to create difficult bugs.
-If you don't believe that avoiding such bugs is easier than finding
-and fixing them, please re-read
+If you believe that finding and fixing such bugs is easier than avoiding
+them, please re-read
 \cref{chp:Validation,chp:Formal Verification}.
-
-A key component of many lockless techniques is the memory barrier,
-which is described in the following section.
 
 \section{Non-Blocking Synchronization}
 \label{sec:advsync:Non-Blocking Synchronization}
@@ -95,10 +88,8 @@ which are as follows:
 \item	\emph{Bounded wait-free synchronization}: Every thread
 	will make progress within
 	a specific finite period of time~\cite{Herlihy91}.
-	(Note that this level is
-	widely considered to be unachievable, which might be why
-	Alitarh et al.~\cite{DanAlitarh2013PracticalProgress}
-	omitted it.)
+	This level is widely considered to be unachievable, which might be why
+	Alitarh et al.~omitted it~\cite{DanAlitarh2013PracticalProgress}.
 \item	\emph{Wait-free synchronization}: Every thread will make progress
 	in finite time~\cite{Herlihy93}.
 \item	\emph{Lock-free synchronization}: At least one thread will
@@ -134,6 +125,9 @@ A few of these are listed in the following section.
 Perhaps the simplest NBS algorithm is atomic update of an integer
 counter using fetch-and-add (\co{atomic_add_return()}) primitives.
 
+\subsubsection{NBS Sets}
+\label{sec:advsync:NBS Sets}
+
 Another simple NBS algorithm implements a set of integers in an array.
 Here the array index indicates a value that might be a member of the set
 and the array element indicates whether or not that value actually is
@@ -150,10 +144,14 @@ Reads and updates must normally be carried out via atomic bit-manipulation
 instructions, although compare-and-swap (\co{cmpxchg()} or CAS)
 instructions can also be used.
 
+\subsubsection{NBS Counters}
+\label{sec:advsync:NBS Counters}
+
 The statistical counters algorithm discussed in
 \cref{sec:count:Statistical Counters}
-can be considered wait-free, but only by using a cute definitional trick
-in which the sum is considered to be approximate rather than exact.\footnote{
+can be considered to be bounded-wait-free, but only by using a cute
+definitional trick in which the sum is considered to be approximate
+rather than exact.\footnote{
 	Citation needed.
 	I heard of this trick verbally from Mark Moir.}
 Given sufficiently wide error bounds that are a function of the length
@@ -161,8 +159,11 @@ of time that the \co{read_count()} function takes to sum the counters,
 it is not possible to prove that any non-linearizable behavior occurred.
 This definitely (if a bit artificially) classifies the statistical-counters
 algorithm as wait-free.
-Cute definitional tricks notwithstanding, this algorithm is probably
-the most heavily used NBS algorithm in the Linux kernel.
+This algorithm is probably the most heavily used NBS algorithm in the
+Linux kernel.
+
+\subsubsection{Half-NBS Queue}
+\label{sec:advsync:Half-NBS Queue}
 
 \begin{listing}[tbp]
 \begin{fcvlabel}[ln:count:NBS Enqueue Algorithm]
@@ -220,6 +221,34 @@ dequeues are blocking.
 This algorithm is nevertheless heavily used in practice, in part because
 most production software is not required to tolerate arbitrary fail-stop
 errors.
+\end{fcvref}
+
+\subsubsection{NBS Stack}
+\label{sec:advsync:NBS Stack}
+
+\begin{listing}[tbp]
+\input{CodeSamples/advsync/lifo_push@whole.fcv}
+\caption{NBS Stack Algorithm}
+\label{lst:advsync:NBS Stack Algorithm}
+\end{listing}
+
+\begin{fcvref}[ln:advsync:lifo_push:whole]
+\Cref{lst:advsync:NBS Stack Algorithm}
+shows the LIFO push algorithm, which boasts lock-free push and
+bounded wait-free pop.
+The origins of this algorithm are unknown, but it was referred to in
+a patent granted in 1975~\cite{PaulJBrown1975LIFOpush}.
+This patent was filed in 1973, a few months before your editor
+saw his first computer, which had but one CPU.
+
+\Clnrefrange{struct:b}{struct:e} shows the \co{node_t} structure,
+which contains an arbitrary value and a pointer to the next structure
+on the stack and
+\Clnref{top} shows the top-of-stack pointer.
+
+The \co{list_push()} function spans \clnrefrange{push:b}{push:e}.
+
+The \co{list_pop_all()} function spans \clnrefrange{popall:b}{popall:e}.
 \end{fcvref}
 
 \subsection{Applicability of NBS Benefits}

@@ -24,7 +24,7 @@ int list_empty(struct node_t *p)
 }
 #endif
 
-void foo(struct node_t *p)
+static void foo(struct node_t *p)
 {
 	(*p->val)++;
 }
@@ -48,7 +48,7 @@ void *pop_em(void *arg)
 	while (!READ_ONCE(goflag))
 		continue;
 	while (READ_ONCE(goflag) == 1)
-		list_pop_all();
+		list_pop_all(foo);
 	return NULL;
 }
 

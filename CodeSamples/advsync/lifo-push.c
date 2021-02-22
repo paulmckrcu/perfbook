@@ -10,36 +10,30 @@
 
 typedef char *value_t;
 
-struct node_t {
+//\begin{snippet}[labelbase=ln:advsync:lifo_push:whole,commandchars=\%\@\$]
+struct node_t {					//\lnlbl{struct:b}
 	value_t val;
 	struct node_t *next;
-};
-
-void set_value(struct node_t *p, value_t v)
-{
-	p->val = v;
-}
-
-void foo(struct node_t *p);
+};						//\lnlbl{struct:e}
 
 // LIFO list structure
-struct node_t* top;
+struct node_t* top;				//\lnlbl{top}
 
-void list_push(value_t v)
+void list_push(value_t v)			//\lnlbl{push:b}
 {
-	struct node_t *newnode = (struct node_t *) malloc(sizeof(*newnode));
+	struct node_t *newnode = malloc(sizeof(*newnode));
 	struct node_t *oldtop;
 
-	set_value(newnode, v);
+	newnode->val = v;
 	oldtop = READ_ONCE(top);
 	do {
 		newnode->next = oldtop;
 		oldtop = cmpxchg(&top, newnode->next, newnode);
 	} while (newnode->next != oldtop);
-}
+}						//\lnlbl{push:e}
 
 
-void list_pop_all()
+void list_pop_all(void (foo)(struct node_t *p))	//\lnlbl{popall:b}
 {
 	struct node_t *p = xchg(&top, NULL);
 
@@ -50,7 +44,8 @@ void list_pop_all()
 		free(p);
 		p = next;
 	}
-}
+}						//\lnlbl{popall:e}
+//\end{snippet}
 
 #define rcu_register_thread() do { } while (0)
 #define rcu_unregister_thread() do { } while (0)
