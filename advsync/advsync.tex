@@ -366,17 +366,17 @@ largely orthogonal to those that form the basis of real-time programming:
 	probabilistic, as in the soft-real-time guarantee that
 	``at least 99.9\,\% of the time, scheduling latency must
 	be less than 100 microseconds.''
-	In contrast, NBS's forward-progress
-	guarantees have traditionally been unconditional.
+	In contrast, many of NBS's forward-progress guarantees are
+	unconditional.
 \item	Real-time forward-progress guarantees are often conditioned on
 	environmental constraints, for example, only being honored:
-	(1)~for the highest-priority tasks,
-	(2)~when each CPU spends at least a certain fraction of its time idle,
-	or (3)~when I/O rates are below some specified maximum.
+	(1)~For the highest-priority tasks,
+	(2)~When each CPU spends at least a certain fraction of its time idle,
+	or (3)~When I/O rates are below some specified maximum.
 	In contrast, NBS's forward-progress
-	guarantees are usually unconditional.\footnote{
-		As we will see below, some recent NBS work relaxes
-		this guarantee.}
+	guarantees are often unconditional, although recent NBS work
+	accommodates conditional
+	guarantees~\cite{DanAlitarh2013PracticalProgress}.
 \item	An important component of a real-time program's environment
 	is the scheduler.
 	NBS algorithms assume a worst-case \emph{demonic scheduler}.
@@ -390,9 +390,8 @@ largely orthogonal to those that form the basis of real-time programming:
 	NBS~\cite{DanAlitarh2013PracticalProgress,BjoernBrandenburgPhD}.
 \item	Real-time forward-progress guarantees usually apply only
 	in the absence of software bugs.
-	In contrast, most NBS guarantees apply even in the face of
-	fail-stop bugs.\footnote{
-		Again, some recent NBS work relaxes this guarantee.}
+	In contrast, many classes of NBS guarantees apply even in the
+	face of fail-stop bugs.
 \item	NBS forward-progress guarantee classes imply linearizability.
 	In contrast, real-time forward progress guarantees are often
 	independent of ordering constraints such as linearizability.
@@ -408,22 +407,20 @@ Of the classes of NBS algorithms, wait-free synchronization (bounded or
 otherwise), lock-free synchronization, obstruction-free synchronization,
 and clash-free synchronization guarantee forward progress even in the
 presence of fail-stop bugs.
-An example fail-stop bug would be a scheduler bug that causes a random
-thread to be preempted indefinitely.
+An example fail-stop bug might cause some thread to be preempted indefinitely.
 As we will see, this fail-stop-tolerant property can be useful, but the
-fact is that composing a set of fail-stop-tolerate mechanisms does not
+fact is that composing a set of fail-stop-tolerant mechanisms does not
 necessarily result in a fail-stop-tolerant system.
 To see this, consider a system made up of a series of wait-free queues,
 where an element is removed from one queue in the series, processed,
 and then added to the next queue.
 
-If a thread is preempted in the midst of a queuing operation, all is well
-because the wait-free nature of the queue will guarantee forward progress.
-But suppose that preemption occurs not during the queuing, but instead
-during the between-queues processing.
-In this case, the element being processed is lost because
-the fail-stop-tolerant nature of the wait-free queues does not
-extend to the code using those queues.
+If a thread is preempted in the midst of a queuing operation, in theory
+all is well because the wait-free nature of the queue will guarantee
+forward progress.
+But in practice, the element being processed is lost because the
+fail-stop-tolerant nature of the wait-free queues does not extend to
+the code using those queues.
 
 Nevertheless, there are a few applications where NBS's rather limited
 fail-stop-tolerance is useful.
@@ -434,15 +431,15 @@ Systems running such applications can therefore be heavily loaded, even
 to the point where the scheduler can no longer provide any reasonable
 fairness guarantee.
 In constrast, if a thread fail-stops while holding a lock, the application
-will normally need to be restarted.
+might need to be restarted.
 Nevertheless, NBS is not a panacea even within this restricted area,
 due to the possibility of spurious retransmissions due to pure scheduling
 delays.
 In some cases, it may be more efficient to reduce the load to avoid
 queueing delays, which will also improve the scheduler's ability to
-provide fair access, which might turn reduce or even eliminate the
-apparent fail-stop events, thus shedding the load due to the retry
-operations initiated by retransmissions.
+provide fair access, reducing or even eliminating the fail-stop events,
+thus reducing the number of retry operations, in turn further reducing
+the load.
 
 \subsubsection{NBS Linearizability}
 \label{sec:advsync:NBS Linearizability}
@@ -472,7 +469,7 @@ their specification after the fact, one bug at a time.
 A few such proof techniques were discussed in
 \cref{chp:Formal Verification}.\footnote{
 	A memorable verbal discussion with an advocate of linearizability
-	resulted in this advocate being asked:
+	resulted in question:
 	``So the reason linearizability is important is to rescue 1980s
 	proof techniques?''
 	The advocate immediately replied in the affirmative, then spent
@@ -483,12 +480,11 @@ A few such proof techniques were discussed in
 It is often asserted that linearizability maps well to sequential
 specifications, which are said to be more natural than are concurrent
 specifications~\cite{SergioRajsbaum2020HistoryLinearizability}.
-But this assertion flies in the face of reality in the form of a highly
-concurrent objective universe.
-Therefore, nature would be expected to select for beings able to cope
-with at least some level of concurrency, and anyone watching a team sport
-or a person successfully overseeing a number of small children would be
-hard-pressed to argue that nature has not done exactly that.
+But this assertion fails to account for our highly concurrent objective
+universe.
+This universe can only be expected to select for ability to cope with
+concurrency, especially for those participating in team sports or
+overseeing small children.
 In addition, given that the teaching of sequential
 computing is still believed to be somewhat of a black
 art~\cite{ElizabethPatitsas2020GradesNotBimodal}, it is reasonable
@@ -532,31 +528,31 @@ of the benefits of wait-free synchronization even when running
 algorithms that provide only non-blocking
 synchronization, both in theory~\cite{DanAlitarh2013PracticalProgress}
 and in practice~\cite{SamyAlBahra2013NBS}.
-Because a great many schedulers used in production do in fact
-provide fairness,
-the more-complex algorithms providing wait-free synchronization
-usually provide no practical advantages over their simpler
-and often faster non-blocking-synchronization counterparts.
+Because most schedulers used in production do in fact provide fairness,
+the more-complex algorithms providing wait-free synchronization usually
+provide no practical advantages over simpler and faster non-wait-free
+algorithms.
 
 Interestingly enough, fair scheduling is but one beneficial
 constraint that is often respected in practice.
 Other sets of constraints can permit blocking algorithms to
 achieve deterministic real-time response.
-For example, given fair locks that are granted to requesters in FIFO order at
-a given priority level,
-a method of avoiding priority inversion (such as priority
+For example, given:
+(1)~Fair locks granted in FIFO order within a given priority level,
+(2)~Priority inversion avoidance (for example, priority
 inheritance~\cite{Takada:1995:RSN:527074.828566,Cai-DongWang1996PrioInherLock}
-or priority ceiling), a bounded number of threads,
-bounded critical sections,
-bounded load,
-and avoidance of fail-stop bugs,
+or priority ceiling),
+(3)~A bounded number of threads,
+(4)~Bounded critical section durations,
+(5)~Bounded load,
+and
+(6)~Absence of fail-stop bugs,
 lock-based applications can provide deterministic
 response times~\cite{BjoernBrandenburgPhD,DipankarSarma2004OLSscalability}.
 This approach of course blurs the distinction between blocking and wait-free
 synchronization, which is all to the good.
-Hopefully theoretical frameworks continue to grow, further increasing
-their ability to
-describe how software is actually constructed in practice.
+Hopefully theoretical frameworks will continue to improve their ability
+to describe software actually used in practice.
 
 Those who feel that theory should lead the way are referred to the
 inimitable Peter Denning, who said of operating systems:
@@ -565,10 +561,10 @@ or to the eminent Tony Hoare, who said of the whole of engineering:
 ``In all branches of engineering science, the engineering starts before
 the science; indeed, without the early products of engineering, there
 would be nothing for the scientist to
-study!''~\cite{RichardMorris2007TonyHoareInterview}
+study!''~\cite{RichardMorris2007TonyHoareInterview}.
 However, once an appropriate body of theory becomes available,\footnote{
-	Admittedly often much later than the first \emph{proposed}
-	body of theory.}
+	However, the first \emph{appropriate} body of theory is often one
+	thing and the first \emph{proposed} body of theory quite another.}
 it is wise to make use of it.
 
 \input{advsync/rt}
