@@ -235,7 +235,7 @@ errors.
 \begin{fcvref}[ln:advsync:lifo_push:whole]
 \Cref{lst:advsync:NBS Stack Algorithm}
 shows the LIFO push algorithm, which boasts lock-free push and
-bounded wait-free pop.
+bounded wait-free pop (\path{lifo-push.c}), forming an NBS stack.
 The origins of this algorithm are unknown, but it was referred to in
 a patent granted in 1975~\cite{PaulJBrown1975LIFOpush}.
 This patent was filed in 1973, a few months before your editor
@@ -247,9 +247,97 @@ on the stack and
 \Clnref{top} shows the top-of-stack pointer.
 
 The \co{list_push()} function spans \clnrefrange{push:b}{push:e}.
+\Clnref{push:alloc} allocates a new node and
+\clnref{push:initialize} initializes it.
+\Clnref{push:next} initializes the newly allocated node's \co{->next}
+pointer, and \clnref{push:cmpxchg} attempts to push it on the stack.
+If \clnref{push:check} detects \co{cmpxchg()} failure, another pass
+through the loop retries.
+Otherwise, the new node has been successfully pushed, and this function
+returns to its caller.
+Note that \clnref{push:check} resolves races in which two concurrent
+instances of \co{list_push()} attempt to push onto the stack.
+The \co{cmpxchg()} will succeed for one and fail for the other,
+causing the other to retry, thereby selecting an arbitrary order for
+the two node on the stack.
 
 The \co{list_pop_all()} function spans \clnrefrange{popall:b}{popall:e}.
+The \co{xchg()} statement on \clnref{popall:xchg} atomically removes
+all nodes on the stack, placing the head of the resulting list in local
+variable \co{p} and setting \co{top} to \co{NULL}.
+This atomic operation serializes concurrent calls to \co{list_pop_all()}:
+One of them will get the list, and the other a \co{NULL} pointer, at
+least assuming that there were no concurrent calls to \co{list_push()}.
+
+An instance of \co{list_pop_all()} that obtains a non-empty list in
+\co{p} processes this list in the loop spanning
+\clnrefrange{popall:loop:b}{popall:loop:e}.
+\Clnref{popall:next} prefetches the \co{->next} pointer,
+\clnref{popall:foo} invokes the function referenced by \co{foo()} on the
+current node,
+\clnref{popall:free} frees the current node, and
+\clnref{popall:pnext} sets up \co{p} for the next pass through the loop.
+
+But suppose that a pair of \co{list_push()} instances run concurrently
+with a \co{list_pop_all()} with a list initially containing a single
+node~A.
+Here is one way that this scenario might play out:
+
+\begin{enumerate}
+\item	The first \co{list_push()} instance pushes a new node~B,
+	executing through \clnref{push:next}, having just stored
+	a pointer to node A into node~B's \co{->next} pointer.
+\item	The \co{list_pop_all()} instance runs to completion,
+	setting \co{top} to \co{NULL} and freeing node~A.
+\item	The second \co{list_push()} instance runs to completion,
+	pushing a new node~C, but happens to allocate the memory
+	that used to belong to node~A.
+\item	The first \co{list_push()} instance executes the \co{cmpxchg()}
+	on \clnref{push:cmpxchg}.
+	Because new node~C has the same address as the newly freed node~A,
+	this \co{cmpxchg()} succeeds and this \co{list_push()} instance
+	runs to completion.
+\end{enumerate}
+
+Note that both pushes and the popall all ran successfully despite the
+reuse of node~A's memory.
+This is an unusual property: Most data structures require protection
+against what is often called the ABA problem.
+
+But this property holds only for algorithm written in assembly
+language.
+The sad fact is that most languages (including C and C++) do not support
+pointers to lifetime-ended objects, such as the pointer to the old node~A
+contained in node~B's \co{->next} pointer.
+In fact, compilers are within their rights to assume that if two pointers
+(call them \co{p} and \co{q}) were returned from two different calls to
+\co{malloc()}, then those pointers must not be equal.
+Real compilers really will generate the constant \co{false} in
+response to a \co{p==q} comparison.
+This profoundly counter-intuitive behavior is termed \emph{lifetime-end
+pointer zap}.
+
+Many concurrent applications avoid this problem by carefully hiding the
+memory allocator from the compiler, thus preventing the compiler from
+making inappropriate assumptions.
+This obfuscatory approach currently works in practice, but might well
+one day fall victim to increasingly aggressive optimizers.
+There is work underway in both the C and C++ standards committees
+to address this
+problem~\cite{PaulEMcKenney2019PointerLifetimeEndZap,PaulEMcKenney2020PointerLifetimeEndZapCpp}.
+In the meantime, please exercise great care when coding ABA-tolerant
+algorithms.
 \end{fcvref}
+
+\QuickQuiz{
+	So why not ditch antique languages like C and C++ for something
+	more modern?
+}\QuickQuizAnswer{
+	That won't help unless the more-modern languages proponents
+	are energetic enough to write their own compiler backends.
+	The usual practice of re-using existing backends also reuses
+	charming properties such as lifetime-end pointer zap.
+}\QuickQuizEnd
 
 \subsection{Applicability of NBS Benefits}
 \label{sec:advsync:Applicability of NBS Benefits}
