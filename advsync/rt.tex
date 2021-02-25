@@ -609,16 +609,16 @@ polling.
 An event-driven real-time system remains idle much of the time, responding
 in real time to events passed up through the operating system to the
 application.
-Alternatively, the system could be running a background non-real-time
-workload instead of remaining mostly idle.
-A polling real-time system features a real-time thread that is CPU bound,
-running in a tight loop that polls inputs and updates outputs on each
-pass through the loop.
+Alternatively, the system could instead be running a background
+non-real-time workload.
+A polling real-time system features a real-time thread that is CPU
+bound, running in a tight loop that polls inputs and updates outputs on
+each pass.
 This tight polling loop often executes entirely in user mode, reading from
 and writing to hardware registers that have been mapped into the user-mode
 application's address space.
 Alternatively, some applications place the polling loop into the kernel,
-for example, via use of loadable kernel modules.
+for example, using loadable kernel modules.
 
 \begin{figure}[tb]
 \centering
@@ -653,7 +653,7 @@ The Linux 4.x and 5.x kernels can provide deep sub-hundred-millisecond
 latencies, but with all the same caveats as for the 2.6.x and 3.x kernels.
 A Linux kernel incorporating the \rt\ patchset can provide latencies
 well below 20 microseconds, and specialty real-time operating systems (RTOSes)
-running without memory translation can provide sub-ten-microsecond
+running without MMUs can provide sub-ten-microsecond
 latencies.
 Achieving sub-microsecond latencies typically requires hand-coded assembly
 or even special-purpose hardware.
@@ -661,9 +661,9 @@ or even special-purpose hardware.
 Of course, careful configuration and tuning are required all the way down
 the stack.
 In particular, if the hardware or firmware fails to provide real-time
-latencies, there is nothing that the software can do to make up the
+latencies, there is nothing that the software can do to make up for the
 lost time.
-And high-performance hardware sometimes sacrifices worst-case behavior
+Worse yet, high-performance hardware sometimes sacrifices worst-case behavior
 to obtain greater throughput.
 In fact, timings from tight loops run with interrupts disabled can
 provide the basis for a high-quality random-number
@@ -677,8 +677,6 @@ response in virtualized
 environments~\cite{ThomasGleixner2012KVMrealtime,JanKiszka2014virtRT}.
 It is therefore critically important to evaluate your hardware's and
 firmware's real-time capabilities.
-There are organizations who carry out such evaluations, including
-the Open Source Automation Development Lab (OSADL).
 
 But given competent real-time hardware and firmware, the next
 layer up the stack is the operating system, which is covered in
@@ -704,8 +702,8 @@ running on the Linux kernel, while the yellow ``RTOS Process''
 boxes represent real-time processes running on the RTOS.
 
 This was a very popular approach before the Linux kernel gained
-real-time capabilities, and is still in use
-today~\cite{Xenomai2014,VictorYodaiken2004a}.
+real-time capabilities, and is still in
+use~\cite{Xenomai2014,VictorYodaiken2004a}.
 However, this approach requires that the application be split into
 one portion that runs on the RTOS and another that runs on Linux.
 Although it is possible to make the two environments look similar,
@@ -721,7 +719,7 @@ developers.
 In fact, these problems seem to be what drove the combination of
 RTOSes with Linux, as this approach allowed access to the full real-time
 capabilities of the RTOS, while allowing the application's non-real-time
-code full access to Linux's rich and vibrant open-source ecosystem.
+code full access to Linux's open-source ecosystem.
 
 \begin{figure*}[p]
 \centering
@@ -758,10 +756,12 @@ real-time Linux processes shown in the upper right may preempt any of the
 non-real-time Linux processes shown in the upper left anytime the
 non-real-time process is executing in user mode.
 
-The preemptible kernels shown in the middle row of
+The middle row of
 \cref{fig:advsync:Linux-Kernel Real-Time Implementations}
-are built with \co{CONFIG_PREEMPT=y}, so that most process-level code
-within the Linux kernel can be preempted.
+shows three stages (from left to right) in the development of Linux's
+preemptible kernels.
+In all three stages, most process-level code within the Linux kernel
+can be preempted.
 This of course greatly improves real-time response latency, but
 preemption is still disabled
 within RCU read-side critical sections,
@@ -780,6 +780,18 @@ diagram.
 It will instead be discussed in
 \cref{sec:advsync:Event-Driven Real-Time Support}.
 
+The bottom row of
+\cref{fig:advsync:Linux-Kernel Real-Time Implementations}
+shows the \rt\ patchset, which features threaded (and thus preemptible)
+interrupt handlers for many devices, which also allows the corresponding
+``interrupt-disabled'' regions of these drivers to be preempted.
+These drivers instead use locking to coordinate the process-level
+portions of each driver with its threaded interrupt handlers.
+Finally, in some cases, disabling of preemption is replaced by
+disabling of migration.
+These measures result in excellent response times in many systems running
+the \rt\ patchset~\cite{Reghenzani:2019:RLK:3309872.3297714,DanielBristot2019RTtrace}.
+
 \begin{figure}[tb]
 \centering
 \resizebox{2.5in}{!}{\includegraphics{advsync/nohzfull}}
@@ -797,17 +809,15 @@ It is important to note that this approach requires at least one
 kernel daemons.
 However, when there is only one runnable task on a given non-housekeeping CPU,
 scheduling-clock interrupts are shut off on that CPU, removing an important
-source of interference and \emph{OS jitter}.\footnote{
-	A once-per-second residual scheduling-clock interrupt remains
-	due to process-accounting concerns.
-	Future work includes addressing these concerns and eliminating
-	this residual interrupt.}
+source of interference and \emph{OS jitter}.
 With a few exceptions, the kernel does not force other processing off of the
 non-housekeeping CPUs, but instead simply provides better performance
 when only one runnable task is present on a given CPU.
+Any number of userspace tools may be used to force a given CPU to have
+no more that one runnable task.
 If configured properly, a non-trivial undertaking, \co{CONFIG_NO_HZ_FULL}
-offers real-time threads levels of performance nearly rivaling that of
-bare-metal systems.
+offers real-time threads levels of performance that come close to those of
+bare-metal systems~\cite{AbdullahAljuhni2018nohzfull}.
 
 There has of course been much debate over which of these approaches
 is best for real-time systems, and this debate has been going on for
@@ -1270,17 +1280,17 @@ boosting of large numbers of readers.
 \paragraph{Preemptible spinlocks}
 are an important part of the \rt\ patchset due to the long-duration
 spinlock-based critical sections in the Linux kernel.
-This functionality has not yet reached mainline: Although they are a conceptually
-simple substitution of sleeplocks for spinlocks, they have proven relatively
-controversial.\footnote{
-	In addition, development of the \rt\ patchset has slowed in recent
-	years, perhaps because the real-time functionality that is already
-	in the mainline Linux kernel suffices for a great many use
-	cases~\cite{JakeEdge2013Future-rtLinux,JakeEdge2014Future-rtLinux}.
-	However, OSADL (\url{http://osadl.org/}) is working to raise funds
-	to move the remaining code from the \rt\ patchset to mainline.}
-However, they are quite necessary to the task of achieving real-time
-latencies down in the tens of microseconds.
+This functionality has not yet reached mainline: Although they are a
+conceptually simple substitution of sleeplocks for spinlocks, they have
+proven relatively controversial.
+In addition the real-time functionality that is already
+in the mainline Linux kernel suffices for a great many use
+cases, which limited \rt\ development rate around
+2014~\cite{JakeEdge2013Future-rtLinux,JakeEdge2014Future-rtLinux}.
+However, preemptible spinlocks are absolutely necessary to the task of
+achieving real-time latencies down in the tens of microseconds.
+Fortunately, Linux Foundation organized an effort to fund moving the
+remaining code from the \rt\ patchset to mainline.
 
 There are of course any number of other Linux-kernel components that are
 critically important to achieving world-class real-time latencies,
@@ -1450,8 +1460,6 @@ too much memory may prevent the system from getting other work done.
 A ninth source of OS jitter is unfortunately the hardware and firmware.
 It is therefore important to use systems that have been designed for
 real-time use.
-OSADL runs long-term tests of systems, so referring to their
-website (\url{http://osadl.org/}) can be helpful.
 
 \begin{listing}[tb]
 \begin{fcvlabel}[ln:advsync:Locating Sources of OS Jitter]
