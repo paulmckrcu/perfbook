@@ -220,9 +220,8 @@ that portion of the outside world that is to be monitored or controlled.
 	But what about battery-powered systems?
 	They don't require energy flowing into the system as a whole.
 }\QuickQuizAnswer{
-	Sooner or later, either the battery must be recharged, which
-	requires energy to flow into the system, or the system will
-	stop operating.
+	Sooner or later, the battery must be recharged, which requires
+	energy to flow into the system.
 }\QuickQuizEnd
 
 A number of systems are intended to operate in environments with impressive
@@ -293,9 +292,9 @@ real-time systems.
 	Those queueing-theory results assume infinite ``calling populations'',
 	which in the Linux kernel might correspond to an infinite number
 	of tasks.
-	As of mid-2016, no real system supports an infinite number of tasks,
-	so results assuming infinite calling populations should be
-	expected to have less-than-infinite applicability.
+	As of early 2021, no real system supports an infinite number of
+	tasks, so results assuming infinite calling populations should
+	be expected to have less-than-infinite applicability.
 
 	Other queueing-theory results have \emph{finite}
 	calling populations, which feature sharply bounded response
@@ -429,9 +428,9 @@ large advances are required.
 \QuickQuiz{
 	Formal verification is already quite capable, benefiting from
 	decades of intensive study.
-	Are additional advances \emph{really} required, or is this
-	just a practitioner's excuse to continue to be lazy and ignore
-	the awesome power of formal verification?
+	Are additional advances \emph{really} required, or is this just
+	a practitioner's excuse to continue to lazily ignore the awesome
+	power of formal verification?
 }\QuickQuizAnswer{
 	Perhaps this situation is just a theoretician's excuse to avoid
 	diving into the messy world of real software?
@@ -457,6 +456,11 @@ large advances are required.
 	All that said, there is hope, given recent work formalizing
 	the memory models of real computer
 	systems~\cite{JadeAlglave2011ppcmem,Alglave:2013:SVW:2450268.2450306}.
+	On the other hand, formal verification has just as much trouble
+	as does testing with the astronomical number of variants of the
+	Linux kernel that can be constructed from different combinations
+	of its tens of thousands of Kconfig options.
+	Sometimes life is hard!
 }\QuickQuizEnd
 
 In addition to latency requirements for the real-time portions of the
@@ -504,9 +508,9 @@ to shift, but such progress is by no means a bad thing.
 	easily developed using standard non-real-time approaches, or
 	whether the more difficult and expensive real-time approaches
 	are required.
-	In other words, theory is quite important, however, for those
-	of us who like to get things done, theory supports practice,
-	never the other way around.
+	In other words, although theory is quite important, for those of
+	us called upon to complete practical projects, theory supports
+	practice, never the other way around.
 }\QuickQuizEnd
 
 Real-time computing is used in industrial-control applications, ranging from
@@ -971,9 +975,17 @@ time-critical, so that a timer wheel's millisecond-level granularity
 is good and sufficient.
 Another key observation is that error-handling timeouts are normally
 canceled very early, often before they can be cascaded.
-A final observation is that systems commonly have many more error-handling
-timeouts than they do timer events, so that an $\O{\log n}$
-data structure should provide acceptable performance for timer events.
+In addition, systems commonly have many more error-handling timeouts
+than they do timer events, so that an $\O{\log n}$ data structure should
+provide acceptable performance for timer events.
+
+However, it is possible to do better, namely by simply refusing to
+cascade timers.
+Instead of cascading, the timers that would otherwise have been cascaded
+all the way down the calendar queue are handled in place.
+This does result in up to a few percent error for the time duration,
+but the few situations where this is a problem can instead use tree-based
+high-resolution timers (hrtimers).
 
 In short, the Linux kernel's \rt\ patchset uses timer wheels for
 error-handling timeouts and a tree for timer events, providing each
@@ -1054,7 +1066,7 @@ while holding the lock, which would prevent the medium-priority
 threads from preempting it.
 
 In the priority-inheritance solution, the high-priority thread attempting
-to acquire the lock donate its priority to the low-priority thread holding
+to acquire the lock donates its priority to the low-priority thread holding
 the lock until such time as the lock is released, thus preventing long-term
 priority inversion.
 
@@ -1132,7 +1144,7 @@ priority-inversion conundrum:
 
 	However, this approach clearly and severely limits read-side
 	scalability.
-	The Linux kernel's \rt\ patchset has been able to live with this
+	The Linux kernel's \rt\ patchset was long able to live with this
 	limitation for several reasons: (1)~Real-time systems have
 	traditionally been relatively small, (2)~Real-time systems
 	have generally focused on process control, thus being unaffected
@@ -1140,12 +1152,45 @@ priority-inversion conundrum:
 	(3)~Many of the Linux kernel's reader-writer locks have been
 	converted to RCU.
 
-	All that aside, it is quite possible that the Linux kernel
-	will some day permit limited read-side parallelism for
-	reader-writer locks subject to priority boosting.
+	However, the day came when it was absolutely necessary to
+	permit concurrent readers, as described in the text following
+	this quiz.
 }\QuickQuizEnd
 
-In some cases, reader-writer lock priority inversion can be avoided by
+The no-concurrent-readers restriction eventually became intolerable, so
+the \rt\ developers looked more carefully at how the Linux kernel uses
+reader-writer spinlocks.
+They learned that time-critical code rarely uses those parts of the
+kernel that write-acquire reader-writer locks, so that the prospect
+of writer starvation was not a show-stopper.
+They therefore constructed a real-time reader-writer lock in which
+write-side acquisitions use priority inheritance among each other,
+but where read-side acquisitions take absolute priority over
+write-side acquisitions.
+This approach appears to be working well in practice, and is another
+lesson in the importance of clearly understanding what your users
+really need.
+
+One interesting detail of this implementation is that both the
+\co{rt_read_lock()} and the \co{rt_write_lock()} functions enter an RCU
+read-side critical section and both the \co{rt_read_unlock()} and the
+\co{rt_write_unlock()} functions exit that critical section.
+This is necessary because the vanilla kernel's reader-writer locking
+functions disable preemption across their critical sections, and
+there really are reader-writer locking use cases that rely on the fact
+that \co{synchronize_rcu()} will therefore wait for all pre-exiting
+reader-writer-lock critical sections to complete.
+Let this be a lesson to you:
+Understanding what your users really need is critically important to
+correct operation, not just to performance.
+Not only that, but what your users really need changes over time.
+
+This has the side-effect that all of a \rt\ kernel's reader-writer locking
+critical sections are subject to RCU priority boosting.
+This provides at least a partial solution to the problem of reader-writer
+lock readers being preempted for extended periods of time.
+
+It is also possible to avoid reader-writer lock priority inversion by
 converting the reader-writer lock to RCU, as briefly discussed in the
 next section.
 
@@ -1173,19 +1218,12 @@ void __rcu_read_lock(void)			\lnlbl[lock:b]
 
 void __rcu_read_unlock(void)		        \lnlbl[unl:b]
 {
-	struct task_struct *t = current;
-
-	if (t->rcu_read_lock_nesting != 1) {	\lnlbl[unl:chkn]
-		--t->rcu_read_lock_nesting;	\lnlbl[unl:dec]
-	} else {				\lnlbl[unl:els:b]
-		barrier();			\lnlbl[unl:bar1]
-		t->rcu_read_lock_nesting = INT_MIN;  \lnlbl[unl:neg]
+	barrier();				\lnlbl[unl:bar1]
+	if (!--current->rcu_read_lock_nesting)	\lnlbl[unl:decchk]
 		barrier();			\lnlbl[unl:bar2]
-		if (READ_ONCE(t->rcu_read_unlock_special.s)) \lnlbl[unl:chks]
-			rcu_read_unlock_special(t);  \lnlbl[unl:unls]
-		barrier();			\lnlbl[unl:bar3]
-		t->rcu_read_lock_nesting = 0;	\lnlbl[unl:zero]
-	}					\lnlbl[unl:els:e]
+		if (READ_ONCE(current->rcu_read_unlock_special.s)) { \lnlbl[unl:chks]
+			rcu_read_unlock_special(t); \lnlbl[unl:unls]
+		}				\lnlbl[unl:if:e]
 }						\lnlbl[unl:e]
 \end{VerbatimL}
 \end{fcvlabel}
@@ -1218,23 +1256,16 @@ RCU read-side critical section to precede the \co{rcu_read_lock()}.
 \end{fcvref}
 
 \begin{fcvref}[ln:advsync:Preemptible Linux-Kernel RCU:unl]
-\Clnref{chkn} of \co{__rcu_read_unlock()} checks to see if the nesting
-level count is one, in other words, if this corresponds to the outermost
+\Clnref{bar1} of \co{__rcu_read_unlock()} prevents the compiler from
+reordering the code in the critical section with the remainder of
+this function.
+\Clnref{decchk} decrements the nesting count and checks to see if it
+has become zero, in other words, if this corresponds to the outermost
 \co{rcu_read_unlock()} of a nested set.
-If not, \clnref{dec} decrements this count, and control returns to the caller.
-Otherwise, this is the outermost \co{rcu_read_unlock()}, which requires
-the end-of-critical-section handling carried out by \clnrefrange{els:b}{els:e}.
-
-\Clnref{bar1} prevents the compiler from reordering the code in the critical
-section with the code comprising the \co{rcu_read_unlock()}.
-\Clnref{neg} sets the nesting count to a large negative number
-in order to prevent
-destructive races with RCU read-side critical sections contained within
-interrupt handlers~\cite{PaulEMcKenney2011RCU3.0trainwreck},
-and \clnref{bar2} prevents the compiler from reordering this assignment with
-\clnref{chks}'s check for special handling.
-If \clnref{chks} determines that special handling is required, \clnref{unls}
-invokes \co{rcu_read_unlock_special()} to carry out that special handling.
+If so, \clnref{bar2} prevents the compiler from reordering this nesting
+update with \clnref{chks}'s check for special handling.
+If special handling is required, then the call to
+\co{rcu_read_unlock_special()} on \lnref{unls} carries it out.
 
 There are several types of special handling that can be required, but
 we will focus on that required when the RCU read-side critical section
@@ -1249,10 +1280,6 @@ for those highest-priority threads, \co{rcu_read_unlock()} will never
 attempt to acquire any locks.
 In addition, if implemented carefully, locking can be used to synchronize
 real-time software~\cite{BjoernBrandenburgPhD,DipankarSarma2004OLSscalability}.
-
-Whether or not special handling is required, \clnref{bar3} prevents the compiler
-from reordering the check on \clnref{chks} with the zeroing of the nesting
-count on \clnref{zero}.
 \end{fcvref}
 
 \QuickQuiz{
@@ -1273,9 +1300,21 @@ count on \clnref{zero}.
 	the context switch to complete.
 }\QuickQuizEnd
 
-This preemptible RCU implementation enables real-time response for
+Another important real-time feature of RCU, whether preemptible or
+not, is the ability to offload RCU callback execution to a kernel
+thread.
+To use this, your kernel must be built with \co{CONFIG_RCU_NOCB_CPU=y}
+and booted with the \co{rcu_nocbs=} kernel boot parameter specifying
+which CPUs are to be offloaded.
+Alternatively, any CPU specified by the \co{nohz_full=} kernel boot parameter
+described in
+\cref{sec:advsync:Polling-Loop Real-Time Support}
+will also have its RCU callbacks offloaded.
+
+In short, this preemptible RCU implementation enables real-time response for
 read-mostly data structures without the delays inherent to priority
-boosting of large numbers of readers.
+boosting of large numbers of readers, and also without delays due to
+callback invocation.
 
 \paragraph{Preemptible spinlocks}
 are an important part of the \rt\ patchset due to the long-duration
@@ -1292,9 +1331,43 @@ achieving real-time latencies down in the tens of microseconds.
 Fortunately, Linux Foundation organized an effort to fund moving the
 remaining code from the \rt\ patchset to mainline.
 
+\paragraph{Per-CPU variables}\ are used heavily in the Linux kernel
+for performance reasons.
+Unfortunately for real-time applications, many use cases for per-CPU
+variables require coordinated update of multiple such variables,
+which is normally provided by disabling preemption, which in turn
+degrades real-time latencies.
+Real-time applications clearly need some other way of coordinating
+per-CPU variable updates.
+
+One alternative is to supply per-CPU spinlocks, which as noted above
+are actually sleeplocks, so that their critical sections can be
+preempted and so that priority inheritance is provided.
+In this approach, code updating groups of per-CPU variables must
+acquire the current CPU's spinlock, carry out the update, then
+release whichever lock is acquired, keeping in mind that a preemption
+might have resulted in a migration to some other CPU.
+However, this approach introduces both overhead and deadlocks.
+
+Another alternative, which is used in the \rt\ patchset as of early 2021,
+is to convert preemption disabling to migration disabling.
+This ensures that a given kernel thread remains on its CPU through
+the duration of the per-CPU-variable update, but could also allow some
+other kernel thread to intersperse its own update of those same variables,
+courtesy of preemption.
+There are cases such as statistics gathering where this is not a problem.
+In the surprisingly rare case where such mid-update preemption is a problem,
+the use case at hand must properly synchronize the updates, perhaps through
+a set of per-CPU locks specific to that use case.
+Although introducing locks again introduces the possibility of deadlock,
+the per-use-case nature of these locks makes any such deadlocks easier
+to manage and avoid.
+
+\paragraph{Closing event-driven remarks.}
 There are of course any number of other Linux-kernel components that are
 critically important to achieving world-class real-time latencies,
-most recently deadline scheduling,
+for example, deadline
+scheduling~\cite{DanielBristot2018deadlinesched-1,DanielBristot2018deadlinesched-2},
 however, those listed in this section give a good feeling for the workings
 of the Linux kernel augmented by the \rt\ patchset.
 
@@ -1316,8 +1389,8 @@ given CPU, avoiding all causes of interference.
 Although the reality is of course more complex, it is becoming
 possible to do just that,
 courtesy of the \co{NO_HZ_FULL} implementation led by
-Frederic Weisbecker~\cite{JonCorbet2013NO-HZ-FULL,FredericWeisbecker2013nohz} that has been
-accepted into version 3.10 of the Linux kernel.
+Frederic Weisbecker~\cite{JonCorbet2013NO-HZ-FULL,FredericWeisbecker2013nohz}
+that was accepted into version 3.10 of the Linux kernel.
 Nevertheless, considerable care is required to properly set up such
 an environment, as it is necessary to control a number of possible
 sources of OS jitter.
@@ -1336,7 +1409,7 @@ contact with the outside world is to reserve a small number of
 housekeeping CPUs, and to force all interrupts to these CPUs.
 The \path{Documentation/IRQ-affinity.txt} file in the Linux source tree
 describes how to direct device interrupts to specified CPU,
-which as of early 2015 involves something like the following:
+which as of early 2021 involves something like the following:
 
 \begin{VerbatimU}
 $ echo 0f > /proc/irq/44/smp_affinity
@@ -1378,17 +1451,16 @@ $ echo -1 > /proc/sys/kernel/sched_rt_runtime_us
 \end{VerbatimU}
 
 You will of course need to be running as root to execute this command,
-and you will also need to carefully consider the Spiderman principle.
+and you will also need to carefully consider the aforementioned Spiderman
+principle.
 One way to minimize the risks is to offload interrupts and
 kernel threads/daemons from all CPUs running CPU-bound real-time
 threads, as described in the paragraphs above.
 In addition, you should carefully read the material in the
 \path{Documentation/scheduler} directory.
-The material in the \path{sched-rt-group.txt} file is particularly
+The material in the \path{sched-rt-group.rst} file is particularly
 important, especially if you are using the \co{cgroups} real-time features
-enabled by the \co{CONFIG_RT_GROUP_SCHED} Kconfig parameter, in which
-case you should also read the material in the
-\path{Documentation/cgroups} directory.
+enabled by the \co{CONFIG_RT_GROUP_SCHED} Kconfig parameter.
 
 A fourth source of OS jitter comes from timers.
 In most cases, keeping a given CPU out of the kernel will prevent
@@ -1417,7 +1489,7 @@ A third way is to test the device's ability to support real-time
 workloads and fix any real-time bugs.\footnote{
 	If you take this approach, please submit your fixes upstream
 	so that others can benefit.
-	Keep in mind that when you need to port your application to
+	After all, when you need to port your application to
 	a later version of the Linux kernel, \emph{you} will be one of those
 	``others''.}
 
@@ -1426,7 +1498,7 @@ full-system synchronization algorithms, perhaps most notably
 the global TLB-flush algorithm.
 This can be avoided by avoiding memory-unmapping operations, and especially
 avoiding unmapping operations within the kernel.
-As of early 2015, the way to avoid in-kernel
+As of early 2021, the way to avoid in-kernel
 unmapping operations is to avoid unloading kernel modules.
 
 A seventh source of OS jitter is provided by
@@ -1535,7 +1607,7 @@ briefly covers event-based applications.
 As in all areas of engineering, a robust set of components is essential
 to productivity and reliability.
 This section is not a full catalog of real-time software components---such
-a catalog would fill an entire book---but rather a brief overview of the
+a catalog would fill multiple books---but rather a brief overview of the
 types of components available.
 
 A natural place to look for real-time software components would be
@@ -1543,10 +1615,9 @@ algorithms offering wait-free
 synchronization~\cite{Herlihy91}, and in fact lockless
 algorithms are very important to real-time computing.
 However, wait-free synchronization only guarantees forward progress in
-finite time, and real-time computing requires algorithms that meet the
-far more stringent guarantee of forward progress in bounded time.
-After all, a century is finite, but unhelpful when your deadlines are
-measured in milliseconds.
+finite time.
+Although a century is finite, this is unhelpful when your deadlines are
+measured in microseconds, let alone milliseconds.
 
 Nevertheless, there are some important wait-free algorithms that do
 provide bounded response time, including atomic test and set,
@@ -1558,15 +1629,13 @@ In addition, recent research has confirmed the observation that
 algorithms with lock-free guarantees\footnote{
 	Wait-free algorithms guarantee that all threads make progress in
 	finite time, while lock-free algorithms only guarantee that at
-	least one thread will make progress in finite time.}
-provide the same latencies in practice assuming a stochastically
-fair scheduler and freedom from fail-stop
-bugs~\cite{DanAlitarh2013PracticalProgress}.\footnote{
-	This paper also introduces the notion of \emph{bounded minimal
-	progress}, which is a welcome step on the part of theory
-	towards real-time practice.}
-This means that lock-free stacks and queues are appropriate
-for real-time use.
+	least one thread will make progress in finite time.
+	See \cref{sec:advsync:Non-Blocking Synchronization} for more details.}
+also provide the same latencies in practice (in the wait-free sense),
+assuming a stochastically fair scheduler and absence of fail-stop
+bugs~\cite{DanAlitarh2013PracticalProgress}.
+This means that many non-wait-free stacks and queues are nevertheless
+appropriate for real-time use.
 
 \QuickQuiz{
 	But isn't correct operation despite fail-stop bugs
@@ -1670,12 +1739,11 @@ still having access to the full features and functions of a
 general-purpose operating system is to use the Linux kernel's
 \co{NO_HZ_FULL} capability, described in
 \cref{sec:advsync:Polling-Loop Real-Time Support}.
-This support first became available in version 3.10 of the Linux kernel.
 
 \subsubsection{Streaming Applications}
 \label{sec:advsync:Streaming Applications}
 
-A popular sort of big-data real-time application takes input from numerous
+One type of big-data real-time application takes input from numerous
 sources, processes it internally, and outputs alerts and summaries.
 These \emph{streaming applications} are often highly parallel, processing
 different information sources concurrently.
@@ -1862,9 +1930,12 @@ on \clnrefrange{upd:b}{upd:e}.
 	the call to \co{malloc()}???
 }\QuickQuizAnswerB{
 	In early 2016, situations forbidding runtime memory were
-	also not so excited with multithreaded computing.
+	also not at all interested in multithreaded computing.
 	So the runtime memory allocation is not an additional
 	obstacle to safety criticality.
+
+	However, by 2020 runtime memory allocation in multi-core
+	real-time systems was gaining some traction.
 }\QuickQuizEndB
 %
 \QuickQuizE{
@@ -1873,6 +1944,9 @@ on \clnrefrange{upd:b}{upd:e}.
 }\QuickQuizAnswerE{
 	Indeed you do, and you could use any of a number of techniques
 	discussed earlier in this book.
+	One of those techniques is use of a single updater thread,
+	which would result in exactly the code shown in \co{update_cal()}
+	in \cref{lst:advsync:Real-Time Calibration Using RCU}.
 }\QuickQuizEndE
 }
 
@@ -1897,9 +1971,9 @@ data-structure access to real-time programs.
 \end{figure}
 
 The choice between real-time and real-fast computing can be a difficult one.
-Because real-time systems often inflict a throughput penalty on non-real-time
-computing, using real-time when it is not required can cause problems,
-as fancifully depicted by
+Because real-time systems often inflict a throughput penalty on
+non-real-time computing, using real-time when it is not required is
+unwise, as fancifully depicted by
 \cref{fig:advsync:The Dark Side of Real-Time Computing}.
 On the other hand, failing to use real-time when it \emph{is} required
 can also cause problems, as fancifully depicted by
