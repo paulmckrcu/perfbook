@@ -48,7 +48,7 @@ set label 2 "RCU,hazptr" at 40,500000 left rotate by 29
 set label 3 "bucket" at 40,130000 left
 set label 4 "global" at 5,4500 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "perftest.hash_bkt.${tag}.dat" w l, "perftest.hash_bkt_hazptr.${tag}.dat" w l, "perftest.hash_bkt_rcu.${tag}.dat" w l, "perftest.hash_global.${tag}.dat" w l, "perftest.hash_unsync.${tag}.dat" w l
+plot "perftest.hash_bkt.${tag}.dat" w l dashtype 2, "perftest.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "perftest.hash_bkt_rcu.${tag}.dat" w l dashtype 4, "perftest.hash_global.${tag}.dat" w l dashtype 5, "perftest.hash_unsync.${tag}.dat" w l dashtype 6
 ---EOF---
 
 gnuplot << ---EOF---
@@ -66,7 +66,7 @@ set label 2 "RCU" at 350,8.8e6 right
 set label 3 "hazptr" at 200,3.5e6 left
 set label 4 "bucket" at 330,1.1e6 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "perftest.hash_bkt.${tag}.dat" w l, "perftest.hash_bkt_hazptr.${tag}.dat" w l, "perftest.hash_bkt_rcu.${tag}.dat" w l, "perftest.hash_unsync.${tag}.dat" w l
+plot "perftest.hash_bkt.${tag}.dat" w l dashtype 2, "perftest.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "perftest.hash_bkt_rcu.${tag}.dat" w l dashtype 4, "perftest.hash_unsync.${tag}.dat" w l dashtype 6
 ---EOF---
 
 gnuplot << ---EOF---
@@ -84,7 +84,7 @@ set label 2 "bucket" at 60,100000 left
 set label 3 "RCU" at 170,3200000 right rotate by 28
 set label 4 "hazptr" at 350,2000000 right rotate by 28
 set label 5 "ideal" at 35,2500000 right
-plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, "zoo.cpus.hash_global.${tag}.dat" w l, x*44666.3 w l
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l dashtype 2, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l dashtype 4, "zoo.cpus.hash_global.${tag}.dat" w l dashtype 5, x*44666.3 w l dashtype 1
 ---EOF---
 
 gnuplot << ---EOF---
@@ -102,7 +102,7 @@ set label 2 "hazptr" at 300,1900000 left
 set label 3 "ideal" at 400,14000000 right
 # set label 4 "unsync" at 250,5000000 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, x*44666.3 w l
+plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l dashtype 4, x*44666.3 w l dashtype 1
 ---EOF---
 
 gnuplot << ---EOF---
@@ -120,7 +120,7 @@ set label 2 "hazptr" at 300,1900000 left
 set label 3 "ideal" at 400,14000000 right
 # set label 4 "qsbr" at 400,14000000 right
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, "zoo.cpus.hash_bkt_qsbr.${tag}.dat" w l, x*44666.3 w l
+plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l dashtype 4, "zoo.cpus.hash_bkt_qsbr.${tag}.dat" w l dashtype 8, x*44666.3 w l dashtype 1
 ---EOF---
 
 gnuplot << ---EOF---
@@ -138,7 +138,7 @@ set label 2 "hazptr" at 300,1900000 left
 set label 3 "ideal" at 400,14000000 right
 # set label 4 "qsbr" at 400,14000000 right
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, "zoo.cpus.hash_bkt_qsbr.${tag}.dat" w l, "zoo.cpus.hash_unsync.${tag}.dat" w l, x*44666.3 w l
+plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l dashtype 4, "zoo.cpus.hash_bkt_qsbr.${tag}.dat" w l dashtype 8, "zoo.cpus.hash_unsync.${tag}.dat" w l dashtype 6, x*44666.3 w l dashtype 1
 ---EOF---
 
 gnuplot << ---EOF---
@@ -156,7 +156,7 @@ set label 2 "bucket" at 60,100000 left
 set label 3 "RCU,hazptr" at 350,2000000 right rotate by 28
 set label 4 "unsync" at 200,5000000 right rotate by 26
 set label 5 "ideal" at 35,2500000 right
-plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, "zoo.cpus.hash_global.${tag}.dat" w l, "zoo.cpus.hash_unsync.${tag}.dat" w l, x*44666.3 w l
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l dashtype 2, "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l dashtype 4, "zoo.cpus.hash_global.${tag}.dat" w l dashtype 5, "zoo.cpus.hash_unsync.${tag}.dat" w l dashtype 6, x*44666.3 w l dashtype 1
 ---EOF---
 
 gnuplot << ---EOF---
@@ -174,7 +174,7 @@ set label 2 "RCU,hazptr" at 300,1900000 left
 set label 3 "ideal" at 400,14000000 right
 set label 4 "unsync" at 250,5000000 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l, "zoo.cpus.hash_unsync.${tag}.dat" w l, x*44666.3 w l
+plot "zoo.cpus.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.cpus.hash_bkt_rcu.${tag}.dat" w l dashtype 4, "zoo.cpus.hash_unsync.${tag}.dat" w l dashtype 6, x*44666.3 w l dashtype 1
 ---EOF---
 
 gnuplot << ---EOF---
@@ -192,7 +192,7 @@ set label 2 "bucket" at 20,110000 left
 # set label 3 "brlock" at 0.4,0.6 left
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cpus.hash_bkt.${tag}.dat" w l, x*44666.3 w l
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l dashtype 2, x*44666.3 w l dashtype 1
 # plot "zoo.cpus.hash_bkt.${tag}.dat" w l, "zoo.cpus.hash_unsync.${tag}.dat" w l, x*44666.3 w l
 ---EOF---
 
@@ -211,7 +211,7 @@ set nokey
 # set label 3 "brlock" at 0.4,0.6 left
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cpus.hash_bkt.${tag}.dat" w l
+plot "zoo.cpus.hash_bkt.${tag}.dat" w l dashtype 2
 ---EOF---
 
 gnuplot << ---EOF---
@@ -247,7 +247,7 @@ set label 2 "hazptr" at 15,500000 left
 set label 3 "bucket" at 10,100000 left
 set label 4 "global" at 2,4000 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.catall.hash_bkt.${tag}.dat" w l, "zoo.catall.hash_bkt_hazptr.${tag}.dat" w l, "zoo.catall.hash_bkt_rcu.${tag}.dat" w l, "zoo.catall.hash_global.${tag}.dat" w l
+plot "zoo.catall.hash_bkt.${tag}.dat" w l dashtype 2, "zoo.catall.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.catall.hash_bkt_rcu.${tag}.dat" w l dashtype 4, "zoo.catall.hash_global.${tag}.dat" w l dashtype 5
 ---EOF---
 
 gnuplot << ---EOF---
@@ -265,7 +265,7 @@ set label 2 "hazptr" at 15,600000 left
 set label 3 "bucket" at 10,230000 left
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.catall.hash_bkt.${tag}.dat" w l, "zoo.catall.hash_bkt_hazptr.${tag}.dat" w l, "zoo.catall.hash_bkt_rcu.${tag}.dat" w l
+plot "zoo.catall.hash_bkt.${tag}.dat" w l dashtype 2, "zoo.catall.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.catall.hash_bkt_rcu.${tag}.dat" w l dashtype 4
 ---EOF---
 
 gnuplot << ---EOF---
@@ -284,7 +284,7 @@ set label 3 "bucket" at 10,100000 left
 set label 4 "global" at 2,4000 left
 set label 5 "unsync" at 15,2.7e6 left
 # set label 5 "ideal" at 0.15,2.8 left
-plot "zoo.catall.hash_bkt.${tag}.dat" w l, "zoo.catall.hash_bkt_hazptr.${tag}.dat" w l, "zoo.catall.hash_bkt_rcu.${tag}.dat" w l, "zoo.catall.hash_global.${tag}.dat" w l, "zoo.catall.hash_unsync.${tag}.dat" w l
+plot "zoo.catall.hash_bkt.${tag}.dat" w l dashtype 2, "zoo.catall.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.catall.hash_bkt_rcu.${tag}.dat" w l dashtype 4, "zoo.catall.hash_global.${tag}.dat" w l dashtype 5, "zoo.catall.hash_unsync.${tag}.dat" w l dashtype 6
 ---EOF---
 
 gnuplot << ---EOF---
@@ -302,7 +302,7 @@ set label 2 "bucket" at 3,2000 left
 set label 3 "hazptr" at 10,70000 left
 set label 4 "RCU" at 10,450000 right
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cat.hash_bkt.${tag}.dat" w l, "zoo.cat.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cat.hash_bkt_rcu.${tag}.dat" w l, "zoo.cat.hash_global.${tag}.dat" w l
+plot "zoo.cat.hash_bkt.${tag}.dat" w l dashtype 2, "zoo.cat.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.cat.hash_bkt_rcu.${tag}.dat" w l dashtype 4, "zoo.cat.hash_global.${tag}.dat" w l dashtype 5
 ---EOF---
 
 gnuplot << ---EOF---
@@ -320,7 +320,7 @@ set label 2 "hazptr" at 42,500000 left
 # set label 3 "brlock" at 0.4,0.6 left
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.cat.hash_bkt_hazptr.${tag}.dat" w l, "zoo.cat.hash_bkt_rcu.${tag}.dat" w l
+plot "zoo.cat.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.cat.hash_bkt_rcu.${tag}.dat" w l dashtype 4
 ---EOF---
 
 gnuplot << ---EOF---
@@ -338,7 +338,7 @@ set label 2 "bucket" at 10,100000 left
 set label 3 "hazptr" at 80,800000 right
 set label 4 "RCU" at 130,3400000 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.updrd.hash_global.${tag}.dat" w l, "zoo.updrd.hash_bkt.${tag}.dat" w l, "zoo.updrd.hash_bkt_hazptr.${tag}.dat" w l, "zoo.updrd.hash_bkt_rcu.${tag}.dat" w l
+plot "zoo.updrd.hash_global.${tag}.dat" w l dashtype 5, "zoo.updrd.hash_bkt.${tag}.dat" w l dashtype 2, "zoo.updrd.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.updrd.hash_bkt_rcu.${tag}.dat" w l dashtype 4
 ---EOF---
 
 gnuplot << ---EOF---
@@ -356,7 +356,7 @@ set label 2 "hazptr" at 250,3.3e5 left
 set label 3 "bucket" at 200,37000 left
 set label 4 "global" at 50,800 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.updrd.hash_global.${tag}.dat" w l, "zoo.updrd.hash_bkt.${tag}.dat" w l, "zoo.updrd.hash_bkt_hazptr.${tag}.dat" w l, "zoo.updrd.hash_bkt_rcu.${tag}.dat" w l
+plot "zoo.updrd.hash_global.${tag}.dat" w l dashtype 5, "zoo.updrd.hash_bkt.${tag}.dat" w l dashtype 2, "zoo.updrd.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.updrd.hash_bkt_rcu.${tag}.dat" w l dashtype 4
 ---EOF---
 
 gnuplot << ---EOF---
@@ -374,5 +374,5 @@ set label 2 "bucket" at 300,280000 right
 set label 3 "RCU" at 120,12000 left
 set label 4 "hazptr" at 50,45000 right
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "zoo.upd.hash_global.${tag}.dat" w l, "zoo.upd.hash_bkt.${tag}.dat" w l, "zoo.upd.hash_bkt_hazptr.${tag}.dat" w l, "zoo.upd.hash_bkt_rcu.${tag}.dat" w l
+plot "zoo.upd.hash_global.${tag}.dat" w l dashtype 5, "zoo.upd.hash_bkt.${tag}.dat" w l dashtype 2, "zoo.upd.hash_bkt_hazptr.${tag}.dat" w l dashtype 3, "zoo.upd.hash_bkt_rcu.${tag}.dat" w l dashtype 4
 ---EOF---
