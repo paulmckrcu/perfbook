@@ -19,11 +19,11 @@ code that fails to use standard mechanisms, one important example
 of course being the code that implements these standard mechanisms,
 and another being performance-critical code that uses weaker
 synchronization.
-In fact, some argue that weakness is a
+Nevertheless, some argue that weakness is a
 virtue~\cite{JadeAlglave2013-WeaknessIsVirtue}.
-This chapter will help you gain an understanding of memory ordering
-sufficient to implement synchronization primitives and
-performance-critical code.
+This chapter will help you gain an understanding of memory ordering,
+that, with practice, will be sufficient to implement synchronization
+primitives and performance-critical code.
 
 \Cref{sec:memorder:Ordering: Why and How?}
 will demonstrate that real computer systems can reorder memory references,
@@ -32,17 +32,18 @@ to prevent undesired reordering.
 \Cref{sec:memorder:Tricks and Traps,%
 sec:memorder:Compile-Time Consternation}
 will provide a more complete list of things that hardware and compilers,
-respectively can do to unwary parallel programmers.
+respectively, can do to unwary parallel programmers.
+\Cref{sec:memorder:Higher-Level Primitives}
+gives an overview of the benefits of modeling memory ordering at
+higher levels of abstraction.
 \Cref{sec:memorder:Hardware Specifics}
 follows up with more detail on a few representative hardware platforms.
 Finally, \cref{sec:memorder:Where is Memory Ordering Needed?}
 provides some useful rules of thumb.
 
 \QuickQuiz{
-	This material has been almost completely rewritten since
-	the first edition.
-	Memory ordering cannot have changed all \emph{that} much in late
-	2017, so what gives?
+	This chapter has been rewritten since the first edition.
+	Did memory ordering change all \emph{that} since 2014?
 }\QuickQuizAnswer{
 	The earlier memory-ordering section had its roots in a pair of
 	Linux Journal articles~\cite{PaulMcKenney2005i,PaulMcKenney2005j}
@@ -145,11 +146,14 @@ you avoid these pitfalls.
 \Cref{sec:memorder:Why Hardware Misordering?}
 gives a brief overview of why hardware misorders memory accesses, and then
 \cref{sec:memorder:How to Force Ordering?}
-gives an equally brief overview of how you can thwart evil hardware
-misordering schemes.
+gives an equally brief overview of how you can thwart such misordering.
 Finally, \cref{sec:memorder:Basic Rules of Thumb}
 lists some basic rules of thumb, which will be further refined in
 later sections.
+These sections focus on hardware reordering, but rest assured that compilers
+reorder much more aggressively than hardware ever dreamed of doing.
+But that topic will be taken up later in
+\cref{sec:memorder:Compile-Time Consternation}.
 
 \subsection{Why Hardware Misordering?}
 \label{sec:memorder:Why Hardware Misordering?}
@@ -206,13 +210,10 @@ residing in other CPUs' caches.
 \ContributedBy{Figure}{fig:memorder:CPUs Can Do Things Out of Order}{Melissa Broussard}
 \end{figure}
 
-Although store buffers can greatly increase performance,
-they can cause instructions and memory references to execute out
-of order, which can in turn cause serious confusion, as illustrated in
+Although store buffers can greatly increase performance, they can cause
+instructions and memory references to execute out of order, which can
+in turn cause serious confusion, as fancifully illustrated in
 \cref{fig:memorder:CPUs Can Do Things Out of Order}.
-In particular, these store buffers cause the memory misordering
-shown in the store-buffering litmus test in
-\cref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}.
 
 \begin{table*}[tbh]
 \rowcolors{6}{}{lightgray}
@@ -242,8 +243,11 @@ shown in the store-buffering litmus test in
 \label{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}
 \end{table*}
 
+In particular, store buffers cause the memory misordering
+illustrated by
+\cref{lst:memorder:Memory Misordering: Store-Buffering Litmus Test}.
 \Cref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}
-shows how this memory misordering can happen.
+shows the steps leading to this misordering.
 Row~1 shows the initial state, where CPU~0 has \co{x1} in its cache
 and CPU~1 has \co{x0} in its cache, both variables having a value of zero.
 \begin{fcvref}[ln:formal:C-SB+o-o+o-o:whole]
@@ -327,10 +331,10 @@ This is the subject of the next section.
 \subsection{How to Force Ordering?}
 \label{sec:memorder:How to Force Ordering?}
 
-It turns out that there are compiler directives and standard
-synchronization primitives (such as locking and RCU)
-that are responsible for maintaining the illusion of ordering through use of
-\emph{memory barriers} (for example, \co{smp_mb()} in the Linux kernel).
+It turns out that there are compiler directives and synchronization
+primitives (such as locking and RCU) that are responsible for maintaining
+the illusion of ordering through use of \emph{memory barriers} (for
+example, \co{smp_mb()} in the Linux kernel).
 These memory barriers can be explicit instructions, as they are on
 \ARM, \Power{}, Itanium, and Alpha, or they can be implied by other instructions,
 as they often are on x86.
@@ -410,10 +414,11 @@ loads (row~6), which rules out the counter-intuitive outcome shown in
 \cref{tab:memorder:Memory Misordering: Store-Buffering Sequence of Events}.
 Note that variables \co{x0} and \co{x1} each still have more than one
 value on row~2, however, as promised earlier, the \co{smp_mb()}
-instances straighten things out in the end.
+invocations straighten things out in the end.
 
 Although full barriers such as \co{smp_mb()} have extremely strong
-ordering guarantees, their strength comes at a high price.
+ordering guarantees, their strength comes at a high price in terms
+of foregone hardware and compiler optimizations.
 A great many situations can be handled with much weaker ordering guarantees
 that use much cheaper memory-ordering instructions, or, in some case, no
 memory-ordering instructions at all.
@@ -499,14 +504,14 @@ operation, although the combined ``\co{_relaxed()} RMW operation''
 line provides a convenient combined reference in the value-returning case.
 A CPU executing unsuccessful value-returning atomic RMW operations must
 invalidate the corresponding variable from all other CPUs' caches.
-Therefore, oddly enough, unsuccessful value-returning atomic RMW
-operations have many of the properties of a store, which means that the
-``\co{_relaxed()} RMW operation'' line also applies to unsuccessful
-value-returning atomic RMW operations.
+Therefore, unsuccessful value-returning atomic RMW operations have many
+of the properties of a store, which means that the ``\co{_relaxed()}
+RMW operation'' line also applies to unsuccessful value-returning atomic
+RMW operations.
 
 The \co{*_acquire} row covers \co{smp_load_acquire()},
-\co{cmpxchg_acquire()}, \co{xchg_acquire()}, and so on;
-the \co{*_release} row covers \co{smp_store_release()},
+\co{cmpxchg_acquire()}, \co{xchg_acquire()}, and so on; the \co{*_release}
+row covers \co{smp_store_release()}, \co{rcu_assign_pointer()},
 \co{cmpxchg_release()}, \co{xchg_release()}, and so on; and
 the ``Successful full-strength non-\co{void} RMW'' row covers
 \co{atomic_add_return()}, \co{atomic_add_unless()}, \co{atomic_dec_and_test()},
@@ -537,12 +542,12 @@ are at most two threads involved.
 	Note that all other operations providing ordering against accesses
 	to multiple variables also provide this same-variable ordering.
 
-	The \co{READ_ONCE()} row captures the fact that (as of 2018) compilers
+	The \co{READ_ONCE()} row captures the fact that (as of 2021) compilers
 	and CPUs do not indulge in user-visible speculative stores, so that
 	any store whose address, data, or execution depends on a prior load
 	is guaranteed to happen after that load completes.
 	However, this guarantee assumes that these dependencies have
-	been constructed carefully as described in
+	been constructed carefully, as described in
 	\cref{sec:memorder:Address- and Data-Dependency Difficulties,%
 	sec:memorder:Control-Dependency Calamities}.
 
@@ -553,6 +558,10 @@ are at most two threads involved.
 
 	The \co{*_dereference()} row captures the address and data
 	dependency ordering provided by \co{rcu_dereference()} and friends.
+	Again, these dependencies must been constructed carefully,
+	as described in
+	\cref{sec:memorder:Address- and Data-Dependency Difficulties,%
+	sec:memorder:Control-Dependency Calamities}.
 
 	The ``Successful \co{*_acquire()}'' row captures the fact that many
 	CPUs have special ``acquire'' forms of loads and of atomic RMW
@@ -617,10 +626,12 @@ are at most two threads involved.
 	indicated by the ``a'' entries on the \co{smp_mb__before_atomic()}
 	and \co{smp_mb__after_atomic()} rows of the table.
 
-	In short, any randomness in the table is due to the properties
-	of the underlying hardware, which are constrained by nothing other
-	than the laws of physics, which were covered back in
+	In short, the structure of this table is dictated by the
+	properties of the underlying hardware, which are constrained by
+	nothing other than the laws of physics, which were covered back in
 	\cref{chp:Hardware and its Habits}.
+	That is, the table is not random, although it is quite possible
+	that you are confused.
 }\QuickQuizEndB
 %
 \QuickQuizE{
@@ -670,6 +681,8 @@ sufficient'' for a great many situations.
 In fact, you could write a great deal of concurrent code having
 excellent performance and scalability without needing anything more
 than these rules of thumb.
+More sophisticated rules of thumb will be presented in
+\cref{sec:memorder:Where is Memory Ordering Needed?}.
 
 \QuickQuiz{
 	But how can I know that a given project can be designed
@@ -683,9 +696,9 @@ than these rules of thumb.
 This rule assumes that loads and stores from/to shared variables use
 \co{READ_ONCE()} and \co{WRITE_ONCE()}, respectively.
 Otherwise, the compiler can profoundly scramble\footnote{
-	Compiler writers often prefer the word ``optimize''.}
-your code, and sometimes the CPU can do a bit of scrambling as well
-(as is discussed in \cref{sec:memorder:Itanium}).
+	Many compiler writers prefer the word ``optimize''.}
+your code, and sometimes the CPU can do a bit of scrambling as well,
+as discussed in \cref{sec:memorder:Itanium}.
 
 \begin{figure}[tb]
 \centering
@@ -697,10 +710,11 @@ your code, and sometimes the CPU can do a bit of scrambling as well
 \paragraph{Ordering has conditional if-then semantics.}
 \Cref{fig:memorder:Memory Barriers Provide Conditional If-Then Ordering}
 illustrates this for memory barriers.
-Assuming that both memory barriers are strong enough (and when in doubt, you
-can always use \co{smp_mb()}), if CPU~1's access Y1 happens after CPU~0's
-access Y0, then CPU~1's access X1 is guaranteed to happen after CPU~0's
-access X1.
+Assuming that both memory barriers are strong enough, if CPU~1's access
+Y1 happens after CPU~0's access Y0, then CPU~1's access X1 is guaranteed
+to happen after CPU~0's access X1.
+When in doubt as to which memory barriers are strong enough, \co{smp_mb()}
+will always do the job, albeit at a price.
 
 \QuickQuiz{
 	How can you tell which memory barriers are strong enough for
@@ -708,6 +722,8 @@ access X1.
 }\QuickQuizAnswer{
 	Ah, that is a deep question whose answer requires most of the
 	rest of this chapter.
+	But the short answer is that \co{smp_mb()} is almost always
+	strong enough, albeit at some cost.
 }\QuickQuizEnd
 
 \begin{fcvref}[ln:formal:C-SB+o-mb-o+o-mb-o:whole]
@@ -716,7 +732,7 @@ is a case in point.
 The \co{smp_mb()} on \clnref{P0:mb,P1:mb} serve as the barriers,
 the store to \co{x0} on \clnref{P0:st} as X0, the load from \co{x1}
 on \clnref{P0:ld} as Y0, the store to \co{x1} on \clnref{P1:st} as Y1,
-and the load from \co{x0} as X1.
+and the load from \co{x0} on \clnref{P1:ld} as X1.
 Applying the if-then rule step by step, we know that the store to
 \co{x1} on \clnref{P1:st} happens after the load from \co{x1} on \clnref{P0:ld} if
 \co{P0()}'s local variable \co{r2} is set to the value zero.
@@ -732,8 +748,8 @@ conditional, not absolute.
 
 Although
 \cref{fig:memorder:Memory Barriers Provide Conditional If-Then Ordering}
-specifically mentions memory barriers, the same rule applies to the
-rest of the Linux kernel's ordering operations.
+specifically mentions memory barriers, this same if-then rule applies
+to the rest of the Linux kernel's ordering operations.
 
 \paragraph{Ordering operations must be paired.}
 If you carefully order the operations in one thread, but then fail to do
@@ -747,7 +763,10 @@ If you find yourself tempted to add a memory barrier in an attempt
 to force a prior store to be flushed to memory faster, resist!
 Adding ordering usually slows things down.
 Of course, there are situations where adding instructions speeds things
-up, but careful benchmarking is required in such cases.
+up, as was shown by
+\cref{fig:defer:Pre-BSD Routing Table Protected by RCU QSBR} on
+page~\pageref{fig:defer:Pre-BSD Routing Table Protected by RCU QSBR},
+but careful benchmarking is required in such cases.
 And even then, it is quite possible that although you sped things up
 a little bit on \emph{your} system, you might well have slowed things
 down significantly on your users' systems.
@@ -759,8 +778,8 @@ tempting to toss in a few memory-ordering operations in an attempt
 to barrier your bugs out of existence.
 A far better reaction is to use higher-level primitives in a carefully
 designed manner.
-With concurrent programming, it is almost always easier to design
-your bugs out of existence than to hack them out of existence!
+With concurrent programming, it is almost always better to design your
+bugs out of existence than to hack them down to lower probabilities.
 
 \paragraph{These are only rough rules of thumb.}
 Although these rules of thumb cover the vast majority of situations
@@ -795,7 +814,7 @@ and traps.
 \label{sec:memorder:Tricks and Traps}
 %
 \epigraph{Knowing where the trap is---that's the first step in evading it.}
-	 {\emph{``Dune'', Frank Herbert}}
+	 {\emph{Duke Leto Atreides, ``Dune'', Frank Herbert}}
 
 Now that you know that hardware can reorder memory accesses and that you
 can prevent it from doing so, the next step is to get you to admit
@@ -915,12 +934,15 @@ CPU~4 believes that the value is~``4'' for almost 500\,ns.
 	many CPUs have store buffers that record the values of
 	recent stores, which do not become globally visible until
 	the corresponding cache line makes its way to the CPU.
-	Therefore, it is quite possible for each CPU to see a
-	different value for a given variable at a single point
+	Therefore, it is quite possible for each CPU to see its own value
+	for a given variable (in its own store buffer) at a single point
 	in time---and for main memory to hold yet another value.
 	One of the reasons that memory barriers were invented was
 	to allow software to deal gracefully with situations like
 	this one.
+
+	Fortunately, software rarely cares about the fact that multiple
+	CPUs might see multiple values for the same variable.
 }\QuickQuizEndB
 %
 \QuickQuizE{
@@ -953,9 +975,8 @@ with each tick lasting about 5.3~nanoseconds.
 The entire sequence therefore lasts a bit longer than the events recorded in
 \cref{fig:memorder:A Variable With Multiple Simultaneous Values},
 consistent with the increase in number of CPUs.
-The upper diagram shows the overall picture, while the lower one shows
-the zoom-up of first 50~timebase ticks.
-
+The upper diagram shows the overall picture, while the lower one zooms
+in on the first 50~timebase ticks.
 Again, CPU~0 coordinates the test, so does not record any values.
 
 \begin{figure*}
@@ -972,9 +993,8 @@ at time~21 indicated by the vertical line in the lower diagram.
 Note also that all CPUs see sequences whose orderings are consistent with
 the directed graph shown in
 \cref{fig:memorder:Possible Global Orders With More Simultaneous Values}.
-Nevertheless, both figures underscore the importance of
-proper use of memory-ordering operations, such as memory barriers,
-for code that cares about memory ordering.
+Nevertheless, these figures underscore the importance of
+proper use of memory-ordering operations.
 
 \begin{figure}[htb]
 \centering
@@ -990,11 +1010,11 @@ We have therefore entered a regime where we must bid a fond farewell to
 comfortable intuitions about values of variables and the passage of time.
 This is the regime where memory-ordering operations are needed.
 
-All that aside, it is important to remember the lessons from
+But remember well the lessons from
 \cref{chp:Hardware and its Habits,%
 cha:Partitioning and Synchronization Design}.
 Having all CPUs store concurrently to the same variable
-is absolutely no way to design a parallel program, at least
+is no way to design a parallel program, at least
 not if performance and scalability are at all important to you.
 
 Unfortunately, memory ordering has many other ways of insulting your
@@ -1049,7 +1069,7 @@ but the values for later loads are already present.
 	They can and many do, otherwise systems containing
 	strongly ordered CPUs would be slow indeed.
 	However, speculative execution does have its downsides, especially
-	if speculation must be rolled back frequently, and especially
+	if speculation must be rolled back frequently, particularly
 	on battery-powered systems.
 	But perhaps future systems will be able to overcome these
 	disadvantages.
@@ -1087,7 +1107,7 @@ the \co{exists_} clause from triggering.
 shows the classic \emph{load-buffering} litmus test.
 Although relatively strongly ordered systems such as x86
 or the IBM Mainframe do not reorder prior loads with subsequent stores,
-more weakly ordered architectures really do allow such
+many weakly ordered architectures really do allow such
 reordering~\cite{JadeAlglave2011ppcmem}.
 Therefore, the \co{exists} clause on \clnref{exists} really can trigger.
 \end{fcvref}
@@ -1193,7 +1213,7 @@ addition, subtraction, and array indexing.\footnote{
 One might hope that \clnref{P1:x1}'s load from the head pointer would be ordered
 before \clnref{P1:ref}'s dereference, which is in fact the case on Linux v4.15
 and later.
-However, prior to v4.15, this is not the case on DEC Alpha, which can
+However, prior to v4.15, this was not the case on DEC Alpha, which could
 in effect use a speculated value for the dependent load, as described
 in more detail in \cref{sec:memorder:Alpha}.
 Therefore, on older versions of Linux,
@@ -1292,7 +1312,8 @@ in pre-v4.15 Linux kernels.
 	\cref{lst:memorder:S Address-Dependency Litmus Test}
 	because this is a load followed by a store.
 	Because address dependencies must start with a load, TSO platforms
-	implicitly but completely respect them.
+	implicitly but completely respect them, give or take compiler
+	optimizations, hence the need for \co{READ_ONCE()}.
 	\end{fcvref}
 
 	Weakly ordered platforms don't necessarily maintain ordering of
@@ -1326,7 +1347,7 @@ in pre-v4.15 Linux kernels.
 	SPARC,~\dots), have hardware tracking for address dependencies
 	(\ARM, PowerPC, MIPS,~\dots), have the required memory barriers
 	supplied by \co{READ_ONCE()} (DEC Alpha in Linux kernel v4.15 and
-	later), or require the memory barriers supplied by
+	later), or supplied by
 	\co{rcu_dereference()} (DEC Alpha in Linux kernel v4.14 and earlier).
 }\QuickQuizEndB
 %
@@ -1340,7 +1361,7 @@ in pre-v4.15 Linux kernels.
 	Unfortunately, not all of the abbreviations have catchy
 	expansions like SB (store buffering), MP (message passing),
 	and LB (load buffering), but at least the list of abbreviations
-	is available.
+	is readily available.
 }\QuickQuizEndE
 }
 
@@ -1400,8 +1421,7 @@ the dependency.
 	uses \co{READ_ONCE()}, which marks the load as volatile,
 	which means that the compiler absolutely must emit the load
 	instruction even if the value is later multiplied by zero.
-	So do you really need to work so hard to keep the compiler from
-	breaking your data dependencies?
+	So how can the compiler possibly break this data dependency?
 	\end{fcvref}
 }\QuickQuizAnswer{
 	Yes, the compiler absolutely must emit a load instruction for
@@ -1416,8 +1436,8 @@ the dependency.
 	even TSO platforms to fail to provide ordering.
 }\QuickQuizEnd
 
-In short, you can rely on data dependencies, but only if you take care
-to prevent your compiler from breaking them.
+In short, you can rely on data dependencies only if you prevent the
+compiler from breaking them.
 
 \subsection{Control Dependencies}
 \label{sec:memorder:Control Dependencies}
@@ -1474,7 +1494,8 @@ permit no other solution.
 	Wouldn't control dependencies be more robust if they were
 	mandated by language standards???
 }\QuickQuizAnswer{
-	In the fullness of time, perhaps they will be so mandated.
+	But of course!
+	And perhaps in the fullness of time they will be so mandated.
 }\QuickQuizEnd
 
 \subsection{Cache Coherence}
@@ -1534,9 +1555,9 @@ It is tempting to speculate that different-sized overlapping loads
 and stores to a single region of memory (as might be set up using
 the C-language \co{union} keyword) would provide similar ordering
 guarantees.
-However, Flur et al.\ discovered some surprisingly simple
-litmus tests that demonstrate that these guarantees can be violated on
-real hardware~\cite{Flur:2017:MCA:3093333.3009839}.
+However, Flur et al.~\cite{Flur:2017:MCA:3093333.3009839} discovered some
+surprisingly simple litmus tests that demonstrate that such guarantees
+can be violated on real hardware.
 It is therefore necessary to restrict code to non-overlapping
 same-sized aligned accesses to a given variable, at least if portability
 is a consideration.\footnote{
@@ -1568,16 +1589,17 @@ shown in
 If each store resulted in a message on the bus, and if the bus could
 accommodate only one store at a time, then any pair of CPUs would
 agree on the order of all stores that they observed.
-Unfortunately, building a computer system as shown in the figure,
-without store buffers or even caches, would result in glacial computation.
-Most CPU vendors interested in providing multicopy atomicity have therefore
-instead provided the slightly weaker
+Unfortunately, building a computer system as shown in the figure, without
+store buffers or even caches, would result in glacially slow computation.
+Most CPU vendors interested in providing multicopy atomicity therefore
+instead provid the slightly weaker
 \emph{other-multicopy atomicity}~\cite[Section B2.3]{ARMv8A:2017},
 which excludes the CPU doing a given store from the requirement that all
 CPUs agree on the order of all stores.\footnote{
-	As of late 2018, \ARMv8 and x86 provide other-multicopy atomicity,
-	IBM mainframe provides fully multicopy atomicity, and PPC does
-	not provide multicopy atomicity at all. More detail is shown in
+	As of early 2021, \ARMv8 and x86 provide other-multicopy atomicity,
+	IBM mainframe provides full multicopy atomicity, and PPC
+	provides no multicopy atomicity at all.
+	More detail is shown in
 	\cref{tab:memorder:Summary of Memory Ordering}.}
 This means that if only a subset of CPUs are doing stores, the
 other CPUs will agree on the order of stores, hence the ``other''
@@ -1585,8 +1607,7 @@ in ``other-multicopy atomicity''.
 Unlike multicopy-atomic platforms, within other-multicopy-atomic platforms,
 the CPU doing the store is permitted to observe its
 store early, which allows its later loads to obtain the newly stored
-value directly from the store buffer.
-This in turn avoids abysmal performance.
+value directly from the store buffer, which improves performance.
 
 \QuickQuiz{
 	Can you give a specific example showing different behavior for
@@ -1851,7 +1872,9 @@ same variable.
 
 Dependencies do not provide cumulativity,
 which is why the ``C'' column is blank for the \co{READ_ONCE()} row
-of \cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
+of \cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
+on
+page~\pageref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
 However, as indicated by the ``C'' in their ``C'' column,
 release operations do provide cumulativity.
 Therefore,
@@ -2050,7 +2073,9 @@ For completeness,
 shows that the ``winning'' store among a group of stores to the
 same variable is not necessarily the store that started last.
 This should not come as a surprise to anyone who carefully examined
-\cref{fig:memorder:A Variable With More Simultaneous Values}.
+\cref{fig:memorder:A Variable With More Simultaneous Values}
+on
+page~\pageref{fig:memorder:A Variable With More Simultaneous Values}.
 
 \begin{listing}[tbp]
 \input{CodeSamples/formal/litmus/C-2+2W+o-wmb-o+o-wmb-o@whole.fcv}
@@ -2125,7 +2150,9 @@ passage of time itself as an memory-ordering operation.
 
 Of course, just the passage of time by itself is not enough, as
 was seen in
-\cref{lst:memorder:Load-Buffering Litmus Test (No Ordering)},
+\cref{lst:memorder:Load-Buffering Litmus Test (No Ordering)}
+on
+page~\pageref{lst:memorder:Load-Buffering Litmus Test (No Ordering)},
 which has nothing but store-to-load links and, because it provides
 absolutely no ordering, still can trigger its \co{exists} clause.
 However, as long as each thread provides even the weakest possible
@@ -2156,14 +2183,16 @@ suffice to prevent the \co{exists} clause from triggering.
 \end{listing}
 }\QuickQuizEnd
 
-An important, to say nothing of more useful, use of time for ordering
-memory accesses is covered in the next section.
+An important use of time for ordering memory accesses is covered in the
+next section.
 
 \subsubsection{Release-Acquire Chains}
 \label{sec:memorder:Release-Acquire Chains}
 
 A minimal release-acquire chain was shown in
-\cref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test},
+\cref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test}
+on
+page~\pageref{lst:memorder:Enforcing Ordering of Load-Buffering Litmus Test},
 but these chains can be much longer, as shown in
 \cref{lst:memorder:Long LB Release-Acquire Chain}
 (\path{C-LB+a-r+a-r+a-r+a-r.litmus}).
@@ -2180,7 +2209,9 @@ involved, the corresponding \co{exists} clause cannot trigger.
 Although release-acquire chains are inherently store-to-load creatures,
 it turns out that they can tolerate one load-to-store step, despite
 such steps being counter-temporal, as shown in
-\cref{fig:memorder:Load-to-Store is Counter-Temporal}.
+\cref{fig:memorder:Load-to-Store is Counter-Temporal}
+on
+page~\pageref{fig:memorder:Load-to-Store is Counter-Temporal}.
 For example,
 \cref{lst:memorder:Long ISA2 Release-Acquire Chain}
 (\path{C-ISA2+o-r+a-r+a-r+a-o.litmus})
@@ -2293,8 +2324,8 @@ In short, properly constructed release-acquire chains form a peaceful
 island of intuitive bliss surrounded by a strongly counter-intuitive
 sea of more complex memory-ordering constraints.
 
-% Exercises?
-% Hardware details from Appendix?
+% @@@ Exercises?
+% @@@ Hardware details from Appendix?
 
 \section{Compile-Time Consternation}
 \label{sec:memorder:Compile-Time Consternation}
@@ -2341,13 +2372,15 @@ as \qco{r1 = a} or \qco{b = 1} are subject to the
 shared-variable shenanigans described in
 \cref{sec:toolsoftrade:Shared-Variable Shenanigans}.
 Ways of avoiding these shenanigans are described in
-\crefrange{sec:toolsoftrade:A Volatile Solution}{sec:toolsoftrade:Avoiding Data Races}:
+\crefrange{sec:toolsoftrade:A Volatile Solution}{sec:toolsoftrade:Avoiding Data Races}
+starting on
+page~\pageref{sec:toolsoftrade:A Volatile Solution}{sec:toolsoftrade:Avoiding Data Races}:
 
 \begin{enumerate}
 \item	Plain accesses can tear, for example, the compiler could choose
 	to access an eight-byte pointer one byte at a time.
-	Tearing can be prevented by using \co{READ_ONCE()} and
-	\co{WRITE_ONCE()}.
+	Tearing of aligned machine-sized accesses can be prevented by
+	using \co{READ_ONCE()} and \co{WRITE_ONCE()}.
 \item	Plain loads can fuse, for example, if the results of an earlier
 	load from that same object are still in a machine register,
 	the compiler might opt to reuse the value in that register
@@ -2400,6 +2433,8 @@ aggressive.
 In short, use of \co{READ_ONCE()}, \co{WRITE_ONCE()}, \co{barrier()},
 \co{volatile}, and other primitives called out in
 \cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
+on
+page~\pageref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 are valuable tools in preventing the compiler from
 optimizing your parallel algorithm out of existence.
 Compilers are starting to provide other mechanisms for avoiding
@@ -2420,8 +2455,8 @@ that variable before any other CPU or thread has access to it),
 there is no point in using \co{WRITE_ONCE()}.
 However, in my experience, developers need to use things like
 \co{READ_ONCE()} and \co{WRITE_ONCE()} more often than they think that
-they do, the overhead of unnecessary uses is quite low.
-Furthermore, the penalty for failing to use them when needed is quite high.
+they do, and the overhead of unnecessary uses is quite low.
+In contrast, the penalty for failing to use them when needed can be quite high.
 
 \subsection{Address- and Data-Dependency Difficulties}
 \label{sec:memorder:Address- and Data-Dependency Difficulties}
@@ -2572,12 +2607,11 @@ if (p == &reserve_int) {
 \begin{fcvlabel}[ln:memorder:Breakable Dependencies With Non-Constant Comparisons]
 \begin{VerbatimL}
 int *gp1;
-int *gp2;
 int *p;
 int *q;
 
 p = rcu_dereference(gp1);
-q = READ_ONCE(gp2);
+q = get_a_pointer();
 if (p == q)
 	handle_equality(p);
 do_something_with(*p);
@@ -2591,12 +2625,11 @@ do_something_with(*p);
 \begin{fcvlabel}[ln:memorder:Broken Dependencies With Non-Constant Comparisons]
 \begin{VerbatimL}[commandchars=\\\[\]]
 int *gp1;
-int *gp2;
 int *p;
 int *q;
 
 p = rcu_dereference(gp1);		\lnlbl[p]
-q = READ_ONCE(gp2);
+q = get_a_pointer();
 if (p == q) {
 	handle_equality(q);
 	do_something_with(*q);		\lnlbl[q]
@@ -2652,13 +2685,13 @@ pointers:
 	objects that were last modified a very long time ago, where
 	the only unconditionally safe value of ``a very long time ago'' is
 	``at compile time''.
-	The key point is that there absolutely must be something other
-	than the address or data dependency that guarantees ordering.
-\item	Comparisons between two pointers, each of which is carrying
-	a good-enough dependency.
+	The key point is that something other than the address or data
+	dependency guarantees ordering.
+\item	Comparisons between two pointers, each of which carries
+	an appropriate dependency.
 	For example, you have a pair of pointers, each carrying a
-	dependency, and you want to avoid deadlock by acquiring locks
-	of the pointed-to data elements in address order.
+	dependency, to data structures each containing a lock, and you
+	want to avoid deadlock by acquiring the locks in address order.
 \item	The comparison is not-equal, and the compiler does not have
 	enough other information to deduce the value of the
 	pointer carrying the dependency.
@@ -2685,8 +2718,8 @@ void updater(void)		\lnlbl[upd:b]
 	p->b = 43;
 	p->c = 44;			\lnlbl[upd:init:c]
 	rcu_assign_pointer(gp1, p);	\lnlbl[upd:assign1]
-	p->b = 143;			\lnlbl[upd:upd:b]
-	p->c = 144;			\lnlbl[upd:upd:c]
+	WRITE_ONCE(p->b, 143);		\lnlbl[upd:upd:b]
+	WRITE_ONCE(p->c, 144);		\lnlbl[upd:upd:c]
 	rcu_assign_pointer(gp2, p);	\lnlbl[upd:assign2]
 }				\lnlbl[upd:e]
 
@@ -2699,10 +2732,10 @@ void reader(void)		\lnlbl[read:b]
 	p = rcu_dereference(gp2);	\lnlbl[read:gp2]
 	if (p == NULL)			\lnlbl[read:nulchk]
 		return;			\lnlbl[read:nulret]
-	r1 = p->b;			\lnlbl[read:pb]
+	r1 = READ_ONCE(p->b);		\lnlbl[read:pb]
 	q = rcu_dereference(gp1);	\lnlbl[read:gp1]
 	if (p == q) {			\lnlbl[read:equ]
-		r2 = p->c;		\lnlbl[read:pc]
+		r2 = READ_ONCE(p->c);	\lnlbl[read:pc]
 	}
 	do_something_with(r1, r2);
 }				\lnlbl[read:e]
@@ -2741,9 +2774,10 @@ Finally, \clnref{assign2} assigns the pointer to \co{gp2}.
 \begin{fcvref}[ln:memorder:Broken Dependencies With Pointer Comparisons:read]
 The \co{reader()} thread first fetches \co{gp2} on \clnref{gp2}, with
 \clnref{nulchk,nulret} checking for \co{NULL} and returning if so.
-\Clnref{pb} then fetches field \co{->b}.
-Now \clnref{gp1} fetches \co{gp1}, and if \clnref{equ} sees that the pointers
-fetched on \clnref{gp2,gp1} are equal, \clnref{pc} fetches \co{p->c}.
+\Clnref{pb} fetches field \co{->b} and
+\clnref{gp1} fetches \co{gp1}.
+If \clnref{equ} sees that the pointers fetched on \clnref{gp2,gp1}
+are equal, \clnref{pc} fetches \co{p->c}.
 Note that \clnref{pc} uses pointer \co{p} fetched on \clnref{gp2}, not
 pointer \co{q} fetched on \clnref{gp1}.
 
@@ -2768,14 +2802,16 @@ instead of the expected value 144.
 	not order later loads, only later stores.
 	If you really need ordering, you could place an \co{smp_rmb()}
 	between \clnref{equ,pc}.
-	Or considerably better, have \co{update()}
+	Or better yet, have \co{update()}
 	allocate two structures instead of reusing the structure.
+	For more information, see
+	\cref{sec:memorder:Control-Dependency Calamities}.
 	\end{fcvref}
 }\QuickQuizEnd
 
-In short, some care is required in order to ensure that dependency
-chains in your source code are still dependency chains once the
-compiler has gotten done with them.
+In short, great care is required to ensure that dependency
+chains in your source code are still dependency chains in the
+compiler-generated assembly code.
 
 \subsection{Control-Dependency Calamities}
 \label{sec:memorder:Control-Dependency Calamities}
@@ -2824,9 +2860,9 @@ if (q)
 Control dependencies pair normally with other types of ordering operations.
 That said, please note that neither \co{READ_ONCE()} nor \co{WRITE_ONCE()}
 are optional!
-Without the \co{READ_ONCE()}, the compiler might combine the load
+Without the \co{READ_ONCE()}, the compiler might fuse the load
 from~\co{x} with other loads from~\co{x}.
-Without the \co{WRITE_ONCE()}, the compiler might combine the store
+Without the \co{WRITE_ONCE()}, the compiler might fuse the store
 to~\co{y} with other stores to~\co{y}.
 Either can result in highly counter-intuitive effects on ordering.
 
@@ -2889,11 +2925,10 @@ if (q) {
 \end{VerbatimN}
 
 The initial \co{READ_ONCE()} is still required to prevent the compiler from
-proving the value of~\co{x}.
-
+guessing the value of~\co{x}.
 In addition, you need to be careful what you do with the local variable~%
 \co{q},
-otherwise the compiler might be able to guess the value and again remove
+otherwise the compiler might be able to guess its value and again remove
 the needed conditional.
 For example:
 
@@ -2964,7 +2999,7 @@ This example underscores the need to ensure that the compiler cannot
 out-guess your code.
 More generally, although \co{READ_ONCE()} does force
 the compiler to actually emit code for a given load, it does not force
-the compiler to use the results.
+the compiler to use the value loaded.
 
 In addition, control dependencies apply only to the then-clause and
 else-clause of the if-statement in question.
@@ -3003,8 +3038,8 @@ from~\co{x} and the store to~\co{z}.
 The control dependencies would extend
 only to the pair of cmov instructions and the store depending on them.
 In short, control dependencies apply only to the stores in the \qco{then}
-and \qco{else} of the \qco{if} in question (including functions
-invoked by those two clauses), not to code following that \qco{if}.
+and \qco{else} of the \qco{if} in question (including functions invoked by
+those two clauses), and not necessarily to code following that \qco{if}.
 
 Finally, control dependencies do \emph{not} provide cumulativity.\footnote{
 	Refer to \cref{sec:memorder:Cumulativity} for
@@ -3070,9 +3105,10 @@ The following list of rules summarizes the lessons of this section:
 	\co{smp_mb()}.
 
 \item	If both legs of the \qco{if} statement begin with identical stores
-	to the same variable, then those stores must be ordered,
-	either by preceding both of them with \co{smp_mb()} or by using
-	\co{smp_store_release()} to carry out the stores.
+	to the same variable, then the control dependency will not order
+	those stores,
+	If ordering is needed, precede both of them with \co{smp_mb()} or
+	use \co{smp_store_release()}.
 	Please note that it is \emph{not} sufficient to use \co{barrier()}
 	at beginning of each leg of the \qco{if} statement because, as shown
 	by the example above, optimizing compilers can destroy the control
@@ -3102,14 +3138,13 @@ The following list of rules summarizes the lessons of this section:
 	memory-ordering operations.
 
 \item	Control dependencies do \emph{not} provide cumulativity.
-	If you need cumulativity, use \co{smp_mb()}.
+	If you need cumulativity, use something that provides it,
+	such as \co{smp_store_release()} or \co{smp_mb()}.
 \end{enumerate}
 
-In short, many popular languages were designed primarily with
-single-threaded use in mind.
-Successfully using these languages to construct multi-threaded software
-requires that you pay special attention to your memory references and
-dependencies.
+Again, many popular languages were designed with single-threaded use
+in mind.  Successful multithreaded use of these languages requires you
+to pay special attention to your memory references and dependencies.
 
 \section{Higher-Level Primitives}
 \label{sec:memorder:Higher-Level Primitives}
@@ -3187,11 +3222,6 @@ before those of the new thread.
 	It is after all the developer's responsibility to properly
 	synchronize with any other threads that need access to the newly
 	migrated block of memory.
-
-	That said, if there was a third CPU involved in the memory
-	allocator within the Linux kernel, it might be necessary for
-	the memory allocator to invoke \co{smp_mb__after_unlock_lock()}
-	immediately after acquiring \co{globalmem.mutex}.
 }\QuickQuizEnd
 
 Therefore, the ordering required by conventional uses of memory allocation
@@ -3283,7 +3313,7 @@ by the \co{exists} clause is prohibited), courtesy of RCU's fundamental
 grace-period guarantee, as can be seen by running \co{herd} on this litmus test.
 Note that this guarantee is insensitive to the ordering of the accesses
 within \co{P1()}'s critical section, so the litmus test shown in
-\cref{lst:memorder:RCU Fundamental Property and Reordering},\footnote{
+\cref{lst:memorder:RCU Fundamental Property and Reordering}\footnote{
 	Dependencies can of course limit the ability to reorder accesses
 	within RCU read-side critical sections.}
 also forbids this same cycle.
@@ -3323,9 +3353,8 @@ In particular, despite their names, they do not act like locks, as can
 be seen in
 \cref{lst:memorder:RCU Readers Provide No Lock-Like Ordering}
 (\path{C-LB+rl-o-o-rul+rl-o-o-rul.litmus}).
-As can be seen by running \co{herd} on this litmus test, this litmus
-test's cycle is allowed: Both instances of the \co{r1} register can
-have final values of 1.
+This litmus test's cycle is allowed: Both instances of the \co{r1}
+register can have final values of 1.
 
 \begin{listing}[tb]
 \input{CodeSamples/formal/herd/C-LB+rl-o-o-rul+rl-o-o-rul@whole.fcv}
@@ -3337,8 +3366,8 @@ Nor do these primitives have barrier-like ordering properties,
 at least not unless there is a grace period in the mix, as can be seen in
 \cref{lst:memorder:RCU Readers Provide No Barrier-Like Ordering}
 (\path{C-LB+o-rl-rul-o+o-rl-rul-o.litmus}).
-This litmus test's cycle is allowed, as can be verified by running
-\co{herd} on this litmus test.
+This litmus test's cycle is also allowed.
+(Try it!)
 
 \begin{listing}[tb]
 \input{CodeSamples/formal/herd/C-LB+o-rl-rul-o+o-rl-rul-o@whole.fcv}
@@ -3353,13 +3382,12 @@ are no-ops in the QSBR implementation of RCU.
 \subsubsection{RCU Update-Side Ordering}
 \label{sec:memorder:RCU Update-Side Ordering}
 
-In contrast with RCU readers, the RCU updater-side functions
+In contrast with RCU readers, the RCU update-side functions
 \co{synchronize_rcu()} and \co{synchronize_rcu_expedited()}
 provide memory ordering at least as strong as \co{smp_mb()},
 as can be seen by running \co{herd} on the litmus test shown in
 \cref{lst:memorder:RCU Updaters Provide Full Ordering}.
-This test's cycle is prohibited, just as would be the case with
-\co{smp_mb()}.
+This test's cycle is prohibited, just as it would with \co{smp_mb()}.
 This should be no surprise given the information presented in
 \cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}.
 
@@ -3415,9 +3443,6 @@ place at a precise location in the execution of the interrupted code.
 This in turn means that if the \co{WRITE_ONCE()} follows the end of a given
 RCU grace period, then the accesses within the RCU read-side critical
 section must follow the beginning of that same grace period.
-In fact, in some RCU implementations, the critical section's accesses
-would (as an accident of the implementation!) also follow the end of
-that grace period, rather than merely the beginning of it.
 Similarly, if the \co{READ_ONCE()} precedes the beginning of the grace
 period, everything within \emph{and preceding} that critical section
 must precede the end of that same grace period.
@@ -3481,10 +3506,15 @@ In both cases, the critical section's emptiness is irrelevant.
 	state is encountered.
 	For example, in the Linux kernel, the critical section might
 	be expanded to a pair of \co{schedule()} calls, with one
-	preceding and the other following the critical section.\footnote{
-		Of course, in non-QSBR implementations,
-		\co{rcu_read_lock()} and \co{rcu_read_unlock()} really
-		do emit code, which can clearly provide ordering.}
+	preceding and the other following the critical section.
+	Of course, in non-QSBR implementations, \co{rcu_read_lock()}
+	and \co{rcu_read_unlock()} really do emit code, which can clearly
+	provide ordering.
+	And within the Linux kernel, even the QSBR implementation
+	has a compiler \co{barrier()} in \co{rcu_read_lock()} and
+	\co{rcu_read_unlock()}, which is necessary to prevent
+	the compiler from moving memory accesses that might result
+	in page faults into the RCU read-side critical section.
 
 	Therefore, strange though it might seem, empty RCU read-side
 	critical sections really can and do provide some degree of
@@ -3511,7 +3541,7 @@ And it is true that a QSBR implementations of RCU would in fact
 forbid this outcome.
 However, RCU also has non-QSBR implementations, and these implementations
 have no way to enforce ordering in this case.
-Again, therefore, this litmus test's cycle is allowed.
+Therefore, this litmus test's cycle is allowed.
 
 \QuickQuiz{
 	Can \co{P1()}'s accesses be reordered in the litmus tests shown in
@@ -3544,10 +3574,9 @@ Again, therefore, this litmus test's cycle is allowed.
 
 Because \co{synchronize_rcu()} has stronger ordering semantics than does
 \co{smp_mb()}, no matter how many processes there are in an SB
-litmus test, placing \co{synchronize_rcu()} between each process's
-accesses prohibits the cycle.\footnote{
-	All this of course also applies to many other types of litmus tests
-	as well, including LB, MP, and so on, not just SB.}
+litmus test (such as \cref{lst:memorder:RCU Updaters Provide Full Ordering}),
+placing \co{synchronize_rcu()} between each process's
+accesses prohibits the cycle.
 In addition, the cycle is prohibited in an SB test where one process
 uses \co{synchronize_rcu()} and the other uses \co{rcu_read_lock()} and
 \co{rcu_read_unlock()}, as exemplified by
@@ -3556,7 +3585,7 @@ However, if both processes use \co{rcu_read_lock()} and
 \co{rcu_read_unlock()}, the cycle will be allowed, as exemplified by
 \cref{lst:memorder:RCU Readers Provide No Lock-Like Ordering}.
 
-So is it possible to say anything general about which RCU-protected
+Is it possible to say anything general about which RCU-protected
 litmus tests will be prohibited and which will be allowed?
 This section takes up this question.
 
@@ -3572,7 +3601,7 @@ This section takes up this question.
 \label{lst:memorder:Two RCU Grace Periods and Two Readers}
 \end{listing}
 
-More specifically, what happens when the litmus test has one RCU grace
+More specifically, what if the litmus test has one RCU grace
 period and two RCU readers, as shown in
 \cref{lst:memorder:One RCU Grace Period and Two Readers}?
 The \co{herd} tool says that this cycle is allowed, but it would be
@@ -3580,6 +3609,20 @@ good to know \emph{why}.\footnote{
 	Especially given that Paul changed his mind several times about
 	this particular litmus test when working with \ppl{Jade}{Alglave} to
 	generalize RCU ordering semantics.}
+
+\begin{figure*}[tbp]
+\centering
+\resizebox{0.75\textwidth}{!}{\includegraphics{memorder/RCU1G2R}}
+\caption{Cycle for One RCU Grace Period and Two RCU Readers}
+\label{fig:memorder:Cycle for One RCU Grace Period and Two RCU Readers}
+\end{figure*}
+
+\begin{figure*}[tbp]
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{memorder/RCU2G2R}}
+\caption{No Cycle for Two RCU Grace Periods and Two RCU Readers}
+\label{fig:memorder:No Cycle for Two RCU Grace Periods and Two RCU Readers}
+\end{figure*}
 
 The key point is that the CPU is free to reorder \co{P1()}'s and \co{P2()}'s
 \co{WRITE_ONCE()} and \co{READ_ONCE()}.
@@ -3634,20 +3677,6 @@ are RCU read-side critical sections, the cycle is forbidden.\footnote{
 	this seemingly more general result, which is called the RCU
 	axiom~\cite{Alglave:2018:FSC:3173162.3177156}.}
 
-\begin{figure*}[tbp]
-\centering
-\resizebox{0.75\textwidth}{!}{\includegraphics{memorder/RCU1G2R}}
-\caption{Cycle for One RCU Grace Period and Two RCU Readers}
-\label{fig:memorder:Cycle for One RCU Grace Period and Two RCU Readers}
-\end{figure*}
-
-\begin{figure*}[tbp]
-\centering
-\resizebox{\textwidth}{!}{\includegraphics{memorder/RCU2G2R}}
-\caption{No Cycle for Two RCU Grace Periods and Two RCU Readers}
-\label{fig:memorder:No Cycle for Two RCU Grace Periods and Two RCU Readers}
-\end{figure*}
-
 \subsubsection{RCU and Other Ordering Mechanisms}
 \label{sec:memorder:RCU and Other Ordering Mechanisms}
 
@@ -3668,8 +3697,15 @@ by an \co{smp_load_acquire()}?
 RCU would still allow the cycle, but the release-acquire pair would
 forbid it.
 Because it only takes one mechanism to forbid a cycle, the
-release-acquire pair would ``win'' and the cycle would be
+release-acquire pair would prevail so that the cycle would be
 forbidden.
+
+\begin{figure*}[tbp]
+\centering
+\resizebox{0.75\textwidth}{!}{\includegraphics{memorder/RCU1G2Rmb}}
+\caption{Cycle for One RCU Grace Period, Two RCU Readers, and Memory Barrier}
+\label{fig:memorder:Cycle for One RCU Grace Period; Two RCU Readers; and Memory Barrier}
+\end{figure*}
 
 For another example, refer back to
 \cref{lst:memorder:One RCU Grace Period and Two Readers}.
@@ -3681,7 +3717,8 @@ In this new litmus test, because of the addition of the \co{smp_mb()},
 \co{P2()}'s as well as \co{P1()}'s critical sections would extend beyond the
 end of \co{P0()}'s grace period, which in turn would prevent \co{P2()}'s
 read from \co{x0} from preceding \co{P0()}'s write, as depicted by the
-red dashed arrow.
+red dashed arrow in
+\cref{fig:memorder:Cycle for One RCU Grace Period; Two RCU Readers; and Memory Barrier}.
 In this case, RCU and the full memory barrier work together to forbid
 the cycle, with RCU preserving ordering between \co{P0()} and both
 \co{P1()} and \co{P2()}, and with the \co{smp_mb()} preserving
@@ -3710,8 +3747,7 @@ formalized~\cite{PaulMcKenney2005RCUSemantics,MathieuDesnoyers2012URCU,AlexeyGot
 % When augmented by \co{smp_mb__after_srcu_read_unlock()}.
 
 It is hoped that detailed semantics for higher-level primitives will
-enable more capable static analysis and model checking, at least compared
-to what can be done based on individual memory accesses.
+enable more capable static analysis and model checking.
 
 \section{Hardware Specifics}
 \label{sec:memorder:Hardware Specifics}
@@ -3801,7 +3837,7 @@ to what can be done based on individual memory accesses.
 \label{tab:memorder:Summary of Memory Ordering}
 \end{table*}
 
-Each CPU has its own peculiar approach to memory ordering, which
+Each CPU family has its own peculiar approach to memory ordering, which
 can make portability a challenge, as indicated by
 \cref{tab:memorder:Summary of Memory Ordering}.
 In fact, some software environments simply prohibit
@@ -3810,7 +3846,7 @@ to mutual-exclusion primitives that incorporate them to the extent that
 they are required.  Please note that this section is not intended to be
 a reference manual
 covering all (or even most) aspects of each CPU family, but rather
-a high-level overview giving a rough comparison.
+a high-level overview providing a rough comparison.
 For full details, see the reference manual for the CPU of interest.
 
 Getting back to
@@ -3881,11 +3917,15 @@ set of memory-ordering primitives, which are as follows:
 \item	[\tco{smp_mb__before_atomic()}] that forces ordering of accesses
 	preceding the \co{smp_mb__before_atomic()} against accesses following
 	a later RMW atomic operation.
-	This is a noop on systems that fully order atomic RMW operatings.
+	This is a noop on systems that fully order atomic RMW operations.
 \item	[\tco{smp_mb__after_atomic()}] that forces ordering of accesses
 	preceding an earlier RMW atomic operation against accesses
 	following the \co{smp_mb__after_atomic()}.
-	This is also a noop on systems that fully order atomic RMW operatings.
+	This is also a noop on systems that fully order atomic RMW operations.
+\item	[\tco{smp_mb__after_spinlock()}] that forces ordering of accesses
+	preceding a lock acquisition against accesses
+	following the \co{smp_mb__after_spinlock()}.
+	This is also a noop on systems that fully order lock acquisitions.
 \item	[\tco{mmiowb()}] that forces ordering on MMIO writes that are guarded
 	by global spinlocks, and is more thoroughly described
 	in a 2016 LWN article on MMIO~\cite{PaulEMcKenney2016LinuxKernelMMIO}.
@@ -3895,6 +3935,21 @@ primitives also force
 the compiler to eschew any optimizations that would have the effect
 of reordering memory optimizations across the barriers.
 
+\QuickQuiz{
+	What happens to code between an atomic operation and an
+	\co{smp_mb__after_atomic()}?
+}\QuickQuizAnswer{
+	First, please don't do this!
+
+	But if you do, this intervening code will either be ordered
+	after the atomic operation or before the
+	\co{smp_mb__after_atomic()}, depending on the architecture,
+	but not both.
+	This also applies to \co{smp_mb__before_atomic()} and
+	\co{smp_mb__after_spinlock()}, that is, both the uncertain
+	ordering of the intervening code and the plea to avoid such code.
+}\QuickQuizEnd
+
 These primitives generate code only in SMP kernels, however, several
 have UP versions ({\tt mb()}, {\tt rmb()}, and {\tt wmb()},
 respectively) that generate a memory barrier even in UP kernels.
@@ -3903,8 +3958,7 @@ However, these latter primitives are useful when writing drivers,
 because MMIO accesses must remain ordered even in UP kernels.
 In absence of memory-ordering operations, both CPUs and compilers would
 happily rearrange these accesses, which at best would make the device
-act strangely, and could crash your kernel or, in some cases, even damage
-your hardware.
+act strangely, and could crash your kernel or even damage your hardware.
 
 So most kernel programmers need not worry about the memory-ordering
 peculiarities of each and every CPU, as long as they stick to these
@@ -3927,8 +3981,8 @@ Just imagine the damage you could do with a lot of knowledge!
 For those who wish to understand more about individual CPUs'
 memory consistency models, the next sections describe those of a few
 popular and prominent CPUs.
-Although nothing can replace actually reading a given CPU's documentation,
-these sections give a good overview.
+Although there is no substitute for actually reading a given CPU's
+documentation, these sections do give a good overview.
 
 \subsection{Alpha}
 \label{sec:memorder:Alpha}
@@ -3953,7 +4007,7 @@ userspace projects that might still support Alpha.
 The dependent-load difference between Alpha and the other CPUs is
 illustrated by the code shown in
 \cref{lst:memorder:Insert and Lock-Free Search (No Ordering)}.
-This \co{smp_wmb()} on \clnref{wmb} of this listing
+This \co{smp_store_release()}
 guarantees that the element initialization
 in \clnrefrange{init:b}{init:e} is executed before the element is added to the
 list on \clnref{add}, so that the lock-free search will work correctly.
@@ -3971,18 +4025,17 @@ struct el *insert(long key, long data)
 	p->next = head.next;		\lnlbl[init:b]
 	p->key = key;
 	p->data = data;			\lnlbl[init:e]
-	smp_wmb();			\lnlbl[wmb]
-	head.next = p;			\lnlbl[add]
+	smp_store_release(&head.next, p); \lnlbl[add]
 	spin_unlock(&mutex);
 }
 
-struct el *search(long key)
+struct el *search(long searchkey)
 {
 	struct el *p;
 	p = READ_ONCE_OLD(head.next);	\lnlbl[h:next]
 	while (p != &head) {
 		/* Prior to v4.15, BUG ON ALPHA!!! */ \lnlbl[BUG]
-		if (p->key == key) {	\lnlbl[key]
+		if (p->key == searchkey) {	\lnlbl[key]
 			return (p);
 		}
 		p = READ_ONCE_OLD(p->next);	\lnlbl[next]
@@ -4013,8 +4066,8 @@ For example, the load of \co{head.next} on \clnref{h:next} of
 might access cache bank~0,
 and the load of \co{p->key} on \clnref{key} and of \co{p->next} on \clnref{next}
 might access cache bank~1.
-On Alpha, the \co{smp_wmb()} will guarantee that the cache invalidations
-performed by \clnrefrange{init:b}{init:e} of
+On Alpha, the \co{smp_store_release()} will guarantee that the cache
+invalidations performed by \clnrefrange{init:b}{init:e} of
 \cref{lst:memorder:Insert and Lock-Free Search (No Ordering)}
 (for \co{p->next}, \co{p->key}, and \co{p->data}) will reach
 the interconnect before that of \clnref{add} (for \co{head.next}), but
@@ -4039,7 +4092,7 @@ or if you think that I am just making all this up.\footnote{
 	\cref{sec:app:whymb:Ordering-Hostile Architecture}
 	being a case in point.}
 The benefit of this unusual approach to ordering is that Alpha can use
-simpler cache hardware, which in turn permitted higher clock frequency
+simpler cache hardware, which in turn permitted higher clock frequencies
 in Alpha's heyday.
 
 \begin{figure}[tbp]
@@ -4061,18 +4114,16 @@ of \co{READ_ONCE()}.
 Thus, as of v5.9, core kernel code no longer needs to concern itself
 with this aspect of DEC Alpha.
 \begin{fcvref}[ln:memorder:Insert and Lock-Free Search (No Ordering)]
-In older kernels, \co{smp_read_barrier_depends()} primitive could be
-inserted in place of \clnref{BUG} of
-\cref{lst:memorder:Insert and Lock-Free Search (No Ordering)},
 \end{fcvref}
 \begin{fcvref}[ln:memorder:Safe Insert and Lock-Free Search]
-but it is better to use the \co{rcu_dereference()} wrapper macro
+However, it is better to use \co{rcu_dereference()}
 as shown on \clnref{deref1,deref2} of
-\cref{lst:memorder:Safe Insert and Lock-Free Search}.
+\cref{lst:memorder:Safe Insert and Lock-Free Search},
+which works safely and efficiently for all recent kernel versions.
 \end{fcvref}
 
 It is also possible to implement a software mechanism
-that could be used in place of \co{smp_wmb()} to force
+that could be used in place of \co{smp_store_release()} to force
 all reading CPUs to see the writing CPU's writes in order.
 This software barrier could be implemented by sending inter-processor
 interrupts (IPIs) to all other CPUs.
@@ -4081,10 +4132,10 @@ instruction, implementing a system-wide memory barrier similar to that
 provided by the Linux kernel's \co{sys_membarrier()} system call.
 Additional logic is required to avoid deadlocks.
 Of course, CPUs that respect data dependencies would define such a barrier
-to simply be \co{smp_wmb()}.
+to simply be \co{smp_store_release()}.
 However, this approach was deemed by the Linux community
-to impose excessive overhead\cite{McKenney01f}, and furthermore would
-not be considered a reasonable approach by those whose systems must meet
+to impose excessive overhead\cite{McKenney01f}, and to their point would
+be completely inappropriate for systems having
 aggressive real-time response requirements.
 
 \begin{listing}[tbp]
@@ -4098,17 +4149,16 @@ struct el *insert(long key, long data)
 	p->next = head.next;
 	p->key = key;
 	p->data = data;
-	smp_wmb();
-	head.next = p;
+	smp_store_release(&head.next, p);
 	spin_unlock(&mutex);
 }
 
-struct el *search(long key)
+struct el *search(long searchkey)
 {
 	struct el *p;
 	p = rcu_dereference(head.next);		\lnlbl[deref1]
 	while (p != &head) {
-		if (p->key == key) {
+		if (p->key == searchkey) {
 			return (p);
 		}
 		p = rcu_dereference(p->next);	\lnlbl[deref2]
@@ -4153,7 +4203,7 @@ Alpha is the only CPU whose \co{READ_ONCE()} includes an \co{smp_mb()}.
 	reordering reads from the same CPU to the same variable.
 	It also avoids the out-of-thin-air problem that plagues
 	the Java and C11 memory
-	models~\cite{Boehm:2014:OGA:2618128.2618134,conf/esop/BattyMNPS15,MarkBatty2013OOTA-WorkingNote,AlanJeffrey2014JavaDRF,PaulEMcKenney2016OOTA,Sevcik:2011:SOS:1993316.1993534,Vafeiadis:2015:CCO:2775051.2676995}.
+	models~\cite{Boehm:2014:OGA:2618128.2618134,conf/esop/BattyMNPS15,MarkBatty2013OOTA-WorkingNote,HansBoehm2020ConcurrentUB,DavidGoldblatt2019NoElegantOOTAfix,AlanJeffrey2014JavaDRF,PaulEMcKenney2020RelaxedGuideRelaxed,PaulEMcKenney2016OOTA,Sevcik:2011:SOS:1993316.1993534,Vafeiadis:2015:CCO:2775051.2676995}.
 }\QuickQuizEndE
 }
 
@@ -4199,9 +4249,8 @@ None of these instructions exactly match the semantics of Linux's
 The \co{DMB} and \co{DSB} instructions have a recursive definition
 of accesses ordered before and after the barrier, which has an effect
 similar to that of \Power{}'s cumulativity, both of which are
-stronger than
-\cref{sec:memorder:Cumulativity}'s
-variant of cumulativity.
+stronger than LKMM's cumulativity described in
+\cref{sec:memorder:Cumulativity}.
 
 \ARM\ also implements control dependencies, so that if a conditional
 branch depends on a load, then any store executed after that conditional
@@ -4234,7 +4283,7 @@ On the other hand, the combination of the conditional branch on \clnref{if}
 and the \co{ISB} instruction on \clnref{isb} ensures that
 the load on \clnref{z2} happens after the load on \clnref{x}.
 Note that inserting an additional \co{ISB} instruction somewhere between
-\clnref{nop,y} would enforce ordering between \clnref{x,z1}.
+\clnref{if,z1} would enforce ordering between \clnref{x,z1}.
 \end{fcvref}
 
 \subsection{\ARMv8}
@@ -4247,8 +4296,8 @@ Note that inserting an additional \co{ISB} instruction somewhere between
 \ContributedBy{Figure}{fig:memorder:Half Memory Barrier}{Melissa Brossard}
 \end{figure}
 
-\ARMv8 is \ARM's new CPU family~\cite{ARMv8A:2017}
-which includes 64-bit capabilities,
+\ARM's \ARMv8 CPU family~\cite{ARMv8A:2017}
+includes 64-bit capabilities,
 in contrast to their 32-bit-only CPU described in
 \cref{sec:memorder:ARMv7-A/R}.
 \ARMv8's memory model closely resembles its \ARMv7 counterpart,
@@ -4268,7 +4317,7 @@ the C11 notion of load-acquire and store-release.
 
 However, \ARMv8 goes well beyond the C11 memory model by mandating that
 the combination of a store-release and load-acquire act as a full
-barrier under many circumstances.
+barrier under certain circumstances.
 For example, in \ARMv8, given a store followed by a store-release followed
 a load-acquire followed by a load, all to different variables and all from
 a single CPU, all CPUs
@@ -4289,8 +4338,8 @@ defined its memory ordering with an executable formal model~\cite{ARMv8A:2017}.
 \label{sec:memorder:Itanium}
 
 Itanium offers a weak consistency model, so that in absence of explicit
-memory-barrier instructions, Itanium is within its rights to arbitrarily
-reorder memory references~\cite{IntelItanium02v2}.
+memory-barrier instructions or dependencies, Itanium is within its rights
+to arbitrarily reorder memory references~\cite{IntelItanium02v2}.
 Itanium has a memory-fence instruction named {\tt mf}, but also has
 ``half-memory fence'' modifiers to loads, stores, and to some of its atomic
 instructions~\cite{IntelItanium02v3}.
@@ -4309,7 +4358,7 @@ fatal to allow them to bleed out.
 However, as one of the few CPUs with this property, Itanium at one
 time defined Linux's semantics of memory ordering associated with lock
 acquisition and release.\footnote{
-	PowerPC is now the architecture having this dubious privilege.}
+	PowerPC is now the architecture with this dubious privilege.}
 Oddly enough, actual Itanium hardware is rumored to implement
 both load-acquire and store-release instructions as full barriers.
 Nevertheless, Itanium was the first mainstream CPU to introduce the concept
@@ -4424,7 +4473,7 @@ void synchronize_rcu(void)
 
 	Some research efforts have used hardware transactional memory
 	to allow compilers to safely reorder more aggressively, but
-	the current expense of hardware transactions has thus far made
+	the overhead of hardware transactions has thus far made
 	such optimizations unattractive.
 	% @@@ Citation for compilers use of HTM in this manner?
 \end{fcvref}
@@ -4432,11 +4481,11 @@ void synchronize_rcu(void)
 
 The Itanium {\tt mf} instruction is used for the \co{smp_rmb()},
 \co{smp_mb()}, and \co{smp_wmb()} primitives in the Linux kernel.
-Oh, and despite rumors to the contrary, the ``mf'' mnemonic really
-does stand for ``memory fence''.
+Despite persistent rumors to the contrary, the \qco{mf} mnemonic stands
+for ``memory fence''.
 
-Itanium also offers a global total order for ``release'' operations,
-including the ``mf'' instruction.
+Itanium also offers a global total order for release operations,
+including the \co{mf} instruction.
 This provides the notion of transitivity, where if a given code fragment
 sees a given access as having happened, any later code fragment will
 also see that earlier access as having happened.
@@ -4546,6 +4595,10 @@ instructions~\cite{PowerPC94,MichaelLyons05a}:
 	or are guaranteed not to happen, and that any side-effects of
 	these instructions (for example, page-table changes) are seen by the
 	subsequent instructions.
+	However, it does \emph{not} force all memory references to be
+	ordered, only the actual execution of the instruction itself.
+	Thus, the loads might return old still-cached values and the
+	stores do not necessarily force flushing of the store buffers.
 \end{description}
 
 Unfortunately, none of these instructions line up exactly with Linux's
@@ -4645,7 +4698,8 @@ a write to a given MMIO register affects the value that will next be
 read from {\em some other} MMIO register.
 
 SPARC requires a {\tt flush} instruction be used between the time that
-an instruction is stored and executed~\cite{SPARC94}.
+the instruction stream is modified and the time that any of these
+instructions are executed~\cite{SPARC94}.
 This is needed to flush any prior value for that location from
 the SPARC's instruction cache.
 Note that {\tt flush} takes an address, and will flush only that address
@@ -4675,9 +4729,9 @@ This atomic instruction acts as a barrier to both loads and stores.
 But those were ancient times.
 More recently, Intel has published a memory model for
 x86~\cite{Intelx86MemoryOrdering2007}.
-It turns out that Intel's modern CPUs enforce tighter ordering than
-was claimed in the previous specifications, so this model is in effect
-simply mandating this modern behavior.
+It turns out that Intel's modern CPUs enforce tighter ordering than was
+claimed in the previous specifications, so this model simply mandates
+this modern behavior.
 Even more recently, Intel published an updated memory model for
 x86~\cite[Section 8.2]{Intel64IA32v3A2011}, which mandates a total global order
 for stores, although individual CPUs are still permitted to see their
@@ -4694,17 +4748,16 @@ than their non-atomic counterparts.
 
 It is also important to note that atomic instructions operating
 on a given memory location should all be of the same
-size~\cite[Section 8.1.2.2]{Intel64IA32v3A2011}.
+size~\cite[Section 8.1.2.2]{Intel64IA32v3A2016}.
 For example, if you write a program where one CPU atomically increments
 a byte while another CPU executes a 4-byte atomic increment on
 that same location, you are on your own.
 
-However, note that some SSE instructions are weakly ordered ({\tt clflush}
+Some SSE instructions are weakly ordered ({\tt clflush}
 and non-temporal move instructions~\cite{IntelXeonV2b-96a}).
 Code that uses these non-temporal move instructions
 can also use {\tt mfence} for \co{smp_mb()},
 {\tt lfence} for \co{smp_rmb()}, and {\tt sfence} for \co{smp_wmb()}.
-
 A few older variants of the x86 CPU have a mode bit that enables out-of-order
 stores, and for these CPUs, \co{smp_wmb()} must also be defined to
 be {\tt lock;addl}.
@@ -4729,7 +4782,8 @@ It also has strong memory-ordering semantics, as shown in
 \cref{tab:memorder:Summary of Memory Ordering}.
 In particular, all CPUs
 will agree on the order of unrelated stores from different CPUs,
-that is, z~Systems is fully multicopy atomic.
+that is, z~Systems is fully multicopy atomic, and is the only
+commercially available system with this property.
 
 As with most CPUs, the z~Systems architecture does not guarantee a
 cache-coherent instruction stream, hence,
@@ -4739,8 +4793,7 @@ That said, many actual z~Systems machines do in fact accommodate self-modifying
 code without serializing instructions.
 The z~Systems instruction set provides a large set of serializing instructions,
 including compare-and-swap, some types of branches (for example, the
-aforementioned \qco{bcr 15,0} instruction), and test-and-set,
-among others.
+aforementioned \qco{bcr 15,0} instruction), and test-and-set.
 
 \section{Where is Memory Ordering Needed?}
 \label{sec:memorder:Where is Memory Ordering Needed?}
@@ -4756,7 +4809,7 @@ summarizing the intervening discussion with a more sophisticated
 set of rules of thumb.
 
 The first rule of thumb is that memory-ordering operations are only
-required where there is a possibility of interaction involving at least
+required where there is a possibility of interaction between at least
 two variables shared among at least two threads.
 In light of the intervening material, this single sentence encapsulates much of
 \cref{sec:memorder:Basic Rules of Thumb}'s basic rules of thumb,
@@ -4765,14 +4818,14 @@ two-thread special case of ``cycle''.
 And, as always, if a single-threaded program will provide sufficient
 performance, why bother with parallelism?\footnote{
 	Hobbyists and researchers should of course feel free to ignore
-	this and other cautions.}
+	this and many other cautions.}
 After all, avoiding parallelism also avoids the added cost of
 memory-ordering operations.
 
 The second rule of thumb involves load-buffering situations:
-If all thread-to-thread communication in a given cycle use store-to-load links
-(that is, the next thread's load returning the value that the previous thread
-stored), minimal ordering suffices.
+If all thread-to-thread communication in a given cycle use store-to-load
+links (that is, the next thread's load returns the value stored by
+the previous thread), minimal ordering suffices.
 Minimal ordering includes dependencies and acquires as well as all stronger
 ordering operations.
 
@@ -4788,10 +4841,10 @@ fully respect dependencies.
 Therefore, a dependency leading to a load must be headed by
 a \co{READ_ONCE()} or an \co{rcu_dereference()}:
 a plain C-language load is not sufficient.
-In addition, never forget to carefully review
+In addition, carefully review
 \cref{sec:memorder:Address- and Data-Dependency Difficulties,%
 sec:memorder:Control-Dependency Calamities}, because
-a dependency broken by your compiler is no help at all!
+a dependency broken by your compiler will not order anything.
 The two threads sharing the sole non-store-to-load link can
 usually substitute \co{WRITE_ONCE()} plus \co{smp_wmb()} for
 \co{smp_store_release()} on the one hand,
@@ -4824,10 +4877,10 @@ for example, using the herd tool as described in
 
 The fourth and final rule of thumb identifies where full memory barriers
 (or stronger) are required:
-If a given cycle contains two or more non-store-to-load links (that is,
-a total of two or more load-to-store and store-to-store links), you will
-need at least one full barrier between each pair of non-store-to-load
-links in that cycle, as illustrated by
+If a given cycle contains two or more non-store-to-load links (that is, a
+total of two or more links that are either load-to-store or store-to-store
+links), you will need at least one full barrier between each pair of
+non-store-to-load links in that cycle, as illustrated by
 \cref{lst:memorder:W+WRC Litmus Test With More Barriers}
 as well as in the answer to
 \QuickQuizARef{\MemorderQQLitmusTestR}.
@@ -4840,13 +4893,23 @@ friends) also act as full barriers, but at far greater expense than
 With strength comes expense, though full barriers
 usually hurt performance more than they hurt scalability.
 
+Recapping the rules:
+
+\begin{enumerate}
+\item	Memory-ordering operations are required only if at least
+	two variables are shared by at least two threads.
+\item	If all links in a cycle are store-to-load links, then
+	minimal ordering suffices.
+\item	If all but one of the links in a cycle are store-to-load links,
+	then each store-to-load link may use a release-acquire pair.
+\item	Otherwise, at least one full barrier is required between
+	each pair of non-store-to-load links.
+\end{enumerate}
+
 Note that these four rules of thumb encapsulate \emph{minimum} guarantees.
-Different architectures may give
-more substantial guarantees,
-as discussed in \cref{sec:memorder:Hardware Specifics},
-but they may \emph{not}
-be relied upon outside of code specifically designed to run only on
-the corresponding architecture.
+A given architecture may give more substantial guarantees, as discussed
+in \cref{sec:memorder:Hardware Specifics}, but these guarantees may only
+be relied upon in code that runs only for that architecture.
 In addition, more involved memory models may give stronger
 guarantees~\cite{Alglave:2018:FSC:3173162.3177156}, at the
 expense of somewhat greater complexity.
