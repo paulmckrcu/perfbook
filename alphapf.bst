@@ -86,11 +86,11 @@ FUNCTION {init.urlbst.variables}
   "online" 'onlinestring := % indication that resource is online; typically "online"
   "cited " 'citedstring := % indicator of citation date; typically "cited "
   "[link]" 'linktextstring := % dummy link text; typically "[link]"
-  "http://arxiv.org/abs/" 'eprinturl := % prefix to make URL from eprint ref
+  "https://arxiv.org/abs/" 'eprinturl := % prefix to make URL from eprint ref
   "arXiv:" 'eprintprefix := % text prefix printed before eprint ref; typically "arXiv:"
-  "http://dx.doi.org/" 'doiurl := % prefix to make URL from DOI
+  "https://dx.doi.org/" 'doiurl := % prefix to make URL from DOI
   "doi:" 'doiprefix :=      % text prefix printed before DOI ref; typically "doi:"
-  "http://www.ncbi.nlm.nih.gov/pubmed/" 'pubmedurl := % prefix to make URL from PUBMED
+  "https://www.ncbi.nlm.nih.gov/pubmed/" 'pubmedurl := % prefix to make URL from PUBMED
   "PMID:" 'pubmedprefix :=      % text prefix printed before PUBMED ref; typically "PMID:"
 
   % The following are internal state variables, not configuration constants,
