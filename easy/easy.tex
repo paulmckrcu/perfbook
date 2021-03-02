@@ -18,16 +18,23 @@
 	 {\emph{Alan J.~ Perlis, updated}}
 % http://www.cs.yale.edu/homes/perlis-alan/quotes.html
 
-``Easy'' is a relative term.
+If you are tempted to look down on ease-of-use requirements, please
+consider that an ease-of-use bug in Linux-kernel RCU resulted in an
+exploitable Linux-kernel security bug in a use of
+RCU~\cite{McKenney:2019:CRS:3319647.3325836}.
+It is therefore clearly important that even in-kernel APIs be easy to use.
+
+Unfortunately, ``easy'' is a relative term.
 For example, many people would consider a 15-hour airplane flight to be
 a bit of an ordeal---unless they stopped to consider alternative modes
 of transportation, especially swimming.
-This means that creating an easy-to-use API requires that you know
-quite a bit about your intended users.
+This means that creating an easy-to-use API requires that you understand
+your intended users well enough to know what is easy for them.
+Which might or might not have anything to do with what is easy for you.
 
 The following question illustrates this point: ``Given a randomly chosen
 person among everyone alive today, what one change would
-improve his or her life?''
+improve that person's life?''
 
 There is no single change that would be guaranteed to help everyone's life.
 After all, there is an extremely wide range of people, with a correspondingly
@@ -39,11 +46,12 @@ might well be fatal to someone recovering from a heart attack.
 Information critical to the success of one person might contribute to
 the failure of someone suffering from information overload.
 In short, if you are working on a software project that is intended to
-help someone you know nothing about, you should not be surprised when
-that someone is less than impressed with your efforts.
+help people you know nothing about, you should not be surprised when
+those people find fault with your project.
 
 If you really want to help a given group of people, there is simply no
-substitute for working closely with them over an extended period of time.
+substitute for working closely with them over an extended period of time,
+as in years.
 Nevertheless, there are some simple things that you can do to increase
 the odds of your users being happy with your software, and some of these
 things are covered in the next section.
@@ -76,9 +84,16 @@ Linux kernel:
 	command manages to come close.
 \item	The compiler or linker won't let you get it wrong.
 \item	The compiler or linker will warn you if you get it wrong.
+	\co{BUILD_BUG_ON()} is your users' friend.
 \item	The simplest use is the correct one.
 \item	The name tells you how to use it.
+	But names can be two-edged swords.
+	Although \co{rcu_read_lock()} is plain enough for someone
+	converting code from reader-writer locking, it might cause
+	some consternation for someone converting code from
+	reference counting.
 \item	Do it right or it will always break at runtime.
+	\co{WARN_ON_ONCE()} is your users' friend.
 \item	Follow common convention and you will get it right.
 	The \co{malloc()} library function is a good example.
 	Although it is easy to get memory allocation wrong, a
@@ -116,10 +131,11 @@ Linux kernel:
 	The Linux kernel \co{smp_mb()} function is an example of
 	this point on the scale.
 	Many developers assume that this function has much
-	stronger ordering semantics than it possesses.
+	stronger ordering semantics than it actually possesses.
 	Chapter~\ref{chp:Advanced Synchronization: Memory Ordering} contains the
 	information needed to avoid this mistake, as does the
-	Linux-kernel source tree's \co{Documentation} directory.
+	Linux-kernel source tree's \path{Documentation} and
+	\path{tools/memory-model} directories.
 \item	The compiler or linker will warn you if you get it right.
 \item	The compiler or linker won't let you get it right.
 \item	It is impossible to get right.
@@ -169,7 +185,8 @@ However, this might be a bottleneck if threads were being created and
 deleted frequently.\footnote{
 	Those of you with strong operating-system backgrounds, please
 	suspend disbelief.
-	If you are unable to suspend disbelief, send us a better example.}
+	Those unable to suspend disbelief are encouraged to provide
+	better examples.}
 Another approach would be to use a hash table and to lock the individual
 hash buckets, but this can perform poorly when scanning the list in order.
 
@@ -235,7 +252,8 @@ The fact is that this algorithm is extremely specialized (it only works
 on certain sized lists), and also quite fragile.
 Any bug that accidentally failed to add a node to the list could result
 in deadlock.
-In fact, simply adding the node a bit too late could result in deadlock.
+In fact, simply adding the node a bit too late could result in deadlock,
+as could increasing the number of threads.
 
 In addition, the other algorithms described above are ``good and sufficient''.
 For example, simply acquiring the locks in address order is fairly simple
