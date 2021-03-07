@@ -451,7 +451,9 @@ not provide for it.
 On the other hand, the example above is a fairly sophisticated use
 of locking that is not normally found in simple textbook examples,
 so perhaps its omission is to be expected.
-That said, there are rumors that some TM researchers are investigating
+That said, some researchers are using transactions to autoparallelize
+code~\cite{ArunRaman2010MultithreadedTransactions},
+and there are rumors that other TM researchers are investigating
 fork/join parallelism within transactions, so perhaps this topic will
 soon be addressed more thoroughly.
 
@@ -777,7 +779,8 @@ the occasional transaction.
 	opportunity to improve.
 \item	Use TM strictly as an optimization in lock-based systems, as was
 	done by the TxLinux~\cite{ChistopherJRossbach2007a} group and
-	by a great many transactional lock elision projects.
+	by a great many transactional lock elision
+	projects~\cite{MartinPohlack2011HTM2TLE,Kleen:2014:SEL:2566590.2576793,PascalFelber2016rwlockElision,SeongJaePark2020HTMRCUlock}.
 	This approach seems sound, but leaves the locking design
 	constraints (such as the need to avoid deadlock) firmly in place.
 \item	Strive to reduce the overhead imposed on locking primitives.
@@ -844,10 +847,12 @@ Here are some options available to TM:
 	opportunity to improve.
 \item	Use TM strictly as an optimization in lock-based systems, as was
 	done by the TxLinux~\cite{ChistopherJRossbach2007a} group,
-	and as has been done by more recent TM reader-writer-lock
-	elision work~\cite{PascalFelber2016rwlockElision}.
-	This approach seems sound, but leaves the locking design
-	constraints (such as the need to avoid deadlock) firmly in place.
+	and as has been done by more recent work using TM to elide
+	reader writer locks~\cite{PascalFelber2016rwlockElision}.
+	This approach seems sound, at least on \Power{8}
+	CPUs~\cite{Le:2015:TMS:3266491.3266500}, but leaves the locking
+	design constraints (such as the need to avoid deadlock) firmly
+	in place.
 \end{enumerate}
 
 Of course, there might well be other non-obvious issues surrounding
@@ -863,27 +868,39 @@ other deferred-reclamation mechanisms such as reference counters and
 hazard pointers.
 In the text below, known differences are specifically called out.
 
-Because read-copy update (RCU) finds its main use in the Linux kernel,
-one might be forgiven for assuming that there had been no academic work
-on combining RCU and TM.\footnote{
-	However, the in-kernel excuse is wearing thin with the advent
-	of user-space RCU~\cite{MathieuDesnoyers2009URCU,MathieuDesnoyers2012URCU}.}
-However, the TxLinux group from the University of Texas at Austin had
-no choice~\cite{ChistopherJRossbach2007a}.
-The fact that they applied TM to the Linux 2.6 kernel, which uses RCU,
-forced them to integrate TM and RCU, with TM taking the place of locking
-for RCU updates.
+Reference counting, hazard pointers, and RCU are all heavily used, as noted in
+\cref{sec:defer:RCU Related Work,sec:defer:Which to Choose? (Production Use)}.
+This means that any TM implementation that chooses not to surmount each
+and every challenge called out in this section needs to interoperate
+cleanly and efficiently with all of these synchronization mechanisms.
+
+The TxLinux group from the University of Texas at Austin appears to be
+the group to take on the challenge of RCU/TM
+interoperability~\cite{ChistopherJRossbach2007a}.
+Because they applied TM to the Linux 2.6 kernel, which uses RCU, they
+had no choice but to integrate TM and RCU, with TM taking the place of
+locking for RCU updates.
 Unfortunately, although the paper does state that the RCU implementation's
 locks (e.g., \co{rcu_ctrlblk.lock}) were converted to transactions,
-it is silent about what happened to locks used in RCU-based updates
-(e.g., \co{dcache_lock}).
+it is silent about what was done with those locks used by RCU-based updates
+(for example, \co{dcache_lock}).
+
+More recently, \ppl{Dimitrios}{Siakavaras} et al.~have applied
+HTM and RCU to search trees~\cite{Siakavaras2017CombiningHA,DimitriosSiakavaras2020RCU-HTM-B+Trees},
+\ppl{Christina}{Giannoula} et al.~have used HTM and RCU to color
+graphs~\cite{ChristinaGiannoula2018HTM-RCU-graphcoloring},
+and
+\ppl{SeongJae}{Park} et al.~have used HTM and RCU to optimize high-contention
+locking on NUMA systems.
 
 It is important to note that RCU permits readers and updaters to run
 concurrently, further permitting RCU readers to access data that is in
 the act of being updated.
 Of course, this property of RCU, whatever its performance, scalability,
 and real-time-response benefits might be, flies in the face of the
-underlying atomicity properties of TM.
+underlying atomicity properties of TM, although the \Power{8} CPU family's
+suspended-transaction facility~\cite{Le:2015:TMS:3266491.3266500} makes
+it an exception to this rule.
 
 So how should TM-based updates interact with concurrent RCU readers?
 Some possibilities are as follows:
@@ -899,7 +916,7 @@ Some possibilities are as follows:
 	potentially starve all updaters, which could in theory result
 	in system hangs.
 	In addition, not all TM implementations offer the strong atomicity
-	required to implement this approach.
+	required to implement this approach, and for good reasons.
 \item	RCU readers that run concurrently with conflicting TM updates
 	get old (pre-transaction) values from any conflicting RCU loads.
 	This preserves RCU semantics and performance, and also prevents
@@ -908,13 +925,13 @@ Some possibilities are as follows:
 	to old values of variables that have been tentatively updated
 	by an in-flight transaction.
 	In particular, log-based TM implementations that maintain
-	old values in the log (thus making for excellent TM commit
+	old values in the log (thus providing excellent TM commit
 	performance) are not likely to be happy with this approach.
 	Perhaps the \co{rcu_dereference()} primitive can be leveraged
 	to permit RCU to access the old values within a greater range
 	of TM implementations, though performance might still be an issue.
-	Nevertheless, there are popular TM implementations that can
-	be easily and efficiently integrated with RCU in this
+	Nevertheless, there are popular TM implementations that have
+	been integrated with RCU in this
 	manner~\cite{DonaldEPorter2007TRANSACT,PhilHoward2011RCUTMRBTree,
 	PhilipWHoward2013RCUrbtree}.
 \item	If an RCU reader executes an access that conflicts with an
@@ -925,7 +942,7 @@ Some possibilities are as follows:
 	transactions.
 	In addition, not all TM implementations are capable of delaying
 	conflicting accesses.
-	That said, this approach seems eminently reasonable for hardware
+	Nevertheless, this approach seems eminently reasonable for hardware
 	TM implementations that support only small transactions.
 \item	RCU readers are converted to transactions.
 	This approach pretty much guarantees that RCU is compatible with
@@ -935,9 +952,9 @@ Some possibilities are as follows:
 	Furthermore, this approach is infeasible in cases where any of
 	the RCU read-side critical sections contains operations that
 	the TM implementation in question is incapable of handling.
-	This approach is more difficult to apply to hazard pointers,
-	which do not have a sharply defined notion of a reader as
-	a section of code.
+	This approach is more difficult to apply to hazard pointers and
+	reference counters, which do not have a sharply defined notion
+	of a reader as a section of code.
 \item	Many update-side uses of RCU modify a single pointer to publish
 	a new data structure.
 	In some of these cases, RCU can safely be permitted to see a
@@ -951,7 +968,7 @@ Some possibilities are as follows:
 	to be atomic, the ordering of the accesses within the transaction
 	is not supposed to matter.
 \item	Prohibit use of TM in RCU updates.
-	This is guaranteed to work, but seems a bit restrictive.
+	This is guaranteed to work, but restricts use of TM.
 \end{enumerate}
 
 It seems likely that additional approaches will be uncovered, especially
@@ -1033,6 +1050,12 @@ internally~\cite{UCAM-CL-TR-579,KeirFraser2007withoutLocks,Gu:2019:PSE:3358807.3
 	academic prejudice against asynchronous grace periods and against
 	blocking update completion until the grace period completes,
 	which did much to promote their scalability.
+
+	Interestingly enough, RLU and RCU take different approaches to avoid
+	the inherent limitations of STM noted by \ppl{Hagit}{Attiya} et
+	al.~\cite{Attiya:2009:STMReadOnlyLimits}.
+	RCU avoids providing strict serializability and RLU avoids providing
+	invisible read-only transactions.
 }\QuickQuizEnd
 
 \subsubsection{Extra-Transactional Accesses}
@@ -1048,7 +1071,7 @@ sections, and is in fact the common case.
 Given mechanisms such as the so-called ``dirty reads'' that are
 prevalent in production database systems, it is not surprising
 that extra-transactional accesses have received serious attention
-from the proponents of TM, with the concepts of weak and strong
+from the proponents of TM, with the concept of weak
 atomicity~\cite{Blundell2006TMdeadlock} being but one case in point.
 
 Here are some extra-transactional options:
@@ -1081,7 +1104,7 @@ Here are some extra-transactional options:
 	transactions.
 \end{enumerate}
 
-It appears that transactions were conceived as standing alone, with no
+It appears that transactions were conceived in a vacuum, with no
 interaction required with any other synchronization mechanism.
 If so, it is no surprise that much confusion and complexity arises when
 combining transactions with non-transactional accesses.
@@ -1106,9 +1129,8 @@ conclusions:
 	operations, including unbuffered I/O, RPCs, memory-mapping
 	operations, time delays, and the \co{exec()} system call.
 	This property also has the unfortunate consequence of introducing
-	all the complexities inherent in the possibility of
-	failure into synchronization primitives, often in a developer-visible
-	manner.
+	all the complexities inherent in the possibility of failure,
+	often in a developer-visible manner.
 \item	Another interesting property of TM, noted by
 	Shpeisman et al.~\cite{TatianaShpeisman2009CppTM}, is that TM
 	intertwines the synchronization with the data it protects.
@@ -1125,19 +1147,37 @@ conclusions:
 	with multithreaded transactions.
 \end{enumerate}
 
+\QuickQuiz{
+	Given things like \co{spin_trylock()}, how does it make any
+	sense at all to claim that TM introduces the concept of failure???
+}\QuickQuizAnswer{
+	When using locking, \co{spin_trylock()} is a choice, with a
+	corresponding failure-free choice being \co{spin_lock()},
+	which is used in the common case, as in there are more than
+	100 times as many calls to \co{spin_lock()} than to
+	\co{spin_trylock()} in the v5.11 Linux kernel.
+	When using TM, the only failure-free choice is the irrevocable
+	transaction, which is not used in the common case.
+	In fact, the irrevocable transaction is not even available
+	in all TM implementations.
+}\QuickQuizEnd
+
 What should TM researchers and developers do about all of this?
 
-One approach is to focus on TM in the small, focusing on situations
-where hardware assist potentially provides substantial advantages over
-other synchronization primitives.
-This is in fact the approach Sun took with its Rock research
+One approach is to focus on TM in the small, focusing on small
+transactions where hardware assist potentially provides substantial
+advantages over other synchronization primitives and on small programs
+where there is some evidence for increased productivity for a combined
+TM-locking approach~\cite{VPankratius2011TMvsLockingProductivity}.
+Sun took the small-transaction approach with its Rock research
 CPU~\cite{DaveDice2009ASPLOSRockHTM}.
-Some TM researchers seem to agree with this approach, while others have
-much higher hopes for TM.
-
-Of course, it is quite possible that TM will be able to take on larger
-problems, and this section lists a few of the issues that
-must be resolved if TM is to achieve this lofty goal.
+Some TM researchers seem to agree with these two small-is-beautiful
+approaches~\cite{JMStone93}, others have much higher hopes for TM, and yet others
+hint that high TM aspirations might be TM's worst
+enemy~\cite[Section 6]{Attiya:2010:ICT:1835698.1835699}.
+It is nonetheless quite possible that TM will be able to take on larger
+problems, and this section has listed a few of the issues that must be
+resolved if TM is to achieve this lofty goal.
 
 Of course, everyone involved should treat this as a learning experience.
 It would seem that TM researchers have great deal to learn from
@@ -1145,6 +1185,21 @@ practitioners who have successfully built large software systems using
 traditional synchronization primitives.
 
 And vice versa.
+
+\QuickQuiz{
+	What is to learn?
+	Why not just use TM for memory-based data structures and locking
+	for those rare cases featuring the many silly corner cases listed
+	in this silly section???
+}\QuickQuizAnswer{
+	The year 2005 just called, and it says that it wants its
+	incandescent TM marketing hype back.
+
+	In the year 2021, TM still has significant proving to do,
+	even with the advent of HTM, which is covered in the
+	upcoming
+	\cref{sec:future:Hardware Transactional Memory}.
+}\QuickQuizEnd
 
 \begin{figure}[tb]
 \centering
@@ -1185,9 +1240,12 @@ fig:future:The STM Reality: Irrevocable Operations,%
 fig:future:The STM Reality: Realtime Response}.\footnote{
 	Recent academic work-in-progress has investigated lock-based STM
 	systems for real-time use~\cite{JimAnderson2019STMRT,CatherineNemitz2018LockSTMrealtime},
-	albeit without any performance results.}
+	albeit without any performance results, and with some indications
+	that real-time hybrid STM/HTM systems must choose between fast
+	common-case performance and worst-case forward-progress
+	guarantees~\cite{DBLP:journals/corr/AlistarhKKRS14,MartinSchoeberl2010realtimeTM}.}
 Less fanciful STM retrospectives are also
 available~\cite{JoeDuffy2010RetroTM,JoeDuffy2010RetroTM2}.
 
-Recent advances in commercially available hardware have opened the door
-for variants of HTM, which are addressed in the following section.
+Some commercially available hardware supports restricted variants of
+HTM, which are addressed in the following section.
