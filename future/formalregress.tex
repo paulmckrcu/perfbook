@@ -8,10 +8,12 @@
 \epigraph{Theory without experiments: Have we gone too far?}
 	 {\emph{Michael Mitzenmacher}}
 
-Formal verification has proven useful in some cases, but a pressing open
-question is whether hard-core formal verification will ever be included
-in the automated regression-test suites used for continuous integration
-within complex concurrent codebases, such as the Linux kernel.
+Formal verification has long proven useful in a number of production
+environments~\cite{JamesRLarus2004RightingSoftware,AlBessey2010BillionLoCLater,ByronCook2018FormalAmazon,CaitlinSadowski2018staticAnalysisGoogle,DinoDistefano2019FBstaticAnalysis}.
+However, it is an question as to whether hard-core formal verification
+will ever be included in the automated regression-test suites used for
+continuous integration within complex concurrent codebases, such as the
+Linux kernel.
 Although there is already a proof of concept for Linux-kernel
 SRCU~\cite{LanceRoy2017CBMC-SRCU}, this test is for a small portion
 of one of the simplest RCU implementations, and has proven difficult
@@ -56,8 +58,8 @@ each year.
 Over time, human error will creep in, which means that the verification
 won't match the source code, rendering the verification useless.
 Repeated verification clearly requires either that the formal-verification
-tooling input your code directly, or that there be automatic translation
-of your code to the form required for verification.
+tooling input your code directly, or that there be bug-free automatic
+translation of your code to the form required for verification.
 
 PPCMEM and \co{herd} can in theory directly input assembly language
 and C++ code, but these tools work only on very small litmus tests,
@@ -69,9 +71,30 @@ extremely useful, but they are not well-suited for regression suites.
 In contrast, \co{cbmc} and Nidhugg can input C programs of reasonable
 (though still quite limited) size, and if their capabilities continue
 to grow, could well become excellent additions to regression suites.
+The Coverity static-analysis tool also inputs C programs, and of very
+large size, including the Linux kernel.
+Of course, Coverity's static analysis is quite simple compared to that
+of \co{cbmc} and Nidhugg.
+On the other hand, Coverity had an all-encompassing definition of
+``C program'' that posed special challenges~\cite{AlBessey2010BillionLoCLater}.
+Amazon Web Services uses a variety of formal-verification tool,
+including \co{cbmc}, and applies some of these tools to regression
+testing~\cite{ByronCook2018FormalAmazon}.
+Google uses a number of relatively simple static analysis tools directly
+on large Java code bases, which are arguably less diverse than C code
+bases~\cite{CaitlinSadowski2018staticAnalysisGoogle}.
+Facebook uses more aggressive forms of formal verification against its
+code bases, including analysis of concurrency~\cite{DinoDistefano2019FBstaticAnalysis,PeterWOHearn2019incorrectnessLogic},
+though not yet on the Linux kernel.
+Finally, Microsoft has long used static analysis on its code
+bases~\cite{JamesRLarus2004RightingSoftware}.
 
-One shortcoming of taking C code as input is that it assumes that the
-compiler is correct.
+Given this list, it is clearly possible to create sophisticated
+formal-verification tools that directly consume production-quality
+source code.
+
+However, one shortcoming of taking C code as input is that it assumes
+that the compiler is correct.
 An alternative approach is to take the binary produced by the C compiler
 as input, thereby accounting for any relevant compiler bugs.
 This approach has been used in a number of verification efforts,
@@ -106,7 +129,7 @@ On the contrary, they can be quite helpful for design-time verification,
 as was discussed in
 \cref{chp:Formal Verification}.
 However, such tools are not particularly helpful for automated regression
-testing.
+testing, which is in fact the topic of this section.
 
 \subsection{Environment}
 \label{sec:future:Environment}
@@ -126,9 +149,8 @@ good match for modern computer systems, as was seen in
 In contrast, one of the great strengths of PPCMEM and \co{herd}
 is their detailed modeling of various CPU families memory models,
 including x86, \ARM, Power, and, in the case of \co{herd},
-even a Linux-kernel memory model~\cite{Alglave:2018:FSC:3173162.3177156},
-which has been accepted into version 4.17 of
-the Linux kernel.
+a Linux-kernel memory model~\cite{Alglave:2018:FSC:3173162.3177156},
+which was accepted into Linux-kernel version v4.17.
 
 The \co{cbmc} and Nidhugg tools provide some ability to select
 memory models, but do not provide the variety that PPCMEM and
@@ -144,7 +166,7 @@ Nevertheless, tools that fail to match the environment can still
 be useful.
 For example, a great many concurrency bugs would still be bugs on
 a mythical sequentially consistent system, and these bugs could
-be located by a tool that over-approximated the system's memory model
+be located by a tool that over-approximates the system's memory model
 with sequential consistency.
 Nevertheless, these tools will fail to find bugs involving missing
 memory-ordering directives, as noted in the aforementioned
@@ -160,9 +182,9 @@ many of the most interesting software questions are in fact undecidable.
 However, there are differences in degree, even among exponentials.
 
 PPCMEM by design is unoptimized, in order to provide greater assurance
-that the memory models of interest are in fact accurately represented.
-The \co{herd} tool optimizes more aggressively, and so as described in
-\cref{sec:formal:Axiomatic Approaches}, is orders of magnitude
+that the memory models of interest are accurately represented.
+The \co{herd} tool optimizes more aggressively, as described in
+\cref{sec:formal:Axiomatic Approaches}, and is thus orders of magnitude
 faster than PPCMEM.
 Nevertheless, both PPCMEM and \co{herd} target very small litmus tests
 rather than larger bodies of code.
@@ -173,8 +195,8 @@ Promela/\co{spin} was used to verify the Curiosity rover's
 filesystem~\cite{DBLP:journals/amai/GroceHHJX14} and, as noted earlier,
 both \co{cbmc} and Nidhugg were appled to Linux-kernel RCU.
 
-If advances in heuristics continue at the rate of the past quarter
-century, we can look forward to large reductions in overhead for
+If advances in heuristics continue at the rate of the past three
+decades, we can look forward to large reductions in overhead for
 formal verification.
 That said, combinatorial explosion is still combinatorial explosion,
 which would be expected to sharply limit the size of programs that
@@ -297,6 +319,9 @@ manual intervention.
 This intervention will preferably mediated by scripting, the better to
 reliably carry out repeated verifications on each release, and
 preferably eventually in a manner well-suited for continuous integration.
+And Facebook's Infer tool has taken important steps towards doing just
+that, via compositionality and
+abstraction~\cite{SamBlackshear2018RacerD,DinoDistefano2019FBstaticAnalysis}.
 
 In any case, we can expect formal-verification capabilities to continue
 to increase over time, and any such increases will in turn increase
@@ -343,6 +368,10 @@ having at least one instance of the common bug.
 Therefore, the execution traces provided
 by many formal-verification tools will continue to be valuable,
 particularly for complex and difficult-to-understand bugs.
+In addition, recent work applies \emph{incorrectness-logic}
+formalism reminiscent of the traditional Hoare logic used for
+full-up correctness proofs, but with the sole purpose of finding
+bugs~\cite{PeterWOHearn2019incorrectnessLogic}.
 
 \subsection{Minimal Scaffolding}
 \label{sec:future:Minimal Scaffolding}
@@ -352,10 +381,9 @@ specification against which the software would be verified.
 Unfortunately, a mathematically rigorous specification might well
 be larger than the actual code, and each line of specification
 is just as likely to contain bugs as is each line of code.
-A formal verification effort proving that the code faithfully
-implemented the specification would be a proof of bug-for-bug
-compatibility between the two, which would not likely be all
-that helpful.
+A formal verification effort proving that the code faithfully implemented
+the specification would be a proof of bug-for-bug compatibility between
+the two, which might not be all that helpful.
 
 Worse yet, the requirements for a number of software artifacts,
 including Linux-kernel RCU, are empirical in
@@ -365,8 +393,8 @@ nature~\cite{PaulEMcKenney2015RCUreqts1,PaulEMcKenney2015RCUreqts2,PaulEMcKenney
 For this common type of software, a complete specification is a
 polite fiction.
 Nor are complete specifications any less fictional for hardware,
-as was made clear by the late 2017 advent of the Meltdown and Spectre
-side-channel attacks~\cite{JannHorn2018MeltdownSpectre}.
+as was made clear by the late-2017 Meltdown and Spectre side-channel
+attacks~\cite{JannHorn2018MeltdownSpectre}.
 
 This situation might cause one to give up all hope of formal verification
 of real-world software and hardware artifacts, but it turns out that there is
@@ -382,6 +410,9 @@ also subjected to stress tests.\footnote{
 	And you \emph{do} stress-test your code, don't you?}
 The \co{cbmc} tool also checks for array-out-of-bound references,
 thus implicitly adding them to the specification.
+The aforementioned incorrectness logic can also be thought of as using
+an implicit bugs-not-present
+specification~\cite{PeterWOHearn2019incorrectnessLogic}.
 
 This implicit-specification approach makes quite a bit of sense, particularly
 if you look at formal verification not as a full proof of correctness,
@@ -406,7 +437,7 @@ Suppose further that an omniscient formal-verification tool located
 all 100 bugs, which the developers duly fixed.
 What happens to the reliability of this software artifact?
 
-The perhaps surprising answer is that the reliability \emph{decreases}.
+The answer is that the reliability \emph{decreases}.
 
 To see this, keep in mind that historical experience indicates that
 about 7\,\% of fixes introduce a new bug~\cite{RexBlack2012SQA}.
@@ -462,10 +493,9 @@ once every day on average and 99 more that fail every million years
 each.
 Suppose that a formal-verification tool located the 99 million-year
 bugs, but failed to find the one-day bug.
-Fixing the 99 bugs located will take time and effort, likely slightly
-decrease reliability, and do nothing at all about the pressing
-each-day failure that is likely causing much embarrassment and perhaps
-much worse besides.
+Fixing the 99 bugs located will take time and effort, decrease
+reliability, and do nothing at all about the pressing each-day failure
+that is likely causing embarrassment and perhaps much worse besides.
 
 Therefore, it would be best to have a validation tool that
 preferentially located the most troublesome bugs.
@@ -499,6 +529,10 @@ bug-fix efforts.
 	and the key point is to prioritize the larger efforts required
 	to construct and validate the production-quality fixes.
 }\QuickQuizEnd
+
+There has been some recent formal-verification work that prioritizes
+executions having fewer preemptions, under that reasonable assumption
+that smaller numbers of preemptions are more likely.
 
 Identifying relevant bugs might sound like too much to ask, but it is what
 is really required if we are to actually increase software reliability.
@@ -665,7 +699,8 @@ not at all mean that they are useless, in fact,
 many of them have proven their worth many times over.\footnote{
 	For but one example, Promela was used to verify the file system
 	of none other than the Curiosity Rover.
-	Was \emph{your} formal verification tool used on a Mars rover?}
+	Was \emph{your} formal verification tool used software currently
+	running on Mars???}
 Just not for regression testing.
 
 However, this might well change.
