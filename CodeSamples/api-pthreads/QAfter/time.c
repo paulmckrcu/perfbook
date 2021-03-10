@@ -116,12 +116,13 @@ void *consumer(void *ignored)
 		if (i + 1 >= NSNAPS)
 			break;
 	}
-	printf("consumer exited loop, collected %d items out of %d\n",
+	printf("consumer exited loop, collected %d items %d\n",
 	       i, curseq);
 	if (ssc[0].iserror)
 		printf("0/%ld: %.6f %.6f (%.3f) %ld %ld %ld\n",
 		       ssc[0].sequence, 
-		       ssc[j].t, ssc[j].tc, (ssc[j].tc - ssc[j].t) * 1000000,
+		       ssc[j].t, ssc[j].tc,
+		       (ssc[j].tc - ssc[j].t) * 1000000,
 		       ssc[j].a, ssc[j].b, ssc[j].c);
 	for (j = 0; j <= i; j++)
 		if (ssc[j].iserror)
