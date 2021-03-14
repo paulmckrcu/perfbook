@@ -25,7 +25,7 @@ set yrange [0:30000]
 set y2range [0:50]
 set style data histogram
 set style histogram rowstacked
-set style fill solid 0.2 border -1
+set style fill solid 0.18 border -1
 set key top center
 # Set linestyle 1
 set style line 1 \
@@ -34,7 +34,7 @@ set style line 1 \
 
 # Set linestyle 2
 set style line 2 \
-    linetype 4 linewidth 1 \
+    linetype 4 lc 'dark-red' linewidth 1 \
     pointtype 8 pointsize 0.5
 
 #plot 'rcu-test.dat' using 0:xtic(1), for [i=2:3] '' using i linestyle 1
