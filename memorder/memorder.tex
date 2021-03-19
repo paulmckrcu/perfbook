@@ -3440,9 +3440,10 @@ state machines will also fully preserve this ordering
 \emph{relative to the grace period} due to the fact that interrupts take
 place at a precise location in the execution of the interrupted code.
 
-This in turn means that if the \co{WRITE_ONCE()} follows the end of a given
-RCU grace period, then the accesses within the RCU read-side critical
-section must follow the beginning of that same grace period.
+This in turn means that if the \co{WRITE_ONCE()} follows the end of a
+given RCU grace period, then the accesses within \emph{and following}
+that RCU read-side critical section must follow the beginning of that
+same grace period.
 Similarly, if the \co{READ_ONCE()} precedes the beginning of the grace
 period, everything within \emph{and preceding} that critical section
 must precede the end of that same grace period.
@@ -3505,8 +3506,8 @@ In both cases, the critical section's emptiness is irrelevant.
 	Instead, they are extended in both directions until a quiescent
 	state is encountered.
 	For example, in the Linux kernel, the critical section might
-	be expanded to a pair of \co{schedule()} calls, with one
-	preceding and the other following the critical section.
+	be extended back to the most recent \co{schedule()} call and
+	ahead to the next \co{schedule()} call.
 	Of course, in non-QSBR implementations, \co{rcu_read_lock()}
 	and \co{rcu_read_unlock()} really do emit code, which can clearly
 	provide ordering.
@@ -3537,10 +3538,14 @@ that is, both instances of \co{r2} can have final values of zero.
 
 This might seem strange in light of the fact that empty RCU
 read-side critical sections can provide ordering.
-And it is true that a QSBR implementations of RCU would in fact
-forbid this outcome.
-However, RCU also has non-QSBR implementations, and these implementations
-have no way to enforce ordering in this case.
+And it is true that QSBR implementations of RCU would in fact forbid
+this outcome, due to the fact that preemption would be disabled across
+the entirety of \co{P1()}'s function body, so that \co{P1()} would run
+within an implicit RCU read-side critical section.
+However, RCU also has non-QSBR implementations, and the kernels running
+these implementations are preemptible, which means there is no implied
+RCU read-side critical section, and in turn no way for RCU to enforce
+ordering.
 Therefore, this litmus test's cycle is allowed.
 
 \QuickQuiz{
@@ -3579,15 +3584,15 @@ placing \co{synchronize_rcu()} between each process's
 accesses prohibits the cycle.
 In addition, the cycle is prohibited in an SB test where one process
 uses \co{synchronize_rcu()} and the other uses \co{rcu_read_lock()} and
-\co{rcu_read_unlock()}, as exemplified by
+\co{rcu_read_unlock()}, as shown by
 \cref{lst:memorder:RCU Fundamental Property}.
 However, if both processes use \co{rcu_read_lock()} and
-\co{rcu_read_unlock()}, the cycle will be allowed, as exemplified by
+\co{rcu_read_unlock()}, the cycle will be allowed, as shown by
 \cref{lst:memorder:RCU Readers Provide No Lock-Like Ordering}.
 
 Is it possible to say anything general about which RCU-protected
 litmus tests will be prohibited and which will be allowed?
-This section takes up this question.
+This section takes up that question.
 
 \begin{listing}[tbp]
 \input{CodeSamples/formal/herd/C-SB+o-rcusync-o+rl-o-o-rul+rl-o-o-rul@whole.fcv}
@@ -3988,7 +3993,7 @@ documentation, these sections do give a good overview.
 \label{sec:memorder:Alpha}
 
 It may seem strange to say much of anything about a CPU whose end of life
-has long since past, but Alpha is interesting because it is the only
+has long since passed, but Alpha is interesting because it is the only
 mainstream CPU that reorders dependent loads, and has thus had outsized
 influence on concurrency APIs, including within the Linux kernel.
 The need for core Linux-kernel code to accommodate Alpha ended
@@ -4134,7 +4139,7 @@ Additional logic is required to avoid deadlocks.
 Of course, CPUs that respect data dependencies would define such a barrier
 to simply be \co{smp_store_release()}.
 However, this approach was deemed by the Linux community
-to impose excessive overhead\cite{McKenney01f}, and to their point would
+to impose excessive overhead~\cite{McKenney01f}, and to their point would
 be completely inappropriate for systems having
 aggressive real-time response requirements.
 
@@ -4598,7 +4603,8 @@ instructions~\cite{PowerPC94,MichaelLyons05a}:
 	However, it does \emph{not} force all memory references to be
 	ordered, only the actual execution of the instruction itself.
 	Thus, the loads might return old still-cached values and the
-	stores do not necessarily force flushing of the store buffers.
+	\co{isync} instruction does not force values previously stored
+	to be flushed from the store buffers.
 \end{description}
 
 Unfortunately, none of these instructions line up exactly with Linux's
@@ -4780,10 +4786,9 @@ but compiler constraints suffices for both the
 \co{smp_rmb()} and \co{smp_wmb()} primitives.
 It also has strong memory-ordering semantics, as shown in
 \cref{tab:memorder:Summary of Memory Ordering}.
-In particular, all CPUs
-will agree on the order of unrelated stores from different CPUs,
-that is, z~Systems is fully multicopy atomic, and is the only
-commercially available system with this property.
+In particular, all CPUs will agree on the order of unrelated stores from
+different CPUs, that is, the z~Systems CPU family is fully multicopy
+atomic, and is the only commercially available system with this property.
 
 As with most CPUs, the z~Systems architecture does not guarantee a
 cache-coherent instruction stream, hence,
@@ -4913,6 +4918,10 @@ be relied upon in code that runs only for that architecture.
 In addition, more involved memory models may give stronger
 guarantees~\cite{Alglave:2018:FSC:3173162.3177156}, at the
 expense of somewhat greater complexity.
+In these more formal memory-ordering papers, a store-to-load link is an
+example of a reads-from (rf) link, a load-to-store link is an example
+of a from-reads (fr) link, and a store-to-store link is an example of
+a coherence (co) link.
 
 One final word of advice: Use of raw memory-ordering primitives is
 a last resort.
