@@ -29,7 +29,7 @@ LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex sub_qqz
 # parallel runs of divideqqz.pl.
 
 TWOCOLTARGETS := mstx msr msn msnt sf qq nq ix
-ABBREVTARGETS := lt hb a4 1c tcb msns mss $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
+ABBREVTARGETS := lt hb a4 1c tcb msns mss eb $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 GENERATED_MAIN := $(filter-out perfbook-lt.tex,$(foreach v,$(ABBREVTARGETS),perfbook-$(v).tex)) perfbook.tex
@@ -179,7 +179,11 @@ else
 ifeq ($(PERFBOOK_PAPER),HB)
 	PERFBOOK_BASE = perfbook-hb.tex
 else
+ifeq ($(PERFBOOK_PAPER),EB)
+	PERFBOOK_BASE = perfbook-eb.tex
+else
 	PERFBOOK_BASE = perfbook-lt.tex
+endif
 endif
 endif
 
@@ -282,6 +286,10 @@ perfbook-1c.tex: $(PERFBOOK_BASE)
 
 perfbook-hb.tex: perfbook-lt.tex
 	sed -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < $< > $@
+
+perfbook-eb.tex: perfbook-lt.tex
+	sed -e 's/setboolean{ebooksize}{false}/setboolean{ebooksize}{true}/' < $< > $@
+	sed -i 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' $@
 
 perfbook-msns.tex: $(PERFBOOK_BASE)
 	sed -e 's/%msfontstub/\\usepackage{courier}/' < $< > $@
