@@ -500,7 +500,14 @@ help: help-official
 	@echo "Set env variable PERFBOOK_PAPER to change paper size:"
 	@echo "   PERFBOOK_PAPER=A4: a4paper"
 	@echo "   PERFBOOK_PAPER=HB: hard cover book"
+	@echo "   PERFBOOK_PAPER=EB: ebook reader, always 1c layout (WIP)"
 	@echo "   other (default):   letterpaper"
+	@echo
+	@echo "Paper size variations (independent of PERFBOOK_PAPER):"
+	@echo "  perfbook-lt.pdf,   lt:   2-column layout on letterpaper"
+	@echo "  perfbook-hb.pdf,   hb:   2-column layout for hard cover book"
+	@echo "  perfbook-a4.pdf,   a4:   2-column layout on a4paper"
+	@echo "  perfbook-eb.pdf,   eb:   1-column layout for ebook reader (WIP)"
 	@echo
 	@echo "\"make help-full\" will show the full list of available targets."
 
@@ -510,6 +517,7 @@ help-full: help-official
 	@echo "  perfbook-lt.pdf,   lt:   2-column layout on letterpaper"
 	@echo "  perfbook-hb.pdf,   hb:   2-column layout for hard cover book"
 	@echo "  perfbook-a4.pdf,   a4:   2-column layout on a4paper"
+	@echo "  perfbook-eb.pdf,   eb:   1-column layout for ebook reader (WIP)"
 	@echo
 	@echo "Experimental targets:"
 	@echo "  Full,              Abbr."
@@ -540,8 +548,9 @@ help-full: help-official
 	@echo "  - Set env variable PERFBOOK_PAPER to change paper size:"
 	@echo "      PERFBOOK_PAPER=A4: a4paper"
 	@echo "      PERFBOOK_PAPER=HB: hard cover book"
+	@echo "      PERFBOOK_PAPER=EB: ebook reader, always 1c layout (WIP)"
 	@echo "      other (default):   letterpaper"
-	@echo "    (PERFBOOK_PAPER has no effect on targets \"lt\", \"hb\", and \"a4\".)"
+	@echo "    (PERFBOOK_PAPER has no effect on targets \"lt\", \"hb\", \"a4\", and \"eb\".)"
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
