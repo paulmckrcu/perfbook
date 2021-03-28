@@ -66,6 +66,11 @@ exerpt_warnings () {
 iterate_latex () {
 	makeindex $basename.idx > /dev/null 2>&1
 	makeindex $basename-api.idx > /dev/null 2>&1
+	if grep -q '## Warning' $basename.ilg $basename-api.ilg
+	then
+		echo "----- Warning in makeindex, see .ilg log files. -----"
+		exit 1
+	fi
 	pdflatex $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null || :
 	if grep -q '! Emergency stop.' $basename.log
 	then
