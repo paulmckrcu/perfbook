@@ -53,7 +53,7 @@ find */ -type d -print |
 	sed -e "s,^,mkdir ${destdir}/," |
 	sh
 
-cp autodate.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex origpub.sty qqz.sty pfbook.cls pfhyphex.tex perfbook.bbl ${destdir}
+cp ack.tex autodate.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex summary.tex origpub.sty qqz.sty pfbook.cls pfhyphex.tex perfbook.bbl ${destdir}
 cp `kpsewhich fvextra.sty` ${destdir}
 cp `kpsewhich epigraph.sty` ${destdir}
 
