@@ -188,7 +188,10 @@ endif
 endif
 endif
 
-.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mslm perfbook-mslm.pdf mslmmsg help help-official help-full
+.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mslm perfbook-mslm.pdf mslmmsg
+.PHONY: help help-official help-full help-semiofficial help-paper help-draft
+.PHONY: help-experimental help-prefixed
+
 all: $(targ)
 
 ifeq ($(MAKECMDGOALS),clean)
@@ -495,63 +498,71 @@ help-official:
 	@echo "  Full,              Abbr."
 	@echo "  perfbook.pdf,      2c:   (default) 2-column layout"
 	@echo "  perfbook-1c.pdf,   1c:   1-column layout"
+	@echo "Note:"
+	@echo "  Official targets now enable indexing and Quick-Quiz framing."
 
-help: help-official
+help-semiofficial:
+	@echo
+	@echo "Semi-official targets:"
+	@echo "  Full,              Abbr."
+	@echo "  perfbook-nq.pdf,   nq:   2c without inline Quick Quizzes (chapterwise Q&As)"
+	@echo "  perfbook-sf.pdf,   sf:   2c with sans serif font"
+	@echo "  perfbook-sfnq.pdf, sfnq: sf + nq"
+
+help-paper:
 	@echo
 	@echo "Set env variable PERFBOOK_PAPER to change paper size:"
 	@echo "   PERFBOOK_PAPER=A4: a4paper"
 	@echo "   PERFBOOK_PAPER=HB: hard cover book"
-	@echo "   PERFBOOK_PAPER=EB: ebook reader, always 1c layout (WIP)"
 	@echo "   other (default):   letterpaper"
+	@echo "Note:"
+	@echo "  Modified PERFBOOK_PAPER takes effect after \"make paper-clean\"."
 	@echo
-	@echo "Paper size variations (independent of PERFBOOK_PAPER):"
-	@echo "  perfbook-lt.pdf,   lt:   2-column layout on letterpaper"
-	@echo "  perfbook-hb.pdf,   hb:   2-column layout for hard cover book"
-	@echo "  perfbook-a4.pdf,   a4:   2-column layout on a4paper"
-	@echo "  perfbook-eb.pdf,   eb:   1-column layout for ebook reader (WIP)"
+	@echo "Paper-size specific targets (independent of PERFBOOK_PAPER):"
+	@echo "  perfbook-lt.pdf,   lt:   2c layout on letterpaper"
+	@echo "  perfbook-hb.pdf,   hb:   2c layout for hard cover book"
+	@echo "  perfbook-a4.pdf,   a4:   2c layout on a4paper"
+	@echo "  perfbook-eb.pdf,   eb:   1c layout for ebook reader (WIP)"
+
+help: help-official help-paper
 	@echo
 	@echo "\"make help-full\" will show the full list of available targets."
 
-help-full: help-official
+help-draft:
 	@echo
-	@echo "Paper size variations (independent of PERFBOOK_PAPER):"
-	@echo "  perfbook-lt.pdf,   lt:   2-column layout on letterpaper"
-	@echo "  perfbook-hb.pdf,   hb:   2-column layout for hard cover book"
-	@echo "  perfbook-a4.pdf,   a4:   2-column layout on a4paper"
-	@echo "  perfbook-eb.pdf,   eb:   1-column layout for ebook reader (WIP)"
+	@echo "Targets for draft check, non-framed Quick Quizzes (quicker build)"
+	@echo "  perfbook-ix.pdf,   ix:   for draft check, with indexed terms highlighted"
+	@echo "  perfbook-df.pdf,   df:   for draft check, without indexing"
+
+help-prefixed:
+	@echo
+	@echo "Prefixed targets:"
+	@echo "  \"1c*\" such as \"1cnq\", \"1csf\", and \"1cix\" are for 1c-layout."
+	@echo "  \"ebnq\", \"ebsf\", \"ebsfnq\", \"ebix\", and \"ebdf\" are for ebook-size 1c-layout,"
+	@echo "     independent of PERFBOOK_PAPER. (WIP)"
+
+help-experimental:
 	@echo
 	@echo "Experimental targets:"
-	@echo "  Full,              Abbr."
-	@echo "  perfbook-qq.pdf,   qq:   framed Quick Quizzes"
-	@echo "  perfbook-nq.pdf,   nq:   no inline Quick Quizzes (chapterwise Answers)"
 	@echo "  perfbook-msnt.pdf, msnt: newtxtt as monospace (non-slashed 0)"
 	@echo "  perfbook-mstx.pdf, mstx: txtt as monospace"
 	@echo "  perfbook-msr.pdf,  msr:  regular thickness courier clone as monospace"
 	@echo "  perfbook-msn.pdf,  msn:  narrow courier clone as monospace"
-	@echo "  perfbook-sf.pdf,   sf:   sans serif font"
-	@echo "  perfbook-ix.pdf,   ix:   enable index"
-	@echo "      (\"1cqq\", \"1cnq\", and so on disable 2-column mode.)"
 	@echo
 	@echo "Historical targets:"
-	@echo "  perfbook-tcb.pdf,  tcb:  2c with table caption at bottom (orig default)"
-	@echo "  perfbook-msns.pdf, msns: 2c with non-scaled courier (orig default)"
-	@echo "  perfbook-mss.pdf,  mss:  2c with scaled courier (prev default)"
+	@echo "  perfbook-tcb.pdf,  tcb:  table caption at bottom (First Edition)"
+	@echo "  perfbook-msns.pdf, msns: non-scaled courier (First Edition)"
+	@echo "  perfbook-mss.pdf,  mss:  scaled courier (default in early 2017)"
 	@echo
 	@echo "Notes:"
 	@echo "  - \"msnt\" requires \"newtxtt\". \"mstx\" is a fallback target for older TeX env."
 	@echo "  - \"msr\" and \"msn\" require \"nimbus15\"."
-	@echo "  - \"msn\" doesn't cover bold face for monospace."
+	@echo "  - \"msn\" doesn't cover bold face monospace."
 	@echo "  - \"sf\" requires \"newtxsf\"."
-	@echo "  - \"msnt\" and \"sf\" have framed Quick Quizzes."
-	@echo "    Release tags enable framed Quick Quizzes except for \"nq\" targets."
 	@echo "  - All the targets except for \"msn\" use \"Latin Modern Typewriter\" font"
 	@echo "    for code snippets."
-	@echo "  - Set env variable PERFBOOK_PAPER to change paper size:"
-	@echo "      PERFBOOK_PAPER=A4: a4paper"
-	@echo "      PERFBOOK_PAPER=HB: hard cover book"
-	@echo "      PERFBOOK_PAPER=EB: ebook reader, always 1c layout (WIP)"
-	@echo "      other (default):   letterpaper"
-	@echo "    (PERFBOOK_PAPER has no effect on targets \"lt\", \"hb\", \"a4\", and \"eb\".)"
+
+help-full: help-official help-paper help-semiofficial help-draft help-prefixed help-experimental
 
 clean:
 	find . -name '*.aux' -o -name '*.blg' \
