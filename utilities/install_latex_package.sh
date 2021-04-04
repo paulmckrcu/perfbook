@@ -8,7 +8,7 @@ fi
 
 package=$1
 
-packages="titlesec cleveref listings draftwatermark epigraph fvextra"
+packages="titlesec cleveref listings draftwatermark epigraph fvextra glossaries-extra"
 supported="false"
 for p in $packages
 do
@@ -37,7 +37,7 @@ fi
 
 install_dir=~/texmf/tex/latex/"$package"
 mkdir -p "$install_dir"
-cp "$package.sty" "$install_dir/"
+cp *.sty "$install_dir/"
 texhash ~/texmf
 
 cd .. || exit 1
