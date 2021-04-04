@@ -29,8 +29,9 @@ LATEXGENERATED = autodate.tex qqz.tex contrib.tex origpub.tex sub_qqz
 # Note: Empty target "sub_qqz" is used on behalf of $(SUB_QQZ) to prevent
 # parallel runs of divideqqz.pl.
 
-TWOCOLTARGETS := mstx msr msn msnt sf qq nq ix
-ABBREVTARGETS := lt hb a4 1c tcb msns mss eb $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v))
+TWOCOLTARGETS := mstx msr msn msnt sf nq sfnq ix df
+EBTARGETS := $(foreach v,nq sf sfnq ix df,eb$(v))
+ABBREVTARGETS := lt hb a4 1c tcb msns mss eb $(TWOCOLTARGETS) $(foreach v,$(TWOCOLTARGETS),1c$(v)) $(EBTARGETS)
 
 PDFTARGETS := perfbook.pdf $(foreach v,$(ABBREVTARGETS),perfbook-$(v).pdf)
 GENERATED_MAIN := $(filter-out perfbook-lt.tex,$(foreach v,$(ABBREVTARGETS),perfbook-$(v).tex)) perfbook.tex
@@ -180,17 +181,18 @@ else
 ifeq ($(PERFBOOK_PAPER),HB)
 	PERFBOOK_BASE = perfbook-hb.tex
 else
-ifeq ($(PERFBOOK_PAPER),EB)
-	PERFBOOK_BASE = perfbook-eb.tex
-else
 	PERFBOOK_BASE = perfbook-lt.tex
 endif
 endif
-endif
 
-.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS) mslm perfbook-mslm.pdf mslmmsg
+BASE_DEPENDS := perfbook.tex $(foreach v,tcb 1c msns mss mstx msr msn msnt sf nq ix df,perfbook-$(v).tex)
+
+.PHONY: all touchsvg clean distclean neatfreak 2c ls-unused $(ABBREVTARGETS)
+.PHONY: mslm perfbook-mslm.pdf mslmmsg
+.PHONY: qq perfbook-qq.pdf qqmsg
 .PHONY: help help-official help-full help-semiofficial help-paper help-draft
 .PHONY: help-experimental help-prefixed
+.PHONY: paper-clean
 
 all: $(targ)
 
@@ -204,11 +206,17 @@ endif
 2c: perfbook.pdf
 
 mslm: perfbook-mslm.pdf
-
 perfbook-mslm.pdf: perfbook.pdf mslmmsg
+
+qq: perfbook-qq.pdf
+perfbook-qq.pdf: perfbook.pdf qqmsg
 
 mslmmsg:
 	@echo "perfbook-mslm.pdf is promoted to default target,"
+	@echo "built as perfbook.pdf."
+
+qqmsg:
+	@echo "perfbook-qq.pdf is promoted to default target,"
 	@echo "built as perfbook.pdf."
 
 $(PDFTARGETS): %.pdf: %.tex %.bbl
@@ -343,7 +351,8 @@ endif
 
 perfbook-sf.tex: $(PERFBOOK_BASE)
 perfbook-1csf.tex: perfbook-1c.tex
-perfbook-sf.tex perfbook-1csf.tex:
+perfbook-ebsf.tex: perfbook-eb.tex
+perfbook-sf.tex perfbook-1csf.tex perfbook-ebsf.tex:
 ifeq ($(NEWTXSF),)
 	$(error Font package 'newtxsf' not found. See #9 in FAQ-BUILD.txt)
 endif
@@ -354,26 +363,32 @@ ifeq ($(NIMBUSMONO),)
 	$(error Font package 'nimbus15' not found. See #9 in FAQ-BUILD.txt)
 endif
 	sed -e 's/setboolean{sansserif}{false}/setboolean{sansserif}{true}/' \
-	    -e 's/{qqzbg}{false}/{qqzbg}{true}/' \
 	    -e 's/{nimbusavail}{false}/{nimbusavail}{true}/' \
 	    -e 's/%msfontstub/\\usepackage[var0]{inconsolata}[2013\/07\/17]/' < $< > $@
 
-perfbook-qq.tex: $(PERFBOOK_BASE)
-perfbook-1cqq.tex: perfbook-1c.tex
-perfbook-qq.tex perfbook-1cqq.tex:
-	sed -e 's/{qqzbg}{false}/{qqzbg}{true}/' < $< > $@
-
 perfbook-nq.tex: $(PERFBOOK_BASE)
+perfbook-sfnq.tex: perfbook-sf.tex
 perfbook-1cnq.tex: perfbook-1c.tex
-perfbook-nq.tex perfbook-1cnq.tex:
+perfbook-1csfnq.tex: perfbook-1csf.tex
+perfbook-ebnq.tex: perfbook-eb.tex
+perfbook-ebsfnq.tex: perfbook-ebsf.tex
+perfbook-nq.tex perfbook-sfnq.tex perfbook-1cnq.tex perfbook-1csfnq.tex perfbook-ebnq.tex perfbook-ebsfnq.tex:
 	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' \
 	    -e 's/{qqzchpend}{false}/{qqzchpend}{true}/' < $< > $@
 
 perfbook-ix.tex: $(PERFBOOK_BASE)
 perfbook-1cix.tex: perfbook-1c.tex
-perfbook-ix.tex perfbook-1cix.tex:
-	sed -e 's/setboolean{indexon}{false}/setboolean{indexon}{true}/' \
+perfbook-ebix.tex: perfbook-eb.tex
+perfbook-ix.tex perfbook-1cix.tex perfbook-ebix.tex:
+	sed -e 's/setboolean{qqzbg}{true}/setboolean{qqzbg}{false}/' \
 	    -e 's/setboolean{indexhl}{false}/setboolean{indexhl}{true}/' < $< > $@
+
+perfbook-df.tex: $(PERFBOOK_BASE)
+perfbook-1cdf.tex: perfbook-1c.tex
+perfbook-ebef.tex: perfbook-eb.tex
+perfbook-df.tex perfbook-1cdf.tex perfbook-ebdf.tex:
+	sed -e 's/setboolean{qqzbg}{true}/setboolean{qqzbg}{false}/' \
+	    -e 's/setboolean{indexon}{true}/setboolean{indexon}{false}/' < $< > $@
 
 perfbook-a4.tex: perfbook-lt.tex
 perfbook-a4.tex:
@@ -578,6 +593,9 @@ clean:
 	rm -f CodeSamples/snippets.d
 	rm -f *.synctex*
 	@rm -f $(OBSOLETE_FILES)
+
+paper-clean:
+	rm -f $(BASE_DEPENDS)
 
 distclean: clean
 	sh utilities/cleanpdf.sh
