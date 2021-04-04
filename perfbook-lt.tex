@@ -78,6 +78,8 @@
 \usepackage[bookmarks=true,bookmarksnumbered=true,pdfborder={0 0 0},linktoc=all]{hyperref}
 \usepackage{footnotebackref} % to enable cross-ref of footnote
 \usepackage[all]{hypcap} % for going to the top of figure and table
+\usepackage[acronym]{glossaries-extra}[2020/02/13]
+\usepackage[longragged]{glossaries-extra-stylemods}
 \usepackage{epigraph}[2020/01/02] % latest version prevents orphaned epigraph
 \setlength{\epigraphwidth}{2.6in}
 \usepackage[xspace]{ellipsis}
@@ -146,6 +148,9 @@
 \newboolean{indexhl}
 \setboolean{indexhl}{false}
 \newcommand{\IfIndexHl}[2]{\ifthenelse{\boolean{indexhl}}{#1}{#2}}
+\newboolean{indexhier}
+\setboolean{indexhier}{true}
+\newcommand{\IfIndexHier}[2]{\ifthenelse{\boolean{indexhier}}{#1}{#2}}
 
 \IfEbookSize{
 \usepackage[section]{placeins}
@@ -161,8 +166,38 @@
 }{
 \newcommand{\hlindex}[1]{#1}
 }
-\newcommand{\IX}[1]{\hlindex{#1}\index{#1}} % put as is into general index
-\newcommand{\IXalt}[2]{\hlindex{#1}\index{#2}} % put alternative into general index
+% For consistent index entries of capitalization of "Index entry"
+\newcommand{\ucindex}[1]{%
+  \lowercase{\def\temp{#1}}%
+  \expandafter\index\expandafter{\temp@\makefirstuc{\temp}}%
+}
+\newcommand{\ucindexh}[2]{%
+  \lowercase{\def\temp{#1}}%
+  \lowercase{\def\tempb{#2}}%
+  \expandafter\index\expandafter{\temp@\makefirstuc{\temp}!\tempb}%
+}
+\newcommand{\indexhraw}[2]{%
+  \expandafter\index\expandafter{#1!#2}%
+}
+\IfIndexHier{
+\newcommand{\indexh}[3]{\ucindexh{#2}{#3}}
+\newcommand{\indexhr}[3]{\indexhraw{#2}{#3}}
+}{
+\newcommand{\indexh}[3]{\ucindex{#1}}
+\newcommand{\indexhr}[3]{\index{#1}}
+}
+
+\newcommand{\IX}[1]{\ucindex{#1}\hlindex{#1}} % put with first letter capitalized into general index
+\newcommand{\IXr}[1]{\index{#1}\hlindex{#1}} % put as is into general index
+\newcommand{\IXpl}[1]{\ucindex{#1}\hlindex{#1s}} % put with first letter capitalized into general index for plural
+\newcommand{\IXplr}[1]{\index{#1}\hlindex{#1s}} % put as is into general index for plural
+\newcommand{\IXalt}[2]{\ucindex{#2}\hlindex{#1}} % put alternative with first letter capitalized into general index
+\newcommand{\IXaltr}[2]{\index{#2}\hlindex{#1}} % put alternative as is into general index
+\newcommand{\IXh}[2]{\indexh{#1 #2}{#2}{#1}\hlindex{#1 #2}}
+\newcommand{\IXhpl}[2]{\indexh{#1 #2}{#2}{#1}\hlindex{#1 #2s}}
+\newcommand{\IXhr}[2]{\indexhr{#1 #2}{#2}{#1}\hlindex{#1 #2}}
+\newcommand{\IXalth}[3]{\indexh{#1}{#3}{#2}\hlindex{#1}}
+\newcommand{\IXalthr}[3]{\indexhr{#1}{#3}{#2}\hlindex{#1}}
 \newcommand{\apic}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}\categapi{c}}}
 \newcommand{\apig}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}\categapi{g}}}
 \newcommand{\apipx}[1]{\hlindex{\co{#1}}\sindex[api]{#1@\co{#1}\categapi{px}}}
@@ -400,6 +435,8 @@
 \newcommand\ebFloatBarrier{}
 }
 
+% Glossaries dictionary and custom settings
+\input{glsdict}
 
 \begin{document}
 
@@ -542,20 +579,23 @@
 
 % Index if enabled
 \IfIndexOn{
-\cleardoublepage
+\IfIndexHier{
+\include{indexsee}
+}{}
 \phantomsection
-\IfTwoColumn{}{
-\IfEbookSize{\idxlayout{columns=2}}{
-\newgeometry{body={6.5in,8.25in},centering=true,columnsep=0.25in}
-}}
+\IfEbookSize{
+\idxlayout{columns=2}
+}{
+\newgeometry{body={6.5in,8.25in},centering=true,twocolumn,columnsep=0.25in}
+}
+\printglossary[type=\acronymtype]
+\phantomsection
 \printindex
-\cleardoublepage
 \phantomsection
 \printindex[api]
-\IfTwoColumn{}{
 \IfEbookSize{}{
 \restoregeometry
-}}
+}
 }{}
 
 % page-layout dimensions
