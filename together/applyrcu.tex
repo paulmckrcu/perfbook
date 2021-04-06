@@ -581,7 +581,7 @@ Suppose a reference count is becoming a performance or scalability
 bottleneck.
 What can you do?
 
-Another approach is to use per-CPU counters for each reference count,
+One approach is to use per-CPU counters for each reference count,
 somewhat similar to the algorithms in \cref{chp:Counting}, in particular,
 the exact limit counters described in
 \cref{sec:count:Exact Limit Counters}.
@@ -591,7 +591,7 @@ results either in expensive increments and decrements on the one hand
 or in the use of POSIX signals on the other
 (\cref{sec:count:Signal-Theft Limit Counter Design}).
 
-Another alternative is to use RCU to mediate the switch between per-CPU
+Another approach is to use RCU to mediate the switch between per-CPU
 and global counting modes.
 Each update is carried out within an RCU read-side critical section,
 and each update checks a flag to determine whether to update the
@@ -600,8 +600,38 @@ To switch modes, update the flag, wait for a grace period, and then
 move any remaining counts from the per-CPU counters to the global
 counter or vice versa.
 
-The Linux kernel uses this approach in its \co{percpu_ref} style of
-reference counter, to which interested readers are referred.
+The Linux kernel uses this RCU-mediated approach in its \co{percpu_ref}
+style of reference counter.
+Code using this reference counter must initialize the \co{percpu_ref}
+structure using \co{percpu_ref_init()}, which takes as arguments
+a pointer to the structure, a pointer to a function to invoke when
+the reference count reaches zero, a set of mode flags, and a set
+of \co{kmalloc()} \co{GFP_} flags.
+After normal initialization, the structure has one reference and
+is in per-CPU mode.
+
+The mode flags are usually zero, but can include the
+\co{PERCPU_REF_INIT_ATOMIC} bit if the counter is to start in slow
+non-per-CPU (that is, atomic) mode.
+There is also a \co{PERCPU_REF_ALLOW_REINIT} bit that allows
+a given \co{percpu_ref} counter to be reused via a call to
+\co{percpu_ref_reinit()} without needing to be freed and reallocated.
+Regardless of how the \co{percpu_ref} structure is initialized,
+\co{percpu_ref_get()} may be used to acquire a reference and
+\co{percpu_ref_put()} may be used to release a reference.
+
+When in per-CPU mode, the \co{percpu_ref} structure cannot determine whether
+or not its value has reached zero.
+When such a determination is necessary, \co{percpu_ref_kill()} may
+be invoked.
+This function switches the structure into atomic mode and removes the
+initial reference installed by the call to \co{percpu_ref_init()}.
+Of course, when in atomic mode, calls to \co{percpu_ref_get()} and
+\co{percpu_ref_put()} are quite expensive, but \co{percpu_ref_put()}
+can tell when the value reaches zero.
+
+Readers desiring more \co{percpu_ref} information are referred to
+the Linux-kernel documentation and source code.
 
 % @@@ RCU link counts
 % @@@ Minimize memory footprint, for example, SRCU.
