@@ -385,7 +385,7 @@ perfbook-ix.tex perfbook-1cix.tex perfbook-ebix.tex:
 
 perfbook-df.tex: $(PERFBOOK_BASE)
 perfbook-1cdf.tex: perfbook-1c.tex
-perfbook-ebef.tex: perfbook-eb.tex
+perfbook-ebdf.tex: perfbook-eb.tex
 perfbook-df.tex perfbook-1cdf.tex perfbook-ebdf.tex:
 	sed -e 's/setboolean{qqzbg}{true}/setboolean{qqzbg}{false}/' \
 	    -e 's/setboolean{indexon}{true}/setboolean{indexon}{false}/' < $< > $@
