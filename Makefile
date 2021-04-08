@@ -373,7 +373,8 @@ perfbook-1csfnq.tex: perfbook-1csf.tex
 perfbook-ebnq.tex: perfbook-eb.tex
 perfbook-ebsfnq.tex: perfbook-ebsf.tex
 perfbook-nq.tex perfbook-sfnq.tex perfbook-1cnq.tex perfbook-1csfnq.tex perfbook-ebnq.tex perfbook-ebsfnq.tex:
-	sed -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' \
+	sed -e 's/setboolean{qqzbg}{true}/setboolean{qqzbg}{false}/' \
+	    -e 's/setboolean{noqqz}{false}/setboolean{noqqz}{true}/' \
 	    -e 's/{qqzchpend}{false}/{qqzchpend}{true}/' < $< > $@
 
 perfbook-ix.tex: $(PERFBOOK_BASE)
