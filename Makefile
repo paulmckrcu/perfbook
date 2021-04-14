@@ -520,7 +520,7 @@ help-semiofficial:
 	@echo
 	@echo "Semi-official targets:"
 	@echo "  Full,              Abbr."
-	@echo "  perfbook-nq.pdf,   nq:   2c without inline Quick Quizzes (chapterwise Q&As)"
+	@echo "  perfbook-nq.pdf,   nq:   2c without inline Quick Quizzes (chapterwise Qs)"
 	@echo "  perfbook-sf.pdf,   sf:   2c with sans serif font"
 	@echo "  perfbook-sfnq.pdf, sfnq: sf + nq"
 
