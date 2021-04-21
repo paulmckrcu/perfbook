@@ -38,15 +38,19 @@ if [ $# -eq 0 ] ; then
 	change="reverted"
 else
 	case $1 in
-	2c)
+	2c|qq)
 		main="perfbook.tex"
 		change="reverted"
 		;;
-	1c|hb|a4|tcb|msnt|mstx|msr|msn|sf|msns|mss|qq|nq|ix)
+	1c|hb|a4|tcb|msnt|mstx|msr|msn|sf|msns|mss|nq|ix|df)
 		main="perfbook-$1.tex"
 		change="modified"
 		;;
-	1ctcb|1cmsnt|1cmstx|1cmsr|1cmsn|1csf|1cmsns|1cmss|1cqq|1cnq|1cix)
+	1ctcb|1cmsnt|1cmstx|1cmsr|1cmsn|1csf|1cmsns|1cmss|1cnq|1cix|1cdf)
+		main="perfbook-$1.tex"
+		change="modified"
+		;;
+	eb|ebsf|ebnq|ebsfnq|ebix|ebdf)
 		main="perfbook-$1.tex"
 		change="modified"
 		;;
