@@ -91,6 +91,12 @@ else
 	fi
 fi
 
+# skip database check when reverting
+
+if [ `echo $change | grep -c "revert"` -ne 0 ] ; then
+	exit 0
+fi
+
 # check if synctex database exists
 mainbase="${main%.tex}"
 if [ `ls -1 perfbook* | grep -c $mainbase.synctex` -eq 0 ] ; then
