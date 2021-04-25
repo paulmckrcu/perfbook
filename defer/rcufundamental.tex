@@ -414,16 +414,25 @@ of the data structure, a topic taken up by the next section.
 
 This section discusses how RCU accommodates synchronization-free readers
 by maintaining multiple versions of data.
-This discussion builds on the introduction of multiple versions by
-Figure~\ref{fig:defer:Deletion With Concurrent Readers}
+Because these synchronization-free readers provide very weak temporal
+synchronization, RCU users compensate via spatial synchronization.
+Spatial synchronization was discussed in
+\cref{cha:Partitioning and Synchronization Design}, and is heavily used
+in practice to obtain good performance and scalability.
+In this section, spatial synchronization will be used to attain a weak
+(but useful) form of correctness as well as excellent performance and
+scalability.
+
+\Cref{fig:defer:Deletion With Concurrent Readers}
 in
-Section~\ref{sec:defer:Minimal Insertion and Deletion},
-in which readers running concurrently with \co{del_route()}
-(see Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers})
+\cref{sec:defer:Minimal Insertion and Deletion}
+showed a simple variant of spatial synchronization, in which different
+readers running concurrently with \co{del_route()}
+(see \cref{lst:defer:Insertion and Deletion With Concurrent Readers})
 might see the old \co{route} structure or an empty list, but either
 way get a valid result.
 Of course, a closer look at
-Figure~\ref{fig:defer:Insertion With Concurrent Readers}
+\cref{fig:defer:Insertion With Concurrent Readers}
 shows that calls to \co{ins_route()} can also result in concurrent
 readers seeing different versions: Either the initial empty list
 or the newly inserted \co{route} structure.
@@ -441,7 +450,8 @@ RCU's lightweight readers make this more likely.
 \label{fig:defer:Multiple RCU Data-Structure Versions}
 \end{figure}
 
-However, maintaining multiple versions can be even more surprising.
+However, maintaining multiple weakly consistent versions can provide
+some surprises.
 For example, consider
 Figure~\ref{fig:defer:Multiple RCU Data-Structure Versions},
 in which a reader is traversing a linked list that is concurrently
@@ -472,7 +482,9 @@ Therefore, in this particular case, it is perfectly legitimate for
 the reader traveral to encounter all five elements.
 If this outcome is problematic, another way to resolve this situation is
 through use of stronger synchronization mechanisms, such as reader-writer
-locking or clever use of timestamps or versioning.
+locking, or clever use of timestamps and versioning.
+The Linux kernel frequently uses sequence locking to provide tighter
+consistency, as described in \cref{sec:together:Correlated Data Elements}.
 Of course, stronger mechanisms will be more expensive, but then again
 the engineering life is all about choices and tradeoffs.
 
@@ -485,8 +497,15 @@ and it most certainly cannot be ignored outside of this system.
 This in turn means that any data within the system representing state
 in the real world outside of the system is always and forever outdated,
 and thus inconsistent with the real world.
+Therefore, it is quite possible that the sequence \{A, B, C, D, E\}
+occurred in the real world, but due to speed-of-light delays was
+never represented in the computer system's memory.
+In this case, the reader's surprising traversal would correctly reflect
+reality.
+
 As a result, algorithms operating on real-world data must account for
-inconsistent data.
+inconsistent data, either by tolerating inconsistencies or by taking
+steps to exclude or reject them.
 In many cases, these algorithms are also perfectly capable of dealing
 with inconsistencies within the system.
 
@@ -543,8 +562,8 @@ extremely low overheads of RCU readers, and as noted earlier, many
 algorithms are unfazed by multiple versions.
 However, there are algorithms that absolutely cannot handle multiple versions.
 There are techniques for adapting such algorithms to
-RCU~\cite{PaulEdwardMcKenneyPhD},
-but these are beyond the scope of this section.
+RCU~\cite{PaulEdwardMcKenneyPhD}, for example, the use of sequence locking
+described in \cref{sec:together:Correlated Data Elements}.
 
 \paragraph{Exercises}
 \label{sec:defer:Exercises}
