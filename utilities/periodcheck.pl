@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Check LaTeX source of mid-sentence and end-of-sentence period
@@ -50,6 +50,12 @@ sub check_line {
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[a-z\}]\.\s[^\\]+/) {
 	    $safe = 0;
 	    if ($line =~ /ref\{/ || $line =~ /label\{/) {
+		$safe = 1;
+	    }
+	}
+	if ($line =~ /^(?=[\s]*+[^%])[^%]*[^~]\\cite/) {
+	    $safe = 0;
+	    if ($line =~ /^(?=[\s]*+[^%])[^%]*~\(\\cite/) {
 		$safe = 1;
 	    }
 	}
