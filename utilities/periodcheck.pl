@@ -28,30 +28,30 @@ my $Verbatim_begin = qr/\\begin\{Verbatim/ ;
 my $Verbatim_end = qr/\\end\{Verbatim/ ;
 my $tabular_begin = qr/\\begin\{tabula/ ;
 my $tabular_end = qr/\\end\{tabula/ ;
-my $label_ptn = qr/(^|\{)(,?[a-z]{3}:[a-zMPS]+:[^\},]+)(\}|,)/ ;
+my $label_ptn = qr/(^\s*|\{)(,?[a-z]{3,4}:([a-zMPS]+:)?[^\},]+)(\}|,)/ ;
 
 sub check_line {
     my $line_raw = $line;
-    if ($line =~ /$label_ptn/) {
+    $line =~ s/\\%/pct/g ;	# replace \% to prevent false negative
+    if ($line =~ /$label_ptn/) {# remove label string
 	while ($line && $line =~ /$label_ptn/) {
 	    my $quoted_2 = quotemeta $2;
 	    $line =~ s/$quoted_2//;
 	}
     }
     if ($line =~ /$Verbatim_begin/ ||
-	$line =~ /$tabular_begin/) {
+	$line =~ /$tabular_begin/) {  # exception (verbatim and tabular)
 	$skip = 1;
     }
     unless ($skip) {
 	$safe = 1;
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[A-Z]\.$/ ||
 	    $line =~ /^(?=[\s]*+[^%])[^%]*[A-Z]\.\\footnote/ ||
-	    $line =~ /^(?=[\s]*+[^%])[^%]*[Aa]cr\{.+\}\.$/ ||
-	    $line =~ /^(?=[\s]*+[^%])[^%]*[Aa]crm\{.+\}\.$/) {
+	    $line =~ /^(?=[\s]*+[^%])[^%]*[Aa]crm?\{.+\}\.$/ ) {
 	    $safe = 0;
 	    if ($next_line =~ /^\s*$/ || $next_line =~ /^\s*%/ ||
-		$next_line =~ /\\item/ || $next_line =~ /\\end\{quot/ ||
-		$next_line =~ /\\end\{enum/ || $next_line =~ /\\end\{item/) {
+		$next_line =~ /\\item/ ||
+		$next_line =~ /\\end\{(quot|enum|item|sequ)/ ) {
 		$safe = 1;
 	    }
 	}
