@@ -8,6 +8,9 @@ do
 	case $f in
 	./perfbook*) ;;
 	./qqz*) ;;
+	./glsdict.tex) ;;
+	./origpub.tex) ;;
+	./contrib.tex) ;;
 	./future/HTMtable*) ;;
 	./appendix/styleguide*) ;;
 	*) tex_sources="$tex_sources $f" ;;

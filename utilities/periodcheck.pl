@@ -28,8 +28,16 @@ my $Verbatim_begin = qr/\\begin\{Verbatim/ ;
 my $Verbatim_end = qr/\\end\{Verbatim/ ;
 my $tabular_begin = qr/\\begin\{tabula/ ;
 my $tabular_end = qr/\\end\{tabula/ ;
+my $label_ptn = qr/(^|\{)(,?[a-z]{3}:[a-zMPS]+:[^\},]+)(\}|,)/ ;
 
 sub check_line {
+    my $line_raw = $line;
+    if ($line =~ /$label_ptn/) {
+	while ($line && $line =~ /$label_ptn/) {
+	    my $quoted_2 = quotemeta $2;
+	    $line =~ s/$quoted_2//;
+	}
+    }
     if ($line =~ /$Verbatim_begin/ ||
 	$line =~ /$tabular_begin/) {
 	$skip = 1;
@@ -49,9 +57,6 @@ sub check_line {
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[a-z\}]\.\s[^\\]+/) {
 	    $safe = 0;
-	    if ($line =~ /ref\{/ || $line =~ /label\{/) {
-		$safe = 1;
-	    }
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[^~]\\cite/) {
 	    $safe = 0;
@@ -60,7 +65,7 @@ sub check_line {
 	    }
 	}
 	unless ($safe) {
-	    print $ARGV[0], ':', $line_num, ':', $line;
+	    print $ARGV[0], ':', $line_num, ':', $line_raw;
 	}
     }
     if ($line =~ /$Verbatim_end/ ||
