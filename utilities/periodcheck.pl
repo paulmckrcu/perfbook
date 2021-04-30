@@ -64,6 +64,10 @@ sub check_line {
 		$safe = 1;
 	    }
 	}
+	if ($line =~ /^(?=[\s]*+[^%])[^%]*\.\\\@(\s*$|\s*%.*$)/ ||
+	    $line =~ /^(?=[\s]*+[^%])[^%]*\\\@\.\s+[^\s%]+/){
+	    $safe = 0;
+	}
 	unless ($safe) {
 	    print $ARGV[0], ':', $line_num, ':', $line_raw;
 	}
