@@ -192,9 +192,9 @@ BASE_DEPENDS := perfbook.tex $(foreach v,tcb 1c msns mss mstx msr msn msnt sf nq
 .PHONY: qq perfbook-qq.pdf qqmsg
 .PHONY: help help-official help-full help-semiofficial help-paper help-draft
 .PHONY: help-experimental help-prefixed
-.PHONY: paper-clean periodcheck
+.PHONY: paper-clean periodcheck periodcheck-auto
 
-all: $(targ)
+all: periodcheck-auto
 
 ifeq ($(MAKECMDGOALS),clean)
 else ifeq ($(MAKECMDGOALS),distclean)
@@ -206,16 +206,16 @@ endif
 2c: perfbook.pdf
 
 mslm: perfbook-mslm.pdf
-perfbook-mslm.pdf: perfbook.pdf mslmmsg
+perfbook-mslm.pdf: mslmmsg
 
 qq: perfbook-qq.pdf
-perfbook-qq.pdf: perfbook.pdf qqmsg
+perfbook-qq.pdf: qqmsg
 
-mslmmsg:
+mslmmsg: perfbook.pdf
 	@echo "perfbook-mslm.pdf is promoted to default target,"
 	@echo "built as perfbook.pdf."
 
-qqmsg:
+qqmsg: perfbook.pdf
 	@echo "perfbook-qq.pdf is promoted to default target,"
 	@echo "built as perfbook.pdf."
 
@@ -612,6 +612,9 @@ neatfreak: distclean
 	find . -name '*.pdf' | xargs rm -f
 
 periodcheck:
+	utilities/periodcheck.sh
+
+periodcheck-auto: $(targ)
 	utilities/periodcheck.sh
 
 .SECONDEXPANSION:
