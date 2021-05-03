@@ -234,7 +234,7 @@ endif
 autodate.tex: perfbook-lt.tex $(LATEXSOURCES) $(BIBSOURCES) \
     $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(FCVSNIPPETS) $(FCVSNIPPETS_VIA_LTMS) \
     $(GITREFSTAGS) utilities/autodate.sh
-	sh utilities/autodate.sh >autodate.tex
+	sh utilities/autodate.sh
 
 perfbook_flat.tex: autodate.tex
 ifndef LATEXPAND

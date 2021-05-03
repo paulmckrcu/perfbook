@@ -19,12 +19,21 @@
 # along with this program; if not, you can access it online at
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
-# Copyright (C) Akira Yokosawa, 2017--2020
+# Copyright (C) Akira Yokosawa, 2017--2021
 #
 # Authors: Akira Yokosawa <akiyks@gmail.com>
 
 export LC_TIME=C
 qqzbg="false"
+fn="autodate.tex"
+
+# check if we have tcolorbox
+tcolorbox_sty=`kpsewhich tcolorbox.sty`
+if [ "$tcolorbox_sty" = "" ]
+then
+	echo "Error: package 'tcolorbox' not found. See #5 in FAQ-BUILD.txt." >&2
+	exit 1
+fi
 
 # check if we are in git repository
 if ! test -e .git
@@ -90,17 +99,16 @@ then
 	release=`env printf '%s %s' '\\\\' "$release"`
 fi
 
-env printf '\\date{%s %s, %s %s %s}\n' $month $day $year "$release" $modified
-env printf '\\newcommand{\\commityear}{%s}\n' $year
-env printf '\\newcommand{\\commitid}{%s}\n' $commitid$modified
-env printf '\\IfQqzBg{}{\\setboolean{qqzbg}{%s}}\n' $qqzbg
+env printf '\\date{%s %s, %s %s %s}\n' $month $day $year "$release" $modified > $fn
+env printf '\\newcommand{\\commityear}{%s}\n' $year >> $fn
+env printf '\\newcommand{\\commitid}{%s}\n' $commitid$modified >> $fn
+env printf '\\IfQqzBg{}{\\setboolean{qqzbg}{%s}}\n' $qqzbg >> $fn
 
 # command for newer tcolorbox (4.40 or later) to have backward-compatible skips
-tcolorbox_sty=`kpsewhich tcolorbox.sty`
 tcbversion=`grep ProvidesPackage $tcolorbox_sty | sed -e 's/.*version \([0-9]\+\.[0-9]\+\).*/\1/g'`
 tcbold=4.39
-env printf '%% tcolorbox version: %s\n' $tcbversion
+env printf '%% tcolorbox version: %s\n' $tcbversion >> $fn
 if [ $(echo $tcbversion $tcbold | awk '{if ($1 > $2) print 1;}') ] ;
 then
-	env printf '\\tcbsetforeverylayer{autoparskip}\n';
+	env printf '\\tcbsetforeverylayer{autoparskip}\n' >> $fn
 fi
