@@ -34,7 +34,7 @@ data structure, which consists of a single global pointer that is either
 Minimal though it might be, this data structure is heavily used in
 production~\cite{GeoffRomer2018C++DeferredReclamationP0561R4}.
 A classic approach for insertion is shown in
-Figure~\ref{fig:defer:Insertion With Concurrent Readers},
+\cref{fig:defer:Insertion With Concurrent Readers},
 which shows four states with time advancing from top to bottom.
 The first row shows the initial state, with \co{gptr} equal to \co{NULL}.
 In the second row, we have allocated a structure which is uninitialized,
@@ -46,7 +46,7 @@ reference the newly allocated and initialized element.
 We might hope that this assignment to \co{gptr} could use a simple
 C-language assignment statement.
 Unfortunately,
-Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
+\cref{sec:toolsoftrade:Shared-Variable Shenanigans}
 dashes these hopes.
 Therefore, the updater cannot use a simple C-language assignment, but
 must instead use \co{smp_store_release()} as shown in the figure,
@@ -56,7 +56,7 @@ Similarly, one might hope that readers could use a single C-language
 assignment to fetch the value of \co{gptr}, and be guaranteed to either
 get the old value of \co{NULL} or to get the newly installed pointer,
 but either way see a valid result.
-Unfortunately, Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
+Unfortunately, \cref{sec:toolsoftrade:Shared-Variable Shenanigans}
 dashes these hopes as well.
 To obtain this guarantee, readers must instead use \co{READ_ONCE()},
 or, as will be seen, \co{rcu_dereference()}.
@@ -88,10 +88,10 @@ and scalability, and also is eminently suitable for real-time use.
 Insertion is of course quite useful, but sooner or later, it will also
 be necessary to delete data.
 As can be seen in
-Figure~\ref{fig:defer:Deletion With Concurrent Readers},
+\cref{fig:defer:Deletion With Concurrent Readers},
 the first step is easy.
 Again taking the lessons from
-Section~\ref{sec:toolsoftrade:Shared-Variable Shenanigans}
+\cref{sec:toolsoftrade:Shared-Variable Shenanigans}
 to heart, \co{smp_store_release()} is used to \co{NULL} the pointer,
 thus moving from the first row to the second in the figure.
 At this point, pre-existing readers see the old structure with
@@ -102,7 +102,7 @@ the state, as indicated by the ``2 Versions'' in the figure.
 \QuickQuizSeries{%
 \QuickQuizB{
 	Why does
-	Figure~\ref{fig:defer:Deletion With Concurrent Readers}
+	\cref{fig:defer:Deletion With Concurrent Readers}
 	use \co{smp_store_release()} given that it is storing
 	a \co{NULL} pointer?
 	Wouldn't \co{WRITE_ONCE()} work just as well in this case,
@@ -128,14 +128,14 @@ the state, as indicated by the ``2 Versions'' in the figure.
 \QuickQuizE{
 	Readers running concurrently each other and with the procedure
 	outlined in
-	Figure~\ref{fig:defer:Deletion With Concurrent Readers}
+	\cref{fig:defer:Deletion With Concurrent Readers}
 	can disagree on the value of \co{gptr}.
 	Isn't that just a wee bit problematic???
 }\QuickQuizAnswerE{
 	Not necessarily.
 
-	As hinted at in Sections~\ref{sec:cpu:Hardware Optimizations}
-	and~\ref{sec:cpu:Hardware Free Lunch?},
+	As hinted at in
+	\cref{sec:cpu:Hardware Optimizations,sec:cpu:Hardware Free Lunch?},
 	speed-of-light delays mean that a computer's data is always
 	stale compared to whatever external reality that data is intended
 	to model.
@@ -145,7 +145,7 @@ the state, as indicated by the ``2 Versions'' in the figure.
 	data reflecting that reality.
 	Many of those algorithms are also able to tolerate some degree
 	of inconsistency within the in-computer data.
-	Section~\ref{sec:datastruct:RCU-Protected Hash Table Discussion}
+	\cref{sec:datastruct:RCU-Protected Hash Table Discussion}
 	discusses this point in more detail.
 
 	Please note that this need to tolerate inconsistent and stale
@@ -187,14 +187,14 @@ This question is the topic of the next section.
 \label{sec:defer:Waiting for Readers}
 
 It is tempting to base reader waiting on reference counting, but
-Figure~\ref{fig:count:Atomic Increment Scalability on x86}
+\cref{fig:count:Atomic Increment Scalability on x86}
 in
-Chapter~\ref{chp:Counting}
+\cref{chp:Counting}
 shows that concurrent reference counting results in extreme overhead,
 as we already saw in
-Section~\ref{sec:defer:Reference Counting}.
+\cref{sec:defer:Reference Counting}.
 Hazard pointers profoundly reduce this overhead, but, as we saw in
-Section~\ref{sec:defer:Hazard Pointers}, not to zero.
+\cref{sec:defer:Hazard Pointers}, not to zero.
 Nevertheless, many RCU implementations make very careful cache-local
 use of counters.
 
@@ -288,8 +288,8 @@ Within a non-preemptive operating-system kernel, for context switch to be
 a valid quiescent state, readers must be prohibited from blocking while
 referencing a given instance data structure obtained via the \co{gptr}
 pointer shown in
-Figures~\ref{fig:defer:Insertion With Concurrent Readers}
-and~\ref{fig:defer:Deletion With Concurrent Readers}.
+\cref{fig:defer:Insertion With Concurrent Readers,%
+fig:defer:Deletion With Concurrent Readers}.
 This no-blocking constraint is consistent with similar constraints
 on pure spinlocks, where a CPU is forbidden from blocking while
 holding a spinlock.
@@ -305,7 +305,7 @@ Again, this same constraint is imposed on reader threads dereferencing
 \co{gptr}: such threads are not allowed to block until after
 they are done using the pointed-to data item.
 Returning to the second row of
-Figure~\ref{fig:defer:Deletion With Concurrent Readers},
+\cref{fig:defer:Deletion With Concurrent Readers},
 where the updater has just completed executing the \co{smp_store_release()},
 imagine that CPU~0 executes a context switch.
 Because readers are not permitted to block while traversing the linked
@@ -317,7 +317,7 @@ prior readers have completed, and that there are no longer any reader
 threads referencing the newly removed data element.
 The updater can then safely free that data element, resulting in the
 state shown at the bottom of
-Figure~\ref{fig:defer:Deletion With Concurrent Readers}.
+\cref{fig:defer:Deletion With Concurrent Readers}.
 
 \begin{figure}
 \centering
@@ -329,7 +329,7 @@ Figure~\ref{fig:defer:Deletion With Concurrent Readers}.
 This approach is termed \emph{quiescent state based reclamation}
 (QSBR)~\cite{ThomasEHart2006a}.
 A QSBR schematic is shown in
-Figure~\ref{fig:defer:QSBR: Waiting for Pre-Existing Readers},
+\cref{fig:defer:QSBR: Waiting for Pre-Existing Readers},
 with time advancing from the top of the figure to the bottom.
 CPU~1 does the \co{WRITE_ONCE()} that removes the current data
 item (presumably having previously read the pointer value and
@@ -346,7 +346,7 @@ have completed, so the grace period ends, permitting CPU~1 to free
 the old data item.
 
 \QuickQuiz{
-	In Figure~\ref{fig:defer:QSBR: Waiting for Pre-Existing Readers},
+	In \cref{fig:defer:QSBR: Waiting for Pre-Existing Readers},
 	the last of CPU~3's readers that could possibly have
 	access to the old data item ended before the grace period
 	even started!
@@ -443,25 +443,25 @@ Linux-kernel environments can be as simple as defining
 and \co{preempt_enable()}, respectively.\footnote{
 	Some toy RCU implementations that handle preempted
 	read-side critical sections are shown in
-	Appendix~\ref{chp:app:``Toy'' RCU Implementations}.}
+	\cref{chp:app:``Toy'' RCU Implementations}.}
 However, this simple non-preemptible approach is conceptually complete,
 and demonstrates that it really is possible to provide read-side
 synchronization at zero cost, even in the face of concurrent updates.
 In fact,
-Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}
+\cref{lst:defer:Insertion and Deletion With Concurrent Readers}
 shows how reading (\co{access_route()}),
-Figure~\ref{fig:defer:Insertion With Concurrent Readers}'s
+\cref{fig:defer:Insertion With Concurrent Readers}'s
 insertion (\co{ins_route()}) and
-Figure~\ref{fig:defer:Deletion With Concurrent Readers}'s
+\cref{fig:defer:Deletion With Concurrent Readers}'s
 deletion (\co{del_route()}) can
 be implemented.
 (A slightly more capable routing table is shown in
-Section~\ref{sec:defer:RCU for Pre-BSD Routing}.)
+\cref{sec:defer:RCU for Pre-BSD Routing}.)
 
 \QuickQuizSeries{%
 \QuickQuizB{
 	What is the point of \co{rcu_read_lock()} and \co{rcu_read_unlock()} in
-	Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}?
+	\cref{lst:defer:Insertion and Deletion With Concurrent Readers}?
 	Why not just let the quiescent states speak for themselves?
 }\QuickQuizAnswerB{
 	Recall that readers are not permitted to pass through a quiescent
@@ -477,7 +477,7 @@ Section~\ref{sec:defer:RCU for Pre-BSD Routing}.)
 \QuickQuizE{
 	What is the point of \co{rcu_dereference()}, \co{rcu_assign_pointer()}
 	and \co{RCU_INIT_POINTER()} in
-	Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}?
+	\cref{lst:defer:Insertion and Deletion With Concurrent Readers}?
 	Why not just use \co{READ_ONCE()}, \co{smp_store_release()}, and
 	\co{WRITE_ONCE()}, respectively?
 }\QuickQuizAnswerE{
@@ -489,14 +489,14 @@ Section~\ref{sec:defer:RCU for Pre-BSD Routing}.)
 }
 
 Referring back to
-Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers},
+\cref{lst:defer:Insertion and Deletion With Concurrent Readers},
 note that \co{route_lock} is used to synchronize between concurrent updaters
 invoking \co{ins_route()} and \co{del_route()}.
 However, this lock is not acquired by readers invoking \co{access_route()}:
 Readers are instead protected by the QSBR techniques described in this section.
 
 Note that \co{ins_route()} simply returns the old value of \co{gptr}, which
-Figure~\ref{fig:defer:Insertion With Concurrent Readers} assumed would
+\cref{fig:defer:Insertion With Concurrent Readers} assumed would
 always be \co{NULL}.
 This means that it is the caller's responsibility to figure out what to
 do with a non-\co{NULL} value, a task complicated by the fact that
@@ -522,14 +522,14 @@ In contrast, \co{del_route()} uses \co{synchronize_rcu()} and
 	an RCU read-side critical section?
 }\QuickQuizAnswer{
 	A \co{call_rcu()} function, which is described in
-	Section~\ref{sec:defer:Wait For Pre-Existing RCU Readers},
+	\cref{sec:defer:Wait For Pre-Existing RCU Readers},
 	permits asynchronous grace-period waits.
 }\QuickQuizEnd
 
 This example shows one general approach to reading and updating
 RCU-protected data structures, however, there is quite a variety
 of use cases, several of which are covered in
-Section~\ref{sec:defer:RCU Usage}.
+\cref{sec:defer:RCU Usage}.
 
 In summary, it is in fact possible to create concurrent linked data
 structures that can be traversed by readers executing the same sequence
@@ -550,7 +550,7 @@ and degrading scalability, but also typically prohibiting readers and
 updaters from making useful concurrent forward progress.
 
 \QuickQuiz{
-	Doesn't Section~\ref{sec:defer:Sequence Locks}'s seqlock
+	Doesn't \cref{sec:defer:Sequence Locks}'s seqlock
 	also permit readers and updaters to make useful concurrent
 	forward progress?
 }\QuickQuizAnswer{
@@ -567,13 +567,13 @@ updaters from making useful concurrent forward progress.
 	of concurrent RCU updaters.
 
 	However, both reference counters
-	(Section~\ref{sec:defer:Reference Counting})
+	(\cref{sec:defer:Reference Counting})
 	and hazard pointers
-	(Section~\ref{sec:defer:Hazard Pointers})
+	(\cref{sec:defer:Hazard Pointers})
 	really do permit useful concurrent forward progress for both
 	updaters and readers, just at somewhat greater cost.
 	Please see
-	Section~\ref{sec:defer:Which to Choose?}
+	\cref{sec:defer:Which to Choose?}
 	for a comparison of these different solutions to the
 	deferred-reclamation problem.
 }\QuickQuizEnd
@@ -611,9 +611,9 @@ RCU has been used in the Linux kernel since
 October 2002~\cite{Torvalds2.5.43}.
 Use of the RCU API has increased substantially since that time,
 as can be seen in
-Figure~\ref{fig:defer:RCU Usage in the Linux Kernel}.
+\cref{fig:defer:RCU Usage in the Linux Kernel}.
 In fact, code very similar to that in
-Listing~\ref{lst:defer:Insertion and Deletion With Concurrent Readers}
+\cref{lst:defer:Insertion and Deletion With Concurrent Readers}
 is used in the Linux kernel.
 RCU has enjoyed heavy use both prior to and since its acceptance
 in the Linux kernel, as discussed in
