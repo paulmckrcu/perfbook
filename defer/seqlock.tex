@@ -17,7 +17,7 @@ However, unlike reader-writer locking, readers do not exclude writers.
 Instead, like hazard pointers, sequence locks force readers to
 \emph{retry} an operation if they detect activity from a concurrent writer.
 As can be seen from
-Figure~\ref{fig:defer:Reader And Uncooperative Sequence Lock},
+\cref{fig:defer:Reader And Uncooperative Sequence Lock},
 it is important to design code using sequence locks so that readers
 very rarely need to retry.
 
@@ -29,7 +29,7 @@ very rarely need to retry.
 \end{figure}
 
 \QuickQuiz{
-	Why isn't this sequence-lock discussion in Chapter~\ref{chp:Locking},
+	Why isn't this sequence-lock discussion in \cref{chp:Locking},
 	you know, the one on \emph{locking}?
 }\QuickQuizAnswer{
 	The sequence-lock mechanism is really a combination of two
@@ -84,12 +84,12 @@ If either snapshot has an odd value, or if the two snapshots differ,
 there has been a concurrent update, and the reader must discard
 the results of the access and then retry it.
 Readers therefore use the \co{read_seqbegin()} and \co{read_seqretry()}
-functions shown in Listing~\ref{lst:defer:Sequence-Locking Reader}
+functions shown in \cref{lst:defer:Sequence-Locking Reader}
 when accessing data protected by a sequence lock.
 Writers must increment the value before and after each update,
 and only one writer is permitted at a given time.
 Writers therefore use the \co{write_seqlock()} and \co{write_sequnlock()}
-functions shown in Listing~\ref{lst:defer:Sequence-Locking Writer}
+functions shown in \cref{lst:defer:Sequence-Locking Writer}
 when updating data protected by a sequence lock.
 
 As a result, sequence-lock-protected data can have an arbitrarily
@@ -105,7 +105,7 @@ It is also used in pathname traversal to detect concurrent rename operations.
 \end{listing}
 
 A simple implementation of sequence locks is shown in
-Listing~\ref{lst:defer:Sequence-Locking Implementation}
+\cref{lst:defer:Sequence-Locking Implementation}
 (\path{seqlock.h}).
 \begin{fcvref}[ln:defer:seqlock:impl:typedef]
 The \co{seqlock_t} data structure is shown on
@@ -120,17 +120,17 @@ initializes a \co{seqlock_t}.
 \begin{fcvref}[ln:defer:seqlock:impl:read_seqbegin]
 \Clnrefrange{b}{e} show \co{read_seqbegin()}, which begins a sequence-lock
 \IXh{read-side}{critical section}.
-Line~\lnref{fetch} takes a snapshot of the sequence counter, and
-line~\lnref{mb} orders
+\Clnref{fetch} takes a snapshot of the sequence counter, and
+\clnref{mb} orders
 this snapshot operation before the caller's critical section.
-Finally, line~\lnref{ret} returns the value of the snapshot (with the least-significant
+Finally, \clnref{ret} returns the value of the snapshot (with the least-significant
 bit cleared), which the caller
 will pass to a later call to \co{read_seqretry()}.
 \end{fcvref}
 
 \QuickQuiz{
 	Why not have \co{read_seqbegin()} in
-	Listing~\ref{lst:defer:Sequence-Locking Implementation}
+	\cref{lst:defer:Sequence-Locking Implementation}
 	check for the low-order bit being set, and retry
 	internally, rather than allowing a doomed read to start?
 }\QuickQuizAnswer{
@@ -147,9 +147,9 @@ will pass to a later call to \co{read_seqretry()}.
 \Clnrefrange{b}{e} show \co{read_seqretry()}, which returns true if there
 was at least one writer since the time of the corresponding
 call to \co{read_seqbegin()}.
-Line~\lnref{mb} orders the caller's prior critical section before line~\lnref{fetch}'s
+\Clnref{mb} orders the caller's prior critical section before \clnref{fetch}'s
 fetch of the new snapshot of the sequence counter.
-Line~\lnref{ret} checks whether the sequence counter has changed,
+\Clnref{ret} checks whether the sequence counter has changed,
 in other words, whether there has been at least one writer, and returns
 true if so.
 \end{fcvref}
@@ -157,8 +157,8 @@ true if so.
 \QuickQuizSeries{%
 \QuickQuizB{
 	Why is the \co{smp_mb()} on
-	line~\ref{ln:defer:seqlock:impl:read_seqretry:mb} of
-	Listing~\ref{lst:defer:Sequence-Locking Implementation}
+	\clnrefr{ln:defer:seqlock:impl:read_seqretry:mb} of
+	\cref{lst:defer:Sequence-Locking Implementation}
 	needed?
 }\QuickQuizAnswerB{
 	If it was omitted, both the compiler and the CPU would be
@@ -171,18 +171,18 @@ true if so.
 %
 \QuickQuizM{
 	Can't weaker memory barriers be used in the code in
-	Listing~\ref{lst:defer:Sequence-Locking Implementation}?
+	\cref{lst:defer:Sequence-Locking Implementation}?
 }\QuickQuizAnswerM{
 	In older versions of the Linux kernel, no.
 
 	\begin{fcvref}[ln:defer:seqlock:impl]
 	In very new versions of the Linux kernel,
-        line~\lnref{read_seqbegin:fetch} could use
+	\clnref{read_seqbegin:fetch} could use
 	\co{smp_load_acquire()} instead of \co{READ_ONCE()}, which
 	in turn would allow the \co{smp_mb()} on
-        line~\lnref{read_seqbegin:mb} to be dropped.
-	Similarly, line~\lnref{write_sequnlock:inc} could use an
-        \co{smp_store_release()}, for
+	\clnref{read_seqbegin:mb} to be dropped.
+	Similarly, \clnref{write_sequnlock:inc} could use an
+	\co{smp_store_release()}, for
 	example, as follows:
 
 \begin{VerbatimU}
@@ -190,7 +190,7 @@ smp_store_release(&slp->seq, READ_ONCE(slp->seq) + 1);
 \end{VerbatimU}
 
 	This would allow the \co{smp_mb()} on
-	line~\lnref{write_sequnlock:mb} to be dropped.
+	\clnref{write_sequnlock:mb} to be dropped.
 	\end{fcvref}
 }\QuickQuizEndM
 %
@@ -214,7 +214,7 @@ that this increment is ordered before the caller's critical section.
 \begin{fcvref}[ln:defer:seqlock:impl:write_sequnlock]
 \Clnrefrange{b}{e} show \co{write_sequnlock()}, which executes a memory barrier
 to ensure that the caller's critical section is ordered before the
-increment of the sequence number on line~\lnref{inc}, then releases the lock.
+increment of the sequence number on \clnref{inc}, then releases the lock.
 \end{fcvref}
 
 \QuickQuizSeries{%
@@ -228,8 +228,8 @@ increment of the sequence number on line~\lnref{inc}, then releases the lock.
 %
 \QuickQuizE{
 	Why isn't \co{seq} on
-	line~\ref{ln:defer:seqlock:impl:typedef:seq} of
-	Listing~\ref{lst:defer:Sequence-Locking Implementation}
+	\clnrefr{ln:defer:seqlock:impl:typedef:seq} of
+	\cref{lst:defer:Sequence-Locking Implementation}
 	\co{unsigned} rather than \co{unsigned long}?
 	After all, if \co{unsigned} is good enough for the Linux
 	kernel, shouldn't it be good enough for everyone?
@@ -240,7 +240,7 @@ increment of the sequence number on line~\lnref{inc}, then releases the lock.
 	\begin{enumerate}
 	\item	Thread~0 executes \co{read_seqbegin()}, picking up
 		\co{->seq} in
-		line~\ref{ln:defer:seqlock:impl:read_seqbegin:fetch},
+		\clnrefr{ln:defer:seqlock:impl:read_seqbegin:fetch},
 		noting that the value is even,
 		and thus returning to the caller.
 	\item	Thread~0 starts executing its read-side critical section,
@@ -286,34 +286,34 @@ increment of the sequence number on line~\lnref{inc}, then releases the lock.
 
 So what happens when sequence locking is applied to the Pre-BSD
 routing table?
-Listing~\ref{lst:defer:Sequence-Locked Pre-BSD Routing Table Lookup}
+\Cref{lst:defer:Sequence-Locked Pre-BSD Routing Table Lookup}
 shows the data structures and \co{route_lookup()}, and
-Listing~\ref{lst:defer:Sequence-Locked Pre-BSD Routing Table Add/Delete}
+\cref{lst:defer:Sequence-Locked Pre-BSD Routing Table Add/Delete}
 shows \co{route_add()} and \co{route_del()} (\path{route_seqlock.c}).
 This implementation is once again similar to its counterparts in earlier
 sections, so only the differences will be highlighted.
 
 \begin{fcvref}[ln:defer:route_seqlock:lookup]
 In
-Listing~\ref{lst:defer:Sequence-Locked Pre-BSD Routing Table Lookup},
-line~\lnref{struct:re_freed} adds \co{->re_freed}, which is checked on
-lines~\lnref{lookup:chk_freed} and~\lnref{lookup:abort}.
-Line~\lnref{struct:sl} adds a sequence lock, which is used by \co{route_lookup()}
+\cref{lst:defer:Sequence-Locked Pre-BSD Routing Table Lookup},
+\clnref{struct:re_freed} adds \co{->re_freed}, which is checked on
+\clnref{lookup:chk_freed,lookup:abort}.
+\Clnref{struct:sl} adds a sequence lock, which is used by \co{route_lookup()}
 \end{fcvref}
 \begin{fcvref}[ln:defer:route_seqlock:lookup:lookup]
-on lines~\lnref{r_sqbegin}, \lnref{r_sqretry1}, and~\lnref{r_sqretry2},
-with lines~\lnref{goto_retry1} and~\lnref{goto_retry2} branching back to
-the \co{retry} label on line~\lnref{retry}.
+on \clnref{r_sqbegin,r_sqretry1,r_sqretry2},
+with \clnref{goto_retry1,goto_retry2} branching back to
+the \co{retry} label on \clnref{retry}.
 The effect is to retry any lookup that runs concurrently with an update.
 \end{fcvref}
 
 \begin{fcvref}[ln:defer:route_seqlock:add_del]
 In
-Listing~\ref{lst:defer:Sequence-Locked Pre-BSD Routing Table Add/Delete},
-lines~\lnref{add:w_sqlock}, \lnref{add:w_squnlock}, \lnref{del:w_sqlock},
-\lnref{del:w_squnlock1}, and~\lnref{del:w_squnlock2}
+\cref{lst:defer:Sequence-Locked Pre-BSD Routing Table Add/Delete},
+\clnref{add:w_sqlock,add:w_squnlock,del:w_sqlock,%
+del:w_squnlock1,del:w_squnlock2}
 acquire and release the sequence lock,
-while lines~\lnref{add:clr_freed} and~\lnref{del:set_freed} handle \co{->re_freed}.
+while \clnref{add:clr_freed,del:set_freed} handle \co{->re_freed}.
 This implementation is therefore quite straightforward.
 \end{fcvref}
 
@@ -325,7 +325,7 @@ This implementation is therefore quite straightforward.
 \end{figure}
 
 It also performs better on the read-only workload, as can be seen in
-Figure~\ref{fig:defer:Pre-BSD Routing Table Protected by Sequence Locking},
+\cref{fig:defer:Pre-BSD Routing Table Protected by Sequence Locking},
 though its performance is still far from ideal.
 Worse yet, it suffers use-after-free failures.
 The problem is that the reader might encounter a segmentation violation
@@ -366,10 +366,10 @@ has a chance to warn of the concurrent update.
 
 	One way to protect against this sort of problem requires use
 	of ``type-safe memory'', which will be discussed in
-	Section~\ref{sec:defer:RCU Provides Type-Safe Memory}.
+	\cref{sec:defer:RCU Provides Type-Safe Memory}.
 	Roughly similar solutions are possible using the hazard pointers
 	discussed in
-	Section~\ref{sec:defer:Hazard Pointers}.
+	\cref{sec:defer:Hazard Pointers}.
 	But in either case, you would be using some other synchronization
 	mechanism in addition to sequence locks!
 }\QuickQuizEnd
@@ -377,7 +377,7 @@ has a chance to warn of the concurrent update.
 Both the read-side and write-side critical sections of a sequence lock
 can be thought of as transactions, and sequence locking therefore
 can be thought of as a limited form of transactional memory, which
-will be discussed in Section~\ref{sec:future:Transactional Memory}.
+will be discussed in \cref{sec:future:Transactional Memory}.
 The limitations of sequence locking are: (1)~Sequence locking restricts
 updates and (2)~sequence locking does not permit traversal of pointers
 to objects that might be freed by updaters.
