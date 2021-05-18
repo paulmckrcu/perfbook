@@ -9,7 +9,6 @@ LATEXSOURCES = \
 	glossary.tex \
 	qqz.sty origpub.sty \
 	glsdict.tex indexsee.tex \
-	noindentafter.sty \
 	pfbook.cls \
 	ushyphex.tex pfhyphex.tex \
 	ack.tex \
