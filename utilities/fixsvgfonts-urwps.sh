@@ -9,6 +9,8 @@ sed	-e 's+family:Helvetica+family:Nimbus Sans+g' \
 	-e 's+family="Helvetica+family="Nimbus Sans+g' \
 	-e 's+family:Sans+family:Nimbus Sans+g' \
 	-e 's+cation:Sans+cation:Nimbus Sans+g' \
+	-e 's+family:sans-serif+family:Nimbus Sans+g' \
+	-e 's+cation:sans-serif+cation:Nimbus Sans+g' \
 	-e 's+family:Courier+family:Nimbus Mono PS+g' \
 	-e 's+family="Courier+family="Nimbus Mono PS+g' \
 	-e 's+family:Symbol+family:MdSymbol+g' \
