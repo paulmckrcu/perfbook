@@ -186,6 +186,8 @@ local locking hierarchies
 (\cref{sec:locking:Local Locking Hierarchies}),
 layered locking hierarchies
 (\cref{sec:locking:Layered Locking Hierarchies}),
+temporal locking hierarchies
+(\cref{sec:locking:Temporal Locking Hierarchies}),
 strategies for dealing with APIs containing pointers to locks
 (\cref{sec:locking:Locking Hierarchies and Pointers to Locks}),
 conditional locking
@@ -451,6 +453,47 @@ is perceived by some to be so difficult.
 
 Some alternatives to highly layered locking hierarchies are covered in
 \cref{chp:Deferred Processing}.
+
+\subsubsection{Temporal Locking Hierarchies}
+\label{sec:locking:Temporal Locking Hierarchies}
+
+One way to avoid deadlock is to defer acquisition of one of the
+conflicting locks.
+This approach is used in Linux-kernel RCU, whose \co{call_rcu()}
+function is invoked by the Linux-kernel scheduler while holding
+its locks.
+This means that \co{call_rcu()} cannot always safely invoke the scheduler
+to do a wakeup, for example, in order to wake up an RCU kthread in order
+to start the new grace period that is required by the callback queued
+by \co{call_rcu()}.
+
+\QuickQuiz{
+	What do you mean ``cannot always safely invoke the scheduler''?
+	Either \co{call_rcu()} can or cannot safely invoke the scheduler,
+	right?
+}\QuickQuizAnswer{
+	It really does depend.
+
+	The scheduler locks are always held with interrupts disabled.
+	Therefore, if \co{call_rcu()} is invoked with interrupts
+	enabled, no scheduler locks are held, and \co{call_rcu()}
+	can safely call into the scheduler.
+	Otherwise, if interrupts are disabled, one of the scheduler
+	locks \emph{might} be held, so \co{call_rcu()} must play it
+	safe and refrain from calling into the scheduler.
+}\QuickQuizEnd
+
+However, grace periods last for many milliseconds, so waiting another
+millisecond before starting a new grace period is not normally a problem.
+Therefore, if \co{call_rcu()} detects a possible deadlock with the
+scheduler, it arranges to start the new grace period later, either
+within a timer handler or within the scheduler-clock interrupt handler,
+depending on configuration.
+Because no scheduler locks are held across either handler, deadlock
+is successfully avoided.
+
+The overall approach is thus to adhere to a locking hierarchy by deferring
+lock acquisition to an environment in which no locks are held.
 
 \subsubsection{Locking Hierarchies and Pointers to Locks}
 \label{sec:locking:Locking Hierarchies and Pointers to Locks}
