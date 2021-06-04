@@ -31,59 +31,65 @@
 
 #include "../api.h"
 
-struct foo {
-	int data;
-} *gptr = NULL;
+struct myconfig {
+	int a;
+	int b;
+} *curconfig;
 
-int lookup(int *dp)
+int get_config(int *cur_a, int *cur_b)
 {
-	struct foo *p;
+	struct myconfig *mcp;
 
 	rcu_read_lock();
-	p = rcu_dereference(gptr);
-	if (!p) {
+	mcp = rcu_dereference(curconfig);
+	if (!mcp) {
 		rcu_read_unlock();
 		return 0;
 	}
-	*dp = p->data;
+	*cur_a = mcp->a;
+	*cur_b = mcp->b;
 	rcu_read_unlock();
 	return 1;
 }
 
-int insert(int newdata)
+void set_config(int cur_a, int cur_b)
 {
-	struct foo *p;
+	struct myconfig *mcp;
 
-	p = malloc(sizeof(*p));
-	BUG_ON(!p);
-	p->data = newdata;
-	if (cmpxchg(&gptr, NULL, p)) {
-		free(p);
-		return 0;
+	mcp = malloc(sizeof(*mcp));
+	BUG_ON(!mcp);
+	mcp->a = cur_a;
+	mcp->b = cur_b;
+	mcp = xchg(&curconfig, mcp);
+	if (mcp) {
+		synchronize_rcu();
+		free(mcp);
 	}
-	return 1;
 }
 
-int uninsert(void)
+void clear_config(void)
 {
-	struct foo *p;
+	struct myconfig *mcp;
 
-	p = xchg(&gptr, NULL);
+	mcp = xchg(&curconfig, NULL);
 	synchronize_rcu();
-	free(p);
-	return !!p;
+	if (mcp) {
+		synchronize_rcu();
+		free(mcp);
+	}
 }
 
 int main(int argc, char *argv[])
 {
-	int d;
+	int a;
+	int b;
 
-	BUG_ON(lookup(&d));
-	BUG_ON(uninsert());
-	BUG_ON(!insert(42));
-	BUG_ON(!lookup(&d));
-	BUG_ON(d != 42);
-	BUG_ON(!uninsert());
-	BUG_ON(lookup(&d));
+	BUG_ON(get_config(&a, &b));
+	clear_config();
+	set_config(4, 16);
+	BUG_ON(!get_config(&a, &b));
+	BUG_ON(a != 4 || b != 16);
+	clear_config();
+	BUG_ON(get_config(&a, &b));
 	return 0;
 }
