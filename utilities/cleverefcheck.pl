@@ -18,18 +18,23 @@ my $new_sentence = 1;
 my $line_num = 0;
 my $skip = 0;
 my $safe = 0;
-my $Verbatim_begin = qr/\\begin\{Verbatim/ ;
-my $Verbatim_end = qr/\\end\{Verbatim/ ;
-my $tabular_begin = qr/\\begin\{tabula/ ;
-my $tabular_end = qr/\\end\{tabula/ ;
+my $Verbatim_begin = qr/\\begin\{(Verbatim|tabula|equation|SaveVerb)/ ;
+my $Verbatim_end = qr/\\end\{(Verbatim|tabula|equation|SaveVerb)/ ;
 my $label_ptn = qr/(^\s*|\{)(,?[a-z]{3,4}:([a-zMPS]+:)?[^\},]+)(\}|,)/ ;
+my $in_footnote = 0 ;
+my $footnote_save = 0;
 
 sub check_line {
     my $raw_line = $line;
     $line =~ s/\\%/pct/g ;
-    if ($line =~ /$Verbatim_begin/ ||
-	$line =~ /$tabular_begin/) {
+    if ($line =~ /$Verbatim_begin/) {
 	$skip = 1;
+    }
+    if ($line =~ /$label_ptn/) {# remove label string
+	while ($line && $line =~ /$label_ptn/) {
+	    my $quoted_2 = quotemeta $2;
+	    $line =~ s/$quoted_2//;
+	}
     }
     unless ($skip) {
 	$safe = 1;
@@ -42,7 +47,7 @@ sub check_line {
 		$safe = 1;
 	    }
 	}
-	if ($new_sentence &&
+	if ($new_sentence == 1 &&
 	    ($line =~ /^\s*\\cref/ || $line =~ /^\s*\\cpageref/ ||
 	     $line =~ /^\s*\\clnref/)) {
 	    $safe = 0;
@@ -63,25 +68,45 @@ sub check_line {
 		$safe = 1;
 	    }
 	}
+	if ($new_sentence == 1) {
+	    if ($line =~ /^\s*[a-z]/ ) {
+		$safe = 0;
+	    }
+	}
 	unless ($safe) {
 	    print $ARGV[0], ':', $line_num, ':', $raw_line;
 	}
     }
-    if ($line =~ /$Verbatim_end/ ||
-	$line =~ /$tabular_end/) {
+    if ($line =~ /$Verbatim_end/) {
 	$skip = 0;
-	$new_sentence = 1;
     } else {
 	unless ($line =~ /\\begin\{fcvref\}/ || $line =~ /\\end\{fcvref\}/ ||
-	    $line =~ /^\s*\}\s*$/ || $line =~ /^\s*%/) {
-	    if ($line =~ /^(?=[\s]*+[^%])[^%]*[\.\?!:]\s*[\)\}]*$/ ||
-		$line =~ /^(?=[\s]*+[^%])[^%]*[\.\?!:]\s*[\)\}]*%.*$/ ||
-		$line =~ /^\s*$/ || $line =~ /^\\paragraph\{/ ||
-		$line =~ /^\s*\\begin\{/ || $line =~ /^\s*\\end\{/ ||
-		$line =~ /^\\E?QuickQuiz/ || $line =~ /\\E?QuickQuizAnswer[BEM]?\{/ ) {
+		$line =~ /^\s*\}\s*$/ || $line =~ /^\s*%/) {
+	    if ($line =~ /^(?=[\s]*+[^%])[^%]*[\.\?!]\s*[\)\}\']*\s*(%.*)?$/ ||
+		$line =~ /^\s*$/ ||
+		$line =~ /^\\E?QuickQuiz[BEM]?\{/ ||
+		$line =~ /\\E?QuickQuizAnswer[BEM]?\{/ ) {
 		$new_sentence = 1;
 	    } else {
 		$new_sentence = 0;
+		if ($line =~ /^(?=[\s]*+[^%])[^%]*:\s*[\)\}\']*\s*(%.*)?$/ ) {
+		    $new_sentence = 2;  # don't care
+		}
+	    }
+	}
+	if ($in_footnote) {
+	    if ($line =~ /[\.\?!\']\}\s*$/ ) {
+		$in_footnote = 0 ;
+		$new_sentence = $footnote_save ;
+	    }
+	}
+	if ($line =~ /\\footnote\{\s*$/ ) {
+	    $in_footnote = 1;
+	    $new_sentence = 1;
+	    if ($line =~ /\.\\footnote\{\s*$/ ) {
+		$footnote_save = 1 ;
+	    } else {
+		$footnote_save = 0 ;
 	    }
 	}
     }
