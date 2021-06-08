@@ -89,10 +89,12 @@ void *singleton_reader(void *arg)
 	int a;
 	int b;
 
+	rcu_register_thread();
 	while (READ_ONCE(goflag)) {
 		if (get_config(&a, &b))
 			BUG_ON(a * a != b);
 	}
+	rcu_unregister_thread();
 	return NULL;
 }
 
@@ -127,7 +129,7 @@ int main(int argc, char *argv[])
 	create_thread(singleton_reader, NULL);
 	create_thread(singleton_reader, NULL);
 	create_thread(singleton_updater, NULL);
-	sleep(1);
+	sleep(10);
 	WRITE_ONCE(goflag, 0);
 	wait_all_threads();
 	if (get_config(&a, &b))
