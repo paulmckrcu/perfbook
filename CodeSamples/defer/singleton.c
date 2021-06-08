@@ -28,6 +28,7 @@
 #else /* #ifndef DO_QSBR */
 #include <urcu-qsbr.h>
 #endif /* #else #ifndef DO_QSBR */
+#include "../lib/random.h"
 
 #include "../api.h"
 
@@ -48,6 +49,7 @@ int get_config(int *cur_a, int *cur_b)
 	}
 	*cur_a = mcp->a;
 	*cur_b = mcp->b;
+	BUG_ON(*cur_a * *cur_a != *cur_b);
 	rcu_read_unlock();
 	return 1;
 }
@@ -58,6 +60,7 @@ void set_config(int cur_a, int cur_b)
 
 	mcp = malloc(sizeof(*mcp));
 	BUG_ON(!mcp);
+	BUG_ON(cur_a * cur_a != cur_b);
 	mcp->a = cur_a;
 	mcp->b = cur_b;
 	mcp = xchg(&curconfig, mcp);
@@ -79,6 +82,34 @@ void clear_config(void)
 	}
 }
 
+volatile int goflag = 1;
+
+void *singleton_reader(void *arg)
+{
+	int a;
+	int b;
+
+	while (READ_ONCE(goflag)) {
+		if (get_config(&a, &b))
+			BUG_ON(a * a != b);
+	}
+	return NULL;
+}
+
+void *singleton_updater(void *arg)
+{
+	int a;
+	int b;
+
+	while (READ_ONCE(goflag)) {
+		a = random() & 0xff;
+		b = a * a;
+		BUG_ON(a * a != b);
+		set_config(a, b);
+	}
+	return NULL;
+}
+
 int main(int argc, char *argv[])
 {
 	int a;
@@ -91,5 +122,15 @@ int main(int argc, char *argv[])
 	BUG_ON(a != 4 || b != 16);
 	clear_config();
 	BUG_ON(get_config(&a, &b));
+
+	set_config(5, 25);
+	create_thread(singleton_reader, NULL);
+	create_thread(singleton_reader, NULL);
+	create_thread(singleton_updater, NULL);
+	sleep(1);
+	WRITE_ONCE(goflag, 0);
+	wait_all_threads();
+	if (get_config(&a, &b))
+		clear_config();
 	return 0;
 }
