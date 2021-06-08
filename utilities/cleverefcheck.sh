@@ -12,6 +12,7 @@ do
 	./origpub.tex) ;;
 	./contrib.tex) ;;
 	./future/HTMtable*) ;;
+	./SMPdesign/DiningPhilosopher*) ;;
 	./appendix/styleguide*) ;;
 	*) tex_sources="$tex_sources $f" ;;
         esac

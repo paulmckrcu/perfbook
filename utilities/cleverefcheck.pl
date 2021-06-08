@@ -18,8 +18,8 @@ my $new_sentence = 1;
 my $line_num = 0;
 my $skip = 0;
 my $safe = 0;
-my $Verbatim_begin = qr/\\begin\{(Verbatim|tabula|equation|SaveVerb)/ ;
-my $Verbatim_end = qr/\\end\{(Verbatim|tabula|equation|SaveVerb)/ ;
+my $Verbatim_begin = qr/\\begin\{(Verbatim|tabula|equation|SaveVerb|verbbox)/ ;
+my $Verbatim_end = qr/\\end\{(Verbatim|tabula|equation|SaveVerb|verbbox)/ ;
 my $label_ptn = qr/(^\s*|\{)(,?[a-z]{3,4}:([a-zMPS]+:)?[^\},]+)(\}|,)/ ;
 my $in_footnote = 0 ;
 my $footnote_save = 0;
@@ -72,6 +72,10 @@ sub check_line {
 	    if ($line =~ /^\s*[a-z]/ ) {
 		$safe = 0;
 	    }
+	}
+	if ($line =~ /^[ ]{8}/ ||  # indent by white speces (should be TAB)
+	    $line =~ /^(?=[\s]*+[^%])[^%][ ]+\t/) { # TAB after white space
+	    $safe = 0;
 	}
 	unless ($safe) {
 	    print $ARGV[0], ':', $line_num, ':', $raw_line;
