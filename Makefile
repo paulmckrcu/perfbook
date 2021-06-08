@@ -612,9 +612,11 @@ neatfreak: distclean
 
 periodcheck:
 	utilities/periodcheck.sh
+	utilities/cleverefcheck.sh
 
 periodcheck-auto: $(targ)
 	utilities/periodcheck.sh
+	utilities/cleverefcheck.sh
 
 .SECONDEXPANSION:
 $(ABBREVTARGETS): %: perfbook-$$@.pdf
