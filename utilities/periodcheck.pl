@@ -1,16 +1,19 @@
 #!/usr/bin/env perl
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# Check LaTeX source of mid-sentence and end-of-sentence period
+# Check LaTeX source of mid-sentence and end-of-sentence
+# punctuations
 #
 # Assumptions:
-#    End-of-sentence periods are at the end of input lines.
+#    End-of-sentence punctuations are at the end of input lines.
 #
 # Exceptions:
 #    LaTeX comments
 #    LaTeX labels: such as \cref{fig:xxx:foo vs. bar}
 #    Verbatim contents
 #    Table contents
+#    Middle-of-sentence punctuations properly annotated at the
+#	end of input lines
 #
 # Copyright (C) Akira Yokosawa, 2021
 #
@@ -39,23 +42,33 @@ sub check_line {
 	    $line =~ s/$quoted_2//;
 	}
     }
+    if ($line =~ /section\{([^\}]*)\}/ ) {
+	my $quoted_1 = quotemeta $1;
+	$line =~ s/$quoted_1//;
+    }
+    if ($line =~ /caption\{([^\}]*)\}/ ) {
+	my $quoted_1 = quotemeta $1;
+	$line =~ s/$quoted_1//;
+    }
     if ($line =~ /$Verbatim_begin/ ||
 	$line =~ /$tabular_begin/) {  # exception (verbatim and tabular)
 	$skip = 1;
     }
     unless ($skip) {
 	$safe = 1;
-	if ($line =~ /^(?=[\s]*+[^%])[^%]*[A-Z]\.$/ ||
-	    $line =~ /^(?=[\s]*+[^%])[^%]*[A-Z]\.\\footnote/ ||
-	    $line =~ /^(?=[\s]*+[^%])[^%]*[Aa]crm?\{.+\}\.$/ ) {
+	if ($line =~ /^(?=[\s]*+[^%])[^%]*[A-Z][\.\?\!][\)\}\']*$/ ||
+	    $line =~ /^(?=[\s]*+[^%])[^%]*[A-Z][\.\?\!]\\footnote/ ||
+	    $line =~ /^(?=[\s]*+[^%])[^%]*[Aa]crm?\{.+\}[\.\?\!][\)\}\']*$/ ) {
 	    $safe = 0;
 	    if ($next_line =~ /^\s*$/ || $next_line =~ /^\s*%/ ||
 		$next_line =~ /\\item/ ||
+		$next_line =~ /\\E?QuickQuizAnswer[BEM]?\{/ ||
+		$next_line =~ /\\E?QuickQuizEnd[BEM]?/ ||
 		$next_line =~ /\\end\{(quot|enum|item|sequ)/ ) {
 		$safe = 1;
 	    }
 	}
-	if ($line =~ /^(?=[\s]*+[^%])[^%]*[a-z\}]\.\s[^\\]+/) {
+	if ($line =~ /^(?=[\s]*+[^%])[^%]*[a-z\}][\.\?\!][\)\}\']*\s[^\\]+/) {
 	    $safe = 0;
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[^~]\\cite/) {
@@ -64,8 +77,7 @@ sub check_line {
 		$safe = 1;
 	    }
 	}
-	if ($line =~ /^(?=[\s]*+[^%])[^%]*\.\\\@(\s*$|\s*%.*$)/ ||
-	    $line =~ /^(?=[\s]*+[^%])[^%]*\\\@\.\s+[^\s%]+/){
+	if ($line =~ /^(?=[\s]*+[^%])[^%]*\\\@[\.\?\!][\)\}\']*\s+[^\s%]+/){
 	    $safe = 0;
 	}
 	unless ($safe) {
