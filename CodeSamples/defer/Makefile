@@ -147,7 +147,7 @@ seqlocktorture: seqlocktorture.c seqlock.h ../api.h
 	cc $(GCC_ARGS) -o seqlocktorture seqlocktorture.c -lpthread
 
 singleton: singleton.c ../api.h ../lib/random.h ../lib/random.c
-	cc -O0 -Wall -g -o singleton singleton.c ../lib/random.c -lpthread  -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -Wall -g -o singleton singleton.c ../lib/random.c -lpthread  -lurcu -lurcu-signal
 
 clean:
 	rm -f $(PROGS)
