@@ -780,8 +780,112 @@ of ways, but most commonly by imposing spatial constraints:
 	\end{enumerate}
 \end{enumerate}
 
-In short, RCU attains its read-side performance and scalability by
-constructing semantics based on combined temporal and spatial constraints.
+\begin{listing}
+\input{CodeSamples/defer/singleton@get.fcv}
+\caption{RCU Singleton Get}
+\label{lst:defer:Singleton Get}
+\end{listing}
+
+\begin{listing}
+\input{CodeSamples/defer/singleton@set.fcv}
+\caption{RCU Singleton Set}
+\label{lst:defer:Singleton Set}
+\end{listing}
+
+\begin{fcvref}[ln:defer:singleton:get]
+This interaction of temporal and spatial constraints is illustrated
+by the RCU singleton data structure illustrated in
+\cref{fig:defer:Insertion With Concurrent Readers,fig:defer:Deletion With Concurrent Readers}.
+This structure is defined on \clnrefrange{myconfig.b}{myconfig.e} of
+\cref{lst:defer:Singleton Get}, and contains two integer fields,
+\co{->a} and \co{->b}.
+The current instance of this structure is referenced by the \co{curconfig}
+pointer defined on \clnref{myconfig.e}.
+\end{fcvref}
+
+\begin{fcvref}[ln:defer:singleton:get]
+The fields of the current structure are passed back through the
+\co{cur_a} and \co{cur_b} parameters to the \co{get_config()} function
+defined on \clnrefrange{get_config.b}{get_config.e}.
+These two fields can be slightly out of date, but they absolutely must
+be consistent with each other.
+The \co{get_config()} function provides this consistency
+within the RCU read-side critical section starting on
+\clnref{rrl} and ending on either \clnref{rrul1} or \clnref{rrul2},
+which provides the needed temporal synchronization.
+\Clnref{rderef} fetches the pointer to the current \co{myconfig} structure.
+This structure will be used regardless of any concurrent changes due
+to calls to the \co{set_config()} function, thus providing the needed
+spatial synchronization.
+If \clnref{nullchk} determines that it is \co{NULL}, \clnref{retfail}
+returns failure.
+Otherwise, \clnref{copya,copyb} copy out the \co{->a} and \co{->b} fields
+and \clnref{retsuccess} returns success.
+These \co{->a} and \co{->b} fields are from the same \co{myconfig}
+structure, and the RCU read-side critical section prevents this structure
+from being freed, thus guaranteeing that these two fields are consistent
+with each other.
+\end{fcvref}
+
+\begin{fcvref}[ln:defer:singleton:set]
+The structure is updated by the \co{set_config()} function shown on
+\clnrefrange{set_config.b}{set_config.e}.
+\Clnrefrange{allocinit.b}{allocinit.e} allocates and initializes a
+new \co{myconfig} structure.
+\Clnref{xchg} atomically exchanges a pointer to this new structure
+with the pointer to the old structure in \co{curconfig}, while also
+providing full memory ordering both before and after the \co{xchg()}
+operation, thus providing the needed update-side spatial synchronization.
+If \clnref{if} determines that the pointer to the old structure was
+in fact \co{NULL}, \clnref{sr} waits for a grace period (thus providing
+the needed update-side temporal synchronization) and \clnref{free}
+frees the old structure, safe in the knowledge that there are no
+longer any readers still referencing it.
+\end{fcvref}
+
+\begin{figure*}
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{defer/RCUspacetime}}
+\caption{RCU Spatial/Temporal Synchronization}
+\label{fig:defer:RCU Spatial/Temporal Synchronization}
+\end{figure*}
+
+\Cref{fig:defer:RCU Spatial/Temporal Synchronization} shows an abbreviated
+representation of \co{get_config()} on the left and right and a similarly
+abbreviated representation of \co{set_config()} in the middle.
+Time advances from top to bottom, and the address space of the objects
+referenced by \co{curconfig} advances from left to right.
+The boxes with comma-separated numbers each represent a \co{myconfig}
+structure, with the constraint that \co{->b} is the square of \co{->a}.
+Each blue dash-dotted arrow represents an interaction with the old structure
+(on the left, containing ``5,25'') and each green dashed arrow represents
+an interaction with the new structure (on the right, containing ``9,81'').
+
+The black dotted arrows represent temporal relationships between RCU readers
+on the left and right and the RCU grace period at center, with each
+arrow pointing from an older event to a newer event.
+The call to \co{synchronize_rcu()} followed the leftmost \co{rcu_read_lock()},
+and therefore the return from that same \co{synchronize_rcu()} must
+follow the corresponding \co{rcu_read_unlock()}.
+In contrast, the call to \co{synchronize_rcu()} precedes the
+rightmost \co{rcu_read_lock()}, which allows the return from that same
+\co{synchronize_rcu()} to ignore the corresponding \co{rcu_read_unlock()}.
+These temporal relationships prevent the \co{myconfig} structures from
+being freed while RCU readers are still accessing them.
+
+The two horizontal grey dashed lines represent the period of time during
+which different readers get different results, however, each reader
+will see one and only one of the two objects.
+Before the first horizontal line, all readers see the leftmost
+\co{myconfig} structure, and after the second horizontal line, all
+readers will see the rightmost structure.
+Between the two lines, that is, during the grace period, different
+readers might see different objects, but as long as each reader
+loads the \co{curconfig} pointer only once, each reader will see
+a consistent view of its \co{myconfig} structure.
+
+In short, RCU attains its read-side performance and scalability through
+semantics based on combined temporal and spatial synchronization.
 
 \subsubsection{RCU is a Restricted Reference-Counting Mechanism}
 \label{sec:defer:RCU is a Restricted Reference-Counting Mechanism}

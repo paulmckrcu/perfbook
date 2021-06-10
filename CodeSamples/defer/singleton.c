@@ -32,43 +32,45 @@
 
 #include "../api.h"
 
-struct myconfig {
+//\begin{snippet}[labelbase=ln:defer:singleton:get,commandchars=\\\[\]]
+struct myconfig {					//\lnlbl{myconfig.b}
 	int a;
 	int b;
-} *curconfig;
+} *curconfig;						//\lnlbl{myconfig.e}
 
-int get_config(int *cur_a, int *cur_b)
+int get_config(int *cur_a, int *cur_b)			//\lnlbl{get_config.b}
 {
 	struct myconfig *mcp;
 
-	rcu_read_lock();
-	mcp = rcu_dereference(curconfig);
-	if (!mcp) {
-		rcu_read_unlock();
-		return 0;
+	rcu_read_lock();				//\lnlbl{rrl}
+	mcp = rcu_dereference(curconfig);		//\lnlbl{rderef}
+	if (!mcp) {					//\lnlbl{nullchk}
+		rcu_read_unlock();			//\lnlbl{rrul1}
+		return 0;				//\lnlbl{retfail}
 	}
-	*cur_a = mcp->a;
-	*cur_b = mcp->b;
-	BUG_ON(*cur_a * *cur_a != *cur_b);
-	rcu_read_unlock();
-	return 1;
-}
+	*cur_a = mcp->a;				//\lnlbl{copya}
+	*cur_b = mcp->b;				//\lnlbl{copyb}
+	rcu_read_unlock();				//\lnlbl{rrul2}
+	return 1;					//\lnlbl{retsuccess}
+}							//\lnlbl{get_config.e}
+//\end{snippet}
 
-void set_config(int cur_a, int cur_b)
+//\begin{snippet}[labelbase=ln:defer:singleton:set,commandchars=\\\[\]]
+void set_config(int cur_a, int cur_b)			//\lnlbl{set_config.b}
 {
 	struct myconfig *mcp;
 
-	mcp = malloc(sizeof(*mcp));
+	mcp = malloc(sizeof(*mcp));			//\lnlbl{allocinit.b}
 	BUG_ON(!mcp);
-	BUG_ON(cur_a * cur_a != cur_b);
 	mcp->a = cur_a;
-	mcp->b = cur_b;
-	mcp = xchg(&curconfig, mcp);
-	if (mcp) {
-		synchronize_rcu();
-		free(mcp);
+	mcp->b = cur_b;					//\lnlbl{allocinit.e}
+	mcp = xchg(&curconfig, mcp);			//\lnlbl{xchg}
+	if (mcp) {					//\lnlbl{if}
+		synchronize_rcu();			//\lnlbl{sr}
+		free(mcp);				//\lnlbl{free}
 	}
-}
+}							//\lnlbl{set_config.e}
+//\end{snippet}
 
 void clear_config(void)
 {
@@ -106,7 +108,6 @@ void *singleton_updater(void *arg)
 	while (READ_ONCE(goflag)) {
 		a = random() & 0xff;
 		b = a * a;
-		BUG_ON(a * a != b);
 		set_config(a, b);
 	}
 	return NULL;
