@@ -75,15 +75,6 @@ notably in the dcache subsystem~\cite{NeilBrown2015RCUwalk}.
 Note that it is likely that similar schemes also work with hazard
 pointers.
 
-Another approach is to shard the data elements, and then have each update
-write-acquire all the sequence locks needed to cover the data elements
-affected by that update.
-Of course, these write acquisitions must be done carefully in order to
-avoid \IX{deadlock}.
-Readers would also need to read-acquire multiple sequence locks, but
-in the surprisingly common case where readers only look up one data
-element, only one sequence lock need be read-acquired.
-
 This approach provides sequential consistency to successful readers,
 each of which will either see the effects of a given update or not,
 with any partial updates resulting in a read-side retry.
@@ -97,6 +88,117 @@ affect any of the data that a retried reader accesses.
 \Cref{sec:together:Correlated Fields} therefore covers a much weaker form
 of consistency that not only avoids reader starvation, but also avoids
 any form of read-side retry.
+The next section instead presents a weaker form of consistency that
+can be provided with much lower probabilities of reader starvation.
+
+\subsection{Atomic Move}
+\label{sec:together:Atomic Move}
+
+Suppose that individual data elements are moved from one data structure
+to another, and that readers look up only single data structures.
+However, when a data element moves, readers must must never see it as
+being in both structures at the same time and must also never see it as
+missing from both structures at the same time.
+At the same time, any reader seeing the element in its new location
+must never subsequently see it in its old location.
+In addition, the move may be implemented by inserting a new copy of the
+old data element into the destination location.
+
+For example, consider a hash table that supports an atomic-to-readers
+rename operation.
+Expanding on Schr\"odinger's zoo, suppose that an animal's name changes,
+for example, each of the brides in Schr\"odinger's traditionalist family
+might change their last name to match that of their groom.
+
+But changing their name might change the hash value, and might also
+require that the bride's element move from one hash chain to another.
+The consistency set forth above requires that if a reader successfully
+looks up the new name, then any subsequent lookup of the old name by
+that reader must result in failure.
+Similarly, if a reader's lookup of the old name results in lookup failure,
+then any subsequent lookup of the new name by that reader must succeed.
+In short, a given reader should not see a bride momentarily blinking out
+of existence, nor should that reader lookup a bride under her new name
+and then later lookup that bride under her old name.
+
+This consistency guarantee could be enforced with a single global sequence
+lock as described in \cref{sec:together:Correlated Data Elements}, but
+this can result in reader starvation even for readers that are not looking
+up a bride who is currently undergoing a name change.
+This guarantee could also be enforced by requiring that readers acquire
+a per-hash-chain lock, but reviewing
+\cref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo}
+shows that this results in poor performance and scalabilty, even for
+single-socket systems.
+
+Another more reader-friendly way to implement this is to use RCU and to
+place a sequence lock on each element.
+Readers looking up a given element act as sequence-lock readers across
+their full set of accesses to that element.
+Note that these sequence-lock operations will order each reader's lookups.
+
+Renaming an element can then proceed roughly as follows:
+
+\begin{enumerate}
+\item	Acquire a global lock protecting rename operations.
+\item	Allocate and initialize a copy of the element with the new name.
+\item	Write-acquire the sequence lock on the element with the old name,
+	which has the side effect of ordering this acquisition with the
+	following insertion.
+	Concurrent lookups of the old name will now repeatedly retry.
+\item	Insert the copy of the element with the new name.
+	Lookups of the new name will now succeed.
+\item	Execute \co{smp_wmb()} to order the prior insertion with the
+	subsequent removal.
+\item	Remove the element with the old name.
+	Concurrent lookups of the old name will now fail.
+\item	Write-release the sequence lock if necessary, for example, if
+	required by lock dependency checkers.
+\item	Release the global lock.
+\end{enumerate}
+
+Thus, readers looking up the old name will retry until the new name
+is available, at which point their final retry will fail.
+Any subsequent lookups of the new name will succeed.
+Any reader succeeding in looking up the new name is guaranteed that
+any subsequent lookup of the old name will fail, perhaps after a series
+of retries.
+
+\QuickQuiz{
+	Is it possible to write-acquire the sequence lock on
+	the new element before it is inserted instead of acquiring
+	that of the old element before it is removed?
+}\QuickQuizAnswer{
+	Yes, and the details are left as an exercise to the reader.
+
+	The term \emph{tombstone} is sometimes used to refer to the
+	element with the old name after its sequence lock is acquired.
+	Similarly, the term \emph{birthstone} is sometimes used to refer
+	to the element with the new name while its sequence lock is
+	still held.
+}\QuickQuizEnd
+
+\QuickQuiz{
+	Is it possible to avoid the global lock?
+}\QuickQuizAnswer{
+	Yes, and one way to do this would be to use per-hash-chain locks.
+	The updater could acquire lock(s) corresponding to both the old
+	and the new element, acquiring them in address order.
+	In this case, the insertion and removal operations would of
+	course need to refrain from acquiring and releasing these
+	same per-hash-chain locks.
+	This complexity can be worthwhile if rename operations are
+	frequent, and of course can allow rename operations to execute
+	concurrently.
+}\QuickQuizEnd
+
+It is of course possible to instead implement this procedure somewhat
+more efficiently using simple flags.
+However, this can be thought of as a simplified variant of sequence
+locking that relies on the fact that a given element's sequence lock is
+never write-acquired more than once.
+
+% @@@ Reference TBD flag-for-deletion section.
 
 \subsection{Upgrade to Writer}
 \label{sec:together:Upgrade to Writer}
