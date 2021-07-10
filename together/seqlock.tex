@@ -10,6 +10,63 @@
 
 This section looks at some special uses of sequence counters.
 
+\subsection{Dueling Sequence Locks}
+\label{sec:together:Dueling Sequence Locks}
+
+The classic sequence-locking use case enables a reader to see a consistent
+snapshot of a small collection of variables, for example, calibration
+constants for timekeeping.
+This works quite well in practice because calibration constants are
+rarely updated and, when updated, are updated quickly.
+Readers therefore almost never need to retry.
+
+However, if the updater is delayed during the update, readers will
+also be delayed.
+Such delays might be due to interrupts, NMIs, or even
+virtual-CPU preemption.
+
+One way to prevent updater delays from causing reader delays is to
+maintain two sets of calibration constants.
+Each set is updated in turn, but frequently enough that readers can
+make good use of either set.
+Each set has its own sequence lock (\co{seqlock_t} structure).
+
+The updater alternates between the two sets, so that an delayed updater
+delays readers of at most one of the sets.
+
+Each reader attempts to access the first set, but upon retry attempts
+to access the second set.
+If the second set also forces a retry, the reader repeats starting
+again from the first set.
+If the updater is stuck, only one of the two sets will force
+readers to retry, and therefore readers will succeed as soon as
+they attempt to access the other set.
+
+\QuickQuiz{
+	Why don't all sequence-locking use cases replicate the
+	data in this fashion?
+}\QuickQuizAnswer{
+	Such replication is impractical if the data is too
+	large, as it might be in the Schr\"odinger's-zoo example
+	described in
+	\cref{sec:together:Correlated Data Elements}.
+
+	Such replication is unnecessary if delays are prevented,
+	for example, when updaters disable interrupts when running
+	on bare-metal hardware (that is, without the use of
+	a vCPU-preemption-prone hypervisor).
+
+	Alternatively, if readers can tolerate the occasional delay,
+	then replication is again unnecessary.
+	Consider the example of reader-writer locking, where
+	writers always delay readers and vice versa.
+
+	However, if the data to be replicated is reasonably
+	small, if delays are possible, and if readers cannot
+	tolerate these delays, replicating the data is an
+	excellent approach.
+}\QuickQuizEnd
+
 \subsection{Correlated Data Elements}
 \label{sec:together:Correlated Data Elements}
 
