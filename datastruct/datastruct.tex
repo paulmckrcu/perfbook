@@ -559,6 +559,77 @@ Of course, after invoking \co{hashtab_del()}, the caller must wait for
 an RCU grace period (e.g., by invoking \co{synchronize_rcu()}) before
 freeing or otherwise reusing the memory for the newly deleted element.
 
+\subsection{RCU-Protected Hash Table Validation}
+\label{sec:datastruct:RCU-Protected Hash Table Validation}
+
+Although the topic of validation is covered in detail in
+\cref{chp:Validation}, the fact is that a hash table with lockless
+RCU-protected lookups needs special attention to validation sooner rather
+than later.
+
+The test suite (``\path{hashtorture.h}'') contains a \co{smoketest()}
+function that verifies that a specific series of single-threaded
+additions, deletions, and lookups give the expected results.
+
+Concurrent test runs put each updater thread in control of its portion of
+the elements, which allows assertions checking for the following issues:
+
+\begin{enumerate}
+\item	A just-now-to-be-added element already being in the table
+	according to \co{hastab_lookup()}.
+\item	A just-now-to-be-added element being marked as being in the
+	table by its \co{->in_table} flag.
+\item	A just-now-to-be-deleted element not being in the table according
+	to \co{hastab_lookup()}.
+\item	A just-now-to-be-deleted element being marked as not being in
+	the table by its \co{->in_table} flag.
+\end{enumerate}
+
+In addition, concurrent test runs run lookups concurrently with updates
+in order to catch all manner of data-structure corruption problems.
+Some runs also continually resize the hash table concurrently with both
+lookups and updates to verify correct behavior, and also to verify that
+resizes do not unduly delay either readers or updaters.
+
+Finally, the concurrent tests output statistics that can be used to
+track down performance and scalabilty issues, which provides the raw
+data used by
+\cref{sec:datastruct:RCU-Protected Hash Table Performance}.
+
+\QuickQuiz{
+	The \path{hashtorture.h} file contains more than 1,000 lines!
+	Is that a comprehensive test or what???
+}\QuickQuizAnswer{
+	What.
+
+	The \path{hashtorture.h} tests are a good start and suffice
+	for a textbook algorithm.
+	If this code was to be used in production, much more testing
+	would be required:
+
+	\begin{enumerate}
+	\item	Have some subset of elements that always reside in the
+		table, and verify that lookups always find these elements
+		regardless of the number and type of concurrent updates
+		in flight.
+	\item	Pair an updater with one or more readers, verifying that
+		after an element is added, once a reader successfully
+		looks up that element, all later lookups succeed.
+		The definition of ``later'' will depend on the table's
+		consistency requirements.
+	\item	Pair an updater with one or more readers, verifying that
+		after an element is deleted, once a reader's lookup
+		of that element fails, all later lookups also fail.
+	\end{enumerate}
+
+	There are many more tests where those came from, the exact
+	nature of which depend on the details of the requirements
+	on your particular hash table.
+}\QuickQuizEnd
+
+All code requires significant validation effort, and high-performance
+concurrent code requires more validation than most.
+
 \subsection{RCU-Protected Hash Table Performance}
 \label{sec:datastruct:RCU-Protected Hash Table Performance}
 
