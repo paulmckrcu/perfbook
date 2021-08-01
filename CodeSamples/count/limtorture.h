@@ -258,6 +258,7 @@ void perftestinit(int nthreads)
 
 void perftestrun(int nthreads, int nreaders, int nupdaters)
 {
+	int exitcode = EXIT_SUCCESS;
 	int t;
 	int duration = 240;
 
@@ -276,9 +277,11 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 		n_updates += per_thread(n_updates_pt, t);
 	}
 	n_updates *= 2;  /* Each update includes an add and a subtract. */
-	if (read_count() != 0)
+	if (read_count() != 0) {
 		printf("!!! Count mismatch: 0 counted vs. %lu final value\n",
 		       read_count());
+		exitcode = EXIT_FAILURE;
+	}
 	printf("n_reads: %lld  n_updates: %lld  nreaders: %d  nupdaters: %d duration: %d\n",
 	       n_reads, n_updates, nreaders, nupdaters, duration);
 	printf("ns/read: %g  ns/update: %g\n",
@@ -286,7 +289,7 @@ void perftestrun(int nthreads, int nreaders, int nupdaters)
 	        (double)n_reads),
 	       ((duration * 1000*1000.*(double)nupdaters) /
 	        (double)n_updates));
-	exit(EXIT_SUCCESS);
+	exit(exitcode);
 }
 
 void perftest(int nreaders, int cpustride)
