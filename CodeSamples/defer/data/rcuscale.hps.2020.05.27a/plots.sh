@@ -42,7 +42,7 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-set label 1 "rcu" at 30,1.7 left
+set label 1 "RCU" at 30,1.7 left
 set label 2 "rwlock" at 4,650 left
 # set label 3 "hazptr" at 360,3.5e6 left
 # set label 4 "seqlock" at 250,5.6e6 right
@@ -61,7 +61,7 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-set label 1 "rcu" at 30,1.7 left
+set label 1 "RCU" at 30,1.7 left
 set label 2 "rwlock" at 4,500 left
 # set label 3 "hazptr" at 360,3.5e6 left
 # set label 4 "seqlock" at 250,5.6e6 right
@@ -80,7 +80,7 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-set label 1 "rcu" at 30,1.7 left
+set label 1 "RCU" at 30,1.7 left
 set label 2 "refcnt" at 4,450 left
 # set label 3 "hazptr" at 360,3.5e6 left
 # set label 4 "seqlock" at 250,5.6e6 right

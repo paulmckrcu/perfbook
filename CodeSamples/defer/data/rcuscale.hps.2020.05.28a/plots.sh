@@ -43,7 +43,7 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-# set label 1 "rcu" at 30,1.7 left
+# set label 1 "RCU" at 30,1.7 left
 # set label 2 "rwlock" at 4,650 left
 # set label 3 "hazptr" at 360,3.5e6 left
 # set label 4 "seqlock" at 250,5.6e6 right
@@ -62,7 +62,7 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-set label 1 "rcu" at 30,9 left
+set label 1 "RCU" at 30,9 left
 set label 2 "rwlock" at 4,750 left
 # set label 3 "hazptr" at 360,3.5e6 left
 # set label 4 "seqlock" at 250,5.6e6 right
@@ -84,7 +84,7 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-set label 1 "rcu" at 30,9 left
+set label 1 "RCU" at 30,9 left
 set label 2 "rwlock" at 4,750 left
 # set label 3 "hazptr" at 360,3.5e6 left
 # set label 4 "seqlock" at 250,5.6e6 right
@@ -106,7 +106,7 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-set label 1 "rcu" at 30,1.7 left
+set label 1 "RCU" at 30,1.7 left
 set label 2 "rwlock" at 4,500 left
 # set label 3 "hazptr" at 360,3.5e6 left
 # set label 4 "seqlock" at 250,5.6e6 right
@@ -125,7 +125,7 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-set label 1 "rcu" at 30,1.7 left
+set label 1 "RCU" at 30,1.7 left
 set label 2 "refcnt" at 4,450 left
 # set label 3 "hazptr" at 360,3.5e6 left
 # set label 4 "seqlock" at 250,5.6e6 right
@@ -144,7 +144,7 @@ set logscale xy
 #set yrange [1:10000]
 #set yrange [100:10000]
 set nokey
-set label 1 "rcu" at 30,9 left
+set label 1 "RCU" at 30,9 left
 set label 2 "refcnt" at 4,500 left
 # set label 3 "hazptr" at 360,3.5e6 left
 # set label 4 "seqlock" at 250,5.6e6 right
@@ -163,7 +163,7 @@ set logscale xy
 #set yrange [1:10000]
 # set xrange [0:10]
 set nokey
-set label 1 "rcu" at 520,480 left
+set label 1 "RCU" at 520,480 left
 set label 2 "rwlock 100 CPUs" at 200,10000 left
 set label 3 "10 CPUs" at 110,1900 left
 set label 4 "1 CPU" at 120,500 left
@@ -171,7 +171,7 @@ set label 4 "1 CPU" at 120,500 left
 plot "rcu-1-eb.$tag.dat" w l, "rwlock-1-eb.$tag.dat" w l, "rwlock-1-eb.$tag.dat" w e, "rwlock-10-eb.$tag.dat" w l, "rwlock-10-eb.$tag.dat" w e, "rwlock-100-eb.$tag.dat" w l, "rwlock-100-eb.$tag.dat" w e
 set output "prz-rwlockRCUperfwt.eps"
 set size $przsize
-set label 1 "rcu" at 500,500 left
+set label 1 "RCU" at 500,500 left
 set label 2 "rwlock 100 CPUs" at 200,9000 left
 set label 3 "10 CPUs" at 130,1800 left
 set label 4 "1 CPU" at 120,440 left
@@ -179,7 +179,7 @@ replot
 set output "rwlockRCUperfwtlin.eps"
 set size square ${plotsize},${plotsize}
 set nologscale xy
-set label 1 "rcu" at 5800,5000 left
+set label 1 "RCU" at 5800,5000 left
 set label 2 "rwlock" at 300,8400 left
 set nolabel 3
 set nolabel 4
@@ -201,7 +201,7 @@ set logscale xy
 #set yrange [1:10000]
 #set xrange [0:10]
 set nokey
-set label 1 "rcu" at 1200,1000 left
+set label 1 "RCU" at 1200,1000 left
 set label 2 "refcnt 100 CPUs" at 200,10000 left
 set label 3 "10 CPUs" at 150,2200 left
 set label 4 "1 CPU" at 120,500 left

@@ -12,7 +12,7 @@ set data style lines
 set nokey
 # set logscale y
 set xrange [0:10]
-set label 1 "rcu" at 3,2000 left
+set label 1 "RCU" at 3,2000 left
 # set label 2 "spinlock" at 0.5,3.0 left
 # set label 3 "brlock" at 0.4,0.6 left
 set label 4 "rwlock" at 1,7500 left
@@ -34,7 +34,7 @@ set data style lines
 set nokey
 # set logscale y
 set xrange [0:10]
-set label 1 "rcu" at 3,2000 left
+set label 1 "RCU" at 3,2000 left
 # set label 2 "spinlock" at 0.5,3.0 left
 # set label 3 "brlock" at 0.4,0.6 left
 # set label 4 "rwlock" at 15,4000 right

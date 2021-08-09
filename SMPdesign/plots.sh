@@ -35,7 +35,7 @@ set logscale y
 set yrange [0.1:10000]
 set nokey
 set xtics rotate
-# set label 1 "rcu" at 0.1,10 left
+# set label 1 "RCU" at 0.1,10 left
 # set label 2 "spinlock" at 0.5,3.0 left
 # set label 3 "brlock" at 0.4,0.6 left
 # set label 4 "rwlock" at 0.3,1.6 left
