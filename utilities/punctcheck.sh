@@ -20,5 +20,5 @@ done
 
 for g in $tex_sources
 do
-	utilities/periodcheck.pl $g
+	utilities/punctcheck.pl $g
 done

@@ -191,9 +191,9 @@ BASE_DEPENDS := perfbook.tex $(foreach v,tcb 1c msns mss mstx msr msn msnt sf nq
 .PHONY: qq perfbook-qq.pdf qqmsg
 .PHONY: help help-official help-full help-semiofficial help-paper help-draft
 .PHONY: help-experimental help-prefixed
-.PHONY: paper-clean periodcheck periodcheck-auto
+.PHONY: paper-clean periodcheck punctcheck punctcheck-auto
 
-all: periodcheck-auto
+all: punctcheck-auto
 
 ifeq ($(MAKECMDGOALS),clean)
 else ifeq ($(MAKECMDGOALS),distclean)
@@ -610,13 +610,15 @@ ls-unused:
 neatfreak: distclean
 	find . -name '*.pdf' | xargs rm -f
 
-periodcheck:
-	utilities/periodcheck.sh
+punctcheck:
+	utilities/punctcheck.sh
 	utilities/cleverefcheck.sh
 
-periodcheck-auto: $(targ)
-	utilities/periodcheck.sh
+punctcheck-auto: $(targ)
+	utilities/punctcheck.sh
 	utilities/cleverefcheck.sh
+
+periodcheck: punctcheck
 
 .SECONDEXPANSION:
 $(ABBREVTARGETS): %: perfbook-$$@.pdf
