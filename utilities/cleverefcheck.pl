@@ -21,6 +21,10 @@ my $ng = 0;
 my $Verbatim_begin = qr/\\begin\{(Verbatim|tabula|equation|SaveVerb|verbbox)/ ;
 my $Verbatim_end = qr/\\end\{(Verbatim|tabula|equation|SaveVerb|verbbox)/ ;
 my $label_ptn = qr/(^\s*|\{)(,?[a-z]{3,4}:([a-zMPS]+:)?[^\},]+)(\}|,)/ ;
+my $IX_ptn = qr/(^|\s+)IX[^\s\{]*{/ ;
+my $api_ptn = qr/(^|\s+)api[^\s\{]*{/ ;
+my $ppl_ptn = qr/(^|\s+)ppl[^\s\{]*{/ ;
+my $acr_ptn = qr/(^|\s+)[aA]cr[^\s\{]*{/ ;
 my $in_footnote = 0 ;
 my $footnote_save = 0;
 
@@ -88,6 +92,10 @@ sub check_line {
 	}
 	if ($line =~ /^[ ]{8}/ ||  # indent by white speces (should be TAB)
 	    $line =~ /^(?=[\s]*+[^%])[^%][ ]+\t/) { # TAB after white space
+	    $ng += 1;
+	}
+	if ($line =~ /$IX_ptn/ || $line =~ /$api_ptn/ ||
+	    $line =~ /$ppl_ptn/ || $line =~ /$acr_ptn/ ) {
 	    $ng += 1;
 	}
 	if ($ng) {
