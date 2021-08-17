@@ -11,6 +11,7 @@ do
 	./glsdict.tex) ;;
 	./origpub.tex) ;;
 	./contrib.tex) ;;
+	./autodate.tex) ;;
 	./future/HTMtable*) ;;
 	./appendix/styleguide*) ;;
 	*) tex_sources="$tex_sources $f" ;;
