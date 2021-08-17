@@ -75,6 +75,9 @@ sub check_line {
 		$safe = 1;
 	    }
 	}
+	if ($line =~ /^(?=[\s]*+[^%])[^%]*^\s*\\item\s+[a-z]/ ) {
+	    $safe = 0;
+	}
 	if ($new_sentence) {
 	    if ($line =~ /^\s*`*[a-z]/ || $line =~ /^\s*\\acr/ ||
 		$line =~ /^\s*\\IX[^A\{]*\{[a-z]/ ) {
@@ -82,7 +85,7 @@ sub check_line {
 	    }
 	}
 	if ($new_sentence == 2) { # after colon
-	    if ($line =~ /^\s*\([0-9a-z]\)[\s~][a-z]/ ) {
+	    if ($line =~ /^\s*\([0-9a-z]+\)/ ) {
 		$safe = 0;
 	    }
 	}
