@@ -36,6 +36,13 @@ sub check_line {
 	    $line =~ s/$quoted_2//;
 	}
     }
+    if ($line =~ /\\[tq]?co\{([^\}]+)\}/) {# remove \co{} argument
+	while ($line && $line =~ /((\\[tq]?co\{)[^\}]+)\}/) {
+	    my $quoted_1 = quotemeta $1;
+	    my $quoted_2 = quotemeta $2;
+	    $line =~ s/$quoted_1/$quoted_2/;
+	}
+    }
     unless ($skip) {
 	$safe = 1;
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*\\ref\{/ ||
@@ -54,9 +61,9 @@ sub check_line {
 	}
 	if ($line =~ /^\s*\\Cref/ || $line =~ /^\s*\\Cpageref/ ||
 	    $line =~ /^\s*\\Clnref/) {
-	    if ($new_sentence) {
+	    if ($new_sentence == 1) {
 		$safe = 1;
-	    } else {
+	    } elsif ($new_sentence == 0) {
 		$safe = 0;
 	    }
 	}
@@ -68,8 +75,14 @@ sub check_line {
 		$safe = 1;
 	    }
 	}
-	if ($new_sentence == 1) {
-	    if ($line =~ /^\s*[a-z]/ ) {
+	if ($new_sentence) {
+	    if ($line =~ /^\s*`*[a-z]/ || $line =~ /^\s*\\acr/ ||
+		$line =~ /^\s*\\IX[^A\{]*\{[a-z]/ ) {
+		$safe = 0;
+	    }
+	}
+	if ($new_sentence == 2) { # after colon
+	    if ($line =~ /^\s*\([0-9a-z]\)[\s~][a-z]/ ) {
 		$safe = 0;
 	    }
 	}
@@ -87,14 +100,14 @@ sub check_line {
 	unless ($line =~ /\\begin\{fcvref\}/ || $line =~ /\\end\{fcvref\}/ ||
 		$line =~ /^\s*\}\s*$/ || $line =~ /^\s*%/) {
 	    if ($line =~ /^(?=[\s]*+[^%])[^%]*[\.\?!]\s*[\)\}\']*\s*(%.*)?$/ ||
-		$line =~ /^\s*$/ ||
+		$line =~ /^\s*$/ || $line =~ /\\begin\{quote\}/ ||
 		$line =~ /^\\E?QuickQuiz[BEM]?\{/ ||
 		$line =~ /\\E?QuickQuizAnswer[BEM]?\{/ ) {
 		$new_sentence = 1;
 	    } else {
 		$new_sentence = 0;
 		if ($line =~ /^(?=[\s]*+[^%])[^%]*:\s*[\)\}\']*\s*(%.*)?$/ ) {
-		    $new_sentence = 2;  # don't care
+		    $new_sentence = 2;  # colon
 		}
 	    }
 	}
