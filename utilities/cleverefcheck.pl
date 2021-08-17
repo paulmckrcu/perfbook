@@ -17,7 +17,7 @@ my $line;
 my $new_sentence = 1;
 my $line_num = 0;
 my $skip = 0;
-my $safe = 0;
+my $ng = 0;
 my $Verbatim_begin = qr/\\begin\{(Verbatim|tabula|equation|SaveVerb|verbbox)/ ;
 my $Verbatim_end = qr/\\end\{(Verbatim|tabula|equation|SaveVerb|verbbox)/ ;
 my $label_ptn = qr/(^\s*|\{)(,?[a-z]{3,4}:([a-zMPS]+:)?[^\},]+)(\}|,)/ ;
@@ -44,56 +44,53 @@ sub check_line {
 	}
     }
     unless ($skip) {
-	$safe = 1;
+	$ng = 0;
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*\\ref\{/ ||
 	    $line =~ /^(?=[\s]*+[^%])[^%]*\\pageref\{/ ||
 	    $line =~ /^(?=[\s]*+[^%])[^%]*\\lnref\{/) {
-	    $safe = 0;
+	    $ng += 1;
 	    if ($line =~ /or~\\lnref\{/ ||
 		$line =~ /item~\\ref\{/) {
-		$safe = 1;
+		$ng -= 1;
 	    }
 	}
-	if ($new_sentence == 1 &&
+	if ($new_sentence != 0 &&
 	    ($line =~ /^\s*\\cref/ || $line =~ /^\s*\\cpageref/ ||
 	     $line =~ /^\s*\\clnref/)) {
-	    $safe = 0;
+	    $ng += 1;
 	}
-	if ($line =~ /^\s*\\Cref/ || $line =~ /^\s*\\Cpageref/ ||
-	    $line =~ /^\s*\\Clnref/) {
-	    if ($new_sentence == 1) {
-		$safe = 1;
-	    } elsif ($new_sentence == 0) {
-		$safe = 0;
-	    }
+	if ($new_sentence == 0 &&
+	    ($line =~ /^\s*\\Cref/ || $line =~ /^\s*\\Cpageref/ ||
+	     $line =~ /^\s*\\Clnref/)) {
+	    $ng += 1;
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[^\s]+\s*\\Cref/ ||
 	    $line =~ /^(?=[\s]*+[^%])[^%]*[^\s]+\s*\\Cpageref/ ||
 	    $line =~ /^(?=[\s]*+[^%])[^%]*[^\s]+\s*\\Clnref/) {
-	    $safe = 0;
+	    $ng += 1;
 	    if ($line =~ /^(?=[\s]*+[^%])[^%]*^\s*\\item\s+\\C/ ) {
-		$safe = 1;
+		$ng -= 1;
 	    }
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*^\s*\\item\s+[a-z]/ ) {
-	    $safe = 0;
+	    $ng += 1;
 	}
 	if ($new_sentence) {
 	    if ($line =~ /^\s*`*[a-z]/ || $line =~ /^\s*\\acr/ ||
 		$line =~ /^\s*\\IX[^A\{]*\{[a-z]/ ) {
-		$safe = 0;
+		$ng += 1;
 	    }
 	}
 	if ($new_sentence == 2) { # after colon
 	    if ($line =~ /^\s*\([0-9a-z]+\)/ ) {
-		$safe = 0;
+		$ng += 1;
 	    }
 	}
 	if ($line =~ /^[ ]{8}/ ||  # indent by white speces (should be TAB)
 	    $line =~ /^(?=[\s]*+[^%])[^%][ ]+\t/) { # TAB after white space
-	    $safe = 0;
+	    $ng += 1;
 	}
-	unless ($safe) {
+	if ($ng) {
 	    print $ARGV[0], ':', $line_num, ':', $raw_line;
 	}
     }

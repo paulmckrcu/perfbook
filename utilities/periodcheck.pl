@@ -26,7 +26,7 @@ my $line;
 my $next_line;
 my $line_num = 0;
 my $skip = 0;
-my $safe = 0;
+my $ng;
 my $Verbatim_begin = qr/\\begin\{(Verbatim|tabula|equation)/ ;
 my $Verbatim_end = qr/\\end\{(Verbatim|tabular|equation)/ ;
 my $label_ptn = qr/(^\s*|\{)(,?[a-z]{3,4}:([a-zMPS]+:)?[^\},]+)(\}|,)/ ;
@@ -59,38 +59,38 @@ sub check_line {
 	$skip = 1;
     }
     unless ($skip) {
-	$safe = 1;
+	$ng = 0;
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[A-Z][\)\']*[\.\?\!\:][\)\}\']*$/ ||
 	    $line =~ /^(?=[\s]*+[^%])[^%]*[A-Z][\)\']*[\.\?\!\:]\\footnote/ ||
-	    $line =~ /^(?=[\s]*+[^%])[^%]*[Aa]crm?\{.+\}[\)\']*[\.\?\!\:][\)\}\']*$/ ) {
-	    $safe = 0;
+	    $line =~ /^(?=[\s]*+[^%])[^%]*[Aa]crm?(f|fst)?\{.+\}[\)\']*[\.\?\!\:][\)\}\']*$/ ) {
+	    $ng += 1;
 	    if ($next_line =~ /^\s*$/ || $next_line =~ /^\s*%/ ||
 		$next_line =~ /\\item/ ||
 		$next_line =~ /\\E?QuickQuizAnswer[BEM]?\{/ ||
 		$next_line =~ /\\E?QuickQuizEnd[BEM]?/ ||
 		$next_line =~ /\\end\{(quot|enum|item|sequ)/ ) {
-		$safe = 1;
+		$ng -= 1;
 	    }
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[a-z][\)\}\']*[\.\?\!][\)\}\']*\s+[^%]/ ||
 #	    $line =~ /^(?=[\s]*+[^%])[^%]*.*\.[\)\}\']*\s+[^%]/ ||  # Uncomment for full check
 	    $line =~ /^(?=[\s]*+[^%])[^%]*.*:[\)\}\']*\s+[^%]/ ) {
-	    $safe = 0;
+	    $ng += 1;
 	    if ($line =~ /^(?=[\s]*+[^%])[^%]*[a-z][\)\}\']*[\.\?\!][\)\}\']*\s+\\\\/ ||
 		$line =~ /^(?=[\s]*+[^%])[^%]*.*[\.:][\)\}\']*\s+\\\\/ ) {
-		$safe = 1;
+		$ng -= 1;
 	    }
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[^~]\\cite/) {
-	    $safe = 0;
+	    $ng += 1;
 	    if ($line =~ /^(?=[\s]*+[^%])[^%]*~\(\\cite/) {
-		$safe = 1;
+		$ng -= 1;
 	    }
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*\\\@[\.\?\!\:][\)\}\']*\s+[^%]/){
-	    $safe = 0;
+	    $ng += 1;
 	}
-	unless ($safe) {
+	if ($ng) {
 	    print $ARGV[0], ':', $line_num, ':', $line_raw;
 	}
     }
