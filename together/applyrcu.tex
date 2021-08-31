@@ -631,6 +631,170 @@ can tell when the value reaches zero.
 Readers desiring more \co{percpu_ref} information are referred to
 the Linux-kernel documentation and source code.
 
+\subsection{Retriggered Grace Periods}
+\label{sec:together:Retriggered Grace Periods}
+
+There is no \co{call_rcu_cancel()}, so once an \co{rcu_head} structure
+is passed to \co{call_rcu()}, there is no calling it back.
+It must be left alone until the callback is invoked.
+In the common case, this is as it should be because the \co{rcu_head}
+structure is on a one-way journey to deallocation.
+
+However, there are use cases that combine RCU and explicit \co{open()}
+and \co{close()} calls.
+After a \co{close()} call, readers are not supposed to begin new accesses
+to the data structure, but there might well be readers completing their
+traversal.
+This situation can be handled in the usual manner:
+Wait for a grace period following the \co{close()} call before freeing
+the data structures.
+
+But what if \co{open()} is called before the grace period ends?
+
+Again, there is no \co{call_rcu_cancel()}, so another approach is to
+set a flag that is checked by the callback function, which can opt out
+of actually freeing anything.
+Problem solved!
+
+But what if \co{open()} and then another \co{close()} are both called
+before the grace period ends?
+
+One approach is to have a second value for the flag that causes the
+callback to requeue itself.
+
+But what if there is not only a \co{open()} and then another \co{close()},
+but also another \co{open()} before the grace period ends?
+
+In this case, the callback needs to set state to reflect that last
+\co{open()} still being in effect.
+
+\begin{figure}
+\centering
+\resizebox{2.5in}{!}{\includegraphics{together/retriggergp}}
+\caption{Retrigger-Grace-Period State Machine}
+\label{fig:count:Retrigger-Grace-Period State Machine}
+\end{figure}
+
+Continuing this line of thought leads us to the state machine
+shown in \cref{fig:count:Retrigger-Grace-Period State Machine}.
+The initial state is CLOSED and the operational state is OPEN\@.
+The diamond-shaped arrowheads denote \co{call_rcu()} invocation, while
+the arrows labeled ``CB'' denote callback invocation.
+
+The normal path through this state machine traverses the states CLOSED,
+OPEN, CLOSING (with an invocation of \co{call_rcu()}), and back to CLOSED
+once the callback has been invoked.
+If \co{open()} is invoked before the grace period completes, the
+state machine traverses the cycle OPEN, CLOSING (with an invocation
+of \co{call_rcu()}), and back to CLOSED once the callback has been invoked.
+If \co{open()} and then \co{close()} are invoked before the grace period
+completes, the state machine traverses the cycle OPEN, CLOSING (with
+an invocation of \co{call_rcu()}), REOPENING, and back to OPEN once the
+callback has been invoked.
+
+Given an indefinite alternating sequence of \co{close()} and \co{open()}
+invocations, the state machine would traverse OPEN, and CLOSING (with
+an invocation of \co{call_rcu()}), followed by alternating sojourns in
+the REOPENING and RECLOSING states.
+Once the grace period ends, the state machine would transition to
+either of the CLOSING or the OPEN state, depending on which of the
+RECLOSING or REOPENING states the callback was invoked in.
+
+\begin{listing}
+\begin{VerbatimL}[tabsize=8]
+#define RTRG_CLOSED    0
+#define RTRG_OPEN      1
+#define RTRG_CLOSING   2
+#define RTRG_REOPENING 3
+#define RTRG_RECLOSING 4
+
+int rtrg_status;
+DEFINE_SPINLOCK(rtrg_lock);
+struct rcu_head rtrg_rh;
+
+void close_cb(struct rcu_head *rhp)
+{
+	spin_lock(rtrg_lock);
+	if (rtrg_status = RTRG_CLOSING) {
+		close_cleanup();
+		rtrg_status = RTRG_CLOSED;
+	} else if (rtrg_status == RTRG_REOPENING) {
+		rtrg_status = RTRG_OPEN;
+	} else if (rtrg_status == RTRG_RECLOSING) {
+		rtrg_status = RTRG_CLOSING;
+		call_rcu(&rtrg_rh, close_cb);
+	} else {
+		WARN_ON_ONCE(1);
+	}
+	spin_unlock(rtrg_lock);
+}
+
+int open(void)
+{
+	spin_lock(rtrg_lock);
+	if (rtrg_status == RTRG_CLOSED) {
+		rtrg_status = RTRG_OPEN;
+	} else if (rtrg_status == RTRG_CLOSING ||
+		   rtrg_status == RTRG_RECLOSING) {
+		rtrg_status = RTRG_REOPENING;
+	} else {
+		spin_unlock(rtrg_lock);
+		return -EBUSY;
+	}
+	do_open();
+	spin_unlock(rtrg_lock);
+}
+
+int close(void)
+{
+	spin_lock(rtrg_lock);
+	if (rtrg_status == RTRG_OPEN) {
+		rtrg_status = RTRG_CLOSING;
+		call_rcu(&rtrg_rh, close_cb);
+	} else if (rtrg_status == RTRG_REOPENING) {
+		rtrg_status = RTRG_RECLOSING;
+	} else {
+		spin_unlock(rtrg_lock);
+		return -ENOENT;
+	}
+	do_close();
+	spin_unlock(rtrg_lock);
+}
+\end{VerbatimL}
+\caption{Retriggering a Grace Period (Pseudocode)}
+\label{lst:together:Retriggering a Grace Period}
+\end{listing}
+
+Rough pseudocode of this state machine is shown in
+\cref{lst:together:Retriggering a Grace Period}.
+The five states are shown on lines~1-5, the current state is held in
+\co{rtrg_status} on line~7, which is protected by the lock on line~8.
+
+The three CB transitions (emanating from states CLOSING, REOPENING,
+and RECLOSING) are implemented by the \co{close_cb()} function shown
+on lines~11-26.
+Line~15 invokes a user-supplied \co{close_cleanup()} to take any final
+cleanup actions such as freeing memory when transitioning to the
+CLOSED state.
+Line~21 contains the \co{call_rcu()} invocation that causes a later
+transition to the CLOSED state.
+
+The \co{open()} function on lines~28-42 implements the transitions
+to the OPEN, CLOSING, and REOPENING states, with line~40 invoking a
+\co{do_open()} function to implement any allocation and initialization
+of any needed data structures.
+
+The \co{close()} function on lines~44-58 implements the transitions
+to the CLOSING and RCLOSING states, with line~56 invoking a
+\co{do_close()} function to take any actions that might be required
+to finalize this transition, for example, causing later read-only
+traversals to return errors.
+Line~49 contains the \co{call_rcu()} invocation that causes a later
+transition to the CLOSED state.
+
+This state machine and pseudocode shows how to get the effect of a
+\co{call_rcu_cancel()} in those rare situations needing such semantics.
+
 % @@@ RCU link counts
 % @@@ Minimize memory footprint, for example, SRCU.
 % @@@ Dealing with too-long readers.  Drop anchor, use refcnt, shard
