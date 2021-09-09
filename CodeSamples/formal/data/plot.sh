@@ -41,5 +41,3 @@ set style line 2 \
 plot 'rcu-test.dat' using 2 t "RCU", '' using 3:xticlabels(1) t "RCU Test", \
      '' using 5 with line linestyle 2 axis x1y2 t "\% Test"
 ---EOF---
-
-cp RCU-test-ratio.eps ../RCU-test-ratio.eps
