@@ -307,4 +307,4 @@ set label 5 "RCU" at 400,1.4e7 right
 # set label 6 "RCU-QSBR" at 300,2e7 right
 plot "route_seq.$tag.dat" w l, "route_seq.$tag.dat" w e, "route_hazptr.$tag.dat" w l, "route_hazptr.$tag.dat" w e, "route_seqlock.$tag.dat" w l, "route_seqlock.$tag.dat" w e, "route_rcu.$tag.dat" w l, "route_rcu.$tag.dat" w e, "route_rcu_qsbr.$tag.dat" w l, "route_rcu_qsbr.$tag.dat" w e
 ---EOF---
-cp perf-rcu-qsbr.eps ../../perf-rcu-qsbr-qq.eps
+# cp perf-rcu-qsbr.eps ../../perf-rcu-qsbr-qq.eps
