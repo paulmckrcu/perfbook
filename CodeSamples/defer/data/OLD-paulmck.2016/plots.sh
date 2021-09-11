@@ -50,7 +50,7 @@ set label 2 "refcnt" at 7.8,30000 right
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "route_seq.paulmck.2016.07.07a.dat" w l, "route_seq.paulmck.2016.07.07a.dat" w e, "route_refcnt.paulmck.2016.07.07a.dat" w l, "route_refcnt.paulmck.2016.07.07a.dat" w e
 ---EOF---
-cp perf-refcnt.eps ../..
+# cp perf-refcnt.eps ../..
 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
@@ -69,7 +69,7 @@ set label 3 "hazptr" at 5,48000 left
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "route_seq.paulmck.2016.07.07a.dat" w l, "route_seq.paulmck.2016.07.07a.dat" w e, "route_refcnt.paulmck.2016.07.07a.dat" w l, "route_refcnt.paulmck.2016.07.07a.dat" w e, "route_hazptr.paulmck.2016.07.07a.dat" w l, "route_hazptr.paulmck.2016.07.07a.dat" w e
 ---EOF---
-cp perf-hazptr.eps ../..
+# cp perf-hazptr.eps ../..
 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
@@ -88,7 +88,7 @@ set label 4 "seqlock" at 7.8,165000 right
 # set label 5 "refcnt" at 0.15,2.8 left
 plot "route_seq.paulmck.2016.07.07a.dat" w l, "route_seq.paulmck.2016.07.07a.dat" w e, "route_refcnt.paulmck.2016.07.07a.dat" w l, "route_refcnt.paulmck.2016.07.07a.dat" w e, "route_hazptr.paulmck.2016.07.07a.dat" w l, "route_hazptr.paulmck.2016.07.07a.dat" w e, "route_seqlock.paulmck.2016.07.07a.dat" w l, "route_seqlock.paulmck.2016.07.07a.dat" w e
 ---EOF---
-cp perf-seqlock.eps ../..
+# cp perf-seqlock.eps ../..
 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
@@ -107,7 +107,7 @@ set label 4 "seqlock" at 7.8,165000 right
 set label 5 "RCU" at 7.8,286000 right
 plot "route_seq.paulmck.2016.07.07a.dat" w l, "route_seq.paulmck.2016.07.07a.dat" w e, "route_refcnt.paulmck.2016.07.07a.dat" w l, "route_refcnt.paulmck.2016.07.07a.dat" w e, "route_hazptr.paulmck.2016.07.07a.dat" w l, "route_hazptr.paulmck.2016.07.07a.dat" w e, "route_seqlock.paulmck.2016.07.07a.dat" w l, "route_seqlock.paulmck.2016.07.07a.dat" w e, "route_rcu.paulmck.2016.07.07a.dat" w l, "route_rcu.paulmck.2016.07.07a.dat" w e
 ---EOF---
-cp perf-rcu.eps ../..
+# cp perf-rcu.eps ../..
 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
@@ -126,4 +126,4 @@ set label 4 "seqlock" at 7.8,165000 right
 set label 5 "RCU" at 7.8,286000 right
 plot "route_seq.paulmck.2016.07.07a.dat" w l, "route_seq.paulmck.2016.07.07a.dat" w e, "route_refcnt.paulmck.2016.07.07a.dat" w l, "route_refcnt.paulmck.2016.07.07a.dat" w e, "route_hazptr.paulmck.2016.07.07a.dat" w l, "route_hazptr.paulmck.2016.07.07a.dat" w e, "route_seqlock.paulmck.2016.07.07a.dat" w l, "route_seqlock.paulmck.2016.07.07a.dat" w e, "route_rcu.paulmck.2016.07.07a.dat" w l, "route_rcu.paulmck.2016.07.07a.dat" w e, "route_rcu_qsbr.paulmck.2016.07.12a.dat" w l, "route_rcu_qsbr.paulmck.2016.07.12a.dat" w e
 ---EOF---
-cp perf-rcu-qsbr.eps ../..
+# cp perf-rcu-qsbr.eps ../..

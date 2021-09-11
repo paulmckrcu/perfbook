@@ -49,7 +49,7 @@ set label 2 "rwlock" at 4,650 left
 # set label 5 "RCU" at 400,1.4e7 right
 plot "rcu-eb.$tag.dat" w l, "rcu-eb.$tag.dat" w e, "rwlock-eb.$tag.dat" w l, "rwlock-eb.$tag.dat" w e
 ---EOF---
-cp rwlockRCUperf.eps ../../../../defer
+# cp rwlockRCUperf.eps ../../../../defer
 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
@@ -87,7 +87,7 @@ set label 2 "refcnt" at 4,450 left
 # set label 5 "RCU" at 400,1.4e7 right
 plot "rcu-eb.$tag.dat" w l, "rcu-eb.$tag.dat" w e, "refcnt-eb.$tag.dat" w l, "refcnt-eb.$tag.dat" w e
 ---EOF---
-cp refcntRCUperf.eps ../../../../defer
+# cp refcntRCUperf.eps ../../../../defer
 
 exit 0
 

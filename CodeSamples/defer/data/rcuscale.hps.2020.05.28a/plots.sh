@@ -72,7 +72,7 @@ set output "prz-rwlockRCUperf.eps"
 set size $przsize
 replot
 ---EOF---
-cp rwlockRCUperf.eps ../../../../defer
+# cp rwlockRCUperf.eps ../../../../defer
 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
@@ -94,7 +94,7 @@ set output "prz-rwlockRCUperfPREEMPT.eps"
 set size $przsize
 replot
 ---EOF---
-cp rwlockRCUperfPREEMPT.eps ../../../../defer
+# cp rwlockRCUperfPREEMPT.eps ../../../../defer
 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
@@ -132,7 +132,7 @@ set label 2 "refcnt" at 4,450 left
 # set label 5 "RCU" at 400,1.4e7 right
 plot "rcu-eb.$tag.dat" w l, "rcu-eb.$tag.dat" w e, "refcnt-eb.$tag.dat" w l, "refcnt-eb.$tag.dat" w e
 ---EOF---
-cp refcntRCUperf.eps ../../../../defer
+# cp refcntRCUperf.eps ../../../../defer
 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
@@ -151,7 +151,7 @@ set label 2 "refcnt" at 4,500 left
 # set label 5 "RCU" at 400,1.4e7 right
 plot "rcu-eb.$tag.preempt.dat" w l, "rcu-eb.$tag.preempt.dat" w e, "refcnt-eb.$tag.preempt.dat" w l, "refcnt-eb.$tag.preempt.dat" w e
 ---EOF---
-cp refRCUperfPREEMPT.eps ../../../../defer
+# cp refRCUperfPREEMPT.eps ../../../../defer
 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
@@ -189,7 +189,7 @@ set output "prz-rwlockRCUperfwtlin.eps"
 set size $przsize
 replot
 ---EOF---
-cp rwlockRCUperfwt.eps ../../../../defer
+# cp rwlockRCUperfwt.eps ../../../../defer
 
 gnuplot << ---EOF---
 set term postscript portrait ${fontsize} enhanced "NimbusSanL-Regu" fontfile "${font}fonts/uhvr8a.pfb"
@@ -208,7 +208,7 @@ set label 4 "1 CPU" at 120,500 left
 # set label 5 "RCU" at 400,1.4e7 right
 plot "rcu-1-eb.$tag.dat" w l, "refcnt-1-eb.$tag.dat" w l, "refcnt-1-eb.$tag.dat" w e, "refcnt-10-eb.$tag.dat" w l, "refcnt-10-eb.$tag.dat" w e, "refcnt-100-eb.$tag.dat" w l, "refcnt-100-eb.$tag.dat" w e
 ---EOF---
-cp refRCUperfwt.eps ../../../../defer
+# cp refRCUperfwt.eps ../../../../defer
 
 exit 0
 @@@  The following are needed when regenerating the pre-BSD routing plots
