@@ -69,7 +69,9 @@ EPSSOURCES_DUP := \
 
 EPSSOURCES_OLD := \
 	$(wildcard CodeSamples/*/*/OLD-*/*.eps) \
-	$(wildcard CodeSamples/*/*/*/OLD-*/*.eps)
+	$(wildcard CodeSamples/*/*/OLD-*/*/*.eps) \
+	$(wildcard CodeSamples/*/*/*/OLD-*/*.eps) \
+	$(wildcard CodeSamples/*/*/*/OLD-*/*/*.eps)
 
 EPSSOURCES := $(sort $(filter-out $(EPSSOURCES_OLD),$(filter-out $(OBSOLETE_FILES),$(EPSSOURCES_DUP))))
 
