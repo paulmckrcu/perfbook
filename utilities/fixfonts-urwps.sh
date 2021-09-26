@@ -19,7 +19,7 @@
 #
 # Copyright (c) 2011-2019 Paul E. McKenney, IBM Corporation.
 # Copyright (c) 2019 Paul E. McKenney, Facebook.
-# Copyright (c) 2018 Akira Yokosawa.
+# Copyright (c) 2018, 2021 Akira Yokosawa.
 
 sed	-e 's+Times-Roman-BoldItalic+NimbusSans-BoldItalic+g' \
 	-e 's+Times-Roman-Italic+NimbusSans-Italic+g' \
@@ -56,4 +56,5 @@ sed	-e 's+Times-Roman-BoldItalic+NimbusSans-BoldItalic+g' \
 	-e 's+NimbusMono-Regular+NimbusMonoPS-Regular+g' \
 	-e 's+NimbusSans-Regular-Italic+NimbusSans-Italic+g' \
 	-e 's+NimbusSans-Regular-BoldItalic+NimbusSans-BoldItalic+g' \
-	-e 's+NimbusSans-Regular-Bold+NimbusSans-Bold+g'
+	-e 's+NimbusSans-Regular-Bold+NimbusSans-Bold+g' \
+	-e 's+NimbusMonoPS-Regular+DejaVuSansMono+g'

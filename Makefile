@@ -101,14 +101,15 @@ STEELFONT := $(shell fc-list | grep -c -i steel)
 URWPS := $(shell fc-list | grep "Nimbus Mono PS" | wc -l)
 
 # required font packages
-FONTPACKAGES := $(shell kpsewhich newtxtext.sty nimbusmono.sty newtxtt.sty newtxsf.sty inconsolata.sty couriers.sty mdsymbol.sty)
+FONTPACKAGES := $(shell kpsewhich newtxtext.sty nimbusmono.sty newtxtt.sty newtxsf.sty inconsolata.sty couriers.sty)
 NEWTXTEXT := $(findstring newtxtext,$(FONTPACKAGES))
 NIMBUSMONO := $(findstring nimbusmono,$(FONTPACKAGES))
 NEWTXTT := $(findstring newtxtt,$(FONTPACKAGES))
 COURIERS := $(findstring couriers,$(FONTPACKAGES))
 NEWTXSF := $(findstring newtxsf,$(FONTPACKAGES))
 INCONSOLATA := $(findstring inconsolata,$(FONTPACKAGES))
-MDSYMBOL := $(findstring mdsymbol,$(FONTPACKAGES))
+FREESANS := $(shell fc-list | grep FreeSans | wc -l)
+DEJAVUMONO := $(shell fc-list | grep "DejaVu Sans Mono" | wc -l)
 
 # for line break in error text
 define n
@@ -122,11 +123,16 @@ FIXANEPSFONTS = utilities/fixanepsfonts.sh
 else
 FIXSVGFONTS   = utilities/fixsvgfonts-urwps.sh
 FIXANEPSFONTS = utilities/fixanepsfonts-urwps.sh
-  ifeq ($(MDSYMBOL),)
-    NEEDMDSYMBOL := 1
-  else
-    NEEDMDSYMBOL := 0
-  endif
+endif
+ifeq ($(FREESANS),0)
+  RECOMMEND_FREEFONT := 1
+else
+  RECOMMEND_FREEFONT := 0
+endif
+ifeq ($(DEJAVUMONO),0)
+  RECOMMEND_DEJAVU := 1
+else
+  RECOMMEND_DEJAVU := 0
 endif
 
 STEELFONTID := $(shell fc-list | grep -i steel | grep -c Steel)
@@ -476,8 +482,11 @@ ifeq ($(STEELFONTID),0)
 else
 	@sh $(FIXSVGFONTS) < $< > $<i
 endif
-ifeq ($(NEEDMDSYMBOL),1)
-	$(error Font package 'mdsymbol' not found. See #9 in FAQ-BUILD.txt)
+ifeq ($(RECOMMEND_FREEFONT),1)
+	$(info Nice-to-have font package 'gnu-freefont' not found. See #9 in FAQ-BUILD.txt)
+endif
+ifeq ($(RECOMMEND_DEJAVU),1)
+	$(info Nice-to-have font package 'dejavu' not found. See #9 in FAQ-BUILD.txt)
 endif
 ifeq ($(INKSCAPE_ONE),0)
 	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1

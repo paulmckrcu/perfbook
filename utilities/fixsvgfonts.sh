@@ -3,13 +3,14 @@
 # fixsvgfonts.sh: Convert an .svg file to use embeddable fonts, taking from
 #	standard input and putting on standard output.
 #
-# Copyright (c) 2018 Akira Yokosawa
+# Copyright (c) 2018, 2021 Akira Yokosawa
 
-sed	-e 's+family:Helvetica+family:Nimbus Sans L+g' \
-	-e 's+family="Helvetica+family="Nimbus Sans L+g' \
-	-e 's+family:Sans+family:Nimbus Sans L+g' \
-	-e 's+cation:Sans+cation:Nimbus Sans L+g' \
-	-e 's+family:sans-serif+family:Nimbus Sans L+g' \
-	-e 's+cation:sans-serif+cation:Nimbus Sans L+g' \
-	-e 's+family:Courier+family:Nimbus Mono L+g' \
-	-e 's+family="Courier+family="Nimbus Mono L+g'
+sed	-e 's+:Helvetica+:Nimbus Sans L+g' \
+	-e 's+="Helvetica+="Nimbus Sans L+g' \
+	-e 's+:Sans+:Nimbus Sans L+g' \
+	-e 's+:sans-serif+:Nimbus Sans L+g' \
+	-e 's+:Courier+:Nimbus Mono L+g' \
+	-e 's+="Courier+="Nimbus Mono L+g' \
+	-e 's+:monospace+:DejaVu Sans Mono+g' \
+	-e 's+monospace,+DejaVu Sans Mono,+g' \
+	-e 's+:Symbol+:FreeSans+g'
