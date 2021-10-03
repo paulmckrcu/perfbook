@@ -119,9 +119,11 @@ endef
 ifeq ($(URWPS),0)
 FIXSVGFONTS   = utilities/fixsvgfonts.sh
 FIXANEPSFONTS = utilities/fixanepsfonts.sh
+FIXFONTS      = utilities/fixfonts.sh
 else
 FIXSVGFONTS   = utilities/fixsvgfonts-urwps.sh
 FIXANEPSFONTS = utilities/fixanepsfonts-urwps.sh
+FIXFONTS      = utilities/fixfonts-urwps.sh
 endif
 ifeq ($(FREESANS),0)
   RECOMMEND_FREEFONT := 1

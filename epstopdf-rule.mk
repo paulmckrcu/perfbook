@@ -13,8 +13,7 @@ $(PDFTARGETS_OF_EPSORIG): %.pdf: %.eps
 ifndef EPSTOPDF
 	$(error $< --> $@: epstopdf not found. Please install it)
 endif
-	@cp $< $(basename $<)__.eps
-	@sh $(FIXANEPSFONTS) $(basename $<)__.eps
+	@sh $(FIXFONTS) < $< > $(basename $<)__.eps
 	@eps2eps $(basename $<)__.eps $(basename $<)___.eps
 	@epstopdf $(GS_OPT) $(basename $<)___.eps $@
 	@rm -f $(basename $<)__.eps $(basename $<)___.eps
