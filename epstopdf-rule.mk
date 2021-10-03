@@ -6,6 +6,7 @@
 
 EPSTOPDF := $(shell which epstopdf 2>/dev/null)
 GS_953_OR_LATER := $(shell gs --version | grep -c -E "9\.5[3-9].?")
+GS_OPT=--gsopt=-dPDFSETTINGS=/ebook
 
 $(PDFTARGETS_OF_EPSORIG): %.pdf: %.eps
 	@echo "$< --> $@"
@@ -15,7 +16,7 @@ endif
 	@cp $< $(basename $<)__.eps
 	@sh $(FIXANEPSFONTS) $(basename $<)__.eps
 	@eps2eps $(basename $<)__.eps $(basename $<)___.eps
-	@epstopdf $(basename $<)___.eps $@
+	@epstopdf $(GS_OPT) $(basename $<)___.eps $@
 	@rm -f $(basename $<)__.eps $(basename $<)___.eps
 
 $(PDFTARGETS_OF_TEX): %.pdf: %.eps
@@ -25,10 +26,10 @@ ifndef EPSTOPDF
 endif
 ifeq ($(GS_953_OR_LATER),1)
 	@eps2eps -dALLOWPSTRANSPARENCY $< $(basename $<)__.eps
-	@epstopdf --gsopt=-dALLOWPSTRANSPARENCY $(basename $<)__.eps $@
+	@epstopdf --gsopt=-dALLOWPSTRANSPARENCY $(GS_OPT) $(basename $<)__.eps $@
 else
 	@eps2eps $< $(basename $<)__.eps
-	@epstopdf --nosafer $(basename $<)__.eps $@
+	@epstopdf --nosafer $(GS_OPT) $(basename $<)__.eps $@
 endif
 	@rm -f $(basename $<)__.eps
 
@@ -38,5 +39,5 @@ ifndef EPSTOPDF
 	$(error $< --> $@: epstopdf not found. Please install it)
 endif
 	@eps2eps $< $(basename $<)__.eps
-	@epstopdf $(basename $<)__.eps $@
+	@epstopdf $(GS_OPT) $(basename $<)__.eps $@
 	@rm -f $(basename $<)__.eps
