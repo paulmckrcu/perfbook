@@ -29,7 +29,7 @@ ifdef A2PING
   endif
 endif
 
-$(PDFTARGETS_OF_EPSORIG): %.pdf: %.eps
+$(PDFTARGETS_OF_GNUPLOT_NEEDFIXFONTS): %.pdf: %.eps
 	@echo "$< --> $@"
 ifndef A2PING
 	$(error $< --> $@: a2ping not found. Please install it)
@@ -58,7 +58,7 @@ else
 	@a2ping --below --hires --bboxfrom=compute-gs $< $@ > /dev/null 2>&1
 endif
 
-$(PDFTARGETS_OF_EPSOTHER): %.pdf: %.eps
+$(PDFTARGETS_OF_EPSORIG_NOFIXFONTS) $(PDFTARGETS_OF_EPSOTHER): %.pdf: %.eps
 	@echo "$< --> $@"
 ifndef A2PING
 	$(error $< --> $@: a2ping not found. Please install it)
