@@ -408,7 +408,11 @@ endif
 	@sh $(FIXANEPSFONTS) $@
 
 # .eps --> .pdf rules
-include a2ping-rule.mk
+ifndef NO_A2PING
+  include a2ping-rule.mk
+else
+  include epstopdf-rule.mk
+endif
 
 $(PDFTARGETS_OF_SVG): %.pdf: %.svg
 	@echo "$< --> $@"
