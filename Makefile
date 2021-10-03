@@ -204,6 +204,7 @@ BASE_DEPENDS := perfbook.tex $(foreach v,tcb 1c msns mss mstx msr msn msnt sf nq
 .PHONY: help help-official help-full help-semiofficial help-paper help-draft
 .PHONY: help-experimental help-prefixed
 .PHONY: paper-clean periodcheck punctcheck punctcheck-auto
+.PHONY: cleanfigs cleanfigs-eps cleanfigs-svg figs
 
 all: punctcheck-auto
 
@@ -624,6 +625,17 @@ ls-unused:
 
 neatfreak: distclean
 	find . -name '*.pdf' | xargs rm -f
+
+cleanfigs-eps:
+	rm -f $(EPSSOURCES_FROM_TEX) $(EPSSOURCES_FROM_DOT) $(EPSSOURCES_FROM_FIG)
+	rm -f $(PDFTARGETS_OF_EPS)
+
+cleanfigs-svg:
+	rm -f $(PDFTARGETS_OF_SVG)
+
+cleanfigs: cleanfigs-eps cleanfigs-svg
+
+figs: $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG)
 
 punctcheck:
 	utilities/punctcheck.sh
