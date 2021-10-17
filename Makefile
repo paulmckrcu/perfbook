@@ -417,7 +417,7 @@ endif
 	@sh $(FIXANEPSFONTS) $@
 
 # .eps --> .pdf rules
-ifndef NO_A2PING
+ifdef USE_A2PING
   include a2ping-rule.mk
 else
   include epstopdf-rule.mk
