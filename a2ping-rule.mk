@@ -30,7 +30,7 @@ ifdef A2PING
 endif
 
 $(PDFTARGETS_OF_GNUPLOT_NEEDFIXFONTS): %.pdf: %.eps
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@) (by a2ping)"
 ifndef A2PING
 	$(error $< --> $@: a2ping not found. Please install it)
 endif
@@ -43,7 +43,7 @@ endif
 	@rm -f $<i
 
 $(PDFTARGETS_OF_TEX): %.pdf: %.eps
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@) (by a2ping)"
 ifndef A2PING
 	$(error $< --> $@: a2ping not found. Please install it)
 endif
@@ -59,7 +59,7 @@ else
 endif
 
 $(PDFTARGETS_OF_EPSORIG_NOFIXFONTS) $(PDFTARGETS_OF_EPSOTHER): %.pdf: %.eps
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@) (by a2ping)"
 ifndef A2PING
 	$(error $< --> $@: a2ping not found. Please install it)
 endif

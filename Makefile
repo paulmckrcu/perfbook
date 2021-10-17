@@ -394,14 +394,14 @@ perfbook-a4.tex:
 # Rules related to perfbook_html are removed as of May, 2016
 
 $(EPSSOURCES_FROM_TEX): %.eps: %.tex
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@)"
 	sh utilities/mpostcheck.sh
 	@latex -output-directory=$(shell dirname $<) $< > /dev/null 2>&1
 	@dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@ > /dev/null 2>&1
 	@sh $(FIXANEPSFONTS) $@
 
 $(EPSSOURCES_FROM_DOT): %.eps: %.dot
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@)"
 ifndef DOT
 	$(error $< --> $@: dot not found. Please install graphviz)
 endif
@@ -409,7 +409,7 @@ endif
 	@sh $(FIXANEPSFONTS) $@
 
 $(EPSSOURCES_FROM_FIG): %.eps: %.fig
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@)"
 ifndef FIG2EPS
 	$(error $< --> $@: fig2eps not found. Please install fig2ps)
 endif
@@ -424,7 +424,7 @@ else
 endif
 
 $(PDFTARGETS_OF_SVG): %.pdf: %.svg
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@)"
 ifeq ($(STEELFONT),0)
 	$(error "Steel City Comic" font not found. See #1 in FAQ.txt)
 endif
@@ -463,17 +463,17 @@ CodeSamples/snippets.d: $(SOURCES_OF_SNIPPET) $(GEN_SNIPPET_D)
 	sh ./utilities/gen_snippet_d.sh
 
 $(FCVSNIPPETS):
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@)"
 	@utilities/fcvextract.pl $< $(subst +,\\+,$(subst @,:,$(basename $(notdir $@)))) > $@
 	@utilities/checkfcv.pl $@
 
 $(FCVSNIPPETS_VIA_LTMS):
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@)"
 	@utilities/fcvextract.pl $< $(subst +,\\+,$(subst @,:,$(basename $(notdir $@)))) > $@
 	@utilities/checkfcv.pl $@
 
 $(FCVSNIPPETS_LTMS):
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@)"
 	@utilities/reorder_ltms.pl $< > $@
 
 help-official:

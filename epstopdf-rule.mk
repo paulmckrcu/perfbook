@@ -9,7 +9,7 @@ GS_953_OR_LATER := $(shell gs --version | grep -c -E "9\.5[3-9].?")
 GS_OPT=--gsopt=-dPDFSETTINGS=/ebook
 
 $(PDFTARGETS_OF_GNUPLOT_NEEDFIXFONTS): %.pdf: %.eps
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@)"
 ifndef EPSTOPDF
 	$(error $< --> $@: epstopdf not found. Please install it)
 endif
@@ -19,7 +19,7 @@ endif
 	@rm -f $(basename $<)__.eps $(basename $<)___.eps
 
 $(PDFTARGETS_OF_TEX): %.pdf: %.eps
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@)"
 ifndef EPSTOPDF
 	$(error $< --> $@: epstopdf not found. Please install it)
 endif
@@ -33,7 +33,7 @@ endif
 	@rm -f $(basename $<)__.eps
 
 $(PDFTARGETS_OF_EPSORIG_NOFIXFONTS) $(PDFTARGETS_OF_EPSOTHER): %.pdf: %.eps
-	@echo "$< --> $@"
+	@echo "$< --> $(suffix $@)"
 ifndef EPSTOPDF
 	$(error $< --> $@: epstopdf not found. Please install it)
 endif
