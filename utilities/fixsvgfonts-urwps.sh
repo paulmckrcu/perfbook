@@ -17,4 +17,6 @@ sed	-e 's+:Helvetica+:Nimbus Sans+g' \
 	-e 's+:Nimbus Sans L+:Nimbus Sans+g' \
 	-e 's+="Nimbus Sans L+="Nimbus Sans+g' \
 	-e 's+:Nimbus Mono L+:Nimbus Mono PS+g' \
-	-e 's+="Nimbus Mono L+="Nimbus Mono PS+g'
+	-e 's+="Nimbus Mono L+="Nimbus Mono PS+g' \
+	-e 's+:URW Gothic L+:URW Gothic+g' \
+	-e 's+="URW Gothic L+="URW Gothic+g'
