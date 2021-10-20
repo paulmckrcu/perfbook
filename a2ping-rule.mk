@@ -29,6 +29,7 @@ ifdef A2PING
   endif
 endif
 
+$(PDFTARGETS_OF_GNUPLOT_NEEDFIXFONTS): $(FIXANEPSFONTS) $(FIXFONTS)
 $(PDFTARGETS_OF_GNUPLOT_NEEDFIXFONTS): %.pdf: %.eps
 	@echo "$< --> $(suffix $@) (by a2ping)"
 ifndef A2PING
