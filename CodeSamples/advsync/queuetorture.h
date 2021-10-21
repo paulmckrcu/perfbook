@@ -1,5 +1,5 @@
 /*
- * deqtorture.h: torture tests for double-ended queue.
+ * queuetorture.h: torture tests for simple queue.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -82,7 +82,7 @@ void *concurrent_push(void *arg)
  * Dequeue as specified by the q_test structure. This may be called
  * directly (in which case the number of elements to be popped must
  * be exactly that required and the specified goflag already set to
- * GOFLAG_START), or via create_thread.
+ * GOFLAG_START), or via create_thread().
  */
 void *concurrent_pop(void *arg)
 {
