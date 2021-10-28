@@ -50,5 +50,11 @@ set label 2 "2,097,152" at 10,8000 left
 # set label 3 "131,072" at 10,5000 left
 # set label 4 "rwlock" at 0.3,1.6 left
 # set label 5 "refcnt" at 0.15,2.8 left
-plot "perftestS.2097152.${tag}.dat" w l, "perftestR.2097152.${tag}.dat" w l, "perftestL.2097152.${tag}.dat" w l, "perftestS.262144.${tag}.dat" w l, "perftestR.262144.${tag}.dat" w l, "perftestL.262144.${tag}.dat" w l, "perftestL.2097152.hps.2020.09.27a.dat" w l
+plot "perftestS.2097152.${tag}.dat" w l,\
+     "perftestR.2097152.${tag}.dat" w l,\
+     "perftestL.2097152.${tag}.dat" w l,\
+     "perftestS.262144.${tag}.dat" w l,\
+     "perftestR.262144.${tag}.dat" w l,\
+     "perftestL.262144.${tag}.dat" w l,\
+     "perftestL.2097152.hps.2020.09.27a.dat" w l
 ---EOF---
