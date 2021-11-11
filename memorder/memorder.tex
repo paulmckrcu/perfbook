@@ -3293,6 +3293,7 @@ As it turns out, quite a bit:
 \item	As above, but with the lock reacquisition carried out by some
 	other CPU or threads?
 \item	As above, but with the lock reacquisition being some other lock?
+\item	What ordering guarantees are provided by \co{spin_is_locked()}?
 \end{enumerate}
 
 The reaction to some or even all of these questions might well be ``Why
@@ -3476,6 +3477,47 @@ This situation can seem counter-intuitive, but it is rare for code to
 care.
 This approach also allows certain weakly ordered systems to implement
 more efficient locks.
+
+\subsubsection{Ordering for \tco{spin_is_locked()}?}
+\label{sec:memorder:Ordering for spin-is-locked()?}
+
+The Linux kernel's \co{spin_is_locked()} primitive returns
+\co{true} if the specified lock is held and \co{false} otherwise.
+Note that \co{spin_is_locked()} returns \co{true} when some other
+CPU or thread holds the lock, not just when the current CPU or thread
+holds that lock.
+This raises the question of what ordering guarantees \co{spin_is_locked()}
+might provide.
+
+In the Linux kernel, the answer has varied over time.
+Initially, \co{spin_is_locked()} was unordered, but a few interesting
+use cases motivated strong ordering.
+Later discussions surrounding the Linux-kernel memory model concluded
+that \co{spin_is_locked()} should be used only for debugging.
+Part of the reason for this is that even a fully ordered
+\co{spin_is_locked()} might return \co{true} because some other CPU or
+thread was just about to release the lock in question.
+In this case, there is little that can be learned from that return value
+of \co{true}, which means that reliable use of \co{spin_is_locked()}
+is surprisingly complex.
+Other approaches almost always work better, for example, use of explicit
+shared variables or the \co{spin_trylock()} primitive.
+
+This situation resulted in the current state, namely that
+\co{spin_is_locked()} provides no ordering guarantees, except that if
+it returns \co{false}, the current CPU or thread cannot be holding the
+corresponding lock.
+
+\QuickQuiz{
+	But if \co{spin_is_locked()} returns \co{false}, don't we also
+	know that no other CPU or thread is holding the corresponding
+	lock?
+}\QuickQuizAnswer{
+	No.
+	By the time that the code inspects the return value from
+	\co{spin_is_locked()}, some other CPU or thread might well have
+	acquired the corresponding lock.
+}\QuickQuizEnd
 
 \subsubsection{Why Mathematically Model Locking?}
 \label{sec:memorder:Why Mathematically Model Locking?}
