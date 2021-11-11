@@ -3189,7 +3189,9 @@ This section will look into how higher levels of abstraction can
 also provide a deeper understanding of the synchronization primitives
 themselves.
 \Cref{sec:memorder:Memory Allocation}
-takes a look at memory allocation and
+takes a look at memory allocation,
+\cref{sec:memorder:Locking}
+examines the surprisingly varied semantics of locking, and
 \cref{sec:memorder:RCU}
 digs more deeply into RCU\@.
 
@@ -3257,38 +3259,244 @@ Therefore, the ordering required by conventional uses of memory allocation
 can be provided solely by non-fastpath locking, allowing the fastpath to
 remain synchronization-free.
 
-% \subsection{Detailed Locking Semantics}
-% \label{sec:memorder:Detailed Locking Semantics}
-% % Awaiting LWN article.
+\subsection{Locking}
+\label{sec:memorder:Locking}
 
-% Locking is a well-known synchronization primitive with which the
-% parallel-programming community has had decades of experience with
-% in a great many situations.
-% As such, locking's semantics are quite simple.
+Locking is a well-known synchronization primitive with which the
+parallel-programming community has had decades of experience.
+As such, locking's semantics are quite simple.
 
-% However, they remain quite simple only until you start thinking about
-% them rigorously enough to mathematically model them.
+That is, they are quite simple until you start trying to mathematically
+model them.
 
-% The simple part is that any CPU or thread holding a given lock is
-% guaranteed to see accesses executed when other CPUs or threads
-% were previously holding that lock.
-% In addition, any CPU or thread holding a given lock is guaranteed not
-% to see accesses executed when other CPUs or threads will be
-% subsequently holding that lock.
+The simple part is that any CPU or thread holding a given lock is
+guaranteed to see any accesses executed by CPUs or threads while they
+were previously holding that same lock.
+Similarly, any CPU or thread holding a given lock is guaranteed not
+to see accesses that will be executed by other CPUs or threads while
+subsequently holding that same lock.
+And what else is there?
 
-% Existence of mathematical modeling, as called out in
-% Section~\ref{sec:formal:Axiomatic Approaches and Locking}.
-% Pull in performance from LKMM effort.
+As it turns out, quite a bit:
 
-% Ordering for holders of same lock.
-% For holders of different locks?
+\begin{enumerate}
+\item	Are CPUs, threads, or compilers allowed to pull memory accesses
+	into a given lock-based critical section?
+\item	Will a CPU or thread holding a given lock also see accesses
+	executed by CPUs and threads before they last acquired that
+	same lock, and vice versa?
+\item	Suppose that a given CPU or thread executes one access
+	(call it ``A''), releases a lock, reacquires that same lock,
+	then executes another access (call it ``B'').\@
+	Is some other CPU or thread not holding that lock guaranteed to
+	see A and B in order?
+\item	As above, but with the lock reacquisition carried out by some
+	other CPU or threads?
+\item	As above, but with the lock reacquisition being some other lock?
+\end{enumerate}
 
-% Memory-ordering constraints for lock and unlock.
-% When augmented by \co{smp_mb__after_spinlock()} or
-% \co{smp_mb__after_spinlock()}.
+The reaction to some or even all of these questions might well be ``Why
+would anyone do \emph{that}?''
+However, any complete mathematical definition of locking must have
+answers to all of these questions.
+Therefore, the following sections address these questions.
 
-% Memory-ordering constraints for unlock followed by lock.
-% When augmented \co{smp_mb__after_unlock_lock()}.
+\subsubsection{Accesses Into Critical Sections?}
+\label{sec:memorder:Accesses Into Critical Sections?}
+
+Can memory accesses be reordered into lock-based critical sections?
+
+\begin{listing}
+\input{CodeSamples/formal/herd/C-Lock-before-into@whole.fcv}
+\caption{Prior Accesses Into Critical Section}
+\label{lst:memorder:Prior Accesses Into Critical Section}
+\end{listing}
+
+\begin{listing}
+\input{CodeSamples/formal/herd/C-Lock-after-into@whole.fcv}
+\caption{Subsequent Accesses Into Critical Section}
+\label{lst:memorder:Subsequent Accesses Into Critical Section}
+\end{listing}
+
+Within the context of the Linux-kernel memory model, the simple answer
+is ``yes''.
+This may be verified by running the litmus tests shown in
+\cref{lst:memorder:Prior Accesses Into Critical Section,lst:memorder:Subsequent Accesses Into Critical Section}
+(\path{C-Lock-before-into.litmus} and \path{C-Lock-after-into.litmus},
+respectively), both of which will yield the \co{Sometimes} result.
+This result indicates that the \co{exists} clause can be satisfied, that
+is, that the final value of both \co{P0()}'s and \co{P1()}'s \co{r1} variable
+can be zero.
+This means that neither \co{spin_lock()} nor \co{spin_unlock()}
+are required to act as a full memory barrier.
+
+However, other environments might make other choices.
+For example, locking implementations that run only on the x86 CPU
+family will have lock-acquisition primitives that fully order the lock
+acquisition with any prior and any subsequent accesses.
+Therefore, on such systems the ordering shown in
+\cref{lst:memorder:Prior Accesses Into Critical Section}
+comes for free.
+There are x86 lock-release implementations that are weakly ordered,
+thus failing to provide the ordering shown in
+\cref{lst:memorder:Subsequent Accesses Into Critical Section},
+but an implementation could nevertheless choose to guarantee this ordering.
+
+For their part, weakly ordered systems might well choose to execute
+the memory-barrier instructions required to guarantee both orderings,
+possibly simplifying code making advanced use of combinations of locked
+and lockless accesses.
+However, as noted earlier, LKMM chooses not to provide these additional
+orderings, in part to avoid imposing performance penalties on the simpler
+and more prevalent locking use cases.
+Instead, the \co{smp_mb__after_spinlock()} and \co{smp_mb__after_unlock_lock()}
+primitives are provided for those more complex use cases, as discussed
+in \cref{sec:memorder:Hardware Specifics}.
+
+Thus far, this section has discussed only hardware reordering.
+Can the compiler also reorder memory references into lock-based
+critical sections?
+
+The answer to this question in the context of the Linux kernel is a
+resounding ``No!''
+One reason for this otherwise inexplicable favoring of hardware reordering
+over compiler optimizations is that the hardware will avoid reordering
+a page-faulting access into a lock-based critical section.
+In contrast, compilers have no clue about either page faults, and would
+therefore happily reorder a page fault into a critical section, which
+could crash the kernel.
+The compiler is also unable to reliably determine which accesses
+will result in cache misses, so that compiler reordering into critical
+sections could also result in excessive lock contention.
+Therefore, the Linux kernel prohibits the compiler (but not the CPU)
+from moving accesses into lock-based critical sections.
+
+\subsubsection{Accesses Outside of Critical Section?}
+\label{sec:memorder:Accesses Outside of Critical Section?}
+
+If a given CPU or thread holds a given lock, it is guaranteed to see
+accesses executed during all prior critical sections for that same
+lock.
+Similarly, such a CPU or thread is guaranteed not to see accesses
+that will be executed during all subsequent critical sections for
+that same lock.
+
+\begin{listing}
+\input{CodeSamples/formal/herd/C-Lock-outside-across@whole.fcv}
+\caption{Accesses Outside of Critical Sections}
+\label{lst:memorder:Accesses Outside of Critical Sections}
+\end{listing}
+
+But what about accesses preceding prior critical sections and
+following subsequent critical sections?
+
+This question can be answered for the Linux kernel by referring to
+\cref{lst:memorder:Accesses Outside of Critical Sections}
+(\path{C-Lock-outside-across.litmus}).
+Running this litmus test yields the \co{Sometimes} result,
+which means that accesses in code leading up to a prior critical section
+is also visible to the current CPU or thread holding that same lock.
+Similarly, code that is placed after a subsequent critical section
+is never visible to the current CPU or thread holding that same lock.
+
+As a result, the Linux kernel cannot allow accesses to be moved
+across the entirety of a given critical section.
+Other environments might well wish to allow such code motion, but please
+be advised that doing so is likely to yield profoundly counter-intuitive
+results.
+
+In short, the ordering provided by \co{spin_lock()} extends not only
+throughout the critical section, but also indefinitely beyond the end
+of that critical section.
+Similarly, the ordering provided by \co{spin_unlock()} extends not
+only throughout the critical section, but also indefinitely beyond the
+beginning of that critical section.
+
+\subsubsection{Ordering for Non-Lock Holders?}
+\label{sec:memorder:Ordering for Non-Lock Holders?}
+
+Does a CPU or thread that is not holding a given lock see that lock's
+critical sections as being ordered?
+
+\begin{listing}
+\input{CodeSamples/formal/herd/C-Lock-across-unlock-lock-1@whole.fcv}
+\caption{Accesses Between Same-CPU Critical Sections}
+\label{lst:memorder:Accesses Between Same-CPU Critical Sections}
+\end{listing}
+
+This question can be answered for the Linux kernel by referring to
+\cref{lst:memorder:Accesses Between Same-CPU Critical Sections}
+(\path{C-Lock-across-unlock-lock-1.litmus}), which
+shows an example where \co{P(0)} places its write and read in two
+different critical sections for the same lock.
+Running this litmus test shows that the \co{exists} can be satisfied,
+which means that the answer is ``no'', and that CPUs can reorder accesses
+across consecutive critical sections.
+In other words, not only are \co{spin_lock()} and \co{spin_unlock()}
+weaker than a full barrier when considered separately, they are also
+weaker than a full barrier when taken together.
+
+If the ordering of a given lock's critical sections are to be observed,
+then either the observer must hold that lock on the one hand or either
+\co{smp_mb__after_spinlock()} or \co{smp_mb__after_unlock_lock()}
+must be executed just after the second lock acquisition on the other.
+
+But what if the two critical sections run on different CPUs or threads?
+
+\begin{listing}
+\input{CodeSamples/formal/herd/C-Lock-across-unlock-lock-2@whole.fcv}
+\caption{Accesses Between Different-CPU Critical Sections}
+\label{lst:memorder:Accesses Between Different-CPU Critical Sections}
+\end{listing}
+
+This question is answered for the Linux kernel by referring to
+\cref{lst:memorder:Accesses Between Different-CPU Critical Sections}
+(\path{C-Lock-across-unlock-lock-2.litmus}),
+in which the first lock acquisition is executed by \co{P0()} and the
+second lock acquisition is executed by \co{P1()}.
+Note that \co{P1()} must read \co{x} to reject executions in which
+\co{P1()} executes before \co{P0()} does.
+Running this litmus test shows that the \co{exists} can be satisfied,
+which means that the answer is ``no'', and that CPUs can reorder accesses
+across consecutive critical sections, even if each of those critical
+sections runs on a different CPU or thread.
+
+As before, if the ordering of a given lock's critical sections are to
+be observed, then either the observer must hold that lock or either
+\co{smp_mb__after_spinlock()} or \co{smp_mb__after_unlock_lock()} must
+be executed just after \co{P1()}'s lock acquisition.
+
+Given that ordering is not guaranteed when both critical sections are
+protected by the same lock, there is no hope of any ordering guarantee
+when different locks are used.
+However, readers are encouraged to construct the corresponding litmus
+test and see this for themselves.
+
+This situation can seem counter-intuitive, but it is rare for code to
+care.
+This approach also allows certain weakly ordered systems to implement
+more efficient locks.
+
+\subsubsection{Why Mathematically Model Locking?}
+\label{sec:memorder:Why Mathematically Model Locking?}
+
+Given all these possible choices, why model locking in general?
+Why not simply model a simple implementation?
+
+One reason is modeling performance, as shown in
+\cref{tab:formal:Locking: Modeling vs. Emulation Time (s)}
+on
+\cpageref{tab:formal:Locking: Modeling vs. Emulation Time (s)}.
+Directly modeling locking in general is orders of magnitude faster
+than modeling even a trivial implementation.
+This should be no surprise, given the combinatorial explosion experienced
+by present-day formal-verification tools with increases in the number of
+memory accesses executed by the code being modeled.
+
+Another reason is that a trivial implementation might needlessly constrain
+either real implementations or real use cases.
+In contrast, modeling a platonic lock allows the widest variety of
+implementations while providing specific guidance to locks' users.
 
 \subsection{RCU}
 \label{sec:memorder:RCU}
