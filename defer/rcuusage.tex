@@ -14,6 +14,8 @@
 \toprule
 Mechanism RCU Replaces & Page \\
 \midrule
+Wait for things to finish &
+	\pageref{sec:defer:RCU is a Way of Waiting for Things to Finish} \\
 Reader-writer locking &
 	\pageref{sec:defer:RCU is a Reader-Writer Lock Replacement} \\
 Restricted reference-counting &
@@ -28,8 +30,6 @@ Existence Guarantees &
 	\pageref{sec:defer:RCU Provides Existence Guarantees} \\
 Type-Safe Memory &
 	\pageref{sec:defer:RCU Provides Type-Safe Memory} \\
-Wait for things to finish &
-	\pageref{sec:defer:RCU is a Way of Waiting for Things to Finish} \\
 \bottomrule
 \end{tabular}
 \caption{RCU Usage}
@@ -200,6 +200,207 @@ that of the ideal synchronization-free workload.
 \caption{Pre-BSD Routing Table Protected by RCU QSBR}
 \label{fig:defer:Pre-BSD Routing Table Protected by RCU QSBR}
 \end{figure}
+
+\begin{figure*}
+\centering
+\resizebox{5.5in}{!}{\includegraphics{defer/RCUusecases}}
+\caption{Relationships Between RCU Use Cases}
+\label{fig:defer:Relationships Between RCU Use Cases}
+\end{figure*}
+
+Although Pre-BSD routing is an excellent RCU use case, it is worthwhile
+looking at the relationships betweeen the wider spectrum of use cases
+shown in
+\cref{fig:defer:Relationships Between RCU Use Cases}.
+This task is taken up by the following sections.
+
+\subsubsection{RCU is a Way of Waiting for Things to Finish}
+\label{sec:defer:RCU is a Way of Waiting for Things to Finish}
+
+As noted in \cref{sec:defer:RCU Fundamentals}
+an important component
+of RCU is a way of waiting for RCU readers to finish.
+One of
+RCU's great strength is that it allows you to wait for each of
+thousands of different things to finish without having to explicitly
+track each and every one of them, and without having to worry about
+the performance degradation, scalability limitations, complex deadlock
+scenarios, and memory-leak hazards that are inherent in schemes that
+use explicit tracking.
+
+In this section, we will show how \co{synchronize_sched()}'s
+read-side counterparts (which include anything that disables preemption,
+along with hardware operations and
+primitives that disable interrupts) permit you to implement interactions with
+non-maskable interrupt
+(NMI) handlers that would be quite difficult if using locking.
+This approach has been called ``Pure RCU''~\cite{PaulEdwardMcKenneyPhD},
+and it is used in a number of places in the Linux kernel.
+
+The basic form of such ``Pure RCU'' designs is as follows:
+
+\begin{enumerate}
+\item	Make a change, for example, to the way that the OS reacts to an NMI\@.
+\item	Wait for all pre-existing read-side critical sections to
+	completely finish (for example, by using the
+	\co{synchronize_sched()} primitive).
+	The key observation here is that subsequent RCU read-side critical
+	sections are guaranteed to see whatever change was made.
+\item	Clean up, for example, return status indicating that the
+	change was successfully made.
+\end{enumerate}
+
+The remainder of this section presents example code adapted from
+the Linux kernel.
+In this example, the \co{timer_stop} function uses
+\co{synchronize_sched()} to ensure that all in-flight NMI
+notifications have completed before freeing the associated resources.
+A simplified version of this code is shown
+\cref{lst:defer:Using RCU to Wait for NMIs to Finish}.
+
+\begin{listing}
+\begin{fcvlabel}[ln:defer:Using RCU to Wait for NMIs to Finish]
+\begin{VerbatimL}[commandchars=\\\@\$]
+struct profile_buffer {				\lnlbl@struct:b$
+	long size;
+	atomic_t entry[0];
+};						\lnlbl@struct:e$
+static struct profile_buffer *buf = NULL;	\lnlbl@struct:buf$
+
+void nmi_profile(unsigned long pcvalue)		\lnlbl@nmi_profile:b$
+{
+	struct profile_buffer *p = rcu_dereference(buf);\lnlbl@nmi_profile:rcu_deref$
+
+	if (p == NULL)				\lnlbl@nmi_profile:if_NULL$
+		return;				\lnlbl@nmi_profile:ret:a$
+	if (pcvalue >= p->size)			\lnlbl@nmi_profile:if_oor$
+		return;				\lnlbl@nmi_profile:ret:b$
+	atomic_inc(&p->entry[pcvalue]);		\lnlbl@nmi_profile:inc$
+}						\lnlbl@nmi_profile:e$
+
+void nmi_stop(void)				\lnlbl@nmi_stop:b$
+{
+	struct profile_buffer *p = buf;		\lnlbl@nmi_stop:fetch$
+
+	if (p == NULL)				\lnlbl@nmi_stop:if_NULL$
+		return;				\lnlbl@nmi_stop:ret$
+	rcu_assign_pointer(buf, NULL);		\lnlbl@nmi_stop:NULL$
+	synchronize_sched();			\lnlbl@nmi_stop:sync_sched$
+	kfree(p);				\lnlbl@nmi_stop:kfree$
+}						\lnlbl@nmi_stop:e$
+\end{VerbatimL}
+\end{fcvlabel}
+\caption{Using RCU to Wait for NMIs to Finish}
+\label{lst:defer:Using RCU to Wait for NMIs to Finish}
+\end{listing}
+
+\begin{fcvref}[ln:defer:Using RCU to Wait for NMIs to Finish:struct]
+\Clnrefrange{b}{e} define a \co{profile_buffer} structure, containing a
+size and an indefinite array of entries.
+\Clnref{buf} defines a pointer to a profile buffer, which is
+presumably initialized elsewhere to point to a dynamically allocated
+region of memory.
+\end{fcvref}
+
+\begin{fcvref}[ln:defer:Using RCU to Wait for NMIs to Finish:nmi_profile]
+\Clnrefrange{b}{e} define the \co{nmi_profile()} function,
+which is called from within an NMI handler.
+As such, it cannot be preempted, nor can it be interrupted by a normal
+interrupts handler, however, it is still subject to delays due to cache misses,
+ECC errors, and cycle stealing by other hardware threads within the same
+core.
+\Clnref{rcu_deref} gets a local pointer to the profile buffer using the
+\co{rcu_dereference()} primitive to ensure memory ordering on
+DEC Alpha, and
+\clnref{if_NULL,ret:a} exit from this function if there is no
+profile buffer currently allocated, while \clnref{if_oor,ret:b}
+exit from this function if the \co{pcvalue} argument
+is out of range.
+Otherwise, \clnref{inc} increments the profile-buffer entry indexed
+by the \co{pcvalue} argument.
+Note that storing the size with the buffer guarantees that the
+range check matches the buffer, even if a large buffer is suddenly
+replaced by a smaller one.
+\end{fcvref}
+
+\begin{fcvref}[ln:defer:Using RCU to Wait for NMIs to Finish:nmi_stop]
+\Clnrefrange{b}{e} define the \co{nmi_stop()} function,
+where the caller is responsible for mutual exclusion (for example,
+holding the correct lock).
+\Clnref{fetch} fetches a pointer to the profile buffer, and
+\clnref{if_NULL,ret} exit the function if there is no buffer.
+Otherwise, \clnref{NULL} \co{NULL}s out the profile-buffer pointer
+(using the \co{rcu_assign_pointer()} primitive to maintain
+memory ordering on weakly ordered machines),
+and \clnref{sync_sched} waits for an RCU Sched grace period to elapse,
+in particular, waiting for all non-preemptible regions of code,
+including NMI handlers, to complete.
+Once execution continues at \clnref{kfree}, we are guaranteed that
+any instance of \co{nmi_profile()} that obtained a
+pointer to the old buffer has returned.
+It is therefore safe to free the buffer, in this case using the
+\co{kfree()} primitive.
+\end{fcvref}
+
+\QuickQuiz{
+	Suppose that the \co{nmi_profile()} function was preemptible.
+	What would need to change to make this example work correctly?
+}\QuickQuizAnswer{
+	One approach would be to use
+	\co{rcu_read_lock()} and \co{rcu_read_unlock()}
+	in \co{nmi_profile()}, and to replace the
+	\co{synchronize_sched()} with \co{synchronize_rcu()},
+	perhaps as shown in
+	\cref{lst:defer:Using RCU to Wait for Mythical Preemptible NMIs to Finish}.
+%
+\begin{listing}
+\begin{VerbatimL}
+struct profile_buffer {
+	long size;
+	atomic_t entry[0];
+};
+static struct profile_buffer *buf = NULL;
+
+void nmi_profile(unsigned long pcvalue)
+{
+	struct profile_buffer *p;
+
+	rcu_read_lock();
+	p = rcu_dereference(buf);
+	if (p == NULL) {
+		rcu_read_unlock();
+		return;
+	}
+	if (pcvalue >= p->size) {
+		rcu_read_unlock();
+		return;
+	}
+	atomic_inc(&p->entry[pcvalue]);
+	rcu_read_unlock();
+}
+
+void nmi_stop(void)
+{
+	struct profile_buffer *p = buf;
+
+	if (p == NULL)
+		return;
+	rcu_assign_pointer(buf, NULL);
+	synchronize_rcu();
+	kfree(p);
+}
+\end{VerbatimL}
+\caption{Using RCU to Wait for Mythical Preemptible NMIs to Finish}
+\label{lst:defer:Using RCU to Wait for Mythical Preemptible NMIs to Finish}
+\end{listing}
+%
+}\QuickQuizEnd
+
+In short, RCU makes it easy to dynamically switch among profile
+buffers (you just \emph{try} doing this efficiently with atomic
+operations, or at all with locking!).
+However, RCU is normally used at a higher level of abstraction, as
+was shown in the previous sections.
 
 \subsubsection{RCU is a Reader-Writer Lock Replacement}
 \label{sec:defer:RCU is a Reader-Writer Lock Replacement}
@@ -1258,7 +1459,7 @@ and \clnref{ret_0:b} indicates failure to delete the specified key.
 
 Alert readers will recognize this as only a slight variation on
 the original ``RCU is a way of waiting for things to finish'' theme,
-which is addressed in
+which was addressed in
 \cref{sec:defer:RCU is a Way of Waiting for Things to Finish}.
 They might also note the deadlock-immunity advantages over the lock-based
 existence guarantees discussed in
@@ -1346,194 +1547,6 @@ Therefore, although type-safety-based lockless algorithms can be extremely
 helpful in a very few difficult situations, you should instead use existence
 guarantees where possible.
 Simpler is after all almost always better!
-
-\subsubsection{RCU is a Way of Waiting for Things to Finish}
-\label{sec:defer:RCU is a Way of Waiting for Things to Finish}
-
-As noted in \cref{sec:defer:RCU Fundamentals}
-an important component
-of RCU is a way of waiting for RCU readers to finish.
-One of
-RCU's great strength is that it allows you to wait for each of
-thousands of different things to finish without having to explicitly
-track each and every one of them, and without having to worry about
-the performance degradation, scalability limitations, complex deadlock
-scenarios, and memory-leak hazards that are inherent in schemes that
-use explicit tracking.
-
-In this section, we will show how \co{synchronize_sched()}'s
-read-side counterparts (which include anything that disables preemption,
-along with hardware operations and
-primitives that disable interrupts) permit you to implement interactions with
-non-maskable interrupt
-(NMI) handlers that would be quite difficult if using locking.
-This approach has been called ``Pure RCU''~\cite{PaulEdwardMcKenneyPhD},
-and it is used in a number of places in the Linux kernel.
-
-The basic form of such ``Pure RCU'' designs is as follows:
-
-\begin{enumerate}
-\item	Make a change, for example, to the way that the OS reacts to an NMI\@.
-\item	Wait for all pre-existing read-side critical sections to
-	completely finish (for example, by using the
-	\co{synchronize_sched()} primitive).
-	The key observation here is that subsequent RCU read-side critical
-	sections are guaranteed to see whatever change was made.
-\item	Clean up, for example, return status indicating that the
-	change was successfully made.
-\end{enumerate}
-
-The remainder of this section presents example code adapted from
-the Linux kernel.
-In this example, the \co{timer_stop} function uses
-\co{synchronize_sched()} to ensure that all in-flight NMI
-notifications have completed before freeing the associated resources.
-A simplified version of this code is shown
-\cref{lst:defer:Using RCU to Wait for NMIs to Finish}.
-
-\begin{listing}
-\begin{fcvlabel}[ln:defer:Using RCU to Wait for NMIs to Finish]
-\begin{VerbatimL}[commandchars=\\\@\$]
-struct profile_buffer {				\lnlbl@struct:b$
-	long size;
-	atomic_t entry[0];
-};						\lnlbl@struct:e$
-static struct profile_buffer *buf = NULL;	\lnlbl@struct:buf$
-
-void nmi_profile(unsigned long pcvalue)		\lnlbl@nmi_profile:b$
-{
-	struct profile_buffer *p = rcu_dereference(buf);\lnlbl@nmi_profile:rcu_deref$
-
-	if (p == NULL)				\lnlbl@nmi_profile:if_NULL$
-		return;				\lnlbl@nmi_profile:ret:a$
-	if (pcvalue >= p->size)			\lnlbl@nmi_profile:if_oor$
-		return;				\lnlbl@nmi_profile:ret:b$
-	atomic_inc(&p->entry[pcvalue]);		\lnlbl@nmi_profile:inc$
-}						\lnlbl@nmi_profile:e$
-
-void nmi_stop(void)				\lnlbl@nmi_stop:b$
-{
-	struct profile_buffer *p = buf;		\lnlbl@nmi_stop:fetch$
-
-	if (p == NULL)				\lnlbl@nmi_stop:if_NULL$
-		return;				\lnlbl@nmi_stop:ret$
-	rcu_assign_pointer(buf, NULL);		\lnlbl@nmi_stop:NULL$
-	synchronize_sched();			\lnlbl@nmi_stop:sync_sched$
-	kfree(p);				\lnlbl@nmi_stop:kfree$
-}						\lnlbl@nmi_stop:e$
-\end{VerbatimL}
-\end{fcvlabel}
-\caption{Using RCU to Wait for NMIs to Finish}
-\label{lst:defer:Using RCU to Wait for NMIs to Finish}
-\end{listing}
-
-\begin{fcvref}[ln:defer:Using RCU to Wait for NMIs to Finish:struct]
-\Clnrefrange{b}{e} define a \co{profile_buffer} structure, containing a
-size and an indefinite array of entries.
-\Clnref{buf} defines a pointer to a profile buffer, which is
-presumably initialized elsewhere to point to a dynamically allocated
-region of memory.
-\end{fcvref}
-
-\begin{fcvref}[ln:defer:Using RCU to Wait for NMIs to Finish:nmi_profile]
-\Clnrefrange{b}{e} define the \co{nmi_profile()} function,
-which is called from within an NMI handler.
-As such, it cannot be preempted, nor can it be interrupted by a normal
-interrupts handler, however, it is still subject to delays due to cache misses,
-ECC errors, and cycle stealing by other hardware threads within the same
-core.
-\Clnref{rcu_deref} gets a local pointer to the profile buffer using the
-\co{rcu_dereference()} primitive to ensure memory ordering on
-DEC Alpha, and
-\clnref{if_NULL,ret:a} exit from this function if there is no
-profile buffer currently allocated, while \clnref{if_oor,ret:b}
-exit from this function if the \co{pcvalue} argument
-is out of range.
-Otherwise, \clnref{inc} increments the profile-buffer entry indexed
-by the \co{pcvalue} argument.
-Note that storing the size with the buffer guarantees that the
-range check matches the buffer, even if a large buffer is suddenly
-replaced by a smaller one.
-\end{fcvref}
-
-\begin{fcvref}[ln:defer:Using RCU to Wait for NMIs to Finish:nmi_stop]
-\Clnrefrange{b}{e} define the \co{nmi_stop()} function,
-where the caller is responsible for mutual exclusion (for example,
-holding the correct lock).
-\Clnref{fetch} fetches a pointer to the profile buffer, and
-\clnref{if_NULL,ret} exit the function if there is no buffer.
-Otherwise, \clnref{NULL} \co{NULL}s out the profile-buffer pointer
-(using the \co{rcu_assign_pointer()} primitive to maintain
-memory ordering on weakly ordered machines),
-and \clnref{sync_sched} waits for an RCU Sched grace period to elapse,
-in particular, waiting for all non-preemptible regions of code,
-including NMI handlers, to complete.
-Once execution continues at \clnref{kfree}, we are guaranteed that
-any instance of \co{nmi_profile()} that obtained a
-pointer to the old buffer has returned.
-It is therefore safe to free the buffer, in this case using the
-\co{kfree()} primitive.
-\end{fcvref}
-
-\QuickQuiz{
-	Suppose that the \co{nmi_profile()} function was preemptible.
-	What would need to change to make this example work correctly?
-}\QuickQuizAnswer{
-	One approach would be to use
-	\co{rcu_read_lock()} and \co{rcu_read_unlock()}
-	in \co{nmi_profile()}, and to replace the
-	\co{synchronize_sched()} with \co{synchronize_rcu()},
-	perhaps as shown in
-	\cref{lst:defer:Using RCU to Wait for Mythical Preemptible NMIs to Finish}.
-%
-\begin{listing}
-\begin{VerbatimL}
-struct profile_buffer {
-	long size;
-	atomic_t entry[0];
-};
-static struct profile_buffer *buf = NULL;
-
-void nmi_profile(unsigned long pcvalue)
-{
-	struct profile_buffer *p;
-
-	rcu_read_lock();
-	p = rcu_dereference(buf);
-	if (p == NULL) {
-		rcu_read_unlock();
-		return;
-	}
-	if (pcvalue >= p->size) {
-		rcu_read_unlock();
-		return;
-	}
-	atomic_inc(&p->entry[pcvalue]);
-	rcu_read_unlock();
-}
-
-void nmi_stop(void)
-{
-	struct profile_buffer *p = buf;
-
-	if (p == NULL)
-		return;
-	rcu_assign_pointer(buf, NULL);
-	synchronize_rcu();
-	kfree(p);
-}
-\end{VerbatimL}
-\caption{Using RCU to Wait for Mythical Preemptible NMIs to Finish}
-\label{lst:defer:Using RCU to Wait for Mythical Preemptible NMIs to Finish}
-\end{listing}
-%
-}\QuickQuizEnd
-
-In short, RCU makes it easy to dynamically switch among profile
-buffers (you just \emph{try} doing this efficiently with atomic
-operations, or at all with locking!).
-However, RCU is normally used at a higher level of abstraction, as
-was shown in the previous sections.
 
 \subsubsection{RCU Usage Summary}
 \label{sec:defer:RCU Usage Summary}
