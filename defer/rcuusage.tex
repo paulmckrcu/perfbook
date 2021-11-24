@@ -14,8 +14,10 @@
 \toprule
 Mechanism RCU Replaces & Page \\
 \midrule
-Wait for things to finish &
-	\pageref{sec:defer:RCU is a Way of Waiting for Things to Finish} \\
+Wait for pre-existing things to finish &
+	\pageref{sec:defer:Wait for Pre-Existing Things to Finish} \\
+Type-safe memory &
+	\pageref{sec:defer:Type-Safe Memory} \\
 Reader-writer locking &
 	\pageref{sec:defer:RCU is a Reader-Writer Lock Replacement} \\
 Restricted reference-counting &
@@ -28,8 +30,6 @@ Multi-version concurrency control &
 	\pageref{sec:defer:RCU is an MVCC} \\
 Existence Guarantees &
 	\pageref{sec:defer:RCU Provides Existence Guarantees} \\
-Type-Safe Memory &
-	\pageref{sec:defer:RCU Provides Type-Safe Memory} \\
 \bottomrule
 \end{tabular}
 \caption{RCU Usage}
@@ -214,8 +214,8 @@ shown in
 \cref{fig:defer:Relationships Between RCU Use Cases}.
 This task is taken up by the following sections.
 
-\subsubsection{RCU is a Way of Waiting for Things to Finish}
-\label{sec:defer:RCU is a Way of Waiting for Things to Finish}
+\subsubsection{Wait for Pre-Existing Things to Finish}
+\label{sec:defer:Wait for Pre-Existing Things to Finish}
 
 As noted in \cref{sec:defer:RCU Fundamentals}
 an important component
@@ -401,6 +401,89 @@ buffers (you just \emph{try} doing this efficiently with atomic
 operations, or at all with locking!).
 However, RCU is normally used at a higher level of abstraction, as
 was shown in the previous sections.
+
+\subsubsection{Type-Safe Memory}
+\label{sec:defer:Type-Safe Memory}
+
+A number of lockless algorithms do not require that a given data
+element keep the same identity through a given RCU read-side critical
+section referencing it---but only if that data element retains the
+same type.
+In other words, these lockless algorithms can tolerate a given data
+element being freed and reallocated as the same type of structure
+while they are referencing it, but must prohibit a change in type.
+This guarantee, called ``type-safe memory'' in
+academic literature~\cite{Cheriton96a},
+is weaker than the existence guarantees in the
+previous section, and is therefore quite a bit harder to work with.
+Type-safe memory algorithms in the Linux kernel make use of slab caches,
+specially marking these caches with \co{SLAB_TYPESAFE_BY_RCU}
+so that RCU is used when returning a freed-up
+slab to system memory.
+This use of RCU guarantees that any in-use element of
+such a slab will remain in that slab, thus retaining its type,
+for the duration of any pre-existing RCU read-side critical sections.
+
+\QuickQuiz{
+	But what if there is an arbitrarily long series of RCU
+	read-side critical sections in multiple threads, so that at
+	any point in time there is at least one thread in the system
+	executing in an RCU read-side critical section?
+	Wouldn't that prevent any data from a \co{SLAB_TYPESAFE_BY_RCU}
+	slab ever being returned to the system, possibly resulting
+	in OOM events?
+}\QuickQuizAnswer{
+	There could certainly be an arbitrarily long period of time
+	during which at least one thread is always in an RCU read-side
+	critical section.
+	However, the key words in the description in
+	\cref{sec:defer:Type-Safe Memory}
+	are ``in-use'' and ``pre-existing''.
+	Keep in mind that a given RCU read-side critical section is
+	conceptually only permitted to gain references to data elements
+	that were in use at the beginning of that critical section.
+	Furthermore, remember that a slab cannot be returned to the
+	system until all of its data elements have been freed, in fact,
+	the RCU grace period cannot start until after they have all been
+	freed.
+
+	Therefore, the slab cache need only wait for those RCU read-side
+	critical sections that started before the freeing of the last element
+	of the slab.
+	This in turn means that any RCU grace period that begins after
+	the freeing of the last element will do---the slab may be returned
+	to the system after that grace period ends.
+}\QuickQuizEnd
+
+It is important to note that \co{SLAB_TYPESAFE_BY_RCU} will
+\emph{in no way}
+prevent \co{kmem_cache_alloc()} from immediately reallocating
+memory that was just now freed via \co{kmem_cache_free()}!
+In fact, the \co{SLAB_TYPESAFE_BY_RCU}-protected data structure
+just returned by \co{rcu_dereference} might be freed and reallocated
+an arbitrarily large number of times, even when under the protection
+of \co{rcu_read_lock()}.
+Instead, \co{SLAB_TYPESAFE_BY_RCU} operates by preventing
+\co{kmem_cache_free()}
+from returning a completely freed-up slab of data structures
+to the system until after an RCU grace period elapses.
+In short, although a given RCU read-side critical section might see a
+given \co{SLAB_TYPESAFE_BY_RCU} data element being freed and reallocated
+arbitrarily often, the element's type is guaranteed not to change until
+that critical section has completed.
+
+These algorithms therefore typically use a validation step that checks
+to make sure that the newly referenced data structure really is the one
+that was requested~\cite[Section~2.5]{LaninShasha1986TSM}.
+These validation checks require that portions of the data structure
+remain untouched by the free-reallocate process.
+Such validation checks are usually very hard to get right, and can
+hide subtle and difficult bugs.
+
+Therefore, although type-safety-based lockless algorithms can be extremely
+helpful in a very few difficult situations, you should instead use existence
+guarantees where possible.
+Simpler is after all almost always better!
 
 \subsubsection{RCU is a Reader-Writer Lock Replacement}
 \label{sec:defer:RCU is a Reader-Writer Lock Replacement}
@@ -1460,93 +1543,10 @@ and \clnref{ret_0:b} indicates failure to delete the specified key.
 Alert readers will recognize this as only a slight variation on
 the original ``RCU is a way of waiting for things to finish'' theme,
 which was addressed in
-\cref{sec:defer:RCU is a Way of Waiting for Things to Finish}.
+\cref{sec:defer:Wait for Pre-Existing Things to Finish}.
 They might also note the deadlock-immunity advantages over the lock-based
 existence guarantees discussed in
 \cref{sec:locking:Lock-Based Existence Guarantees}.
-
-\subsubsection{RCU Provides Type-Safe Memory}
-\label{sec:defer:RCU Provides Type-Safe Memory}
-
-A number of lockless algorithms do not require that a given data
-element keep the same identity through a given RCU read-side critical
-section referencing it---but only if that data element retains the
-same type.
-In other words, these lockless algorithms can tolerate a given data
-element being freed and reallocated as the same type of structure
-while they are referencing it, but must prohibit a change in type.
-This guarantee, called ``type-safe memory'' in
-academic literature~\cite{Cheriton96a},
-is weaker than the existence guarantees in the
-previous section, and is therefore quite a bit harder to work with.
-Type-safe memory algorithms in the Linux kernel make use of slab caches,
-specially marking these caches with \co{SLAB_TYPESAFE_BY_RCU}
-so that RCU is used when returning a freed-up
-slab to system memory.
-This use of RCU guarantees that any in-use element of
-such a slab will remain in that slab, thus retaining its type,
-for the duration of any pre-existing RCU read-side critical sections.
-
-\QuickQuiz{
-	But what if there is an arbitrarily long series of RCU
-	read-side critical sections in multiple threads, so that at
-	any point in time there is at least one thread in the system
-	executing in an RCU read-side critical section?
-	Wouldn't that prevent any data from a \co{SLAB_TYPESAFE_BY_RCU}
-	slab ever being returned to the system, possibly resulting
-	in OOM events?
-}\QuickQuizAnswer{
-	There could certainly be an arbitrarily long period of time
-	during which at least one thread is always in an RCU read-side
-	critical section.
-	However, the key words in the description in
-	\cref{sec:defer:RCU Provides Type-Safe Memory}
-	are ``in-use'' and ``pre-existing''.
-	Keep in mind that a given RCU read-side critical section is
-	conceptually only permitted to gain references to data elements
-	that were in use at the beginning of that critical section.
-	Furthermore, remember that a slab cannot be returned to the
-	system until all of its data elements have been freed, in fact,
-	the RCU grace period cannot start until after they have all been
-	freed.
-
-	Therefore, the slab cache need only wait for those RCU read-side
-	critical sections that started before the freeing of the last element
-	of the slab.
-	This in turn means that any RCU grace period that begins after
-	the freeing of the last element will do---the slab may be returned
-	to the system after that grace period ends.
-}\QuickQuizEnd
-
-It is important to note that \co{SLAB_TYPESAFE_BY_RCU} will
-\emph{in no way}
-prevent \co{kmem_cache_alloc()} from immediately reallocating
-memory that was just now freed via \co{kmem_cache_free()}!
-In fact, the \co{SLAB_TYPESAFE_BY_RCU}-protected data structure
-just returned by \co{rcu_dereference} might be freed and reallocated
-an arbitrarily large number of times, even when under the protection
-of \co{rcu_read_lock()}.
-Instead, \co{SLAB_TYPESAFE_BY_RCU} operates by preventing
-\co{kmem_cache_free()}
-from returning a completely freed-up slab of data structures
-to the system until after an RCU grace period elapses.
-In short, although a given RCU read-side critical section might see a
-given \co{SLAB_TYPESAFE_BY_RCU} data element being freed and reallocated
-arbitrarily often, the element's type is guaranteed not to change until
-that critical section has completed.
-
-These algorithms therefore typically use a validation step that checks
-to make sure that the newly referenced data structure really is the one
-that was requested~\cite[Section~2.5]{LaninShasha1986TSM}.
-These validation checks require that portions of the data structure
-remain untouched by the free-reallocate process.
-Such validation checks are usually very hard to get right, and can
-hide subtle and difficult bugs.
-
-Therefore, although type-safety-based lockless algorithms can be extremely
-helpful in a very few difficult situations, you should instead use existence
-guarantees where possible.
-Simpler is after all almost always better!
 
 \subsubsection{RCU Usage Summary}
 \label{sec:defer:RCU Usage Summary}
@@ -1629,7 +1629,7 @@ update-mostly workloads requiring
 consistent data are rarely good places to use RCU, though there are some
 exceptions~\cite{MathieuDesnoyers2012URCU}.
 In addition, as noted in
-\cref{sec:defer:RCU Provides Type-Safe Memory},
+\cref{sec:defer:Type-Safe Memory},
 within the Linux kernel, the \co{SLAB_TYPESAFE_BY_RCU}
 slab-allocator flag provides type-safe memory to RCU readers, which can
 greatly simplify \IXacrl{nbs} and other lockless
