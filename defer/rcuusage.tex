@@ -16,6 +16,8 @@ Mechanism RCU Replaces & Page \\
 \midrule
 Wait for pre-existing things to finish &
 	\pageref{sec:defer:Wait for Pre-Existing Things to Finish} \\
+Phased state change &
+	\pageref{sec:defer:Phased State Change} \\
 Type-safe memory &
 	\pageref{sec:defer:Type-Safe Memory} \\
 Existence Guarantee &
@@ -399,6 +401,127 @@ buffers (you just \emph{try} doing this efficiently with atomic
 operations, or at all with locking!).
 However, RCU is normally used at a higher level of abstraction, as
 was shown in the previous sections.
+
+\subsubsection{Phased State Change}
+\label{sec:defer:Phased State Change}
+
+\begin{figure}
+\centering
+\resizebox{\columnwidth}{!}{\includegraphics{defer/RCUphasedstatechange}}
+\caption{Phased State Change for Maintenance Operation}
+\label{fig:defer:Phased State Change for Maintenance Operation}
+\end{figure}
+
+\Cref{fig:defer:Phased State Change for Maintenance Operation}
+shows a timeline for an example phased state change to efficiently
+handle maintenance operations.
+If there is no maintenance operation in progress, common-case operations
+must proceed quickly, for example, without acquiring a reader-writer lock.
+However, if there is a maintenance operation in progress, the common-case
+operations must be undertaken carefully, taking into account added
+complexities due to their running concurrently with that maintenance
+operation.
+
+In the figure, these apparently conflicting requirements are resolved by
+having a prepare phase prior to the maintenance operation and a cleanup
+phase after it, during which the common-case operations can proceed
+either quickly or carefully.
+
+\begin{listing}
+\begin{fcvlabel}[ln:defer:Phased State Change for Maintenance Operations]
+\begin{VerbatimL}[commandchars=\\\@\$]
+bool be_careful;
+
+void cco(void)
+{
+	rcu_read_lock();			\lnlbl@rrl$
+	if (READ_ONCE(be_careful))		\lnlbl@if$
+		cco_carefully();		\lnlbl@careful$
+	else
+		cco_quickly();			\lnlbl@quick$
+	rcu_read_unlock();			\lnlbl@rul$
+}
+
+void maint(void)
+{
+	WRITE_ONCE(be_careful, true);		\lnlbl@tocareful$
+	synchronize_rcu();			\lnlbl@sr1$
+	do_maint();				\lnlbl@maint$
+	synchronize_rcu();			\lnlbl@sr2$
+	WRITE_ONCE(be_careful, false);		\lnlbl@toquick$
+}
+\end{VerbatimL}
+\end{fcvlabel}
+\caption{Phased State Change for Maintenance Operations}
+\label{lst:defer:Phased State Change for Maintenance Operations}
+\end{listing}
+
+\begin{fcvref}[ln:defer:Phased State Change for Maintenance Operations]
+Example pseudo-code for this phased state change is shown in
+\cref{lst:defer:Phased State Change for Maintenance Operations}.
+The common-case operations are carried out by \co{cco()} within an RCU
+read-side critical section extending from \clnref{rrl} to \clnref{rul}.
+Here, \clnref{if} checks a global \co{be_careful} flag, invoking
+\co{cco_carefully()} or \co{cco_quickly()}, as indicated.
+\end{fcvref}
+
+\begin{fcvref}[ln:defer:Phased State Change for Maintenance Operations]
+This allows the \co{maint()} function to set the \co{be_careful} flag
+on \clnref{tocareful} and wait for an RCU grace period on \clnref{sr1}.
+When control reaches \clnref{maint}, all \co{cco()} functions that saw a
+\co{false} value of \co{be_careful} (and thus which might have invoked
+the \co{cco_quickly()} function) will have completed their operations,
+so that all currently executing \co{cco()} functions will be invoking
+\co{cco_carefully()}.
+This means that it is safe for the \co{do_maint()} function to be
+invoked.
+\Clnref{sr2} then waits for all \co{cco()} functions that might have
+run concurrently with \co{do_maint()} to complete, and finally
+\clnref{toquick} sets the \co{be_careful} flag back to \co{false}.
+\end{fcvref}
+
+\QuickQuiz{
+	What is the point of the second call to \co{synchronize_rcu()}
+	in function
+	\co{maint()} in \cref{lst:defer:Phased State Change for Maintenance Operations}?
+	Isn't it OK for any \co{cco()} invocations in the clean-up
+	phase to invoke either \co{cco_carefully()} or \co{cco_quickly()}?
+}\QuickQuizAnswer{
+	The problem is that there is no ordering between the \co{cco()}
+	function's load from \co{be_careful} and any memory loads
+	executed by the \co{cco_quickly()} function.
+	Because there is no ordering, without that second call to
+	\co{syncrhonize_rcu()}, memory ordering could cause loads
+	in \co{cco_quickly()} to overlap with stores by \co{do_maint()}.
+
+	Another alternative would be to compensate for the removal of
+	that second call to \co{synchronize_rcu()} by changing the
+	\co{READ_ONCE()} to \co{smp_load_acquire()} and the
+	\co{WRITE_ONCE()} to \co{smp_store_release()}, thus restoring
+	the needed ordering.
+}\QuickQuizEnd
+
+\QuickQuiz{
+	How can you be sure that the code shown in
+	\co{maint()} in \cref{lst:defer:Phased State Change for Maintenance Operations}
+	really works?\@
+}\QuickQuizAnswer{
+	By one popular school of thought, you cannot.
+
+	But in this case, those willing to jump ahead to
+	\cref{chp:Formal Verification}
+	and
+	\cref{chp:Advanced Synchronization: Memory Ordering}
+	might find a couple of LKMM litmus tests to be interesting
+	(\path{C-RCU-phased-state-change-1.litmus} and
+	\path{C-RCU-phased-state-change-2.litmus}).
+	These tests could be argued to demonstrate that this code
+	and a variant of it really do work.
+}\QuickQuizEnd
+
+Phased state change allows frequent operations to use light-weight
+checks, without the need for expensive lock acquisitions or atomic
+read-modify-write operations.
 
 \subsubsection{Type-Safe Memory}
 \label{sec:defer:Type-Safe Memory}
