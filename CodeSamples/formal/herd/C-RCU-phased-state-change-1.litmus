@@ -1,0 +1,33 @@
+C RCU-phased-state-change-1
+//\begin[snippet][labelbase=ln:formal:C-RCU-phased-state-change-1:whole,commandchars=\%\@\$]
+
+{}
+
+P0(int *be_careful, int *doing_maintenance)
+{
+	int r1;
+	int r2;
+	int r3;
+
+	rcu_read_lock();
+	r1 = READ_ONCE(*be_careful);
+	if (r1)
+		r2 = READ_ONCE(*doing_maintenance);
+	else
+		r3 = READ_ONCE(*doing_maintenance);
+	rcu_read_unlock();
+}
+
+P1(int *be_careful, int *doing_maintenance)
+{
+	WRITE_ONCE(*be_careful, 1);
+	synchronize_rcu();
+	WRITE_ONCE(*doing_maintenance, 1);
+	WRITE_ONCE(*doing_maintenance, 0);
+	synchronize_rcu();
+	WRITE_ONCE(*be_careful, 0);
+}
+
+//\end[snippet]
+locations [0:r1;0:r2]
+exists (0:r3=1)
