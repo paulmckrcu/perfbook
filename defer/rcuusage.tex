@@ -18,6 +18,8 @@ Wait for pre-existing things to finish &
 	\pageref{sec:defer:Wait for Pre-Existing Things to Finish} \\
 Phased state change &
 	\pageref{sec:defer:Phased State Change} \\
+Add-only list &
+	\pageref{sec:defer:Add-Only List} \\
 Type-safe memory &
 	\pageref{sec:defer:Type-Safe Memory} \\
 Existence Guarantee &
@@ -527,6 +529,34 @@ run concurrently with \co{do_maint()} to complete, and finally
 Phased state change allows frequent operations to use light-weight
 checks, without the need for expensive lock acquisitions or atomic
 read-modify-write operations.
+
+\subsubsection{Add-Only List}
+\label{sec:defer:Add-Only List}
+
+Add-only data structures, exemplified by the add-only list, can be used
+for a surprisingly common set of use cases, perhaps most commonly the
+logging of changes.
+An add-only variant of a pre-BSD routing table can be derived from
+\cref{lst:defer:RCU Pre-BSD Routing Table Lookup,lst:defer:RCU Pre-BSD Routing Table Add/Delete}.
+Because there is no deletion, the \co{route_del()} and \co{route_cb()}
+functions may be dispensed with, along with the \co{->rh}
+and \co{->re_freed} fields of the \co{route_entry} structure, the
+\co{rcu_read_lock()}, the \co{rcu_read_unlock()} invocations in the
+\co{route_lookup()} function, and all uses of the \co{->re_freed} field
+in all remaining functions.
+
+Of course, if there are many concurrent invocations of the \co{route_add()}
+function, there will be heavy contention on \co{routelock}, and if lockless
+techniques are used, heavy memory contention on \co{routelist}.
+The usual way to avoid this contention is to use a concurrency-friendly
+data structure such as a hash table (see \cref{chp:Data Structures}).
+Alternatively, per-CPU data structures might be periodically merged
+into a single global data structure.
+
+On the other hand, if there is never any deletion, extended time periods
+featuring many concurrent invocations of \co{route_add()} will eventually
+consume all available memory.
+Therefore, most RCU-protected data structures provide for deletion.
 
 \subsubsection{Type-Safe Memory}
 \label{sec:defer:Type-Safe Memory}
