@@ -25,8 +25,11 @@ my $IX_ptn = qr/(^|\s+)IX[^\s\{]*{/ ;
 my $api_ptn = qr/(^|\s+)api[^\s\{]*{/ ;
 my $ppl_ptn = qr/(^|\s+)ppl[^\s\{]*{/ ;
 my $acr_ptn = qr/(^|\s+)[aA]cr[^\s\{]*{/ ;
+my $heading_ptn = qr/(\\chapter|\\section|\\subsection|\\subsubsection)/ ;
+my $listing_ptn = qr/\\begin\{(listing|Verbatim)/ ;
 my $in_footnote = 0 ;
 my $footnote_save = 0;
+my $after_heading = 0;
 
 sub check_line {
     my $raw_line = $line;
@@ -102,6 +105,18 @@ sub check_line {
 	    print $ARGV[0], ':', $line_num, ':', $raw_line;
 	}
     }
+    if ($after_heading) {
+	if ($line =~ /^\s*$/) {
+	    # ignore empty/blank line
+	}
+	if ($line =~ /^\s*\{*[A-Za-z0-9]/) {
+	    $after_heading = 0 ;  # normal line, OK
+	}
+	if ($line =~ /$listing_ptn/) {
+	    print $ARGV[0], ':', $line_num, ':', $raw_line, "^^^ listing next to heading ^^^\n";
+	    $after_heading = 0 ;
+	}
+    }
     if ($line =~ /$Verbatim_end/) {
 	$skip = 0;
     } else {
@@ -134,6 +149,9 @@ sub check_line {
 		$footnote_save = 0 ;
 	    }
 	}
+    }
+    if ($line =~ /$heading_ptn/) {
+	$after_heading = 1 ;
     }
 }
 
