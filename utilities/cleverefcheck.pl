@@ -28,10 +28,12 @@ my $acr_ptn = qr/(^|\s+)[aA]cr[^\s\{]*{/ ;
 my $heading_ptn = qr/(\\chapter|\\section|\\subsection|\\subsubsection)/ ;
 my $listing_ptn = qr/\\begin\{(listing|Verbatim)/ ;
 my $qqa_ptn = qr/\\E?QuickQuizAnswer[BEM]?/ ;
+my $epig_ptn = qr/\\[Ee]pigraph/ ;
 my $in_footnote = 0 ;
 my $footnote_save = 0;
 my $after_heading = 0;
 my $after_qqa = 0;
+my $after_epig = 0;
 
 sub check_line {
     my $raw_line = $line;
@@ -117,6 +119,7 @@ sub check_line {
 	if ($line =~ /$listing_ptn/) {
 	    print $ARGV[0], ':', $line_num, ':', $raw_line, "^^^ listing next to heading ^^^\n";
 	    $after_heading = 0 ;
+	    $after_epig = 0 ;  # after epigraph or not does not matter for listing
 	}
     }
     if ($after_qqa) {
@@ -129,6 +132,15 @@ sub check_line {
 	}
 	if ($line =~ /^\s*\{*[^\\]+/) {
 	    $after_qqa = 0;
+	}
+    }
+    if ($after_epig) {
+	if ($line =~ /^\s*$/) {  # empty line ends epigraph
+	    $after_epig -= 1 ;
+	}
+	if ($line =~ /^\s*\\begin/ && $line !~ /(fcvref|listing)/) {
+	    print $ARGV[0], ':', $line_num, ':', $raw_line, "^^^ environment next to epigraph ^^^\n";
+	    $after_epig = 0 ;
 	}
     }
     if ($line =~ /$Verbatim_end/) {
@@ -169,6 +181,9 @@ sub check_line {
     }
     if ($line =~ /$qqa_ptn/) {
 	$after_qqa = 1 ;
+    }
+    if ($line =~ /$epig_ptn/ && $ARGV[0] !~ /glossary\.tex/) { # exempt glossary.tex
+	$after_epig = 2 ;
     }
 }
 
