@@ -27,9 +27,11 @@ my $ppl_ptn = qr/(^|\s+)ppl[^\s\{]*{/ ;
 my $acr_ptn = qr/(^|\s+)[aA]cr[^\s\{]*{/ ;
 my $heading_ptn = qr/(\\chapter|\\section|\\subsection|\\subsubsection)/ ;
 my $listing_ptn = qr/\\begin\{(listing|Verbatim)/ ;
+my $qqa_ptn = qr/\\E?QuickQuizAnswer[BEM]?/ ;
 my $in_footnote = 0 ;
 my $footnote_save = 0;
 my $after_heading = 0;
+my $after_qqa = 0;
 
 sub check_line {
     my $raw_line = $line;
@@ -117,6 +119,18 @@ sub check_line {
 	    $after_heading = 0 ;
 	}
     }
+    if ($after_qqa) {
+	if ($line =~ /^\s*$/) {
+	    print $ARGV[0], ':', $line_num, ':', $raw_line, "~~~ Empty line at QQA head ^^^\n" ;
+	}
+	if ($line =~ /^\s*\\begin/ && $line !~ /fcvref/) {
+	    print $ARGV[0], ':', $line_num, ':', $raw_line, "^^^ environment next to QQA ~~~\n";
+	    $after_qqa = 0 ;
+	}
+	if ($line =~ /^\s*\{*[^\\]+/) {
+	    $after_qqa = 0;
+	}
+    }
     if ($line =~ /$Verbatim_end/) {
 	$skip = 0;
     } else {
@@ -152,6 +166,9 @@ sub check_line {
     }
     if ($line =~ /$heading_ptn/) {
 	$after_heading = 1 ;
+    }
+    if ($line =~ /$qqa_ptn/) {
+	$after_qqa = 1 ;
     }
 }
 
