@@ -1770,15 +1770,6 @@ In addition, as with reader-writer locking, many system calls (and thus
 any RCU read-side critical sections that they contain) complete in
 a few microseconds.
 
-However, the restrictions that go with RCU can be quite onerous.
-For example, in many cases, the prohibition against sleeping while in an RCU
-read-side critical section would defeat the entire purpose.
-The remainder of this section looks at ways of addressing this problem,
-while also reducing the complexity of traditional reference counting,
-at least in some cases.\footnote{
-	Other cases might be better served by the hazard pointers
-	mechanism described in \cref{sec:defer:Hazard Pointers}.}
-
 Although traditional reference counters are usually associated with a
 specific data structure, or perhaps a specific group of data structures,
 this approach does have some disadvantages.
@@ -1803,13 +1794,24 @@ And ignoring those calls to \co{rcu_dereference()} permits RCU to be
 thought of as a ``bulk reference-counting'' mechanism, where each call
 to \co{rcu_read_lock()} obtains a reference on each and every RCU-protected
 object, and with little or no overhead.
-Situations where a reference must be held by a single task across a
-section of code that blocks may be accommodated with
-Sleepable RCU (SRCU)~\cite{PaulEMcKenney2006c}.
+However, the restrictions that go with RCU can be quite onerous.
+For example, in many cases, the prohibition against sleeping while in an RCU
+read-side critical section would defeat the entire purpose.
+Such cases might be better served by the hazard pointers mechanism
+described in \cref{sec:defer:Hazard Pointers}.
+Cases where code rarely sleeps have been handled by using RCU as a
+reference count in the common non-sleeping case and by bridging
+to an explicit reference counter when sleeping is necessary.
+
+Alternatively, situations where a reference must be held by a single task
+across a section of code that sleeps may be accommodated with Sleepable
+RCU (SRCU)~\cite{PaulEMcKenney2006c}.
 This fails to cover the not-uncommon situation where a reference is ``passed''
 from one task to another, for example, when a reference is acquired
 when starting an I/O and released in the corresponding completion
 interrupt handler.
+Again, such cases might be better handled by explicit reference counters
+or by hazard pointers.
 
 Of course, SRCU brings restrictions of its own, namely that the
 return value from \co{srcu_read_lock()} be passed into the
@@ -1817,7 +1819,7 @@ corresponding \co{srcu_read_unlock()}, and that no SRCU primitives
 be invoked from hardware interrupt handlers or from \IXacrf{nmi}
 handlers.
 The jury is still out as to how much of a problem is presented by
-these restrictions, and as to how they can best be handled.
+this restriction, and as to how it can best be handled.
 
 However, in the common case where references are held within the confines
 of a single CPU or task, RCU can be used as high-performance and highly
