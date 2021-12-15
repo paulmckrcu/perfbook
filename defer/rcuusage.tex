@@ -229,6 +229,9 @@ shown in
 \cref{fig:defer:Relationships Between RCU Use Cases}.
 This task is taken up by the following sections.
 
+While reading these sections, please ask yourself which of these
+use cases best describes Pre-BSD routing.
+
 \subsubsection{Wait for Pre-Existing Things to Finish}
 \label{sec:defer:Wait for Pre-Existing Things to Finish}
 
@@ -250,7 +253,7 @@ primitives that disable interrupts) permit you to implement interactions with
 non-maskable interrupt
 (NMI) handlers that would be quite difficult if using locking.
 This approach has been called ``Pure RCU''~\cite{PaulEdwardMcKenneyPhD},
-and it is used in a number of places in the Linux kernel.
+and it is used in a few places in the Linux kernel.
 
 The basic form of such ``Pure RCU'' designs is as follows:
 
@@ -414,8 +417,9 @@ void nmi_stop(void)
 In short, RCU makes it easy to dynamically switch among profile
 buffers (you just \emph{try} doing this efficiently with atomic
 operations, or at all with locking!).
-However, RCU is normally used at a higher level of abstraction, as
-was shown in the previous sections.
+This is a rare use of RCU in its pure form.
+RCU is normally used at higher levels of abstraction, as
+will be shown in the following sections.
 
 \subsubsection{Phased State Change}
 \label{sec:defer:Phased State Change}
@@ -537,6 +541,10 @@ run concurrently with \co{do_maint()} to complete, and finally
 Phased state change allows frequent operations to use light-weight
 checks, without the need for expensive lock acquisitions or atomic
 read-modify-write operations.
+Phased state change adds only a checked state variable
+to the wait-to-finish use case
+(\cref{sec:defer:Wait for Pre-Existing Things to Finish}),
+thus also residing at a rather low level of abstraction.
 
 \subsubsection{Add-Only List}
 \label{sec:defer:Add-Only List}
@@ -544,8 +552,7 @@ read-modify-write operations.
 Add-only data structures, exemplified by the add-only list, can be used
 for a surprisingly common set of use cases, perhaps most commonly the
 logging of changes.
-This use case can also be thought of as a pure use of the publish/subscribe
-mechanism.
+This use case is a pure use of RCU's underlying publish/subscribe mechanism.
 
 An add-only variant of a pre-BSD routing table can be derived from
 \cref{lst:defer:RCU Pre-BSD Routing Table Lookup,lst:defer:RCU Pre-BSD Routing Table Add/Delete}.
@@ -651,6 +658,12 @@ Therefore, although type-safety-based lockless algorithms can be extremely
 helpful in a very few difficult situations, you should instead use existence
 guarantees where possible.
 Simpler is after all almost always better!
+
+As can be seen in \cref{fig:defer:Relationships Between RCU Use Cases},
+RCU's type-safe-memory use case combines both the wait-to-finish
+and publish-subscribe components, but in the Linux kernel also includes
+the slab allocator's deferred reclamation specified by the
+\co{SLAB_TYPESAFE_BY_RCU} flag.
 
 \subsubsection{Existence Guarantee}
 \label{sec:defer:Existence Guarantee}
@@ -817,9 +830,11 @@ and \clnref{ret_0:b} indicates failure to delete the specified key.
 }
 
 Alert readers will recognize this as only a slight variation on
-the original ``RCU is a way of waiting for things to finish'' theme,
-which was addressed in
-\cref{sec:defer:Wait for Pre-Existing Things to Finish}.
+the original wait-to-finish theme
+(\cref{sec:defer:Wait for Pre-Existing Things to Finish}),
+adding publish/subscribe, linked structures, a heap allocator
+(typically), and deferred reclamation, as shown in
+\cref{fig:defer:Relationships Between RCU Use Cases}.
 They might also note the deadlock-immunity advantages over the lock-based
 existence guarantees discussed in
 \cref{sec:locking:Lock-Based Existence Guarantees}.
@@ -849,14 +864,18 @@ reference-count-based garbage collector to handle the grace
 periods~\cite{Kung80}, and the connection between RCU and
 garbage collection has been noted more
 recently~\cite{HarshalSheth2016goRCU}.
-Nevertheless, a better way of thinking of RCU is described in the
-following section.
+
+The light-weight garbage collector use case is very similar to
+the existence-guarantee use case, adding only the desired non-blocking
+algorithm to the mix.
 
 \subsubsection{Delete-Only List}
 \label{sec:defer:Delete-Only List}
 
 The delete-only list is the less-popular counterpart to the add-only list
-covered in \cref{sec:defer:Add-Only List}.
+covered in \cref{sec:defer:Add-Only List}, and can be thought of as the
+existence-guarantee use case, but without the publish/subscribe component,
+as shown in \cref{fig:defer:Relationships Between RCU Use Cases}.
 A delete-only list can be used when the universe of possible members of
 the list is known at initialization, and where members can be removed.
 For example, elements of the list might represent hardware elements of
@@ -1630,8 +1649,10 @@ readers might see different objects, but as long as each reader
 loads the \co{curconfig} pointer only once, each reader will see
 a consistent view of its \co{myconfig} structure.
 
-In short, RCU attains its read-side performance and scalability through
-semantics based on combined temporal and spatial synchronization.
+In short, RCU can approximate a reader-writer lock with the RCU read-side
+critical section acting as the reader by combining temporal and spatial
+synchronization, as shown in
+\cref{fig:defer:Relationships Between RCU Use Cases,fig:defer:RCU Spatial/Temporal Synchronization}.
 
 \subsubsection{Quasi Reference Count}
 \label{sec:defer:Quasi Reference Count}
