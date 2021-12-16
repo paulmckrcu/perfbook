@@ -1330,29 +1330,6 @@ increased \emph{inconsistency} with the outside world.
 In other words, reader-writer locking obtains internal consistency at the
 price of silently stale data with respect to the outside world.
 
-Nevertheless, there are situations where inconsistency and stale
-data within the confines of the system cannot be tolerated.
-Fortunately, there are a number of approaches that avoid inconsistency
-and stale data, including the following:
-
-\begin{enumerate}
-\item	RCU readers can be enclosed in sequence-locking readers, forcing
-	the RCU readers to be retried should an update occur,
-	as described in \cref{sec:together:Atomic Move}.
-\item	Place the data that must be consistent into a single element
-	of a linked data structure, and refrain from updating those
-	fields within any element visible to RCU readers.
-	RCU readers gaining a reference to any such element are then
-	guaranteed to see consistent values.
-	See \cref{sec:together:Correlated Fields} for additional details.
-\item	Use a per-element lock that guards a ``deleted'' flag to allow
-	RCU readers to reject stale
-	data~\cite{PaulEdwardMcKenneyPhD,Arcangeli03}.
-\item	Provide an existence flag that is referenced by all data elements
-	whose update is to appear atomic to RCU
-	readers~\cite{PaulEMcKennneyAtomicTreeN4037,PaulEMcKennneyAtomicTreeCPPCON2014,PaulEMcKenneyIssaquahUpdate2015,PaulEMcKenney2016IssaquahACMApp,PaulEMcKenney2016IssaquahCPPCON}.
-\end{enumerate}
-
 Note that if a value is computed while read-holding a reader-writer
 lock, and then that value is used after that lock is released, then
 this reader-writer-locking use case is using stale data.
@@ -1827,6 +1804,11 @@ However, in the common case where references are held within the confines
 of a single CPU or task, RCU can be used as high-performance and highly
 scalable reference-counting mechanism.
 
+As shown in \cref{fig:defer:Relationships Between RCU Use Cases},
+quasi reference counts add RCU readers as individual or bulk
+reference counts, possibly also bridging to reference counters
+in corner cases.
+
 \subsubsection{Quasi Multi-Version Concurrency Control}
 \label{sec:defer:Quasi Multi-Version Concurrency Control}
 
@@ -1837,18 +1819,46 @@ The multi-version aspects were touched upon in
 However, in its native form, RCU provides version consistency only
 within a given RCU-protected data element.
 
-However, a number of techniques can be used to restore version consistency
-at a higher level, for example, using sequence locking
-(see \cref{sec:together:Correlated Data Elements})
-or imposing additional levels of indirection
-(see \cref{sec:together:Correlated Fields}).
+Nevertheless, there are situations where inconsistency and stale
+data within the broader confines of the system cannot be tolerated.
+Fortunately, there are a number of approaches that avoid inconsistency
+and stale data, including the following:
 
-There is also a wide range of counter-based
-methods~\cite{PaulEMcKenney2008cyclicRCU,PaulEMcKenney2010cyclicRCU,PaulEMcKenney2011cyclicparallelRCU,PaulEMcKenney2014cyclicRCU,Matveev:2015:RLS:2815400.2815406,Kim:2019:MSR:3297858.3304040}.
-In these approaches, updaters maintain a version number and maintain links
-to old versions of a given piece of data.
-Readers take a snapshot of the current version number, and, if necessary,
-traverse the links to find a version consistent wtih that snapshot.
+\begin{enumerate}
+\item	RCU readers can be enclosed in sequence-locking readers, forcing
+	the RCU readers to be retried should an update occur,
+	as described in
+	\cref{sec:together:Correlated Data Elements}
+	and
+	\cref{sec:together:Atomic Move}.
+\item	Place the data that must be consistent into a single element
+	of a linked data structure, and refrain from updating those
+	fields within any element visible to RCU readers.
+	RCU readers gaining a reference to any such element are then
+	guaranteed to see consistent values.
+	See \cref{sec:together:Correlated Fields} for additional details.
+\item	Use a per-element lock that guards a ``deleted'' flag to allow
+	RCU readers to reject stale
+	data~\cite{PaulEdwardMcKenneyPhD,Arcangeli03}.
+\item	Provide an existence flag that is referenced by all data elements
+	whose update is to appear atomic to RCU
+	readers~\cite{PaulEMcKennneyAtomicTreeN4037,PaulEMcKennneyAtomicTreeCPPCON2014,PaulEMcKenneyIssaquahUpdate2015,PaulEMcKenney2016IssaquahACMApp,PaulEMcKenney2016IssaquahCPPCON}.
+\item	Use one of a wide range of counter-based
+	methods~\cite{PaulEMcKenney2008cyclicRCU,PaulEMcKenney2010cyclicRCU,PaulEMcKenney2011cyclicparallelRCU,PaulEMcKenney2014cyclicRCU,Matveev:2015:RLS:2815400.2815406,Kim:2019:MSR:3297858.3304040}.
+	In these approaches, updaters maintain a version number and maintain links
+	to old versions of a given piece of data.
+	Readers take a snapshot of the current version number, and, if necessary,
+	traverse the links to find a version consistent with that snapshot.
+\end{enumerate}
+
+In short, when using RCU to approximate multi-version concurrency
+control, you need pay for only that level of consistency that is required.
+
+As shown in \cref{fig:defer:Relationships Between RCU Use Cases},
+quasi multi-version concurrency control is based on existence guarantees,
+adding read-side snapshot operations and constraints on readers and
+writers, the exact form of the constraint being dictated by the
+consistency requirements, as summarized above.
 
 \subsubsection{RCU Usage Summary}
 \label{sec:defer:RCU Usage Summary}
@@ -1862,12 +1872,11 @@ At its core, RCU is nothing more nor less than an API that provides:
 	without harming or unduly delaying concurrent RCU readers.
 \end{enumerate}
 
-That said, it is possible to build higher-level constructs
-on top of RCU, including the reader-writer-locking, reference-counting,
-and existence-guarantee constructs listed in the earlier sections.
-Furthermore, I have no doubt that the Linux community will continue to
-find interesting new uses for RCU,
-as well as for any of a number of other synchronization primitives.
+That said, it is possible to build higher-level constructs on top of RCU,
+including the various use cases described in the earlier sections.
+Furthermore, I have no doubt that new use cases will continue to be
+found for RCU, as well as for any of a number of other synchronization
+primitives.
 
 \begin{figure}
 \centering
