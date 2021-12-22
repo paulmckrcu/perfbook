@@ -9,7 +9,7 @@
 # defaults to being a release tag, as in v2019.12.22a.  Edition tags
 # have the form "Edition.1", "Edition.1P", or "Edition.1P-rc3".
 # "repo_url" defaults to Paul's git repository at gitolite.kernel.org.
-# "remote" defaults to "origin".
+# "remote" defaults to "perfbook".
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
