@@ -53,7 +53,7 @@ find */ -type d -print |
 	sed -e "s,^,mkdir ${destdir}/," |
 	sh
 
-cp ack.tex autodate.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex summary.tex origpub.sty qqz.sty pfbook.cls pfhyphex.tex perfbook.bbl ${destdir}
+cp ack.tex autodate.tex glsdict.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex summary.tex origpub.sty qqz.sty pfbook.cls pfhyphex.tex perfbook.bbl perfbook.acr perfbook.ind perfbook-api.ind ${destdir}
 cp `kpsewhich fvextra.sty` ${destdir}
 cp `kpsewhich epigraph.sty` ${destdir}
 
@@ -62,7 +62,7 @@ find */ '(' -name '*.pdf' -o -name '*.lst' ')' -exec cp {} ${destdir}/{} \;
 # Arxiv doesn't like "@" in filenames, so transform them to "=".
 transform_fcv()
 {
-	sed -e 's/^\(\\input.*\)@\(.*.fcv\)/\1=\2/' < $1 > ${destdir}/$1
+	sed -e 's/\(\\input{.*\)@\(.*.fcv}\)/\1=\2/' < $1 > ${destdir}/$1
 }
 find */ -name '*.tex' -print |
 	sed -e 's/^.*$/transform_fcv &/' > $T/texfiles
