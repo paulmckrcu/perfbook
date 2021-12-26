@@ -11,6 +11,8 @@
 # "repo_url" defaults to Paul's git repository at gitolite.kernel.org.
 # "remote" defaults to "perfbook".
 #
+# The defaults are appropriate for a release.
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -93,13 +95,22 @@ then
 fi
 cp perfbook-1c.pdf "${destdir}/perfbook-1c.${tag}.pdf"
 
+touch perfbook-lt.tex # Force re-run of "utilities/autodate.sh"
+if ! make eb
+then
+	git tag -d "${gittag}"
+	echo Ebook build failed, giving up.
+	exit 8
+fi
+cp perfbook-eb.pdf "${destdir}/perfbook-eb.${tag}.pdf"
+
 echo Hit return when prepared to provide repository credentials.
 read dummy
 if ! git push ${remote} ${gittag}
 then
 	git tag -d ${gittag}
 	echo Tag push failed, giving up.
-	exit 8
+	exit 9
 fi
 if ! test -f "${destdir}/Changes.*.txt"
 then
