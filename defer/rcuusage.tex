@@ -241,7 +241,7 @@ of RCU is a way of waiting for RCU readers to finish.
 One of
 RCU's great strength is that it allows you to wait for each of
 thousands of different things to finish without having to explicitly
-track each and every one of them, and without having to worry about
+track each and every one of them, and without incurring
 the performance degradation, scalability limitations, complex deadlock
 scenarios, and memory-leak hazards that are inherent in schemes that
 use explicit tracking.
@@ -249,9 +249,9 @@ use explicit tracking.
 In this section, we will show how \co{synchronize_sched()}'s
 read-side counterparts (which include anything that disables preemption,
 along with hardware operations and
-primitives that disable interrupts) permit you to implement interactions with
+primitives that disable interrupts) permit you to interaction with
 non-maskable interrupt
-(NMI) handlers that would be quite difficult if using locking.
+(NMI) handlers, which is quite difficult using locking.
 This approach has been called ``Pure RCU''~\cite{PaulEdwardMcKenneyPhD},
 and it is used in a few places in the Linux kernel.
 
@@ -261,7 +261,9 @@ The basic form of such ``Pure RCU'' designs is as follows:
 \item	Make a change, for example, to the way that the OS reacts to an NMI\@.
 \item	Wait for all pre-existing read-side critical sections to
 	completely finish (for example, by using the
-	\co{synchronize_sched()} primitive).
+	\co{synchronize_sched()} primitive).\footnote{
+		In Linux kernel v5.1 and later, \co{synchronize_sched()} has
+		been subsumed into \co{synchronize_rcu()}.}
 	The key observation here is that subsequent RCU read-side critical
 	sections are guaranteed to see whatever change was made.
 \item	Clean up, for example, return status indicating that the
@@ -270,9 +272,10 @@ The basic form of such ``Pure RCU'' designs is as follows:
 
 The remainder of this section presents example code adapted from
 the Linux kernel.
-In this example, the \co{timer_stop} function uses
-\co{synchronize_sched()} to ensure that all in-flight NMI
-notifications have completed before freeing the associated resources.
+In this example, the \co{timer_stop()} function in the now-defunct
+oprofile facility uses \co{synchronize_sched()} to ensure that all
+in-flight NMI notifications have completed before freeing the associated
+resources.
 A simplified version of this code is shown in
 \cref{lst:defer:Using RCU to Wait for NMIs to Finish}.
 
@@ -433,6 +436,9 @@ However, if there is a maintenance operation in progress, the common-case
 operations must be undertaken carefully, taking into account added
 complexities due to their running concurrently with that maintenance
 operation.
+This means that common-case operations will incur higher overhead during
+maintenance operations, which is one reason that maintenance operations
+are normally scheduled to take place during times of low load.
 
 \begin{figure}
 \centering
@@ -488,7 +494,7 @@ Here, \clnref{if} checks a global \co{be_careful} flag, invoking
 This allows the \co{maint()} function to set the \co{be_careful} flag
 on \clnref{tocareful} and wait for an RCU grace period on \clnref{sr1}.
 When control reaches \clnref{maint}, all \co{cco()} functions that saw a
-\co{false} value of \co{be_careful} (and thus which might have invoked
+\co{false} value of \co{be_careful} (and thus which might invoke
 the \co{cco_quickly()} function) will have completed their operations,
 so that all currently executing \co{cco()} functions will be invoking
 \co{cco_carefully()}.
@@ -552,7 +558,8 @@ thus also residing at a rather low level of abstraction.
 Add-only data structures, exemplified by the add-only list, can be used
 for a surprisingly common set of use cases, perhaps most commonly the
 logging of changes.
-This use case is a pure use of RCU's underlying publish/subscribe mechanism.
+Add-only data structures are a pure use of RCU's underlying
+publish/subscribe mechanism.
 
 An add-only variant of a pre-BSD routing table can be derived from
 \cref{lst:defer:RCU Pre-BSD Routing Table Lookup,lst:defer:RCU Pre-BSD Routing Table Add/Delete}.
@@ -574,7 +581,7 @@ into a single global data structure.
 On the other hand, if there is never any deletion, extended time periods
 featuring many concurrent invocations of \co{route_add()} will eventually
 consume all available memory.
-Therefore, most RCU-protected data structures provide for deletion.
+Therefore, most RCU-protected data structures also implement deletion.
 
 \subsubsection{Type-Safe Memory}
 \label{sec:defer:Type-Safe Memory}
@@ -659,6 +666,13 @@ Therefore, although type-safety-based lockless algorithms can be extremely
 helpful in a very few difficult situations, you should instead use existence
 guarantees where possible.
 Simpler is after all almost always better!
+On the other hand, type-safety-based lockless algorithms can
+provide improved cache locality, and thus improved performance.
+This improved cache locality is provided by the fact that such
+algorithms can immediately reallocate a newly freed block of memory.
+In contrast, algorithms based on existence guarantees must wait for
+all pre-existing readers before reallocating memory, by which time
+that memory may have been ejected from CPU caches.
 
 As can be seen in \cref{fig:defer:Relationships Between RCU Use Cases},
 RCU's type-safe-memory use case combines both the wait-to-finish
@@ -695,8 +709,8 @@ recently~\cite{HarshalSheth2016goRCU}.
 The light-weight garbage collector use case is very similar to
 the type-safe-memory use case, adding only the desired non-blocking
 algorithm to the mix.
-This light-weight garbage collector use case can also be applied on
-top of the existence guarantees described in the next section.
+This light-weight garbage collector use case can also be used in
+conjunction with the existence guarantees described in the next section.
 
 \subsubsection{Existence Guarantee}
 \label{sec:defer:Existence Guarantee}
@@ -1110,8 +1124,7 @@ Of course, the low performance of reader-writer locking in
 fig:defer:Performance Advantage of Preemptible RCU Over Reader-Writer Locking}
 is exaggerated by the unrealistic zero-length critical sections.
 The performance advantages of RCU decrease as the overhead of the critical
-sections increase.
-This decrease can be seen in
+sections increase, as shown in
 \cref{fig:defer:Comparison of RCU to Reader-Writer Locking as Function of Critical-Section Duration},
 which was run on the same system as the previous plots.
 Here, the y-axis represents the sum of the overhead of the read-side
@@ -1144,7 +1157,7 @@ the greater is RCU's performance advantage.
 These performance advantages are underscored by the fact that 100-CPU
 systems are no longer uncommon and that a number of system calls (and
 thus any RCU read-side critical sections that they contain) complete
-within a microsecond.
+within microseconds.
 
 In addition, as is discussed in the next section,
 RCU read-side primitives are almost entirely deadlock-immune.
@@ -1302,6 +1315,25 @@ batch-fair
 reader-writer-locking readers, as shown in
 \cref{fig:defer:Response Time of RCU vs. Reader-Writer Locking}.
 
+\QuickQuiz{
+	But how many other algorithms really tolerate stale and
+	inconsistent data?
+}\QuickQuizAnswer{
+	Quite a few!
+
+	Please keep in mind that the finite speed of light means that
+	data reaching a given computer system is at least slightly stale
+	at the time that it arrives, and extremely stale in the case
+	of astronomical data.
+	The finite speed of light also places a sharp limit on the
+	consistency of data arriving from different sources of via
+	different paths.
+
+	You might as well face the fact that the laws of physics
+	are incompatible with naive notions of perfect freshness and
+	consistency.
+}\QuickQuizEnd
+
 Once the update is received, the rwlock writer cannot proceed until the
 last reader completes, and subsequent readers cannot proceed until the
 writer completes.
@@ -1328,7 +1360,8 @@ updater begins might or might not see new values, depending on timing.
 The key point here is that, although reader-writer locking does
 indeed guarantee consistency within the confines of the computer system,
 there are situations where this consistency comes at the price of
-increased \emph{inconsistency} with the outside world.
+increased \emph{inconsistency} with the outside world, courtesy of
+the finite speed of light and the non-zero size of atoms.
 In other words, reader-writer locking obtains internal consistency at the
 price of silently stale data with respect to the outside world.
 
@@ -1337,8 +1370,12 @@ lock, and then that value is used after that lock is released, then
 this reader-writer-locking use case is using stale data.
 After all, the quantities that this value is based on could change
 at any time after that lock is released.
-This sort of reader-writer-locking use case is often easier to
-convert to RCU.
+This sort of reader-writer-locking use case is often easy to
+convert to RCU, as will be shown in
+\cref{lst:defer:Converting Reader-Writer Locking to RCU: Data,%
+lst:defer:Converting Reader-Writer Locking to RCU: Search,%
+lst:defer:Converting Reader-Writer Locking to RCU: Deletion}
+and the accompanying text.
 
 \paragraph{Low-Priority RCU Readers Can Block High-Priority Reclaimers}
 
@@ -1349,8 +1386,31 @@ a high-priority task is blocked waiting for that grace period to complete.
 Realtime RCU can avoid this problem by substituting \co{call_rcu()}
 for \co{synchronize_rcu()} or by using RCU priority
 boosting~\cite{PaulEMcKenney2007BoostRCU,DinakarGuniguntala2008IBMSysJ}.
-It might become necessary to augment SRCU and Tasks Trace RCU with
+It might someday be necessary to augment SRCU and RCU Tasks Trace with
 priority boosting, but not before a clear real-world need is demonstrated.
+
+\QuickQuiz{
+	If Tasks RCU Trace might someday be priority boosted, why
+	not also Tasks RCU and Tasks RCU Rude?
+}\QuickQuizAnswer{
+	Maybe, but these are less likely.
+
+	In the case of Tasks RCU, recall that the quiescent state is
+	a voluntary context switch.
+	Thus, all tasks not blocked after a voluntary context switch
+	might need to be boosted, and the mechanics of deboosting would
+	not likely be at all pretty.
+
+	In the case of Tasks RCU Rude, as was the case with the old
+	RCU Sched, any preemptible region of code is a quiescent state.
+	Thus, the only tasks that might need boosting are those currently
+	running with preemption disabled.
+	But boosting the priority of a preemption-disabled task has no
+	effect.
+	It therefore seems doubly unlikely that priority boosting will
+	ever be introduced to Tasks RCU Rude, at least in its current
+	form.
+}\QuickQuizEnd
 
 \paragraph{RCU Grace Periods Extend for Many Milliseconds}
 
