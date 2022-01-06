@@ -181,7 +181,98 @@ So perhaps going all the way was not too far after all!
 
 But how can we tell when all of the pre-existing readers have in
 fact completed?
-This question is the topic of the next section.
+This question is the topic of the \cref{sec:defer:Waiting for Readers}.
+But first, te next section defines RCU's core API.
+
+\subsubsection{Core RCU API}
+\label{sec:defer:Core RCU API}
+
+The full Linux-kernel API is quite extensive, with more than one
+hundred API members.
+However, this section will confine itself to six core RCU API members,
+which suffice for the upcoming sections introducing RCU and covering
+its fundamentals.
+The full API is covered in \cref{sec:defer:RCU Linux-Kernel API}.
+
+Three members of the core APIs are used by readers.
+The \co{rcu_read_lock()} and \co{rcu_read_unlock()} functions delimit
+RCU read-side critical sections.
+These may be nested, so that one \co{rcu_read_lock()}-\co{rcu_read_unlock()}
+pair can be enclosed within another.
+In this case, the nested set of RCU read-side critical section act as
+one large critical section covering the full extent of the nested set.
+The \co{rcu_dereference()} macro fetches an RCU-protected pointer.
+Conceptually, this is simply a load from memory, but we will see in
+\cref{sec:defer:Publish-Subscribe Mechanism}
+that \co{rcu_dereference()} must prevent the compiler and (in
+one case) the CPU from reordering its load with later memory operations
+that dereference this pointer.
+
+The other three members of the core APIs are used by updaters.
+The \co{synchronize_rcu()} function implements the ``wait for readers''
+operation from \cref{fig:defer:Deletion With Concurrent Readers}.
+The \co{call_rcu()} function is the asynchronous counterpart of
+\co{synchronize_rcu()} by invoking the specified function after
+all pre-existing RCU readers have completed.
+Finally, the \co{rcu_assign_pointer()} macro is used to update an
+RCU-protected pointer.
+Conceptually, this is simply an assignment statement, but we will
+see in
+\cref{sec:defer:Publish-Subscribe Mechanism}
+that \co{rcu_assign_pointer()} must prevent the compiler and the CPU
+from reordering this assignment to precede any prior assignments used
+to initialize the pointed-to structure.
+
+\QuickQuiz{
+	What does \co{synchronize_rcu()} do if it starts at about
+	the same time as an \co{rcu_read_lock()}?
+}\QuickQuizAnswer{
+	If a \co{synchronize_rcu()} cannot prove that it started
+	before a given \co{rcu_read_lock()}, then it must wait
+	for the corresponding \co{rcu_read_unlock()}.
+}\QuickQuizEnd
+
+\begin{table*}
+\renewcommand*{\arraystretch}{1.15}
+\footnotesize
+\centering
+\begin{tabular}{lll}
+\toprule
+&
+	Primitive &
+		Purpose \\
+\midrule
+\emph{Readers} &
+	\tco{rcu_read_lock()} &
+		Start an RCU read-side critical section. \\
+&
+	\tco{rcu_read_unlock()} &
+		End an RCU read-side critical section. \\
+&
+	\tco{rcu_dereference()} &
+		Safely load an RCU-protected pointer. \\
+\midrule
+\emph{Updaters} &
+	\tco{synchronize_rcu()} &
+		Wait for all pre-existing RCU read-side critical sections to
+		complete. \\
+&
+	\tco{call_rcu()} &
+		Invoke the specified function after all pre-existing RCU read-side
+		critical sections complete. \\
+&
+	\tco{rcu_assign_pointer()} &
+		Safely update an RCU-protected pointer. \\
+\bottomrule
+\end{tabular}
+\caption{RCU Core API}
+\label{tab:defer:RCU Core API}
+\end{table*}
+
+The core RCU API is summarized in \cref{tab:defer:RCU Core API} for
+easy reference.
+With that, we are ready to continue this introduction to RCU with
+the key RCU operation, waiting for readers.
 
 \subsubsection{Waiting for Readers}
 \label{sec:defer:Waiting for Readers}
