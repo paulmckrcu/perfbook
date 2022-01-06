@@ -414,7 +414,8 @@ void nmi_stop(void)
 \caption{Using RCU to Wait for Mythical Preemptible NMIs to Finish}
 \label{lst:defer:Using RCU to Wait for Mythical Preemptible NMIs to Finish}
 \end{listing}
-%
+
+	But why on earth would an NMI handler be preemptible???
 }\QuickQuizEnd
 
 In short, RCU makes it easy to dynamically switch among profile
@@ -1536,8 +1537,8 @@ wait for pre-existing readers, only \co{write_lock()} prevents
 subsequent readers from commencing.\footnote{
 	Kudos to whoever pointed this out to Paul.}
 Thus, \co{synchronize_rcu()} cannot exclude readers.
-It is therefore surprising that a great many situations
-using reader-writer locking can be easily converted to RCU\@.
+Nevertheless, a great many situations using reader-writer locking can
+be converted to RCU\@.
 
 More-elaborate cases of replacing reader-writer locking with RCU
 may be found
@@ -1546,8 +1547,9 @@ elsewhere~\cite{NeilBrown2015PathnameLookup,NeilBrown2015RCUwalk}.
 \paragraph{Semantics:
 		      Reader-Writer Locking vs.\@ RCU}
 
-Reader-writer locking semantics can be roughly and informally summarized
-by the following three temporal constraints:
+Expanding on the previous section, reader-writer locking semantics can
+be roughly and informally summarized by the following three temporal
+constraints:
 
 \begin{enumerate}
 \item	Write-side acquisitions wait for any read-holders to release
@@ -1586,12 +1588,14 @@ number of ways, but most commonly by imposing spatial constraints:
 	\end{enumerate}
 \end{enumerate}
 
-Of course, there are some reader-writer-locking use cases for which RCU's
-weakened semantics are inappropriate, but experience in the Linux kernel
-indicates that most reader-writer locks can in fact be replaced by RCU\@.
-A surprisingly common case involves some value is computed while holding
-the lock and then used after releasing that lock, and such cases can
-frequently accommodate RCU's weaker semantics.
+Of course, there are some reader-writer-locking use cases for which
+RCU's weakened semantics are inappropriate, but experience in the Linux
+kernel indicates that more than 80\% of reader-writer locks can in fact
+be replaced by RCU\@.
+For example, a common reader-writer-locking use case computes some value
+while holding the lock and then uses that value after releasing that lock.
+This use case results in stale data, and therefore often accommodates
+RCU's weaker semantics.
 
 \begin{listing}
 \input{CodeSamples/defer/singleton@get.fcv}
@@ -1724,9 +1728,9 @@ primitives can be thought of as acquiring a reference to \co{p},
 because a grace period starting after the \co{rcu_dereference()}
 assignment to \co{p} cannot possibly end until after we reach the matching
 \co{rcu_read_unlock()}.
-This reference-counting scheme is restricted in that
-we are not allowed to block in RCU read-side critical sections,
-nor are we permitted to hand off an RCU read-side critical section's
+This reference-counting scheme is restricted in that it is forbidden
+to wait for RCU grace periods within RCU read-side critical sections,
+and also forbidden to hand off an RCU read-side critical section's
 references from one task to another.
 
 Regardless of these restrictions,
@@ -1845,8 +1849,9 @@ thought of as a ``bulk reference-counting'' mechanism, where each call
 to \co{rcu_read_lock()} obtains a reference on each and every RCU-protected
 object, and with little or no overhead.
 However, the restrictions that go with RCU can be quite onerous.
-For example, in many cases, the prohibition against sleeping while in an RCU
-read-side critical section would defeat the entire purpose.
+For example, in many cases, the Linux-kernel prohibition against
+sleeping while in an RCU read-side critical section would defeat the
+entire purpose.
 Such cases might be better served by the hazard pointers mechanism
 described in \cref{sec:defer:Hazard Pointers}.
 Cases where code rarely sleeps have been handled by using RCU as a
@@ -1890,13 +1895,13 @@ The multi-version aspects were touched upon in
 However, in its native form, RCU provides version consistency only
 within a given RCU-protected data element.
 
-Nevertheless, there are situations where inconsistency and stale
-data within the broader confines of the system cannot be tolerated.
+Nevertheless, there are situations where consistency and fresh data are
+required across multiple data elements.
 Fortunately, there are a number of approaches that avoid inconsistency
 and stale data, including the following:
 
 \begin{enumerate}
-\item	RCU readers can be enclosed in sequence-locking readers, forcing
+\item	Enclose RCU readers within sequence-locking readers, forcing
 	the RCU readers to be retried should an update occur,
 	as described in
 	\cref{sec:together:Correlated Data Elements}
@@ -1922,8 +1927,8 @@ and stale data, including the following:
 	traverse the links to find a version consistent with that snapshot.
 \end{enumerate}
 
-In short, when using RCU to approximate multi-version concurrency
-control, you need pay for only that level of consistency that is required.
+In short, when using RCU to approximate multi-version concurrency control,
+you only pay for the level of consistency that you actually need.
 
 As shown in \cref{fig:defer:Relationships Between RCU Use Cases},
 quasi multi-version concurrency control is based on existence guarantees,
@@ -1973,8 +1978,8 @@ In the meantime,
 \cref{fig:defer:RCU Areas of Applicability}
 shows some rough rules of thumb on where RCU is most helpful.
 
-As shown in the blue box at the top of the figure, RCU works best if
-you have read-mostly data where stale and inconsistent
+As shown in the blue box in the upper-right corner of the figure, RCU
+works best if you have read-mostly data where stale and inconsistent
 data is permissible (but see below for more information on stale and
 inconsistent data).
 The canonical example of this case in the Linux kernel is routing tables.
@@ -2016,19 +2021,24 @@ conjunction with a number of other synchronization primitives.
 For example, the directory-entry cache in recent Linux kernels uses RCU in
 conjunction with sequence locks, per-CPU locks, and per-data-structure
 locks to allow lockless traversal of pathnames in the common case.
-Although RCU can be very beneficial in this read-write case, such
-use is often more complex than that of the read-mostly cases.
+Although RCU can be very beneficial in this read-write case, the
+corresponding code is often more complex than that of the read-mostly
+cases.
 
-Finally, as indicated by the red box at the bottom of the figure,
-update-mostly workloads requiring
-consistent data are rarely good places to use RCU, though there are some
+Finally, as indicated by the red box in the lower-left corner
+of the figure, update-mostly workloads requiring consistent
+data are rarely good places to use RCU, though there are some
 exceptions~\cite{MathieuDesnoyers2012URCU}.
-In addition, as noted in
+For example, as noted in
 \cref{sec:defer:Type-Safe Memory},
 within the Linux kernel, the \co{SLAB_TYPESAFE_BY_RCU}
 slab-allocator flag provides type-safe memory to RCU readers, which can
 greatly simplify \IXacrl{nbs} and other lockless
 algorithms.
+In addition, if the rare readers are on critical code paths on real-time
+systems, use of RCU for those readers might provide real-time response
+benefits that more than make up for the increased update-side overhead,
+as discussed in \cref{sec:advsync:The Role of RCU}.
 
 In short, RCU is an API that includes a publish-subscribe mechanism for
 adding new data, a way of waiting for pre-existing RCU readers to finish,
