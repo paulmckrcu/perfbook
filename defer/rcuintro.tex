@@ -190,7 +190,7 @@ But first, te next section defines RCU's core API.
 The full Linux-kernel API is quite extensive, with more than one
 hundred API members.
 However, this section will confine itself to six core RCU API members,
-which suffice for the upcoming sections introducing RCU and covering
+which suffices for the upcoming sections introducing RCU and covering
 its fundamentals.
 The full API is covered in \cref{sec:defer:RCU Linux-Kernel API}.
 
@@ -201,8 +201,10 @@ These may be nested, so that one \co{rcu_read_lock()}-\co{rcu_read_unlock()}
 pair can be enclosed within another.
 In this case, the nested set of RCU read-side critical section act as
 one large critical section covering the full extent of the nested set.
-The \co{rcu_dereference()} macro fetches an RCU-protected pointer.
-Conceptually, this is simply a load from memory, but we will see in
+The third read-side API member, \co{rcu_dereference()}, fetches an
+RCU-protected pointer.
+Conceptually, \co{rcu_dereference()} simply loads from memory, but we
+will see in
 \cref{sec:defer:Publish-Subscribe Mechanism}
 that \co{rcu_dereference()} must prevent the compiler and (in
 one case) the CPU from reordering its load with later memory operations
@@ -277,15 +279,23 @@ the key RCU operation, waiting for readers.
 \subsubsection{Waiting for Readers}
 \label{sec:defer:Waiting for Readers}
 
-It is tempting to base reader waiting on reference counting, but
+It is tempting to base the reader-waiting functionality of
+\co{synchronize_rcu()} and \co{call_rcu()} on a reference counter
+updated by \co{rcu_read_lock()} and \co{rcu_read_unlock()}, but
 \cref{fig:count:Atomic Increment Scalability on x86}
 in
 \cref{chp:Counting}
-shows that concurrent reference counting results in extreme overhead,
-as we already saw in
-\cref{sec:defer:Reference Counting}.
+shows that concurrent reference counting results in extreme overhead.
+This extreme overhead was confirmed in the specific case of
+reference counters in
+\cref{fig:defer:Pre-BSD Routing Table Protected by Reference Counting}
+on
+\cpageref{fig:defer:Pre-BSD Routing Table Protected by Reference Counting}.
 Hazard pointers profoundly reduce this overhead, but, as we saw in
-\cref{sec:defer:Hazard Pointers}, not to zero.
+\cref{fig:defer:Pre-BSD Routing Table Protected by Hazard Pointers}
+on
+\cpageref{fig:defer:Pre-BSD Routing Table Protected by Hazard Pointers},
+not to zero.
 Nevertheless, many RCU implementations make very careful cache-local
 use of counters.
 
@@ -423,6 +433,9 @@ This approach is termed \IXacrfst{qsbr}~\cite{ThomasEHart2006a}.\@
 A QSBR schematic is shown in
 \cref{fig:defer:QSBR: Waiting for Pre-Existing Readers},
 with time advancing from the top of the figure to the bottom.
+The cyan-colored boxes depict RCU read-side critical sections,
+each of which begins with \co{rcu_read_lock()} and ends with
+\co{rcu_read_unlock()}.
 CPU~1 does the \co{WRITE_ONCE()} that removes the current data
 item (presumably having previously read the pointer value and
 availed itself of appropriate synchronization), then waits
@@ -433,9 +446,9 @@ all prior reads on CPU~1 have completed.
 Next, CPU~2 does a context switch, so that all readers on CPUs~1 and~2
 are now known to have completed.
 Finally, CPU~3 does a context switch.
-At this point, all readers throughout the entire system are known to
-have completed, so the grace period ends, permitting CPU~1 to free
-the old data item.
+At this point, all readers throughout the entire system are known to have
+completed, so the grace period ends, permitting \co{synchronize_rcu()} to
+return to its caller, in turn permitting CPU~1 to free the old data item.
 
 \QuickQuiz{
 	In \cref{fig:defer:QSBR: Waiting for Pre-Existing Readers},
@@ -670,9 +683,9 @@ updaters from making useful concurrent forward progress.
 	deferred-reclamation problem.
 }\QuickQuizEnd
 
-RCU delimits readers with \co{rcu_read_lock()} and \co{rcu_read_unlock()},
-and ensures that each reader has a coherent view of each object
-(see \cref{fig:defer:Deletion With Concurrent Readers}) by
+As noted earlier, RCU delimits readers with \co{rcu_read_lock()} and
+\co{rcu_read_unlock()}, and ensures that each reader has a coherent view
+of each object (see \cref{fig:defer:Deletion With Concurrent Readers}) by
 maintaining multiple versions of objects and using update-side primitives
 such as \co{synchronize_rcu()} to ensure that objects are not
 freed until after the completion of all readers that might be using them.
