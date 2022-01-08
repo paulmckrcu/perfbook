@@ -25,7 +25,88 @@ presents concluding remarks.
 
 Readers who are not excited about kernel internals may wish to skip
 ahead to \cref{sec:defer:RCU Usage}
-on \cpageref{sec:defer:RCU Usage}.
+on \cpageref{sec:defer:RCU Usage},
+but preferably after reviewing the next section covering software-engineering
+considerations.
+
+\subsubsection{RCU API and Software Engineering}
+\label{sec:defer:RCU API and Software Engineering}
+
+Readers who have looked ahead to
+\cref{tab:defer:RCU Wait-to-Finish APIs,%
+tab:defer:RCU Publish-Subscribe and Version Maintenance APIs,%
+tab:defer:RCU-Protected List APIs,%
+tab:defer:RCU Diagnostic APIs}
+might have noted that the full list of Linux-kernel APIs sports more
+than 100 members.
+This is in sharp (and perhaps dismaying) contrast to the mere six
+API members shown in
+\cref{tab:defer:RCU Core API}.
+This situation clearly raises the question ``Why so many???''
+
+This question is answered more thoroughly in the following sections,
+but in the meantime the rest of this section summarizes the motivations.
+
+There is a wise old saying to the effect of ``To err is human.''
+This means that purpose of a significant fraction of the RCU API is to
+provide diagnostics, most notably in \cref{tab:defer:RCU Diagnostic APIs},
+but elsewhere as well.
+
+Important causes of human error are the limits of the human brain,
+for example, the limited capacity of short-term memory.
+The toy examples shown in this book do not stress these limits.
+This is out of necessity:
+Many readers push their cognitive limits while learning new material,
+so the examples need to be kept simple.
+
+These examples therefore keep \co{rcu_dereference()} invocations
+in the same function as the enclosing \co{rcu_read_lock()} and
+\co{rcu_read_unlock()} calls.
+In contrast, real-world software must frequently invoke these API members
+from different functions, and even from different translation units.
+The Linux kernel RCU API has therefore expanded to accommodate lockdep,
+which allows \co{rcu_dereference()} and friends to complain if it is
+not protected by \co{rcu_read_lock()}.
+Linux-kernel RCU also checks for some double-free errors, infinite
+loops in RCU read-side critical sections, and attempts to invoke
+quiescent states within RCU read-side critical sections.
+
+Another way that real-world software accommodates the limits of human
+cognition is through abstraction.
+The Linux-kernel API therefore includes members that operate on lists
+in addition to the pointer-oriented core API of
+\cref{tab:defer:RCU Core API}.
+The Linux kernel itself also provides RCU-protected hash tables and
+search trees.
+
+Operating-systems kernels such as Linux operate near the bottom of the
+``iron triangle'' of the software stack shown in
+\cref{fig:intro:Software Layers and Performance; Productivity; and Generality},
+where performance is critically important.
+There are thus specialized variants of a number of RCU APIs for use on
+fastpaths, for example, as discussed in
+\cref{sec:defer:RCU has Publish-Subscribe and Version-Maintenance APIs},
+\co{RCU_INIT_POINTER()} may be used in
+place of \co{rcu_assign_pointer()} in cases where the RCU-protected pointer
+is being assigned to \co{NULL} or when that pointer is not yet accessible
+by readers.
+Use of \co{RCU_INIT_POINTER()} allows the compiler more leeway in
+selecting instructions and carrying out optimizations, thus increasing
+performance.
+
+On the other hand, when used incorrectly \co{RCU_INIT_POINTER()} can
+result in silent memory corruption, so please be careful!
+Yes, in some cases, the kernel can check for inappropriate use of
+RCU API members from a given kernel context, but the constraints of
+\co{RCU_INIT_POINTER()} use are not yet checkable.
+
+Finally, within the Linux kernel, the aforementioned limits of human
+cognition are compounded by the variety and severity of workloads running
+on Linux.
+As of v5.16, this has given rise to no fewer than five flavors of
+RCU, each designed to provide different performance, scalability,
+response-time, and energy efficiency tradeoffs to RCU readers and writers.
+These RCU flavors are the subject of the next section.
 
 \subsubsection{RCU has a Family of Wait-to-Finish APIs}
 \label{sec:defer:RCU has a Family of Wait-to-Finish APIs}
@@ -158,7 +239,7 @@ For example, if you are primarily interested in understanding how RCU
 is used in the Linux kernel, ``RCU'' would be the place to start,
 as it is used most frequently.
 On the other hand, if you want to understand RCU for its own sake,
-``Task RCU'' has the simplest API\@.
+``Tasks RCU'' has the simplest API\@.
 You can always come back for the other columns later.
 
 If you are already familiar with RCU, these tables can
@@ -394,9 +475,10 @@ read-side markers.\footnote{
 However, this speed is a consequence of the fact that these markers
 do not execute memory-barrier instructions, which means that Tasks RCU
 Trace grace periods must often send IPIs to all CPUs and must always
-scan the entire task list.
-Nevertheless, the resulting grace-period latency is reasonably short,
-rivaling that of RCU\@.
+scan the entire task list, thus degrading real-time response and
+consuming considerable CPU time.
+Nevertheless, in the absence of readers, the resulting grace-period
+latency is reasonably short, rivaling that of RCU\@.
 
 \subsubsection{RCU has Publish-Subscribe and Version-Maintenance APIs}
 \label{sec:defer:RCU has Publish-Subscribe and Version-Maintenance APIs}
