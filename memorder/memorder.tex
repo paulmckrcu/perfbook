@@ -1198,6 +1198,9 @@ thus preventing the \co{exists} clause from triggering.
 An \emph{address dependency} occurs when the value returned by a load
 instruction is used to compute the address used by a later memory-reference
 instruction.
+This means that the exact same sequence of instructions used to traverse
+a linked data structure in single-threaded code provides weak but extremely
+useful ordering in concurrent code.
 
 \begin{listing}
 \input{CodeSamples/formal/litmus/C-MP+o-wmb-o+o-addr-o@whole.fcv}
@@ -1391,7 +1394,7 @@ be fragile and easily broken by compiler optimizations, as discussed in
 \cref{sec:memorder:Address- and Data-Dependency Difficulties}.
 
 \subsection{Data Dependencies}
-\label{sec:memorder:Data Reordering}
+\label{sec:memorder:Data Dependencies}
 
 A \emph{data dependency} occurs when the value returned by a load
 instruction is used to compute the data stored by a later store
@@ -1400,6 +1403,10 @@ Note well the ``data'' above:
 If the value returned by a load was instead used to compute the address
 used by a later store instruction, that would instead be an address
 dependency.
+However, the existence of data dependencies means that the exact same
+sequence of instructions used to update a linked data structure in
+single-threaded code provides weak but extremely useful ordering in
+concurrent code.
 
 \begin{listing}
 \input{CodeSamples/formal/litmus/C-LB+o-r+o-data-o@whole.fcv}
@@ -1467,8 +1474,11 @@ compiler from breaking them.
 A \emph{control dependency} occurs when the value returned by a load
 instruction is tested to determine whether or not a later store instruction
 is executed.
-Note well the ``later store instruction'':
-Many platforms do not respect load-to-load control dependencies.
+In other words, a simple conditional branch or conditional-move
+instruction can act as a weak but low-overhead memory-barrier instruction.
+However, note well the ``later store instruction'':
+Although all platforms respect load-to-store dependencies, many platforms
+do \emph{not} respect load-to-load control dependencies.
 
 \begin{listing}
 \input{CodeSamples/formal/litmus/C-LB+o-r+o-ctrl-o@whole.fcv}
@@ -2489,9 +2499,12 @@ In contrast, the penalty for failing to use them when needed can be quite high.
 \label{sec:memorder:Address- and Data-Dependency Difficulties}
 \OriginallyPublished{Section}{sec:memorder:Address- and Data-Dependency Difficulties}{Address- and Data-Dependency Difficulties}{the Linux kernel}{PaulEMcKenney2014rcu-dereference}
 
-Compilers do not understand either address or data dependencies,
-although there are efforts underway to teach them, or at the very
-least, standardize the process of teaching
+The low overheads of the address and data dependencies discussed in
+\cref{sec:memorder:Address Dependencies,sec:memorder:Data Dependencies},
+respectively, makes their use extremely attractive.
+Unfortunately, compilers do not understand either address or data
+dependencies, although there are efforts underway to teach them, or at
+the very least, standardize the process of teaching
 them~\cite{PaulEMcKennneyConsumeP0190R4,PaulEMcKenney2017markconsumeP0462R1}.
 In the meantime, it is necessary to be very careful in order to prevent
 your compiler from breaking your dependencies.
@@ -2844,8 +2857,11 @@ compiler-generated assembly code.
 \subsection{Control-Dependency Calamities}
 \label{sec:memorder:Control-Dependency Calamities}
 
-Control dependencies are especially tricky because current compilers
-do not understand them and can easily break them.
+The control dependencies described in
+\cref{sec:memorder:Control Dependencies}
+are attractive due to their low overhead, but are also especially
+tricky because current compilers do not understand them and can easily
+break them.
 The rules and examples in this section are intended to help you
 prevent your compiler's ignorance from breaking your code.
 
