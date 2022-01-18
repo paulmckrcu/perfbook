@@ -12,6 +12,12 @@
 # +\indexentry{read-copy update (RCU)@\makefirstuc {read-copy update} (RCU)|hyperindexformat{\BF}}{306}
 # -\indexentry{critical section|hyperindexformat{\bf@\makefirstuc {critical section|bf}!RCU read-side}}{325}
 # +\indexentry{critical section@\makefirstuc {critical section}!RCU read-side|hyperindexformat{\BF}}{325}
+# -\indexentry{cache associativity|hyperindexformat{\gl@\makefirstuc {cache associativity|gl}}}{1222}
+# +\indexentry{cache associativity@\makefirstuc {cache associativity}|hyperindexformat{\GL}}{1222}
+# -\indexentry{wait free|hyperindexformat{\gl@\makefirstuc {wait free|gl}!bounded}}{1223}
+# +\indexentry{wait free@\makefirstuc {wait free}!bounded|hyperindexformat{\GL}}{1223}
+# -\indexentry{interrupt request (IRQ)@\makefirstuc {interrupt request} <IRQ>|hyperpage}{1228}
+# +\indexentry{interrupt request (IRQ)@\makefirstuc {interrupt request} (IRQ)|hyperindexformat{\GL}}{1228}
 #
 # Copyright (C) Akira Yokosawa, 2022
 #
@@ -29,5 +35,8 @@ while($line = <$fh>) {
     $line =~ s/\{([^\|]+)(\|hyperindexformat)\{\\bf(@\\makefirstuc )\{.+\}\}\}/\{$1$3\{$1\}$2\{\\BF\}\}/ ;
     $line =~ s/\{([^\|]+)(\|hyperindexformat)\{\\bf(@\\makefirstuc )\{.+\}!([^\}]+)\}\}/\{$1$3\{$1}!$4$2\{\\BF\}\}/ ;
     $line =~ s/(\\makefirstuc )\{([^\)]+)\} \[([^\]]+)\]\|hyperpage\}/$1\{$2\} \($3\)|hyperindexformat\{\\BF\}\}/ ;
+    $line =~ s/\{([^\|]+)(\|hyperindexformat)\{\\gl(@\\makefirstuc )\{.+\}\}\}/\{$1$3\{$1\}$2\{\\GL\}\}/ ;
+    $line =~ s/\{([^\|]+)(\|hyperindexformat)\{\\gl(@\\makefirstuc )\{.+\}!([^\}]+)\}\}/\{$1$3\{$1}!$4$2\{\\GL\}\}/ ;
+    $line =~ s/(\\makefirstuc )\{([^\)]+)\} \<([^\]]+)\>\|hyperpage\}/$1\{$2\} \($3\)|hyperindexformat\{\\GL\}\}/ ;
     print $line ;
 }
