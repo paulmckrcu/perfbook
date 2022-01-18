@@ -64,6 +64,8 @@ exerpt_warnings () {
 }
 
 iterate_latex () {
+	perl utilities/adjustindexformat.pl $basename.idx > $basename-adjust.idx
+	cp -f $basename-adjust.idx $basename.idx
 	makeindex $basename.idx > /dev/null 2>&1
 	makeindex $basename-api.idx > /dev/null 2>&1
 	if grep -q '## Warning' $basename.ilg $basename-api.ilg
