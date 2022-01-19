@@ -202,7 +202,7 @@
 	It is important to note that while the presence of data races
 	often indicates the presence of bugs, the absence of data races
 	in no way implies the absence of bugs.
-	(See ``Plain access''.)
+	(See ``Plain access'' and ``Race condition''.)
 \item[\IXG{Deadlock}:]
 	A failure mode in which each of several threads is unable to
 	make progress until some other thread makes progress.
@@ -234,14 +234,14 @@
 	Sublinear scalabilty can be an obstacle to energy-efficient use
 	of a multicore system.
 \item[Epoch-Based Reclamation (EBR):]\glsuseriii{ebr}
-	An RCU implementation style put forward by
+	An \acr{rcu} implementation style put forward by
 	\ppl{Keir}{Fraser}~\cite{KeirAnthonyFraserPhD,UCAM-CL-TR-579,KeirFraser2007withoutLocks}.
 \item[\IXG{Existence Guarantee}:]
 	An existence guarantee is provided by a synchronization mechanism
 	that prevents a given dynamically allocated object from being
 	freed for the duration of that guarantee.
-	For example, RCU provides existence guarantees for the duration
-	of RCU read-side critical sections.
+	For example, \acr{rcu} provides existence guarantees for the duration
+	of \acr{rcu} read-side critical sections.
 	A similar but strictly weaker guarantee is provided by
 	type-safe memory.
 \item[\IXGh{Exclusive}{Lock}:]
@@ -282,13 +282,13 @@
 	memory that fits within its capacity.
 \item[\IXG{Grace Period}:]
 	A grace period is any contiguous time interval such that
-	any RCU read-side critical section that began before the
+	any \acr{rcu} read-side critical section that began before the
 	start of that interval has
 	completed before the end of that same interval.
-	Many RCU implementations define a grace period to be a
+	Many \acr{rcu} implementations define a grace period to be a
 	time interval during which each thread has passed through at
 	least one quiescent state.
-	Since RCU read-side critical sections by definition cannot
+	Since \acr{rcu} read-side critical sections by definition cannot
 	contain quiescent states, these two definitions are almost
 	always interchangeable.
 \item[Hardware Transactional Memory (HTM):]\glsuseriii{htm}
@@ -340,6 +340,15 @@
 	Linearizability is much prized by many researchers, but less
 	useful in practice than one might
 	expect~\cite{AndreasHaas2012FIFOisnt}.
+\item[\IXG{Livelock}:]
+	A failure mode in which each of several threads is able to
+	execute, but in which a repeating series of failed operations
+	prevents any of the threads from making any useful forward progress.
+	For example, incorrect use of conditional locking
+	(for example, \co{spin_trylock()} in the Linux kernel)
+	can result in livelock.
+	More information is provided in
+	\cref{sec:locking:Livelock and Starvation}.
 \item[\IXG{Lock}:]
 	A software abstraction that can be used to guard critical sections,
 	as such, an example of a ``mutual exclusion mechanism''.
@@ -402,6 +411,10 @@
 	An invalid cache line contains no value, instead representing
 	``empty space'' in the cache into which data from memory might
 	be loaded.
+\item[\IXGaltr{Moore's Law}{Moore's Law}:]
+	A 1965 empirical projection by Gordon Moore that
+	transistor density increases exponentially over
+	time~\cite{GordonMoore1965MooresLaw}.
 \item[\IXG{Mutual-Exclusion Mechanism}:]
 	A software abstraction that regulates threads' access to
 	``critical sections'' and corresponding data.
@@ -412,7 +425,7 @@
 	These are used for hardware-specific purposes such as profiling.
 	The advantage of using NMIs for profiling is that it allows you
 	to profile code that runs with interrupts disabled.
-\item[\IXG{Non-Blocking}:]
+\item[\IXGaltr{Non-Blocking}{Non-blocking synchronization (NBS)}:]
 	A group of academic forward-progress guarantees that includes
 	bounded population-oblivious wait free,
 	bounded wait free,
@@ -485,33 +498,46 @@
 	(The reason such CPUs are now the stuff of ancient myths
 	and legends is that they were extremely slow.
 	These dinosaurs were one of the many victims of
-	\IXaltr{Moore's-Law}{Moore's Law}-driven increases in CPU clock frequency.
+	Moore's-Law-driven increases in CPU clock frequency.
 	Some claim that these beasts will roam the earth once again,
 	others vehemently disagree.)
 \item[\IXG{Quiescent State}:]
-	In RCU, a point in the code where there can be no references held
-	to RCU-protected data structures, which is normally any point
-	outside of an RCU read-side critical section.
+	In \acr{rcu}, a point in the code where there can be no references held
+	to \acr{rcu}-protected data structures, which is normally any point
+	outside of an \acr{rcu} read-side critical section.
 	Any interval of time during which all threads pass through at
 	least one quiescent state each is termed a ``grace period''.
+\item[Quiescent-State-Based Reclamation (QSBR):]\glsuseriii{qsbr}
+	An \acr{rcu} implementation style characterized by explicit quiescent
+	states.
+	In \acr{qsbr} implementations, read-side markers
+	(\co{rcu_read_lock()} and \co{rcu_read_unlock()} in the Linux
+	kernel) are no-ops~\cite{McKenney98,Slingwine95}.
+	Hooks in other parts of the software (for example, the Linux-kernel
+	scheduler) provide the quiescent states.
+\item[\IXG{Race Condition}:]
+	Any situation where multiple CPUs or threads can interact,
+	though this term is often used in cases where such interaction
+	is undesirable.
+	(See ``Data race''.)
 \item[\IXGaltr{RCU-Protected Data}{RCU-protected data}:]
 	A block of dynamically allocated memory whose freeing will be
-	deferred such that an RCU grace period will elapse between the
-	time that there were no longer any RCU-reader-accessible pointers
+	deferred such that an \acr{rcu} grace period will elapse between the
+	time that there were no longer any \acr{rcu}-reader-accessible pointers
 	to that block and the time that that block is freed.
-	This ensures that no RCU readers will have access to that block at
+	This ensures that no \acr{rcu} readers will have access to that block at
 	the time that it is freed.
 \item[\IXGaltr{RCU-Protected Pointer}{RCU-protected pointer}:]
-	A pointer to RCU-protected data.
+	A pointer to \acr{rcu}-protected data.
 	Such pointers must be handled carefully, for example, any reader
-	that intends to dereference an RCU-protected pointer must
+	that intends to dereference an \acr{rcu}-protected pointer must
 	use \co{rcu_dereference()} (or stronger) to load that pointer,
 	and any updater must use \co{rcu_assign_pointer()} (or stronger)
 	to store to that pointer.
 	More information is provided in
 	\cref{sec:memorder:Address- and Data-Dependency Difficulties}.
 \item[\IXGh{RCU Read-Side}{Critical Section}:] % @@@ Need all-caps RCU in index!
-	A section of code protected by RCU, for example, beginning with
+	A section of code protected by \acr{rcu}, for example, beginning with
 	\co{rcu_read_lock()} and ending with \co{rcu_read_unlock()}.
 	(See ``Read-side critical section''.)
 \item[Read-Copy Update (RCU):]\glsuseriii{rcu}
