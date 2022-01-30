@@ -228,14 +228,12 @@ ifeq ($(NEWTXTEXT),)
 endif
 	sh utilities/runfirstlatex.sh $(basename $@)
 
-autodate.tex: $(LATEXSOURCES) $(BIBSOURCES) $(SOURCES_OF_SNIPPET) \
-    $(LST_SOURCES) $(FIGSOURCES) $(DOTSOURCES) $(EPSORIGIN) \
-    $(SVGSOURCES) $(GITREFSTAGS) \
-    utilities/autodate.sh
+autodate.tex: $(LATEXSOURCES) $(BIBSOURCES) $(LST_SOURCES) \
+    $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(FCVSNIPPETS) $(FCVSNIPPETS_VIA_LTMS) \
+     $(GITREFSTAGS) utilities/autodate.sh
 	sh utilities/autodate.sh
 
-perfbook_flat.tex: autodate.tex $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) \
-    $(FCVSNIPPETS) $(FCVSNIPPETS_VIA_LTMS)
+perfbook_flat.tex: autodate.tex
 ifndef LATEXPAND
 	$(error --> $@: latexpand not found. Please install it)
 endif
