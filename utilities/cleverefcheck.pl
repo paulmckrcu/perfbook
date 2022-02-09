@@ -28,12 +28,14 @@ my $acr_ptn = qr/(^|\s+)[aA]cr[^\s\{]*{/ ;
 my $heading_ptn = qr/(\\chapter|\\section|\\subsection|\\subsubsection)/ ;
 my $listing_ptn = qr/\\begin\{(listing|Verbatim)/ ;
 my $qqa_ptn = qr/\\E?QuickQuizAnswer[BEM]?/ ;
+my $qqe_ptn = qr/\}\\QuickQuizEnd\s*(%.*)?$/ ;
 my $epig_ptn = qr/\\[Ee]pigraph/ ;
 my $in_footnote = 0 ;
 my $footnote_save = 0;
 my $after_heading = 0;
 my $after_qqa = 0;
 my $after_epig = 0;
+my $after_qqe = 0;
 
 sub check_line {
     my $raw_line = $line;
@@ -121,6 +123,10 @@ sub check_line {
 	    $after_heading = 0 ;
 	    $after_epig = 0 ;  # after epigraph or not does not matter for listing
 	}
+	if ($line =~ /\\QuickQuiz\{/ || $line =~ /\\QuickQiuzSeries\{/) {
+	    print $ARGV[0], ':', $line_num, ':', $raw_line, "^^^ Section opening QQz ^^^\n";
+	    $after_heading = 0 ;
+	}
     }
     if ($after_qqa) {
 	if ($line =~ /^\s*$/) {
@@ -132,6 +138,15 @@ sub check_line {
 	}
 	if ($line =~ /^\s*\{*[^\\]+/) {
 	    $after_qqa = 0;
+	}
+    }
+    if ($after_qqe) {
+	if ($line =~ /\\QuickQuiz\{/) {
+	    print $ARGV[0], ':', $line_num, ':', $raw_line, "^^^ Consecutive QQz ^^^\n";
+	    $after_qqe = 0;
+	}
+	if ($line !~ /^\s*$/) {  # non-empty line ends after qqe status
+	    $after_qqe = 0;
 	}
     }
     if ($after_epig) {
@@ -181,6 +196,9 @@ sub check_line {
     }
     if ($line =~ /$qqa_ptn/) {
 	$after_qqa = 1 ;
+    }
+    if ($line =~ /$qqe_ptn/) {
+	$after_qqe = 1 ;
     }
     if ($line =~ /$epig_ptn/ && $ARGV[0] !~ /glossary\.tex/) { # exempt glossary.tex
 	$after_epig = 2 ;
