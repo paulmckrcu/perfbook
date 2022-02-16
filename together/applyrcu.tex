@@ -739,7 +739,121 @@ causes a later transition to the CLOSED state.
 This state machine and pseudocode shows how to get the effect of a
 \co{call_rcu_cancel()} in those rare situations needing such semantics.
 
+\subsection{Long-Duration Accesses Two}
+\label{sec:together:Long-Duration Accesses Two}
+
+Suppose a reader-writer-locking reader is holding the lock for so
+long that updates are excessively delayed.
+Suppose further that this reader cannot reasonably be converted to
+use reference counting
+(otherwise, see \cref{sec:together:Long-Duration Accesses}).
+
+If that reader can be reasonably converted to use RCU, that might
+solve the problem.
+The reason is that RCU readers do not completely block updates, but
+rather block only the cleanup portions of those updates (including
+memory reclamation).
+Therefore, if the system has ample memory, converting the reader-writer
+lock to RCU may suffice.
+
+However, converting to RCU does not always suffice.
+For example, the code might traverse an extremely large linked data
+structure within a single RCU read-side critical section, which might
+so greatly extend the RCU grace period that the system runs out of memory.
+These situations can be handled in a couple of different ways:
+\begin{enumerate*}[(1)]
+\item	Use SRCU instead of RCU and
+\item	Acquire a reference to exit the RCU reader.
+\end{enumerate*}
+
+\subsubsection{Use SRCU}
+\label{sec:together:Use SRCU}
+
+In the Linux kernel, RCU is global.
+In other words, any long-running RCU reader anywhere in the kernel will
+delay the current RCU grace period.
+If the long-running RCU reader is traversing a small data structure,
+that small amount of data is delaying freeing of all other data structures,
+which can result in memory exhaustion.
+
+One way to avoid this problem is to use SRCU for that long-running RCU
+reader's data structure, with its own \co{srcu_struct} structure.
+The resulting long-running SRCU readers will then delay only that
+\co{srcu_struct} structure's grace periods, and not those of RCU,
+thus avoiding memory exhaustion.
+For more details, see the SRCU API in \cref{sec:defer:RCU Linux-Kernel API}.
+
+Unfortunately, this approach does have some drawbacks.
+For one thing, SRCU readers are not subject to priority boosting, which can
+result in additional delays to low-priority SRCU readers on busy
+systems.
+Worse yet, defining a separate \co{srcu_struct} structure reduces the
+number of RCU updaters, which in turn increases the grace-period
+overhead per updater.
+This means that giving each current Linux-kernel RCU use case its own
+\co{srcu_struct} structure could multiply system-wide grace-period
+overhead by the number of such structures.
+
+Therefore, it is often better to acquire some sort of non-RCU reference
+on the needed data to permit a momentary exit from the RCU read-side
+critical section, as described in the next section.
+
+\subsubsection{Acquire a Reference}
+\label{sec:together:Acquire a Reference}
+
+If the RCU read-side critical section is too long, shorten it!
+
+In some cases, this can be done trivially.
+For example, code that scans all of the hash chains of a statically
+allocated array of hash buckets can just as easily scan each hash chain
+within its own critical section.
+
+This works because hash chains are normally quite short, and by design.
+When traversing long linked structures, it is necessary to have some
+way of stopping in the middle and resuming later.
+
+For example, in Linux kernel v5.16, the \co{khugepaged_scan_file()}
+function checks to see if some other task needs the current CPU
+using \co{need_resched()}, and if so invokes \co{xas_pause()} to
+adjust the traveral's iterator appropriately, and then invokes
+\co{cond_resched_rcu()} to yield the CPU.\@
+In turn, the \co{cond_resched_rcu()} function invokes \co{rcu_read_unlock()},
+\co{cond_resched()}, and finally \co{rcu_read_lock()} to drop out of
+the RCU read-side critical section in order to yield the CPU.
+
+Of course, where feasible, another approach would be to switch to a
+data structure such as a hash table that is more friendly to momentarily
+dropping out of an RCU read-side critical section.
+
+\QuickQuiz{
+	But how would this work with a resizable hash table, such
+	as the one described in
+	\cref{sec:datastruct:Non-Partitionable Data Structures}?
+}\QuickQuizAnswer{
+	In this case, more care is required because the hash table
+	might well be resized during the time that we momentarily
+	exited the RCU read-side critical section.
+	Worse yet, the resize operation can be expected to free the
+	old hash buckets, leaving us pointing to the freelist.
+
+	But it is not sufficient to prevent the old hash buckets
+	from being freed.
+	It is also necessary to ensure that those buckets continue
+	to be updated.
+
+	One way to handle this is to have a reference count on each
+	set of buckets, which is initially set to the value one.
+	A full-table scan would acquire a reference at the beginning of
+	the scan (but only if the reference is non-zero) and release it
+	at the end of the scan.
+	The resizing would populate the new buckets, release the
+	reference, wait for a grace period, and then wait for the
+	reference to go to zero.
+	Once the reference was zero, the resizing could let updaters
+	forget about the old hash buckets and then free it.
+
+	Actual implementation is left to the interested reader, who will
+	gain much insight from this task.
+}\QuickQuizEnd
+
 % @@@ RCU link counts
-% @@@ Minimize memory footprint, for example, SRCU.
-% @@@ Dealing with too-long readers.  Drop anchor, use refcnt, shard
-% @@@	the list, use iterator that takes one of these approaches, ...
