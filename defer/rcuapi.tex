@@ -148,6 +148,14 @@ API~\cite{PaulEMcKenney2019RCUAPI}.\footnote{
 		{\bf Tasks RCU Rude}: Free idle-task tracing trampolines &
 		    {\bf Tasks RCU Trace}: Protect sleepable BPF programs \\
 \midrule
+{\bf Initialization and Cleanup} &
+    &
+	\tco{DEFINE_SRCU()} \tco{DEFINE_STATIC_SRCU()}
+	\tco{init_srcu_struct()} \tco{cleanup_srcu_struct()} &
+	    &
+		&
+		    \\
+\midrule
 {\bf Read-side critical-section markers} &
     \tco{rcu_read_lock()}~! \tco{rcu_read_unlock()}~!
     \tco{rcu_read_lock_bh()} \tco{rcu_read_unlock_bh()}
@@ -340,10 +348,28 @@ delimited by \apik{srcu_read_lock()} and \apik{srcu_read_unlock()}.
 However, unlike RCU, SRCU's \apik{srcu_read_lock()} returns a value that
 must be passed into the corresponding \apik{srcu_read_unlock()}.
 This difference is due to the fact that the SRCU user allocates an
-\apik{srcu_struct} for each distinct SRCU usage.
-These distinct \co{srcu_struct} structures prevent SRCU read-side critical
-sections from blocking unrelated \apik{synchronize_srcu()} and
-\apik{synchronize_srcu_expedited()} invocations.
+\apik{srcu_struct} for each distinct SRCU usage, so that there is no
+convenient place to store a per-task reader-nesting count.
+(Keep in mind that although the Linux kernel provides dynamically
+allocated per-CPU storage, there is not yet dynamically allocated
+per-task storage.)
+
+A given \co{srcu_struct} structure may be defined as a global
+variable with \co{DEFINE_SRCU()} if the structure must be used in
+multiple translation units, or with \co{DEFINE_STATIC_SRCU()} otherwise.
+For example, \co{DEFINE_SRCU(my_srcu)} would create a global variable
+named \co{my_srcu} that could be used by any file in the program.
+Alternatively, an \co{srcu_struct} structure may be either an on-stack
+variable or a dynamically allocated region of memory.
+In both of these non-global-variable cases, the memory must be initialized
+using \co{init_srcu_struct()} prior to its first use and cleaned up
+using \co{cleanup_srcu_struct()} after its last use (but before the
+underlying storage disappears).
+
+However they are created, these distinct \co{srcu_struct} structures
+prevent SRCU read-side critical sections from blocking unrelated
+\apik{synchronize_srcu()} and \apik{synchronize_srcu_expedited()}
+invocations.
 Of course, use of either \apik{synchronize_srcu()} or
 \apik{synchronize_srcu_expedited()} within an SRCU read-side critical
 section can result in self-deadlock, so should be avoided.
