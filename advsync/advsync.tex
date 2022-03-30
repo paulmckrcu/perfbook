@@ -135,11 +135,13 @@ A few of these are listed in the following section.
 
 Perhaps the simplest NBS algorithm is atomic update of an integer
 counter using fetch-and-add (\co{atomic_add_return()}) primitives.
+This section lists a few additional commonly used NBS algorithms in
+roughly increasing order of complexity.
 
 \subsubsection{NBS Sets}
 \label{sec:advsync:NBS Sets}
 
-Another simple NBS algorithm implements a set of integers in an array.
+One simple NBS algorithm implements a set of integers in an array.
 Here the array index indicates a value that might be a member of the set
 and the array element indicates whether or not that value actually is
 a set member.
@@ -176,11 +178,11 @@ Linux kernel.
 \subsubsection{Half-NBS Queue}
 \label{sec:advsync:Half-NBS Queue}
 
-\begin{fcvref}[ln:count:NBS Enqueue Algorithm]
+\begin{fcvref}[ln:advsync:NBS Enqueue Algorithm]
 Another common NBS algorithm is the atomic queue where elements are
 enqueued using an atomic exchange instruction~\cite{MagedMichael1993JPDC},
 followed by a store into the \co{->next} pointer of the new element's
-predecessor, as shown in \cref{lst:count:NBS Enqueue Algorithm},
+predecessor, as shown in \cref{lst:advsync:NBS Enqueue Algorithm},
 which shows the userspace-RCU library
 implementation~\cite{MathieuDesnoyers2009URCU}.
 \Clnref{tail} updates the tail pointer to reference the new element while
@@ -192,7 +194,7 @@ returns an indication as to whether or not the queue was initially
 empty.
 
 \begin{listing}
-\begin{fcvlabel}[ln:count:NBS Enqueue Algorithm]
+\begin{fcvlabel}[ln:advsync:NBS Enqueue Algorithm]
 \begin{VerbatimL}[commandchars=\\\[\]]
 static inline bool
 ___cds_wfcq_append(struct cds_wfcq_head *head,
@@ -218,7 +220,7 @@ _cds_wfcq_enqueue(struct cds_wfcq_head *head,
 \end{VerbatimL}
 \end{fcvlabel}
 \caption{NBS Enqueue Algorithm}
-\label{lst:count:NBS Enqueue Algorithm}
+\label{lst:advsync:NBS Enqueue Algorithm}
 \end{listing}
 
 Although mutual exclusion is required to dequeue a single element
@@ -234,6 +236,31 @@ This algorithm is nevertheless heavily used in practice, in part because
 most production software is not required to tolerate arbitrary fail-stop
 errors.
 \end{fcvref}
+
+\QuickQuiz{
+	Wait!
+	In order to dequeue all elements, both the \co{->head} and
+	\co{->tail} pointers must be changed, which cannot be done
+	atomically on typical computer systems.
+	So how is this supposed to work???
+}\QuickQuizAnswer{
+	One pointer at a time!
+
+	First, atomically exchange the \co{->head} pointer with \co{NULL}.
+	If the return value from the atomic exchange operation is \co{NULL},
+	the queue was empty and you are done.
+	And if someone else attempts a dequeue-all at this point,
+	they will get back a \co{NULL} pointer.
+
+	Otherwise, atomically exchange the \co{->tail} pointer with a
+	pointer to the now-\co{NULL} \co{->head} pointer.
+	The return value from the atomic exchange operation is a pointer
+	to the \co{->next} field of the eventual last element on the list.
+
+	Producing and testing actual code is left as an exercise for the
+	interested and enthusiastic reader, as are strategies for handling
+	half-enqueued elements.
+}\QuickQuizEnd
 
 \subsubsection{NBS Stack}
 \label{sec:advsync:NBS Stack}
