@@ -432,6 +432,18 @@ largely orthogonal to those that form the basis of real-time programming:
 	This assumption of a non-demonic scheduler allows real-time
 	programs to use simpler algorithms than those required for
 	NBS~\cite{DanAlitarh2013PracticalProgress,BjoernBrandenburgPhD}.
+\item	NBS forward-progress guarantee classes assume that a number
+	of underlying operations are lock-free or even wait-free,
+	when in fact these operations are blocking on common-case
+	computer systems.
+\item	NBS forward-progress guarantees are often achieved by subdividing
+	operations.
+	For example, in order to avoid a blocking dequeue operation,
+	an NBS algorithm might substitute a non-blocking polling
+	operation.
+	This is fine in theory, but not helpful in practice to real-world
+	programs that requie an element to propagate through the queue
+	in a timely fashion.
 \item	Real-time forward-progress guarantees usually apply only
 	in the absence of software bugs.
 	In contrast, many classes of NBS guarantees apply even in the
@@ -443,6 +455,111 @@ largely orthogonal to those that form the basis of real-time programming:
 
 To reiterate, despite these differences, a number of NBS algorithms are
 extremely useful in real-time programs.
+
+\subsubsection{NBS Underlying Operations}
+\label{sec:advsync:NBS Underlying Operations}
+
+An NBS algorithm can be truly non-blocking only if the underlying
+operations that it uses are also non-blocking.
+In a surprising number of cases, this is not the case in practice.
+
+For example, non-blocking algorithms often allocate memory.
+In theory, this is fine, given the existence of lock-free
+memory allocators~\cite{MagedMichael04NBSmalloc}.
+But in practice, most environments must obtain memory from an
+operating-system kernel, which commonly use locking.
+Therefore, unless all the memory that will ever be needed is somehow
+preallocated, a ``non-blocking'' algorithm that allocates memory will not
+be non-blocking when running on common-case real-world computer systems.
+
+This same point clearly also applies to algorithms performing I/O
+operations or otherwise interacting with their environment.
+
+Perhaps surprisingly, this point also applies to ostensibly non-blocking
+algorithms that do only plain loads and stores, such as the counters
+discussed in \cref{sec:advsync:NBS Counters}.
+And at first glance, those loads and stores that can be compiled into
+single load and store instructions, respectively, would seem to be
+not just non-blocking, but bounded population-oblivious wait free.
+
+Except that load and store instructions are not necessarily either
+fast or deterministic.
+For example, as noted in \cref{chp:Hardware and its Habits}, cache misses
+can consume thousands of CPU cycles.
+Worse yet, the measured cache-miss latencies can be a function of the
+system size, as illustrated in
+\cref{fig:count:Atomic Increment Scalability on x86}.
+The data in this figure also raises hard questions about whether it
+makes sense to classify memory-reference instructions as wait-free.
+As a consequence, it should be no surprise that hardware vendors generally
+do not publish upper bounds for cache-miss latencies.
+
+The hardware is not the only source of slowness for memory-reference
+instructions.
+For example, when running on typical computer systems, both loads and
+stores can result in page faults.
+Which cause in-kernel page-fault handlers to be invoked.
+Which might acquire locks, or even do I/O, potentially even using
+something like network file system (NFS).
+All of which are most emphatically blocking operations.
+
+Nor are page faults the only kernel-induced hazard.
+A given CPU might take an interrupt at any time, and the interrupt
+handler might run for some time.
+During this time, the user-mode ostensibly non-blocking algorithm
+will not be running at all.
+This situation raises interesting questions about the forward-progress
+guarantees provided by system calls relying on interrupts, for example,
+the \co{membarrier()} system call.
+
+Things do look bleak, but the non-blocking nature of such algorithms
+can be at least partially redeemed using a number of approaches:
+
+\begin{enumerate}
+\item	Run on bare metal, with paging disabled.
+	If you are both brave and confident that you can write code that
+	is free of wild-pointer bugs, this approach might be for you.
+\item	Run on a non-blocking operating-system kernel~\cite{Cheriton96a}.
+	Such kernels are quite rare, in part because they have
+	traditionally completely failed to provide the hoped-for
+	performance and scalabilty advantages over lock-based kernels.
+	But perhaps you should write one.
+\item	Use facilities such as \co{mlockall()} to avoid page faults,
+	while also ensuring that your program preallocates all the
+	memory it will ever need at boot time.
+	This can work well, but at the expense of severe common-case
+	underutilization of memory.
+	In environments that are cost-constrained or power-limited,
+	this approach is not likely to be feasible.
+\item	Use facilities such as the Linux kernel's
+	\co{NO_HZ_FULL} tickless mode~\cite{JonCorbet2013NO-HZ-FULL}.
+	In recent versions of the Linux kernel, this mode directs
+	interrupts away from a designated set of CPUs.
+	However, this can sharply limit throughput for applications that
+	are I/O bound during even part of their operation.
+\end{enumerate}
+
+Given these considerations, it is no surprise that non-blocking
+synchronization is far more important in theory than it is in practice.
+
+\subsubsection{NBS Subdivided Operations}
+\label{sec:advsync:NBS Subdivided Operations}
+
+One common trick that provides a given algorithm a loftier place on
+the NBS ranking is to replace blocking operations with a polling API.
+For example, instead of having a reliable dequeue operation that might be
+merely lock-free or even blocking, instead provide a dequeue operation
+that will spuriously fail in a wait-free manner rather than exhibiting
+dreaded lock-free or blocking behaviors.
+
+This can work well in theory, but a common effect in practice is to
+merely move the lock-free or blocking behavior out of that specific
+algorithm and into the hapless code making use of that algorithm.
+In such cases, not only has nothing has been gained by this trick, but
+this trick has increased the complexity of all users of this algorithm.
+
+With concurrent algorithms as elsewhere, maximizing a specific metric
+is no substitute for thinking carefully about the needs of one's users.
 
 \subsubsection{NBS Fail-Stop Tolerance}
 \label{sec:advsync:NBS Fail-Stop Tolerance}
@@ -612,6 +729,11 @@ However, once an appropriate body of theory becomes available,\footnote{
 	Note well that the first \emph{appropriate} body of theory is often one
 	thing and the first \emph{proposed} body of theory quite another.}
 it is wise to make use of it.
+
+Proponents of NBS algorithms sometimes call out real-time computing as
+an NBS beneficiary.
+The next section looks more deeply at the forward-progress needs of
+real-time systems.
 
 \input{advsync/rt}
 
