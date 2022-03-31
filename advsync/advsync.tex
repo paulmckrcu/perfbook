@@ -423,14 +423,17 @@ largely orthogonal to those that form the basis of real-time programming:
 	guarantees~\cite{DanAlitarh2013PracticalProgress}.
 \item	An important component of a real-time program's environment
 	is the scheduler.
-	NBS algorithms assume a worst-case \emph{demonic scheduler}.
+	NBS algorithms assume a worst-case \emph{demonic scheduler},
+	though for whatever reason, not a scheduler so demonic that
+	it simply refuses to ever run the application housing the NBS
+	algorithm.
 	In contrast, real-time systems assume that the scheduler is
 	doing its level best to satisfy any scheduling constraints
 	it knows about, and, in the absence of such constraints,
 	its level best to honor process priorities and to provide
 	fair scheduling to processes of the same priority.
-	This assumption of a non-demonic scheduler allows real-time
-	programs to use simpler algorithms than those required for
+	Non-demonic scheduler allows real-time programs to use simpler
+	algorithms than those required for
 	NBS~\cite{DanAlitarh2013PracticalProgress,BjoernBrandenburgPhD}.
 \item	NBS forward-progress guarantee classes assume that a number
 	of underlying operations are lock-free or even wait-free,
@@ -466,8 +469,8 @@ In a surprising number of cases, this is not the case in practice.
 For example, non-blocking algorithms often allocate memory.
 In theory, this is fine, given the existence of lock-free
 memory allocators~\cite{MagedMichael04NBSmalloc}.
-But in practice, most environments must obtain memory from an
-operating-system kernel, which commonly use locking.
+But in practice, most environments must eventually obtain memory from
+operating-system kernels, which commonly use locking.
 Therefore, unless all the memory that will ever be needed is somehow
 preallocated, a ``non-blocking'' algorithm that allocates memory will not
 be non-blocking when running on common-case real-world computer systems.
@@ -487,15 +490,19 @@ fast or deterministic.
 For example, as noted in \cref{chp:Hardware and its Habits}, cache misses
 can consume thousands of CPU cycles.
 Worse yet, the measured cache-miss latencies can be a function of the
-system size, as illustrated in
+number of CPUs, as illustrated in
 \cref{fig:count:Atomic Increment Scalability on x86}.
-The data in this figure also raises hard questions about whether it
-makes sense to classify memory-reference instructions as wait-free.
-As a consequence, it should be no surprise that hardware vendors generally
-do not publish upper bounds for cache-miss latencies.
+It is only reasonable to assume that these latencies also depend on
+the details of the system's interconnect.
+In addition, given that hardware vendors generally do not publish
+upper bounds for cache-miss latencies, it seems brave to assume that
+memory-reference instructions are in fact wait-free in modern computer
+systems.
+And the antique systems for which such bounds are available suffer from
+profound overall slowness.
 
-The hardware is not the only source of slowness for memory-reference
-instructions.
+Furthermore, hardware is not the only source of slowness for
+memory-reference instructions.
 For example, when running on typical computer systems, both loads and
 stores can result in page faults.
 Which cause in-kernel page-fault handlers to be invoked.
@@ -504,7 +511,7 @@ something like network file system (NFS).
 All of which are most emphatically blocking operations.
 
 Nor are page faults the only kernel-induced hazard.
-A given CPU might take an interrupt at any time, and the interrupt
+A given CPU might be interrupted at any time, and the interrupt
 handler might run for some time.
 During this time, the user-mode ostensibly non-blocking algorithm
 will not be running at all.
