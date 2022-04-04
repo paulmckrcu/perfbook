@@ -71,6 +71,8 @@ sub check_line {
 		$next_line =~ /\\E?QuickQuizEnd[BEM]?/ ||
 		$next_line =~ /\\end\{(quot|enum|item|sequ)/ ) {
 		$ng -= 1;
+	    } else {
+		print "vvv Hint: sentence ending with an uppercase needs \"\\\@.\" vvv\n";
 	    }
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[a-z][\)\}\']*[\.\?\!][\)\}\']*\s+[^%]/ ||
@@ -80,21 +82,28 @@ sub check_line {
 	    if ($line =~ /^(?=[\s]*+[^%])[^%]*[a-z][\)\}\']*[\.\?\!][\)\}\']*\s+\\\\/ ||
 		$line =~ /^(?=[\s]*+[^%])[^%]*.*[\.:][\)\}\']*\s+\\\\/ ) {
 		$ng -= 1;
+	    } else {
+		print "vvv Hint: end of sentence needs new line vvv\n";
 	    }
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[^~]\\cite/) {
 	    $ng += 1;
 	    if ($line =~ /^(?=[\s]*+[^%])[^%]*~\(\\cite/) {
 		$ng -= 1;
+	    } else {
+		print "vvv Hint: \\cite{} needs a \"~\" in front vvv\n";
 	    }
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*\\\@[\.\?\!\:][\)\}\']*\s+[^%]/){
 	    $ng += 1;
+	    print "vvv Hint: end of sentence needs new line vvv\n";
 	}
 	if ($line =~ /[a-z][\)\}\']*\\\@[\.\?\!\:][\)\}\']*\s/) {
+	    print "vvv Hint: should be \"xxx.\\\@\" vvv\n";
 	    $ng += 1;
 	}
 	if ($line =~ /[A-Z][\)\}\']*[\.\?\!\:]\\\@[\)\}\']*\s/) {
+	    print "vvv Hint: should be \"XXX\\\@.\" vvv\n";
 	    $ng += 1;
 	}
 	if ($ng) {
