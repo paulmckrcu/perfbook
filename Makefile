@@ -516,7 +516,7 @@ help-paper:
 	@echo "  perfbook-lt.pdf,   lt:   2c layout on letterpaper"
 	@echo "  perfbook-hb.pdf,   hb:   2c layout for hard cover book"
 	@echo "  perfbook-a4.pdf,   a4:   2c layout on a4paper"
-	@echo "  perfbook-eb.pdf,   eb:   1c layout for ebook reader (WIP)"
+	@echo "  perfbook-eb.pdf,   eb:   1c layout for ebook reader"
 
 help: help-official help-paper
 	@echo
@@ -533,7 +533,7 @@ help-prefixed:
 	@echo "Prefixed targets:"
 	@echo "  \"1c*\" such as \"1cnq\", \"1csf\", and \"1cix\" are for 1c-layout."
 	@echo "  \"ebnq\", \"ebsf\", \"ebsfnq\", \"ebix\", and \"ebdf\" are for ebook-size 1c-layout,"
-	@echo "     independent of PERFBOOK_PAPER. (WIP)"
+	@echo "     independent of PERFBOOK_PAPER."
 
 help-experimental:
 	@echo
