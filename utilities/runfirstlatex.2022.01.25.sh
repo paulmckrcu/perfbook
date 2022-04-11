@@ -26,6 +26,8 @@
 #
 # Authors: Paul E. McKenney <paulmck@us.ibm.com>
 #          Akira Yokosawa <akiyks@gmail.com>
+#
+# Saved as of 2022.01.25 for regression testing.
 
 if test -z "$1"
 then
@@ -67,10 +69,8 @@ fi
 
 basename=`echo $1 | sed -e 's/\.tex$//'`
 
-: ${LATEX:-pdflatex}
-
-echo "$LATEX 1 for $basename.pdf"
-$LATEX $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null || :
+echo "pdflatex 1 for $basename.pdf"
+pdflatex $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null || :
 if grep -q 'LaTeX Warning: You have requested' $basename.log
 then
 	grep -A 4 'LaTeX Warning: You have requested' $basename.log
