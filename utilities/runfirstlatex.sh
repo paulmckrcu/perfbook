@@ -70,7 +70,13 @@ basename=`echo $1 | sed -e 's/\.tex$//'`
 : ${LATEX:-pdflatex}
 
 echo "$LATEX 1 for $basename.pdf"
-$LATEX $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null || :
+$LATEX $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null
+exitcode=$?
+if [ $exitcode -ne 0 ]; then
+	tail -n 20 $basename.log
+	echo "\n!!! $LATEX aborted !!!"
+	exit $exitcode
+fi
 if grep -q 'LaTeX Warning: You have requested' $basename.log
 then
 	grep -A 4 'LaTeX Warning: You have requested' $basename.log
@@ -85,13 +91,13 @@ if grep -q '! Emergency stop.' $basename.log
 then
 	grep -B 15 -A 5 '! Emergency stop.' $basename.log
 	echo "----- Fatal latex error, see $basename.log for details. -----"
-	exit 1
+	exit 2
 fi
 if grep -q '!pdfTeX error:' $basename.log
 then
 	grep -A 2 '!pdfTeX error:' $basename.log
 	echo "----- Fatal latex error, see $basename.log for details. -----"
-	exit 1
+	exit 2
 fi
 grep 'LaTeX Warning:' $basename.log > $basename-warning.log
 touch $basename-first.log
