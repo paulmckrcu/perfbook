@@ -110,6 +110,7 @@ then
 fi
 
 basename=`echo $1 | sed -e 's/\.tex$//'`
+pdfname=`env printf "%-19s" $basename.pdf`
 
 if ! test -r $basename-first.log
 then
@@ -118,7 +119,7 @@ then
 	iter=1
 else
 	rm -f $basename-first.log
-	echo "$LATEX 2 for $basename.pdf # for possible bib update"
+	echo "$LATEX 2 for $pdfname # for possible bib update"
 	iter=2
 fi
 iterate_latex
@@ -135,7 +136,7 @@ do
 		break
 	fi
 	iter=`expr $iter + 1`
-	echo "$LATEX $iter for $basename.pdf # remaining undefined refs"
+	echo "$LATEX $iter for $pdfname # remaining undefined refs"
 	undefined_refs=1
 	iterate_latex
 done
@@ -147,7 +148,7 @@ do
 		break
 	fi
 	iter=`expr $iter + 1`
-	echo "$LATEX $iter for $basename.pdf # label(s) may have changed"
+	echo "$LATEX $iter for $pdfname # label(s) may have changed"
 	iterate_latex
 done
 exerpt_warnings
