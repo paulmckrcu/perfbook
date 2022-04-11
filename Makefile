@@ -67,13 +67,20 @@ EPSSOURCES_DUP := \
 	$(EPSSOURCES_FROM_DOT) \
 	$(EPSSOURCES_FROM_FIG)
 
+EPSSOURCES_TMP := \
+	$(wildcard */*__.eps) \
+	$(wildcard */*/*__.eps) \
+	$(wildcard */*/*/*__.eps) \
+	$(wildcard */*/*/*/*__.eps) \
+	$(wildcard */*/*/*/*/*__.eps) \
+
 EPSSOURCES_OLD := \
 	$(wildcard CodeSamples/*/*/OLD-*/*.eps) \
 	$(wildcard CodeSamples/*/*/OLD-*/*/*.eps) \
 	$(wildcard CodeSamples/*/*/*/OLD-*/*.eps) \
 	$(wildcard CodeSamples/*/*/*/OLD-*/*/*.eps)
 
-EPSSOURCES := $(sort $(filter-out $(EPSSOURCES_OLD),$(filter-out $(OBSOLETE_FILES),$(EPSSOURCES_DUP))))
+EPSSOURCES := $(sort $(filter-out $(EPSSOURCES_OLD),$(filter-out $(OBSOLETE_FILES) $(EPSSOURCES_TMP),$(EPSSOURCES_DUP))))
 
 PDFTARGETS_OF_EPS := $(EPSSOURCES:%.eps=%.pdf)
 
@@ -564,7 +571,7 @@ clean:
 	rm -f perfbook*.glg perfbook*.glo perfbook*.gls perfbook*.glsdefs
 	rm -f CodeSamples/snippets.d
 	rm -f *.synctex*
-	@rm -f $(OBSOLETE_FILES)
+	@rm -f $(OBSOLETE_FILES) $(EPSSOURCES_TMP)
 
 paper-clean:
 	rm -f $(BASE_DEPENDS)
