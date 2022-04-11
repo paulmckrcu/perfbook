@@ -101,6 +101,7 @@ PDFTARGETS_OF_EPSOTHER := $(filter-out $(PDFTARGETS_OF_EPSORIG) $(PDFTARGETS_OF_
 BIBSOURCES := bib/*.bib alphapf.bst
 
 # required commands
+LATEX_CMD := $(shell which $(LATEX) 2>/dev/null)
 DOT := $(shell which dot 2>/dev/null)
 FIG2EPS := $(shell which fig2eps 2>/dev/null)
 INKSCAPE := $(shell which inkscape 2>/dev/null)
@@ -225,6 +226,9 @@ qqmsg: perfbook.pdf
 	@echo "built as perfbook.pdf."
 
 $(PDFTARGETS): %.pdf: %.tex %.bbl
+ifeq ($(LATEX_CMD),)
+	$(error LaTeX engine "$(LATEX)" not found.)
+endif
 	LATEX=$(LATEX) sh utilities/runlatex.sh $(basename $@)
 
 $(PDFTARGETS:.pdf=.bbl): %.bbl: %.aux $(BIBSOURCES)
@@ -233,6 +237,9 @@ $(PDFTARGETS:.pdf=.bbl): %.bbl: %.aux $(BIBSOURCES)
 $(PDFTARGETS:.pdf=.aux): %.aux: %.tex $(LATEXGENERATED)
 ifeq ($(NEWTXTEXT),)
 	$(error Font package 'newtx' not found. See #9 in FAQ-BUILD.txt)
+endif
+ifeq ($(LATEX_CMD),)
+	$(error LaTeX engine "$(LATEX)" not found.)
 endif
 	LATEX=$(LATEX) sh utilities/runfirstlatex.sh $(basename $@)
 
