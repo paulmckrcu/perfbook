@@ -1233,32 +1233,75 @@ With this change, the sequence of operations might be as follows:
 With much passing of MESI messages, the CPUs arrive at the correct answer.
 This section illustrates why CPU designers must be extremely careful
 with their cache-coherence optimizations.
+The key requirement is that the memory barriers provide the appearance
+of ordering to the software.
+As long as these appearances are maintained, the hardware can carry
+out whatever queueing, buffering, marking, stallings, and flushing
+optimizations it likes.
 
-\section{Read and Write Memory Barriers}
-\label{sec:app:whymb:Read and Write Memory Barriers}
+\QuickQuiz{
+	Instead of all of this marking of invalidation-queue entries
+	and stalling of loads, why not simply force an immediate flush
+	of the invalidation queue?
+}\QuickQuizAnswer{
+	An immediate flush of the invalidation queue would do the trick.
+	Except that the common-case super-scalar CPU is executing many
+	instructions at once, and not necessarily even in the expected
+	order.
+	So what would ``immediate'' even mean?
+	The answer is clearly ``not much''.
 
-In the previous section, memory barriers were used to mark entries in
-both the store buffer and the invalidate queue.
-But in our code fragment, \co{foo()} had no reason to do anything
-with the invalidate queue, and \co{bar()} similarly had no reason
-to do anything with the store buffer.
+	Nevertheless, for simpler CPUs that execute instructions serially,
+	flushing the invalidation queue might be a reasonable implementation
+	strategy.
+}\QuickQuizEnd
+
+\section{Read and Write Memory Barriers} \label{sec:app:whymb:Read and
+Write Memory Barriers}
+
+In the previous section, memory barriers were used to mark entries in both
+the store buffer and the invalidate queue.
+But in our code fragment, \co{foo()} had no reason to do anything with the
+invalidate queue, and \co{bar()} similarly had no reason to do anything
+with the store buffer.
 
 Many CPU architectures therefore provide weaker memory-barrier
 instructions that do only one or the other of these two.
 Roughly speaking, a ``read memory barrier'' marks only the invalidate
-queue and a ``write memory barrier'' marks only the store buffer,
-while a full-fledged memory barrier does both.
+queue (and snoops entries in the store buffer) and a ``write memory
+barrier'' marks only the store buffer, while a full-fledged memory
+barrier does all of the above.
 
-The effect of this is that a read memory barrier orders only loads
-on the CPU that executes it, so that all loads preceding the read memory
-barrier will appear to have completed before any load following the
-read memory barrier.
-Similarly, a write memory barrier orders
-only stores, again on the CPU that executes it, and again so that
-all stores preceding the write memory barrier will appear to have
-completed before any store following the write memory barrier.
+The software-visible effect of these hardware mechanisms is that a read
+memory barrier orders only loads on the CPU that executes it, so that
+all loads preceding the read memory barrier will appear to have completed
+before any load following the read memory barrier.
+Similarly, a write memory barrier orders only stores, again on the
+CPU that executes it, and again so that all stores preceding the write
+memory barrier will appear to have completed before any store following
+the write memory barrier.
 A full-fledged memory barrier orders both loads and stores, but again
 only on the CPU executing the memory barrier.
+
+\QuickQuiz{
+	But can't full memory barriers impose global ordering?
+	After all, isn't that needed to provide the ordering
+	shown in \cref{lst:formal:IRIW Litmus Test}?
+}\QuickQuizAnswer{
+	Sort of.
+
+	Note well that this litmus test has not one but two full
+	memory-barrier instructions, namely the two \co{sync} instructions
+	executed by \co{P2} and \co{P3}.
+
+	It is the interaction of those two instructions that provides
+	the global ordering, not just their individual execution.
+	For example, each of those two \co{sync} instructions might stall
+	waiting for all CPUs to process their invalidation queues before
+	allowing subsequent instructions to execute.\footnote{
+		Real-life hardware of course applies many optimizations
+		to minimize the resulting stalls.}
+}\QuickQuizEnd
 
 If we update \co{foo} and \co{bar} to use read and write memory
 barriers, they appear as follows:
