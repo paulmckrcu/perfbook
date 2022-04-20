@@ -12,7 +12,10 @@ So what possessed CPU designers to cause them to inflict \IXBpl{memory barrier}
 on poor unsuspecting SMP software designers?
 
 In short, because reordering memory references allows much better performance,
-and so memory barriers are needed to force ordering in things like
+courtesy of the finite speed of light and the non-zero size of atoms
+noted in \cref{sec:cpu:Overheads}, and particularly in the
+hardware-performance question posed by \QuickQuizRef{\QspeedOfLightAtoms}.
+Therefore, memory barriers are needed to force ordering in things like
 synchronization primitives whose correct operation depends on ordered
 memory references.
 
@@ -658,16 +661,55 @@ When the cache line does finally make its way from CPU~1 to CPU~0,
 the data will be moved from the store buffer to the cache line.
 
 \QuickQuiz{
-	But if the main purpose of store buffers is to hide acknowledgment
-	latencies in multiprocessor cache-coherence protocols, why
-	do uniprocessors also have store buffers?
+	But then why do uniprocessors also have store buffers?
 }\QuickQuizAnswer{
 	Because the purpose of store buffers is not just to hide
 	acknowledgement latencies in multiprocessor cache-coherence protocols,
 	but to hide memory latencies in general.
 	Because memory is much slower than is cache on uniprocessors,
 	store buffers on uniprocessors can help to hide write-miss
-	latencies.
+	memory latencies.
+}\QuickQuizEnd
+
+Please note that the store buffer does not necessarily operate on
+full cache lines.
+The reason for this is that a given store-buffer entry need only contain
+the value stored, not the other data contained in the corresponding
+cache line.
+Which is a good thing, because the CPU doing the store has no idea
+what that other data might be!
+But once the corresponding cache line arrives, any values from the
+store buffer that update that cache line can be merged into it,
+and the corresponding entries can then be removed from the store buffer.
+Any other data in that cache line is of course left intact.
+
+\QuickQuiz{
+	So store-buffer entries are variable length?
+	Isn't that difficult to implement in hardware?
+}\QuickQuizAnswer{
+	Here are two ways for hardware to easily handle variable-length
+	stores.
+
+	First, each store-buffer entry could be a single byte wide.
+	Then an 64-bit store would consume eight store-buffer entries.
+	This approach is simple and flexible, but one disadvantage is
+	that each entry would need to replicate much of the address that
+	was stored to.
+
+	Second, each store-buffer entry could be double the size of a
+	cache line, with half of the bits containing the values stored,
+	and the other half indicating which bits had been stored to.
+	So, assuming a 32-bit cache line, a single-byte store of 0x5a
+	to the low-order byte of a given cache line would result in
+	\co{0xXXXXXX5a} for the first half and \co{0x000000ff} for the
+	second half, where the values labeled \co{X} are arbitrary
+	because they would be ignored.
+	This approach allows multiple consecutive stores corresponding to
+	a given cache line to be merged into a single store-buffer entry,
+	but is space-inefficient for random stores of single bytes.
+
+	Much more complex and efficient schemes are of course used
+	by actual hardware designers.
 }\QuickQuizEnd
 
 \begin{figure}
