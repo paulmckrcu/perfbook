@@ -1739,11 +1739,30 @@ future such problems:
 	you must carefully flush the CPU caches of any location
 	in any DMA buffer before presenting that buffer to the
 	I/O device.
-	Similarly, you need to flush the CPU caches of any location
-	in any DMA buffer after DMA to that buffer completes.
+	Otherwise, a store from one of the CPUs might not be
+	accounted for in the data DMAed out through the device.
+	This is a form of data corruption, which is an extremely
+	serious bug.
+
+	Similarly, you need to invalidate\footnote{
+		Why not flush?
+		If there is a difference, then a CPU must have incorrectly
+		stored to the DMA buffer in the midst of the DMA operation.}
+	the CPU caches corresponding to any location in any DMA buffer
+	after DMA to that buffer completes.
+	Otherwise, a given CPU might see the old data still residing in
+	its cache instead of the newly DMAed data that it was supposed
+	to see.
+	This is another form of data corruption.
+
 	And even then, you need to be \emph{very} careful to avoid
 	pointer bugs, as even a misplaced read to an input buffer
 	can result in corrupting the data input!
+	One way to avoid this is to invalidate all of the caches of
+	all of the CPUs once the DMA completes, but it is much easier
+	and more efficient if the device DMA participates in the
+	cache-coherence protocol, making all of this flushing and
+	invalidating unnecessory.
 
 \item	External busses that fail to transmit cache-coherence data.
 
