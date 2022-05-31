@@ -28,7 +28,7 @@ ifeq ($(GS_953_OR_LATER),1)
 	@eps2eps -dALLOWPSTRANSPARENCY $< $(basename $<)__.eps
 	@epstopdf --gsopt=-dALLOWPSTRANSPARENCY $(GS_OPT) $(basename $<)__.eps $@
 else
-	@eps2eps $< $(basename $<)__.eps
+	@eps2eps -dNOSAFER $< $(basename $<)__.eps
 	@epstopdf --nosafer $(GS_OPT) $(basename $<)__.eps $@
 endif
 	@rm -f $(basename $<)__.eps
