@@ -245,6 +245,27 @@ int hash_search(struct hash_table *h, long key)
 \label{lst:SMPdesign:Code-Locking Hash Table Search}
 \end{listing}
 
+Note that the \co{hash_lock} acquisition and release statements on lines~19, 
+24, and~29 are mediating ownership of the hash table among the CPUs
+wishing to concurrently access that hash table.
+Another way of looking at this is that \co{hash_lock} is partitioning
+time, thus giving each requesting CPU its own partition of time during
+which it owns this hash table.
+In addition, in a well-designed algorithm, there should be ample partitions
+of time during which no CPU owns this hash table.
+
+\QuickQuiz{
+	``Partitioning time''?
+	Isn't that is an odd turn of phrase?
+}\QuickQuizAnswer{
+	Perhaps so.
+
+	But in the next section we will be partitioning space (that is,
+	address space) as well as time.
+	This nomenclature will permit us to partition spacetime, as
+	opposed to (say) partitioning space but segmenting time.
+}\QuickQuizEnd
+
 Unfortunately, code locking is particularly prone to ``\IX{lock contention}'',
 where multiple CPUs need to acquire the lock concurrently.
 SMP programmers who have taken care of groups of small children
@@ -349,6 +370,16 @@ this \emph{almost} always translates into increased performance and
 scalability.
 For this reason, data locking was heavily used by Sequent in its
 kernels~\cite{Beck85,Inman85,Garg90,Dove90,McKenney92b,McKenney92a,McKenney93}.
+
+Another way of looking at this is to think of each \co{->bucket_lock}
+as mediating ownership not of the entire hash table as was done for code
+locking, but only for the bucket corresponding to that \co{->bucket_lock}.
+Each lock still partitions time, but the per-bucket-locking technique
+also partitions the address space, so that the overall technique can be
+said to partition spacetime.
+If the number of buckets is large enough, this partitioning of space
+should with high probability permit a given CPU immediate access to
+a given hash bucket.
 
 \begin{figure}
 \centering
@@ -557,6 +588,23 @@ previously shown in \cref{fig:SMPdesign:Data Locking}.
 Another important instance of data ownership occurs when the data
 is read-only, in which case,
 all threads can ``own'' it via replication.
+
+Where data locking partitioned both the address space space (with one
+hash buckets per partition) and time (using per-bucket locks), data
+ownership partitions only the address space.
+The reason that data ownership need not partition time is because a
+given thread or CPU is assigned permanent ownership of a given
+address-space partition.
+
+\QuickQuiz{
+	But won't system boot and shutdown (or application startup
+	and shutdown) be partitioning time, even for data ownership?
+}\QuickQuizAnswer{
+	You can indeed think in these terms.
+
+	And if you are working on a persistent data store where state
+	survived shutdown, thinking in these terms might even be useful.
+}\QuickQuizEnd
 
 Data ownership will be presented in more detail in
 \cref{chp:Data Ownership}.
