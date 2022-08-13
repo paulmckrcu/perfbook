@@ -61,7 +61,7 @@ void *eventual(void *arg)				//\lnlbl{eventual:b}
 void count_init(void)					//\lnlbl{init:b}
 {
 	int en;
-	thread_id_t tid;
+	pthread_t tid;
 
 	en = pthread_create(&tid, NULL, eventual, NULL);
 	if (en != 0) {
