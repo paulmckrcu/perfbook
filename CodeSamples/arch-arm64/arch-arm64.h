@@ -43,24 +43,13 @@
 #define smp_mb()  __asm__ __volatile__("dmb ish" : : : "memory")
 
 
-#include <stdlib.h>
-#include <time.h>
-
-#ifndef CLOCK_MONOTONIC_RAW
-#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
-#endif
-
 /*
  * Generate 64-bit timestamp.
  */
-static __inline__ unsigned long long get_timestamp(void)
+static inline unsigned long long get_timestamp(void)
 {
 	unsigned long long thetime;
-	struct timespec tv;
 
-	if (clock_gettime(CLOCK_MONOTONIC_RAW, &tv) != 0)
-		return 0;
-	thetime = ((unsigned long long)tv.tv_sec) * 1000000000ULL +
-		  ((unsigned long long)tv.tv_nsec);
+	__asm__ __volatile__ ("isb; mrs %0, cntvct_el0" : "=r"(thetime));
 	return thetime;
 }
