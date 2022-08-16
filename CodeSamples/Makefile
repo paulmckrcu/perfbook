@@ -38,10 +38,12 @@ endif
 		sed '/end{snippet}/d' >> api.h
 	echo "" >> api.h
 	cat api-pthreads/api-gcc.h >> api.h
+	cat api-pthreads/api-$(os_compat).h >> api.h
 	echo "" >> api.h
 	if test -f /usr/include/urcu-call-rcu.h -o \
 		-f /usr/local/include/urcu-call-rcu.h -o \
-		-f /usr/include/$(subdir_ub)/urcu-call-rcu.h ; \
+		-f /usr/include/$(subdir_ub)/urcu-call-rcu.h -o \
+		-f $(QNX_TARGET)/usr/include/urcu-call-rcu.h ; \
 	then \
 		echo "#define _LGPL_SOURCE" >> api.h; \
 		echo "#include <urcu/rculist.h>" >> api.h; \

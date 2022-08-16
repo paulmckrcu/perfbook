@@ -308,19 +308,6 @@ static __inline__ void waitall(void)
 }
 // \end{snippet}
 
-static __inline__ void run_on(int cpu)
-{
-	cpu_set_t mask;
-	int ret;
-
-	CPU_ZERO(&mask);
-	CPU_SET(cpu, &mask);
-	ret = sched_setaffinity(0, sizeof(mask), &mask);
-	if (ret) {
-		perror("sched_setaffinity");
-		abort();
-	}
-}
 
 /*
  * Timekeeping, using monotonic globally coherent clock.

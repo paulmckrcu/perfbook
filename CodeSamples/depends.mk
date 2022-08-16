@@ -1,7 +1,13 @@
 ifeq ($(strip $(arch)),)
-arch := $(shell uname -m)
+arch := $(shell uname -p)
 endif
 
+ifeq ($(strip $(os)),)
+os := $(shell uname)
+endif
+
+ifeq ($(os),Linux)
+# Linux
 ifeq ($(arch),i686)
 target := x86
 subdir_ub := i386-linux-gnu
@@ -23,6 +29,27 @@ subdir_ub := arm-linux-gnueabihf
 else
 target :=
 subdir_ub :=
+endif
+os_compat := linux
+
+else ifeq ($(os),QNX)
+# QNX
+ifeq ($(arch),x86_64)
+target := x86
+else ifeq ($(arch),aarch64le)
+target := arm64
+else
+target :=
+endif
+subdir_ub :=
+os_compat := qnx
+
+else
+# Other OS
+target :=
+subdir_ub :=
+os_compat :=
+
 endif
 
 api_depend_common := $(top)/linux/common.h \

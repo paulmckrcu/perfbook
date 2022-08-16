@@ -46,6 +46,10 @@
 #include <stdlib.h>
 #include <time.h>
 
+#ifndef CLOCK_MONOTONIC_RAW
+#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
+#endif
+
 /*
  * Generate 64-bit timestamp.
  */
