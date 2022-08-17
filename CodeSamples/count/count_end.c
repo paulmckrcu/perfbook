@@ -1,6 +1,6 @@
 /*
  * count_end.c: Per-thread statistical counters that provide sum at end.
- *	Uses __thread for each thread's counter.
+ *	Uses _Thread_local for each thread's counter.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,17 +23,17 @@
 #include "../api.h"
 
 //\begin{snippet}[labelbase=ln:count:count_end:whole,commandchars=\\\@\$]
-unsigned long __thread counter = 0;		//\lnlbl{var:b}
+unsigned long _Thread_local counter = 0;		//\lnlbl{var:b}
 unsigned long *counterp[NR_THREADS] = { NULL };
 unsigned long finalcount = 0;
 DEFINE_SPINLOCK(final_mutex);			//\lnlbl{var:e}
 
-static __inline__ void inc_count(void)		//\lnlbl{inc:b}
+static inline void inc_count(void)		//\lnlbl{inc:b}
 {
 	WRITE_ONCE(counter, counter + 1);
 }						//\lnlbl{inc:e}
 
-static __inline__ unsigned long read_count(void)
+static inline unsigned long read_count(void)
 {
 	int t;
 	unsigned long sum;
@@ -48,7 +48,7 @@ static __inline__ unsigned long read_count(void)
 }
 
 #ifndef FCV_SNIPPET
-__inline__ void count_init(void)
+inline void count_init(void)
 {
 }
 #endif /* FCV_SNIPPET */
@@ -73,7 +73,7 @@ void count_unregister_thread(int nthreadsexpected)	//\lnlbl{unreg:b}
 }							//\lnlbl{unreg:e}
 //\end{snippet}
 
-__inline__ void count_cleanup(void)
+inline void count_cleanup(void)
 {
 }
 
