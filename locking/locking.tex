@@ -1111,8 +1111,34 @@ Even assuming perfect scalability, \emph{one hundred} CPUs would
 be required to keep up with a single CPU executing the same code
 without locking.
 
-This situation underscores the synchronization\-/granularity
-tradeoff discussed in \cref{sec:SMPdesign:Synchronization Granularity},
+\begin{figure}
+\centering
+\resizebox{2.0in}{!}{\includegraphics{locking/sawkerf}}
+\caption{Saw Kerf}
+\label{fig:locking:Saw Kerf}
+\end{figure}
+
+This situation is not confined to locking.
+\Cref{fig:locking:Saw Kerf}
+shows how this same principle applies to the age-old activity of
+sawing wood.
+As can be seen in the figure, sawing a board converts a small piece of
+that board (the width of the saw blade) into sawdust.
+Of course, locks partition time instead of sawing wood,\footnote{
+	That is, locking is temporal synchronization.
+	Mechanisms that synchronize both temporally and spatially
+	are described in \cref{chp:Deferred Processing}.}
+but just like sawing wood, using locks to partitioning wastes some of
+that time due to lock overhead and (worse yet) lock contention.
+One important difference is that if someone saws a board into too-small
+pieces, the resuting conversion of most of that board into sawdust will
+be immediately obvious.
+In contrast, it is not always obvious that a given lock acquisition
+is wasting excessive amounts of time.
+
+And this situation underscores the importance of the
+synchronization\-/granularity tradeoff discussed in
+\cref{sec:SMPdesign:Synchronization Granularity},
 especially \cref{fig:SMPdesign:Synchronization Efficiency}:
 Too coarse a granularity will limit scalability, while too fine a
 granularity will result in excessive synchronization overhead.
@@ -1756,107 +1782,6 @@ This pattern is difficult to implement using strict RAII locking,\footnote{
 just like the iterator encapsulation noted earlier, and so explicit
 lock/unlock primitives (or C++17-style \co{unique_lock} escapes) will
 be required for the foreseeable future.
-
-\subsection{Time and Data Locking}
-\label{sec:locking:Time and Data Locking}
-
-At a high level, the purpose of locking is to saw time up into pieces,
-allowing a time for CPU~0 to modify the data, a time for CPU~1 to
-modify the data, a time for CPU~2 to prevent anyone else from accessing
-the data, and at time for the data to rest in splendid isolation.
-Traditional lock-acquisition and -release primitives don't care what you
-do with the resulting pieces of time, any more than a table saw cares
-what you do with the resulting pieces of wood.
-
-\begin{figure}
-\centering
-\resizebox{1.5in}{!}{\includegraphics{locking/sawkerf}}
-\caption{Saw Kerf}
-\label{fig:locking:Saw Kerf}
-\end{figure}
-
-In addition, just as saws have saw kerf (as shown in
-\cref{fig:locking:Saw Kerf}),
-meaning that part of the initial board becomes sawdust, locking
-primitives have overhead, meaning that part of the time is wasted.
-And just as sawing a board into smaller pieces results in a greater
-fraction of that board being turned into sawdust, shorter lock-based
-critical sections waste a greater fraction of the time.
-
-\begin{figure}
-\centering
-\resizebox{3.0in}{!}{\includegraphics{locking/lockpartitionkerf}}
-\caption{Locking ``Saw Kerf''}
-\label{fig:locking:Locking ``Saw Kerf''}
-\end{figure}
-
-This waste is more pronounced for global locks, which is why
-\cref{sec:intro:Work Partitioning},
-\cref{sec:count:Statistical Counters}, and
-\cref{cha:Partitioning and Synchronization Design}
-so heavily emphasized the need to partition the problem, and most
-especially partition the data.
-The saw-table analogy is shown in
-\cref{fig:locking:Locking ``Saw Kerf''},
-where sawing only the one board that needs to be sawed (on the right-hand
-side of the figure) instead of unconditionally sawing all ten of them
-(on the left-hand side of the figure) reduces the amount of sawdust by
-an order of magnitude.
-
-But using locks to saw time can be quite a bit worse than using a table
-saw to saw wood:
-
-\begin{enumerate}
-\item	Only one CPU can hold an exclusive lock at a time, which means
-	that each lock is a potential bottleneck, which is normally
-	not a problem with lumber.
-\item	Developers strive for short critical sections for scalability,
-	while carpenters are often content with long boards.
-\item	Computer systems' synchronization ``saw blades'' are extremely
-	thick, thus cutting a wide and wasteful kerf through time,
-	as can be seen by reviewing
-	\cref{tab:cpu:CPU 0 View of Synchronization Mechanisms on 8-Socket System With Intel Xeon Platinum 8176 CPUs at 2.10GHz}.
-\end{enumerate}
-
-The computer-software equivalent of multiple boards is multiple data
-items, leading to the data-locking design pattern described in
-\cref{sec:SMPdesign:Data Locking}.
-Here, each data item is assigned its own lock, so that instead of sawing
-time globally, time is sawed more efficiently on a per-data-item basis.
-In this approach, these per-item locks partition time, and the per-data-item
-lock-assignment scheme partitions space.\footnote{
-	Synchronization primitives operate over both space and time are
-	described in \cref{chp:Deferred Processing}.}
-
-Software-engineering considerations suggest that the lock's critical
-section be tied to the data item, and different software environments
-have different ways of doing this.
-For example, Linux-kernel code often defines per-data-structure
-wrapper functions for locking and unlocking a given data item, such
-as the \co{rq_lock()} and \co{rq_unlock()} functions that acquire
-and release (respectively) the \co{rq} structure's \co{->__lock}.
-Finally, the \co{lockdep_assert_rq_held()} function may be held to check
-whether a given \co{rq} structure's lock is held.
-
-The Rust programming language takes this a step further by allowing
-the developer to make a compiler-visible association between a lock
-and the data that it protects.
-When such an association has been made, attempts to access the data
-without the benefit of the corresponding lock will result in a
-compile-time diagnostic.
-The hope is that this will greatly reduce the frequency of this class
-of bugs.
-Of course, this approach does not apply straightforwardly to cases
-where the data to be locked is distributed throughout the nodes of
-some data structure or when that which is locked is purely abstract,
-for example, when a small subset of state-machine transitions is to
-be protected by a given lock.
-For this reason, Rust allows locks to be associated with types rather
-than data items or even to be associated with nothing at all.
-This last option permits Rust to emulate traditional locking use cases,
-but is not popular among Rust developers.
-Perhaps the Rust community will come up with other mechanisms tailored
-to other locking use cases.
 
 \section{Locking Implementation Issues}
 \label{sec:locking:Locking Implementation Issues}
