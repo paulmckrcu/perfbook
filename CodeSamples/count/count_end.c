@@ -23,7 +23,7 @@
 #include "../api.h"
 
 //\begin{snippet}[labelbase=ln:count:count_end:whole,commandchars=\\\@\$]
-unsigned long _Thread_local counter = 0;		//\lnlbl{var:b}
+unsigned long _Thread_local counter = 0;	//\lnlbl{var:b}
 unsigned long *counterp[NR_THREADS] = { NULL };
 unsigned long finalcount = 0;
 DEFINE_SPINLOCK(final_mutex);			//\lnlbl{var:e}
