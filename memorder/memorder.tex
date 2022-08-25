@@ -5157,7 +5157,45 @@ This section revisits
 \cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 and \cref{sec:memorder:Basic Rules of Thumb},
 summarizing the intervening discussion with a more sophisticated
-set of rules of thumb.
+rules of thumb.
+
+But first, it is necessary to review the temporal and non-temporal
+nature of communication from one thread to another when using memory
+as the communications medium, as was discussed in detail in
+\cref{sec:memorder:Multicopy Atomicity}.
+The key point is that although loads and stores are conceptually simple,
+on real multicore hardware significant periods of time are required for
+their effects to become visible to all other threads.
+
+The simple and intuitive case occurs when one thread loads a value that
+some other thread stored.
+This straightforward cause-and-effect case exhibits temporal behavior, so
+that the software can safely assume that the store instruction completed
+before the load instruction started.
+In real life, the load instruction might well have started quite some
+time before the store instruction did, but all modern hardware must
+carefully hide such cases from the software.
+Again, software will see the expected temporal cause-and-effect behavior
+when one thread loads a value that some other thread stores, as discussed
+in \cref{sec:memorder:Happens-Before}.
+
+However, hardware is under no obligation to provide temporal
+cause-and-effect illusions when one thread's store overwrites a value either
+loaded or stored by some other thread.
+It is quite possible that, from the software's viewpoint, an earlier store
+will overwrite a later store's value, but only if those two stores were
+executed by different threads.
+Similarly, a later load might well read a value overwritten by an
+earlier store, but again only if that load and store were executed by
+different threads.
+This counter-intuitive behavior occurs due to the need to buffer
+stores in order to achieve adequate performance, as discussed in
+\cref{sec:memorder:Propagation}.
+
+As a result, situations where one thread reads a value written by some
+other thread can make do with far weaker ordering than can situations
+where one thread overwrites a value loaded or stored by some other thread.
+These differences are captured by the following rules of thumb.
 
 The first rule of thumb is that memory-ordering operations are only
 required where there is a possibility of interaction between at least
