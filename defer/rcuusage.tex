@@ -1704,10 +1704,52 @@ readers might see different objects, but as long as each reader
 loads the \co{curconfig} pointer only once, each reader will see
 a consistent view of its \co{myconfig} structure.
 
-In short, RCU can approximate a reader-writer lock with the RCU read-side
-critical section acting as the reader by combining temporal and spatial
-synchronization, as shown in
+In short, when operating on a suitable linked data structure, RCU
+combines temporal and spatial synchronization in order to approximate
+reader-writer locking, with RCU read-side critical sections acting as
+the reader-writer-locking reader, as shown in
 \cref{fig:defer:Relationships Between RCU Use Cases,fig:defer:RCU Spatial/Temporal Synchronization}.
+RCU's temporal synchronization is provided by the read-side markers,
+for example, \co{rcu_read_lock()} and \co{rcu_read_unlock()}, as well as
+the update-side grace-period primitives, for example, \co{synchronize_rcu()}
+or \co{call_rcu()}.
+The` spatial synchronization is provided by the read-side
+\co{rcu_dereference()} family of primitives, each of which subscribes
+to a version published by \co{rcu_assign_pointer()}.\footnote{
+	Preferably with both \co{rcu_dereference()} and
+	\co{rcu_assign_pointer()} being embedded in higher-level APIs.}
+RCU's combining of temporal and spatial synchronization contrasts to
+the schemes presented in
+\cref{sec:SMPdesign:Code Locking,sec:SMPdesign:Data Locking,sec:locking:Inefficiency},
+in which temporal and spatial synchronization are provided separately by
+locking and by static data-structure layout, respectively.
+
+\QuickQuiz{
+	Is RCU the only synchronization mechanism that combines temporal
+	and spatial synchronization in this way?
+}\QuickQuizAnswer{
+	Not at all.
+
+	Hazard pointers can be considerd to combine temporal and spatial
+	synchronization in a similar manner.
+	The \co{hp_record()} function's acquisition of a reference
+	provides both spatial and temporal synchronization, subscribing
+	to a version and marking the start of a reference, respectively.
+	This function therefore combines the effects of RCU's
+	\co{rcu_read_lock()} and \co{rcu_dereference()}.
+	The \co{hp_clear()} function's release of a reference provides
+	temporal synchronization marking the end of a reference, and is
+	thus similar to RCU's \co{rcu_read_unlock()}.
+	The \co{hazptr_free_later()} function's retiring of a
+	hazard-pointer-protected object provides temporal synchronization,
+	similar to RCU's \co{call_rcu()}.
+	The primitives used to mutate a hazard-pointer-protected
+	structure provide spatial synchronization, similar to RCU's
+	\co{rcu_assign_pointer()}.
+
+	Alternatively, one could instead come at hazard pointers by
+	analogy with reference counting.
+}\QuickQuizEnd
 
 \subsubsection{Quasi Reference Count}
 \label{sec:defer:Quasi Reference Count}
