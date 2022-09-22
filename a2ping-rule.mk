@@ -7,10 +7,10 @@
 A2PING := $(shell which a2ping 2>/dev/null)
 
 ifdef A2PING
-  GS_950_OR_LATER := $(shell gs --version | grep -c -E "9\.[5-9].?")
+  GS_950_OR_LATER := $(shell gs --version | grep -c -E "^(9\.[5-9]|10\.[0-9]).?")
   A2PING_277P := $(shell a2ping --help 2>&1 | grep -c "2.77p,")
   A2PING_283P := $(shell a2ping --help 2>&1 | grep -c "2.83p,")
-  GS_953_OR_LATER := $(shell gs --version | grep -c -E "9\.5[3-9].?")
+  GS_953_OR_LATER := $(shell gs --version | grep -c -E "^(9\.5[3-9]|10\.[0-9]).?")
   ifeq ($(A2PING_277P),1)
     A2PING_GSCNFL = 1
   else
