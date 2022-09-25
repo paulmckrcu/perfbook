@@ -2320,9 +2320,6 @@ as shown in
 As with the previous example, \co{smp_store_release()}'s cumulativity
 combined with the temporal nature of the release-acquire chain
 prevents the \co{exists} clause on \clnref{exists} from triggering.
-But beware:
-Adding a second store-to-store step would allow the correspondingly
-updated \co{exists} clause to trigger.
 \end{fcvref}
 
 \begin{listing}
@@ -2331,14 +2328,13 @@ updated \co{exists} clause to trigger.
 \label{lst:memorder:Z6.0 Release-Acquire Chain (Ordering?)}
 \end{listing}
 
-\QuickQuizSeries{%
-\QuickQuizB{
+\QuickQuiz{
 	Suppose we have a short release-acquire chain along with one
 	load-to-store link and one store-to-store link, like that shown in
 	\cref{lst:memorder:Z6.0 Release-Acquire Chain (Ordering?)}.
 	Given that there is only one of each type of non-store-to-load
 	link, the \co{exists} cannot trigger, right?
-}\QuickQuizAnswerB{
+}\QuickQuizAnswer{
 	Wrong.
 	It is the number of non-store-to-load links that matters.
 	If there is only one non-store-to-load link, a release-acquire
@@ -2352,13 +2348,44 @@ updated \co{exists} clause to trigger.
 	preventing the \co{exists} clause from triggering therefore requires
 	an additional full barrier between either \co{P0()}'s or
 	\co{P1()}'s accesses.
-}\QuickQuizEndB
-%
-\QuickQuizE{
+}\QuickQuizEnd
+
+\begin{listing}
+\input{CodeSamples/formal/litmus/C-MP+o-r+a-o@whole.fcv}
+\caption{A Release-Acquire Chain Ordering Multiple Accesses}
+\label{lst:memorder:A Release-Acquire Chain Ordering Multiple Accesses}
+\end{listing}
+
+\begin{listing}
+\input{CodeSamples/formal/litmus/C-MPO+o-r+a-o+o@whole.fcv}
+\caption{A Release-Acquire Chain With Added Store (Ordering?)}
+\label{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)}
+\end{listing}
+
+But beware:
+Adding a second store-to-store link allows the correspondingly updated
+\co{exists} clause to trigger.
+To see this, review \cref{lst:memorder:A Release-Acquire Chain Ordering Multiple Accesses,lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)},
+which have identical \co{P0()} and \co{P1()} processes.
+The only code difference is that
+\cref{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)}
+has an additional \co{P2()} that does an \co{smp_store_release()} to
+the \co{x2} variable that \co{P0()} releases and \co{P1()} acquires.
+The \co{exists} clause is also adjusted to exclude executions in which
+\co{P2()}'s \co{smp_store_release()} precedes that of \co{P1()}.
+
+Running the litmus test in
+\cref{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)}
+shows that the addition of \co{P2()} can totally destroy the
+ordering from the release-acquire chain.
+Therefore, when constructing release-acquire chains, please take care
+to construct them properly.
+
+\QuickQuiz{
 	There are store-to-load links, load-to-store links, and
 	store-to-store links.
 	But what about load-to-load links?
-}\QuickQuizAnswerE{
+}\QuickQuizAnswer{
 	The problem with the concept of load-to-load links is that
 	if the two loads from the same variable return the same
 	value, there is no way to determine their ordering.
@@ -2368,8 +2395,7 @@ updated \co{exists} clause to trigger.
 	And that intervening store means that there is no load-to-load
 	link, but rather a load-to-store link followed by a
 	store-to-load link.
-}\QuickQuizEndE
-}
+}\QuickQuizEnd
 
 In short, properly constructed release-acquire chains form a peaceful
 island of intuitive bliss surrounded by a strongly counter-intuitive
