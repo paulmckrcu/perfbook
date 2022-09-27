@@ -53,7 +53,7 @@ find */ -type d -print |
 	sed -e "s,^,mkdir ${destdir}/," |
 	sh
 
-cp ack.tex autodate.tex glsdict.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex summary.tex origpub.sty qqz.sty pfbook.cls pfhyphex.tex perfbook.bbl perfbook.acr perfbook.ind perfbook-api.ind ${destdir}
+cp ack.tex autodate.tex glsdict.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex summary.tex origpub.sty qqz.sty pfbook.cls pfhyphex.tex perfbook.bbl perfbook.acr perfbook.ind perfbook-api.ind indexsee.tex ${destdir}
 cp `kpsewhich fvextra.sty` ${destdir}
 cp `kpsewhich epigraph.sty` ${destdir}
 
@@ -72,6 +72,7 @@ find */ -name '*.fcv' -print |
 
 # A few code files.  This might end up not scaling, but...
 cp appendix/styleguide/samplecodesnippet.c ${destdir}/appendix/styleguide
+cp locking/sawkerf.png ${destdir}/locking
 
 # Remove "helper" .tex files that generate figure (keep PDF instead)
 rm ${destdir}/SMPdesign/DiningPhilosopher4part-b.tex
