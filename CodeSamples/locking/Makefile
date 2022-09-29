@@ -1,4 +1,4 @@
-ARCH_INDEPENDENT = locked_list
+ARCH_INDEPENDENT = locked_list rec_tree_itr
 ARCH_DEPENDENT = xchglock
 PROGS = $(ARCH_INDEPENDENT) $(ARCH_DEPENDENT)
 
@@ -19,6 +19,9 @@ locked_list: locked_list.c ../api.h
 
 xchglock: xchglock.c ../api.h
 	cc -g -Wall -o xchglock xchglock.c -lpthread
+
+rec_tree_itr: rec_tree_itr.c ../api.h
+	cc -g -Wall -o rec_tree_itr rec_tree_itr.c -lpthread
 
 clean:
 	rm -f $(PROGS)

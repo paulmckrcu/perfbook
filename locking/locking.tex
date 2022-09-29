@@ -375,6 +375,37 @@ deadlock is avoided if each module separately avoids deadlock.
 This rule therefore greatly simplifies deadlock analysis and greatly
 improves modularity.
 
+Nevertheless, this golden rule comes with a warning.
+When you release those locks, any state that they protect is subject
+to arbitrary changes, changes that are all too easy for the function's
+caller to forget, resulting in subtle and difficult-to-reproduce bugs.
+Because the \co{qsort()} comparison function rarely acquires locks,
+let's switch to a different example.
+
+Consider the recursive tree iterator in
+\cref{lst:locking:Recursive Tree Iterator}.
+The iterator visits every node in the tree, invoking a user's callback
+function.
+The tree lock is released before the invocation and re-acquired after return.
+This code makes dangerous assumptions:
+\begin{enumerate*}[(1)]
+\item	The number of children of the current node has not changed,
+\item	The ancestors stored on the stack by the recursion are still
+	there, and
+\item	The visited node itself has not been removed and freed.
+\end{enumerate*}
+One strategy is to ensure that state is preserved despite the lock being
+released, for example, by acquiring a reference on a node to prevent it
+from being freed.
+Alternatively, the state can be re-initialized once the lock is
+re-acquired after the callback function returns.
+
+\begin{listing}
+\input{CodeSamples/locking/rec_tree_iterator@tree_for_each.fcv}
+\caption{Recursive Tree Iterator}
+\label{lst:locking:Recursive Tree Iterator}
+\end{listing}
+
 \subsubsection{Layered Locking Hierarchies}
 \label{sec:locking:Layered Locking Hierarchies}
 
@@ -385,10 +416,9 @@ improves modularity.
 \label{fig:locking:Layered Locking Hierarchy for qsort()}
 \end{figure}
 
-Unfortunately, it might not be possible for \co{qsort()} to release
-all of its locks before invoking the comparison function.
-In this case, we cannot construct a local locking hierarchy by
-releasing all locks before invoking unknown code.
+Unfortunately, it might be infeasible to preserve state on the one hand
+or to re-initialize it on the other, thus ruling out a local locking
+hierarchy where all locks are released before invoking unknown code.
 However, we can instead construct a layered locking hierarchy, as shown in
 \cref{fig:locking:Layered Locking Hierarchy for qsort()}.
 Here, the \co{cmp()} function uses a new Lock~D that is acquired after
@@ -1399,7 +1429,7 @@ for example:
 	that some FIFO ordering applies for threads of the same priority.
 \item	Random, so that the new lock holder is chosen randomly from
 	all threads attempting acquisition, regardless of timing.
-\item	
+\item
 	Unfair, so that a given acquisition might never acquire the lock
 	(see \cref{sec:locking:Unfairness}).
 \end{enumerate}
@@ -1486,7 +1516,7 @@ when switching from read-holder to write-holder mode.
 Here are a few possible approaches:
 
 \begin{enumerate}
-\item	
+\item
 	Reader-preference implementations unconditionally favor readers
 	over writers, possibly allowing write acquisitions to be
 	indefinitely blocked.
