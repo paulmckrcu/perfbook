@@ -1,6 +1,12 @@
 /*
  * rcu_ts.c: simple timestamp-based user-level implementation of RCU.
  *
+ * This general approach was anticipated by Timothy Harris in his paper
+ * entitled "A Pragmatic Implementation of Non-blocking Linked-Lists" back
+ * in 2001.  This approach is rendered more practical by the improvements
+ * in TSC reliability in recent x86 platforms, but read-side overhead
+ * remains an issue.  Still, an interesting approach!
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
