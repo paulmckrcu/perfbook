@@ -394,6 +394,29 @@ This code makes dangerous assumptions:
 	there, and
 \item	The visited node itself has not been removed and freed.
 \end{enumerate*}
+A few of these hazards can be encountered if one thread calls
+\co{tree_add()} while another thread releases the tree's lock to run a
+callback function.
+
+\QuickQuiz{
+	So the iterating thread may or may not observe the added child.
+	What is the big deal?
+}\QuickQuizAnswer{
+	There are at least two hazards in this situation.
+
+	One is indeed that the number of children may or may not be
+	observed to have changed.
+	While that would be consistent with \co{tree_add()} being called
+	either before or after the iterator started, it is better not
+	left to the vagaries of the compiler.
+	A more serious problem is that \co{realloc()} may not be able
+	to extend the array in place, causing the heap to free the
+	one used by the iterator and replace it with another block of
+	memory.
+	If the \co{children} pointer is not re-read then the iterating
+	thread will access invalid memory (either free or reclaimed).
+}\QuickQuizEnd
+
 One strategy is to ensure that state is preserved despite the lock being
 released, for example, by acquiring a reference on a node to prevent it
 from being freed.

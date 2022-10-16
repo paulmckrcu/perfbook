@@ -20,12 +20,10 @@
 
 #include "../api.h"
 
-#define MAX_CHILDREN 10
-
 struct node {
-    int data;
+	int data;
 	int nchildren;
-	struct node *children[MAX_CHILDREN];
+	struct node **children;
 };
 
 struct tree {
@@ -41,8 +39,10 @@ void tree_for_each_rec(struct tree *tr, struct node *nd,
 	callback(nd);
 	spin_lock(&tr->s);
 
+	struct node **itr = nd->children;
 	for (int i = 0; i < nd->nchildren; i++) {
-		tree_for_each_rec(tr, nd->children[i], callback);
+		tree_for_each_rec(tr, *itr, callback);
+		itr++;
 	}
 }
 
@@ -53,44 +53,51 @@ void tree_for_each(struct tree *tr,
 	tree_for_each_rec(tr, tr->root, callback);
 	spin_unlock(&tr->s);
 }
+
+void tree_add(struct tree *tr, struct node *parent,
+			  struct node *new_child)
+{
+	spin_lock(&tr->s);
+	parent->nchildren++;
+	parent->children = realloc(parent->children,
+				   sizeof(struct node *) * parent->nchildren);
+	parent->children[parent->nchildren - 1] = new_child;
+	spin_unlock(&tr->s);
+}
 //\end{snippet}
 
 void print_node_data(struct node *nd)
 {
-    printf("%d\n", nd->data);
+	printf("%d\n", nd->data);
 }
 
 int main(int argc, char *argv[])
 {
-    struct tree tr;
-    struct node *nodes = calloc(sizeof(struct node), 10);
+	struct tree tr;
+	struct node *nodes = calloc(sizeof(struct node), 10);
 
-    for (int i = 0; i < 10; i++) {
-        nodes[i].data = 100 + i;
-    }
+	for (int i = 0; i < 10; i++) {
+		nodes[i].data = 100 + i;
+	}
 
 	spin_lock_init(&tr.s);
 
-    tr.root = &nodes[0];
+	tr.root = &nodes[0];
 
-    nodes[0].nchildren = 3;
-    nodes[0].children[0] = &nodes[1];
-    nodes[0].children[1] = &nodes[2];
-    nodes[0].children[2] = &nodes[3];
+	tree_add(&tr, &nodes[0], &nodes[1]);
+	tree_add(&tr, &nodes[0], &nodes[2]);
+	tree_add(&tr, &nodes[0], &nodes[3]);
 
-    nodes[1].nchildren = 2;
-    nodes[1].children[0] = &nodes[4];
-    nodes[1].children[1] = &nodes[5];
+	tree_add(&tr, &nodes[1], &nodes[4]);
+	tree_add(&tr, &nodes[1], &nodes[5]);
 
-    nodes[2].nchildren = 1;
-    nodes[2].children[0] = &nodes[6];
+	tree_add(&tr, &nodes[2], &nodes[6]);
 
-    nodes[5].nchildren = 3;
-    nodes[5].children[0] = &nodes[7];
-    nodes[5].children[1] = &nodes[8];
-    nodes[5].children[2] = &nodes[9];
+	tree_add(&tr, &nodes[3], &nodes[7]);
+	tree_add(&tr, &nodes[3], &nodes[8]);
+	tree_add(&tr, &nodes[3], &nodes[9]);
 
-    tree_for_each(&tr, print_node_data);
+	tree_for_each(&tr, print_node_data);
 
 	return 0;
 }
