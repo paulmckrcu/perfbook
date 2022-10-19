@@ -2436,11 +2436,11 @@ As noted earlier, if a thread executing a library function is holding
 a lock at the time that some other thread invokes \apipx{fork()}, the
 fact that the parent's memory is copied to create the child means that
 this lock will be born held in the child's context.
-The thread that will release this lock is running in the parent, but not
-in the child, which means that the child's copy of this lock will never
-be released.
+The thread that will release this lock is running in the parent, but
+not in the child, which means that although the parent's copy of this
+lock will be released, the child's copy never will be.
 Therefore, any attempt on the part of the child to invoke that same
-library function will result in deadlock.
+library function (thus acquiring that same lock) will result in deadlock.
 
 A pragmatic and straightforward way of solving this problem is
 to \co{fork()} a child process while the process is still single-threaded,
@@ -2472,10 +2472,16 @@ parent before the \co{fork()}, one to be called by the parent after the
 \co{fork()}, and one to be called by the child after the \co{fork()}.
 Appropriate cleanups can then be carried out at these three points.
 
-Be warned, however, that coding of \co{pthread_atfork()} handlers is quite subtle
-in general.
-The cases where \co{pthread_atfork()} works best are cases where the data structure
-in question can simply be re-initialized by the child.
+Be warned, however, that coding of \co{pthread_atfork()} handlers is
+quite subtle in general.
+The cases where \co{pthread_atfork()} works best are cases where the
+data structure in question can simply be re-initialized by the child.
+Which might be one reason why the POSIX standard forbids use of any
+non-async-signal-safe functions between the \co{fork()} and the
+\co{exec()}, which rules out acquisition of locks during that time.
+
+Other alternatives to \co{fork()}/\co{exec()} include \co{posix_spawn()}
+and \co{io_uring_spawn()}~\cite{JoshTriplett2022io_uring_spawn,JakeEdge2022io_uring_spawn}.
 
 \subsubsection{Parallel Libraries:
 				   Discussion}
