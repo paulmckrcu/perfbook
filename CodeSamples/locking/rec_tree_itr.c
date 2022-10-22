@@ -20,6 +20,7 @@
 
 #include "../api.h"
 
+//\begin{snippet}[labelbase=ln:locking:rec_tree_itr:tree_for_each,commandchars=\\\@\$]
 struct node {
 	int data;
 	int nchildren;
@@ -31,15 +32,16 @@ struct tree {
 	struct node *root;
 };
 
-//\begin{snippet}[labelbase=ln:locking:rec_tree_iterator:tree_for_each,commandchars=\\\@\$]
 void tree_for_each_rec(struct tree *tr, struct node *nd,
-					   void (*callback)(struct node *))
+                       void (*callback)(struct node *))
 {
+	struct node **itr;
+
 	spin_unlock(&tr->s);
 	callback(nd);
 	spin_lock(&tr->s);
 
-	struct node **itr = nd->children;
+	itr = nd->children;
 	for (int i = 0; i < nd->nchildren; i++) {
 		tree_for_each_rec(tr, *itr, callback);
 		itr++;
@@ -47,7 +49,7 @@ void tree_for_each_rec(struct tree *tr, struct node *nd,
 }
 
 void tree_for_each(struct tree *tr,
-				   void (*callback)(struct node *))
+                   void (*callback)(struct node *))
 {
 	spin_lock(&tr->s);
 	tree_for_each_rec(tr, tr->root, callback);
@@ -55,12 +57,13 @@ void tree_for_each(struct tree *tr,
 }
 
 void tree_add(struct tree *tr, struct node *parent,
-			  struct node *new_child)
+              struct node *new_child)
 {
 	spin_lock(&tr->s);
 	parent->nchildren++;
 	parent->children = realloc(parent->children,
-				   sizeof(struct node *) * parent->nchildren);
+	                           sizeof(struct node *) *
+	                           parent->nchildren);
 	parent->children[parent->nchildren - 1] = new_child;
 	spin_unlock(&tr->s);
 }
