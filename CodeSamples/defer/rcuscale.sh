@@ -6,9 +6,7 @@
 #
 # Run this in a recent Linux-kernel source tree.  On large systems,
 # it may be necessary to adjust this script, for example, the
-# taskset CPU list and the --cpus argument.  (If for no other reason
-# than kernel build times can be very long when restricted to a
-# single CPU.)
+# taskset CPU list and the --cpus argument.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -59,6 +57,16 @@ then
 	holdoff=$((holdoff * 2))
 fi
 
+# Build.
+tools/testing/selftests/rcutorture/bin/kvm.sh --allcpus --duration 10 --torture refscale --configs NOPREEMPT --kconfig "CONFIG_NR_CPUS=$((lastcpu + 1))" --trust-make --build-only > $T 2>&1
+ret=$?
+builddir="`grep -m 1 '^Results directory: ' $T | sed -e 's/^Results directory: *//'`"
+if test "$ret" != 0
+then
+	echo "Build FAILED exit code $ret, results directory $T"
+	exit 2
+fi
+
 incr=1
 for ((ncpus = 1; ncpus <= lastcpu + 1; ncpus += incr))
 do
@@ -71,7 +79,7 @@ do
 	fi
 	for prim in $primlist
 	do
-		taskset -c $cpulist tools/testing/selftests/rcutorture/bin/kvm.sh --cpus $ncpus --duration 10 --torture refscale --configs NOPREEMPT --bootargs "refscale.scale_type=$prim refscale.nreaders=$ncpus refscale.loops=10000 refscale.holdoff=$holdoff" --kconfig "CONFIG_NR_CPUS=$((lastcpu + 1))" --trust-make > $T 2>&1
+		taskset -c $cpulist tools/testing/selftests/rcutorture/bin/kvm-again.sh "$builddir" --duration 10 --bootargs "refscale.scale_type=$prim refscale.nreaders=$ncpus refscale.loops=10000 refscale.holdoff=$holdoff" > $T 2>&1
 		ret=$?
 		fstr=""
 		resdir="`grep -m 1 '^Results directory: ' $T | sed -e 's/^Results directory: *//'`"
