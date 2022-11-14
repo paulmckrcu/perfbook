@@ -32,6 +32,8 @@ endif
 
 include $(top)/recipes.mk
 
+GCC_ARGS += -fcommon
+
 hash_bkt: hash_bkt.c ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_bkt hash_bkt.c $(LIB)/random.c -lpthread
 
