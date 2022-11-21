@@ -93,7 +93,7 @@ do
 			fi
 		fi
 		echo Run for $prim with $ncpus CPUs$fstr
-		egrep '^Points: | reader duration:' $T
+		grep -E '^Points: | reader duration:' $T
 	done
 	if ((ncpus >= 128))
 	then

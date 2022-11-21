@@ -31,9 +31,9 @@ scatter_file ()
 	local i
 	local j
 
-	for i in `ls | egrep '^[0-9]*$|^[0-9]*x[0-9]*$'`
+	for i in `ls | grep -E '^[0-9]*$|^[0-9]*x[0-9]*$'`
 	do
-		for j in `ls $i/pct_* | egrep '^([0-9]*|[0-9]*x[0-9]*)/[a-zA-Z0-9_-]*$'`
+		for j in `ls $i/pct_* | grep -E '^([0-9]*|[0-9]*x[0-9]*)/[a-zA-Z0-9_-]*$'`
 		do
 			ms=`echo $j | sed 's/\/pct_/\/ms_/'`
 			mstail=`echo $ms | sed 's/^[0-9]*\///'`
@@ -71,9 +71,9 @@ makecdf_file ()
 	local i
 	local j
 
-	for i in `ls | egrep '^[0-9]*$|^[0-9]*x[0-9]*$' | sort -k1n`
+	for i in `ls | grep -E '^[0-9]*$|^[0-9]*x[0-9]*$' | sort -k1n`
 	do
-		for j in `ls $i/ms_* $i/pct_* | egrep '^([0-9]*|[0-9]*x[0-9]*)/[a-zA-Z0-9_-]*$'`
+		for j in `ls $i/ms_* $i/pct_* | grep -E '^([0-9]*|[0-9]*x[0-9]*)/[a-zA-Z0-9_-]*$'`
 		do
 			makecdf $j
 		done
@@ -127,9 +127,9 @@ quantile_error_file ()
 	local i
 	local j
 
-	for i in `ls | egrep '^[0-9]*$|^[0-9]*x[0-9]*$' | sort -k1n`
+	for i in `ls | grep -E '^[0-9]*$|^[0-9]*x[0-9]*$' | sort -k1n`
 	do
-		for j in `ls $i/ms_* $i/pct_* | egrep '^([0-9]*|[0-9]*x[0-9]*)/[a-zA-Z0-9_-]*$'`
+		for j in `ls $i/ms_* $i/pct_* | grep -E '^([0-9]*|[0-9]*x[0-9]*)/[a-zA-Z0-9_-]*$'`
 		do
 			f=`echo $j | sed -e 's/^.*\///'`.quant
 			touch $f
@@ -158,9 +158,9 @@ average_file ()
 	local i
 	local j
 
-	for i in `ls | egrep '^[0-9]*$|^[0-9]*x[0-9]*$' | sort -k1n`
+	for i in `ls | grep -E '^[0-9]*$|^[0-9]*x[0-9]*$' | sort -k1n`
 	do
-		for j in `ls $i/ms_* $i/pct_* | egrep '^([0-9]*|[0-9]*x[0-9]*)/[a-zA-Z0-9_-]*$'`
+		for j in `ls $i/ms_* $i/pct_* | grep -E '^([0-9]*|[0-9]*x[0-9]*)/[a-zA-Z0-9_-]*$'`
 		do
 			f=`echo $j | sed -e 's/^.*\///'`.mean
 			touch $f

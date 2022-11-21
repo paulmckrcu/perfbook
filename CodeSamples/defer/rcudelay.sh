@@ -98,7 +98,7 @@ do
 				fi
 			fi
 			echo Run for $prim with $ncpus CPUs and delay $curdelay$fstr
-			egrep '^Points: | reader duration:' $T
+			grep -E '^Points: | reader duration:' $T
 		done
 		curdelay=`echo $curdelay | sed -e 's/5/10/' -e t -e 's/2/5/' -e t -e 's/1/2/'`
 	done

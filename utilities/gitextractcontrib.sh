@@ -23,7 +23,7 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
-git log $1 | egrep '^ *(Signed-off-by|Reported-by)' |
+git log $1 | grep -E '^ *(Signed-off-by|Reported-by)' |
 	sed -e 's/ *Signed-off-by: *//' -e 's/ *Reported-by: *//' |
 	sort -u | grep -v "Paul E. McKenney" |
 	sed -e 's/\([^<]*\)<\([^>]*\)>/\2 \1/' | sed -e 's/ *$//' |
