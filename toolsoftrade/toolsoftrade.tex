@@ -2595,6 +2595,57 @@ but per-thread variables combine convenience and high performance,
 as will be shown in more detail in
 \cref{sec:count:Statistical Counters}.
 
+\QuickQuiz{
+	What do you do if you need a per-thread (not per-CPU!) variable
+	in the Linux kernel?
+}\QuickQuizAnswer{
+	First, needing a per-thread variable is less likely than than
+	you might think.
+	Per-CPU variables can often do a per-thread variable's job.
+	For example, if you only need to do addition, bitwise AND,
+	bitwise OR, exchange, or compare-and-exchange, then the
+	\co{this_cpu_add()},
+	\co{this_cpu_add_return()},
+	\co{this_cpu_and()},
+	\co{this_cpu_or()},
+	\co{this_cpu_xchg()},
+	\co{this_cpu_cmpxchg()}, and
+	\co{this_cpu_cmpxchg_double()}
+	operations, respectively, will do the job cheaply and atomically
+	with respect to context switches, interrupt handlers, and softirq
+	handlers, but \emph{not} non-maskable interrupts.
+
+	Second, within a preemption-disabled region of code, for
+	example, one surrounded by the \co{preempt_disable()} and
+	\co{preempt_enable()} macros, the current task is guaranteed to
+	remain executing on the current CPU\@.
+	Therefore, while within one such region, any series of accesses
+	to per-CPU variables is atomic with respect to context switches,
+	though not with respect to interrupt handlers, softirq handlers,
+	and non-maskable interrupts.
+	But please be aware that a preemption-disabled region of code
+	that runs for more than a few microseconds will not be looked upon
+	with favor by people attempting to construct real-time systems.
+
+	Third, a field added to the \co{task_struct} structure acts
+	as set of per-task variables.
+	However, there are those who keep a close eye on the size of
+	this structure, and these people are likely to ask hard
+	questions about the need for any added fields.
+	Therefore, if your field is being added for some facility
+	that is only built into some kernels, you should definitely
+	place your new \co{task_struct} fields under an appropriate
+	\co{#ifdef}.
+
+	Fourth and finally, your per-task variable might instead
+	be located in some other structure and protected by some
+	synchronization mechanism that is already in use.
+	For example, if your code must hold a given lock, can accesses
+	to this storage instead be protected by that lock?
+	The fact that this is at the end of the list notwithstanding,
+	you should look into this possibility first, not last!
+}\QuickQuizEnd
+
 \section{The Right Tool for the Job:
 					How to Choose?}
 \label{sec:toolsoftrade:The Right Tool for the Job: How to Choose?}
