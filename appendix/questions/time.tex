@@ -59,26 +59,44 @@ For example, in the Linux kernel, the \co{jiffies} counter\footnote{
 	is incremented by software in response to events such as the
 	scheduling-clock interrupt.}
 provides high-speed access to a course-grained counter (at best
-one-millisecond accuracy and precision) that imposes almost no ordering
+one-millisecond accuracy and precision) that imposes very little ordering
 on either the compiler or the hardware.
 In contrast, the x86 HPET hardware provides an accurate and
 precise clock, but at the price of slow access.
-The x86 time-stamp counter has a checkered past, but is more recently
-held out as providing a good combination of precision, accuracy,
+The x86 time-stamp counter (TSC) has a checkered past, but is more
+recently held out as providing a good combination of precision, accuracy,
 and performance.
 Unfortunately, for all of these counters, ordering against all effects
 of prior and subsequent code requires expensive memory-barrier instructions.
 And this expense appears to be an unavoidable consequence of the
 complex superscalar nature of modern computer systems.
 
-In addition, all of these clock sources provide their own timebase,
-so that (for example) the \co{jiffies} counter on one system is not
-necessarily compatible with that of another.
-Not only did they start counting at different times, but they might
-well be counting at different rates.
-This brings up the topic of synchronizing a given system's counters with
-some real-world notion of time, but that topic is beyond the scope of
-this book.
+\begin{figure}
+\centering
+\resizebox{3in}{!}{\includegraphics{CodeSamples/api-pthreads/QAfter/timeskewhist}}
+\caption{\tco{clock_getttime(CLOCK_REALTIME)} Deviation From Immediately Preceding \tco{clock_gettime(CLOCK_MONOTONIC)}}
+\label{fig:app:questions:clock-gettime(CLOCK-REALTIME) Deviation From Immediately Preceding clock-gettime(CLOCK-MONOTONIC)}
+\end{figure}
+
+In addition, each clock source provides its own timebase.
+\Cref{fig:app:questions:clock-gettime(CLOCK-REALTIME) Deviation From Immediately Preceding clock-gettime(CLOCK-MONOTONIC)}
+shows a histogram of the value returned by a call to
+\co{clock_gettime(CLOCK_MONOTONIC)} subtracted from that returned by an
+immediately following \co{clock_getttime(CLOCK_REALTIME)}.
+Because some time passes between these two function calls, it is no
+surprise that there are positive deviations, but the negative deviations
+should give us some pause.
+Nevertheless, such deviations are possible, if for no other reason than
+the machinations of network time protocol (NTP).
+
+Worse yet, identical clocksources on different systems
+are not necessarily compatible with that of another.
+For example, the \co{jiffies} counters on a pair of systems very likely
+started counting at different times, and worse yet might well be counting
+at different rates.
+This brings up the topic of synchronizing a given system's counters
+with some real-world notion of time such as the aforementioned NTP,
+but that topic is beyond the scope of this book.
 
 In short, time is a slippery topic that causes untold confusion to
 parallel programmers and to their code.
