@@ -22,16 +22,49 @@
 #include "../util.h"
 #include <time.h>
 #include <stdarg.h>
+#include <assert.h>
 
 int interval = 100;		// Milliseconds.
 int nsamples = 20;
 
 struct timespec *mono;		// Monotonic time.
+struct timespec *mono1;		// Monotonic time, first re-read (after wc).
+struct timespec *mono2;		// Monotonic time, second re-read.
 struct timespec *wc;		// Wall-clock ("real") time.
 
+// Convert a single timespec to double precision.
 static double timespec2double(struct timespec *tsp)
 {
 	return tsp->tv_sec + (double)tsp->tv_nsec / 1000. / 1000. / 1000.;
+}
+
+// Compute the difference of a pair of timespec structures.
+static struct timespec timespecsub(struct timespec *tsp1, struct timespec *tsp2)
+{
+	struct timespec tsdiff = {};
+
+	assert(tsdiff.tv_nsec == 0 && tsdiff.tv_sec == 0);
+	if (tsp1->tv_sec < tsp2->tv_sec ||
+	    (tsp1->tv_sec == tsp2->tv_sec && tsp1->tv_nsec < tsp2->tv_nsec)) {
+		tsdiff = timespecsub(tsp2, tsp1);
+		tsdiff.tv_sec = -tsdiff.tv_sec;
+		tsdiff.tv_nsec = -tsdiff.tv_nsec;
+		return tsdiff;
+	}
+	tsdiff.tv_nsec = tsp1->tv_nsec - tsp2->tv_nsec;
+	if (tsdiff.tv_nsec < 0) {
+		tsdiff.tv_nsec += 1000. * 1000. * 1000.;
+		tsdiff.tv_sec--;
+	}
+	tsdiff.tv_sec += tsp1->tv_sec - tsp2->tv_sec;
+	return tsdiff;
+}
+
+static char *timespec2str(char *cp, struct timespec *tsp)
+{
+	sprintf(cp, "%ld.%09ld",
+		tsp->tv_sec, tsp->tv_nsec >= 0 ? tsp->tv_nsec : -tsp->tv_nsec);
+	return cp;
 }
 
 void usage(char *progname, const char *format, ...)
@@ -54,10 +87,14 @@ void usage(char *progname, const char *format, ...)
 int main(int argc, char *argv[])
 {
 	int i = 1;
-	double monobase;
 	double monocur;
-	double wcbase;
+	double mono1cur;
+	double mono2cur;
+	char monostr[32];
+	char mono1str[32];
+	char mono2str[32];
 	double wccur;
+	char wcstr[32];
 
 	while (i < argc) {
 		if (strcmp(argv[i], "--interval") == 0) {
@@ -76,28 +113,57 @@ int main(int argc, char *argv[])
 		i++;
 	}
 	mono = malloc(nsamples * sizeof(*mono));
+	mono1 = malloc(nsamples * sizeof(*mono1));
+	mono2 = malloc(nsamples * sizeof(*mono2));
 	wc = malloc(nsamples * sizeof(*wc));
-	if (!mono || !wc) {
+	if (!mono ||!mono1 ||  !mono2 || !wc) {
 		fprintf(stderr, "Out of memory!\n");
 		exit(1);
 	}
+
+	// Collect the timestamp samples.
 	for (i = 0; i < nsamples; i++) {
 		if (clock_gettime(CLOCK_MONOTONIC, &mono[i])) {
 			perror("clock_gettime(CLOCK_MONOTONIC)");
 			exit(2);
 		}
-		if (clock_gettime(CLOCK_REALTIME, &wc[i])) {
+		if (clock_gettime(CLOCK_MONOTONIC, &wc[i])) {
 			perror("clock_gettime(CLOCK_REALTIME)");
 			exit(3);
 		}
+		if (clock_gettime(CLOCK_MONOTONIC, &mono1[i])) {
+			perror("clock_gettime(CLOCK_MONOTONIC) re-read 1");
+			exit(4);
+		}
+		if (clock_gettime(CLOCK_MONOTONIC, &mono2[i])) {
+			perror("clock_gettime(CLOCK_MONOTONIC) re-read 2");
+			exit(5);
+		}
 		poll(NULL, 0, interval);
 	}
-	monobase = timespec2double(&mono[0]);
-	wcbase = timespec2double(&wc[0]);
+
+	// Normalize based on the respective start times.
+	for (i = nsamples - 1; i >= 0; i--) {
+		mono[i] = timespecsub(&mono[i], &mono[0]);
+		mono1[i] = timespecsub(&mono1[i], &mono1[0]);
+		mono2[i] = timespecsub(&mono2[i], &mono2[0]);
+		wc[i] = timespecsub(&wc[i], &wc[0]);
+	}
+
+	// Output the differences.
 	for (i = 0; i < nsamples; i++) {
-		monocur = timespec2double(&mono[i]) - monobase;
-		wccur = timespec2double(&wc[i]) - wcbase;
-		printf("%.10g %.10g %g\n", monocur, wccur, monocur - wccur);
+		monocur = timespec2double(&mono[i]);
+		wccur = timespec2double(&wc[i]);
+		mono1cur = timespec2double(&mono1[i]);
+		mono2cur = timespec2double(&mono2[i]);
+		printf("%s %s %s %s %.3g %.3g %.3g\n",
+		       timespec2str(monostr, &mono[i]),
+		       timespec2str(wcstr, &wc[i]),
+		       timespec2str(mono1str, &mono1[i]),
+		       timespec2str(mono2str, &mono2[i]),
+		       wccur - monocur,
+		       mono1cur - monocur, // mono+wc overhead
+		       mono2cur - mono1cur); // mono overhead
 	}
 
 	return EXIT_SUCCESS;
