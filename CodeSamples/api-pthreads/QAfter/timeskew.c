@@ -32,6 +32,16 @@ struct timespec *mono1;		// Monotonic time, first re-read (after wc).
 struct timespec *mono2;		// Monotonic time, second re-read.
 struct timespec *wc;		// Wall-clock ("real") time.
 
+static int timespeccmp(struct timespec *tsp1, struct timespec *tsp2)
+{
+	if (tsp1->tv_sec < tsp2->tv_sec ||
+	    (tsp1->tv_sec == tsp2->tv_sec && tsp1->tv_nsec < tsp2->tv_nsec))
+		return -1;
+	if (tsp1->tv_sec == tsp2->tv_sec && tsp1->tv_sec == tsp2->tv_sec)
+		return 0;
+	return 1;
+}
+
 // Convert a single timespec to double precision.
 static double timespec2double(struct timespec *tsp)
 {
@@ -139,15 +149,32 @@ int main(int argc, char *argv[])
 			perror("clock_gettime(CLOCK_MONOTONIC) re-read 2");
 			exit(5);
 		}
+		if (timespeccmp(&mono2[i], &mono1[i]) < 0)
+			printf("Backwards time: %s -> %s\n",
+			       timespec2str(mono1str, &mono1[i]),
+			       timespec2str(mono2str, &mono2[i]));
 		poll(NULL, 0, interval);
 	}
 
 	// Normalize based on the respective start times.
 	for (i = nsamples - 1; i >= 0; i--) {
+		struct timespec oldmono1;
+		struct timespec oldmono2;
+		char oldmono1str[32];
+		char oldmono2str[32];
+
 		mono[i] = timespecsub(&mono[i], &mono[0]);
+		oldmono1 = mono1[i];
 		mono1[i] = timespecsub(&mono1[i], &mono[0]);
+		oldmono2 = mono2[i];
 		mono2[i] = timespecsub(&mono2[i], &mono[0]);
 		wc[i] = timespecsub(&wc[i], &wc[0]);
+		if (timespeccmp(&mono2[i], &mono1[i]) < 0)
+			printf("Backwards time: From %s -> %s to %s -> %s\n",
+			       timespec2str(oldmono1str, &oldmono1),
+			       timespec2str(oldmono2str, &oldmono2),
+			       timespec2str(mono1str, &mono1[i]),
+			       timespec2str(mono2str, &mono2[i]));
 	}
 
 	// Output the differences.
