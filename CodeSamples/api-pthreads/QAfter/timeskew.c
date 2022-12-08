@@ -163,12 +163,12 @@ int main(int argc, char *argv[])
 		char oldmono1str[32];
 		char oldmono2str[32];
 
-		mono[i] = timespecsub(&mono[i], &mono[0]);
 		oldmono1 = mono1[i];
 		mono1[i] = timespecsub(&mono1[i], &mono[0]);
 		oldmono2 = mono2[i];
 		mono2[i] = timespecsub(&mono2[i], &mono[0]);
 		wc[i] = timespecsub(&wc[i], &wc[0]);
+		mono[i] = timespecsub(&mono[i], &mono[0]);
 		if (timespeccmp(&mono2[i], &mono1[i]) < 0)
 			printf("Backwards time: From %s -> %s to %s -> %s\n",
 			       timespec2str(oldmono1str, &oldmono1),
