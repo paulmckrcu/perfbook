@@ -67,7 +67,7 @@ fi
 
 basename=`echo $1 | sed -e 's/\.tex$//'`
 
-: ${LATEX:-pdflatex}
+: ${LATEX:=pdflatex}
 
 echo "$LATEX 1 for $basename.pdf"
 $LATEX $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null

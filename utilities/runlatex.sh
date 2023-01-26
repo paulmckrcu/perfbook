@@ -29,7 +29,7 @@
 # Authors: Paul E. McKenney <paulmck@us.ibm.com>
 #          Akira Yokosawa <akiyks@gmail.com>
 
-: ${LATEX:-pdflatex}
+: ${LATEX:=pdflatex}
 
 diff_warning () {
 	if diff -q $basename-warning.log $basename-warning-prev.log >/dev/null
