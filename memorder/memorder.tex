@@ -5235,25 +5235,67 @@ locking, described in more detail in
 \cref{sec:memorder:Locking},
 to say nothing of
 \cref{chp:Locking}.
+This section contains a graphical description followed by a verbal
+description.
 
-Code holding a given lock will see the accesses in all prior critical
-sections for that same lock, transitively.
+\begin{figure*}
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{memorder/locktrans}}
+\caption{Locking Intuitions}
+\label{fig:memorder:Locking Intuitions}
+\end{figure*}
+
+The graphical description is shown in
+\cref{fig:memorder:Locking Intuitions},
+which shows a lock being acquired and released by CPUs~0, 1, and~2
+in that order.
+The solid black arrows depict the unlock-lock ordering.
+The dotted lines emanating from them to the wide green arrows
+show the effects on ordering.
+In particular:
+
+\begin{enumerate}
+\item	The fact that CPU~0's unlock precedes CPU~1's lock ensures
+	that any accesses executed by CPU~0 within its critical
+	section and before that critical section will be seen by any
+	accesses executed by CPU~1 within its critical section and after
+	that critical section.
+\item	The fact that CPU~0's unlock precedes CPU~2's lock ensures
+	that any accesses executed by CPU~0 within its critical
+	section and before that critical section will be seen by any
+	accesses executed by CPU~2 within its critical section and after
+	that critical section.
+\item	The fact that CPU~1's unlock precedes CPU~2's lock ensures
+	that any accesses executed by CPU~1 within its critical
+	section and before that critical section will be seen by any
+	accesses executed by CPU~2 within its critical section and after
+	that critical section.
+\end{enumerate}
+
+In short, lock-based ordering is transitive through CPUs~0, 1, and~2.
+A key point is that this ordering extends beyond the critical sections,
+so that everything before an earlier lock release is order against
+everything after a later lock acquisition.
+
+For those who prefer words to diagrams, code holding a given lock will
+see the accesses in all prior critical sections for that same lock,
+transitively.
 And if such code sees the accesses in a given critical section, it will
-also see the accesses in all of that thread's (or CPU's) code preceding
+also see the accesses in all of that CPU's code preceding
 that critical section.
-In other words, when a thread or CPU releases a given lock, all
+In other words, when a CPU releases a given lock, all
 of that lock's subsequent critical sections will see the accesses in
-all of that thread's or CPU's code preceding that lock release.
+all of that CPU's code preceding that lock release.
 
 Inversely, code holding a given lock will be protected from seeing the
 accesses in any subsequent critical sections for that same lock, again,
 transitively.
 And if such code fails to see the accesses in a given critical section,
-it will also fail to see the accesses in all of that thread's (or CPU's)
+it will also fail to see the accesses in all of that CPU's
 code following that critical section.
-In other words, when a thread or CPU acquires a given lock, all of
+In other words, when a CPU acquires a given lock, all of
 that lock's previous critical sections will be protected from seeing
-the accesses in all of that thread's or CPU's code following that lock
+the accesses in all of that CPU's code following that lock
 acquisition.
 
 But what does it mean to ``see accesses'' and exactly what accesses
@@ -5262,9 +5304,9 @@ are seen?
 To start, an access is either a load or a store, possibly occurring as part
 of a read-modify-write operation.
 
-If a CPU's or thread's code prior to its release of a given lock contains
+If a CPU's code prior to its release of a given lock contains
 an access A to a given variable, then for an access B to that same variable
-contained in any CPU's or thread's code following a later acquisition
+contained in any CPU's code following a later acquisition
 of that same lock:
 
 \begin{enumerate}
