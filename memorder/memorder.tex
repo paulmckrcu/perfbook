@@ -38,7 +38,7 @@ gives an overview of the benefits of modeling memory ordering at
 higher levels of abstraction.
 \Cref{sec:memorder:Hardware Specifics}
 follows up with more detail on a few representative hardware platforms.
-Finally, \cref{sec:memorder:Where is Memory Ordering Needed?}
+Finally, \cref{sec:memorder:Memory-Model Intuitions}
 provides some useful rules of thumb.
 
 \QuickQuiz{
@@ -697,7 +697,7 @@ In fact, you could write a great deal of concurrent code having
 excellent performance and scalability without needing anything more
 than these rules of thumb.
 More sophisticated rules of thumb will be presented in
-\cref{sec:memorder:Where is Memory Ordering Needed?}.
+\cref{sec:memorder:Memory-Model Intuitions}.
 
 \QuickQuiz{
 	But how can I know that a given project can be designed
@@ -808,7 +808,7 @@ represented by the Linux-kernel memory-ordering cheat sheet shown in
 \cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet},
 and can be automatically analyzed given proper
 tooling~\cite{Alglave:2018:FSC:3173162.3177156}.
-\Cref{sec:memorder:Where is Memory Ordering Needed?} will
+\Cref{sec:memorder:Memory-Model Intuitions} will
 circle back to this cheat sheet, presenting a more sophisticated set of
 rules of thumb in light of learnings from all the intervening tricks
 and traps.
@@ -5175,8 +5175,8 @@ The z~Systems instruction set provides a large set of serializing instructions,
 including compare-and-swap, some types of branches (for example, the
 aforementioned \qco{bcr 15,0} instruction), and test-and-set.
 
-\section{Where is Memory Ordering Needed?}
-\label{sec:memorder:Where is Memory Ordering Needed?}
+\section{Memory-Model Intuitions}
+\label{sec:memorder:Memory-Model Intuitions}
 %
 \epigraph{Almost all people are intelligent.
 	  It is method that they lack.}
@@ -5185,8 +5185,8 @@ aforementioned \qco{bcr 15,0} instruction), and test-and-set.
 This section revisits
 \cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 and \cref{sec:memorder:Basic Rules of Thumb},
-summarizing the intervening discussion with a more sophisticated
-rules of thumb.
+summarizing the intervening discussion with some appeals to transitive
+intuitinos and with more sophisticated rules of thumb.
 
 But first, it is necessary to review the temporal and non-temporal
 nature of communication from one thread to another when using memory
@@ -5208,15 +5208,160 @@ Again, software will see the expected temporal cause-and-effect behavior
 when one thread loads a value that some other thread stores, as discussed
 in \cref{sec:memorder:Happens-Before}.
 
-However, hardware is under no obligation to provide temporal
+This temporal behavior provides the basis for the next section's
+transitive intuitions.
+
+\subsection{Transitive Intuitions}
+\label{sec:memorder:Transitive Intuitions}
+
+This section summarizes intuitions regarding single threads or variables,
+locking, release-acquire chains, and fully ordered code.
+
+\subsubsection{Singular Intuitive Bliss}
+\label{sec:memorder:Singular Intuitive Bliss}
+
+A program that has only one variable or only one thread will see
+all accesses in order.
+There is quite a bit of code that can attain adequate performance
+when running single-threaded on modern computer systems, but
+this book is primarily about code that needs multiple CPUs, 
+On, then, to the next section.
+
+\subsubsection{Locking Intuitions}
+\label{sec:memorder:Locking Intuitions}
+
+Another transitive intuition involves that much-maligned workhorse,
+locking, described in more detail in
+\cref{sec:memorder:Locking},
+to say nothing of
+\cref{chp:Locking}.
+
+Code holding a given lock will see the accesses in all prior critical
+sections for that same lock, transitively.
+And if such code sees the accesses in a given critical section, it will
+also see the accesses in all of that thread's (or CPU's) code preceding
+that critical section.
+In other words, when a thread or CPU releases a given lock, all
+of that lock's subsequent critical sections will see the accesses in
+all of that thread's or CPU's code preceding that lock release.
+
+Inversely, code holding a given lock will be protected from seeing the
+accesses in any subsequent critical sections for that same lock, again,
+transitively.
+And if such code fails to see the accesses in a given critical section,
+it will also fail to see the accesses in all of that thread's (or CPU's)
+code following that critical section.
+In other words, when a thread or CPU acquires a given lock, all of
+that lock's previous critical sections will be protected from seeing
+the accesses in all of that thread's or CPU's code following that lock
+acquisition.
+
+But what does it mean to ``see accesses'' and exactly what accesses
+are seen?
+
+To start, an access is either a load or a store, possibly occurring as part
+of a read-modify-write operation.
+
+If a CPU's or thread's code prior to its release of a given lock contains
+an access A to a given variable, then for an access B to that same variable
+contained in any CPU's or thread's code following a later acquisition
+of that same lock:
+
+\begin{enumerate}
+\item	If A and B are both loads, then B will return either the same
+	value that A did or some later value.
+\item	If A is a load and B is a store, then B will overwrite either the
+	value loaded by A or some later value.
+\item	If A is a store and B is a load, then B will return either the
+	value stored by A some later value.
+\item	If A and B are both stores, then B will overwrite either the value
+	stored by A or some later value.
+\end{enumerate}
+
+Here, ``some later value'' is shorthand for ``the value stored by some
+intervening access.
+
+Locking is strongly intuitive, which is one reason why it has persisted
+despite so many attempts to eliminate it.
+
+\subsubsection{Release-Acquire Intuitions}
+\label{sec:memorder:Release-Acquire Intuitions}
+
+Release-acquire chains also behave in a transitively intuitive manner
+not unlike that of locking.
+
+When an acquire access loads the value stored by a release access,
+discussed in
+\cref{sec:memorder:Release-Acquire Chains},
+then the code following that release access will see all accesses
+preceding the acquire access.
+More precisely, if CPU~0 does an acquire access that loads the value
+stored by CPU~1's release access, than all the subsequent accesses
+executed by CPU~0 will see the all of CPU~1's accesses prior to its
+release access.
+
+Similarly, the accesses preceding that release access will be protected
+from seeing the accesses following the acquire access.
+(More precision is left as an exercise to the reader.)
+
+Releases and acquires can be chained, for example CPU~0's release
+stores the value loaded by CPU~1's acquire, a later release by CPU~1
+stores the value loaded by CPU~2's acquire, and so on.
+The accesses following a given acquire will see the accesses preceding
+each prior release in the chain, and, inversely, the accesses preceding a
+given release will be protected from seeing the accesses following each
+later acquire in the chain.
+Some long-chain examples are illustrated by
+\cref{lst:memorder:Long LB Release-Acquire Chain,lst:memorder:Long ISA2 Release-Acquire Chain,lst:memorder:Long Z6.2 Release-Acquire Chain}.
+
+The seeing and not seeing of accesses works the same way as described in
+\cref{sec:memorder:Locking Intuitions}.
+
+However, as illustrated by
+\cref{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)},
+the acquire access must load exactly what was stored by the release access.
+Any intervening store that is not itself part of that same release-acquire
+chain will break the chain.
+
+Nevertheless, properly constructed release-acquire chains are transitive,
+intuitive, and useful.
+
+\subsubsection{Fully Ordered Intuitions}
+\label{sec:memorder:Fully Ordered Intuitions}
+
+A more extreme example of transitivity places at least one \co{smp_mb()}
+between each pair of accesses.
+All accesses seen by any given access will also be seen by all later
+accesses.
+
+The resulting program will be fully ordered, if somewhat slow.
+Such programs will be sequentially consistent and much loved by
+formal-verification experts who specialize in tried-and-true 1980s
+proof techniques.
+
+But slow or not, \co{smp_mb()} is always there when you need it!
+
+Nevertheless, there are situations that cannot be addressed by these
+intuitive approaches.
+The next section therefore presents a more complete, if less transitive,
+set of rules of thumb.
+
+\subsection{Advanced Rules of Thumb}
+\label{sec:memorder:Advanced Rules of Thumb}
+
+The transitive intuitions presented in the previous section are
+very appealing, at least as memory models go.
+Unfortunately, hardware is under no obligation to provide temporal
 cause-and-effect illusions when one thread's store overwrites a value either
 loaded or stored by some other thread.
 It is quite possible that, from the software's viewpoint, an earlier store
 will overwrite a later store's value, but only if those two stores were
-executed by different threads.
+executed by different threads, as illustrated by
+\cref{fig:memorder:Store-to-Store is Counter-Temporal}.
 Similarly, a later load might well read a value overwritten by an
 earlier store, but again only if that load and store were executed by
-different threads.
+different threads, as illustrated by
+\cref{fig:memorder:Load-to-Store is Counter-Temporal}.
 This counter-intuitive behavior occurs due to the need to buffer
 stores in order to achieve adequate performance, as discussed in
 \cref{sec:memorder:Propagation}.
@@ -5228,7 +5373,8 @@ These differences are captured by the following rules of thumb.
 
 The first rule of thumb is that memory-ordering operations are only
 required where there is a possibility of interaction between at least
-two variables shared among at least two threads.
+two variables shared among at least two threads, as was noted in
+\cref{sec:memorder:Singular Intuitive Bliss}.
 In light of the intervening material, this single sentence encapsulates much of
 \cref{sec:memorder:Basic Rules of Thumb}'s basic rules of thumb,
 for example, keeping in mind that ``memory-barrier pairing'' is a
