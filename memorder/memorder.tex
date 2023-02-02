@@ -5186,7 +5186,7 @@ This section revisits
 \cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
 and \cref{sec:memorder:Basic Rules of Thumb},
 summarizing the intervening discussion with some appeals to transitive
-intuitinos and with more sophisticated rules of thumb.
+intuitions and with more sophisticated rules of thumb.
 
 But first, it is necessary to review the temporal and non-temporal
 nature of communication from one thread to another when using memory
@@ -5204,9 +5204,9 @@ before the load instruction started.
 In real life, the load instruction might well have started quite some
 time before the store instruction did, but all modern hardware must
 carefully hide such cases from the software.
-Again, software will see the expected temporal cause-and-effect behavior
-when one thread loads a value that some other thread stores, as discussed
-in \cref{sec:memorder:Happens-Before}.
+Software will thus see the expected temporal cause-and-effect
+behavior when one thread loads a value that some other thread stores,
+as discussed in \cref{sec:memorder:Happens-Before}.
 
 This temporal behavior provides the basis for the next section's
 transitive intuitions.
@@ -5224,7 +5224,7 @@ A program that has only one variable or only one thread will see
 all accesses in order.
 There is quite a bit of code that can attain adequate performance
 when running single-threaded on modern computer systems, but
-this book is primarily about code that needs multiple CPUs, 
+this book is primarily about needs multiple CPUs.
 On, then, to the next section.
 
 \subsubsection{Locking Intuitions}
@@ -5255,27 +5255,24 @@ show the effects on ordering.
 In particular:
 
 \begin{enumerate}
-\item	The fact that CPU~0's unlock precedes CPU~1's lock ensures
-	that any accesses executed by CPU~0 within its critical
-	section and before that critical section will be seen by any
-	accesses executed by CPU~1 within its critical section and after
-	that critical section.
-\item	The fact that CPU~0's unlock precedes CPU~2's lock ensures
-	that any accesses executed by CPU~0 within its critical
-	section and before that critical section will be seen by any
-	accesses executed by CPU~2 within its critical section and after
-	that critical section.
-\item	The fact that CPU~1's unlock precedes CPU~2's lock ensures
-	that any accesses executed by CPU~1 within its critical
-	section and before that critical section will be seen by any
-	accesses executed by CPU~2 within its critical section and after
-	that critical section.
+\item	The fact that CPU~0's unlock precedes CPU~1's lock ensures that
+	any access executed by CPU~0 within or before its critical
+	section will be seen by accesses executed by CPU~1 within
+	and after its critical section.
+\item	The fact that CPU~0's unlock precedes CPU~2's lock ensures that
+	any access executed by CPU~0 within or before its critical
+	section will be seen by accesses executed by CPU~2 within
+	and after its critical section.
+\item	The fact that CPU~1's unlock precedes CPU~2's lock ensures that
+	any access executed by CPU~1 within or before its critical
+	section will be seen by accesses executed by CPU~2 within and
+	after its critical section.
 \end{enumerate}
 
 In short, lock-based ordering is transitive through CPUs~0, 1, and~2.
 A key point is that this ordering extends beyond the critical sections,
-so that everything before an earlier lock release is order against
-everything after a later lock acquisition.
+so that everything before an earlier lock release is seen by everything
+after a later lock acquisition.
 
 For those who prefer words to diagrams, code holding a given lock will
 see the accesses in all prior critical sections for that same lock,
@@ -5290,9 +5287,9 @@ all of that CPU's code preceding that lock release.
 Inversely, code holding a given lock will be protected from seeing the
 accesses in any subsequent critical sections for that same lock, again,
 transitively.
-And if such code fails to see the accesses in a given critical section,
-it will also fail to see the accesses in all of that CPU's
-code following that critical section.
+And if such code is protected against seeing the accesses in a given
+critical section, it will also be protected against seeing the accesses
+in all of that CPU's code following that critical section.
 In other words, when a CPU acquires a given lock, all of
 that lock's previous critical sections will be protected from seeing
 the accesses in all of that CPU's code following that lock
@@ -5315,16 +5312,16 @@ of that same lock:
 \item	If A is a load and B is a store, then B will overwrite either the
 	value loaded by A or some later value.
 \item	If A is a store and B is a load, then B will return either the
-	value stored by A some later value.
+	value stored by A or some later value.
 \item	If A and B are both stores, then B will overwrite either the value
 	stored by A or some later value.
 \end{enumerate}
 
 Here, ``some later value'' is shorthand for ``the value stored by some
-intervening access.
+intervening access''.
 
-Locking is strongly intuitive, which is one reason why it has persisted
-despite so many attempts to eliminate it.
+Locking is strongly intuitive, which is one reason why it has survived
+so many attempts to eliminate it.
 
 \subsubsection{Release-Acquire Intuitions}
 \label{sec:memorder:Release-Acquire Intuitions}
@@ -5357,7 +5354,8 @@ effects on ordering.
 	will be seen by any accesses executed by CPU~2 after its acquire.
 \item	Note also that CPU~0's release of A is read by CPU~1's acquire of
 	A, which precedes CPU 1's release of B, which is read by CPU~2's
-	acquire of B.  All this ensures that any accesses executed by
+	acquire of B\@.
+	Taken together, all this ensures that any accesses executed by
 	CPU~0 prior to its release will be seen by any accesses executed
 	by CPU~2 after its acquire.
 \end{enumerate}
@@ -5369,15 +5367,14 @@ as many CPUs as needed.\footnote{
 	the release-acquire chain, as illustrated by
 	\cref{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)}.}
 
-For those who prefer words to diagrams, when an acquire access loads
-the value stored by a release access, discussed in
+For those who prefer words to diagrams, when an acquire loads the value
+stored by a release, discussed in
 \cref{sec:memorder:Release-Acquire Chains},
-then the code following that release access will see all accesses
-preceding the acquire access.
-More precisely, if CPU~0 does an acquire access that loads the value
-stored by CPU~1's release access, than all the subsequent accesses
-executed by CPU~0 will see the all of CPU~1's accesses prior to its
-release access.
+then the code following that release will see all accesses preceding
+the acquire.
+More precisely, if CPU~0 does an acquire that loads the value stored by
+CPU~1's release, than all the subsequent accesses executed by CPU~0 will
+see the all of CPU~1's accesses prior to its release.
 
 Similarly, the accesses preceding that release access will be protected
 from seeing the accesses following the acquire access.
@@ -5417,7 +5414,6 @@ The resulting program will be fully ordered, if somewhat slow.
 Such programs will be sequentially consistent and much loved by
 formal-verification experts who specialize in tried-and-true 1980s
 proof techniques.
-
 But slow or not, \co{smp_mb()} is always there when you need it!
 
 Nevertheless, there are situations that cannot be addressed by these
@@ -5425,8 +5421,8 @@ intuitive approaches.
 The next section therefore presents a more complete, if less transitive,
 set of rules of thumb.
 
-\subsection{Advanced Rules of Thumb}
-\label{sec:memorder:Advanced Rules of Thumb}
+\subsection{Rules of Thumb}
+\label{sec:memorder:Rules of Thumb}
 
 The transitive intuitions presented in the previous section are
 very appealing, at least as memory models go.
@@ -5463,8 +5459,8 @@ And, as always, if a single-threaded program will provide sufficient
 performance, why bother with parallelism?\footnote{
 	Hobbyists and researchers should of course feel free to ignore
 	this and many other cautions.}
-After all, avoiding parallelism also avoids the added cost of
-memory-ordering operations.
+After all, avoiding parallelism also avoids the added cost and complexity
+of memory-ordering operations.
 
 The second rule of thumb involves load-buffering situations:
 If all thread-to-thread communication in a given cycle use store-to-load
@@ -5472,7 +5468,9 @@ links (that is, the next thread's load returns the value stored by
 the previous thread), minimal ordering suffices.
 Minimal ordering includes dependencies and acquires as well as all stronger
 ordering operations.
-This rule of thumb underlies the locking intuitions presented in
+Because a lock acquisition must load the lock-word value stored by any
+prior release of that lock, this rule of thumb underlies the locking
+intuitions presented in
 \cref{sec:memorder:Locking Intuitions}.
 
 The third rule of thumb involves release-acquire chains:
@@ -5495,7 +5493,7 @@ In addition, carefully review
 sec:memorder:Control-Dependency Calamities}, because
 a dependency broken by your compiler will not order anything.
 The two threads sharing the sole non-store-to-load link can
-usually substitute \co{WRITE_ONCE()} plus \co{smp_wmb()} for
+sometimes substitute \co{WRITE_ONCE()} plus \co{smp_wmb()} for
 \co{smp_store_release()} on the one hand,
 and \co{READ_ONCE()} plus \co{smp_rmb()} for \co{smp_load_acquire()}
 on the other.
@@ -5558,13 +5556,12 @@ Recapping the rules:
 	each pair of non-store-to-load links.
 \end{enumerate}
 
-Note that these four rules of thumb encapsulate \emph{minimum} guarantees.
-A given architecture may give more substantial guarantees, as discussed
-in \cref{sec:memorder:Hardware Specifics}, but these guarantees may only
-be relied upon in code that runs only for that architecture.
-In addition, more involved memory models may give stronger
-guarantees~\cite{Alglave:2018:FSC:3173162.3177156}, at the
-expense of somewhat greater complexity.
+Note that an architecture is permitted to provide stronger guarantees, as
+discussed in \cref{sec:memorder:Hardware Specifics}, but these guarantees
+may only be relied upon in code that runs only for that architecture.
+In addition, more accurate memory models~\cite{Alglave:2018:FSC:3173162.3177156}
+may give stronger guarantees with lower-overhead operations than do
+these rules of thumb, albeit at the expense of greater complexity.
 In these more formal memory-ordering papers, a store-to-load link is an
 example of a reads-from (rf) link, a load-to-store link is an example
 of a from-reads (fr) link, and a store-to-store link is an example of
