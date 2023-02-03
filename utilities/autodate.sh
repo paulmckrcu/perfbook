@@ -52,27 +52,28 @@ else
 	else
 		modified=""
 	fi
-	description="`git describe --tags HEAD`"
-	case "$description" in
-	*-g*)
-		release=`env printf 'Commit: \\\texttt{%s}' "$description"`
-		commitid="$description"
-		;;
-	v*)
-		release="Release $description"
-		commitid=$description
-		qqzbg="true"
-		;;
-	Edition*)
-		release="Edition"
-		commitid=$description
-		qqzbg="true"
+	if description="`git describe --tags HEAD 2> /dev/null`"
+	then
 		case "$description" in
-		*P*)
-			release="Print $release"
+		*-g*)
+			release=`env printf 'Commit: \\\texttt{%s}' "$description"`
+			commitid="$description"
 			;;
-		esac
-		case "$description" in
+		v*)
+			release="Release $description"
+			commitid=$description
+			qqzbg="true"
+			;;
+		Edition*)
+			release="Edition"
+			commitid=$description
+			qqzbg="true"
+			case "$description" in
+			*P*)
+				release="Print $release"
+				;;
+			esac
+			case "$description" in
 		Edition[.-][0-9]*)
 			ednum="`echo $description | sed -e 's/^Edition[.-]\([0-9]*\).*$/\1/'`"
 			release=`env printf '\\Ordinalstringnum{%s} %s' $ednum "$release"`
@@ -85,11 +86,16 @@ else
 			;;
 		esac
 		;;
-	*)
-		release=`env printf 'Tag: \\\texttt{%s}' "$description"`
-		commitid=`echo $description | sed -e 's/.*-\(g.*\)/\1/'`
-		;;
-	esac
+		*)
+			release=`env printf 'Tag: \\\texttt{%s}' "$description"`
+			commitid=`echo $description | sed -e 's/.*-\(g.*\)/\1/'`
+			;;
+		esac
+	else
+		description=`git log --max-count=1 | head -n 1 | sed -e 's/^commit \([0-9a-f]\{12\}\).*$/g\1/'`
+		release=`env printf 'Commit: \\\texttt{%s} (shallow clone)' "$description"`
+		commitid="$description"
+	fi
 fi
 month=`date --date="$date_str" +%B`
 year=`date --date="$date_str" +%Y`
