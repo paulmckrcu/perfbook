@@ -1,5 +1,5 @@
 ifeq ($(strip $(arch)),)
-arch := $(shell uname -p)
+arch := $(shell uname -m)
 endif
 
 ifeq ($(strip $(os)),)
