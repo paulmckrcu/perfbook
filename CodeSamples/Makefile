@@ -66,5 +66,8 @@ ifneq ($(strip $(target)),)
 	cat arch-$(target)/Makefile.arch >> Makefile.arch
 endif
 
+check:
+	make -C count/ check
+
 clean:
 	rm -f Makefile.arch api.h

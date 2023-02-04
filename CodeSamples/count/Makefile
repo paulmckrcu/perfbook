@@ -90,5 +90,8 @@ count_stat_eventual: count_stat_eventual.c ../api.h counttorture.h
 count_tstat: count_tstat.c ../api.h counttorture.h
 	$(CC) $(GCC_ARGS) $(CFLAGS) -o count_tstat count_tstat.c -lpthread
 
+check: $(PROGS)
+	$(foreach prog, $(PROGS), ./$(prog);)
+
 clean:
 	rm -f $(PROGS)
