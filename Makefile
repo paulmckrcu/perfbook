@@ -125,6 +125,8 @@ NEWTXSF := $(findstring newtxsf,$(FONTPACKAGES))
 INCONSOLATA := $(findstring inconsolata,$(FONTPACKAGES))
 FREESANS := $(shell fc-list | grep FreeSans | wc -l)
 DEJAVUMONO := $(shell fc-list | grep "DejaVu Sans Mono" | wc -l)
+LIBERATIONSANS := $(shell fc-list | grep "Liberation Sans" | wc -l)
+LIBERATINOMONO := $(shell fc-list | grep "Liberation Mono" | wc -l)
 
 # for line break in error text
 define n
@@ -151,6 +153,17 @@ ifeq ($(DEJAVUMONO),0)
 else
   RECOMMEND_DEJAVU := 0
 endif
+ifeq ($(LIBERATIONSANS),0)
+  RECOMMEND_LIBERATIONSANS := 1
+else
+  RECOMMEND_LIBERATIONSANS := 0
+endif
+ifeq ($(LIBERATIONMONO),0)
+  RECOMMEND_LIBERATIONMONO := 1
+else
+  RECOMMEND_LIBERATIONMONO := 0
+endif
+
 
 STEELFONTID := $(shell fc-list | grep -i steel | grep -c Steel)
 
@@ -456,11 +469,18 @@ else
 	@sh $(FIXSVGFONTS) < $< > $<i
 endif
 ifeq ($(RECOMMEND_FREEFONT),1)
-	$(info Nice-to-have font package 'gnu-freefont' not found. See #9 in FAQ-BUILD.txt)
+	$(info Nice-to-have font family 'FreeMono' not found. See #9 in FAQ-BUILD.txt)
 endif
 ifeq ($(RECOMMEND_DEJAVU),1)
-	$(info Nice-to-have font package 'dejavu' not found. See #9 in FAQ-BUILD.txt)
+	$(info Nice-to-have font family 'DejaVu Sans Mono' not found. See #9 in FAQ-BUILD.txt)
 endif
+ifeq ($(RECOMMEND_LIBERATIONSANS),1)
+	$(info Nice-to-have font family 'Liberation Sans' not found. See #9 in FAQ-BUILD.txt)
+endif
+ifeq ($(RECOMMEND_LIBERATIONMONO),1)
+	$(info Nice-to-have font family 'Liberation Mono' not found. See #9 in FAQ-BUILD.txt)
+endif
+
 ifeq ($(INKSCAPE_ONE),0)
 	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
 else
