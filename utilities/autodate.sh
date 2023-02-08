@@ -97,9 +97,25 @@ else
 		commitid="$description"
 	fi
 fi
-month=`date --date="$date_str" +%B`
-year=`date --date="$date_str" +%Y`
-day=`date --date="$date_str" +%e`
+
+if month=`date --date="$date_str" +%B 2>/dev/null`
+then
+	year=`date --date="$date_str" +%Y`
+	day=`date --date="$date_str" +%e`
+else
+	if month=`date -jR -f "%a, %d %b %Y %T %z" "$date_str" +%B 2>/dev/null`
+	then
+		year=`date -jR -f "%a, %d %b %Y %T %z" "$date_str" +%Y`
+		day=`date -jR -f "%a, %d %b %Y %T %z" "$date_str" +%e`
+	else
+		echo "----------------------------------------"
+		echo "Can't use 'date' command for format convert."
+		echo "See #TBD in FAQ-BUILD.txt for further info."
+		echo "----------------------------------------"
+		exit 1
+	fi
+fi
+
 if test -n "$release"
 then
 	release=`env printf '%s %s' '\\\\' "$release"`
