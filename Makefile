@@ -325,8 +325,8 @@ perfbook-hb.tex: perfbook-lt.tex
 	sed -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < $< > $@
 
 perfbook-eb.tex: perfbook-lt.tex
-	sed -e 's/setboolean{ebooksize}{false}/setboolean{ebooksize}{true}/' < $< > $@
-	sed -i 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' $@
+	sed -e 's/setboolean{ebooksize}{false}/setboolean{ebooksize}{true}/' \
+	    -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < $< > $@
 
 perfbook-msns.tex: $(PERFBOOK_BASE)
 	sed -e 's/%msfontstub/\\usepackage{courier}/' < $< > $@
