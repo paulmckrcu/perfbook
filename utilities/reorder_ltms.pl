@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Reorder meta command lines in .litmus source to work around

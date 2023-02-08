@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 #
 # Move line of \QuickE{} below \end{enumerate} to just above
 # the \end{enumerate}.
