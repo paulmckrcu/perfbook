@@ -179,7 +179,7 @@ SOURCES_OF_SNIPPET_ALL := $(shell grep -r -l -F '\begin{snippet}' CodeSamples)
 SOURCES_OF_LITMUS      := $(shell grep -r -l -F '\begin[snippet]' CodeSamples)
 SOURCES_OF_LTMS        := $(patsubst %.litmus,%.ltms,$(SOURCES_OF_LITMUS))
 SOURCES_OF_SNIPPET     := $(filter-out $(SOURCES_OF_LTMS),$(SOURCES_OF_SNIPPET_ALL)) $(SOURCES_OF_LITMUS)
-GEN_SNIPPET_D  = utilities/gen_snippet_d.pl utilities/gen_snippet_d.sh
+GEN_SNIPPET_D  = utilities/gen_snippet_d.pl utilities/gen_snippet_d.sh utilities/precheck.sh
 
 default = $(PERFBOOK_DEFAULT)
 
@@ -209,15 +209,16 @@ BASE_DEPENDS := perfbook.tex $(foreach v,tcb 1c msns mss mstx msr msn msnt sf nq
 .PHONY: help help-official help-full help-semiofficial help-paper help-draft
 .PHONY: help-experimental help-prefixed
 .PHONY: paper-clean periodcheck punctcheck punctcheck-auto
-.PHONY: cleanfigs cleanfigs-eps cleanfigs-svg figs
+.PHONY: cleanfigs cleanfigs-eps cleanfigs-svg figs precheck
 
 all: punctcheck-auto
 
 ifeq ($(MAKECMDGOALS),clean)
 else ifeq ($(MAKECMDGOALS),distclean)
 else ifeq ($(MAKECMDGOALS),neatfreak)
+else ifeq ($(MAKECMDGOALS),precheck)
 else
--include CodeSamples/snippets.d
+  include CodeSamples/snippets.d
 endif
 
 2c: perfbook.pdf
@@ -488,6 +489,7 @@ endif
 endif
 
 CodeSamples/snippets.d: $(SOURCES_OF_SNIPPET) $(GEN_SNIPPET_D)
+	sh ./utilities/precheck.sh
 	sh ./utilities/gen_snippet_d.sh
 
 $(FCVSNIPPETS):
@@ -625,6 +627,9 @@ punctcheck:
 punctcheck-auto: $(targ)
 	utilities/punctcheck.sh
 	utilities/cleverefcheck.sh
+
+precheck:
+	VERBOSE=y sh utilities/precheck.sh
 
 periodcheck: punctcheck
 

@@ -21,18 +21,26 @@ do
         esac
 done
 
+# test for grep -z option
+grep_z_opt=`$GREP --help 2>&1 | $GREP -c -e "-z" -`
 for g in $tex_sources
 do
 	utilities/cleverefcheck.pl $g
-	if $GREP -q -zo -E $CREFPTN $g ; then
-		echo "------" ;
-		if $GREP -q -E $CREFPTN $g ; then
-			$GREP -n -B 2 -A 2 -E $CREFPTN $g
-		else
-			$GREP -zo -B 2 -A 2 -E $CREFPTN $g
-			echo
+	if [ $grep_z_opt -ne 0 ] ; then
+		if $GREP -q -zo -E $CREFPTN $g ; then
+			echo "------" ;
+			if $GREP -q -E $CREFPTN $g ; then
+				$GREP -n -B 2 -A 2 -E $CREFPTN $g
+			else
+				$GREP -zo -B 2 -A 2 -E $CREFPTN $g
+				echo
+			fi
+			echo "------"
+			echo "Need to use \\[Cc]refrange or \\[Cc]lnrefrange in $g."
 		fi
-		echo "------"
-		echo "Need to use \[Cc]refrange or \[Cc]lnrefrange in $g."
 	fi
 done
+if [ $grep_z_opt -eq 0 ] ; then
+	echo "`which $GREP` doesn't know the -z option."
+	echo "Skipping \\crefrange checks."
+fi

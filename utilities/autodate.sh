@@ -110,11 +110,7 @@ else
 		year=`$DATE -jR -f "%a, %d %b %Y %T %z" "$date_str" +%Y`
 		day=`$DATE -jR -f "%a, %d %b %Y %T %z" "$date_str" +%e`
 	else
-		echo "----------------------------------------"
-		echo "Can't use $DATE command for format convert."
-		echo "See #TBD in FAQ-BUILD.txt for further info."
-		echo "----------------------------------------"
-		exit 1
+		exit 1 # in case precheck fails to error-stop
 	fi
 fi
 
