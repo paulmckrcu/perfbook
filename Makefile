@@ -1,4 +1,3 @@
-SHELL = /bin/bash
 LATEX ?= pdflatex
 WHICH = command -v
 
