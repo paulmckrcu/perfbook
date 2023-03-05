@@ -11,6 +11,7 @@ LC_TIME=C
 : ${SED:=sed}
 : ${DATE:=date}
 : ${VERBOSE:=}
+: ${WHICH:=command -v}
 
 fatal=""
 
@@ -68,7 +69,7 @@ if [ "$sed_result" != "OK" -o "$VERBOSE" != "" ] ; then
 	if [ "$sed_result" = "OK" ] ; then
 		echo "OK."
 	else
-		echo "$SED (at `which $SED`) failed the test!"
+		echo "$SED (at `$WHICH $SED`) failed the test!"
 	fi
 fi
 if [ "$date_result" != "OK" -o "$VERBOSE" != "" ] ; then
@@ -79,7 +80,7 @@ if [ "$date_result" != "OK" -o "$VERBOSE" != "" ] ; then
 	echo -n "$date_flavor ... "
 	if [ "$date_flavor" = "Unknown" ] ; then
 		echo
-		echo "Unknown date command found at `which $DATE`."
+		echo "Unknown date command found at `$WHICH $DATE`."
 	else
 		if [ "$month" = "January" ] ; then
 			echo "OK."

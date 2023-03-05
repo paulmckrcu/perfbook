@@ -4,7 +4,7 @@
 #
 # Authors: Akira Yokosawa <akiyks@gmail.com>
 
-EPSTOPDF := $(shell which epstopdf 2>/dev/null)
+EPSTOPDF := $(shell $(WHICH) epstopdf 2>/dev/null)
 GS_953_OR_LATER := $(shell gs --version | grep -c -E "^(9\.5[3-9]|10\.[0-9]).?")
 GS_OPT=--gsopt=-dPDFSETTINGS=/ebook
 

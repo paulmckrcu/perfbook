@@ -1,6 +1,7 @@
 #!/bin/sh
 
 : ${GREP:=grep}
+: ${WHICH:=command -v}
 CREFPTN='\\[Cc](ln)?ref[{][^}]+}\s*[{][^}]+}'
 
 tex_sources_all=`find . -name "*.tex" -print`
@@ -41,6 +42,6 @@ do
 	fi
 done
 if [ $grep_z_opt -eq 0 ] ; then
-	echo "`which $GREP` doesn't know the -z option."
+	echo "`$WHICH $GREP` doesn't know the -z option."
 	echo "Skipping \\crefrange checks."
 fi

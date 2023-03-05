@@ -1,5 +1,6 @@
 SHELL = /bin/bash
 LATEX ?= pdflatex
+WHICH = command -v
 
 GITREFSTAGS := $(shell ls -d .git/refs/tags 2>/dev/null)
 
@@ -101,16 +102,16 @@ PDFTARGETS_OF_EPSOTHER := $(filter-out $(PDFTARGETS_OF_EPSORIG) $(PDFTARGETS_OF_
 BIBSOURCES := bib/*.bib alphapf.bst
 
 # required commands
-LATEX_CMD := $(shell which $(LATEX) 2>/dev/null)
-DOT := $(shell which dot 2>/dev/null)
-FIG2EPS := $(shell which fig2eps 2>/dev/null)
-FIG2DEV := $(shell which fig2dev 2>/dev/null)
-INKSCAPE := $(shell which inkscape 2>/dev/null)
+LATEX_CMD := $(shell $(WHICH) $(LATEX) 2>/dev/null)
+DOT := $(shell $(WHICH) dot 2>/dev/null)
+FIG2EPS := $(shell $(WHICH) fig2eps 2>/dev/null)
+FIG2DEV := $(shell $(WHICH) fig2dev 2>/dev/null)
+INKSCAPE := $(shell $(WHICH) inkscape 2>/dev/null)
 ifdef INKSCAPE
   INKSCAPE_ONE := $(shell inkscape --version 2>/dev/null | grep -c "Inkscape 1")
 endif
-LATEXPAND := $(shell which latexpand 2>/dev/null)
-QPDF := $(shell which qpdf 2>/dev/null)
+LATEXPAND := $(shell $(WHICH) latexpand 2>/dev/null)
+QPDF := $(shell $(WHICH) qpdf 2>/dev/null)
 
 # required fonts
 STEELFONT := $(shell fc-list | grep -c -i steel)

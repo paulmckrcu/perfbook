@@ -4,7 +4,7 @@
 #
 # Authors: Akira Yokosawa <akiyks@gmail.com>
 
-A2PING := $(shell which a2ping 2>/dev/null)
+A2PING := $(shell $(WHICH) a2ping 2>/dev/null)
 
 ifdef A2PING
   GS_950_OR_LATER := $(shell gs --version | grep -c -E "^(9\.[5-9]|10\.[0-9]).?")
