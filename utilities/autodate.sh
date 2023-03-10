@@ -19,13 +19,15 @@
 # along with this program; if not, you can access it online at
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
-# Copyright (C) Akira Yokosawa, 2017--2021
+# Copyright (C) Akira Yokosawa, 2017--2021, 2023
 #
 # Authors: Akira Yokosawa <akiyks@gmail.com>
 
 export LC_TIME=C
 qqzbg="false"
 fn="autodate.tex"
+
+: ${DATE:=date}
 
 # check if we have tcolorbox
 tcolorbox_sty=`kpsewhich tcolorbox.sty`
@@ -38,7 +40,7 @@ fi
 # check if we are in git repository
 if ! test -e .git
 then
-	date_str=`date -R`
+	date_str=`$DATE -R`
 	modified=""
 	release=""
 	commitid=""
@@ -97,9 +99,21 @@ else
 		commitid="$description"
 	fi
 fi
-month=`date --date="$date_str" +%B`
-year=`date --date="$date_str" +%Y`
-day=`date --date="$date_str" +%e`
+
+if month=`$DATE --date="$date_str" +%B 2>/dev/null`
+then
+	year=`$DATE --date="$date_str" +%Y`
+	day=`$DATE --date="$date_str" +%e`
+else
+	if month=`$DATE -jR -f "%a, %d %b %Y %T %z" "$date_str" +%B 2>/dev/null`
+	then
+		year=`$DATE -jR -f "%a, %d %b %Y %T %z" "$date_str" +%Y`
+		day=`$DATE -jR -f "%a, %d %b %Y %T %z" "$date_str" +%e`
+	else
+		exit 1 # in case precheck fails to error-stop
+	fi
+fi
+
 if test -n "$release"
 then
 	release=`env printf '%s %s' '\\\\' "$release"`

@@ -1,5 +1,5 @@
-SHELL = /bin/bash
 LATEX ?= pdflatex
+WHICH = command -v
 
 GITREFSTAGS := $(shell ls -d .git/refs/tags 2>/dev/null)
 
@@ -101,15 +101,16 @@ PDFTARGETS_OF_EPSOTHER := $(filter-out $(PDFTARGETS_OF_EPSORIG) $(PDFTARGETS_OF_
 BIBSOURCES := bib/*.bib alphapf.bst
 
 # required commands
-LATEX_CMD := $(shell which $(LATEX) 2>/dev/null)
-DOT := $(shell which dot 2>/dev/null)
-FIG2EPS := $(shell which fig2eps 2>/dev/null)
-INKSCAPE := $(shell which inkscape 2>/dev/null)
+LATEX_CMD := $(shell $(WHICH) $(LATEX) 2>/dev/null)
+DOT := $(shell $(WHICH) dot 2>/dev/null)
+FIG2EPS := $(shell $(WHICH) fig2eps 2>/dev/null)
+FIG2DEV := $(shell $(WHICH) fig2dev 2>/dev/null)
+INKSCAPE := $(shell $(WHICH) inkscape 2>/dev/null)
 ifdef INKSCAPE
   INKSCAPE_ONE := $(shell inkscape --version 2>/dev/null | grep -c "Inkscape 1")
 endif
-LATEXPAND := $(shell which latexpand 2>/dev/null)
-QPDF := $(shell which qpdf 2>/dev/null)
+LATEXPAND := $(shell $(WHICH) latexpand 2>/dev/null)
+QPDF := $(shell $(WHICH) qpdf 2>/dev/null)
 
 # required fonts
 STEELFONT := $(shell fc-list | grep -c -i steel)
@@ -174,14 +175,11 @@ LINEREF_ENV_END     := $(shell grep -l -F '\end{lineref}'     $(LATEXSOURCES))
 LINELABEL_ENV := $(sort $(LINELABEL_ENV_BEGIN) $(LINELABEL_ENV_END))
 LINEREF_ENV   := $(sort $(LINEREF_ENV_BEGIN) $(LINEREF_ENV_END))
 
-CREFPTN    := '\\[Cc](ln)?ref{[^}]+}\s*{[^}]+}'
-CREFPAIR   := $(shell grep -l -zo -E $(CREFPTN)   $(LATEXSOURCES))
-
 SOURCES_OF_SNIPPET_ALL := $(shell grep -r -l -F '\begin{snippet}' CodeSamples)
 SOURCES_OF_LITMUS      := $(shell grep -r -l -F '\begin[snippet]' CodeSamples)
 SOURCES_OF_LTMS        := $(patsubst %.litmus,%.ltms,$(SOURCES_OF_LITMUS))
 SOURCES_OF_SNIPPET     := $(filter-out $(SOURCES_OF_LTMS),$(SOURCES_OF_SNIPPET_ALL)) $(SOURCES_OF_LITMUS)
-GEN_SNIPPET_D  = utilities/gen_snippet_d.pl utilities/gen_snippet_d.sh
+GEN_SNIPPET_D  = utilities/gen_snippet_d.pl utilities/gen_snippet_d.sh utilities/precheck.sh
 
 default = $(PERFBOOK_DEFAULT)
 
@@ -211,15 +209,16 @@ BASE_DEPENDS := perfbook.tex $(foreach v,tcb 1c msns mss mstx msr msn msnt sf nq
 .PHONY: help help-official help-full help-semiofficial help-paper help-draft
 .PHONY: help-experimental help-prefixed
 .PHONY: paper-clean periodcheck punctcheck punctcheck-auto
-.PHONY: cleanfigs cleanfigs-eps cleanfigs-svg figs
+.PHONY: cleanfigs cleanfigs-eps cleanfigs-svg figs precheck
 
 all: punctcheck-auto
 
 ifeq ($(MAKECMDGOALS),clean)
 else ifeq ($(MAKECMDGOALS),distclean)
 else ifeq ($(MAKECMDGOALS),neatfreak)
+else ifeq ($(MAKECMDGOALS),precheck)
 else
--include CodeSamples/snippets.d
+  include CodeSamples/snippets.d
 endif
 
 2c: perfbook.pdf
@@ -281,18 +280,6 @@ endif
 		echo "Substitute 'fcvref' for 'lineref' in $(LINEREF_ENV)." ; \
 		exit 1 ; \
 	fi
-	@if [ ! -z "$(CREFPAIR)" -a "$(CREFPAIR)" != " " ]; then \
-		echo "------" ; \
-		if grep -q -E $(CREFPTN) $(CREFPAIR) ; then \
-			grep -n -B 2 -A 2 -E $(CREFPTN) $(CREFPAIR) ; \
-		else \
-			grep -zo -B 2 -A 2 -E $(CREFPTN) $(CREFPAIR) ; \
-			echo ; \
-		fi ; \
-		echo "------" ; \
-		echo "Need to use \[Cc]refrange or \[Cc]lnrefrangein $(CREFPAIR)." ; \
-		exit 1 ; \
-	fi
 	echo > qqz.tex
 	echo > contrib.tex
 	echo > origpub.tex
@@ -325,8 +312,8 @@ perfbook-hb.tex: perfbook-lt.tex
 	sed -e 's/setboolean{hardcover}{false}/setboolean{hardcover}{true}/' < $< > $@
 
 perfbook-eb.tex: perfbook-lt.tex
-	sed -e 's/setboolean{ebooksize}{false}/setboolean{ebooksize}{true}/' < $< > $@
-	sed -i 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' $@
+	sed -e 's/setboolean{ebooksize}{false}/setboolean{ebooksize}{true}/' \
+	    -e 's/setboolean{twocolumn}{true}/setboolean{twocolumn}{false}/' < $< > $@
 
 perfbook-msns.tex: $(PERFBOOK_BASE)
 	sed -e 's/%msfontstub/\\usepackage{courier}/' < $< > $@
@@ -441,10 +428,13 @@ endif
 $(EPSSOURCES_FROM_FIG): $(FIXANEPSFONTS) $(FIXFONTS)
 $(EPSSOURCES_FROM_FIG): %.eps: %.fig
 	@echo "$< --> $(suffix $@)"
-ifndef FIG2EPS
-	$(error $< --> $@: fig2eps not found. Please install fig2ps)
-endif
+ifdef FIG2EPS
 	@fig2eps --nogv $< > /dev/null 2>&1
+else ifdef FIG2DEV
+	@fig2dev -L eps $< $@
+else
+	$(error $< --> $@: Neither fig2eps nor fig2dev found. Please install fig2ps or transfig (or fig2dev))
+endif
 	@sh $(FIXANEPSFONTS) $@
 
 # .eps --> .pdf rules
@@ -499,6 +489,7 @@ endif
 endif
 
 CodeSamples/snippets.d: $(SOURCES_OF_SNIPPET) $(GEN_SNIPPET_D)
+	sh ./utilities/precheck.sh
 	sh ./utilities/gen_snippet_d.sh
 
 $(FCVSNIPPETS):
@@ -636,6 +627,9 @@ punctcheck:
 punctcheck-auto: $(targ)
 	utilities/punctcheck.sh
 	utilities/cleverefcheck.sh
+
+precheck:
+	VERBOSE=y sh utilities/precheck.sh
 
 periodcheck: punctcheck
 

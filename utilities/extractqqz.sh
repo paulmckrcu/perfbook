@@ -22,11 +22,14 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
+: ${SED:=sed}
+# Requirement: sed with multi-line editing enabled.
+
 echo "% mainfile: perfbook.tex"
-sed -n -e '/^\\QuickQuizChapter{/p' \
-       -e '/^\\E\?QuickQuiz[BEM]\?{/,/^}\\E\?QuickQuizEnd[BEM]\?/p' |
-sed -e 's/^\\QuickQuizChapter{/\\QuickQAC{/' \
-    -e 's/^\\E\?QuickQuiz[BEM]\?{/\\QuickQ{}/' \
-    -e 's/^}\\E\?QuickQuizAnswer[BEM]\?{/\\QuickA{}/' \
-    -e 's/^\\QContributedBy{/\\ContributedBy{/' \
-    -e 's/^}\\E\?QuickQuizEnd[BEM]\?/\\QuickE{}/'
+$SED -n -e '/^\\QuickQuizChapter{/p' \
+        -e '/^\\E\?QuickQuiz[BEM]\?{/,/^}\\E\?QuickQuizEnd[BEM]\?/p' |
+$SED -e 's/^\\QuickQuizChapter{/\\QuickQAC{/' \
+     -e 's/^\\E\?QuickQuiz[BEM]\?{/\\QuickQ{}/' \
+     -e 's/^}\\E\?QuickQuizAnswer[BEM]\?{/\\QuickA{}/' \
+     -e 's/^\\QContributedBy{/\\ContributedBy{/' \
+     -e 's/^}\\E\?QuickQuizEnd[BEM]\?/\\QuickE{}/'
