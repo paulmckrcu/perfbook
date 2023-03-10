@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Check LaTeX source of snippet extracted by fcvextract.pl

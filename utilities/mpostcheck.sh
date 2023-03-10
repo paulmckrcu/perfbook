@@ -111,6 +111,8 @@
 #   follow the instruction given there.
 #-------------------------------------------------------------------
 
+: ${WHICH:=command -v}
+
 dogrep() {
 	texsrc=`find . -name "*.tex" -print`
 	bibsrc=`find . -name "*.bib" -print`
@@ -130,7 +132,7 @@ dogrep() {
 	fi
 }
 
-if which kpsewhich >/dev/null
+if $WHICH kpsewhich >/dev/null
 then
 	command_list_orig=`kpsewhich -var-value=shell_escape_commands`
 	command_list=`echo $command_list_orig | sed -E "s/r-u?p?mpost,//g"`
