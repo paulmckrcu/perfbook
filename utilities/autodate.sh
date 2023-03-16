@@ -28,6 +28,7 @@ qqzbg="false"
 fn="autodate.tex"
 
 : ${DATE:=date}
+: ${SED:=sed}
 
 # check if we have tcolorbox
 tcolorbox_sty=`kpsewhich tcolorbox.sty`
@@ -77,24 +78,24 @@ else
 			esac
 			case "$description" in
 		Edition[.-][0-9]*)
-			ednum="`echo $description | sed -e 's/^Edition[.-]\([0-9]*\).*$/\1/'`"
+			ednum="`echo $description | $SED -e 's/^Edition[.-]\([0-9]*\).*$/\1/'`"
 			release=`env printf '\\Ordinalstringnum{%s} %s' $ednum "$release"`
 			;;
 		esac
 		case "$description" in
 		*-rc[0-9]*)
-			rc="`echo $description | sed -e 's/^.*-rc\(.*\)$/\1/'`"
+			rc="`echo $description | $SED -e 's/^.*-rc\(.*\)$/\1/'`"
 			release="$release, Release Candidate $rc"
 			;;
 		esac
 		;;
 		*)
 			release=`env printf 'Tag: \\\texttt{%s}' "$description"`
-			commitid=`echo $description | sed -e 's/.*-\(g.*\)/\1/'`
+			commitid=`echo $description | $SED -e 's/.*-\(g.*\)/\1/'`
 			;;
 		esac
 	else
-		description=`git log --max-count=1 | head -n 1 | sed -e 's/^commit \([0-9a-f]\{12\}\).*$/g\1/'`
+		description=`git log --max-count=1 | head -n 1 | $SED -e 's/^commit \([0-9a-f]\{12\}\).*$/g\1/'`
 		release=`env printf 'Commit: \\\texttt{%s} (shallow clone)' "$description"`
 		commitid="$description"
 	fi
@@ -125,7 +126,7 @@ env printf '\\newcommand{\\commitid}{%s}\n' $commitid$modified >> $fn
 env printf '\\IfQqzBg{}{\\setboolean{qqzbg}{%s}}\n' $qqzbg >> $fn
 
 # command for newer tcolorbox (4.40 or later) to have backward-compatible skips
-tcbversion=`grep ProvidesPackage $tcolorbox_sty | sed -e 's/.*version \([0-9]\+\.[0-9]\+\).*/\1/g'`
+tcbversion=`grep ProvidesPackage $tcolorbox_sty | $SED -e 's/.*version \([0-9]\+\.[0-9]\+\).*/\1/g'`
 tcbold=4.39
 env printf '%% tcolorbox version: %s\n' $tcbversion >> $fn
 if [ $(echo $tcbversion $tcbold | awk '{if ($1 > $2) print 1;}') ] ;
