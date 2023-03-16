@@ -15,19 +15,15 @@ LC_TIME=C
 
 fatal=""
 
-tmp_file_dir=$(mktemp -d)
-tmp_file=$tmp_file_dir/precheck
-
-# test sed (multi-line edit)
+# test sed (repeat pattern \? and \+)
 sed_result=""
-sh utilities/extractqqz.sh < count/count.tex > $tmp_file 2> /dev/null
-if grep -q -F "QuickQ{}" $tmp_file ; then
+sed_out=`echo aaabbc | $SED -e 's/[ab]\+c\?//'`
+if [ "$sed_out" = "" ] ; then
 	sed_result="OK"
 else
 	sed_result="NG"
 	fatal="sed $fatal"
 fi
-rm -f $tmp_file
 
 # test date (format conversion)
 date_result=""
@@ -50,8 +46,6 @@ else
 	fatal="date-format $fatal"
 fi
 
-rm -rf $tmp_file_dir
-
 if [ "$fatal" = "" -a "$VERBOSE" = "" ] ; then
 	exit 0
 fi
@@ -63,9 +57,9 @@ echo "==========================================="
 
 if [ "$sed_result" != "OK" -o "$VERBOSE" != "" ] ; then
 	echo
-	echo "------------------------------------------"
-	echo " testing sed (multi-line edit)            "
-	echo "------------------------------------------"
+	echo '------------------------------------------'
+	echo ' testing sed (repeat patterns \? and \+)  '
+	echo '------------------------------------------'
 	if [ "$sed_result" = "OK" ] ; then
 		echo "OK."
 	else
