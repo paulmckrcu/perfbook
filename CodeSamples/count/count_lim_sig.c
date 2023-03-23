@@ -56,12 +56,11 @@ static void flush_local_count_sig(int unused)	//\lnlbl{flush_sig:b}
 {
 	if (READ_ONCE(theft) != THEFT_REQ)	//\lnlbl{flush_sig:check:REQ}
 		return;				//\lnlbl{flush_sig:return:n}
-	smp_mb();				//\lnlbl{flush_sig:mb:1}
 	WRITE_ONCE(theft, THEFT_ACK);		//\lnlbl{flush_sig:set:ACK}
 	if (!counting) {			//\lnlbl{flush_sig:check:fast}
+		smp_mb();
 		WRITE_ONCE(theft, THEFT_READY);	//\lnlbl{flush_sig:set:READY}
 	}
-	smp_mb();
 }						//\lnlbl{flush_sig:e}
 
 static void flush_local_count(void)			//\lnlbl{flush:b}
