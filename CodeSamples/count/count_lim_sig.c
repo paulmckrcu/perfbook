@@ -81,7 +81,7 @@ static void flush_local_count(void)			//\lnlbl{flush:b}
 	for_each_tid(t, tid) {				//\lnlbl{flush:loop2:b}
 		if (theftp[t] == NULL)			//\lnlbl{flush:skip:nonexist}
 			continue;			//\lnlbl{flush:next2}
-		while (READ_ONCE(*theftp[t]) != THEFT_READY) {//\lnlbl{flush:loop3:b}
+		while (smp_load_acquire(theftp[t]) != THEFT_READY) {//\lnlbl{flush:loop3:b}
 			poll(NULL, 0, 1);		//\lnlbl{flush:block}
 			if (READ_ONCE(*theftp[t]) == THEFT_REQ)//\lnlbl{flush:check:REQ}
 				pthread_kill(tid, SIGUSR1);//\lnlbl{flush:signal2}
@@ -90,7 +90,7 @@ static void flush_local_count(void)			//\lnlbl{flush:b}
 		*counterp[t] = 0;
 		globalreserve -= *countermaxp[t];
 		*countermaxp[t] = 0;			//\lnlbl{flush:thiev:e}
-		WRITE_ONCE(*theftp[t], THEFT_IDLE);	//\lnlbl{flush:IDLE}
+		smp_store_release(theftp[t], THEFT_IDLE);	//\lnlbl{flush:IDLE}
 	}						//\lnlbl{flush:loop2:e}
 }							//\lnlbl{flush:e}
 
@@ -116,7 +116,7 @@ int add_count(unsigned long delta)			//\lnlbl{b}
 
 	WRITE_ONCE(counting, 1);			//\lnlbl{fast:b}
 	barrier();					//\lnlbl{barrier:1}
-	if (READ_ONCE(theft) <= THEFT_REQ &&		//\lnlbl{check:b}
+	if (smp_load_acquire(&theft) <= THEFT_REQ &&		//\lnlbl{check:b}
 	    countermax - counter >= delta) {		//\lnlbl{check:e}
 		WRITE_ONCE(counter, counter + delta);	//\lnlbl{add:f}
 		fastpath = 1;				//\lnlbl{fasttaken}
@@ -155,7 +155,7 @@ int sub_count(unsigned long delta)
 
 	WRITE_ONCE(counting, 1);
 	barrier();
-	if (READ_ONCE(theft) <= THEFT_REQ &&
+	if (smp_load_acquire(&theft) <= THEFT_REQ &&
 	    counter >= delta) {
 		WRITE_ONCE(counter, counter - delta);
 		fastpath = 1;
