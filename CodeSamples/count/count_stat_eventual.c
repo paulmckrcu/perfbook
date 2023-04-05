@@ -51,8 +51,7 @@ void *eventual(void *arg)				//\lnlbl{eventual:b}
 		WRITE_ONCE(global_count, sum);
 		poll(NULL, 0, 1);
 		if (READ_ONCE(stopflag)) {
-			smp_mb();
-			WRITE_ONCE(stopflag, stopflag + 1);
+			smp_store_release(&stopflag, stopflag + 1);
 		}
 	}
 	return NULL;
@@ -73,9 +72,8 @@ void count_init(void)					//\lnlbl{init:b}
 void count_cleanup(void)				//\lnlbl{cleanup:b}
 {
 	WRITE_ONCE(stopflag, 1);
-	while (READ_ONCE(stopflag) < 3)
+	while (smp_load_acquire(&stopflag) < 3)
 		poll(NULL, 0, 1);
-	smp_mb();
 }							//\lnlbl{cleanup:e}
 //\end{snippet}
 
