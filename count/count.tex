@@ -2425,12 +2425,12 @@ handler used in the theft process.
 \Clnref{check:REQ,return:n} check to see if
 the \co{theft} state is REQ, and, if not
 returns without change.
-\Clnref{mb:1} executes a \IX{memory barrier} to ensure that the sampling
-of the theft variable happens before any change to that variable.
 \Clnref{set:ACK} sets the \co{theft} state to ACK, and, if
 \clnref{check:fast} sees that
-this thread's fastpaths are not running, \clnref{set:READY} sets the \co{theft}
-state to READY\@.
+this thread's fastpaths are not running, \clnref{set:READY} uses
+\co{smp_store_release()} to set the \co{theft}
+state to READY, further ensuring that any change to \co{counter} in
+the fastpath happens before this change of \co{theft} to READY\@.
 \end{fcvref}
 
 \begin{listing}
@@ -2595,9 +2595,11 @@ handlers to undertake theft.
 \Clnref{barrier:3} again disables compiler reordering, and then
 \clnref{check:ACK}
 checks to see if the signal handler deferred the \co{theft}
-state-change to READY, and, if so, \clnref{mb} executes a memory
-barrier to ensure that any CPU that sees \clnref{READY} setting state to
-READY also sees the effects of \clnref{add:f}.
+state-change to READY, and, if so, \clnref{READY} uses
+\co{smp_store_release()} to set the \co{theft} state to
+READY, further ensuring that
+any CPU that sees the READY state also sees the effects
+of \clnref{add:f}.
 If the fastpath addition at \clnref{add:f} was executed, then
 \clnref{return:fs} returns
 success.

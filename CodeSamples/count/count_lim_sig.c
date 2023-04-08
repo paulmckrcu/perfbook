@@ -56,12 +56,10 @@ static void flush_local_count_sig(int unused)	//\lnlbl{flush_sig:b}
 {
 	if (READ_ONCE(theft) != THEFT_REQ)	//\lnlbl{flush_sig:check:REQ}
 		return;				//\lnlbl{flush_sig:return:n}
-	smp_mb();				//\lnlbl{flush_sig:mb:1}
 	WRITE_ONCE(theft, THEFT_ACK);		//\lnlbl{flush_sig:set:ACK}
 	if (!counting) {			//\lnlbl{flush_sig:check:fast}
-		WRITE_ONCE(theft, THEFT_READY);	//\lnlbl{flush_sig:set:READY}
+		smp_store_release(&theft, THEFT_READY);	//\lnlbl{flush_sig:set:READY}
 	}
-	smp_mb();
 }						//\lnlbl{flush_sig:e}
 
 static void flush_local_count(void)			//\lnlbl{flush:b}
@@ -125,8 +123,7 @@ int add_count(unsigned long delta)			//\lnlbl{b}
 	WRITE_ONCE(counting, 0);			//\lnlbl{clearcnt}
 	barrier();					//\lnlbl{barrier:3}
 	if (READ_ONCE(theft) == THEFT_ACK) {		//\lnlbl{check:ACK}
-		smp_mb();				//\lnlbl{mb}
-		WRITE_ONCE(theft, THEFT_READY);		//\lnlbl{READY}
+		smp_store_release(&theft, THEFT_READY);		//\lnlbl{READY}
 	}
 	if (fastpath)
 		return 1;				//\lnlbl{return:fs}
@@ -164,8 +161,7 @@ int sub_count(unsigned long delta)
 	WRITE_ONCE(counting, 0);
 	barrier();
 	if (READ_ONCE(theft) == THEFT_ACK) {
-		smp_mb();
-		WRITE_ONCE(theft, THEFT_READY);
+		smp_store_release(&theft, THEFT_READY);
 	}
 	if (fastpath)
 		return 1;
