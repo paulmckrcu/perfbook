@@ -2441,28 +2441,11 @@ the fastpath happens before this change of \co{theft} to READY\@.
 
 \QuickQuiz{
 	In \cref{lst:count:Signal-Theft Limit Counter Value-Migration Functions}'s
-	function \co{flush_local_count_sig()}, why are there
-	\co{READ_ONCE()} and \co{WRITE_ONCE()} wrappers around
-	the uses of the
-	\co{theft} per-thread variable?
+	doesn't \co{flush_local_count_sig()} need stronger memory barriers?
 }\QuickQuizAnswer{
-	\begin{fcvref}[ln:count:count_lim_sig:migration:flush_sig]
-	The first one (on \clnref{check:REQ}) can be argued to be unnecessary.
-	The last two (\clnref{set:ACK,set:READY}) are important.
-	If these are removed, the compiler would be within its rights
-	to rewrite \clnrefrange{set:ACK}{set:READY} as follows:
-	\end{fcvref}
-
-\begin{VerbatimN}[firstnumber=14]
-theft = THEFT_READY;
-if (counting) {
-	theft = THEFT_ACK;
-}
-\end{VerbatimN}
-
-	This would be fatal, as the slowpath might see the transient
-	value of \co{THEFT_READY}, and start stealing before the
-	corresponding thread was ready.
+	No, that \co{smp_store_release()} suffices because this code
+	communicates only with \co{flush_local_count()}, and there is
+	no need for store-to-load ordering.
 }\QuickQuizEnd
 
 \begin{fcvref}[ln:count:count_lim_sig:migration:flush]
