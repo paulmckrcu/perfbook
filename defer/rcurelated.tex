@@ -32,6 +32,63 @@ improvements for scalability, robustness, real-time response, energy
 efficiency, and specialized use cases.
 As of 2021, Linux-kernel RCU is still under active development.
 
+\QuickQuiz{
+	Why didn't Kung's and Lehman's paper result in immediate use
+	of RCU?
+}\QuickQuizAnswer{
+	One reason is that Kung and Lehman were simply ahead of their
+	time.
+	Another reason was that their approach, ground-breaking though
+	it was, did not take a number of software-engineering and
+	performance issues into account.
+
+	To see that they were ahead of their time, consider that three
+	years after their paper was published, Paul was working on a
+	PDP-11 system running BSD 2.8.
+	This system lacked any sort of automatic configuration, which
+	meant that any hardware modification, including adding a new
+	disk drive, required hand-editing and rebuilding the kernel.
+	Furthermore, this was a single-CPU system, which meant that
+	full-system synchronization was a simple matter of disabling
+	interrupts.
+
+	Fast-forward a number of years, and multicore systems permitting
+	runtime changes in hardware configuration were commonplace.
+	This meant that the hardware configuration data that was implicitly
+	represented in 1980s kernel source code was now a mutable
+	data structure that was accessed on every I/O\@.
+	Such data structures rarely change, but could change at any time.
+	And this read-mostly property applies to many other new-age
+	data structures, including those concerning network routing,
+	security policies, software configuration, and much else besides.
+	There was thus much more opportunity for RCU to demonstrate its
+	benefits in the 1990s and 2000s than in the 1980s.
+
+	Kung's and Lehman's software-engineering sins included failing
+	to mark readers (thus presenting debugging difficulties),
+	failing to provide a clean RCU API (thus tying their mechanism
+	to a specific data structure), and failing to allow for any
+	post-grace-period operation other than freeing memory (thus
+	disallowing a number of RCU use cases).
+
+	Kung and Lehman presented two garbage-collection strategies.
+	The first waited for all processes running at a given time
+	to terminate, which represented another software-engineering
+	sin in that it ruled out their mechanism's use in software that
+	is expected to run indefinitely.
+	The second used per-object reference counting, which greatly
+	complicates their read-side code (thus representing yet
+	another software-engineering sin), and, on modern hardware,
+	results in severe cache-miss overhead (thus representing a
+	performance sin, see for example
+	\cref{fig:defer:Performance of RCU vs. Reference Counting,fig:defer:Performance of Preemptible RCU vs. Reference Counting}).
+
+	Kung's and Lehman's paper is nevertheless an impressive piece
+	of work, especially considering that much of the later work
+	(both independent and not) committed many of these same sins,
+	plus others as well.
+}\QuickQuizEnd
+
 However, in the mid 2010s, there was a welcome upsurge in RCU research
 and development across a number of communities and
 institutions~\cite{FransKaashoek2015ParallelOSHistory}.
