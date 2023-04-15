@@ -3390,7 +3390,8 @@ all the shared-variable shenanigans called out in
 \cref{sec:toolsoftrade:Shared-Variable Shenanigans}.
 
 Of course, each CPU sees its own accesses in order and the compiler
-always has fully accounted for intra-CPU shenanigans.
+always has fully accounted for intra-CPU shenanigans, give or take
+the occasional compiler bug.
 These facts are what enables the lockless fastpaths in
 \co{memblock_alloc()} and \co{memblock_free()}, which are shown in
 \cref{lst:SMPdesign:Allocator-Cache Allocator Function,%
@@ -3400,10 +3401,10 @@ However, this is also why the developer is responsible for providing
 appropriate ordering (for example, by using \co{smp_store_release()})
 when publishing a pointer to a newly allocated block of memory.
 After all, in the CPU-local case, the allocator has not necessarily
-provided any ordering.
+provided any cross-CPU ordering.
 
-However, the allocator must provide ordering when rebalancing its
-per-thread pools.
+This means that the allocator must provide ordering when rebalancing
+its per-thread pools.
 This ordering is provided by the calls to \co{spin_lock()} and
 \co{spin_unlock()} from \co{memblock_alloc()} and \co{memblock_free()}.
 For any block that has migrated from one thread to another, the old
@@ -3456,9 +3457,9 @@ As it turns out, quite a bit:
 \begin{enumerate}
 \item	Are CPUs, threads, or compilers allowed to pull memory accesses
 	into a given lock-based critical section?
-\item	Will a CPU or thread holding a given lock also see accesses
-	executed by CPUs and threads before they last acquired that
-	same lock, and vice versa?
+\item	Will a CPU or thread holding a given lock also be guaranteed
+	to see accesses executed by CPUs and threads before they last
+	acquired that same lock, and vice versa?
 \item	Suppose that a given CPU or thread executes one access
 	(call it ``A''), releases a lock, reacquires that same lock,
 	then executes another access (call it ``B'')\@.
@@ -3474,7 +3475,8 @@ The reaction to some or even all of these questions might well be ``Why
 would anyone do \emph{that}?''
 However, any complete mathematical definition of locking must have
 answers to all of these questions.
-Therefore, the following sections address these questions.
+Therefore, the following sections address these questions in the context
+of the Linux kernel.
 
 \subsubsection{Accesses Into Critical Sections?}
 \label{sec:memorder:Accesses Into Critical Sections?}
@@ -3483,20 +3485,20 @@ Can memory accesses be reordered into lock-based critical sections?
 
 \begin{listing}
 \input{CodeSamples/formal/herd/C-Lock-before-into@whole.fcv}
-\caption{Prior Accesses Into Critical Section}
-\label{lst:memorder:Prior Accesses Into Critical Section}
+\caption{Prior Accesses Into Critical Section (Ordering?)}
+\label{lst:memorder:Prior Accesses Into Critical Section (Ordering?)}
 \end{listing}
 
 \begin{listing}
 \input{CodeSamples/formal/herd/C-Lock-after-into@whole.fcv}
-\caption{Subsequent Accesses Into Critical Section}
-\label{lst:memorder:Subsequent Accesses Into Critical Section}
+\caption{Subsequent Accesses Into Critical Section (Ordering?)}
+\label{lst:memorder:Subsequent Accesses Into Critical Section (Ordering?)}
 \end{listing}
 
 Within the context of the Linux-kernel memory model, the simple answer
 is ``yes''.
 This may be verified by running the litmus tests shown in
-\cref{lst:memorder:Prior Accesses Into Critical Section,lst:memorder:Subsequent Accesses Into Critical Section}
+\cref{lst:memorder:Prior Accesses Into Critical Section (Ordering?),lst:memorder:Subsequent Accesses Into Critical Section (Ordering?)}
 (\path{C-Lock-before-into.litmus} and \path{C-Lock-after-into.litmus},
 respectively), both of which will yield the \co{Sometimes} result.
 This result indicates that the \co{exists} clause can be satisfied, that
@@ -3510,11 +3512,11 @@ For example, locking implementations that run only on the x86 CPU
 family will have lock-acquisition primitives that fully order the lock
 acquisition with any prior and any subsequent accesses.
 Therefore, on such systems the ordering shown in
-\cref{lst:memorder:Prior Accesses Into Critical Section}
+\cref{lst:memorder:Prior Accesses Into Critical Section (Ordering?)}
 comes for free.
 There are x86 lock-release implementations that are weakly ordered,
 thus failing to provide the ordering shown in
-\cref{lst:memorder:Subsequent Accesses Into Critical Section},
+\cref{lst:memorder:Subsequent Accesses Into Critical Section (Ordering?)},
 but an implementation could nevertheless choose to guarantee this ordering.
 
 For their part, weakly ordered systems might well choose to execute
@@ -3595,12 +3597,12 @@ critical sections as being ordered?
 
 \begin{listing}
 \input{CodeSamples/formal/herd/C-Lock-across-unlock-lock-1@whole.fcv}
-\caption{Accesses Between Same-CPU Critical Sections}
-\label{lst:memorder:Accesses Between Same-CPU Critical Sections}
+\caption{Accesses Between Same-CPU Critical Sections (Ordering?)}
+\label{lst:memorder:Accesses Between Same-CPU Critical Sections (Ordering?)}
 \end{listing}
 
 This question can be answered for the Linux kernel by referring to
-\cref{lst:memorder:Accesses Between Same-CPU Critical Sections}
+\cref{lst:memorder:Accesses Between Same-CPU Critical Sections (Ordering?)}
 (\path{C-Lock-across-unlock-lock-1.litmus}), which
 shows an example where \co{P(0)} places its write and read in two
 different critical sections for the same lock.
@@ -3620,12 +3622,12 @@ But what if the two critical sections run on different CPUs or threads?
 
 \begin{listing}
 \input{CodeSamples/formal/herd/C-Lock-across-unlock-lock-2@whole.fcv}
-\caption{Accesses Between Different-CPU Critical Sections}
-\label{lst:memorder:Accesses Between Different-CPU Critical Sections}
+\caption{Accesses Between Different-CPU Critical Sections (Ordering?)}
+\label{lst:memorder:Accesses Between Different-CPU Critical Sections (Ordering?)}
 \end{listing}
 
 This question is answered for the Linux kernel by referring to
-\cref{lst:memorder:Accesses Between Different-CPU Critical Sections}
+\cref{lst:memorder:Accesses Between Different-CPU Critical Sections (Ordering?)}
 (\path{C-Lock-across-unlock-lock-2.litmus}),
 in which the first lock acquisition is executed by \co{P0()} and the
 second lock acquisition is executed by \co{P1()}.
@@ -3675,7 +3677,7 @@ test and see this for themselves.
 This situation can seem counter-intuitive, but it is rare for code to
 care.
 This approach also allows certain weakly ordered systems to implement
-more efficient locks.
+locks more efficiently.
 
 \subsubsection{Ordering for \tco{spin_is_locked()}?}
 \label{sec:memorder:Ordering for spin-is-locked()?}
@@ -3733,6 +3735,8 @@ than emulating even a trivial implementation.
 This should be no surprise, given the combinatorial explosion experienced
 by present-day formal-verification tools with increases in the number of
 memory accesses executed by the code being modeled.
+Splitting the modeling at API boundaries can therefore result in
+combinatorial implosion.
 
 Another reason is that a trivial implementation might needlessly constrain
 either real implementations or real use cases.
@@ -3818,7 +3822,7 @@ list of questions:\footnote{
 	accesses following that critical section?
 \item	What happens in situations involving more than one RCU read-side
 	critical section and/or more than one RCU grace period?
-\item	What happens when RCU is mixed with other memory-ordering
+\item	What happens when RCU is combined with other memory-ordering
 	mechanisms?
 \end{enumerate}
 
@@ -3864,7 +3868,8 @@ are no-ops in the \IXacr{qsbr} implementation of RCU\@.
 
 In contrast with RCU readers, the RCU update-side functions
 \co{synchronize_rcu()} and \co{synchronize_rcu_expedited()}
-provide memory ordering at least as strong as \co{smp_mb()},
+provide memory ordering at least as strong as \co{smp_mb()},\footnote{
+	And also way more expensive!}
 as can be seen by running \co{herd} on the litmus test shown in
 \cref{lst:memorder:RCU Updaters Provide Full Ordering}.
 This test's cycle is prohibited, just as it would with \co{smp_mb()}.
@@ -4020,11 +4025,10 @@ that is, both instances of \co{r2} can have final values of zero.
 This might seem strange in light of the fact that empty RCU
 read-side critical sections can provide ordering.
 And it is true that QSBR implementations of RCU would in fact forbid
-this outcome, due to the fact that preemption would be disabled across
-the entirety of \co{P1()}'s function body, so that \co{P1()} would run
+this outcome, due to the fact that there is no quiescent state anywhere
+in \co{P1()}'s function body, so that \co{P1()} would run
 within an implicit RCU read-side critical section.
-However, RCU also has non-QSBR implementations, and the kernels running
-these implementations are preemptible, which means there is no implied
+However, RCU also has non-QSBR implementations, which have no implied
 RCU read-side critical section, and in turn no way for RCU to enforce
 ordering.
 Therefore, this litmus test's cycle is allowed.
@@ -4058,9 +4062,10 @@ Therefore, this litmus test's cycle is allowed.
 \subsubsection{Multiple RCU Readers and Updaters}
 \label{sec:memorder:Multiple RCU Readers and Updaters}
 
-Because \co{synchronize_rcu()} has stronger ordering semantics than does
-\co{smp_mb()}, no matter how many processes there are in an SB
-litmus test (such as \cref{lst:memorder:RCU Updaters Provide Full Ordering}),
+Because \co{synchronize_rcu()} has ordering semantics that are at least
+as strong as \co{smp_mb()}, no matter how many processes there are in
+an SB litmus test
+(such as \cref{lst:memorder:RCU Updaters Provide Full Ordering}),
 placing \co{synchronize_rcu()} between each process's
 accesses prohibits the cycle.
 In addition, the cycle is prohibited in an SB test where one process
@@ -4110,8 +4115,9 @@ good to know \emph{why}.\footnote{
 \label{fig:memorder:No Cycle for Two RCU Grace Periods and Two RCU Readers}
 \end{figure*}
 
-The key point is that the CPU is free to reorder \co{P1()}'s and \co{P2()}'s
-\co{WRITE_ONCE()} and \co{READ_ONCE()}.
+The key point is that even strongly ordered CPUs such as x86 can
+and will reorder \co{P1()}'s and \co{P2()}'s \co{WRITE_ONCE()} and
+\co{READ_ONCE()}.
 With that reordering,
 \cref{fig:memorder:Cycle for One RCU Grace Period and Two RCU Readers}
 shows how the cycle forms:
@@ -4183,9 +4189,8 @@ by an \co{smp_load_acquire()}?
 
 RCU would still allow the cycle, but the release-acquire pair would
 forbid it.
-Because it only takes one mechanism to forbid a cycle, the
-release-acquire pair would prevail so that the cycle would be
-forbidden.
+Because it only takes one mechanism to forbid a cycle, the release-acquire
+pair would prevail, thus forbidding the cycle.
 
 \begin{figure*}
 \centering
@@ -4233,8 +4238,22 @@ formalized~\cite{PaulMcKenney2005RCUSemantics,MathieuDesnoyers2012URCU,AlexeyGot
 
 % When augmented by \co{smp_mb__after_srcu_read_unlock()}.
 
-It is hoped that detailed semantics for higher-level primitives will
-enable more capable static analysis and model checking.
+\subsection{Higher-Level Primitives: Discussion}
+\label{sec:memorder:Higher-Level Primitives: Discussion}
+
+It is quite beneficial to verify code in terms of a higher-level primitive
+instead of in terms of the low-level memory accesses used in a particular
+implementation of that primitive.
+First, this allows code using`those primitives to be
+verified against an abstract representation of those primitives,
+thus making that code less vulnerable to implementation changes.
+Second, partitioning the verification at API boundaries results in
+combinatorial implosion, greatly reducing the overhead of formal
+verification.
+
+It is hoped that verifying against detailed semantics for higher-level
+primitives will greatly increase the effectiveness of static analysis
+and model checking.
 
 \section{Hardware Specifics}
 \label{sec:memorder:Hardware Specifics}
