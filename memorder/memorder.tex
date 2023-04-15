@@ -766,6 +766,30 @@ Otherwise, the compiler can profoundly scramble\footnote{
 your code, and sometimes the CPU can do a bit of scrambling as well,
 as discussed in \cref{sec:memorder:Itanium}.
 
+\paragraph{Interrupts and signal handlers are part of a thread.}
+Both interrupt and signal handlers happen between a pair of adjacent
+instructions in a thread.
+This means that a given handler appears to execute atomically
+from the viewpoint of the interrupted thread, at least at the
+assembly-language level.
+However, the C and C++ languages do not define the results of handlers
+and interrupted threads sharing plain variables.
+Instead, such shared variables must be \co{sig_atomic_t}, lock-free
+atomics, or \co{volatile}.
+
+On the other hand, because the handler executes within the interrupted
+thread's context, the memory ordering used to synchronize communication
+between the handler and the thread can be extremely lightweight.
+For example, the counterpart of an acquire load is a \co{READ_ONCE()}
+followed by a \co{barrier()} compiler directive and the counterpart
+of a release store is a \co{barrier()} followed by a \co{WRITE_ONCE()}.
+The counterpart of a full memory barrier is \co{barrier()}.
+Finally, disabling interrupts or signals (as the case may be) within
+the thread excludes handlers.
+
+% @@@ Using flags to avoid expensive interrupt-disabling instructions
+% @@@ and signal-blocking system calls.  Harder than it looks!
+
 \begin{figure}
 \centering
 \resizebox{3in}{!}{\includegraphics{memorder/memorybarrier}}
