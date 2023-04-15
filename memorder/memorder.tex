@@ -1165,6 +1165,8 @@ but the values for later loads are already present.
 	However, speculative execution does have its downsides, especially
 	if speculation must be rolled back frequently, particularly
 	on battery-powered systems.
+	Speculative execution can also introduce side channels, which
+	might in turn be exploited to exfiltrate information.
 	But perhaps future systems will be able to overcome these
 	disadvantages.
 	Until then, we can expect vendors to continue producing
@@ -1359,7 +1361,7 @@ DEC Alpha, by replacing \co{READ_ONCE()} on \clnref{P1:x1} of
 with \apikh{lockless_dereference()},\footnote{
 	Note that \co{lockless_dereference()} is not needed on v4.15 and
 	later, and therefore is not available in these later Linux kernels.
-	Nor is it needed in versions of this book containing this sentence.}
+	Nor is it needed in versions of this book containing this footnote.}
 which acts like \co{READ_ONCE()} on all platforms other than DEC Alpha,
 where it acts like a \co{READ_ONCE()} followed by an \co{smp_mb()},
 thereby forcing the required ordering on all platforms, in turn
@@ -1451,6 +1453,16 @@ in pre-v4.15 Linux kernels.
 	\co{rcu_dereference()} (DEC Alpha in Linux kernel v4.14 and earlier).
 }\QuickQuizEndB
 %
+\QuickQuizM{
+	Why the use of \co{smp_wmb()} in
+	\cref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15),lst:memorder:S Address-Dependency Litmus Test}?
+	Wouldn't \co{smp_store_release()} be a better choice?
+}\QuickQuizAnswerM{
+	In most cases, \co{smp_store_release()} is indeed a better choice.
+	However, \co{smp_wmb()} was there first in the Linux kernel,
+	so it is still good to understand how to use it.
+}\QuickQuizEndM
+%
 \QuickQuizE{
 	SP, MP, LB, and now~S\@.
 	Where do all these litmus-test abbreviations come from and
@@ -1478,7 +1490,8 @@ instruction.
 Note well the ``data'' above:
 If the value returned by a load was instead used to compute the address
 used by a later store instruction, that would instead be an address
-dependency.
+dependency, which was covered in
+\cref{sec:memorder:Address Dependencies}.
 However, the existence of data dependencies means that the exact same
 sequence of instructions used to update a linked data structure in
 single-threaded code provides weak but extremely useful ordering in
@@ -1708,7 +1721,9 @@ CPUs agree on the order of all stores.\footnote{
 	IBM mainframe provides full multicopy atomicity, and PPC
 	provides no multicopy atomicity at all.
 	More detail is shown in
-	\cref{tab:memorder:Summary of Memory Ordering}.}
+	\cref{tab:memorder:Summary of Memory Ordering}
+	on
+	\cpageref{tab:memorder:Summary of Memory Ordering}.}
 This means that if only a subset of CPUs are doing stores, the
 other CPUs will agree on the order of stores, hence the ``other''
 in ``other-multicopy atomicity''.
@@ -2131,7 +2146,8 @@ the cycle is said to be \emph{prohibited}.
 \end{listing}
 
 \begin{fcvref}[ln:formal:C-W+RWC+o-r+a-o+o-mb-o:whole]
-But what if we need to keep the \co{exists} clause on \clnref{exists} of
+But what if we need to prohibit the cycle corresponding to the \co{exists}
+clause on \clnref{exists} of
 \cref{lst:memorder:W+RWC Litmus Test With Release (No Ordering)}?
 One solution is to replace \co{P0()}'s \co{smp_store_release()}
 with an \co{smp_mb()}, which
