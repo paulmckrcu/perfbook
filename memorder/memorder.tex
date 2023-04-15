@@ -2495,6 +2495,7 @@ sea of more complex memory-ordering constraints.
 
 % @@@ Exercises?
 % @@@ Hardware details from Appendix?
+% @@@ Section demonstrating R on PowerPC?
 
 \FloatBarrier
 
@@ -2506,7 +2507,7 @@ sea of more complex memory-ordering constraints.
 
 Most languages, including C, were developed on uniprocessor systems
 by people with little or no parallel-programming experience.
-As a results, unless explicitly told otherwise, these languages assume
+As a result, unless explicitly told otherwise, these languages assume
 that the current CPU is the only thing that is reading or writing memory.
 This in turn means that these languages' compilers' optimizers
 are ready, willing, and oh so able to make dramatic changes to the
@@ -2579,6 +2580,9 @@ starting on
 \item	Stores can be invented before a plain store, for example, by
 	using the stored-to location as temporary storage.
 	This can be prevented by use of \co{WRITE_ONCE()}.
+\item	Stores can be transformed into a load-check-store sequence,
+	which can defeat control dependencies.
+	This can be prevented by use of \co{smp_load_acquire()}.
 \end{enumerate}
 
 \QuickQuiz{
@@ -3041,8 +3045,9 @@ are optional!
 Without the \co{READ_ONCE()}, the compiler might fuse the load
 from~\co{x} with other loads from~\co{x}.
 Without the \co{WRITE_ONCE()}, the compiler might fuse the store
-to~\co{y} with other stores to~\co{y}.
-Either can result in highly counter-intuitive effects on ordering.
+to~\co{y} with other stores to~\co{y}, or, worse yet, read the
+value, compare it, and only conditionally do the store.
+Any of these can result in highly counter-intuitive effects on ordering.
 
 Worse yet, if the compiler is able to prove (say) that the value of
 variable~\co{x} is always non-zero, it would be well within its rights
@@ -3053,6 +3058,25 @@ as follows:
 q = READ_ONCE(x);
 WRITE_ONCE(y, 1); /* BUG: CPU can reorder!!! */
 \end{VerbatimN}
+
+\QuickQuiz{
+	But there is a \co{READ_ONCE()}, so how can the compiler
+	prove anything about the value of \co{q}?
+}\QuickQuizAnswer{
+	Given the simple \co{if} statement comparing against zero,
+	it is hard to imagine the compiler proving anything.
+	But suppose that later code executed a division by \co{q}.
+	Because division by zero is undefined behavior, as of 2023,
+	many compilers will assume that the value of \co{q} must
+	be non-zero, and will thus remove that \co{if} statement,
+	thus unconditionally executing the \co{WRITE_ONCE()}, in
+	turn destroying the control dependency.
+
+	There are some who argue (correctly, in Paul's view) that
+	back-propagating undefined behavior across volatile accesses
+	constitutes a compiler bug, but many compiler writers insist
+	that this is not a bug, but rather a valuable optimization.
+}\QuickQuizEnd
 
 It is tempting to try to enforce ordering on identical stores on both
 branches of the \qco{if} statement as follows:
@@ -3175,7 +3199,7 @@ WRITE_ONCE(y, 1);
 
 This example underscores the need to ensure that the compiler cannot
 out-guess your code.
-More generally, although \co{READ_ONCE()} does force
+Never forget that, although \co{READ_ONCE()} does force
 the compiler to actually emit code for a given load, it does not force
 the compiler to use the value loaded.
 
@@ -3214,7 +3238,7 @@ st $1,z
 A weakly ordered CPU would have no dependency of any sort between the load
 from~\co{x} and the store to~\co{z}.
 The control dependencies would extend
-only to the pair of cmov instructions and the store depending on them.
+only to the pair of \co{cmov} instructions and the store depending on them.
 In short, control dependencies apply only to the stores in the \qco{then}
 and \qco{else} of the \qco{if} in question (including functions invoked by
 those two clauses), and not necessarily to code following that \qco{if}.
