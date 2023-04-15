@@ -4262,7 +4262,7 @@ and model checking.
 \epigraph{Rock beats paper!}{Derek Williams}
 
 Each CPU family has its own peculiar approach to memory ordering, which
-can make portability a challenge, as indicated by
+can make portability a challenge, as you can see in
 \cref{tab:memorder:Summary of Memory Ordering}.
 
 \begin{table*}[tb] % @@@ Omitting 'p' prevents unordered floats in 2c builds
@@ -4364,6 +4364,12 @@ Getting back to
 \cref{tab:memorder:Summary of Memory Ordering},
 the first group of rows look at memory-ordering
 properties and the second group looks at instruction properties.
+Please note that these properties hold at the machine-instruction
+level.
+Compilers can and do reorder far more aggressively than does hardware.
+Use marked accesses such as \co{READ_ONCE()} and \co{WRITE_ONCE()}
+to constrain the compiler's optimizations and prevent undesireable
+reordering.
 
 The first three rows indicate whether a given CPU allows the four
 possible combinations of loads and stores to be reordered, as discussed
@@ -4387,12 +4393,14 @@ v4.15 and later Linux kernels.
 The next row, ``Non-Sequentially Consistent'', indicates whether
 the CPU's normal load and store instructions are constrained by
 sequential consistency.
-Almost all are not constrained in this way for performance reasons.
+Performance considerations have dictated that no modern mainstream
+system is sequentially consistent.
 
-The next two rows cover multicopy atomicity, which was defined in
+The next three rows cover multicopy atomicity, which was defined in
 \cref{sec:memorder:Multicopy Atomicity}.
-The first is full-up (and rare) multicopy atomicity, and the second is the
-weaker other-multicopy atomicity.
+The first is full-up (and rare) multicopy atomicity, the second is the
+weaker other-multicopy atomicity, and the third is the weakest
+non-multicopy atomicity.
 
 The next row, ``Non-Cache Coherent'', covers accesses from multiple
 threads to a single variable, which was discussed in
@@ -4473,7 +4481,9 @@ act strangely, and could crash your kernel or even damage your hardware.
 
 So most kernel programmers need not worry about the memory-ordering
 peculiarities of each and every CPU, as long as they stick to these
-interfaces.
+interfaces and to the fully ordered atomic operations.\footnote{
+	For a full list, expand the patterns in
+	\path{Documentation/atomic_t.txt}.}
 If you are working deep in a given CPU's architecture-specific code,
 of course, all bets are off.
 
@@ -4508,7 +4518,7 @@ accommodation were removed in v5.9 with the removal of the
 \co{smp_read_barrier_depends()} and \co{read_barrier_depends()} APIs.
 This section is nevertheless retained in the Second Edition
 % @@@ Update after release of Second Edition.
-because here in early 2021 there are quite a few Linux kernel hackers
+because here in early 2023 there are still a few Linux kernel hackers
 still working on pre-v4.15 versions of the Linux kernel.
 In addition, the modifications to \co{READ_ONCE()} that permitted
 these APIs to be removed have not necessarily propagated to all
@@ -4723,8 +4733,8 @@ For more on Alpha, see its reference manual~\cite{ALPHA2002}.
 \subsection{\ARMv7-A/R}
 \label{sec:memorder:ARMv7-A/R}
 
-The \ARM\ family of CPUs is extremely popular in embedded applications,
-particularly for power-constrained applications such as cellphones.
+The \ARM\ family of CPUs is popular in deep embedded applications,
+particularly for power-constrained microcontrollers.
 Its memory model is similar to that of \Power{}
 (see \cref{sec:memorder:POWER / PowerPC}), but \ARM\ uses a
 different set of memory-barrier instructions~\cite{ARMv7A:2010}:
@@ -5101,6 +5111,7 @@ instructions~\cite{PowerPC94,MichaelLyons05a}:
 	However, stores to cacheable memory are ordered separately from
 	stores to non-cacheable memory, which means that {\tt eieio}
 	will not force an MMIO store to precede a spinlock release.
+	This instruction may well be unique in having a five-vowel mnemonic.
 \item	[\tco{isync}] forces all preceding instructions to appear to have
 	completed before any subsequent instructions start execution.
 	This means that the preceding instructions must have progressed
@@ -5128,7 +5139,6 @@ However, Linux's \co{smp_wmb()} primitive is never used for MMIO
 (since a driver must carefully order MMIOs in UP as well as
 SMP kernels, after all), so it is defined to be the lighter weight
 \co{eieio} or \co{lwsync} instruction~\cite{PaulEMcKenney2016LinuxKernelMMIO}.
-This instruction may well be unique in having a five-vowel mnemonic.
 The \co{smp_mb()} primitive is also defined to be the \co{sync}
 instruction, while \co{smp_rmb()} is defined to be the lighter-weight
 \co{lwsync} instruction.
@@ -5310,6 +5320,18 @@ code without serializing instructions.
 The z~Systems instruction set provides a large set of serializing instructions,
 including compare-and-swap, some types of branches (for example, the
 aforementioned \qco{bcr 15,0} instruction), and test-and-set.
+
+\subsection{Hardware Specifics: Discussion}
+\label{sec:memorder:Hardware Specifics: Discussion}
+
+There is considerable variation among these CPU families, and this section
+only scratched the surface of a few families that are either heavily used
+or historically significant.
+Those wishing more detail are invited to consult the reference manuals.
+
+But a big benefit of the Linux-kernel memory model is that you can
+ignore these details when writing architecture-independent Linux-kernel
+code.
 
 \section{Memory-Model Intuitions}
 \label{sec:memorder:Memory-Model Intuitions}
