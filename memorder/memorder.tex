@@ -174,16 +174,51 @@ But why does memory misordering happen in the first place?
 Can't CPUs keep track of ordering on their own?
 Isn't that why we have computers in the first place, to keep track of things?
 
+\begin{figure*}
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{memorder/Intel_Core2_arch}}
+\caption{Intel Core 2 Architecture}
+\ContributedBy{Figure}{fig:memorder:Intel Core 2 Architecture}{Wikipedia user “I, Appaloosa” CC BY-SA 3.0, reformatted}
+\end{figure*}
+
 Many people do indeed expect their computers to keep track of things,
 but many also insist that they keep track of things quickly.
-However, as seen in \cref{chp:Hardware and its Habits},
-main memory cannot keep up with modern CPUs, which can execute
-hundreds of instructions in the time required to fetch a single variable
-from memory.
-CPUs therefore sport increasingly large caches, as seen back in
-\cref{fig:cpu:System Hardware Architecture}, which means that
-although the first load by a given CPU from a given variable will
-result in an expensive \emph{cache miss} as was discussed in
+In fact, so intense is the focus on performance that modern CPUs
+are extremely complex, as can be seen in the simplified block diagram in
+\cref{fig:memorder:Intel Core 2 Architecture}.
+Those needing to squeeze the last few percent of performance from their
+systems will in turn need to pay close attention to the fine details of this
+figure when tuning their software.
+Except that this close attention to detail means that when a given CPU
+degrades with age, the software will no longer run quickly on it.
+For example, if the leftmost ALU fails, software tuned to take full
+advantage of all of the ALUs might well run more slowly than untuned
+software.
+One solution to this problem is to take systems out of service as soon
+as any of their CPUs start degrading.
+
+\begin{figure*}
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{memorder/Intel_Core2_arch-simplified}}
+\caption{Intel Core 2 Architecture Simplified}
+\ContributedBy{Figure}{fig:memorder:Intel Core 2 Architecture Simplified}{Wikipedia user “I, Appaloosa” CC BY-SA 3.0, reformatted}
+\end{figure*}
+
+Another option is to recall the lessons of
+\cref{chp:Hardware and its Habits},
+especially the lesson that for many important workloads, main memory
+cannot keep up with modern CPUs, which can execute hundreds of
+instructions in the time required to fetch a single variable from memory.
+For such workloads, the detailed internal structure of the CPU is
+irrelevant, and the CPU can instead be approximated by the blue shapes in
+\cref{fig:memorder:Intel Core 2 Architecture Simplified}
+labeled CPU, store buffer, and cache.
+
+Because of these data-intensive workloads, CPUs sport increasingly large
+caches, as was seen back in
+\cref{fig:cpu:System Hardware Architecture},
+which means that although the first load by a given CPU from a given
+variable will result in an expensive \emph{cache miss} as was discussed in
 \cref{sec:cpu:Cache Misses}, subsequent
 repeated loads from that variable by that CPU might execute
 very quickly because the initial cache miss will have loaded that
@@ -199,20 +234,9 @@ Each store must do something about all copies of the old value
 (another cache miss!), which, given the finite speed of light and
 the atomic nature of matter, will be slower than impatient software
 hackers would like.
-
-\begin{figure*}
-\centering
-\resizebox{\textwidth}{!}{\includegraphics{memorder/Intel_Core2_arch}}
-\caption{Intel Core 2 Architecture}
-\ContributedBy{Figure}{fig:memorder:Intel Core 2 Architecture}{Wikipedia user “I, Appaloosa” CC BY-SA 3.0, reformatted}
-\end{figure*}
-
-\begin{figure*}
-\centering
-\resizebox{\textwidth}{!}{\includegraphics{memorder/Intel_Core2_arch-simplified}}
-\caption{Intel Core 2 Architecture Simplified}
-\ContributedBy{Figure}{fig:memorder:Intel Core 2 Architecture Simplified}{Wikipedia user “I, Appaloosa” CC BY-SA 3.0, reformatted}
-\end{figure*}
+And these strings of stores are the reason for the blue block
+labelled store buffer in
+\cref{fig:memorder:Intel Core 2 Architecture Simplified}.
 
 \begin{figure}
 \centering
@@ -221,7 +245,9 @@ hackers would like.
 \label{fig:memorder:System Architecture With Store Buffers}
 \end{figure}
 
-CPUs therefore come equipped with store buffers, as shown in
+Removing the internal CPU complexity from
+\cref{fig:memorder:Intel Core 2 Architecture Simplified},
+adding a second CPU, and showing main memory results in
 \cref{fig:memorder:System Architecture With Store Buffers}.
 When a given CPU stores to a variable
 not present in that CPU's cache, then the new value
