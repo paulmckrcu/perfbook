@@ -2516,36 +2516,36 @@ One way to look at this was presented in the answer to
 from \co{P1()} to \co{P0()} is a store-to-store link.
 Both links are counter-temporal, thus requiring full memory barriers
 in both processes.
-Then revisiting
+Revisiting
 \cref{fig:memorder:Store-to-Store is Counter-Temporal,fig:memorder:Store-to-Load is Temporal}
-shows that this pair of counter-temporal links give the hardware considerable
+shows that these counter-temporal links give the hardware considerable
 latitude.
 
 But that raises the question of exactly how hardware would go about using
 this latitude to satisfy the \co{exists} clause in
 \cref{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)}.
-There is no known ``toy'' hardware implementation that can make this
-happen, so we will instead look at the sequence of steps that the PowerPC
-architecture goes through to make this happen.
+There is no known ``toy'' hardware implementation that can do this, so
+let us instead study the sequence of steps that the PowerPC architecture
+goes through to make this happen.
 
-The first step in this process is to translate
+The first step in this study is to translate
 \cref{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)}
 to a PowerPC assembly language litmus test
 (\cref{sec:formal:Anatomy of a Litmus Test} on
 \cpageref{sec:formal:Anatomy of a Litmus Test}):
 
 \begin{fcvlabel}[ln:memorder:inline:ppcasmr]
-\begin{VerbatimN}[samepage=true,commandchars=\\\[\]]
+\begin{VerbatimN}[samepage=true,commandchars=\@\[\]]
 PPC R+lwsync+sync
 {
-0:r1=1; 0:r2=x; 0:r4=y;		\lnlbl[init0]
-1:r1=2; 1:r2=y; 1:r4=x;		\lnlbl[init1]
+0:r1=1; 0:r2=x; 0:r4=y;		@lnlbl[init0]
+1:r1=2; 1:r2=y; 1:r4=x;		@lnlbl[init1]
 }
- P0           | P1           ;	\lnlbl[procs]
- stw r1,0(r2) | stw r1,0(r2) ;	\lnlbl[stores]
- lwsync       | sync         ;	\lnlbl[barriers]
- stw r1,0(r4) | lwz r3,0(r4) ;	\lnlbl[storeload]
-exists (y=2 /\ 1:r3=0)		\lnlbl[exists]
+ P0           | P1           ;	@lnlbl[procs]
+ stw r1,0(r2) | stw r1,0(r2) ;	@lnlbl[stores]
+ lwsync       | sync         ;	@lnlbl[barriers]
+ stw r1,0(r4) | lwz r3,0(r4) ;	@lnlbl[storeload]
+exists (y=2 /\ 1:r3=0)		@lnlbl[exists]
 \end{VerbatimN}
 \end{fcvlabel}
 
@@ -2559,7 +2559,7 @@ statements corresponding to the C code from
 \cref{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)},
 with the first column being the code for \co{P0()} and the second column
 being the code for \co{P1()}.
-\Clnref{stores} show the initial \co{WRITE_ONCE()} calls in both columns;
+\Clnref{stores} shows the initial \co{WRITE_ONCE()} calls in both columns;
 the columns of \clnref{barriers} show the \co{smp_wmb()} and \co{smp_mb()}
 for \co{P0()} and \co{P1()}, respectively;
 the columns of \clnref{storeload} shows \co{P0()}'s \co{WRITE_ONCE()} and
@@ -2567,7 +2567,7 @@ the columns of \clnref{storeload} shows \co{P0()}'s \co{WRITE_ONCE()} and
 and finally \clnref{exists} shows the \co{exists} clause.
 \end{fcvref}
 
-In order for this \co{exists} clause to be satisfied, \co{P9()}'s
+In order for this \co{exists} clause to be satisfied, \co{P0()}'s
 \co{stw} to \co{y} must precede that of \co{P1()}, but \co{P1()}'s
 later \co{lwz} from \co{x} must precede \co{P0()}'s \co{stw} to \co{x}.
 Seeing how this can happen requires a rough understanding of the
@@ -2585,6 +2585,11 @@ corresponding cache line.
 This can be thought of as the system having worked out the order in which
 a pair of values written will be deposited into the corresponding cache
 line, but potentially well before that cache line arrives.
+Some might argue that the data in
+\cref{fig:memorder:A Variable With More Simultaneous Values}
+suggests that real PowerPC hardware does in fact use partial coherence
+commits to handle concurrent stores by multiple hardware threads within
+a single core.
 
 \paragraph{Write propagate to thread.}
 This occurs when a second hardware thread becomes aware of the first
@@ -2600,16 +2605,16 @@ write.
 
 \paragraph{Barrier propagate to thread.}
 Hardware threads make each other aware of memory-barrier instructions
-as needed by propagating them to other threads.
+as needed by propagating them to each other.
 
 \paragraph{Acknowledge \co{sync}.}
 The PowerPC \co{sync} instruction implements the Linux kernel's
 \co{smp_mb()} full barrier.
 And one reason that the \co{sync} instruction provides such strong
-ordering is that it is not only propagated to other hardware threads,
-but these other hardware threads must also acknowledge it.
+ordering is that each \co{sync} is not only propagated to other hardware
+threads, but these other threads must also acknowledge each \co{sync}.
 This two-way communication allows the hardware threads to cooperate
-as required to produce strong global ordering.
+to produce the required strong global ordering.
 
 \begin{figure*}[tbp]
 \centering
@@ -2627,24 +2632,29 @@ as required to produce strong global ordering.
 
 We are now ready to step through the PowerPC sequence of events that
 satisfies the above \co{exists} clause.
+
 To best understand this, please follow along at
 \url{https://www.cl.cam.ac.uk/~pes20/ppcmem/index.html},
 carefully copying the above assembly-language litmus test into the pane.
 The result should look as shown in
-\cref{fig:memorder:PPCMEM Initial R State}.
-Click on the "Interactive" button in the lower left, which should produce
-a display as shown in
+\cref{fig:memorder:PPCMEM Initial R State}, give or take space characters.
+Click on the ``Interactive'' button in the lower left, which, after a
+short delay, should produce a display as shown in
 \cref{fig:memorder:PPCMEM First R Step}.
+If the ``Interactive'' button refuses to do anything, this usually means
+that there is a syntax error, for example, a spurious newline character
+might have been introduced during the copy-paste operation.
 
-This display has one clickable link in each thread's state, and as the
-``Commit'' in each link suggests, these links commit each thread's first
-\co{stw} instruction.
+This display has one clickable link in each section displaying thread
+state, and as the ``Commit'' in each link suggests, these links commit
+each thread's first \co{stw} instruction.
 If you prefer, you can instead click on the corresponding links listed
 under ``Enabled transitions'' near the bottom of the screen.
 Note well that some of the later memory-system transitions will appear
 in the upper ``Storage subsystem state'' section of this display.
 
-To demonstrate how the \co{exists} clause can be satisfied:
+The following sequence of clicks demonstrates how the \co{exists} clause
+can be satisfied:
 
 \begin{enumerate}
 \item	Commit \co{P0()}'s first \co{stw} instruction (to \co{x}).
@@ -2652,14 +2662,17 @@ To demonstrate how the \co{exists} clause can be satisfied:
 \item	Commit \co{P0()}'s \co{lwsync} instruction.
 \item	Commit \co{P0()}'s second \co{stw} instruction (to \co{y}).
 \item	Commit \co{P1()}'s \co{sync} instruction.
-\item	At this point, there should be no clickable links in either
-	of the two thread states, but there should be quite a few
-	of them up in the ``Storage subsystem state''.
+\item	At this point, there should be no clickable links in either of
+	the two sections displaying thread state, but there should be
+	quite a few of them up in the ``Storage subsystem state''.
+	The following steps tell you which of them to click on.
 \item	\co{Partial coherence commit: c:W y=1 -> d:W y=2}.
 	This commits the system to processing \co{P0()}'s store to
 	\co{y} before \co{P1()}'s store even though neither store
-	has reached either the coherence point or any other thread,
-	perhaps due to a shared store buffer.
+	has reached either the coherence point or any other thread.
+	One might imagine partial coherence commits happening within a
+	store buffer that is shared by multiple hardware threads
+	that are writing to the same variable.
 \item	\co{Write propagate to thread: d:W y=2 to Thread 0}.
 	This is necessary to allow \co{P1()}'s \co{sync} instruction
 	to propagate to \co{P0()}.
@@ -2670,9 +2683,10 @@ To demonstrate how the \co{exists} clause can be satisfied:
 	These three operations were required in order to allow \co{P0()}
 	to acknowledge \co{P1()}'s \co{sync} instruction.
 \item	\co{Acknowledge sync: Sync e:Sync}.
-\item	\co{Read i:W x=0}, which loads the value
-	zero, thus satisfying the \co{exists} clause.
-	All that remains is cleanup.
+\item	Back down in thread \co{P1()}'s state, click on \co{Read i:W
+	x=0}, which loads the value zero, thus satisfying the \co{exists}
+	clause.
+	All that remains is cleanup, which can be carried out in any order.
 \item	Commit \co{P1()}'s \co{lwz} instruction.
 \item	\co{Write propagate to thread: a:W x=1 to Thread 1}.
 \item	\co{Barrier propagate to thread: b:Lwsync  to Thread 1}.
@@ -2691,6 +2705,8 @@ Note that the satisified \co{exists} clause is shown in blue near the
 bottom, confirming that this counter-intuitive really can happen.
 If you wish, you can click on ``Undo'' to explore other options or
 click on ``Reset'' to start over.
+It can be very helpful to carry out these steps in different orders
+to better understand how a non-multicopy-atomic architecture operates.
 
 \QuickQuiz{
 	What happens if that \co{lwsync} instruction is instead a
@@ -2703,6 +2719,7 @@ click on ``Reset'' to start over.
 Although a full understanding of how this counter-intuitive outcome
 happens would require hardware details that are beyond the scope of
 this book, this exercise should provide some helpful intuitions.
+Or perhaps more accurately, destroy some counter-productive intuitions.
 
 % @@@ Exercises?
 % @@@ Hardware details from Appendix?
