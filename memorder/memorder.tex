@@ -2493,11 +2493,219 @@ In short, properly constructed release-acquire chains form a peaceful
 island of intuitive bliss surrounded by a strongly counter-intuitive
 sea of more complex memory-ordering constraints.
 
+\FloatBarrier
+
+\subsection{A Counter-Intuitive Case Study}
+\label{sec:memorder:A Counter-Intuitive Case Study}
+
+This section will revisit
+\cref{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)}
+on \cpageref{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)},
+which was presented in the answer to
+\QuickQuizARef{\MemorderQQLitmusTestR}.
+This litmus test has only two threads, with the stores in \co{P0()}
+being ordered by \co{smp_wmb()} and the accesses in \co{P1()} being
+ordered by \co{smp_mb()}.
+Despite this litmus test's small size and heavy ordering, the
+counter-intuitive outcome shown in the \co{exists} clause is in fact
+allowed.
+
+One way to look at this was presented in the answer to
+\QuickQuizARef{\MemorderQQLitmusTestR}, namely that the link from
+\co{P0()} to \co{P1()} is a store-to-store link, and that back
+from \co{P1()} to \co{P0()} is a store-to-store link.
+Both links are counter-temporal, thus requiring full memory barriers
+in both processes.
+Then revisiting
+\cref{fig:memorder:Store-to-Store is Counter-Temporal,fig:memorder:Store-to-Load is Temporal}
+shows that this pair of counter-temporal links give the hardware considerable
+latitude.
+
+But that raises the question of exactly how hardware would go about using
+this latitude to satisfy the \co{exists} clause in
+\cref{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)}.
+There is no known ``toy'' hardware implementation that can make this
+happen, so we will instead look at the sequence of steps that the PowerPC
+architecture goes through to make this happen.
+
+The first step in this process is to translate
+\cref{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)}
+to a PowerPC assembly language litmus test
+(\cref{sec:formal:Anatomy of a Litmus Test} on
+\cpageref{sec:formal:Anatomy of a Litmus Test}):
+
+\begin{fcvlabel}[ln:memorder:inline:ppcasmr]
+\begin{VerbatimN}[samepage=true,commandchars=\\\[\]]
+PPC R+lwsync+sync
+{
+0:r1=1; 0:r2=x; 0:r4=y;		\lnlbl[init0]
+1:r1=2; 1:r2=y; 1:r4=x;		\lnlbl[init1]
+}
+ P0           | P1           ;	\lnlbl[procs]
+ stw r1,0(r2) | stw r1,0(r2) ;	\lnlbl[stores]
+ lwsync       | sync         ;	\lnlbl[barriers]
+ stw r1,0(r4) | lwz r3,0(r4) ;	\lnlbl[storeload]
+exists (y=2 /\ 1:r3=0)		\lnlbl[exists]
+\end{VerbatimN}
+\end{fcvlabel}
+
+\begin{fcvref}[ln:memorder:inline:ppcasmr]
+The first line identifies the type of test (\co{PPC}) and gives
+the test's name.
+\Clnref{init0,init1} initialize \co{P0()}'s and \co{P1()}'s registers,
+respectively.
+\Clnrefrange{procs}{storeload} show the PowerPC assembly
+statements corresponding to the C code from
+\cref{lst:memorder:R Litmus Test With Write Memory Barrier (No Ordering)},
+with the first column being the code for \co{P0()} and the second column
+being the code for \co{P1()}.
+\Clnref{stores} show the initial \co{WRITE_ONCE()} calls in both columns;
+the columns of \clnref{barriers} show the \co{smp_wmb()} and \co{smp_mb()}
+for \co{P0()} and \co{P1()}, respectively;
+the columns of \clnref{storeload} shows \co{P0()}'s \co{WRITE_ONCE()} and
+\co{P1()}'s \co{READ_ONCE()}, respectively;
+and finally \clnref{exists} shows the \co{exists} clause.
+\end{fcvref}
+
+In order for this \co{exists} clause to be satisfied, \co{P9()}'s
+\co{stw} to \co{y} must precede that of \co{P1()}, but \co{P1()}'s
+later \co{lwz} from \co{x} must precede \co{P0()}'s \co{stw} to \co{x}.
+Seeing how this can happen requires a rough understanding of the
+following PowerPC terminology.
+
+\paragraph{Instruction commit.}
+This can be thought of as the execution of that instruction as opposed
+to the memory-system consequences of having executed that instruction.
+
+\paragraph{Write reaching coherence point.}
+This can be thought of as the value written being deposited into the
+corresponding cache line.
+
+\paragraph{Partial coherence commit.}
+This can be thought of as the system having worked out the order in which
+a pair of values written will be deposited into the corresponding cache
+line, but potentially well before that cache line arrives.
+
+\paragraph{Write propagate to thread.}
+This occurs when a second hardware thread becomes aware of the first
+hardware thread's write.
+The time at which a write propagates to a given thread might not have
+any relation to cache-line movement.
+For example, if a pair of threads share a store buffer, they might see
+each others' writes long before the cache line gets involved.
+On the other hand, if a pair of hardware threads are widely separated,
+the first thread's write's value might have been deposited into the
+corresponding cache line long before the second thread learns of that
+write.
+
+\paragraph{Barrier propagate to thread.}
+Hardware threads make each other aware of memory-barrier instructions
+as needed by propagating them to other threads.
+
+\paragraph{Acknowledge \co{sync}.}
+The PowerPC \co{sync} instruction implements the Linux kernel's
+\co{smp_mb()} full barrier.
+And one reason that the \co{sync} instruction provides such strong
+ordering is that it is not only propagated to other hardware threads,
+but these other hardware threads must also acknowledge it.
+This two-way communication allows the hardware threads to cooperate
+as required to produce strong global ordering.
+
+\begin{figure*}[tbp]
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{memorder/PPCMEM0.jpg}}
+\caption{PPCMEM Initial R State}
+\label{fig:memorder:PPCMEM Initial R State}
+\end{figure*}
+
+\begin{figure*}[tbp]
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{memorder/PPCMEM1.jpg}}
+\caption{PPCMEM First R Step}
+\label{fig:memorder:PPCMEM First R Step}
+\end{figure*}
+
+We are now ready to step through the PowerPC sequence of events that
+satisfies the above \co{exists} clause.
+To best understand this, please follow along at
+\url{https://www.cl.cam.ac.uk/~pes20/ppcmem/index.html},
+carefully copying the above assembly-language litmus test into the pane.
+The result should look as shown in
+\cref{fig:memorder:PPCMEM Initial R State}.
+Click on the "Interactive" button in the lower left, which should produce
+a display as shown in
+\cref{fig:memorder:PPCMEM First R Step}.
+
+This display has one clickable link in each thread's state, and as the
+``Commit'' in each link suggests, these links commit each thread's first
+\co{stw} instruction.
+If you prefer, you can instead click on the corresponding links listed
+under ``Enabled transitions'' near the bottom of the screen.
+Note well that some of the later memory-system transitions will appear
+in the upper ``Storage subsystem state'' section of this display.
+
+To demonstrate how the \co{exists} clause can be satisfied:
+
+\begin{enumerate}
+\item	Commit \co{P0()}'s first \co{stw} instruction (to \co{x}).
+\item	Commit \co{P1()}'s \co{stw} instruction.
+\item	Commit \co{P0()}'s \co{lwsync} instruction.
+\item	Commit \co{P0()}'s second \co{stw} instruction (to \co{y}).
+\item	Commit \co{P1()}'s \co{sync} instruction.
+\item	At this point, there should be no clickable links in either
+	of the two thread states, but there should be quite a few
+	of them up in the ``Storage subsystem state''.
+\item	\co{Partial coherence commit: c:W y=1 -> d:W y=2}.
+	This commits the system to processing \co{P0()}'s store to
+	\co{y} before \co{P1()}'s store even though neither store
+	has reached either the coherence point or any other thread,
+	perhaps due to a shared store buffer.
+\item	\co{Write propagate to thread: d:W y=2 to Thread 0}.
+	This is necessary to allow \co{P1()}'s \co{sync} instruction
+	to propagate to \co{P0()}.
+\item	\co{Barrier propagate to thread: e:Sync  to Thread 0}.
+\item	\co{Write reaching coherence point: a:W x=1}.
+\item	\co{Write reaching coherence point: c:W y=1}.
+\item	\co{Write reaching coherence point: d:W y=2}.
+	These three operations were required in order to allow \co{P0()}
+	to acknowledge \co{P1()}'s \co{sync} instruction.
+\item	\co{Acknowledge sync: Sync e:Sync}.
+\item	\co{Read i:W x=0}, which loads the value
+	zero, thus satisfying the \co{exists} clause.
+	All that remains is cleanup.
+\item	Commit \co{P1()}'s \co{lwz} instruction.
+\item	\co{Write propagate to thread: a:W x=1 to Thread 1}.
+\item	\co{Barrier propagate to thread: b:Lwsync  to Thread 1}.
+\end{enumerate}
+
+\begin{figure*}[tbp]
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{memorder/PPCMEMfinal.jpg}}
+\caption{PPCMEM Final R State}
+\label{fig:memorder:PPCMEM Final R State}
+\end{figure*}
+
+At this point, you should see something like
+\cref{fig:memorder:PPCMEM Final R State}.
+Note that the satisified \co{exists} clause is shown in blue near the
+bottom, confirming that this counter-intuitive really can happen.
+If you wish, you can click on ``Undo'' to explore other options or
+click on ``Reset'' to start over.
+
+\QuickQuiz{
+	What happens if that \co{lwsync} instruction is instead a
+	\co{sync} instruction?
+}\QuickQuizAnswer{
+	The counter-intuitive outcome cannot happen.
+	(Try it!)
+}\QuickQuizEnd
+
+Although a full understanding of how this counter-intuitive outcome
+happens would require hardware details that are beyond the scope of
+this book, this exercise should provide some helpful intuitions.
+
 % @@@ Exercises?
 % @@@ Hardware details from Appendix?
-% @@@ Section demonstrating R on PowerPC?
-
-\FloatBarrier
 
 \section{Compile-Time Consternation}
 \label{sec:memorder:Compile-Time Consternation}
@@ -4517,8 +4725,7 @@ The need for core Linux-kernel code to accommodate Alpha ended
 with version v4.15 of the Linux kernel, and all traces of this
 accommodation were removed in v5.9 with the removal of the
 \co{smp_read_barrier_depends()} and \co{read_barrier_depends()} APIs.
-This section is nevertheless retained in the Second Edition
-% @@@ Update after release of Second Edition.
+This section is nevertheless retained in the Third Edition
 because here in early 2023 there are still a few Linux kernel hackers
 still working on pre-v4.15 versions of the Linux kernel.
 In addition, the modifications to \co{READ_ONCE()} that permitted
