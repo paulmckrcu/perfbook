@@ -87,7 +87,7 @@ static inline void *hp_record(void **p,			//\lnlbl{hr:b}
 	void *tmp;
 
 	do {
-		tmp = hp_try_record(*p, hp);
+		tmp = hp_try_record(p, hp);
 	} while (tmp == (void *)HAZPTR_POISON);
 	return tmp;
 }							//\lnlbl{hr:e}

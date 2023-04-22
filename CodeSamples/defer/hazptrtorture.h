@@ -99,7 +99,7 @@ void *hazptr_read_perf_test(void *arg)
 {
 	int i;
 	int me = (long)arg;
-	int base = me * K;
+	int base = smp_thread_id() * K;
 	long long n_reads_local = 0;
 	hazptr_head_t hh;
 	hazptr_head_t *hhp = &hh;
@@ -241,8 +241,7 @@ DEFINE_PER_THREAD(long long [HAZPTR_STRESS_PIPE_LEN + 1], hazptr_stress_count);
 
 void *hazptr_read_stress_test(void *arg)
 {
-	int me = (int)(long)arg;
-	int base = me * K;
+	int base = smp_thread_id() * K;
 	struct hazptr_stress *p;
 	int pc;
 
