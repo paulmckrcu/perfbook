@@ -6,7 +6,7 @@
 #
 # Copyright (C) Akira Yokosawa, 2023
 
-LC_TIME=C
+export LC_TIME=C
 
 : ${SED:=sed}
 : ${DATE:=date}
