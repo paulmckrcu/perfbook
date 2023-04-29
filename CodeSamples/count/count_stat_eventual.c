@@ -50,9 +50,8 @@ void *eventual(void *arg)				//\lnlbl{eventual:b}
 			sum += READ_ONCE(per_thread(counter, t));
 		WRITE_ONCE(global_count, sum);
 		poll(NULL, 0, 1);
-		if (READ_ONCE(stopflag)) {
+		if (READ_ONCE(stopflag))
 			smp_store_release(&stopflag, stopflag + 1);
-		}
 	}
 	return NULL;
 }							//\lnlbl{eventual:e}

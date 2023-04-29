@@ -40,9 +40,10 @@ static __inline__ unsigned long read_count(void)
 	int t;
 	unsigned long sum = 0;
 
-	for_each_thread(t)
+	for_each_thread(t) {
 		if (READ_ONCE(counterp[t]) != NULL)
 			sum += READ_ONCE(*counterp[t]);
+	}
 	return sum;
 }
 

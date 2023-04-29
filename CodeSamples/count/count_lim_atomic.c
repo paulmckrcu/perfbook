@@ -171,11 +171,12 @@ unsigned long read_count(void)				//\lnlbl{b}
 
 	spin_lock(&gblcnt_mutex);			//\lnlbl{acquire}
 	sum = globalcount;				//\lnlbl{initsum}
-	for_each_thread(t)				//\lnlbl{loop:b}
+	for_each_thread(t) {				//\lnlbl{loop:b}
 		if (counterp[t] != NULL) {
 			split_counterandmax(counterp[t], &old, &c, &cm);//\lnlbl{split}
 			sum += c;
-		}					//\lnlbl{loop:e}
+		}
+	}						//\lnlbl{loop:e}
 	spin_unlock(&gblcnt_mutex);			//\lnlbl{release}
 	return sum;					//\lnlbl{return}
 }							//\lnlbl{e}

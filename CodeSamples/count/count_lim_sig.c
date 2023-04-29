@@ -57,9 +57,8 @@ static void flush_local_count_sig(int unused)	//\lnlbl{flush_sig:b}
 	if (READ_ONCE(theft) != THEFT_REQ)	//\lnlbl{flush_sig:check:REQ}
 		return;				//\lnlbl{flush_sig:return:n}
 	WRITE_ONCE(theft, THEFT_ACK);		//\lnlbl{flush_sig:set:ACK}
-	if (!counting) {			//\lnlbl{flush_sig:check:fast}
+	if (!counting)				//\lnlbl{flush_sig:check:fast}
 		smp_store_release(&theft, THEFT_READY);	//\lnlbl{flush_sig:set:READY}
-	}
 }						//\lnlbl{flush_sig:e}
 
 static void flush_local_count(void)			//\lnlbl{flush:b}
@@ -67,7 +66,7 @@ static void flush_local_count(void)			//\lnlbl{flush:b}
 	int t;
 	thread_id_t tid;
 
-	for_each_tid(t, tid)				//\lnlbl{flush:loop:b}
+	for_each_tid(t, tid) {				//\lnlbl{flush:loop:b}
 		if (theftp[t] != NULL) {		//\lnlbl{flush:skip}
 			if (*countermaxp[t] == 0) {	//\lnlbl{flush:checkmax}
 				WRITE_ONCE(*theftp[t], THEFT_READY);//\lnlbl{flush:READY}
@@ -75,7 +74,8 @@ static void flush_local_count(void)			//\lnlbl{flush:b}
 			}
 			WRITE_ONCE(*theftp[t], THEFT_REQ);//\lnlbl{flush:REQ}
 			pthread_kill(tid, SIGUSR1);	//\lnlbl{flush:signal}
-		}					//\lnlbl{flush:loop:e}
+		}
+	}						//\lnlbl{flush:loop:e}
 	for_each_tid(t, tid) {				//\lnlbl{flush:loop2:b}
 		if (theftp[t] == NULL)			//\lnlbl{flush:skip:nonexist}
 			continue;			//\lnlbl{flush:next2}
@@ -88,7 +88,7 @@ static void flush_local_count(void)			//\lnlbl{flush:b}
 		*counterp[t] = 0;
 		globalreserve -= *countermaxp[t];
 		*countermaxp[t] = 0;			//\lnlbl{flush:thiev:e}
-		smp_store_release(theftp[t], THEFT_IDLE);	//\lnlbl{flush:IDLE}
+		smp_store_release(theftp[t], THEFT_IDLE);//\lnlbl{flush:IDLE}
 	}						//\lnlbl{flush:loop2:e}
 }							//\lnlbl{flush:e}
 
@@ -114,7 +114,7 @@ int add_count(unsigned long delta)			//\lnlbl{b}
 
 	WRITE_ONCE(counting, 1);			//\lnlbl{fast:b}
 	barrier();					//\lnlbl{barrier:1}
-	if (smp_load_acquire(&theft) <= THEFT_REQ &&		//\lnlbl{check:b}
+	if (smp_load_acquire(&theft) <= THEFT_REQ &&	//\lnlbl{check:b}
 	    countermax - counter >= delta) {		//\lnlbl{check:e}
 		WRITE_ONCE(counter, counter + delta);	//\lnlbl{add:f}
 		fastpath = 1;				//\lnlbl{fasttaken}
@@ -122,9 +122,8 @@ int add_count(unsigned long delta)			//\lnlbl{b}
 	barrier();					//\lnlbl{barrier:2}
 	WRITE_ONCE(counting, 0);			//\lnlbl{clearcnt}
 	barrier();					//\lnlbl{barrier:3}
-	if (READ_ONCE(theft) == THEFT_ACK) {		//\lnlbl{check:ACK}
-		smp_store_release(&theft, THEFT_READY);		//\lnlbl{READY}
-	}
+	if (READ_ONCE(theft) == THEFT_ACK)		//\lnlbl{check:ACK}
+		smp_store_release(&theft, THEFT_READY);	//\lnlbl{READY}
 	if (fastpath)
 		return 1;				//\lnlbl{return:fs}
 	spin_lock(&gblcnt_mutex);			//\lnlbl{acquire}
@@ -160,9 +159,8 @@ int sub_count(unsigned long delta)
 	barrier();
 	WRITE_ONCE(counting, 0);
 	barrier();
-	if (READ_ONCE(theft) == THEFT_ACK) {
+	if (READ_ONCE(theft) == THEFT_ACK)
 		smp_store_release(&theft, THEFT_READY);
-	}
 	if (fastpath)
 		return 1;
 	spin_lock(&gblcnt_mutex);
@@ -189,9 +187,10 @@ unsigned long read_count(void)
 
 	spin_lock(&gblcnt_mutex);
 	sum = globalcount;
-	for_each_thread(t)
+	for_each_thread(t) {
 		if (counterp[t] != NULL)
 			sum += READ_ONCE(*counterp[t]);
+	}
 	spin_unlock(&gblcnt_mutex);
 	return sum;
 }

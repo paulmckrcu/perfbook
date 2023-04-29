@@ -79,9 +79,10 @@ static __inline__ unsigned long read_count(void)	//\lnlbl{read:b}
 
 	spin_lock(&gblcnt_mutex);			//\lnlbl{read:acquire}
 	sum = globalcount;				//\lnlbl{read:initsum}
-	for_each_thread(t)				//\lnlbl{read:loop:b}
+	for_each_thread(t) {				//\lnlbl{read:loop:b}
 		if (counterp[t] != NULL)
-			sum += READ_ONCE(*counterp[t]);	//\lnlbl{read:loop:e}
+			sum += READ_ONCE(*counterp[t]);
+	}						//\lnlbl{read:loop:e}
 	spin_unlock(&gblcnt_mutex);			//\lnlbl{read:release}
 	return sum;					//\lnlbl{read:return}
 }							//\lnlbl{read:e}
