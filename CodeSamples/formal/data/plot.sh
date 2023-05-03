@@ -1,8 +1,8 @@
 #!/bin/sh
 
-fontsize=8
-plotsize=0.5
-przsize="nosquare 0.8,0.25"
+fontsize=12
+plotsize=1
+przsize="nosquare 1.2,0.375"
 font=`kpsewhich uhvr8a.pfb`
 
 gnuplot << ---EOF---
@@ -34,7 +34,7 @@ set style line 1 \
 
 # Set linestyle 2
 set style line 2 \
-    linetype 4 lc 'dark-red' linewidth 1 \
+    linetype 4 lc 'dark-red' linewidth 1.5 \
     pointtype 8 pointsize 0.5
 
 #plot 'rcu-test.dat' using 0:xtic(1), for [i=2:3] '' using i linestyle 1
