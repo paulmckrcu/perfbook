@@ -17,6 +17,29 @@ effects because these effects can be overwhelmingly large, as shown in
 In other words, a good programmer's data-structure relationships
 include those aspects related to concurrency.
 
+This chapter will expose a number of complications:
+
+\begin{enumerate}
+\item	Data structures designed in full accordance with the
+	good advice given in
+	\cref{cha:Partitioning and Synchronization Design}
+	can nonetheless abjectly fail to scale on some types of systems.
+\label{sec:datastruct:NUMA-induced failure to scale}
+\item	Data structures designed in full accordance with the
+	good advice given in both
+	\cref{cha:Partitioning and Synchronization Design}
+	and
+	\cref{chp:Deferred Processing}
+	can \emph{still} abjectly fail to scale on some types of systems.
+\label{sec:datastruct:Cache-size-induced failure to scale}
+\item	Even \emph{read-only synchronization-free} data-structure traversal 
+	can fail to scale on some types of systems.
+\label{sec:datastruct:Cache-size-induced failure to scale redux}
+\item	Data-structure traverals avoiding the aforementioned complications
+	can still be impeded by concurrent updates.
+\label{sec:datastruct:Update-activity failure to scale}
+\end{enumerate}
+
 \Cref{sec:datastruct:Motivating Application}
 presents the motivating application for this chapter's data structures.
 \Cref{cha:Partitioning and Synchronization Design} showed how
@@ -353,8 +376,10 @@ However, as can be seen in
 \cref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo; Varying Buckets},
 changing the number of buckets has almost no effect:
 Scalability is still abysmal.
-In particular, we still see a sharp dropoff at 29~CPUs and beyond.
-Clearly something else is going on.
+In particular, we still see a sharp dropoff at 29~CPUs and beyond,
+clearly demonstrating the complication put forward on
+\cpageref{sec:datastruct:NUMA-induced failure to scale}.
+And just as clearly, something else is going on.
 
 The problem is that this is a multi-socket system, with CPUs~0--27
 and~225--251 mapped to the first socket as shown in
@@ -710,7 +735,8 @@ about a factor of five short of ideal.
 adds completely unsynchronized results, which works because this
 is a read-only benchmark with nothing to synchronize.
 Even with no synchronization whatsoever, performance still falls far
-short of ideal.
+short of ideal, thus demonstrating two more complications on
+\cpageref{sec:datastruct:Cache-size-induced failure to scale redux}.
 
 The problem is that this system has sockets with 28 cores, which have
 the modest cache sizes shown in
@@ -916,6 +942,8 @@ greater overhead, especially in the presence of updates, and particularly
 when execution involves more than one socket.
 It therefore seems likely that modern hardware heavily optimizes memory-barrier
 execution, greatly reducing memory-barrier overhead in the read-only case.
+% @@@ When there is a section covering trees, reference sharding with
+% @@@ CPUs being permitted to directly look up popular entries.
 
 \begin{figure}
 \centering
@@ -976,6 +1004,9 @@ not recommended for production use.
 	the system enjoying linear scalability up to 1024~CPUs boasted
 	excellent memory bandwidth.
 }\QuickQuizEnd
+
+And this situation exposes yet another of the complications listed on
+\cpageref{sec:datastruct:Update-activity failure to scale}.
 
 % @@@ Testing strategy.  Summarize hashtorture, add QQ for additional
 % @@@ things that could be done.  Note difference between textbook
