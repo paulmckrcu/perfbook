@@ -310,10 +310,10 @@ The \apik{rcu_barrier()} primitive does this job.
 	finite.
 }\QuickQuizEndB
 %
-\QuickQuizE{
+\QuickQuizM{
 	The \co{synchronize_rcu()} API waits for all pre-existing
 	interrupt handlers to complete, right?
-}\QuickQuizAnswerE{
+}\QuickQuizAnswerM{
 	In v4.20 and later Linux kernels,
 	yes~\cite{PaulEMcKenney2019RCUCVE,McKenney:2019:CRS:3319647.3325836}.
 
@@ -326,6 +326,77 @@ The \apik{rcu_barrier()} primitive does this job.
 	But even then, be careful, as preemptible RCU will not be guaranteed
 	to wait for that portion of the interrupt handler preceding the
 	\co{rcu_read_lock()} or following the \co{rcu_read_unlock()}.
+}\QuickQuizEndM
+%
+\QuickQuizE{
+	What is the difference between \co{synchronize_rcu()} and
+	\co{rcu_barrier()}?
+}\QuickQuizAnswerE{
+	They wait on different things.
+	While \co{synchronize_rcu()} waits for pre-existing RCU read-side
+	critical sections to complete, \co{rcu_barrier()} instead waits
+	for callbacks from prior calls to \co{call_rcu()} to be invoked.
+
+\begin{listing}
+\begin{fcvlabel}[ln:defer:synchonize-rcu vs rcu-barrier]
+\begin{VerbatimL}[commandchars=\\\@\$]
+	do_something_1();			\lnlbl@ds1$
+	rcu_read_lock();			\lnlbl@rrl$
+	do_something_2();			\lnlbl@ds2$
+	call_rcu(&p->rh, f);			\lnlbl@cr$
+	do_something_3();			\lnlbl@ds3$
+	rcu_read_unlock();			\lnlbl@rrul$
+	do_something_4();			\lnlbl@ds4$
+	// f(&p->rh) invoked			\lnlbl@cb$
+	do_something_5();			\lnlbl@ds5$
+\end{VerbatimL}
+\end{fcvlabel}
+\caption{\tco{synchronize_rcu()} vs. \tco{rcu_barrier()}}
+\label{lst:defer:synchronize-rcu vs. rcu-barrier}
+\end{listing}
+
+	This distinction is illustrated by
+	\cref{lst:defer:synchronize-rcu vs. rcu-barrier}, which
+	shows code being executed by a given CPU\@.
+	For simplicity, assume that no other CPU is executing
+	\co{rcu_read_lock()}, \co{rcu_read_unlock()}, or
+	\co{call_rcu()}.
+
+
+\begin{table*}
+\renewcommand*{\arraystretch}{1.2}
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+            & \tco{synchronize_rcu()} & \tco{rcu_barrier()} \\
+Invoked at: & \multicolumn{2}{c}{Must Wait Until:} \\
+\midrule
+\tco{do_something_1()} & 			 & \\
+\tco{do_something_2()} & \tco{rcu_read_unlock()} & \\
+\tco{do_something_3()} & \tco{rcu_read_unlock()} & \tco{f(&p->rh)} \\
+\tco{do_something_4()} &			 & \tco{f(&p->rh)} \\
+\tco{do_something_5()} & 			 & \\
+\bottomrule
+\end{tabular}
+\caption{\tco{synchronize_rcu()} vs. \tco{rcu_barrier()}}
+\label{tab:defer:synchonize-rcu vs rcu-barrier}
+\end{table*}
+
+	\Cref{tab:defer:synchonize-rcu vs rcu-barrier}
+	shows how long each primitive must wait if invoked
+	concurrently with each of the \co{do_something_*()}
+	functions, with empty cells indicating that no
+	waiting is necessary.
+	As you can see, \co{synchronize_rcu()} need not wait unless
+	it is in an RCU read-side critical section, in which case
+	it must wait for the \co{rcu_read_unlock()} that ends that
+	critical section.
+	In contrast, RCU read-side critical sections have no effect
+	on \co{rcu_barrier()}.
+	However, when \co{rcu_barrier()} executes after a
+	\co{call_rcu()} invocation, it must wait until the
+	corresponding RCU callback is invoked.
 }\QuickQuizEndE
 }
 
