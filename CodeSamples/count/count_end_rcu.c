@@ -89,7 +89,7 @@ void count_unregister_thread(int nthreadsexpected)	//\lnlbl{unreg:b}
 	}						//\lnlbl{unreg:alloc:e}
 	spin_lock(&final_mutex);			//\lnlbl{unreg:acq}
 	*cap = *countarrayp;				//\lnlbl{unreg:copy}
-	WRITE_ONCE(cap->total, cap->total + counter);	//\lnlbl{unreg:add}
+	cap->total += counter;	//\lnlbl{unreg:add}
 	cap->counterp[idx] = NULL;			//\lnlbl{unreg:null}
 	capold = countarrayp;				//\lnlbl{unreg:retain}
 	rcu_assign_pointer(countarrayp, cap);		//\lnlbl{unreg:assign}
