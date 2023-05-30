@@ -48,10 +48,10 @@ unsigned long read_count(void)			//\lnlbl{read:b}
 
 	rcu_read_lock();			//\lnlbl{read:rrl}
 	cap = rcu_dereference(countarrayp);	//\lnlbl{read:deref}
-	sum = READ_ONCE(cap->total);		//\lnlbl{read:init}
+	sum = cap->total;		//\lnlbl{read:init}
 	for_each_thread(t) {			//\lnlbl{read:add:b}
 		ctrp = READ_ONCE(cap->counterp[t]);
-		if (ctrp != NULL) sum += *ctrp;	//\lnlbl{read:add:e}
+		if (ctrp != NULL) sum += READ_ONCE(*ctrp);	//\lnlbl{read:add:e}
 	}
 	rcu_read_unlock();			//\lnlbl{read:rru}
 	return sum;				//\lnlbl{read:ret}
