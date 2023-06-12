@@ -57,7 +57,7 @@ cp ack.tex autodate.tex glsdict.tex glossary.tex origpub.tex contrib.tex legal.t
 cp `kpsewhich fvextra.sty` ${destdir}
 cp `kpsewhich epigraph.sty` ${destdir}
 
-find */ '(' -name '*.pdf' -o -name '*.lst' ')' -exec cp {} ${destdir}/{} \;
+find */ '(' -name '*.pdf' -o -name '*.lst' -o -name '*.png' ')' -exec cp {} ${destdir}/{} \;
 
 # Arxiv doesn't like "@" in filenames, so transform them to "=".
 transform_fcv()
