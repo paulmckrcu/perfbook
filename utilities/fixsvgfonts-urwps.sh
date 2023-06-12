@@ -8,7 +8,7 @@
 sed	-e 's+:Helvetica+:Nimbus Sans+g' \
 	-e 's+="Helvetica+="Nimbus Sans+g' \
 	-e 's+:Sans+:Nimbus Sans+g' \
-	-e 's+:sans-serif+:Nimbus Sans+g' \
+	-e 's+:sans-serif+:DejaVu Sans+g' \
 	-e 's+:Courier+:Nimbus Mono PS+g' \
 	-e 's+="Courier+="Nimbus Mono PS+g' \
 	-e 's+:monospace+:DejaVu Sans Mono+g' \
