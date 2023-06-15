@@ -125,6 +125,7 @@ COURIERS := $(findstring couriers,$(FONTPACKAGES))
 NEWTXSF := $(findstring newtxsf,$(FONTPACKAGES))
 INCONSOLATA := $(findstring inconsolata,$(FONTPACKAGES))
 FREESANS := $(shell fc-list | grep FreeSans | wc -l)
+DEJAVUSANS := $(shell fc-list | grep "DejaVu Sans" | grep -v "DejaVu Sans Mono" | wc -l)
 DEJAVUMONO := $(shell fc-list | grep "DejaVu Sans Mono" | wc -l)
 LIBERATIONSANS := $(shell fc-list | grep "Liberation Sans" | wc -l)
 LIBERATINOMONO := $(shell fc-list | grep "Liberation Mono" | wc -l)
@@ -149,10 +150,15 @@ ifeq ($(FREESANS),0)
 else
   RECOMMEND_FREEFONT := 0
 endif
-ifeq ($(DEJAVUMONO),0)
-  RECOMMEND_DEJAVU := 1
+ifeq ($(DEJAVUSANS),0)
+  RECOMMEND_DEJAVUSANS := 1
 else
-  RECOMMEND_DEJAVU := 0
+  RECOMMEND_DEJAVUSANS := 0
+endif
+ifeq ($(DEJAVUMONO),0)
+  RECOMMEND_DEJAVUMONO := 1
+else
+  RECOMMEND_DEJAVUMONO := 0
 endif
 ifeq ($(LIBERATIONSANS),0)
   RECOMMEND_LIBERATIONSANS := 1
@@ -461,7 +467,10 @@ endif
 ifeq ($(RECOMMEND_FREEFONT),1)
 	$(info Nice-to-have font family 'FreeMono' not found. See #9 in FAQ-BUILD.txt)
 endif
-ifeq ($(RECOMMEND_DEJAVU),1)
+ifeq ($(RECOMMEND_DEJAVUSANS),1)
+	$(info Nice-to-have font family 'DejaVu Sans' not found. See #9 in FAQ-BUILD.txt)
+endif
+ifeq ($(RECOMMEND_DEJAVUMONO),1)
 	$(info Nice-to-have font family 'DejaVu Sans Mono' not found. See #9 in FAQ-BUILD.txt)
 endif
 ifeq ($(RECOMMEND_LIBERATIONSANS),1)
