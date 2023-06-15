@@ -17,8 +17,8 @@ WORKDIR /opt
 RUN curl https://gitlab.com/latexpand/latexpand/-/archive/v1.3/latexpand-v1.3.tar.gz -o - | tar xfz - && \
     sed -i -e 's/@LATEXPAND_VERSION@/v1.3/' latexpand-*/latexpand && \
     cp latexpand-*/latexpand /usr/local/bin
-ARG uid=1000
-ARG gid=1000
+ARG uid=0
+ARG gid=0
 ARG user=perfbook
 ARG group=perfbook
 RUN if [ $uid -ne 0 ] ; then \
