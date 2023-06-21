@@ -89,17 +89,19 @@ struct treeroot *tree_alloc(void)
  * readers accessing the tree.
  */
 static void tree_remove_all(struct treenode *cur,
-			    void (*freefunc)(void *p))
+			    void (*freefunc)(void *p),
+			    bool free_node)
 {
 	if (cur == NULL)
 		return;
-	tree_remove_all(cur->lc, freefunc);
-	tree_remove_all(cur->rc, freefunc);
+	tree_remove_all(cur->lc, freefunc, true);
+	tree_remove_all(cur->rc, freefunc, true);
 	if (cur->perm)
 		return;
 	if (cur->data && freefunc)
 		freefunc(cur->data);
-	free_treenode_cache(cur);
+	if (free_node)
+		free_treenode_cache(cur);
 }
 
 /*
@@ -125,7 +127,7 @@ static void tree_check_insertion(struct treeroot *trp, struct treenode *new)
  */
 void tree_free(struct treeroot *trp, void (*freefunc)(void *p))
 {
-	tree_remove_all(&trp->max, freefunc);
+	tree_remove_all(&trp->max, freefunc, false);
 	free(trp);
 }
 
