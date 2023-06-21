@@ -135,12 +135,35 @@ will pass to a later call to \co{read_seqretry()}.
 	internally, rather than allowing a doomed read to start?
 }\QuickQuizAnswer{
 	That would be a legitimate implementation.
-	However, if the workload is read-mostly, it would likely
+	However, if the workload is read-mostly, this added check would
 	increase the overhead of the common-case successful read,
 	which could be counter-productive.
-	However, given a sufficiently large fraction of updates
-	and sufficiently high-overhead readers, having the
-	check internal to \co{read_seqbegin()} might be preferable.
+	On the other hand, given a sufficiently large fraction of updates
+	and sufficiently high-overhead readers, having this
+	internal-to-\co{read_seqbegin()} check might be preferable.
+
+	\begin{fcvref}[ln:defer:seqlock:impl]
+	Of course, the full memory barriers
+	on \clnref{read_seqbegin:mb,read_seqretry:mb} of
+	\cref{lst:defer:Sequence-Locked Pre-BSD Routing Table Lookup}
+	are quite heavyweight as instructions go, which suggests that the
+	overhead of the added check might be negligible.
+	Except that, in userspace code, the \co{membarrier()} system
+	call~\cite{Corbet2010membarrier,MathieuDesnoyers2017membarrier,Linuxmanpage2018sys-membarrier}
+	can be used to eliminate that \co{smp_mb()} overhead on the
+	read side in exchange for the added overhead of \co{membarrier()}
+	on the update side.
+	This feature is on its way into the C++ standard under the name
+	of ``asymmetric fences''~\cite{DavidGoldblatt2022asymmetricFences}.
+	Either way, this trick eliminates the update-side \co{smp_mb()}
+	overhead, which in turn makes eliminating the check more
+	attractive, arriving again at the form of the code shown in
+	\cref{lst:defer:Sequence-Locked Pre-BSD Routing Table Lookup}.
+	\end{fcvref}
+
+	This same trick may be applied to Linux-kernel code using tools
+	such as \co{smp_call_function()}, at least in non-realtime builds
+	of the Linux kernel..
 }\QuickQuizEnd
 
 \begin{fcvref}[ln:defer:seqlock:impl:read_seqretry]
