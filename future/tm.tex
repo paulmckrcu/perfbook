@@ -776,7 +776,7 @@ unacceptable for production-quality lock-based programs wishing to use
 the occasional transaction.
 
 \begin{enumerate}
-\item	Use only locking-friendly TM implementations.
+\item	Use only locking-friendly TM implementations~\cite{DaveDice2006DISC}.
 	Unfortunately, the locking-unfriendly implementations have some
 	attractive properties, including low overhead for successful
 	transactions and the ability to accommodate extremely large
@@ -1129,14 +1129,100 @@ that do not interact with the huge body of existing parallel code,
 then transactions absolutely must be so combined if they are to have
 large-scale practical impact in the near term.
 
-% Conflict handling, Huge transactions.
-% Contention managers: WilliamNSchererIII2005
-% Unbounded transactional memory: CScottAnanian2006 (UTM)
-%	KevinEMoore2006 (LogTM).
-%	SanjeevKumar2006 (Hybrid HTM/STM).
-%	BratinSaha2006MICRO ("mark bits", similar to LL/SC markings).
-%	DonaldEPorter2007TRANSACT (Need to loosen TM consistency).
-%	YujieLiu2011ToxicTransactions (Toxic Transactions).
+\subsection{Other Transactions}
+\label{sec:future:Other Transactions}
+% If we ever get epigraphs down at this level, perhaps the old
+% "Hell is other people" quote by Jean-Paul Sartre.  His clarification
+% also applies, which can be stated as "Heaven is also other people".
+
+Because transactions are to appear atomic with respect to each other,
+something must be done when multiple transactions attempt to access the
+same variable at the same time.
+If all the transactions are reading that variable and none of them are
+updating it, then that something can be ``nothing'', but otherwise
+the transactions must be at least partially serialized.
+This serialization is often achieved by aborting and rolling back some
+subset of those transactions.
+
+How to choose which to abort and roll back?
+
+There has been much work on this question.
+The answer is ``use a contention manager'', but that simply shifts this
+question to ``what should a contention manager do?''
+A full exposition on contention managers is beyond the scope of this section.
+This section will therefore limit itself to a few seminal papers
+in this area.
+
+Herlihy et al.~\cite{HerlihyLMS03}
+have writing transactions unconditionally abort reading transactions,
+which has the virtue of simplicity, but which can result in reader
+starvation.
+This paper also introduces the concept of early release, which can
+allow a long traversal to proceed concurrently with small updates.
+From this viewpoint, one might characterize RCU readers as ``instant
+release'', but this is a property that causes RCU readers to behave in
+a decidedly non-STM manner.
+
+Hammond et al.~\cite{LanceHammond2004a}
+advise using small transactions, which does reduce contention-manager
+complexity, but which also fails to deliver on the full STM promise
+of automated concurrency.
+This paper also introduced annotations to identify different types of
+transactions.
+
+Scherer and Scott~\cite{WilliamNSchererIII2005}
+describe a number of STM contention-management strategies.
+This paper defined ``visible'' and ``invisible'' readers for
+extra-transactional accesses, and discuss a number of contention-management
+strategies, including:
+
+\begin{enumerate}
+\item	Exponential backoff, which they conclude required manual
+	tuning.
+\item	Preferentially abort transactions that have done the least work,
+	where the work of an aborted prior attempt to complete a
+	transactions is counted for the next retry of that transaction.
+	This has nice fairness properties, but can cause huge transactions
+	to hog the system for an extended time.
+\item	Preferentially abort transactions that have done the least work,
+	but also credit a given transaction with the work done by any
+	other transactions blocked waiting for that transaction to complete.
+	This adds a form of priority inheritance to the mix.
+\item	Track how many times a given transaction has been aborted by
+	another transaction as another way to promote some notion of
+	fairness.
+\item	Use transaction-start timestamps in order to preferentially abort
+	transactions that started most recently.
+\item	Use transaction-start timestamps, but also add an indication
+	of when a given transaction last ran to prevent preempted
+	transactions from aborting other transactions running in
+	higher-priority processes.
+\end{enumerate}
+
+This 2005 paper thus gave an early indication of the complexity inherent
+in contention management.
+
+Porter and Witchel~\cite{DonaldEPorter2007TRANSACT,Ramadan:2008:DTM:1521747.1521799}
+considered loosening STM consistency requirements in order to simplify
+contention management.
+They noted RCU as a case in which an update will cause concurrent reads
+to access old versions of the data.
+
+Contention management is also an issue in HTM, and will be discussed
+in \cref{sec:future:Conflict Handling,sec:future:Aborts and Rollbacks}.
+
+\QuickQuiz{
+	Why not get with the times and apply machine learning to
+	contention management?
+}\QuickQuizAnswer{
+	Many transactions have sub-microsecond overheads, so it would
+	be all too easy to burn more CPU on machine learning than was
+	saved by more efficiently executing transactions.
+	Machine learning might nevertheless have a role to play in
+	tuning contention managers to specific workloads.
+	It would of course be even better to not need the tuning, but
+	sometimes ``better'' is unattainable.
+}\QuickQuizEnd
 
 \subsection{Case Study:
 	    Sequence Locking}
@@ -1212,17 +1298,25 @@ and extra-transactional accesses
 may all be used within sequence-locking read-side critical sections,
 and all give the expected results.
 
-% @@@ contention management
+Sequence locking uses a trivial contention manager
+(\cref{sec:future:Other Transactions}).
+Sequence-locking readers are always rolled back in case of a concurrent
+updater (as do Herlihy et al.~\cite{HerlihyLMS03}), sequence-locking
+updaters typically delegate their contention management to some form of
+mutual exclusion, and sequence-locking readers never conflict, and thus
+never need their non-existent contention to be managed.
+This rough-and-ready approach means that sequence-locking updaters
+can starve readers, and users of sequence locking must therefore take
+care to avoid frequent updates.
 
-In short, sequence locking interoperates quite well with all of these
-STM challenges.
+In short, sequence locking handles these STM challenges quite well.
 This might be one reason that sequence locking is heavily used in
 production.
-However, a key enabler of sequence-locking interoperability is pushing
-a number of issues back to the user.
+However, a key enabler of sequence locking is the pushing of a number
+of these challenges back onto the user.
 This approach is reasonable because sequence locking has no ambitions
 to be the one synchronization mechanism to rule them all.
-Perhaps the greatest impediment to widespread STM adoption is its
+So perhaps the greatest impediment to widespread STM adoption is its
 proponents' overweening desire for full generality.
 
 \subsection{Discussion}
