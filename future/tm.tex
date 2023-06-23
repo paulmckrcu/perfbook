@@ -1138,6 +1138,80 @@ large-scale practical impact in the near term.
 %	DonaldEPorter2007TRANSACT (Need to loosen TM consistency).
 %	YujieLiu2011ToxicTransactions (Toxic Transactions).
 
+\subsection{Case Study:
+	    Sequence Locking}
+\label{sec:future:Case Study: Sequence Locking}
+
+Sequence locking, described in
+\cref{sec:defer:Sequence Locks},
+is sometimes thought of as a trivial form of STM\@.
+The sequence-locking read-side critical section is normally restricted
+to doing loads, and it is retried whenever there is a conflict with a
+sequence-locking updater.
+It is therefore instructive to consider how sequence locking handles
+the STM challenges called out in the preceding sections.
+
+Sequence locking handles interactions with the outside world
+(\cref{sec:future:Outside World}) by simply executing the
+TM-unfriendly operation on each pass through its read-side
+critical section.
+For example, if the critical section doing an I/O write
+is retried three times, it will execute that I/O write four
+times, once for the original pass through the critical
+section and once each for the three retries.
+
+Doing I/O operations within a sequence-locking read-side
+critical section might seem a bit unconventional.
+It nevertheless makes a good deal of sense to do
+an I/O write (\cref{sec:future:I/O Operations})
+to a log for historical, debugging, or auditing purposes.
+An RPC operation (\cref{sec:future:RPC Operations}) might gather needed data.
+A time delay (\cref{sec:future:Time Delays}) might serve valuable
+debugging purposes such as exercising the retry code path.
+Even persistent operations (\cref{sec:future:Persistence}) are potentially
+useful, for example, to carry out cross-application mutual exclusion.
+
+Sequence locking handles process modifications
+(\cref{sec:future:Process Modification})
+in the same way, by simply executing the process-modification operation
+on each pass through its read-side critical section.
+
+Creating processes and threads within a critical section
+(\cref{sec:future:Multithreaded Transactions})
+operates normally, though care should be taken in order to prevent
+an often-retried critical section from becoming a ``fork bomb''.
+The \co{exec()} system call (\cref{sec:future:The exec System Call})
+has perfectly reasonable (if rather drastic) semantics.
+Calls to functions within dynamic libraries
+(\cref{sec:future:Dynamic Linking and Loading}),
+such as Linux-kernel loadable modules, work just as well as do calls
+to built-in functions.
+Of course, if such a call were cause a module to load, this might result
+in a high retry probability on the first pass through the critical
+section.
+Remapping memory (\cref{sec:future:Memory-Mapping Operations})
+behaves intuitively, as least assuming that neither the code making
+up the critical section nor the sequence lock itself are remapped.
+Note that these same restrictions also apply to normal locks.
+Debuggers (\cref{sec:future:Debugging})
+work normally within sequence-locking read-side critical sections,
+just as they do within the critical sections for normal locks.
+
+Synchronization primitives (\cref{sec:future:Synchronization})
+can be used freely within sequence-locking read-side critical sections.
+Locking (\cref{sec:future:Locking}),
+reader-writer locking (\cref{sec:future:Reader-Writer Locking}),
+deferred reclamation (\cref{sec:future:Deferred Reclamation}),
+and extra-transactional accesses
+(\cref{sec:future:Extra-Transactional Accesses})
+may all be used within sequence-locking read-side critical sections,
+and all give the expected results.
+
+In short, sequence locking interoperates quite well with all of these
+STM challenges.
+This might be one reason that sequence locking is heavily used in
+production.
+
 \subsection{Discussion}
 \label{sec:future:Discussion}
 
@@ -1272,9 +1346,9 @@ fig:future:The STM Reality: Realtime Response}.\footnote{
 Less fanciful STM retrospectives are also
 available~\cite{JoeDuffy2010RetroTM,JoeDuffy2010RetroTM2}.
 
-Alternatively, one might argue that sequence locking
-(\cref{sec:defer:Sequence Locks}) constitutes a restricted form of
-STM that is heavily used in practice.
+Alternatively, one might argue that sequence locking constitutes a
+restricted form of STM that is heavily used in practice, as discussed in
+\cref{sec:future:Case Study: Sequence Locking}.
 
 Whether or not sequence locking is considered to be the standard bearer
 for STM in actual practice, some commercially available hardware supports
