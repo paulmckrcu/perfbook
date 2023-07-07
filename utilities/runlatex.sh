@@ -154,8 +154,8 @@ then
 	echo "############################################################"
 	echo "### Buggy version of LaTeX package 'cleveref' detected!! ###"
 	echo "### (Known issue on Ubuntu 18.04 LTS)                    ###"
-	echo "### Please consider installing a stable version.         ###"
-	echo "### See item 10 in FAQ-BUILD.txt for further info.       ###"
+	echo "### Required TeX Live is 2019/Debian or later.           ###"
+	echo "### Consider upgrading to Ubuntu 20.04 LTS or later.     ###"
 	echo "############################################################"
 fi
 # to avoid redundant run of bibtex and pdflatex
