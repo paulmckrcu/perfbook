@@ -597,6 +597,7 @@ clean:
 	rm -f perfbook*.idx perfbook*.ind perfbook*.ilg perfbook*.ist
 	rm -f perfbook*.acn perfbook*.acr perfbook*.alg
 	rm -f perfbook*.glg perfbook*.glo perfbook*.gls perfbook*.glsdefs
+	rm -f perfbook*.sil
 	rm -f CodeSamples/snippets.d
 	rm -f *.synctex*
 	@rm -f $(OBSOLETE_FILES) $(EPSSOURCES_TMP)
