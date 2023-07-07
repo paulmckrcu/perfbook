@@ -53,7 +53,7 @@ identical_warnings () {
 	return 1 ;
 }
 
-exerpt_warnings () {
+excerpt_warnings () {
 	if grep -q "LaTeX Warning:" $basename.log
 	then
 		echo "----- Excerpt around remaining warning messages -----"
@@ -123,7 +123,7 @@ do
 	if test $undefined_refs
 	then
 		echo "Undefined refs remain, giving up."
-		exerpt_warnings
+		excerpt_warnings
 	fi
 	if identical_warnings
 	then
@@ -145,7 +145,7 @@ do
 	echo "$LATEX $iter for $pdfname # label(s) may have changed"
 	iterate_latex
 done
-exerpt_warnings
+excerpt_warnings
 rm -f $basename-warning.log $basename-warning-prev.log
 echo "'$basename.pdf' is ready."
 # cleveref version check (Ubuntu 18.04 LTS has buggy one
