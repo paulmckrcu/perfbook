@@ -22,7 +22,7 @@
 #
 # Copyright (C) IBM Corporation, 2012-2019
 # Copyright (C) Facebook, 2019
-# Copyright (C) Akira Yokosawa, 2016
+# Copyright (C) Akira Yokosawa, 2016, 2023
 #
 # Authors: Paul E. McKenney <paulmck@us.ibm.com>
 #          Akira Yokosawa <akiyks@gmail.com>
@@ -72,11 +72,6 @@ basename=`echo $1 | sed -e 's/\.tex$//'`
 echo "$LATEX 1 for $basename.pdf"
 $LATEX $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null
 exitcode=$?
-if [ $exitcode -ne 0 ]; then
-	tail -n 20 $basename.log
-	echo "\n!!! $LATEX aborted !!!"
-	exit $exitcode
-fi
 if grep -q 'LaTeX Warning: You have requested' $basename.log
 then
 	grep -A 4 'LaTeX Warning: You have requested' $basename.log
@@ -84,20 +79,33 @@ then
 	echo "### See items 9 and 10 in FAQ-BUILD.txt for how to update.          ###"
 	exit 1
 fi
-if [ $DETECTED_BUGGY -eq 1 ]; then
-	exit 1
+if grep -q 'LaTeX Error:' $basename.log
+then
+	echo "----- !!! Fatal latex error !!! -----"
+	grep -B 5 -A 8 'LaTeX Error:' $basename.log
+	echo "----- See $basename.log for the full log. -----"
+	exit 2
+fi
+if grep -q 'pdfTeX error:' $basename.log
+then
+	echo "----- !!! Fatal pdfTeX error !!! -----"
+	grep -B 10 -A 8 '!pdfTeX error:' $basename.log
+	echo "----- See $basename.log for the full log. -----"
+	exit 2
 fi
 if grep -q '! Emergency stop.' $basename.log
 then
-	grep -B 15 -A 5 '! Emergency stop.' $basename.log
+	grep -B 10 -A 5 '! Emergency stop.' $basename.log
 	echo "----- Fatal latex error, see $basename.log for details. -----"
 	exit 2
 fi
-if grep -q '!pdfTeX error:' $basename.log
-then
-	grep -A 2 '!pdfTeX error:' $basename.log
-	echo "----- Fatal latex error, see $basename.log for details. -----"
-	exit 2
+if [ $exitcode -ne 0 ]; then
+	tail -n 20 $basename.log
+	echo "\n!!! $LATEX aborted !!!"
+	exit $exitcode
+fi
+if [ $DETECTED_BUGGY -eq 1 ]; then
+	exit 1
 fi
 grep 'LaTeX Warning:' $basename.log > $basename-warning.log
 touch $basename-first.log
