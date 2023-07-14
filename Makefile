@@ -414,13 +414,11 @@ perfbook-a4.tex:
 
 # Rules related to perfbook_html are removed as of May, 2016
 
-$(EPSSOURCES_FROM_TEX): $(FIXANEPSFONTS) $(FIXFONTS)
 $(EPSSOURCES_FROM_TEX): %.eps: %.tex
 	@echo "$< --> $(suffix $@)"
 	sh utilities/mpostcheck.sh
 	@latex -output-directory=$(shell dirname $<) $< > /dev/null 2>&1
 	@dvips -Pdownload35 -E $(patsubst %.tex,%.dvi,$<) -o $@ > /dev/null 2>&1
-	@sh $(FIXANEPSFONTS) $@
 
 $(EPSSOURCES_FROM_DOT): $(FIXANEPSFONTS) $(FIXFONTS)
 $(EPSSOURCES_FROM_DOT): %.eps: %.dot
