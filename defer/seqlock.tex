@@ -131,21 +131,32 @@ will pass to a later call to \co{read_seqretry()}.
 \QuickQuiz{
 	Why not have \co{read_seqbegin()} in
 	\cref{lst:defer:Sequence-Locking Implementation}
-	check for the low-order bit being set, and retry
-	internally, rather than allowing a doomed read to start?
+	check whether the sequence-number value is odd, and, if so,
+	retry internally rather than entering a doomed read-side critical
+	section?
 }\QuickQuizAnswer{
-	That would be a legitimate implementation.
-	However, if the workload is read-mostly, this added check would
-	increase the overhead of the common-case successful read,
-	which could be counter-productive.
-	On the other hand, given a sufficiently large fraction of updates
-	and sufficiently high-overhead readers, having this
-	internal-to-\co{read_seqbegin()} check might be preferable.
+	This would be a legitimate implementation.
+
+	But please keep in mind that
+	\begin{enumerate*}[(1)]
+	\item	This added check is a relatively expensive conditional branch,
+	\item	It cannot be substituted for the later check done by
+		\co{read_seqretry()}, which must happen after the
+		critical section completes, and
+	\item	Sequence locking is intended for read-mostly workloads,
+		which means that this extra check would slow down the
+		common case.
+	\end{enumerate*}
+
+	On the other hand, in an alternate universe having a sufficiently
+	large fraction of updates and sufficiently high-overhead readers,
+	having this internal-to-\co{read_seqbegin()} check might be
+	preferable.
 
 	\begin{fcvref}[ln:defer:seqlock:impl]
 	Of course, the full memory barriers
 	on \clnref{read_seqbegin:mb,read_seqretry:mb} of
-	\cref{lst:defer:Sequence-Locked Pre-BSD Routing Table Lookup}
+	\cref{lst:defer:Sequence-Locking Implementation}
 	are quite heavyweight as instructions go, which suggests that the
 	overhead of the added check might be negligible.
 	Except that, in userspace code, the \co{membarrier()} system
@@ -163,7 +174,7 @@ will pass to a later call to \co{read_seqretry()}.
 
 	This same trick may be applied to Linux-kernel code using tools
 	such as \co{smp_call_function()}, at least in non-realtime builds
-	of the Linux kernel..
+	of the Linux kernel.
 }\QuickQuizEnd
 
 \begin{fcvref}[ln:defer:seqlock:impl:read_seqretry]
