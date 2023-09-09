@@ -14,17 +14,24 @@ have a strong grasp of these concepts.
 These intuitions can be quite helpful when writing, analyzing, and
 debugging not only sequential code, but also parallel code that makes
 use of standard mutual-exclusion mechanisms such as locking.
-Unfortunately, these intuitions break down completely in code that
-instead uses weakly ordered atomic operations and memory barriers.
+Unfortunately, these intuitions break down completely in complex
+concurrent code, such as that in  the Linux-kernel, which often uses
+weakly ordered atomic operations and memory barriers.
 One example of such code implements the standard mutual-exclusion
 mechanisms themselves, while another example implements fast
 paths that use weaker synchronization.
 Insults to intuition notwithstanding, some argue that weakness is a
 virtue~\cite{JadeAlglave2013-WeaknessIsVirtue}.
-Virtue or vice, this chapter will help you gain an understanding of
+Vice or virtue, this chapter will help you gain an understanding of
 memory ordering, that, with practice, will be sufficient to implement
 synchronization primitives and performance-critical fast paths.
 
+First, \cref{sec:memorder:Memory-Model Intuitions}
+provides some reliable intuitions and useful rules of thumb, which can
+often provide a useful alternative to learning the full Linux-kernel
+memory model (LKMM)\@.
+However, those working on fast-paths or concurrency primitives will
+need the additional detail provided by the following sections.
 \Cref{sec:memorder:Ordering: Why and How?}
 will demonstrate that real computer systems can reorder memory references,
 give some reasons why they do so, and provide some information on how
@@ -36,16 +43,15 @@ can inflict on unwary parallel programmers.
 \Cref{sec:memorder:Higher-Level Primitives}
 gives an overview of the benefits of modeling memory ordering at
 higher levels of abstraction.
-\Cref{sec:memorder:Hardware Specifics}
+Finally,
+\cref{sec:memorder:Hardware Specifics}
 follows up with more detail on a few representative hardware platforms.
-Finally, \cref{sec:memorder:Memory-Model Intuitions}
-provides some reliable intuitions and useful rules of thumb.
 
 \QuickQuiz{
 	This chapter has been rewritten since the first edition,
 	and heavily edited since the second edition.
 	Did memory ordering change all \emph{that} since 2014,
-	let alone 2021?
+	let alone since 2021?
 }\QuickQuizAnswer{
 	The earlier memory-ordering section had its roots in a pair of
 	Linux Journal articles~\cite{PaulMcKenney2005i,PaulMcKenney2005j}
@@ -66,10 +72,533 @@ provides some reliable intuitions and useful rules of thumb.
 	and implementing \IXacr{lkmm}, has also been added to the Linux kernel
 	and is now heavily used.
 
-	Finally, there are now better ways of describing LKMM.
+	Finally, there are now better ways of describing the Linux-kernel
+	memory model (LKMM).
 
 	Given all this progress, substantial change was required.
 }\QuickQuizEnd
+
+\section{Memory-Model Intuitions}
+\label{sec:memorder:Memory-Model Intuitions}
+%
+\epigraph{Almost all people are intelligent.
+	  It is method that they lack.}
+	 {F. W. Nichol}
+
+This section is for people who would like to avoid learning all the
+details of the Linux-kernel memory model (LKMM), the better to get on with
+their concurrency lives.
+The good news is that learning a very small fraction of LKMM can get
+you most of its benefits.
+% @@@ \cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
+% @@@ and \cref{sec:memorder:Basic Rules of Thumb},
+% @@@ summarizing the intervening discussion with some appeals to transitive
+% @@@ intuitions and with more sophisticated rules of thumb.
+
+But first, it is necessary to understand the temporal and non-temporal
+nature of communication from one thread to another when using memory
+as the communications medium, as will be discussed in detail in
+\cref{sec:memorder:Multicopy Atomicity}.
+The key point is that although loads and stores are conceptually simple,
+on real multicore hardware significant periods of time are required for
+their effects to become visible to all other threads.
+Strange though it might seem, this means that a given store's value
+might not be returned by a load that happens later in wall-clock time,
+and it also means that a given store's value might be overwritten by a
+store that happens earlier in wall-clock time.
+
+The simple and intuitive case occurs when one thread loads a value that
+some other thread stored.
+This straightforward cause-and-effect case exhibits temporal behavior, so
+that the software can safely assume that the store instruction completed
+before the load instruction started.
+In real life, the load instruction might well have started quite some
+time before the store instruction did, but all modern hardware must
+carefully hide such cases from the software.
+Software will thus see the expected temporal cause-and-effect
+behavior when one thread loads a value that some other thread stores,
+as will be discussed in \cref{sec:memorder:Happens-Before}.
+
+This intuitive temporal behavior provides the basis for the next section's
+transitive intuitions.
+
+\subsection{Transitive Intuitions}
+\label{sec:memorder:Transitive Intuitions}
+
+This section lists intuitions regarding single threads or variables,
+locking, release-acquire chains, RCU, and fully ordered code.
+
+\subsubsection{Singular Intuitive Bliss}
+\label{sec:memorder:Singular Intuitive Bliss}
+
+A program that has only one variable or only one thread will see
+all accesses in order.
+There is quite a bit of code that can attain adequate performance
+when running single-threaded on modern computer systems, but
+this book is primarily about software that needs multiple CPUs.
+On, then, to the next section.
+
+\subsubsection{Locking Intuitions}
+\label{sec:memorder:Locking Intuitions}
+
+Another transitive intuition involves that much-maligned workhorse,
+locking, as will be described in more detail in
+\cref{sec:memorder:Locking},
+to say nothing of
+\cref{chp:Locking}.
+This section contains a graphical description followed by a verbal
+description.
+
+\begin{figure*}
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{memorder/locktrans}}
+\caption{Locking Intuitions}
+\label{fig:memorder:Locking Intuitions}
+\end{figure*}
+
+The graphical description is shown in
+\cref{fig:memorder:Locking Intuitions},
+which shows a lock being acquired and released by CPUs~0, 1, and~2
+in that order.
+The solid black arrows depict the unlock-lock ordering.
+The dotted lines emanating from them to the wide green arrows
+show the effects on ordering.
+In particular:
+
+\begin{enumerate}
+\item	The fact that CPU~0's unlock precedes CPU~1's lock ensures that
+	any access executed by CPU~0 within or before its critical
+	section will be seen by accesses executed by CPU~1 within
+	and after its critical section.
+\item	The fact that CPU~0's unlock precedes CPU~2's lock ensures that
+	any access executed by CPU~0 within or before its critical
+	section will be seen by accesses executed by CPU~2 within
+	and after its critical section.
+\item	The fact that CPU~1's unlock precedes CPU~2's lock ensures that
+	any access executed by CPU~1 within or before its critical
+	section will be seen by accesses executed by CPU~2 within and
+	after its critical section.
+\end{enumerate}
+
+In short, lock-based ordering is transitive through CPUs~0, 1, and~2.
+A key point is that this ordering extends beyond the critical sections,
+so that everything before an earlier lock release is seen by everything
+after a later lock acquisition.
+
+For those who prefer words to diagrams, code holding a given lock will
+see the accesses in all prior critical sections for that same lock,
+transitively.
+And if such code sees the accesses in a given critical section, it will
+also see the accesses in all of that CPU's code preceding
+that critical section.
+In other words, when a CPU releases a given lock, all
+of that lock's subsequent critical sections will see the accesses in
+all of that CPU's code preceding that lock release.
+
+Inversely, code holding a given lock will be protected from seeing the
+accesses in any subsequent critical sections for that same lock, again,
+transitively.
+And if such code is protected against seeing the accesses in a given
+critical section, it will also be protected against seeing the accesses
+in all of that CPU's code following that critical section.
+In other words, when a CPU acquires a given lock, all of
+that lock's previous critical sections will be protected from seeing
+the accesses in all of that CPU's code following that lock
+acquisition.
+
+But what does it mean to ``see accesses'' and exactly what accesses
+are seen?
+
+To start, an access is either a load or a store, possibly occurring as part
+of a read-modify-write operation.
+
+If a CPU's code prior to its release of a given lock contains
+an access A to a given variable, then for an access B to that same variable
+contained in any CPU's code following a later acquisition
+of that same lock:
+
+\begin{enumerate}
+\item	If A and B are both loads, then B will return either the same
+	value that A did or some later value.
+\item	If A is a load and B is a store, then B will overwrite either the
+	value loaded by A or some later value.
+\item	If A is a store and B is a load, then B will return either the
+	value stored by A or some later value.
+\item	If A and B are both stores, then B will overwrite either the value
+	stored by A or some later value.
+\end{enumerate}
+
+Here, ``some later value'' is shorthand for ``the value stored by some
+intervening access''.
+
+\QuickQuiz{
+	But what about reader-writer locking?
+}\QuickQuizAnswer{
+	Reader-writer locking works the same as does exclusive locking,
+	with the proviso that ordering is guaranteed only between a
+	pair of conflicting critical sections.
+	This means that a read-side critical section will be ordered
+	before a later write-side critical section and vice versa.
+	But this also means that there is no guarantee of ordering
+	between a pair of read-side critical sections unless there is
+	an intervening write-side critical section.
+
+	As of mid-2023, LKMM does not yet model reader-writer locking,
+	but this is on the to-do list.
+}\QuickQuizEnd
+
+Locking is strongly intuitive, which is one reason why it has survived
+so many attempts to eliminate it.
+This is also one reason why you should use it where it applies.
+
+\subsubsection{Release-Acquire Intuitions}
+\label{sec:memorder:Release-Acquire Intuitions}
+
+Release-acquire chains also behave in a transitively intuitive manner
+not unlike that of locking, except that release-acquire chains do not
+provide mutual exclusion.
+This section also contains a graphical description followed by a verbal
+description.
+
+\begin{figure*}
+\centering
+\resizebox{\textwidth}{!}{\includegraphics{memorder/relacqtrans}}
+\caption{Release-Acquire Intuitions}
+\label{fig:memorder:Release-Acquire Intuitions}
+\end{figure*}
+
+The graphical description is shown in
+\cref{fig:memorder:Release-Acquire Intuitions},
+which shows a release-acquire chain extending through CPUs~0, 1, and~2.
+The solid black arrows depict the release-acquire ordering.
+The dotted lines emanating from them to the wide green arrows show the
+effects on ordering.
+
+\begin{enumerate}
+\item	The fact that CPU~0's release of A is read by CPU~1's acquire of A
+	ensures that any accesses executed by CPU~0 prior to its release
+	will be seen by any accesses executed by CPU~1 after its acquire.
+\item	The fact that CPU~1's release of B is read by CPU~2's acquire of B
+	ensures that any accesses executed by CPU~1 prior to its release
+	will be seen by any accesses executed by CPU~2 after its acquire.
+\item	Note also that CPU~0's release of A is read by CPU~1's acquire of
+	A, which precedes CPU 1's release of B, which is read by CPU~2's
+	acquire of B\@.
+	Taken together, all this ensures that any accesses executed by
+	CPU~0 prior to its release will be seen by any accesses executed
+	by CPU~2 after its acquire.
+\end{enumerate}
+
+This illustrates that properly constructed release-acquire ordering is
+transitive through CPUs~0, 1, and~2, and in fact may be extended through
+as many CPUs as needed.\footnote{
+	But please note that stray stores to either A or B can break
+	the release-acquire chain, as illustrated by
+	\cref{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)}.}
+
+For those who prefer words to diagrams, when an acquire loads the value
+stored by a release, discussed in
+\cref{sec:memorder:Release-Acquire Chains},
+then the code following that release will see all accesses preceding
+the acquire.
+More precisely, if CPU~0 does an acquire that loads the value stored by
+CPU~1's release, than all the subsequent accesses executed by CPU~0 will
+see the all of CPU~1's accesses prior to its release.
+
+Similarly, the accesses preceding that release access will be protected
+from seeing the accesses following the acquire access.
+(More precision is left as an exercise to the reader.)
+
+Releases and acquires can be chained, for example CPU~0's release
+stores the value loaded by CPU~1's acquire, a later release by CPU~1
+stores the value loaded by CPU~2's acquire, and so on.
+The accesses following a given acquire will see the accesses preceding
+each prior release in the chain, and, inversely, the accesses preceding a
+given release will be protected from seeing the accesses following each
+later acquire in the chain.
+Some long-chain examples will be illustrated by
+\cref{lst:memorder:Long LB Release-Acquire Chain,%
+lst:memorder:Long ISA2 Release-Acquire Chain,%
+lst:memorder:Long Z6.2 Release-Acquire Chain}
+on
+\cpagerefrange{lst:memorder:Long LB Release-Acquire Chain}{lst:memorder:Long Z6.2 Release-Acquire Chain},
+respectively.
+
+The seeing and not seeing of accesses works the same way as described in
+\cref{sec:memorder:Locking Intuitions}.
+
+However, as will be illustrated by
+\cref{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)}
+on
+\cpageref{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)},
+the acquire access must load exactly what was stored by the release access.
+Any intervening store that is not itself part of that same release-acquire
+chain will break the chain.
+And again, release-acquire chains do not provide mutual exclusion.
+
+Nevertheless, properly constructed release-acquire chains are transitive,
+intuitive, and useful.
+
+\subsubsection{RCU Intuitions}
+\label{sec:memorder:RCU Intuitions}
+
+As noted in \cref{sec:defer:RCU Fundamentals} on
+\cpageref{sec:defer:RCU Fundamentals}, RCU provides a number
+of ordering guarantees.
+
+The first is the publish-subscribe mechanism described in
+\cref{sec:defer:Publish-Subscribe Mechanism}
+on
+\cpageref{sec:defer:Publish-Subscribe Mechanism}.
+This resembles the acquire-release chains discussed in the previous
+section, but substitutes a member of the \co{rcu_dereference()} family
+of primitives for the \co{smp_load_acquire()}.
+Unlike \co{smp_load_acquire()}, the ordering implied by
+\co{rcu_dereference()} applies only to subsequent accesses that
+dereference the pointer returned by that \co{rcu_dereference()}
+as shown in
+\cref{fig:defer:Publication/Subscription Constraints}
+on
+\cpageref{fig:defer:Publication/Subscription Constraints}.
+
+The second guarantee says that if any part of an RCU read-side
+critical section precedes the beginning of a grace period, then
+the entirety of that critical section precedes the end of that
+grace period, as shown in
+\cref{fig:defer:RCU Reader and Later Grace Period}
+on
+\cpageref{fig:defer:RCU Reader and Later Grace Period}.
+
+The third guarantee says that if any part of an RCU read-side critical
+section follows the end of a grace period, then the entirety of that
+critical section follows the beginning of that grace period, as shown in
+\cref{fig:defer:RCU Reader and Earlier Grace Period}
+on
+\cpageref{fig:defer:RCU Reader and Earlier Grace Period}.
+
+Both of these two guarantees are discussed in
+\cref{sec:defer:Wait For Pre-Existing RCU Readers}
+on
+\cpageref{sec:defer:Wait For Pre-Existing RCU Readers},
+with more examples shown in
+\cref{fig:defer:RCU Reader Within Grace Period,%
+fig:defer:Summary of RCU Grace-Period Ordering Guarantees}
+on
+\cpageref{fig:defer:RCU Reader Within Grace Period,fig:defer:Summary of RCU Grace-Period Ordering Guarantees}.
+These two guarantees have further version-maintenance consequences that
+are discussed in
+\cref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}
+on
+\cpageref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}.
+
+These guarantees will be discussed somewhat more formally in
+\cref{sec:memorder:RCU}
+on
+\cpageref{sec:memorder:RCU}.
+
+Much of the sophistication of RCU lies not in its guarantees, but in its
+use cases, which are the subject of
+\cref{sec:defer:RCU Usage}
+starting on
+\cpageref{sec:defer:RCU Usage}.
+
+\subsubsection{Fully Ordered Intuitions}
+\label{sec:memorder:Fully Ordered Intuitions}
+
+A more extreme example of transitivity places at least one \co{smp_mb()}
+between each pair of accesses.
+All accesses seen by any given access will also be seen by all later
+accesses.
+
+The resulting program will be fully ordered, if somewhat slow.
+Such programs will be sequentially consistent and much loved by
+formal-verification experts who specialize in tried-and-true 1980s
+proof techniques.
+But slow or not, \co{smp_mb()} is always there when you need it!
+
+Nevertheless, there are situations that cannot be addressed by these
+intuitive approaches.
+The next section therefore presents a more complete, if less transitive,
+set of rules of thumb.
+
+\subsection{Rules of Thumb}
+\label{sec:memorder:Rules of Thumb}
+
+The transitive intuitions presented in the previous section are
+very appealing, at least as memory models go.
+Unfortunately, hardware is under no obligation to provide temporal
+cause-and-effect illusions when one thread's store overwrites a value either
+loaded or stored by some other thread.
+It is quite possible that, from the software's viewpoint, an earlier store
+will overwrite a later store's value, but only if those two stores were
+executed by different threads, as will be illustrated by
+\cref{fig:memorder:Store-to-Store is Counter-Temporal}
+on
+\cpageref{fig:memorder:Store-to-Store is Counter-Temporal}.
+Similarly, a later load might well read a value overwritten by an
+earlier store, but again only if that load and store were executed by
+different threads, as will be illustrated by
+\cref{fig:memorder:Load-to-Store is Counter-Temporal}
+on
+\cpageref{fig:memorder:Load-to-Store is Counter-Temporal}.
+This counter-intuitive behavior occurs due to the need to buffer
+stores in order to achieve adequate performance, as will be discussed in
+\cref{sec:memorder:Propagation}
+on
+\cpageref{sec:memorder:Propagation}.
+
+As a result, situations where one thread reads a value written by some
+other thread can make do with far weaker ordering than can situations
+where one thread overwrites a value loaded or stored by some other thread.
+These differences are captured by the following rules of thumb.
+
+The first rule of thumb is that memory-ordering operations are only
+required where there is a possibility of interaction between at least
+two variables shared among at least two threads, which underlies the
+singular intuitive bliss presented in
+\cref{sec:memorder:Singular Intuitive Bliss}.
+In light of the intervening material, this single sentence encapsulates
+many of the basic rules of thumb that will be presented in
+\cref{sec:memorder:Basic Rules of Thumb}
+on
+\cpageref{sec:memorder:Basic Rules of Thumb},
+for example, keeping in mind that ``memory-barrier pairing'' is a
+two-thread special case of ``cycle''.
+And, as always, if a single-threaded program will provide sufficient
+performance, why bother with parallelism?\footnote{
+	Hobbyists and researchers should of course feel free to ignore
+	this and many other cautions.}
+After all, avoiding parallelism also avoids the added cost and complexity
+of memory-ordering operations.
+
+The second rule of thumb involves load-buffering situations:
+If all thread-to-thread communication in a given cycle use store-to-load
+links (that is, the next thread's load returns the value stored by
+the previous thread), minimal ordering suffices.
+Minimal ordering includes dependencies and acquires as well as all stronger
+ordering operations.
+Because a lock acquisition must load the lock-word value stored by any
+prior release of that lock, this rule of thumb underlies the locking
+intuitions presented in
+\cref{sec:memorder:Locking Intuitions}.
+
+The third rule of thumb involves release-acquire chains:
+If all but one of the links in a given cycle is a store-to-load
+link, it is sufficient to use release-acquire pairs for each of
+those store-to-load links, as will be illustrated by
+\cref{lst:memorder:Long ISA2 Release-Acquire Chain,%
+lst:memorder:Long Z6.2 Release-Acquire Chain}
+starting on
+\cpageref{lst:memorder:Long ISA2 Release-Acquire Chain}.
+This rule underlies the release-acquire intuitions presented in
+\cref{sec:memorder:Release-Acquire Intuitions}.
+
+You can replace a given acquire with a dependency in environments permitting
+this, keeping in mind that the C11 standard's memory model does \emph{not}
+fully respect dependencies.
+Therefore, a dependency leading to a load must be headed by
+a \co{READ_ONCE()} or an \co{rcu_dereference()}:
+A plain C-language load is not sufficient.
+In addition, carefully review
+\cref{sec:memorder:Address- and Data-Dependency Difficulties,%
+sec:memorder:Control-Dependency Calamities},
+on
+\cpageref{sec:memorder:Address- and Data-Dependency Difficulties,%
+sec:memorder:Control-Dependency Calamities},
+because a dependency broken by your compiler will not order anything.
+The two threads sharing the sole non-store-to-load link can
+sometimes substitute \co{WRITE_ONCE()} plus \co{smp_wmb()} for
+\co{smp_store_release()} on the one hand,
+and \co{READ_ONCE()} plus \co{smp_rmb()} for \co{smp_load_acquire()}
+on the other.
+However, the wise developer will check such substitutions carefully,
+for example, using the herd tool as described in
+\cref{sec:formal:Axiomatic Approaches}
+on
+\cpageref{sec:formal:Axiomatic Approaches}.
+
+\QuickQuiz{
+	Why is it necessary to use heavier-weight ordering for
+	load-to-store and store-to-store links, but not for
+	store-to-load links?
+	What on earth makes store-to-load links so special???
+}\QuickQuizAnswer{
+	Recall that load-to-store and store-to-store links can be
+	counter-temporal, as illustrated by
+	\cref{fig:memorder:Load-to-Store is Counter-Temporal,%
+	fig:memorder:Store-to-Store is Counter-Temporal} in
+	\cref{sec:memorder:Propagation}.
+	This counter-temporal nature of load-to-store and store-to-store
+	links necessitates strong ordering.
+
+	In constrast, store-to-load links are temporal, as illustrated by
+	\cref{lst:memorder:Load-Buffering Data-Dependency Litmus Test,%
+	lst:memorder:Load-Buffering Control-Dependency Litmus Test}.
+	This temporal nature of store-to-load links permits use of
+	minimal ordering.
+}\QuickQuizEnd
+
+The fourth and final rule of thumb identifies where full memory barriers
+(or stronger) are required:
+If a given cycle contains two or more non-store-to-load links (that is, a
+total of two or more links that are either load-to-store or store-to-store
+links), you will need at least one full barrier between each pair of
+non-store-to-load links in that cycle, as will be illustrated by
+\cref{lst:memorder:W+WRC Litmus Test With More Barriers}
+on
+\cpageref{lst:memorder:W+WRC Litmus Test With More Barriers}
+and most especially by the example presented in
+\cref{sec:memorder:A Counter-Intuitive Case Study}
+on
+\cpageref{sec:memorder:A Counter-Intuitive Case Study}.
+% @@@ \cref{lst:memorder:W+WRC Litmus Test With More Barriers}
+% @@@ as well as in the answer to
+% @@@ \QuickQuizARef{\MemorderQQLitmusTestR}.
+Full barriers include \co{smp_mb()}, successful full-strength non-\co{void}
+atomic RMW operations, and other atomic RMW operations in conjunction with
+either \co{smp_mb__before_atomic()} or \co{smp_mb__after_atomic()}.
+Any of RCU's grace-period-wait primitives (\co{synchronize_rcu()} and
+friends) also act as full barriers, but at far greater expense than
+\co{smp_mb()}.
+With strength comes expense, though full barriers
+usually hurt performance more than they hurt scalability.
+The extreme logical endpoint of this rule of thumb underlies the
+fully ordered intuitions presented in
+\cref{sec:memorder:Fully Ordered Intuitions}.
+
+Recapping the rules:
+
+\begin{enumerate}
+\item	Memory-ordering operations are required only if at least
+	two variables are shared by at least two threads.
+\item	If all links in a cycle are store-to-load links, then
+	minimal ordering suffices.
+\item	If all but one of the links in a cycle are store-to-load links,
+	then each store-to-load link may use a release-acquire pair.
+\item	Otherwise, at least one full barrier is required between
+	each pair of non-store-to-load links.
+\end{enumerate}
+
+Note that an architecture is permitted to provide stronger guarantees, as
+will be discussed in
+\cref{sec:memorder:Hardware Specifics},
+but these guarantees may only be relied upon in code that runs only for
+that architecture.
+In addition, more accurate memory models~\cite{Alglave:2018:FSC:3173162.3177156}
+may give stronger guarantees with lower-overhead operations than do
+these rules of thumb, albeit at the expense of greater complexity.
+In these more formal memory-ordering papers, a store-to-load link is an
+example of a reads-from (rf) link, a load-to-store link is an example
+of a from-reads (fr) link, and a store-to-store link is an example of
+a coherence (co) link.
+
+One final word of advice:
+Use of raw memory-ordering primitives is a last resort.
+It is almost always better to use existing primitives, such as locking
+or RCU, thus letting those primitives do the memory ordering for you.
+
+With that said, the next section describes why hardware misorders memory
+references and some of the things that you can do about it.
 
 \section{Ordering:
 		   Why and How?}
@@ -587,7 +1116,8 @@ which have no effect on either memory or on ordering when they indicate
 failure, as indicated by the earlier ``\co{_relaxed()} RMW operation'' row.
 
 Column ``C'' indicates cumulativity and propagation, as explained in
-\cref{sec:memorder:Cumulativity,sec:memorder:Propagation}.
+\cref{sec:memorder:Cumulativity,%
+sec:memorder:Propagation}.
 In the meantime, this column can usually be ignored when there
 are at most two threads involved.
 
@@ -1453,7 +1983,8 @@ in pre-v4.15 Linux kernels.
 %
 \QuickQuizM{
 	Why the use of \co{smp_wmb()} in
-	\cref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15),lst:memorder:S Address-Dependency Litmus Test}?
+	\cref{lst:memorder:Enforced Ordering of Message-Passing Address-Dependency Litmus Test (Before v4.15),%
+	lst:memorder:S Address-Dependency Litmus Test}?
 	Wouldn't \co{smp_store_release()} be a better choice?
 }\QuickQuizAnswerM{
 	In most cases, \co{smp_store_release()} is indeed a better choice.
@@ -2455,7 +2986,9 @@ prevents the \co{exists} clause on \clnref{exists} from triggering.
 But beware:
 Adding a second store-to-store link allows the correspondingly updated
 \co{exists} clause to trigger.
-To see this, review \cref{lst:memorder:A Release-Acquire Chain Ordering Multiple Accesses,lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)},
+To see this, review
+\cref{lst:memorder:A Release-Acquire Chain Ordering Multiple Accesses,%
+lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)},
 which have identical \co{P0()} and \co{P1()} processes.
 The only code difference is that
 \cref{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)}
@@ -2513,7 +3046,8 @@ from \co{P1()} to \co{P0()} is a store-to-store link.
 Both links are counter-temporal, thus requiring full memory barriers
 in both processes.
 Revisiting
-\cref{fig:memorder:Store-to-Store is Counter-Temporal,fig:memorder:Store-to-Load is Temporal}
+\cref{fig:memorder:Store-to-Store is Counter-Temporal,%
+fig:memorder:Store-to-Load is Temporal}
 shows that these counter-temporal links give the hardware considerable
 latitude.
 
@@ -2863,7 +3397,8 @@ In contrast, the penalty for failing to use them when needed can be quite high.
 \OriginallyPublished{sec:memorder:Address- and Data-Dependency Difficulties}{Address- and Data-Dependency Difficulties}{the Linux kernel}{PaulEMcKenney2014rcu-dereference}
 
 The low overheads of the address and data dependencies discussed in
-\cref{sec:memorder:Address Dependencies,sec:memorder:Data Dependencies},
+\cref{sec:memorder:Address Dependencies,%
+sec:memorder:Data Dependencies},
 respectively, makes their use extremely attractive.
 Unfortunately, compilers do not understand either address or data
 dependencies, although there are efforts underway to teach them, or at
@@ -3723,7 +4258,8 @@ Can memory accesses be reordered into lock-based critical sections?
 Within the context of the Linux-kernel memory model, the simple answer
 is ``yes''.
 This may be verified by running the litmus tests shown in
-\cref{lst:memorder:Prior Accesses Into Critical Section (Ordering?),lst:memorder:Subsequent Accesses Into Critical Section (Ordering?)}
+\cref{lst:memorder:Prior Accesses Into Critical Section (Ordering?),%
+lst:memorder:Subsequent Accesses Into Critical Section (Ordering?)}
 (\path{C-Lock-before-into.litmus} and \path{C-Lock-after-into.litmus},
 respectively), both of which will yield the \co{Sometimes} result.
 This result indicates that the \co{exists} clause can be satisfied, that
@@ -5555,482 +6091,8 @@ only scratched the surface of a few families that are either heavily used
 or historically significant.
 Those wishing more detail are invited to consult the reference manuals.
 
-But a big benefit of the Linux-kernel memory model is that you can
-ignore these details when writing architecture-independent Linux-kernel
-code.
-
-\section{Memory-Model Intuitions}
-\label{sec:memorder:Memory-Model Intuitions}
-%
-\epigraph{Almost all people are intelligent.
-	  It is method that they lack.}
-	 {F. W. Nichol}
-
-This section revisits
-\cref{tab:memorder:Linux-Kernel Memory-Ordering Cheat Sheet}
-and \cref{sec:memorder:Basic Rules of Thumb},
-summarizing the intervening discussion with some appeals to transitive
-intuitions and with more sophisticated rules of thumb.
-
-But first, it is necessary to review the temporal and non-temporal
-nature of communication from one thread to another when using memory
-as the communications medium, as was discussed in detail in
-\cref{sec:memorder:Multicopy Atomicity}.
-The key point is that although loads and stores are conceptually simple,
-on real multicore hardware significant periods of time are required for
-their effects to become visible to all other threads.
-
-The simple and intuitive case occurs when one thread loads a value that
-some other thread stored.
-This straightforward cause-and-effect case exhibits temporal behavior, so
-that the software can safely assume that the store instruction completed
-before the load instruction started.
-In real life, the load instruction might well have started quite some
-time before the store instruction did, but all modern hardware must
-carefully hide such cases from the software.
-Software will thus see the expected temporal cause-and-effect
-behavior when one thread loads a value that some other thread stores,
-as discussed in \cref{sec:memorder:Happens-Before}.
-
-This temporal behavior provides the basis for the next section's
-transitive intuitions.
-
-\subsection{Transitive Intuitions}
-\label{sec:memorder:Transitive Intuitions}
-
-This section summarizes intuitions regarding single threads or variables,
-locking, release-acquire chains, RCU, and fully ordered code.
-
-\subsubsection{Singular Intuitive Bliss}
-\label{sec:memorder:Singular Intuitive Bliss}
-
-A program that has only one variable or only one thread will see
-all accesses in order.
-There is quite a bit of code that can attain adequate performance
-when running single-threaded on modern computer systems, but
-this book is primarily about software that needs multiple CPUs.
-On, then, to the next section.
-
-\subsubsection{Locking Intuitions}
-\label{sec:memorder:Locking Intuitions}
-
-Another transitive intuition involves that much-maligned workhorse,
-locking, described in more detail in
-\cref{sec:memorder:Locking},
-to say nothing of
-\cref{chp:Locking}.
-This section contains a graphical description followed by a verbal
-description.
-
-\begin{figure*}
-\centering
-\resizebox{\textwidth}{!}{\includegraphics{memorder/locktrans}}
-\caption{Locking Intuitions}
-\label{fig:memorder:Locking Intuitions}
-\end{figure*}
-
-The graphical description is shown in
-\cref{fig:memorder:Locking Intuitions},
-which shows a lock being acquired and released by CPUs~0, 1, and~2
-in that order.
-The solid black arrows depict the unlock-lock ordering.
-The dotted lines emanating from them to the wide green arrows
-show the effects on ordering.
-In particular:
-
-\begin{enumerate}
-\item	The fact that CPU~0's unlock precedes CPU~1's lock ensures that
-	any access executed by CPU~0 within or before its critical
-	section will be seen by accesses executed by CPU~1 within
-	and after its critical section.
-\item	The fact that CPU~0's unlock precedes CPU~2's lock ensures that
-	any access executed by CPU~0 within or before its critical
-	section will be seen by accesses executed by CPU~2 within
-	and after its critical section.
-\item	The fact that CPU~1's unlock precedes CPU~2's lock ensures that
-	any access executed by CPU~1 within or before its critical
-	section will be seen by accesses executed by CPU~2 within and
-	after its critical section.
-\end{enumerate}
-
-In short, lock-based ordering is transitive through CPUs~0, 1, and~2.
-A key point is that this ordering extends beyond the critical sections,
-so that everything before an earlier lock release is seen by everything
-after a later lock acquisition.
-
-For those who prefer words to diagrams, code holding a given lock will
-see the accesses in all prior critical sections for that same lock,
-transitively.
-And if such code sees the accesses in a given critical section, it will
-also see the accesses in all of that CPU's code preceding
-that critical section.
-In other words, when a CPU releases a given lock, all
-of that lock's subsequent critical sections will see the accesses in
-all of that CPU's code preceding that lock release.
-
-Inversely, code holding a given lock will be protected from seeing the
-accesses in any subsequent critical sections for that same lock, again,
-transitively.
-And if such code is protected against seeing the accesses in a given
-critical section, it will also be protected against seeing the accesses
-in all of that CPU's code following that critical section.
-In other words, when a CPU acquires a given lock, all of
-that lock's previous critical sections will be protected from seeing
-the accesses in all of that CPU's code following that lock
-acquisition.
-
-But what does it mean to ``see accesses'' and exactly what accesses
-are seen?
-
-To start, an access is either a load or a store, possibly occurring as part
-of a read-modify-write operation.
-
-If a CPU's code prior to its release of a given lock contains
-an access A to a given variable, then for an access B to that same variable
-contained in any CPU's code following a later acquisition
-of that same lock:
-
-\begin{enumerate}
-\item	If A and B are both loads, then B will return either the same
-	value that A did or some later value.
-\item	If A is a load and B is a store, then B will overwrite either the
-	value loaded by A or some later value.
-\item	If A is a store and B is a load, then B will return either the
-	value stored by A or some later value.
-\item	If A and B are both stores, then B will overwrite either the value
-	stored by A or some later value.
-\end{enumerate}
-
-Here, ``some later value'' is shorthand for ``the value stored by some
-intervening access''.
-
-\QuickQuiz{
-	But what about reader-writer locking?
-}\QuickQuizAnswer{
-	Reader-writer locking works the same as does exclusive locking,
-	with the proviso that ordering is guaranteed only between a
-	pair of conflicting critical sections.
-	This means that a read-side critical section will be ordered
-	before a later write-side critical section and vice versa.
-	But this also means that there is no guarantee of ordering
-	between a pair of read-side critical sections unless there is
-	an intervening write-side critical section.
-
-	As of mid-2023, LKMM does not yet model reader-writer locking,
-	but this is on the to-do list.
-}\QuickQuizEnd
-
-Locking is strongly intuitive, which is one reason why it has survived
-so many attempts to eliminate it.
-This is also one reason why you should use it where it applies.
-
-\subsubsection{Release-Acquire Intuitions}
-\label{sec:memorder:Release-Acquire Intuitions}
-
-Release-acquire chains also behave in a transitively intuitive manner
-not unlike that of locking.
-This section also contains a graphical description followed by a verbal
-description.
-
-\begin{figure*}
-\centering
-\resizebox{\textwidth}{!}{\includegraphics{memorder/relacqtrans}}
-\caption{Release-Acquire Intuitions}
-\label{fig:memorder:Release-Acquire Intuitions}
-\end{figure*}
-
-The graphical description is shown in
-\cref{fig:memorder:Release-Acquire Intuitions},
-which shows a release-acquire chain extending through CPUs~0, 1, and~2.
-The solid black arrows depict the release-acquire ordering.
-The dotted lines emanating from them to the wide green arrows show the
-effects on ordering.
-
-\begin{enumerate}
-\item	The fact that CPU~0's release of A is read by CPU~1's acquire of A
-	ensures that any accesses executed by CPU~0 prior to its release
-	will be seen by any accesses executed by CPU~1 after its acquire.
-\item	The fact that CPU~1's release of B is read by CPU~2's acquire of B
-	ensures that any accesses executed by CPU~1 prior to its release
-	will be seen by any accesses executed by CPU~2 after its acquire.
-\item	Note also that CPU~0's release of A is read by CPU~1's acquire of
-	A, which precedes CPU 1's release of B, which is read by CPU~2's
-	acquire of B\@.
-	Taken together, all this ensures that any accesses executed by
-	CPU~0 prior to its release will be seen by any accesses executed
-	by CPU~2 after its acquire.
-\end{enumerate}
-
-This illustrates that properly constructed release-acquire ordering is
-transitive through CPUs~0, 1, and~2, and in fact may be extended through
-as many CPUs as needed.\footnote{
-	But please note that stray stores to either A or B can break
-	the release-acquire chain, as illustrated by
-	\cref{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)}.}
-
-For those who prefer words to diagrams, when an acquire loads the value
-stored by a release, discussed in
-\cref{sec:memorder:Release-Acquire Chains},
-then the code following that release will see all accesses preceding
-the acquire.
-More precisely, if CPU~0 does an acquire that loads the value stored by
-CPU~1's release, than all the subsequent accesses executed by CPU~0 will
-see the all of CPU~1's accesses prior to its release.
-
-Similarly, the accesses preceding that release access will be protected
-from seeing the accesses following the acquire access.
-(More precision is left as an exercise to the reader.)
-
-Releases and acquires can be chained, for example CPU~0's release
-stores the value loaded by CPU~1's acquire, a later release by CPU~1
-stores the value loaded by CPU~2's acquire, and so on.
-The accesses following a given acquire will see the accesses preceding
-each prior release in the chain, and, inversely, the accesses preceding a
-given release will be protected from seeing the accesses following each
-later acquire in the chain.
-Some long-chain examples are illustrated by
-\cref{lst:memorder:Long LB Release-Acquire Chain,lst:memorder:Long ISA2 Release-Acquire Chain,lst:memorder:Long Z6.2 Release-Acquire Chain}.
-
-The seeing and not seeing of accesses works the same way as described in
-\cref{sec:memorder:Locking Intuitions}.
-
-However, as illustrated by
-\cref{lst:memorder:A Release-Acquire Chain With Added Store (Ordering?)},
-the acquire access must load exactly what was stored by the release access.
-Any intervening store that is not itself part of that same release-acquire
-chain will break the chain.
-
-Nevertheless, properly constructed release-acquire chains are transitive,
-intuitive, and useful.
-
-\subsubsection{RCU Intuitions}
-\label{sec:memorder:RCU Intuitions}
-
-As noted in \cref{sec:defer:RCU Fundamentals} on
-\cpageref{sec:defer:RCU Fundamentals}, RCU provides a number
-of ordering guarantees.
-
-The first is the publish-subscribe mechanism described in
-\cref{sec:defer:Publish-Subscribe Mechanism}
-on
-\cpageref{sec:defer:Publish-Subscribe Mechanism}.
-This resembles the acquire-release chains discussed in the previous
-section, but substitutes a member of the \co{rcu_dereference()} family
-of primitives for the \co{smp_load_acquire()}.
-Unlike \co{smp_load_acquire()}, the ordering implied by
-\co{rcu_dereference()} applies only to subsequent accesses that
-dereference the pointer returned by that \co{rcu_dereference()}
-as shown in
-\cref{fig:defer:Publication/Subscription Constraints}
-on
-\cpageref{fig:defer:Publication/Subscription Constraints}.
-
-The second guarantee says that if any part of an RCU read-side
-critical section precedes the beginning of a grace period, then
-the entirety of that critical section precedes the end of that
-grace period, as shown in
-\cref{fig:defer:RCU Reader and Later Grace Period}
-on
-\cpageref{fig:defer:RCU Reader and Later Grace Period}.
-
-The third guarantee says that if any part of an RCU read-side critical
-section follows the end of a grace period, then the entirety of that
-critical section follows the beginning of that grace period, as shown in
-\cref{fig:defer:RCU Reader and Earlier Grace Period}
-on
-\cpageref{fig:defer:RCU Reader and Earlier Grace Period}.
-
-Both of these two guarantees are discussed in
-\cref{sec:defer:Wait For Pre-Existing RCU Readers}
-on
-\cpageref{sec:defer:Wait For Pre-Existing RCU Readers},
-with more examples shown in
-\cref{fig:defer:RCU Reader Within Grace Period,fig:defer:Summary of RCU Grace-Period Ordering Guarantees}
-on
-\cpageref{fig:defer:RCU Reader Within Grace Period,fig:defer:Summary of RCU Grace-Period Ordering Guarantees}.
-These two guarantees have further version-maintenance consequences that
-are discussed in
-\cref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}
-on
-\cpageref{sec:defer:Maintain Multiple Versions of Recently Updated Objects}.
-
-These guarantees are discussed somewhat more formally in
-\cref{sec:memorder:RCU}.
-
-Much of the sophistication of RCU lies not in its guarantees, but in its
-use cases, which are the subject of
-\cref{sec:defer:RCU Usage}
-starting on
-\cpageref{sec:defer:RCU Usage}.
-
-\subsubsection{Fully Ordered Intuitions}
-\label{sec:memorder:Fully Ordered Intuitions}
-
-A more extreme example of transitivity places at least one \co{smp_mb()}
-between each pair of accesses.
-All accesses seen by any given access will also be seen by all later
-accesses.
-
-The resulting program will be fully ordered, if somewhat slow.
-Such programs will be sequentially consistent and much loved by
-formal-verification experts who specialize in tried-and-true 1980s
-proof techniques.
-But slow or not, \co{smp_mb()} is always there when you need it!
-
-Nevertheless, there are situations that cannot be addressed by these
-intuitive approaches.
-The next section therefore presents a more complete, if less transitive,
-set of rules of thumb.
-
-\subsection{Rules of Thumb}
-\label{sec:memorder:Rules of Thumb}
-
-The transitive intuitions presented in the previous section are
-very appealing, at least as memory models go.
-Unfortunately, hardware is under no obligation to provide temporal
-cause-and-effect illusions when one thread's store overwrites a value either
-loaded or stored by some other thread.
-It is quite possible that, from the software's viewpoint, an earlier store
-will overwrite a later store's value, but only if those two stores were
-executed by different threads, as illustrated by
-\cref{fig:memorder:Store-to-Store is Counter-Temporal}.
-Similarly, a later load might well read a value overwritten by an
-earlier store, but again only if that load and store were executed by
-different threads, as illustrated by
-\cref{fig:memorder:Load-to-Store is Counter-Temporal}.
-This counter-intuitive behavior occurs due to the need to buffer
-stores in order to achieve adequate performance, as discussed in
-\cref{sec:memorder:Propagation}.
-
-As a result, situations where one thread reads a value written by some
-other thread can make do with far weaker ordering than can situations
-where one thread overwrites a value loaded or stored by some other thread.
-These differences are captured by the following rules of thumb.
-
-The first rule of thumb is that memory-ordering operations are only
-required where there is a possibility of interaction between at least
-two variables shared among at least two threads, which underlies the
-singular intuitive bliss presented in
-\cref{sec:memorder:Singular Intuitive Bliss}.
-In light of the intervening material, this single sentence encapsulates much of
-\cref{sec:memorder:Basic Rules of Thumb}'s basic rules of thumb,
-for example, keeping in mind that ``memory-barrier pairing'' is a
-two-thread special case of ``cycle''.
-And, as always, if a single-threaded program will provide sufficient
-performance, why bother with parallelism?\footnote{
-	Hobbyists and researchers should of course feel free to ignore
-	this and many other cautions.}
-After all, avoiding parallelism also avoids the added cost and complexity
-of memory-ordering operations.
-
-The second rule of thumb involves load-buffering situations:
-If all thread-to-thread communication in a given cycle use store-to-load
-links (that is, the next thread's load returns the value stored by
-the previous thread), minimal ordering suffices.
-Minimal ordering includes dependencies and acquires as well as all stronger
-ordering operations.
-Because a lock acquisition must load the lock-word value stored by any
-prior release of that lock, this rule of thumb underlies the locking
-intuitions presented in
-\cref{sec:memorder:Locking Intuitions}.
-
-The third rule of thumb involves release-acquire chains:
-If all but one of the links in a given cycle is a store-to-load
-link, it is sufficient to use release-acquire pairs for each of
-those store-to-load links, as illustrated by
-\cref{lst:memorder:Long ISA2 Release-Acquire Chain,%
-lst:memorder:Long Z6.2 Release-Acquire Chain}.
-This rule underlies the release-acquire intuitions presented in
-\cref{sec:memorder:Release-Acquire Intuitions}.
-
-You can replace a given acquire with a dependency in environments permitting
-this, keeping in mind that the C11 standard's memory model does \emph{not}
-fully respect dependencies.
-Therefore, a dependency leading to a load must be headed by
-a \co{READ_ONCE()} or an \co{rcu_dereference()}:
-A plain C-language load is not sufficient.
-In addition, carefully review
-\cref{sec:memorder:Address- and Data-Dependency Difficulties,%
-sec:memorder:Control-Dependency Calamities}, because
-a dependency broken by your compiler will not order anything.
-The two threads sharing the sole non-store-to-load link can
-sometimes substitute \co{WRITE_ONCE()} plus \co{smp_wmb()} for
-\co{smp_store_release()} on the one hand,
-and \co{READ_ONCE()} plus \co{smp_rmb()} for \co{smp_load_acquire()}
-on the other.
-However, the wise developer will check such substitutions carefully,
-for example, using the herd tool as described in
-\cref{sec:formal:Axiomatic Approaches}.
-
-\QuickQuiz{
-	Why is it necessary to use heavier-weight ordering for
-	load-to-store and store-to-store links, but not for
-	store-to-load links?
-	What on earth makes store-to-load links so special???
-}\QuickQuizAnswer{
-	Recall that load-to-store and store-to-store links can be
-	counter-temporal, as illustrated by
-	\cref{fig:memorder:Load-to-Store is Counter-Temporal,%
-	fig:memorder:Store-to-Store is Counter-Temporal} in
-	\cref{sec:memorder:Propagation}.
-	This counter-temporal nature of load-to-store and store-to-store
-	links necessitates strong ordering.
-
-	In constrast, store-to-load links are temporal, as illustrated by
-	\cref{lst:memorder:Load-Buffering Data-Dependency Litmus Test,%
-	lst:memorder:Load-Buffering Control-Dependency Litmus Test}.
-	This temporal nature of store-to-load links permits use of
-	minimal ordering.
-}\QuickQuizEnd
-
-The fourth and final rule of thumb identifies where full memory barriers
-(or stronger) are required:
-If a given cycle contains two or more non-store-to-load links (that is, a
-total of two or more links that are either load-to-store or store-to-store
-links), you will need at least one full barrier between each pair of
-non-store-to-load links in that cycle, as illustrated by
-\cref{lst:memorder:W+WRC Litmus Test With More Barriers}
-as well as in the answer to
-\QuickQuizARef{\MemorderQQLitmusTestR}.
-Full barriers include \co{smp_mb()}, successful full-strength non-\co{void}
-atomic RMW operations, and other atomic RMW operations in conjunction with
-either \co{smp_mb__before_atomic()} or \co{smp_mb__after_atomic()}.
-Any of RCU's grace-period-wait primitives (\co{synchronize_rcu()} and
-friends) also act as full barriers, but at far greater expense than
-\co{smp_mb()}.
-With strength comes expense, though full barriers
-usually hurt performance more than they hurt scalability.
-The extreme logical endpoint of this rule of thumb underlies the
-fully ordered intuitions presented in
-\cref{sec:memorder:Fully Ordered Intuitions}.
-
-Recapping the rules:
-
-\begin{enumerate}
-\item	Memory-ordering operations are required only if at least
-	two variables are shared by at least two threads.
-\item	If all links in a cycle are store-to-load links, then
-	minimal ordering suffices.
-\item	If all but one of the links in a cycle are store-to-load links,
-	then each store-to-load link may use a release-acquire pair.
-\item	Otherwise, at least one full barrier is required between
-	each pair of non-store-to-load links.
-\end{enumerate}
-
-Note that an architecture is permitted to provide stronger guarantees, as
-discussed in \cref{sec:memorder:Hardware Specifics}, but these guarantees
-may only be relied upon in code that runs only for that architecture.
-In addition, more accurate memory models~\cite{Alglave:2018:FSC:3173162.3177156}
-may give stronger guarantees with lower-overhead operations than do
-these rules of thumb, albeit at the expense of greater complexity.
-In these more formal memory-ordering papers, a store-to-load link is an
-example of a reads-from (rf) link, a load-to-store link is an example
-of a from-reads (fr) link, and a store-to-store link is an example of
-a coherence (co) link.
-
-One final word of advice:
-Use of raw memory-ordering primitives is a last resort.
-It is almost always better to use existing primitives, such as locking
-or RCU, thus letting those primitives do the memory ordering for you.
+However, perhaps the biggest benefit of the Linux-kernel memory model is
+that you can ignore these details when writing architecture-independent
+Linux-kernel code.
 
 \QuickQuizAnswersChp{qqzmemorder}
