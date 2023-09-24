@@ -146,7 +146,7 @@ permitting a hash table to access its elements extremely efficiently.
 	There are other completely-partitionable hash tables, for
 	example, split-ordered list~\cite{OriShalev2006SplitOrderListHash},
 	but they are considerably more complex.
-	We therefore start with chained hash tables.
+	We therefore focus on chained hash tables.
 }\QuickQuizEnd
 
 In addition, each bucket has its own lock, so that elements in different
@@ -857,7 +857,8 @@ to about half again faster than that of either QSBR or RCU\@.
 	valuable, giving you a significant advantage over those whose
 	understanding of this issue is strictly theoretical.\footnote{
 		Of course, a theoretical understanding beats no
-		understanding.}
+		understanding.
+		Most of the time, anyway.}
 }\QuickQuizEnd
 
 What if the memory footprint is reduced still further?
@@ -1266,8 +1267,8 @@ the prior single set of list pointers.
 
 In a fixed-sized hash table, bucket selection is quite straightforward:
 Simply transform the hash value to the corresponding bucket index.
-In contrast, when resizing, it is also necessary to determine which
-of the old and new sets of buckets to select from.
+In contrast, when resizing, updaters must also determine which of the
+old and new sets of buckets to select from.
 If the bucket that would be selected from the old table has already
 been distributed into the new table, then the bucket should be selected
 from the new table as well as from the old table.
@@ -1370,7 +1371,7 @@ Otherwise, a concurrent resize operation has already distributed this
 bucket, so \clnref{new_hashtbl} proceeds to the new hash table,
 \clnref{get_newbkt} selects the bucket corresponding to the key,
 and \clnref{acq_newbkt} acquires the bucket's lock.
-\Clnrefrange{lsp1b}{lsp1e} store the bucket pointer and
+\Clnrefrange{lsp1b}{lsp1e} store the new-table bucket pointer and
 pointer-set index into their respective fields in the
 \co{ht_lock_state} structure, which again communicates this information to
 \co{hashtab_add()}, \co{hashtab_del()}, and \co{hashtab_unlock_mod()}.
@@ -1409,9 +1410,11 @@ section.
 	Furthermore, the insertion operation takes place within an
 	RCU read-side critical section.
 	As we will see when we examine the \co{hashtab_resize()}
-	function, this means that each resize operation uses
+	function, this allows each resize operation to use
 	\co{synchronize_rcu()} invocations to wait for the insertion's
 	read-side critical section to complete.
+	These \co{synchronize_rcu()} invocations prevent pre-existing
+	insertions operation from outliving the resize operation.
 }\QuickQuizEnd
 
 \begin{listing}
@@ -1522,7 +1525,7 @@ a concurrent resize operation.
 	However, this less-natural choice has the advantage of simplifying
 	\co{hashtab_add()}.
 
-	Further analysis of the code is left as an exercise for the reader.
+	Further analysis of the code is an exercise for the reader.
 }\QuickQuizEnd
 
 \begin{listing*}
@@ -1532,7 +1535,7 @@ a concurrent resize operation.
 \end{listing*}
 
 \begin{fcvref}[ln:datastruct:hash_resize:resize]
-The actual resizing itself is carried out by \co{hashtab_resize}, shown in
+The actual resizing itself is carried out by \co{hashtab_resize()}, shown in
 \cref{lst:datastruct:Resizable Hash-Table Resizing} on
 \cpageref{lst:datastruct:Resizable Hash-Table Resizing}.
 \Clnref{trylock} conditionally acquires the top-level \co{->ht_lock}, and if
@@ -1911,6 +1914,21 @@ These additional grace periods are usually not a problem because
 insertions, deletions, and lookups may proceed concurrently with
 a resize operation.
 
+However, when a hash table is growing quickly, the large numbers of
+grace periods might delay the beginning of the next resize operation.
+One way to reduce the number of grace periods is to unzip all the
+buckets concurrently, so that the number of grace periods will be
+limited by the largest number of elements in a single bucket instead
+of by the total number of elements in the hash table.
+Another approach, also by Josh Triplett, is to maintain a separate
+pointer to the element currently being moved from the old bucket to
+the new bucket.
+Readers then check the old bucket, the separate pointer, and the new
+bucket in order.
+This requires read-side memory ordering, which slows readers, but
+it greatly reduces the required number of resize-time grace periods.
+This approach is used within the Linux kernel.
+
 It turns out that it is possible to reduce the per-element memory overhead
 from a pair of pointers to a single pointer, while still retaining
 $\O{1}$ deletions.
@@ -1928,7 +1946,10 @@ that encounter them.
 This RCU-protected split-order list is complex, but offers lock-free
 progress guarantees for all insertion, deletion, and lookup operations.
 Such guarantees can be important in real-time applications.
-An implementation is available from recent versions of the userspace RCU
+However, one downside is that the keys must be bit-reversed during
+lookup, which slows down readers.
+But for those for whom this slowdown is not a problem, an
+implementation is available from recent versions of the userspace RCU
 library~\cite{MathieuDesnoyers2009URCU}.
 
 \section{Other Data Structures}
@@ -1994,6 +2015,7 @@ trading off optimal tree depth to gain more efficient concurrent updates.
 Concurrent skip lists lend themselves well to RCU readers, and in fact
 represents an early academic use of a technique resembling
 RCU~\cite{Pugh90}.
+% @@@ Reference skiplist chapter once added.
 
 Concurrent double-ended queues were discussed in
 \cref{sec:SMPdesign:Double-Ended Queue},
@@ -2026,8 +2048,8 @@ The following sections touch on specialization, memory conservation,
 and hardware considerations.
 Please do not mistake these short sections for a definitive treatise
 on this subject.
-Whole books have been written on optimizing to a specific CPU, let
-alone to the set of CPU families in common use today.
+Whole books have been written on optimizing for a specific CPU, let
+alone to the wide variety of CPU families in common use today.
 
 \subsection{Specialization}
 \label{sec:datastruct:Specialization}
@@ -2194,7 +2216,7 @@ On a Linux system, this information may be obtained from the
 possible to make the installation process rebuild the application to
 accommodate the system's hardware structure.
 However, this would be more difficult if you wanted your application to
-also run on non-Linux systems.
+also run on a variety of environments, including non-Linux systems.
 Furthermore, even if you were content to run only on Linux, such a
 self-modifying installation poses validation challenges.
 For example, systems with 32-byte cachelines might work well, but
