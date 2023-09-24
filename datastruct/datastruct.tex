@@ -35,10 +35,13 @@ This chapter will expose a number of complications:
 \item	Even \emph{read-only synchronization-free} data-structure traversal 
 	can fail to scale on some types of systems.
 \label{sec:datastruct:Cache-size-induced failure to scale redux}
-\item	Data-structure traverals avoiding the aforementioned complications
+\item	Data-structure traversals avoiding the aforementioned complications
 	can still be impeded by concurrent updates.
 \label{sec:datastruct:Update-activity failure to scale}
 \end{enumerate}
+
+This chapter will investigate these complications and demostrate some
+ways of unraveling them.
 
 \Cref{sec:datastruct:Motivating Application}
 presents the motivating application for this chapter's data structures.
@@ -92,8 +95,8 @@ so that he suspects that his mice might be checking up on their nemesis.
 Whatever their source, Schr\"odinger's application must handle high
 query rates to a single data element.
 
-As we will see, this simple application can be a challenge to concurrent
-data structures.
+As we will see, this simple application can pose a challenge to
+traditional concurrent data structures.
 
 \section{Partitionable Data Structures}
 \label{sec:datastruct:Partitionable Data Structures}
@@ -163,6 +166,9 @@ shows a set of data structures used in a simple fixed-sized hash
 table using chaining and per-hash-bucket locking, and
 \cref{fig:datastruct:Hash-Table Data-Structure Diagram}
 diagrams how they fit together.
+Note that the \co{cds_} functions and data structures may be found
+in the userspace RCU
+library~\cite{MathieuDesnoyers2009URCU,PaulMcKenney2013LWNURCUqueuestack,PaulMcKenney2013LWNURCUqueuestackAPI,PaulMcKenney2013LWNURCUlist}.
 The \co{hashtab} structure (\clnrefrange{tab:b}{tab:e} in
 \cref{lst:datastruct:Hash-Table Data Structures})
 contains four \co{ht_bucket} structures
@@ -182,6 +188,8 @@ the corresponding element's hash value in the \co{->hte_hash} field.
 The \co{ht_elem} structure is included in a larger structure
 which might contain a complex key.
 \end{fcvref}
+\Cref{fig:datastruct:Hash-Table Data-Structure Diagram}
+shows bucket~0 containing two elements and bucket~2 containing one.
 
 \begin{listing}
 \input{CodeSamples/datastruct/hash/hash_bkt@struct.fcv}
@@ -195,9 +203,6 @@ which might contain a complex key.
 \caption{Hash-Table Data-Structure Diagram}
 \label{fig:datastruct:Hash-Table Data-Structure Diagram}
 \end{figure}
-
-\Cref{fig:datastruct:Hash-Table Data-Structure Diagram}
-shows bucket~0 containing two elements and bucket~2 containing one.
 
 \begin{fcvref}[ln:datastruct:hash_bkt:map_lock:map]
 \Cref{lst:datastruct:Hash-Table Mapping and Locking}
@@ -221,8 +226,8 @@ corresponding to the specified hash value.
 \begin{fcvref}[ln:datastruct:hash_bkt:lookup]
 \Cref{lst:datastruct:Hash-Table Lookup}
 shows \co{hashtab_lookup()},
-which returns a pointer to the element with the specified hash and key if it
-exists, or \co{NULL} otherwise.
+which returns a pointer to the element with the specified hash and key,
+or \co{NULL} if that element does not exist.
 This function takes both a hash value and a pointer to the key because
 this allows users of this function to use arbitrary keys and
 arbitrary hash functions.
@@ -327,11 +332,10 @@ The performance results for a single 28-core socket of a 2.1\,GHz
 Intel Xeon system using a bucket-locked hash table
 with 262,144 buckets are shown in
 \cref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo}.
-The performance does scale nearly linearly, but it falls a far short
-of the ideal performance level, even at only 28~CPUs.
-Part of this shortfall is due to the fact that the lock acquisitions and
-releases incur no cache misses on a single CPU, but do incur misses
-on two or more CPUs.
+The performance does scale nearly linearly, but falls far short ideal,
+even at only 28~CPUs.
+Part of this shortfall is due to the fact that lock acquisitions and
+releases incur communications cache misses only on two or more CPUs.
 
 \begin{figure}
 \centering
@@ -343,7 +347,7 @@ on two or more CPUs.
 And things only get worse with more CPUs, as can be seen in
 \cref{fig:datastruct:Read-Only Hash-Table Performance For Schroedinger's Zoo; 448 CPUs}.
 We do not need to show ideal performance:
-The performance for 29~CPUs and beyond is all too clearly worse than abysmal.
+The performance for 29~CPUs and beyond is abysmal.
 This clearly underscores the dangers of extrapolating performance from a
 modest number of CPUs.
 
@@ -377,9 +381,11 @@ However, as can be seen in
 changing the number of buckets has almost no effect:
 Scalability is still abysmal.
 In particular, we still see a sharp dropoff at 29~CPUs and beyond,
-clearly demonstrating the complication put forward on
+clearly demonstrating the complication put forward by
+\cref{sec:datastruct:NUMA-induced failure to scale}
+of the list of complications on
 \cpageref{sec:datastruct:NUMA-induced failure to scale}.
-And just as clearly, something else is going on.
+Clearly, something else is going on.
 
 The problem is that this is a multi-socket system, with CPUs~0--27
 and~225--251 mapped to the first socket as shown in
@@ -422,8 +428,8 @@ please read on!
 	on each of those systems?
 }\QuickQuizEnd
 
-One key property of the Schr\"odinger's-zoo runs discussed thus far is that
-they are all read-only.
+One key property of these Schr\"odinger's-zoo experiments is they are
+all read-only.
 This makes the performance degradation due to lock-acquisition-induced
 cache misses all the more painful.
 Even though we are not updating the underlying hash table itself, we are
@@ -442,7 +448,7 @@ read-mostly cases where updates are rare, but could happen at any time.
 \setlength\dashlinedash{1pt}
 \setlength\dashlinegap{2pt}
 
-\begin{figure}
+\begin{table}
 \renewcommand*{\arraystretch}{1.2}
 \centering
 \begin{tabular}{r||c:c}
@@ -469,7 +475,7 @@ read-mostly cases where updates are rare, but could happen at any time.
 \end{tabular}
 \caption{NUMA Topology of System Under Test}
 \label{fig:datastruct:NUMA Topology of System Under Test}
-\end{figure}
+\end{table}
 
 \section{Read-Mostly Data Structures}
 \label{sec:datastruct:Read-Mostly Data Structures}
@@ -735,7 +741,9 @@ about a factor of five short of ideal.
 adds completely unsynchronized results, which works because this
 is a read-only benchmark with nothing to synchronize.
 Even with no synchronization whatsoever, performance still falls far
-short of ideal, thus demonstrating two more complications on
+short of ideal, thus demonstrating
+\cref{sec:datastruct:Cache-size-induced failure to scale,sec:datastruct:Cache-size-induced failure to scale redux}
+of the list of complications on
 \cpageref{sec:datastruct:Cache-size-induced failure to scale redux}.
 
 The problem is that this system has sockets with 28 cores, which have
@@ -754,7 +762,7 @@ only 11~ways.
 This means that L2 cache collisions will be the rule and also that L3
 cache collisions will not be uncommon, so that the resulting cache misses
 will degrade performance.
-In this case, the bottleneck is not in the CPU, but rather in the hardware
+In this case, the bottleneck is not in the CPU, but rather in the
 memory system.
 % This data was generated wtih 262,144 buckets and elements.
 % RCU hash ht_elem structure is 40 bytes plus 32 more from zoo_he for 72.
@@ -962,10 +970,11 @@ doing lookups and at the right-hand side of the figure all 448~CPUs are
 doing updates.
 Hazard pointers and RCU start off with a significant advantage because,
 unlike bucket locking, readers do not exclude updaters.
-However, as the number of updating CPUs increases, update-side overhead
-starts to make its presence known, first for RCU and then for hazard
-pointers.
-Of course, all three of these implementations beat global locking.
+However, as the number of updating CPUs increases, the update-side
+deferred-execution overhead starts to make its presence known, first
+for RCU and then for hazard pointers.
+Of course, all three of these implementations beat global locking, and
+by more than an order of magnitude.
 
 It is quite possible that the differences in lookup performance observed in
 \cref{fig:datastruct:Read-Side RCU-Protected Hash-Table Performance For Schroedinger's Zoo in the Presence of Updates}
@@ -1005,7 +1014,9 @@ not recommended for production use.
 	excellent memory bandwidth.
 }\QuickQuizEnd
 
-And this situation exposes yet another of the complications listed on
+And this situation demonstrates
+\cref{sec:datastruct:Update-activity failure to scale}
+in the list complications on
 \cpageref{sec:datastruct:Update-activity failure to scale}.
 
 % @@@ Testing strategy.  Summarize hashtorture, add QQ for additional
@@ -1037,9 +1048,8 @@ last heartbeat before declaring death.
 It is clearly ridiculous to wait only one millisecond, because then
 a healthy living cat would have to be declared dead---and then
 resurrected---more than once per second.
-It is equally ridiculous to wait a full month, because by that time
-the poor cat's death would have made itself very clearly known
-via olfactory means.
+It is equally ridiculous to wait a full month, because by that time the
+poor cat's death would be unmistakeably apparent to olfactory sensors.
 
 \begin{figure}
 \centering
@@ -1115,12 +1125,11 @@ scalable RCU-protected hash tables, as described in the following sections.
 \label{sec:datastruct:Resizable Hash Table Design}
 
 In happy contrast to the situation in the early 2000s, there are now
-no fewer than three different types of scalable RCU-protected hash
-tables.
+several different types of scalable RCU-protected hash tables.
 The first (and simplest) was developed for the Linux kernel by
 \ppl{Herbert}{Xu}~\cite{HerbertXu2010RCUResizeHash}, and is described in the
 following sections.
-The other two are covered briefly in
+Two others are covered briefly in
 \cref{sec:datastruct:Other Resizable Hash Tables}.
 
 The key insight behind the first hash-table implementation is that
