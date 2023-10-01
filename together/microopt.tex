@@ -1,0 +1,262 @@
+% together/microopt.tex
+% mainfile: ../perfbook.tex
+% SPDX-License-Identifier: CC-BY-SA-3.0
+
+\section{Micro-Optimization}
+\label{sec:together:Micro-Optimization}
+%
+\epigraph{The devil is in the details.}{Unknown}
+
+The data structures shown in this book were coded straightforwardly,
+with no adaptation to the underlying system's cache hierarchy.
+In addition, many of the implementations used pointers to functions
+for key-to-hash conversions and other frequent operations.
+Although this approach provides simplicity and portability, in many
+cases it does give up some performance.
+
+The following sections touch on specialization, memory conservation,
+and hardware considerations.
+Please do not mistake these short sections for a definitive treatise
+on this subject.
+Whole books have been written on optimizing for a specific CPU, let
+alone to the wide variety of CPU families in common use today.
+
+\subsection{Specialization}
+\label{sec:together:Specialization}
+
+The resizable hash table presented in
+\cref{sec:datastruct:Non-Partitionable Data Structures}
+on
+\cpageref{sec:datastruct:Non-Partitionable Data Structures}
+used an opaque type for the key.
+This allows great flexibility, permitting any sort of key to be
+used, but it also incurs significant overhead due to the calls via
+of pointers to functions.
+Now, modern hardware uses sophisticated branch-prediction techniques
+to minimize this overhead, but on the other hand, real-world software
+is often larger than can be accommodated even by today's large
+hardware branch-prediction tables.
+This is especially the case for calls via pointers, in which case
+the branch prediction hardware must record a pointer in addition
+to branch-taken/branch-not-taken information.
+
+This overhead can be eliminated by specializing a hash-table implementation
+to a given key type and hash function, for example, by using C++ templates.
+Doing so eliminates the \co{->ht_cmp()}, \co{->ht_gethash()}, and
+\co{->ht_getkey()} function pointers in the \co{ht} structure shown in
+\cref{lst:datastruct:Resizable Hash-Table Data Structures} on
+\cpageref{lst:datastruct:Resizable Hash-Table Data Structures}.
+It also eliminates the corresponding calls through these pointers,
+which could allow the compiler to inline the resulting fixed functions,
+eliminating not only the overhead of the call instruction, but the
+argument marshalling as well.
+
+\QuickQuiz{
+	How much do these specializations really save?
+	Are they really worth it?
+}\QuickQuizAnswer{
+	The answer to the first question is left as an exercise to
+	the reader.
+	Try specializing the resizable hash table and see how much
+	performance improvement results.
+	The second question cannot be answered in general, but must
+	instead be answered with respect to a specific use case.
+	Some use cases are extremely sensitive to performance and
+	scalability, while others are less so.
+}\QuickQuizEnd
+
+All that aside, one of the great benefits of modern hardware compared
+to that available when I first started learning to program back in
+the early 1970s is that much less specialization is required.
+This allows much greater productivity than was possible back in the
+days of four-kilobyte address spaces.
+
+\subsection{Bits and Bytes}
+\label{sec:together:Bits and Bytes}
+
+The hash tables discussed in this chapter made almost no attempt to conserve
+memory.
+For example, the \co{->ht_idx} field in the \co{ht} structure in
+\cref{lst:datastruct:Resizable Hash-Table Data Structures} on
+\cpageref{lst:datastruct:Resizable Hash-Table Data Structures}
+always has a value of either zero or one, yet takes up a full 32 bits
+of memory.
+It could be eliminated, for example, by stealing a bit from the
+\co{->ht_resize_key} field.
+This works because the \co{->ht_resize_key} field is large enough to
+address every byte of memory and the \co{ht_bucket} structure
+is more than one byte long, so that
+the \co{->ht_resize_key} field must have several bits to spare.
+
+This sort of bit-packing trick is frequently used in data structures
+that are highly replicated, as is the \co{page} structure in the Linux
+kernel.
+However, the resizable hash table's \co{ht} structure is not all that
+highly replicated.
+It is instead the \co{ht_bucket} structures we should focus on.
+There are two major opportunities for shrinking the \co{ht_bucket} structure:
+\begin{enumerate*}[(1)]
+\item Placing the \tco{->htb_lock} field in a low-order bit of one of the
+\tco{->htb_head} pointers and
+\item Reducing the number of pointers required.
+\end{enumerate*}
+
+The first opportunity might make use of bit-spinlocks in the Linux
+kernel, which are provided by the \path{include/linux/bit_spinlock.h}
+header file.
+These are used in space-critical data structures in the Linux kernel,
+but are not without their disadvantages:
+
+\begin{enumerate}
+\item	They are significantly slower than the traditional spinlock
+	primitives.
+\item	They cannot participate in the lockdep deadlock detection
+	tooling in the Linux kernel~\cite{JonathanCorbet2006lockdep}.
+\item	They do not record lock ownership, further complicating
+	debugging.
+\item	They do not participate in priority boosting in \rt\ kernels,
+	which means that preemption must be disabled when holding
+	bit spinlocks, which can degrade real-time latency.
+\end{enumerate}
+
+Despite these disadvantages, bit-spinlocks are extremely useful when
+memory is at a premium.
+
+One aspect of the second opportunity was covered in
+\cref{sec:datastruct:Other Resizable Hash Tables}
+on
+\cpageref{sec:datastruct:Other Resizable Hash Tables},
+which presented resizable hash tables that require only one
+set of bucket-list pointers in place of the pair of sets required
+by the resizable hash table presented in
+\cref{sec:datastruct:Non-Partitionable Data Structures}
+on
+\cpageref{sec:datastruct:Non-Partitionable Data Structures}.
+Another approach would be to use singly linked bucket lists in
+place of the doubly linked lists used in this chapter.
+One downside of this approach is that deletion would then require
+additional overhead, either by marking the outgoing pointer
+for later removal
+or by searching the bucket list for the element being deleted.
+
+In short, there is a tradeoff between minimal memory overhead on
+the one hand, and performance and simplicity on the other.
+Fortunately, the relatively large memories available on modern
+systems have allowed us to prioritize performance and simplicity
+over memory overhead.
+However, even though the year~2022's pocket-sized smartphones sport
+many gigabytes of memory and its mid-range servers sport terabytes, it
+is sometimes necessary to take extreme measures to reduce memory overhead.
+
+\subsection{Hardware Considerations}
+\label{sec:together:Hardware Considerations}
+
+Modern computers typically move data between CPUs and main memory in
+fixed-sized blocks that range in size from 32 bytes to 256 bytes.
+These blocks are called \emph{\IXpl{cache line}}, and are extremely important
+to high performance and scalability, as was discussed in
+\cref{sec:cpu:Overheads}.
+One timeworn way to kill both performance and scalability is to
+place incompatible variables into the same cacheline.
+For example, suppose that a resizable hash table data element had
+the \co{ht_elem} structure in the same cacheline as a frequently incremented
+counter.
+The frequent incrementing would cause the cacheline to be present at
+the CPU doing the incrementing, but nowhere else.
+If other CPUs attempted to traverse the hash bucket list containing
+that element, they would incur expensive cache misses, degrading both
+performance and scalability.
+
+\begin{listing}
+\begin{VerbatimL}
+struct hash_elem {
+	struct ht_elem e;
+	long __attribute__ ((aligned(64))) counter;
+};
+\end{VerbatimL}
+\caption{Alignment for 64-Byte Cache Lines}
+\label{lst:together:Alignment for 64-Byte Cache Lines}
+\end{listing}
+
+One way to solve this problem on systems with 64-byte cache line is shown in
+\cref{lst:together:Alignment for 64-Byte Cache Lines}.
+Here \GCC's \co{aligned} attribute is used to force the \co{->counter}
+and the \co{ht_elem} structure into separate cache lines.
+This would allow CPUs to traverse the hash bucket list at full speed
+despite the frequent incrementing.
+
+Of course, this raises the question ``How did we know that cache lines
+are 64 bytes in size?''
+On a Linux system, this information may be obtained from the
+\path{/sys/devices/system/cpu/cpu*/cache/} directories, and it is even
+possible to make the installation process rebuild the application to
+accommodate the system's hardware structure.
+However, this would be more difficult if you wanted your application to
+also run on a variety of environments, including non-Linux systems.
+Furthermore, even if you were content to run only on Linux, such a
+self-modifying installation poses validation challenges.
+For example, systems with 32-byte cachelines might work well, but
+performance might suffer on systems with 64-byte cachelines due
+to \IX{false sharing}.
+
+Fortunately, there are some rules of thumb that work reasonably well in
+practice, which were gathered into a 1995
+paper~\cite{BenjaminGamsa95a}.\footnote{
+	A number of these rules are paraphrased and expanded on here
+	with permission from Orran Krieger.}
+The first group of rules involve rearranging structures to accommodate
+cache geometry:
+
+\begin{enumerate}
+\item	Place read-mostly data far from frequently updated data.
+	For example, place read-mostly data at the beginning of the
+	structure and frequently updated data at the end.
+	Place data that is rarely accessed in between.
+\item	If the structure has groups of fields such that each group is
+	updated by an independent code path, separate these groups
+	from each other.
+	Again, it can be helpful to place rarely accessed data
+	between the groups.
+	In some cases, it might also make sense to place each such group
+	into a separate structure referenced by the original structure.
+\item	Where possible, associate update-mostly data with a CPU, thread,
+	or task.
+	We saw several very effective examples of this rule of thumb
+	in the counter implementations in
+	\cref{chp:Counting}.
+\item	Going one step further, partition your data on a per-CPU,
+	per-thread, or per-task basis, as was discussed in
+	\cref{chp:Data Ownership}.
+\end{enumerate}
+
+There has been some work towards automated trace-based rearrangement
+of structure
+fields~\cite{Golovanevsky:2010:TDL:2174824.2174835}.
+This work might well ease one of the more painstaking tasks
+required to get excellent performance and scalability from
+multithreaded software.
+
+An additional set of rules of thumb deal with locks:
+
+\begin{enumerate}
+\item	Given a heavily contended lock protecting data that is
+	frequently modified, take one of the following approaches:
+	\begin{enumerate}
+	\item	Place the lock in a different cacheline than the data
+		that it protects.
+	\item	Use a lock that is adapted for high contention, such
+		as a queued lock.
+	\item	Redesign to reduce lock contention.
+		(This approach is best, but is not always trivial.)
+	\end{enumerate}
+\item	Place uncontended locks into the same cache line as the data
+	that they protect.
+	This approach means that the cache miss that brings the
+	lock to the current CPU also brings its data.
+\item	Protect read-mostly data with \IXpl{hazard pointer}, RCU, or, for
+	long-duration critical sections, reader-writer locks.
+\end{enumerate}
+
+Of course, these are rules of thumb rather than absolute rules.
+Some experimentation is required to work out which are most applicable
+to a given situation.
