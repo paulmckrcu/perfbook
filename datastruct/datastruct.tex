@@ -2,7 +2,7 @@
 % mainfile: ../perfbook.tex
 % SPDX-License-Identifier: CC-BY-SA-3.0
 
-\QuickQuizChapter{chp:Data Structures}{Data Structures}{qqzdatastruct}
+\QuickQuizChapter{chp:Data Structures: Hash Tables}{Data Structures: Hash Tables}{qqzdatastruct}
 %
 \Epigraph{Bad programmers worry about the code.
 	  Good programmers worry about data structures and their
@@ -57,10 +57,6 @@ a topic taken up by
 looks at a non-partitionable data structure, splitting
 it into read-mostly and partitionable portions,
 which improves both performance and scalability.
-Because this chapter cannot delve into the details of every concurrent
-data structure,
-\cref{sec:datastruct:Other Data Structures}
-surveys a few of the important ones.
 Finally, \cref{sec:datastruct:Summary}
 presents a summary of this chapter.
 
@@ -1947,86 +1943,6 @@ But for those for whom this slowdown is not a problem, an
 implementation is available from recent versions of the userspace RCU
 library~\cite{MathieuDesnoyers2009URCU}.
 
-\section{Other Data Structures}
-\label{sec:datastruct:Other Data Structures}
-%
-\epigraph{All life is an experiment.
-	  The more experiments you make the better.}
-	 {Ralph Waldo Emerson}
-
-The preceding sections have focused on data structures that enhance
-concurrency due to partitionability
-(\cref{sec:datastruct:Partitionable Data Structures}),
-efficient handling of read-mostly access patterns
-(\cref{sec:datastruct:Read-Mostly Data Structures}),
-or application of read-mostly techniques to avoid
-non-partitionability
-(\cref{sec:datastruct:Non-Partitionable Data Structures}).
-This section gives a brief review of other data structures.
-
-One of the hash table's greatest advantages for parallel use is that it
-is fully partitionable, at least while not being resized.
-One way of preserving the partitionability and the size independence is
-to use a radix tree, which is also called a trie.
-Tries partition the search key, using each successive key partition
-to traverse the next level of the trie.
-As such, a trie can be thought of as a set of nested hash tables,
-thus providing the required partitionability.
-One disadvantage of tries is that a sparse key space can result in
-inefficient use of memory.
-There are a number of compression techniques that may be used to
-work around this disadvantage, including hashing the key value to
-a smaller keyspace before the
-traversal~\cite{RobertOlsson2007Trash}.
-Radix trees are heavily used in practice, including in the Linux
-kernel~\cite{NickPiggin2006radixtree}.
-
-One important special case of both a hash table and a trie is what is
-perhaps the oldest of data structures, the array and its multi-dimensional
-counterpart, the matrix.
-The fully partitionable nature of matrices is exploited heavily in
-concurrent numerical algorithms.
-
-Self-balancing trees are heavily used in sequential code, with
-AVL trees and red-black trees being perhaps the most well-known
-examples~\cite{ThomasHCorman2001Algorithms}.
-Early attempts to parallelize AVL trees were complex and not necessarily
-all that efficient~\cite{Ellis80},
-however, more recent work on red-black trees provides better
-performance and scalability by using RCU for readers and hashed arrays
-of locks\footnote{
-	In the guise of swissTM~\cite{AleksandarDragovejic2011STMnotToy},
-	which is a variant of software transactional memory in which
-	the developer flags non-shared accesses.}
-to protect reads and updates,
-respectively~\cite{PhilHoward2011RCUTMRBTree,PhilipWHoward2013RCUrbtree}.
-It turns out that red-black trees rebalance aggressively, which works
-well for sequential programs, but not necessarily so well for parallel
-use.
-Recent work has therefore made use of RCU-protected ``bonsai trees''
-that rebalance less aggressively~\cite{AustinClements2012RCULinux:mmapsem},
-trading off optimal tree depth to gain more efficient concurrent updates.
-
-Concurrent skip lists lend themselves well to RCU readers, and in fact
-represents an early academic use of a technique resembling
-RCU~\cite{Pugh90}.
-% @@@ Reference skiplist chapter once added.
-
-Concurrent double-ended queues were discussed in
-\cref{sec:SMPdesign:Double-Ended Queue},
-and concurrent stacks and queues have a long history~\cite{Treiber86},
-though not normally the most impressive performance or scalability.
-They are nevertheless a common feature of concurrent
-libraries~\cite{PaulMcKenney2013LWNURCUqueuestack}.
-Researchers have recently proposed relaxing the ordering constraints
-of stacks and queues~\cite{Shavit:2011:DSM:1897852.1897873},
-with some work indicating that relaxed-ordered queues actually have
-better ordering properties than do strict FIFO
-queues~\cite{AndreasHaas2012FIFOisnt,ChristophMKirsch2012FIFOisntTR,AndreasHaas2013CFRelaxedQueues}.
-
-It seems likely that continued work with concurrent data structures will
-produce novel algorithms with surprising properties.
-
 \section{Summary}
 \label{sec:datastruct:Summary}
 %
@@ -2034,13 +1950,11 @@ produce novel algorithms with surprising properties.
 	  experience, and that is not learning from experience.}
 	 {Archibald MacLeish}
 
-This chapter has focused primarily on hash tables, including resizable
-hash tables, which are not fully partitionable.
-\Cref{sec:datastruct:Other Data Structures} gave a quick
-overview of a few non-hash-table data structures.
-Nevertheless, this exposition of hash tables is an excellent introduction
-to the many issues surrounding high-performance scalable data access,
-including:
+This chapter has focused on hash tables, including resizable hash tables,
+which are not fully partitionable.
+Although there are many other data structures, this exposition of hash
+tables is an excellent introduction to the many issues surrounding
+high-performance scalable data access, including:
 
 \begin{enumerate}
 \item	Fully partitioned data structures work well on small systems,
@@ -2064,7 +1978,13 @@ including:
 	requirements.
 \end{enumerate}
 
-That said, performance and scalability are of little use without reliability,
-so the next chapter covers validation.
+Hash tables continue to be the workhorse data structure for low-level
+concurrency software, but as we have seen, the same desireable spreading
+property provided by the hash function can result in scalability
+limitations due to poor locality of reference.
+In addition, use cases requiring ordered traversal are not well-served
+by hash tables.
+One way around these issues is provided by trees, which is the subject
+of the next chapter.
 
 \QuickQuizAnswersChp{qqzdatastruct}
