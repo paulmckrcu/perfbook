@@ -12,6 +12,9 @@
 #	is <system-id>.yyyy.mm.ddA.  If "cpu" is given, only the data
 #	with that CPU as cpu0 will be considered.
 #
+# Files ending in .sctr.dat are data for scatterplots.  Files ending
+# in just .dat list average latencies.
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or

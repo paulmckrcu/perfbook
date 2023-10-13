@@ -1,7 +1,9 @@
 #!/bin/bash
 #
 # Run cachetorture stats, CPU 0 vs. all other CPUs.  First parameter
-# controls the maximum CPU number, defaulting to the largest-numbered CPU.
+# controls the test CPU number, defaulting to zero, while the second
+# parameter controls the maximum CPU number, defaulting to the
+# largest-numbered CPU.
 #
 # Usage: cachetorture.sh [ testcpu [ lastcpu ] ]
 #
