@@ -267,6 +267,10 @@ endif
 autodate.tex: $(LATEXSOURCES) $(BIBSOURCES) $(LST_SOURCES) \
     $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(FCVSNIPPETS) $(FCVSNIPPETS_VIA_LTMS) \
      $(GITREFSTAGS) utilities/autodate.sh
+ifneq ($(IGNORE_INKSCAPE_ERROR),0)
+	# Make sure all SVG --> PDF conversions are complete
+	$(MAKE) -j1 figs
+endif
 	sh utilities/autodate.sh
 
 perfbook_flat.tex: autodate.tex
