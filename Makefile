@@ -52,7 +52,9 @@ FIGSOURCES := $(wildcard */*.fig) $(wildcard */*/*.fig)
 
 EPSSOURCES_FROM_FIG := $(FIGSOURCES:%.fig=%.eps)
 
-SVGSOURCES := $(wildcard */*.svg)
+SVGSOURCES_ALL := $(wildcard */*.svg)
+SVG_EMERGENCY := $(wildcard */*.svg*.svg)
+SVGSOURCES := $(filter-out $(SVG_EMERGENCY),$(SVGSOURCES_ALL))
 FAKE_EPS_FROM_SVG := $(SVGSOURCES:%.svg=%.eps)
 PDFTARGETS_OF_SVG := $(SVGSOURCES:%.svg=%.pdf)
 
@@ -603,7 +605,7 @@ clean:
 	rm -f perfbook*.sil
 	rm -f CodeSamples/snippets.d
 	rm -f *.synctex*
-	@rm -f $(OBSOLETE_FILES) $(EPSSOURCES_TMP)
+	@rm -f $(OBSOLETE_FILES) $(EPSSOURCES_TMP) $(SVG_EMERGENCY)
 
 paper-clean:
 	rm -f $(BASE_DEPENDS)
@@ -627,7 +629,7 @@ cleanfigs-eps:
 	rm -f $(PDFTARGETS_OF_EPS)
 
 cleanfigs-svg:
-	rm -f $(PDFTARGETS_OF_SVG)
+	rm -f $(PDFTARGETS_OF_SVG) $(SVG_EMERGENCY)
 
 cleanfigs: cleanfigs-eps cleanfigs-svg
 
