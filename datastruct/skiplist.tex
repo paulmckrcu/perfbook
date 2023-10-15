@@ -91,10 +91,15 @@ trading off optimal tree depth to gain more efficient concurrent updates.
 However, efficiently and scalably handling rebalancing is still somewhat
 of a research topic, so this chapter will look elsewhere.
 
-@@@ Btree and Maple tree.
+An RCU-protected B-tree variant, called
+``Maple Tree''~\cite{LiamHowlett2022MapleTree,MatthewWilcox2022MapleTree},
+has been implemented within the Linux kernel.
+It is perhaps most notably used for tracking per-process address spaces.
+But useful though Maple Tree is, it is not exactly a textbook algorithm.
 
-Concurrent skip lists lend themselves well to concurrent rebalancing,
-to RCU readers, and to concurrent updates.
+In contrast, concurrent skip lists are quite simple and also (like Maple
+Trees) lend themselves well to concurrent rebalancing, to RCU readers,
+and to concurrent updates.
 In fact skiplists were an early academic use of a technique resembling
 RCU~\cite{Pugh90}.
 This chapter will therefore focus on concurrent RCU-protected skip lists.
@@ -105,13 +110,48 @@ data structure,
 \cref{sec:skiplist:Other Data Structures}
 surveys a few of the important ones.
 @@@
+\section{Skip List Design}
+\label{sec:skiplist:Skip List Design}
+%
+\epigraph{Skip, skip, skip to my Lou}
+	 {Unknown}
+
+A skip list uses multiple links in each element in order to
+provide shortcuts through a linked list, as depicted in
+\cref{fig:datastruct:Skip List Diagram}.
+These shortcuts allow a lookup to reach the desired element with
+at most two pointer traversals.
 
 \begin{figure}
 \centering
 \resizebox{3in}{!}{\includegraphics{datastruct/skiplistlayout}}
-\caption{Skiplist Diagram}
-\label{fig:datastruct:Skiplist Diagram}
+\caption{Skip List Diagram}
+\label{fig:datastruct:Skip List Diagram}
 \end{figure}
+
+\begin{listing}
+\input{CodeSamples/datastruct/skiplist/skiplist@struct.fcv}
+\caption{Skip List Data Structures}
+\label{lst:datastruct:Skip List Data Structures}
+\end{listing}
+
+A data structure implementing both the skip-list header and data
+elements is shown in
+\cref{lst:datastruct:Skip List Data Structures}.
+The \co{->sl_toplevel} field indicates the array index of the uppermost
+active skiplist pointer in a given element.
+In the diagram, the header (leftmost) element and elements~D and~E
+would have \co{->sl_toplevel} values of~2, element~B a value of~1,
+and elements~A and~ a value of~0.
+The array itself is in the last field, \co{->sl_next[]}.
+The \co{->sl_lock} field guards all fields in the element for update,
+the \co{->sl_deleted} field is used to resolve lookup/deletion races,
+the \co{->sl_head} field references the header,
+the \co{->sl_seq} field is used to inform readers that an update is in
+progress,
+and the \co{->sl_cmp()} field points to a function that does key
+comparison, with the key normally being in a data structure that contains
+the \co{struct skiplist}.
 
 \section{Other Data Structures}
 \label{sec:skiplist:Other Data Structures}

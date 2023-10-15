@@ -33,6 +33,7 @@
 
 #define SL_MAX_LEVELS 8
 
+//\begin{snippet}[labelbase=ln:datastruct:skiplist:struct,commandchars=\\\@\$]
 /*
  * Skiplist element.
  */
@@ -45,6 +46,7 @@ struct skiplist {
 	int (*sl_cmp)(struct skiplist *slp, void *key);
 	struct skiplist *sl_next[SL_MAX_LEVELS];
 };
+//\end{snippet}
 
 /*
  * Skiplist iterator hint structure.  Opaque outside of skiplist
