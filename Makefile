@@ -111,7 +111,6 @@ INKSCAPE := $(shell $(WHICH) inkscape 2>/dev/null)
 ifdef INKSCAPE
   INKSCAPE_ONE := $(shell inkscape --version 2>/dev/null | grep -c "Inkscape 1")
 endif
-IGNORE_INKSCAPE_ERROR ?= 1
 LATEXPAND := $(shell $(WHICH) latexpand 2>/dev/null)
 QPDF := $(shell $(WHICH) qpdf 2>/dev/null)
 
@@ -267,10 +266,6 @@ endif
 autodate.tex: $(LATEXSOURCES) $(BIBSOURCES) $(LST_SOURCES) \
     $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(FCVSNIPPETS) $(FCVSNIPPETS_VIA_LTMS) \
      $(GITREFSTAGS) utilities/autodate.sh
-ifneq ($(IGNORE_INKSCAPE_ERROR),0)
-	# Make sure all SVG --> PDF conversions are complete
-	$(MAKE) -j1 figs
-endif
 	sh utilities/autodate.sh
 
 perfbook_flat.tex: autodate.tex
@@ -455,6 +450,9 @@ else
   include epstopdf-rule.mk
 endif
 
+# bogus settings for preventing Inkscape from interacting with desktop manager
+ISOLATE_INKSCAPE ?= XDG_RUNTIME_DIR=na DBUS_SESSION_BUS_ADDRESS=na
+
 $(PDFTARGETS_OF_SVG): $(FIXSVGFONTS)
 $(PDFTARGETS_OF_SVG): %.pdf: %.svg
 	@echo "$< --> $(suffix $@)"
@@ -488,11 +486,7 @@ endif
 ifeq ($(INKSCAPE_ONE),0)
 	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
 else
-  ifneq ($(IGNORE_INKSCAPE_ERROR),0)
-	-@inkscape -o $@ $<i > /dev/null 2>&1
-  else
-	@inkscape -o $@ $<i > /dev/null 2>&1
-  endif
+	@$(ISOLATE_INKSCAPE) inkscape -o $@ $<i > /dev/null 2>&1
 endif
 	@rm -f $<i
 ifeq ($(chkpagegroup),on)
