@@ -23,24 +23,24 @@
 
 nsamples=30
 
-for count in count_atomic count_end count_end_rcu count_lim count_lim_app count_lim_atomic count_lim_sig count_limd count_nonatomic count_stat count_stat_atomic count_stat_eventual
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
+
+for ((i = 0; i < $nsamples; i++))
 do
-	for ncpu in 1 2 3 4 5 6 7 8 10 12 14 16 20 24 28 32 40 48 56 64 80 96 112 128 160 192 224 256 320 384 420
+	ncpu=1
+	while test $ncpu -le $((lastcpu - 2))
 	do
-		for ((i = 0; i < $nsamples; i++))
+		for count in count_atomic count_end count_end_rcu count_lim count_lim_app count_lim_atomic count_lim_sig count_limd count_nonatomic count_stat count_stat_atomic count_stat_eventual
 		do
-			echo $count $ncpu rperf 2
-			./$count $ncpu rperf 2
-			sleep 1
+			echo $count $ncpu rperf
+			./$count $ncpu rperf
+			sleep 0.1
+			echo $count $ncpu uperf
+			./$count $ncpu uperf
+			sleep 0.1
 		done
-	done
-	for ncpu in 1 2 3 4 5 6 7 8 10 12 14 16 20 24 28 32 40 48 56 64 80 96 112 128 160 192 224 256 320 384 420
-	do
-		for ((i = 0; i < $nsamples; i++))
-		do
-			echo $count $ncpu uperf 2
-			./$count $ncpu uperf 2
-			sleep 1
-		done
+		incr=`power2inc $ncpu $cpusperpwr2`
+		ncpu=$((ncpu + incr))
 	done
 done
