@@ -43,6 +43,9 @@ fi
 
 mkdir -p "${destdir}"
 
+lscpu > ${destdir}/lscpu.out
+cat /proc/cpuinfo > ${destdir}/cpuinfo.out
+
 echo Starting cachetorture.sh at `date`
 bash cachetorture.sh > ${destdir}/cachetorture.sh.out
 echo Finished cachetorture.sh at `date`
