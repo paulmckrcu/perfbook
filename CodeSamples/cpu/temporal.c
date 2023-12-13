@@ -238,7 +238,7 @@ void fre_rfe_parent(void)
 
 	sharedvar = 0;
 	ts = get_timestamp();
-	sdp = create_all_threads(NULL, 3);
+	sdp = create_all_threads(NULL, 5);
 	WRITE_ONCE(goflag, GOFLAG_RUN);
 	poll(NULL, 0, (duration + 1) / 2);
 	tsbefore = get_timestamp();
