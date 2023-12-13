@@ -3,44 +3,27 @@
  *
  * This test produces output as follows:
  *
- * ./temporal --coe --nthreads 10
- * ./temporal arguments: coe nthread 10 duration: 100
- * 0 2254916 0 2255000
- * 0 2255612 6 2255828
- * 0 2256452 4 2256520
- * 0 242507054 4 242507152
- * 1 2254816 3 2254904
- * 1 2256568 4 2256788
- * 1 242507190 4 242507260
- * 2 2254696 3 2254780
- * 2 2257168 4 2257328
- * 2 242507064 4 242507154
- * 3 2254604 3 2254680
- * 3 2255884 4 2255956
- * 3 242506966 4 242507096
- * 4 2254732 4 2254816
- * 4 242506984 4 242507072
- * 5 2254388 4 2254612
- * 5 242507040 4 242507140
- * 6 2255156 6 2255232
- * 6 2256376 4 2256740
- * 6 242506970 4 242507192
- * 7 2254832 3 2255288
- * 7 2256464 4 2256532
- * 7 242507038 4 242507126
- * 8 2254800 3 2254888
- * 8 2256444 4 2256916
- * 8 242507086 4 242507108
- * 9 2254676 3 2254764
- * 9 2257188 4 2257456
- * 9 242506834 4 242507130
+ * ./temporal --coe --nthreads 4
+ * ./temporal arguments: coe nthread 4 duration: 100
+ * 0 881008 0 881080 881008 881080
+ * 0 881368 1 881440 241140380 241140400
+ * 1 881376 1 881476 241140376 241140396
+ * 2 881304 2 881444 881304 881444
+ * 2 881720 1 881792 241140368 241140390
+ * 3 880652 3 880740 880652 880740
+ * 3 881012 2 881080 881012 881080
+ * 3 881724 1 882176 241140344 241140364
  *
- * The columns are thread number, start time in nanoseconds, value of
- * shared variable, and end time in nanoseconds.
+ * The columns are thread number, start time of the first sample, value
+ * of shared variable, end time of the first sample, the start time of
+ * the last sample, and the end time of the last sample.  All times are
+ * in nanoseconds since (roughly) the beginning of the run.  If a given
+ * value was observed by only one read, the times for the first and last
+ * samples will be identical.
  *
  * The --fre and --rfe arguments also produce a line as follows:
  *
- * Write 122438044 1 122438062
+ * Write 121297118 1 121297136 121297118 121297136
  *
  * This records the times and values of the write that the other threads
  * are reading from.
@@ -87,7 +70,9 @@ static int sharedvar __attribute__((__aligned__(CACHE_LINE_SIZE)));
 struct sample {
 	int value;
 	long long tbefore;
+	long long tbeforelast;
 	long long tafter;
+	long long tafterlast;
 };
 
 struct sample_data {
@@ -103,8 +88,10 @@ struct sample_data {
 void readval(struct sample *sp)
 {
 	sp->tbefore = get_timestamp();
+	sp->tbeforelast = sp->tbefore;
 	sp->value = READ_ONCE(sharedvar);
 	sp->tafter = get_timestamp();
+	sp->tafterlast = sp->tafter;
 }
 
 // Collect unique data reads, timestamped.  If there are multiple reads
@@ -116,27 +103,20 @@ void collect_data(struct sample_data *sdp)
 	struct sample s;
 	struct sample *sp;
 
-	readval(&sdp->sd_samples[0]);
+	sp = &sdp->sd_samples[0];
+	readval(sp);
 	sdp->sd_nsamples = 1;
-	sp = &sdp->sd_samples[1];
 	while (READ_ONCE(goflag) == GOFLAG_RUN) {
 		readval(&s);
-		if (s.value == sp[-1].value) {
-			sp[-1].tafter = s.tafter;
-			sp[0] = s;
+		if (s.value == sp->value) {
+			sp->tbeforelast = s.tbefore;
+			sp->tafterlast = s.tafter;
 		} else {
-			if (fre) {
-				sdp->sd_nsamples = i + 1;
-				if (++i >= sdp->sd_n)
-					break;
-				sp++;
-				sp[0] = s;
-			}
 			sdp->sd_nsamples = i + 1;
 			if (++i >= sdp->sd_n)
 				break;
 			sp++;
-			sp[0] = s;
+			*sp = s;
 		}
 	}
 }
@@ -194,14 +174,18 @@ void dump_all_threads(struct sample_data *sdp, long long *tsp)
 	struct sample *sp;
 	long long tsdelta1;
 	long long tsdelta2;
+	long long tsdelta3;
+	long long tsdelta4;
 
 	for (cnum = 0; cnum < nthreads; cnum++) {
 		for (i = 0; i < sdp[cnum].sd_nsamples; i++) {
 			sp = &sdp[cnum].sd_samples[i];
 			tsdelta1 = sp->tbefore - *tsp;
 			tsdelta2 = sp->tafter - *tsp;
-			printf("%d %lld %d %lld\n", cnum,
-			       tsdelta1, sp->value, tsdelta2);
+			tsdelta3 = sp->tbeforelast - *tsp;
+			tsdelta4 = sp->tafterlast - *tsp;
+			printf("%d %lld %d %lld %lld %lld\n", cnum,
+			       tsdelta1, sp->value, tsdelta2, tsdelta3, tsdelta4);
 		}
 	}
 }
@@ -250,7 +234,8 @@ void fre_rfe_parent(void)
 	dump_all_threads(sdp, &ts);
 	tsbefore = tsbefore - ts;
 	tsafter = tsafter - ts;
-	printf("Write %lld 1 %lld\n", tsbefore, tsafter);
+	printf("Write %lld 1 %lld %lld %lld\n",
+	       tsbefore, tsafter, tsbefore, tsafter);
 }
 
 

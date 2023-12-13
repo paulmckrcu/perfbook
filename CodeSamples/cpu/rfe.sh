@@ -24,12 +24,17 @@
 ./temporal --rfe --nthreads ${1-15} |
 awk '
 /^Write/ {
-	et = $4;
+	print $0;
+	et = $2;
 	for (i in st) {
 		print i, st[i], et, st[i] - et (et > st[i] ? "!!!" : "");
 	}
 }
 
-$1 ~ /^[0-9][0-9]*$/ && $3 == 1 {
-	st[$1] = $2;
+$1 ~ /^[0-9][0-9]*$/ && $3 == 1 && st[$1] == "" {
+	st[$1] = $4;
+}
+
+END {
+	print "Note: False positives possible due to lack of memory ordering."
 }'
