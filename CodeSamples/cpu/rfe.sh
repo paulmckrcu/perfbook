@@ -1,3 +1,9 @@
+#!/bin/bash
+#
+# Produce and reduce temporal rfe data.
+#
+# Usage: bash rfe.sh [ nthreads ]
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -12,32 +18,23 @@
 # along with this program; if not, you can access it online at
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
-# Copyright (c) 2009-2019 Paul E. McKenney, IBM Corporation.
-# Copyright (c) 2019 Paul E. McKenney, Facebook.
+# Copyright (C) Facebook, 2020
+#
+# Authors: Paul E. McKenney <paulmck@kernel.org>
+./temporal --rfe --nthreads ${1-15} |
+awk '
+/^Write/ {
+	print $0;
+	et = $2;
+	for (i in st) {
+		print i, st[i], et, st[i] - et (et > st[i] ? "!!!" : "");
+	}
+}
 
-include ../Makefile.arch
+$1 ~ /^[0-9][0-9]*$/ && $3 == 1 && st[$1] == "" {
+	st[$1] = $4;
+}
 
-PROGS =	cachetorture temporal
-
-top := ..
-include $(top)/depends.mk
-
-ifeq ($(strip $(target)),)
-all:
-	@echo "### None in cpu/ can be built on arch: '$(arch)'."
-else
-all: $(PROGS)
-endif
-
-CC?=cc
-
-include $(top)/recipes.mk
-
-cachetorture: cachetorture.c ../api.h
-	$(CC) $(GCC_ARGS) $(CFLAGS) -o cachetorture cachetorture.c -lpthread
-
-temporal: temporal.c ../api.h
-	$(CC) $(GCC_ARGS) $(CFLAGS) -o temporal temporal.c -lpthread
-
-clean:
-	rm -f $(PROGS)
+END {
+	print "Note: False positives possible due to lack of memory ordering."
+}'

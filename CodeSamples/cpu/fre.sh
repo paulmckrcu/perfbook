@@ -1,3 +1,9 @@
+#!/bin/bash
+#
+# Produce and reduce temporal fre data.
+#
+# Usage: bash fre.sh [ nthreads ]
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -12,32 +18,18 @@
 # along with this program; if not, you can access it online at
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
-# Copyright (c) 2009-2019 Paul E. McKenney, IBM Corporation.
-# Copyright (c) 2019 Paul E. McKenney, Facebook.
+# Copyright (C) Facebook, 2020
+#
+# Authors: Paul E. McKenney <paulmck@kernel.org>
+./temporal --fre --nthreads ${1-15} |
+awk '
+/^Write/ {
+	et = $4;
+	for (i in st) {
+		print i, st[i], et, et - st[i] (et < st[i] ? "!!!" : "");
+	}
+}
 
-include ../Makefile.arch
-
-PROGS =	cachetorture temporal
-
-top := ..
-include $(top)/depends.mk
-
-ifeq ($(strip $(target)),)
-all:
-	@echo "### None in cpu/ can be built on arch: '$(arch)'."
-else
-all: $(PROGS)
-endif
-
-CC?=cc
-
-include $(top)/recipes.mk
-
-cachetorture: cachetorture.c ../api.h
-	$(CC) $(GCC_ARGS) $(CFLAGS) -o cachetorture cachetorture.c -lpthread
-
-temporal: temporal.c ../api.h
-	$(CC) $(GCC_ARGS) $(CFLAGS) -o temporal temporal.c -lpthread
-
-clean:
-	rm -f $(PROGS)
+$1 ~ /^[0-9][0-9]*$/ && $3 == 0 {
+	st[$1] = $6;
+}'
