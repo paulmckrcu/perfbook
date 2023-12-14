@@ -17,7 +17,7 @@
 
 include ../Makefile.arch
 
-PROGS =	cachetorture
+PROGS =	cachetorture temporal
 
 top := ..
 include $(top)/depends.mk
@@ -35,6 +35,9 @@ include $(top)/recipes.mk
 
 cachetorture: cachetorture.c ../api.h
 	$(CC) $(GCC_ARGS) $(CFLAGS) -o cachetorture cachetorture.c -lpthread
+
+temporal: temporal.c ../api.h
+	$(CC) $(GCC_ARGS) $(CFLAGS) -o temporal temporal.c -lpthread
 
 clean:
 	rm -f $(PROGS)
