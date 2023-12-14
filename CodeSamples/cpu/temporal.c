@@ -170,7 +170,6 @@ void dump_all_threads(struct sample_data *sdp, long long *tsp)
 {
 	int cnum;
 	int i;
-	long long mintime;
 	struct sample *sp;
 	long long tsdelta1;
 	long long tsdelta2;
