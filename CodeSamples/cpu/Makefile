@@ -17,7 +17,7 @@
 
 include ../Makefile.arch
 
-PROGS =	cachetorture temporal
+PROGS =	cachetorture temporal tscalibrate
 
 top := ..
 include $(top)/depends.mk
@@ -38,6 +38,9 @@ cachetorture: cachetorture.c ../api.h
 
 temporal: temporal.c ../api.h
 	$(CC) $(GCC_ARGS) $(CFLAGS) -o temporal temporal.c -lpthread
+
+tscalibrate: tscalibrate.c ../api.h
+	$(CC) $(GCC_ARGS) $(CFLAGS) -o tscalibrate tscalibrate.c
 
 clean:
 	rm -f $(PROGS)
