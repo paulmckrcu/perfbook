@@ -273,35 +273,35 @@ int main(int argc, char *argv[])
 	while (i < argc) {
 		if (strcmp(argv[i], "--coe") == 0) {
 			if (coe + fre + rfe != 0)
-				usage(argv[0], "%s: Only one of --coe, --fre, and rfe may be specified.\n", argv[i = 1]);
+				usage(argv[0], "Only one of --coe, --fre, and rfe may be specified.\n");
 			coe = 1;
 			++i;
 		} else if (strcmp(argv[i], "--fre") == 0) {
 			if (coe + fre + rfe != 0)
-				usage(argv[0], "%s: Only one of --coe, --fre, and rfe may be specified.\n", argv[i = 1]);
+				usage(argv[0], "Only one of --coe, --fre, and rfe may be specified.\n");
 			fre = 1;
 			++i;
 		} else if (strcmp(argv[i], "--rfe") == 0) {
 			if (coe + fre + rfe != 0)
-				usage(argv[0], "%s: Only one of --coe, --fre, and rfe may be specified.\n", argv[i = 1]);
+				usage(argv[0], "Only one of --coe, --fre, and rfe may be specified.\n");
 			rfe = 1;
 			++i;
 		} else if (strcmp(argv[i], "--nthreads") == 0) {
 			nthreads = atoi(argv[++i]);
 			if (nthreads <= 0)
-				usage(argv[0], "%d: --nthreads argument must be positive.\n", argv[i = 1]);
+				usage(argv[0], "%s: --nthreads argument must be positive integer.\n", argv[i]);
 			++i;
 		} else if (strcmp(argv[i], "--duration") == 0) {
 			duration = atoi(argv[++i]);
 			if (duration <= 0)
-				usage(argv[0], "%d: --duration argument must be positive.\n", argv[i = 1]);
+				usage(argv[0], "%s: --duration argument must be positive integer.\n", argv[i]);
 			++i;
 		} else {
-			usage(argv[0], "Unrecognized argument: %s\n", argv[i]);
+			usage(argv[0], "Unrecognized argument: %s\n");
 		}
 	}
 	if (coe + fre + rfe == 0)
-		usage(argv[0], "%s: At least one of --coe, --fre, and rfe must be specified.\n", argv[i = 1]);
+		usage(argv[0], "At least one of --coe, --fre, and rfe must be specified.\n");
 
 	// Dump arguments.
 	printf("%s arguments: %s nthread %d duration: %d\n",
