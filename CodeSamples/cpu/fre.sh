@@ -18,9 +18,10 @@
 # along with this program; if not, you can access it online at
 # http://www.gnu.org/licenses/gpl-2.0.html.
 #
-# Copyright (C) Facebook, 2020
+# Copyright (C) Meta Platforms Inc., 2023
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
+
 ./temporal --fre --nthreads ${1-15} |
 awk '
 /^Write/ {
