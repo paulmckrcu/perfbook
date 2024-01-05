@@ -119,11 +119,23 @@ ifdef RSVG_CONVERT
   RSVG_CONVERT_VER := $(shell rsvg-convert --version | $(SED) -e 's/rsvg-convert version //')
   RSVG_CONVERT_VER_MINOR := $(shell echo $(RSVG_CONVERT_VER) | $(SED) -E -e 's/^([0-9]+\.[0-9]+).*/\1/')
   RSVG_CONVERT_GOOD_VER ?= 2.57
+  RSVG_CONVERT_PDFFMT_VER := 2.57
+  RSVG_CONVERT_ACCEPTABLE_VER := 2.52
   RSVG_CONVERT_GOOD := $(shell echo $(RSVG_CONVERT_VER_MINOR) $(RSVG_CONVERT_GOOD_VER) | awk '{if ($$1 >= $$2) print 1;}')
+  RSVG_CONVERT_ACCEPTABLE := $(shell echo $(RSVG_CONVERT_VER_MINOR) $(RSVG_CONVERT_ACCEPTABLE_VER) | awk '{if ($$1 == $$2) print 1;}')
+  ifeq ($(RSVG_CONVERT_ACCEPTABLE),1)
+    RSVG_CONVERT_GOOD := 1
+  endif
+  RSVG_CONVERT_PDFFMT := $(shell echo $(RSVG_CONVERT_VER_MINOR) $(RSVG_CONVERT_PDFFMT_VER) | awk '{if ($$1 >= $$2) print 1;}')
   ifeq ($(RSVG_CONVERT_GOOD),1)
     SVG_PDF_CONVERTER = (rsvg-convert v$(RSVG_CONVERT_VER))
   else
     SVG_PDF_CONVERTER = (inkscape)
+  endif
+  ifeq ($(RSVG_CONVERT_PDFFMT),1)
+    RSVG_FMT_OPT := --format=pdf1.5
+  else
+    RSVG_FMT_OPT := --format=pdf
   endif
 else
   SVG_PDF_CONVERTER = (inkscape)
@@ -503,7 +515,7 @@ ifeq ($(RECOMMEND_LIBERATIONMONO),1)
 endif
 
 ifeq ($(RSVG_CONVERT_GOOD),1)
-	@cat $<i | rsvg-convert --format=pdf1.5 > $@
+	@cat $<i | rsvg-convert $(RSVG_FMT_OPT) > $@
 else
   ifeq ($(INKSCAPE_ONE),0)
 	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
