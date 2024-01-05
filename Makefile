@@ -116,7 +116,15 @@ endif
 # rsvg-convert is preferred to inkscape in SVG --> PDF conversion
 RSVG_CONVERT := $(shell $(WHICH) rsvg-convert 2>/dev/null)
 ifdef RSVG_CONVERT
-  SVG_PDF_CONVERTER = (rsvg-convert)
+  RSVG_CONVERT_VER := $(shell rsvg-convert --version | $(SED) -e 's/rsvg-convert version //')
+  RSVG_CONVERT_VER_MINOR := $(shell echo $(RSVG_CONVERT_VER) | $(SED) -E -e 's/^([0-9]+\.[0-9]+).*/\1/')
+  RSVG_CONVERT_GOOD_VER ?= 2.57
+  RSVG_CONVERT_GOOD := $(shell echo $(RSVG_CONVERT_VER_MINOR) $(RSVG_CONVERT_GOOD_VER) | awk '{if ($$1 >= $$2) print 1;}')
+  ifeq ($(RSVG_CONVERT_GOOD),1)
+    SVG_PDF_CONVERTER = (rsvg-convert v$(RSVG_CONVERT_VER))
+  else
+    SVG_PDF_CONVERTER = (inkscape)
+  endif
 else
   SVG_PDF_CONVERTER = (inkscape)
 endif
@@ -468,7 +476,7 @@ $(PDFTARGETS_OF_SVG): %.pdf: %.svg
 ifeq ($(STEELFONT),0)
 	$(error "Steel City Comic" font not found. See #1 in FAQ.txt)
 endif
-ifndef RSVG_CONVERT
+ifneq ($(RSVG_CONVERT_GOOD),1)
   ifndef INKSCAPE
 	$(error $< --> $@ inkscape nor rsvg-convert not found. Please install either one)
   endif
@@ -494,8 +502,8 @@ ifeq ($(RECOMMEND_LIBERATIONMONO),1)
 	$(info Nice-to-have font family 'Liberation Mono' not found. See #9 in FAQ-BUILD.txt)
 endif
 
-ifdef RSVG_CONVERT
-	@cat $<i | rsvg-convert --format=pdf > $@
+ifeq ($(RSVG_CONVERT_GOOD),1)
+	@cat $<i | rsvg-convert --format=pdf1.5 > $@
 else
   ifeq ($(INKSCAPE_ONE),0)
 	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
