@@ -126,6 +126,9 @@ ifdef RSVG_CONVERT
   ifeq ($(RSVG_CONVERT_ACCEPTABLE),1)
     RSVG_CONVERT_GOOD := 1
   endif
+  ifndef INKSCAPE
+    RSVG_CONVERT_GOOD := 1
+  endif
   RSVG_CONVERT_PDFFMT := $(shell echo $(RSVG_CONVERT_VER_MINOR) $(RSVG_CONVERT_PDFFMT_VER) | awk '{if ($$1 >= $$2) print 1;}')
   ifeq ($(RSVG_CONVERT_GOOD),1)
     SVG_PDF_CONVERTER = (rsvg-convert v$(RSVG_CONVERT_VER))
