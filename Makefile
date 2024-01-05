@@ -103,6 +103,8 @@ PDFTARGETS_OF_EPSOTHER := $(filter-out $(PDFTARGETS_OF_EPSORIG) $(PDFTARGETS_OF_
 BIBSOURCES := bib/*.bib alphapf.bst
 
 # required commands
+SED ?= sed
+
 LATEX_CMD := $(shell $(WHICH) $(LATEX) 2>/dev/null)
 DOT := $(shell $(WHICH) dot 2>/dev/null)
 FIG2EPS := $(shell $(WHICH) fig2eps 2>/dev/null)
@@ -110,6 +112,13 @@ FIG2DEV := $(shell $(WHICH) fig2dev 2>/dev/null)
 INKSCAPE := $(shell $(WHICH) inkscape 2>/dev/null)
 ifdef INKSCAPE
   INKSCAPE_ONE := $(shell inkscape --version 2>/dev/null | grep -c "Inkscape 1")
+endif
+# rsvg-convert is preferred to inkscape in SVG --> PDF conversion
+RSVG_CONVERT := $(shell $(WHICH) rsvg-convert 2>/dev/null)
+ifdef RSVG_CONVERT
+  SVG_PDF_CONVERTER = (rsvg-convert)
+else
+  SVG_PDF_CONVERTER = (inkscape)
 endif
 LATEXPAND := $(shell $(WHICH) latexpand 2>/dev/null)
 QPDF := $(shell $(WHICH) qpdf 2>/dev/null)
@@ -455,12 +464,14 @@ ISOLATE_INKSCAPE ?= XDG_RUNTIME_DIR=na DBUS_SESSION_BUS_ADDRESS=na
 
 $(PDFTARGETS_OF_SVG): $(FIXSVGFONTS)
 $(PDFTARGETS_OF_SVG): %.pdf: %.svg
-	@echo "$< --> $(suffix $@)"
+	@echo "$< --> $(suffix $@) $(SVG_PDF_CONVERTER)"
 ifeq ($(STEELFONT),0)
 	$(error "Steel City Comic" font not found. See #1 in FAQ.txt)
 endif
-ifndef INKSCAPE
-	$(error $< --> $@ inkscape not found. Please install it)
+ifndef RSVG_CONVERT
+  ifndef INKSCAPE
+	$(error $< --> $@ inkscape nor rsvg-convert not found. Please install either one)
+  endif
 endif
 ifeq ($(STEELFONTID),0)
 	@sh $(FIXSVGFONTS) < $< | sed -e 's/Steel City Comic/Test/g' > $<i
@@ -483,10 +494,14 @@ ifeq ($(RECOMMEND_LIBERATIONMONO),1)
 	$(info Nice-to-have font family 'Liberation Mono' not found. See #9 in FAQ-BUILD.txt)
 endif
 
-ifeq ($(INKSCAPE_ONE),0)
-	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
+ifdef RSVG_CONVERT
+	@cat $<i | rsvg-convert --format=pdf > $@
 else
+  ifeq ($(INKSCAPE_ONE),0)
+	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
+  else
 	@$(ISOLATE_INKSCAPE) inkscape -o $@ $<i > /dev/null 2>&1
+  endif
 endif
 	@rm -f $<i
 ifeq ($(chkpagegroup),on)
