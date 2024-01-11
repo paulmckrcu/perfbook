@@ -84,13 +84,14 @@ static void flush_local_count(void)			//\lnlbl{flush:b}
 	if (globalreserve == 0)				//\lnlbl{flush:checkrsv}
 		return;					//\lnlbl{flush:return:n}
 	zero = merge_counterandmax(0, 0);		//\lnlbl{flush:initzero}
-	for_each_thread(t)				//\lnlbl{flush:loop:b}
+	for_each_thread(t) {				//\lnlbl{flush:loop:b}
 		if (counterp[t] != NULL) {		//\lnlbl{flush:checkp}
 			old = atomic_xchg(counterp[t], zero);//\lnlbl{flush:atmxchg}
 			split_counterandmax_int(old, &c, &cm);//\lnlbl{flush:split}
 			globalcount += c;		//\lnlbl{flush:glbcnt}
 			globalreserve -= cm;		//\lnlbl{flush:glbrsv}
-		}					//\lnlbl{flush:loop:e}
+		}
+	}						//\lnlbl{flush:loop:e}
 }							//\lnlbl{flush:e}
 //\end{snippet}
 
