@@ -2257,19 +2257,43 @@ as it is with the \co{count_register_thread()} function starting on
 \clnref{unregister:b}.
 \end{fcvref}
 
-\QuickQuiz{
-	Given that the \co{atomic_set()} primitive does a simple
-	store to the specified \co{atomic_t}, how can
+\QuickQuizSeries{%
+\QuickQuizB{
+	How can
 	\clnrefr{ln:count:count_lim_atomic:utility2:balance:atmcset} of
 	\co{balance_count()} in
 	\cref{lst:count:Atomic Limit Counter Utility Functions 2}
 	work correctly in face of concurrent \co{flush_local_count()}
 	updates to this variable?
-}\QuickQuizAnswer{
-	The caller of both \co{balance_count()} and
+}\QuickQuizAnswerB{
+	It wouldn't work if they were executed concurrently!
+	But no worries.
+	The callers of both \co{balance_count()} and
 	\co{flush_local_count()} hold \co{gblcnt_mutex}, so
 	only one may be executing at a given time.
-}\QuickQuizEnd
+}\QuickQuizEndB
+%
+\QuickQuizE{
+	Does the \co{atomic_set()} primitive in \co{balance_count()}
+	really need to be atomic?
+}\QuickQuizAnswerE{
+	No, it does not.
+	As far as the code in question is concerned,
+	the \co{atomic_set()} updates the per-thread variable
+	\co{counterandmax} of its own, whose value can only be updated
+	either from its own thread's fastpaths or from slowpaths of all
+	updaters.
+	As the \co{atomic_set()} is in the slowpath, it can never
+	race with other atomic operations.
+
+	So, even if this code is ported to an ISA where a plain store
+	to an \co{atomic_t} can interfere with atomic read-modify-write
+	operations, a non-atomic \co{atomic_set()} should work.
+
+	That said, such an optimization in slowpaths which is effective
+	only for those peculiar ISAs might not be worth bothering.
+}\QuickQuizEndE
+}			% End of \QuickQuizSeries
 
 The next section qualitatively evaluates this design.
 \ebFloatBarrier
