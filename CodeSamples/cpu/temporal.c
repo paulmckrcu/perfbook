@@ -80,6 +80,7 @@ struct sample_data {
 	int sd_started; // This thread has begun executing.
 	void (*sd_func)(struct sample_data *); // Init function, if non-NULL.
 	int sd_n; // Number of entries in ->sd_samples array.
+	struct sample coe_sample; // Start and time for initial coe write.
 	int sd_nsamples; // Number of samples collected.
 	struct sample *sd_samples; // Array for sample collection.
 };
@@ -177,6 +178,17 @@ void dump_all_threads(struct sample_data *sdp, long long *tsp)
 	long long tsdelta4;
 
 	for (cnum = 0; cnum < nthreads; cnum++) {
+		if (coe) {
+			int me = sdp[cnum].sd_me;
+			struct sample *sp = &sdp[cnum].coe_sample;
+
+			tsdelta1 = sp->tbefore - *tsp;
+			tsdelta2 = sp->tafter - *tsp;
+			tsdelta3 = sp->tbeforelast - *tsp;
+			tsdelta4 = sp->tafterlast - *tsp;
+			printf("COE-write %d %lld %d %lld %lld %lld\n", cnum,
+			       tsdelta1, me, tsdelta2, tsdelta3, tsdelta4);
+		}
 		for (i = 0; i < sdp[cnum].sd_nsamples; i++) {
 			sp = &sdp[cnum].sd_samples[i];
 			tsdelta1 = sp->tbefore - *tsp;
@@ -192,7 +204,14 @@ void dump_all_threads(struct sample_data *sdp, long long *tsp)
 // The coe child threads write their ID after starting up.
 void coe_start(struct sample_data *sdp)
 {
+	struct sample *sp = &sdp->coe_sample;
+
+	sp->value = -1;
+	sp->tbefore = get_timestamp();
+	sp->tbeforelast = sp->tbefore;
 	WRITE_ONCE(sharedvar, sdp->sd_me);
+	sp->tafter = get_timestamp();
+	sp->tafterlast = sp->tafter;
 }
 
 // The coe parent lets the children do the writing.
