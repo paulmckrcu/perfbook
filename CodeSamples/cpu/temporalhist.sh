@@ -5,6 +5,12 @@
 # The is suitable for gnuplot, though stray values due to delays in the
 # test may need to be manually trimmed.
 #
+# Example usage:
+#	for ((i=0;i<1000;i++))
+#	do
+#		sh coe.sh
+#	done sort -k4n | sh temporalhist.sh
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
