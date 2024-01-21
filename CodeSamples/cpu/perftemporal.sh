@@ -62,6 +62,7 @@ echo $0: $reps repetitions on $nthreads CPUs
 echo "  " Output to $tag
 
 lscpu > $tag/lscpu.out
+./tscalibrate > $tag/tscalibrate.out
 ./temporal --coe --nthreads $nthreads > $tag/coe-nvals.out
 bash coereduce.sh < $tag/coe-nvals.out > $tag/coe-nvals.dat
 for pgm in coe fre rfe
