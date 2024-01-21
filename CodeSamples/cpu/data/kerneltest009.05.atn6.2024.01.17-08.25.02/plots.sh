@@ -23,7 +23,7 @@ set output "coe.png"
 set xlabel "Store-to-Store Latency (Timestamp Periods)"
 set ylabel "Number of Samples"
 #set logscale y
-set xrange [-3000:1000]
+set xrange [-1000:3000]
 set yrange [0:]
 set nokey
 # set label 1 "RCU" at 0.1,10 left
