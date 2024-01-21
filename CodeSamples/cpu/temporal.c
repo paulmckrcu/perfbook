@@ -21,6 +21,10 @@
  * value was observed by only one read, the times for the first and last
  * samples will be identical.
  *
+ * The --coe argument also produces lines as follows:
+ *
+ * COE-write 0 333512 0 333584 333512 333584
+ *
  * The --fre and --rfe arguments also produce a line as follows:
  *
  * Write 121297118 1 121297136 121297118 121297136
