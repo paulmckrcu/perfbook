@@ -1,6 +1,7 @@
 #!/bin/bash
 #
-# Collect temporal data using coe.sh, fre.sh, and rfe.sh.
+# Collect temporal data using coe.sh, fre.sh, rfe.sh, and
+# "./temporal --coe --nthreads".
 #
 # Usage: bash perftemporal.sh tag [ [ reps ] nthreads ]
 #
@@ -61,6 +62,8 @@ echo $0: $reps repetitions on $nthreads CPUs
 echo "  " Output to $tag
 
 lscpu > $tag/lscpu.out
+./temporal --coe --nthreads $nthreads > $tag/coe-nvals.out
+bash coereduce.sh < $tag/coe-nvals.out > $tag/coe-nvals.dat
 for pgm in coe fre rfe
 do
 	for ((i=0;i<reps;i++))
