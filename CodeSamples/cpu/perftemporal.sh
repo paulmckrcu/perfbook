@@ -67,7 +67,16 @@ lscpu > $tag/lscpu.out
 bash coereduce.sh < $tag/coe-nvals.out > $tag/coe-nvals.dat
 for pgm in coe fre rfe
 do
-	for ((i=0;i<reps;i++))
+	# Allow for coe getting only one data point per run,
+	# compared to fre and rfe getting $nthreads per run.
+	if test "$pgm" = coe
+	then
+		nr="$((reps*nthreads))"
+	else
+		nr="$reps"
+	fi
+	echo $pgm nr: $nr
+	for ((i=0;i<nr;i++))
 	do
 		sh $pgm.sh $nthreads
 	done > $tag/$pgm.out
