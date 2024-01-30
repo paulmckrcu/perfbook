@@ -59,7 +59,7 @@ plot "coe.dat" w points pt 6 pointsize 0.2
 gnuplot << ---EOF---
 set term png
 set output "fre.png"
-set xlabel "Store-to-Load Latency (Timestamp Periods)"
+set xlabel "Load-to-Store Latency (Timestamp Periods)"
 set ylabel "Number of Samples"
 #set logscale y
 set xrange [-250:100]
