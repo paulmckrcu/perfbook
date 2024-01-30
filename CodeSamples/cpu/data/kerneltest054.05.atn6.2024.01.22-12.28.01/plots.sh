@@ -119,7 +119,7 @@ N = STATS_records
 set xlabel "Store-to-Store Latency (Timestamp Periods)"
 set ylabel "Frequency (arb. unit)"
 #set logscale y
-set xrange [-1000:3000]
+set xrange [-2500:500]
 set yrange [0:]
 set nokey
 #set border 3
@@ -141,7 +141,7 @@ N = STATS_records
 set xlabel "Load-to-Store Latency (Timestamp Periods)"
 set ylabel "Frequency (arb. unit)"
 #set logscale y
-set xrange [-250:50]
+set xrange [-200:50]
 set yrange [0:]
 set nokey
 set yzeroaxis
