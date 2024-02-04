@@ -124,11 +124,12 @@ set yrange [0:]
 set nokey
 #set border 3
 set yzeroaxis
-set boxwidth 40
-#set style fill solid 1.0 noborder
-bin_width = 40
+set boxwidth 1
+set style fill solid 1.0 noborder
+set xtics out
+bin_width = 2
 bin(x) = bin_width * floor(x/bin_width)
-plot "< perl expand.pl coe.dat" using (bin(column(1))):(20./N) smooth frequency with boxes
+plot "< perl expand.pl coe.dat" using (bin(column(1))):(200./N) smooth frequency with boxes
 ---EOF---
 
 gnuplot << ---EOF---
@@ -145,8 +146,9 @@ set xrange [-200:50]
 set yrange [0:]
 set nokey
 set yzeroaxis
-set boxwidth 2
-#set style fill solid 1.0 noborder
+set boxwidth 1
+set style fill solid 1.0 noborder
+set xtics out
 bin_width = 2
 bin(x) = bin_width * floor(x/bin_width)
 plot "< perl expand.pl fre.dat" using (bin(column(1))):(20./N) smooth frequency with boxes
@@ -166,8 +168,9 @@ set xrange [0:350]
 set yrange [0:]
 set nokey
 set yzeroaxis
-set boxwidth 2
-#set style fill solid 1.0 noborder
+set boxwidth 1
+set style fill solid 1.0 noborder
+set xtics out
 bin_width = 2
 bin(x) = bin_width * floor(x/bin_width)
 plot "< perl expand.pl rfe.dat" using (bin(column(1))):(20./N) smooth frequency with boxes
