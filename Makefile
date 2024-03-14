@@ -54,7 +54,8 @@ EPSSOURCES_FROM_FIG := $(FIGSOURCES:%.fig=%.eps)
 
 SVGSOURCES_ALL := $(wildcard */*.svg)
 SVG_EMERGENCY := $(wildcard */*.svg*.svg)
-SVGSOURCES := $(filter-out $(SVG_EMERGENCY),$(SVGSOURCES_ALL))
+SVG_GENERATED := CodeSamples/formal/data/RCU-test-ratio.svg
+SVGSOURCES := $(filter-out $(SVG_EMERGENCY) $(SVG_GENERATED),$(SVGSOURCES_ALL)) $(SVG_GENERATED)
 FAKE_EPS_FROM_SVG := $(SVGSOURCES:%.svg=%.eps)
 PDFTARGETS_OF_SVG := $(SVGSOURCES:%.svg=%.pdf)
 
@@ -145,6 +146,7 @@ else
 endif
 LATEXPAND := $(shell $(WHICH) latexpand 2>/dev/null)
 QPDF := $(shell $(WHICH) qpdf 2>/dev/null)
+GNUPLOT := $(shell $(WHICH) gnuplot 2>/dev/null)
 
 # required fonts
 STEELFONT := $(shell fc-list | grep -c -i steel)
@@ -485,6 +487,17 @@ endif
 # bogus settings for preventing Inkscape from interacting with desktop manager
 ISOLATE_INKSCAPE ?= XDG_RUNTIME_DIR=na DBUS_SESSION_BUS_ADDRESS=na
 
+CodeSamples/formal/data/RCU-test-ratio.svg: CodeSamples/formal/data/rcu-test.dat
+CodeSamples/formal/data/RCU-test-ratio.svg: CodeSamples/formal/data/plot.sh
+CodeSamples/formal/data/RCU-test-ratio.svg:
+	@echo "Generating $@"
+ifndef GNUPLOT
+	$(error gnuplot not found. Please install it)
+endif
+	@cd CodeSamples/formal/data/ && \
+	    sh plot.sh && \
+	    cd ../../..
+
 $(PDFTARGETS_OF_SVG): $(FIXSVGFONTS)
 $(PDFTARGETS_OF_SVG): %.pdf: %.svg
 	@echo "$< --> $(suffix $@) $(SVG_PDF_CONVERTER)"
@@ -641,6 +654,7 @@ clean:
 	rm -f perfbook*.sil
 	rm -f CodeSamples/snippets.d
 	rm -f *.synctex*
+	rm -f $(SVG_GENERATED)
 	@rm -f $(OBSOLETE_FILES) $(EPSSOURCES_TMP) $(SVG_EMERGENCY)
 
 paper-clean:
@@ -665,7 +679,7 @@ cleanfigs-eps:
 	rm -f $(PDFTARGETS_OF_EPS)
 
 cleanfigs-svg:
-	rm -f $(PDFTARGETS_OF_SVG) $(SVG_EMERGENCY)
+	rm -f $(PDFTARGETS_OF_SVG) $(SVG_EMERGENCY) $(SVG_GENERATED)
 
 cleanfigs: cleanfigs-eps cleanfigs-svg
 
