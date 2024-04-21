@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y fig2ps inkscape xfig graphviz psutils \
 COPY steel-city-comic.regular.ttf /usr/local/share/fonts/
 RUN fc-cache /usr/local/share/fonts/
 WORKDIR /opt
-RUN curl https://gitlab.com/latexpand/latexpand/-/archive/v1.3/latexpand-v1.3.tar.gz -o - | tar xfz - && \
+RUN curl https://gitlab.com/latexpand/latexpand/-/archive/v1.3/latexpand-v1.3.tar.gz -o - | tar --no-same-owner --no-same-permissions -xzf - && \
     sed -i -e 's/@LATEXPAND_VERSION@/v1.3/' latexpand-*/latexpand && \
     cp latexpand-*/latexpand /usr/local/bin
 ARG uid=0
