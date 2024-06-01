@@ -654,7 +654,6 @@ clean:
 	rm -f perfbook*.sil
 	rm -f CodeSamples/snippets.d
 	rm -f *.synctex*
-	rm -f $(SVG_GENERATED)
 	@rm -f $(OBSOLETE_FILES) $(EPSSOURCES_TMP) $(SVG_EMERGENCY)
 
 paper-clean:
