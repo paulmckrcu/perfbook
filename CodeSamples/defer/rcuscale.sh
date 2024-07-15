@@ -24,11 +24,11 @@
 #
 # Copyright (c) 2020 Paul E. McKenney, Facebook.
 
-if test -r kernel/rcu/refscale*.c > /dev/null 2>&1
+if test -r kernel/rcu/refscale.c > /dev/null 2>&1
 then
 	:
 else
-	echo No 'refscale*.c': Need recent Linux kernel source tree.
+	echo No 'refscale.c': Need recent Linux kernel source tree.
 	exit 1
 fi
 if test -x tools/testing/selftests/rcutorture/bin/kvm-recheck-refscale*.sh > /dev/null 2>&1
