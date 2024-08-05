@@ -552,56 +552,122 @@ of data, initially residing in memory at address~0,
 as it travels through the various single-line \IXhpl{direct-mapped}{cache}
 in a four-CPU system.
 \Cref{tab:app:whymb:Cache Coherence Example}
-shows this flow of data, with the first column showing the sequence
-of operations, the second the CPU performing the operation,
+shows this flow of data, with the first column showing the steps
+each operation takes, the second the CPU performing the operation,
 the third the operation being performed, the next four the state
 of each CPU's cache line (memory address followed by MESI state),
 and the final two columns whether the corresponding memory contents
 are up to date (``V'') or not (``I'').
 
 Initially, the CPU cache lines in which the data would reside are
-in the ``invalid'' state, and the data is valid in memory.
-When CPU~0 loads the data at address~0, it enters the ``shared'' state in
-CPU~0's cache, and is still valid in memory.
-CPU~3 also loads the data at address~0, so that it is in the
-``shared'' state in both CPUs' caches, and is still valid in memory.
-Next CPU~0 loads some other cache line (at address~8),
-which forces the data at address~0 out of its cache via an invalidation,
-replacing it with the data at address~8.
-CPU~2 now does a load from address~0, but this CPU realizes that it will
-soon need to store to it, and so it uses a ``read invalidate'' message
-in order to gain an exclusive copy, invalidating
-it from CPU~3's cache (though the copy in memory remains up to date).
-Next CPU~2 does its anticipated store, changing the state to ``modified''.
-The copy of the data in memory is now out of date.
-CPU~1 does an atomic increment, using a ``read invalidate'' to snoop
-the data from CPU~2's cache
-and invalidate it, so that the copy in CPU~1's cache is in the ``modified''
-state (and the copy in memory remains out of date).
-Finally, CPU~1 reads the cache line at address~8, which uses a
-``writeback'' message to push address~0's data back out to memory.
+in the ``invalid'' state, and the data is valid in memory, as shown
+in step~0.
+In step~1, CPU~0 loads the data at address~0, incuring a cache miss,
+loading the value into its cache, and transitioning that cache line to
+the ``shared'' state.
+The contents of memory at address~0 remain valid.
+In step~2, CPU~3 also loads the data at address~0, also incurring a
+cache miss, loading the data into its cache, and transitioning that cache
+line to the ``shared'' state.
+The cache line corresponding to address~0 is now in ``shared'' state in
+both CPUs' caches, and the contents of memory at address~0 remain valid.
+
+In step~3.1, CPU~0 loads the data at address~8.
+However, its cache still contains the value from address~0, and its
+single-line direct-mapped cache cannot accommodate two values at once.
+The CPU therefore forces the data at address~0 out of its cache via
+an invalidation, and then step~3.2 then replaces it with the data at
+address~8.
+The cache line corresponding to address~8 is now in ``shared'' state in
+CPU~0's cache, and the contents of memory at both addresses remain valid.
+In step~4, CPU~3 repeats its load of the data at address~0, and because
+this data remains in CPU~3's cache, this CPU enjoys a cache hit.
+As a result, cache and memory state remains unchanged.
+
+In step~5.1, CPU~2 commences atomically incrementing the data at
+address~0, incurring a cache miss, loading the data into its cache
+(obtaining the data from either CPU~3 or from memory), and transitioning
+that cache line to the ``shared'' state.
+In step~5.2, CPU~2 continues its atomic increment, which it could not
+previously complete while its cache line was in ``shared'' state.
+So it causes CPU~3 to invalidate this address from its cache, transitioning
+CPU~2's cache line to the ``exclusive'' state.
+This permits step~5.3 to complete CPU~2's atomic increment, transitioning
+its cache line to the ``modified'' state.
+Note that the data residing in memory at address~0 is now out of date.
+
+In step~6.1, CPU~1 commences a single-byte store to address~8, which
+must leave the other seven bytes unchanged.
+CPU~1 must therefore load this data, incurring a cache miss,
+loading the data into its cache (obtaining the data from either CPU~0
+or from memory), and transitioning that cache line to the shared state.
+In step~6.2, CPU~1 continues its store, which it could not previously
+complete while its cache line was in ``shared'' state.
+So it causes CPU~0 to invalidate this address from its cache, transitioning
+CPU~1's cache line to the ``exclusive'' state.
+This permits step~6.3 to complete CPU~1's store, transitioning its cache
+line to the ``exclusive'' state.
+Note that the data residing in memory at both address~0 and address~8
+is now out of date.
+
+In step~7, CPU~2 does another atomic increment of the data at address~0.
+However, because its cache holds that data in the ``modified'' state,
+CPU~2 can immediately execute that atomic increment without any change
+to cache or memory state.
+
+In step~8.1, CPU~1 loads loads the data at address~0, incuring a cache
+miss.
+Because the data from address~8 is modified in its cache, it must
+first flush that data to memory, transitioning its cache line to
+``shared'' state and causing the memory at address~8 to once again
+become valid.
+Step~8.1 can then invalidate CPU~1's cache line, so that
+step~8.2 can obtain the value from CPU~2, keeping in mind that
+the data in memory at address~0 is invalid.
+Both CPUs~1 and~2 transition their cache state to ``shared'',
+and the contents of memory at address~0 remain invalid.
 
 \begin{table*}
 \small
 \centering
 \renewcommand*{\arraystretch}{1.2}
 \rowcolors{6}{}{lightgray}
-\begin{tabular}{rclcccccc}
+\begin{tabular}{lclcccccc}
 	\toprule
 	& & & \multicolumn{4}{c}{CPU Cache} & \multicolumn{2}{c}{Memory} \\
 	\cmidrule(lr){4-7} \cmidrule(l){8-9}
-	Sequence \# & CPU \# & Operation & 0 & 1 & 2 & 3 & 0 & 8 \\
+	Step~\# & CPU \# & Operation & 0 & 1 & 2 & 3 & 0 & 8 \\
 	\cmidrule(r){1-3} \cmidrule(lr){4-7} \cmidrule(l){8-9}
-%	Seq CPU Operation	------------- CPU -------------   - Memory -
+%	Step CPU Operation	------------- CPU -------------   - Memory -
 %				   0	   1	   2	   3	    0   8
-	0 &   & Initial State	& $-$/I & $-$/I & $-$/I & $-$/I   & V & V \\
-	1 & 0 & Load		& 0/S &   $-$/I & $-$/I & $-$/I   & V & V \\
-	2 & 3 & Load		& 0/S &   $-$/I & $-$/I & 0/S     & V & V \\
-	3 & 0 & Invalidation	& 8/S &   $-$/I & $-$/I & 0/S     & V & V \\
-	4 & 2 & RMW		& 8/S &   $-$/I & 0/E &   $-$/I   & V & V \\
-	5 & 2 & Store		& 8/S &   $-$/I & 0/M &   $-$/I   & I & V \\
-	6 & 1 & Atomic Inc	& 8/S &   0/M &   $-$/I & $-$/I   & I & V \\
-	7 & 1 & Writeback	& 8/S &   8/S &   $-$/I & $-$/I   & V & V \\
+	0   &   & Initial State	& $-$/I & $-$/I & $-$/I & $-$/I   & V & V \\
+	1   & 0 & Load 0 (cache value miss)
+				& 0/S   & $-$/I & $-$/I & $-$/I   & V & V \\
+	2   & 3 & Load 0 (cache value miss)
+				& 0/S   & $-$/I & $-$/I & 0/S     & V & V \\
+	3.1 & 0 & Load 8 (collision, invalidation)
+				& $-$/I & $-$/I & $-$/I & 0/S     & V & V \\
+	3.2 & 0 & Load 8 (cache value miss)
+				& 8/S   & $-$/I & $-$/I & 0/S     & V & V \\
+	4   & 3 & Load 0 (cache value hit)
+				& 8/S   & $-$/I & $-$/I & 0/I     & V & V \\
+	5.1 & 2 & Atomic Inc 0 (cache value miss)
+				& 8/S   & $-$/I & 0/S   & 0/S     & V & V \\
+	5.2 & 2 & Atomic Inc 0 (cache permission miss)
+				& 8/S   & $-$/I & 0/E   & $-$/I   & V & V \\
+	5.3 & 2 & Atomic Inc 0	& 8/S   & $-$/I & 0/M   & $-$/I   & I & V \\
+	6.1 & 1 & Store 8 (cache value miss)
+				& 8/S   & 8/S   & 0/M   & $-$/I   & I & V \\
+	6.2 & 1 & Store 8 (cache permission miss)
+				& $-$/I & 8/E   & 0/M   & $-$/I   & I & V \\
+	6.3 & 1 & Store 8 	& $-$/I & 8/M   & 0/M   & $-$/I   & I & I \\
+	7   & 2 & Atomic Inc 0	& $-$/I & 8/M   & 0/M   & $-$/I   & I & I \\
+	8.1 & 1 & Load 0 (collision, flush)
+				& $-$/I & 8/S   & 0/M   & $-$/I   & I & V \\
+	8.2 & 1 & Load 0 (collision, invalidation)
+				& $-$/I & $-$/I & 0/M   & $-$/I   & I & V \\
+	8.3 & 1 & Load 0 (cache value miss)
+				& $-$/I & 0/S   & 0/S   & $-$/I   & I & V \\
 	\bottomrule
 \end{tabular}
 \caption{Cache Coherence Example}
