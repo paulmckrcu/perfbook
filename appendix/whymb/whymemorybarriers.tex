@@ -559,6 +559,53 @@ of each CPU's cache line (memory address followed by MESI state),
 and the final two columns whether the corresponding memory contents
 are up to date (``V'') or not (``I'').
 
+\begin{table*}
+\small
+\centering
+\renewcommand*{\arraystretch}{1.2}
+\rowcolors{6}{}{lightgray}
+\begin{tabular}{lclcccccc}
+	\toprule
+	& & & \multicolumn{4}{c}{CPU Cache} & \multicolumn{2}{c}{Memory} \\
+	\cmidrule(lr){4-7} \cmidrule(l){8-9}
+	Step~\# & CPU \# & Operation & 0 & 1 & 2 & 3 & 0 & 8 \\
+	\cmidrule(r){1-3} \cmidrule(lr){4-7} \cmidrule(l){8-9}
+%	Step CPU Operation	------------- CPU -------------   - Memory -
+%				   0	   1	   2	   3	    0   8
+	0   &   & Initial State	& $-$/I & $-$/I & $-$/I & $-$/I   & V & V \\
+	1   & 0 & Load 0 (cache value miss)
+				& 0/S   & $-$/I & $-$/I & $-$/I   & V & V \\
+	2   & 3 & Load 0 (cache value miss)
+				& 0/S   & $-$/I & $-$/I & 0/S     & V & V \\
+	3.1 & 0 & Load 8 (collision, invalidation)
+				& $-$/I & $-$/I & $-$/I & 0/S     & V & V \\
+	3.2 & 0 & Load 8 (cache value miss)
+				& 8/S   & $-$/I & $-$/I & 0/S     & V & V \\
+	4   & 3 & Load 0 (cache value hit)
+				& 8/S   & $-$/I & $-$/I & 0/I     & V & V \\
+	5.1 & 2 & Atomic Inc 0 (cache value miss)
+				& 8/S   & $-$/I & 0/S   & 0/S     & V & V \\
+	5.2 & 2 & Atomic Inc 0 (cache permission miss)
+				& 8/S   & $-$/I & 0/E   & $-$/I   & V & V \\
+	5.3 & 2 & Atomic Inc 0	& 8/S   & $-$/I & 0/M   & $-$/I   & I & V \\
+	6.1 & 1 & Store 8 (cache value miss)
+				& 8/S   & 8/S   & 0/M   & $-$/I   & I & V \\
+	6.2 & 1 & Store 8 (cache permission miss)
+				& $-$/I & 8/E   & 0/M   & $-$/I   & I & V \\
+	6.3 & 1 & Store 8 	& $-$/I & 8/M   & 0/M   & $-$/I   & I & I \\
+	7   & 2 & Atomic Inc 0	& $-$/I & 8/M   & 0/M   & $-$/I   & I & I \\
+	8.1 & 1 & Load 0 (collision, flush)
+				& $-$/I & 8/S   & 0/M   & $-$/I   & I & V \\
+	8.2 & 1 & Load 0 (collision, invalidation)
+				& $-$/I & $-$/I & 0/M   & $-$/I   & I & V \\
+	8.3 & 1 & Load 0 (cache value miss)
+				& $-$/I & 0/S   & 0/S   & $-$/I   & I & V \\
+	\bottomrule
+\end{tabular}
+\caption{Cache Coherence Example}
+\label{tab:app:whymb:Cache Coherence Example}
+\end{table*}
+
 Initially, the CPU cache lines in which the data would reside are
 in the ``invalid'' state, and the data is valid in memory, as shown
 in step~0.
@@ -626,53 +673,6 @@ step~8.2 can obtain the value from CPU~2, keeping in mind that
 the data in memory at address~0 is invalid.
 Both CPUs~1 and~2 transition their cache state to ``shared'',
 and the contents of memory at address~0 remain invalid.
-
-\begin{table*}
-\small
-\centering
-\renewcommand*{\arraystretch}{1.2}
-\rowcolors{6}{}{lightgray}
-\begin{tabular}{lclcccccc}
-	\toprule
-	& & & \multicolumn{4}{c}{CPU Cache} & \multicolumn{2}{c}{Memory} \\
-	\cmidrule(lr){4-7} \cmidrule(l){8-9}
-	Step~\# & CPU \# & Operation & 0 & 1 & 2 & 3 & 0 & 8 \\
-	\cmidrule(r){1-3} \cmidrule(lr){4-7} \cmidrule(l){8-9}
-%	Step CPU Operation	------------- CPU -------------   - Memory -
-%				   0	   1	   2	   3	    0   8
-	0   &   & Initial State	& $-$/I & $-$/I & $-$/I & $-$/I   & V & V \\
-	1   & 0 & Load 0 (cache value miss)
-				& 0/S   & $-$/I & $-$/I & $-$/I   & V & V \\
-	2   & 3 & Load 0 (cache value miss)
-				& 0/S   & $-$/I & $-$/I & 0/S     & V & V \\
-	3.1 & 0 & Load 8 (collision, invalidation)
-				& $-$/I & $-$/I & $-$/I & 0/S     & V & V \\
-	3.2 & 0 & Load 8 (cache value miss)
-				& 8/S   & $-$/I & $-$/I & 0/S     & V & V \\
-	4   & 3 & Load 0 (cache value hit)
-				& 8/S   & $-$/I & $-$/I & 0/I     & V & V \\
-	5.1 & 2 & Atomic Inc 0 (cache value miss)
-				& 8/S   & $-$/I & 0/S   & 0/S     & V & V \\
-	5.2 & 2 & Atomic Inc 0 (cache permission miss)
-				& 8/S   & $-$/I & 0/E   & $-$/I   & V & V \\
-	5.3 & 2 & Atomic Inc 0	& 8/S   & $-$/I & 0/M   & $-$/I   & I & V \\
-	6.1 & 1 & Store 8 (cache value miss)
-				& 8/S   & 8/S   & 0/M   & $-$/I   & I & V \\
-	6.2 & 1 & Store 8 (cache permission miss)
-				& $-$/I & 8/E   & 0/M   & $-$/I   & I & V \\
-	6.3 & 1 & Store 8 	& $-$/I & 8/M   & 0/M   & $-$/I   & I & I \\
-	7   & 2 & Atomic Inc 0	& $-$/I & 8/M   & 0/M   & $-$/I   & I & I \\
-	8.1 & 1 & Load 0 (collision, flush)
-				& $-$/I & 8/S   & 0/M   & $-$/I   & I & V \\
-	8.2 & 1 & Load 0 (collision, invalidation)
-				& $-$/I & $-$/I & 0/M   & $-$/I   & I & V \\
-	8.3 & 1 & Load 0 (cache value miss)
-				& $-$/I & 0/S   & 0/S   & $-$/I   & I & V \\
-	\bottomrule
-\end{tabular}
-\caption{Cache Coherence Example}
-\label{tab:app:whymb:Cache Coherence Example}
-\end{table*}
 
 Note that we end with data in some of the CPU's caches.
 
