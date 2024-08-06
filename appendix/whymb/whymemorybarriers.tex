@@ -547,9 +547,9 @@ The transition arcs in this figure are as follows:
 \subsection{MESI Protocol Example}
 \label{sec:app:whymb:MESI Protocol Example}
 
-Let's now look at this from the perspective of a cache line's worth
-of data, initially residing in memory at address~0,
-as it travels through the various single-line \IXhpl{direct-mapped}{cache}
+Let's now look at this from the perspective of a couple of cache lines' worth
+of data, initially residing in memory at address~0 and~8,
+as they travel through the various single-line \IXhpl{direct-mapped}{cache}
 in a four-CPU system.
 \Cref{tab:app:whymb:Cache Coherence Example}
 shows this flow of data, with the first column showing the steps
@@ -557,7 +557,14 @@ each operation takes, the second the CPU performing the operation,
 the third the operation being performed, the next four the state
 of each CPU's cache line (memory address followed by MESI state),
 and the final two columns whether the corresponding memory contents
-are up to date (``V'') or not (``I'').
+are valid (``V'') or invalid (``I'').
+As we will see, a single machine instructions can require several steps
+in order to keep the cache and memory state consistent.
+
+Please note that this is a conceptual example.
+Different hardware implementations can and do make different choices,
+and most implementations are far more complex than this simple
+example might lead you to believe.
 
 \begin{table*}
 \small
@@ -576,31 +583,29 @@ are up to date (``V'') or not (``I'').
 	0   &   & Initial State	& $-$/I & $-$/I & $-$/I & $-$/I   & V & V \\
 	1   & 0 & Load 0 (cache value miss)
 				& 0/S   & $-$/I & $-$/I & $-$/I   & V & V \\
-	2   & 3 & Load 0 (cache value miss)
-				& 0/S   & $-$/I & $-$/I & 0/S     & V & V \\
+	2   & 2 & Load 0 (cache value miss)
+				& 0/S   & $-$/I & 0/S   & $-$/I   & V & V \\
 	3.1 & 0 & Load 8 (collision, invalidation)
-				& $-$/I & $-$/I & $-$/I & 0/S     & V & V \\
+				& $-$/I & $-$/I & 0/S   & $-$/I   & V & V \\
 	3.2 & 0 & Load 8 (cache value miss)
-				& 8/S   & $-$/I & $-$/I & 0/S     & V & V \\
-	4   & 3 & Load 0 (cache value hit)
-				& 8/S   & $-$/I & $-$/I & 0/I     & V & V \\
-	5.1 & 2 & Atomic Inc 0 (cache value miss)
+				& 8/S   & $-$/I & 0/S   & $-$/I   & V & V \\
+	4   & 3 & Load 0 (cache value miss)
 				& 8/S   & $-$/I & 0/S   & 0/S     & V & V \\
-	5.2 & 2 & Atomic Inc 0 (cache permission miss)
-				& 8/S   & $-$/I & 0/E   & $-$/I   & V & V \\
-	5.3 & 2 & Atomic Inc 0	& 8/S   & $-$/I & 0/M   & $-$/I   & I & V \\
+	5.1 & 3 & CAS 0 (cache value hit)
+				& 8/S   & $-$/I & 0/S   & 0/S     & V & V \\
+	5.2 & 3 & CAS 0 (cache permission miss)
+				& 8/S   & $-$/I & $-$/I & 0/E     & V & V \\
+	5.3 & 3 & CAS 0		& 8/S   & $-$/I & $-$/I & 0/M     & I & V \\
 	6.1 & 1 & Store 8 (cache value miss)
-				& 8/S   & 8/S   & 0/M   & $-$/I   & I & V \\
-	6.2 & 1 & Store 8 (cache permission miss)
-				& $-$/I & 8/E   & 0/M   & $-$/I   & I & V \\
-	6.3 & 1 & Store 8 	& $-$/I & 8/M   & 0/M   & $-$/I   & I & I \\
-	7   & 2 & Atomic Inc 0	& $-$/I & 8/M   & 0/M   & $-$/I   & I & I \\
+				& $-$/I & 8/E   & $-$/I & 0/M     & I & V \\
+	6.2 & 1 & Store 8 	& $-$/I & 8/M   & $-$/I & 0/M     & I & I \\
+	7   & 3 & CAS 0		& $-$/I & 8/M   & $-$/I & 0/M     & I & I \\
 	8.1 & 1 & Load 0 (collision, flush)
-				& $-$/I & 8/S   & 0/M   & $-$/I   & I & V \\
-	8.2 & 1 & Load 0 (collision, invalidation)
-				& $-$/I & $-$/I & 0/M   & $-$/I   & I & V \\
-	8.3 & 1 & Load 0 (cache value miss)
-				& $-$/I & 0/S   & 0/S   & $-$/I   & I & V \\
+				& $-$/I & $-$/I & $-$/I & 0/M     & I & V \\
+	8.2 & 1 & Load 0 (cache value miss)
+				& $-$/I & 0/S   & $-$/I & 0/S     & I & V \\
+	9   & 3 & Load 0 (cache value hit)
+				& $-$/I & 0/S   & $-$/I & 0/S     & I & V \\
 	\bottomrule
 \end{tabular}
 }
@@ -615,7 +620,7 @@ In step~1, CPU~0 loads the data at address~0, incurring a cache miss,
 loading the value into its cache, and transitioning that cache line to
 the ``shared'' state.
 The contents of memory at address~0 remain valid.
-In step~2, CPU~3 also loads the data at address~0, also incurring a
+In step~2, CPU~2 also loads the data at address~0, also incurring a
 cache miss, loading the data into its cache, and transitioning that cache
 line to the ``shared'' state.
 The cache line corresponding to address~0 is now in ``shared'' state in
@@ -629,40 +634,39 @@ an invalidation, and then step~3.2 then replaces it with the data at
 address~8.
 The cache line corresponding to address~8 is now in ``shared'' state in
 CPU~0's cache, and the contents of memory at both addresses remain valid.
-In step~4, CPU~3 repeats its load of the data at address~0, and because
-this data remains in CPU~3's cache, this CPU enjoys a cache hit.
-As a result, cache and memory state remains unchanged.
 
-In step~5.1, CPU~2 commences atomically incrementing the data at
-address~0, incurring a cache miss, loading the data into its cache
-(obtaining the data from either CPU~3 or from memory), and transitioning
-that cache line to the ``shared'' state.
-In step~5.2, CPU~2 continues its atomic increment, which it could not
-previously complete while its cache line was in ``shared'' state.
-So it causes CPU~3 to invalidate this address from its cache, transitioning
-CPU~2's cache line to the ``exclusive'' state.
-This permits step~5.3 to complete CPU~2's atomic increment, transitioning
+In step~4, CPU~3 loads the data at address~0, incurring a cache miss
+and loading the data from either memory or from CPU~2's cache.
+The data at address~8 is now in CPU~0's cache and that of address~0 in
+both CPU~2's and~3's caches, and memory state remains unchanged.
+
+In step~5.1, CPU~3 commences a CAS operation on the data at
+address~0, enjoying a cache hit.
+However, in step~5.2, CPU~3 incurs what can be thought of as a cache
+permission miss:
+The data is there, but CPU~3 does not have the necessary permissions
+to complete its CAS operation.
+So it causes CPU~2 to invalidate this address from its cache, transitioning
+CPU~3's cache line to the ``exclusive'' state.
+This permits step~5.3 to complete CPU~3's CAS, transitioning
 its cache line to the ``modified'' state.
-Note that the data residing in memory at address~0 is now out of date.
+Note that the data residing in memory at address~0 is now invalid.
 
 In step~6.1, CPU~1 commences a single-byte store to address~8, which
 must leave the other seven bytes unchanged.
-CPU~1 must therefore load this data, incurring a cache miss,
-loading the data into its cache (obtaining the data from either CPU~0
-or from memory), and transitioning that cache line to the shared state.
-In step~6.2, CPU~1 continues its store, which it could not previously
-complete while its cache line was in ``shared'' state.
-So it causes CPU~0 to invalidate this address from its cache, transitioning
-CPU~1's cache line to the ``exclusive'' state.
-This permits step~6.3 to complete CPU~1's store, transitioning its cache
-line to the ``exclusive'' state.
+CPU~1 must therefore load this data (either from CPU~0 or from memory),
+incurring a cache miss, loading the data into its cache (obtaining the
+data from either CPU~0 or from memory), and transitioning that cache
+line directly to the exclusive state, thus invalidating CPU~0's cache.
+This permits step~6.2 to complete CPU~1's store, transitioning its cache
+line to the ``modified'' state.
 Note that the data residing in memory at both address~0 and address~8
-is now out of date.
+is now invalid.
 
-In step~7, CPU~2 does another atomic increment of the data at address~0.
+In step~7, CPU~3 does another CAS operation on the data at address~0.
 However, because its cache holds that data in the ``modified'' state,
-CPU~2 can immediately execute that atomic increment without any change
-to cache or memory state.
+CPU~3 can immediately execute that CAS without any change to cache or
+memory state.
 
 In step~8.1, CPU~1 loads the data at address~0, incurring a cache
 miss.
@@ -670,11 +674,14 @@ Because the data from address~8 is modified in its cache, it must
 first flush that data to memory, transitioning its cache line to
 ``shared'' state and causing the memory at address~8 to once again
 become valid.
-Step~8.1 can then invalidate CPU~1's cache line, so that
-step~8.2 can obtain the value from CPU~2, keeping in mind that
+Step~8.2 must obtain the value from CPU~3, keeping in mind that
 the data in memory at address~0 is invalid.
-Both CPUs~1 and~2 transition their cache state to ``shared'',
+Both CPUs~1 and~3 transition their cache state to ``shared'',
 and the contents of memory at address~0 remain invalid.
+
+Finally, in step~9, CPU~0 loads the data at address~0, but because this
+data is already in its cache, the load completes without any change to
+cache or memory state.
 
 Note that we end with data in some of the CPU's caches.
 
