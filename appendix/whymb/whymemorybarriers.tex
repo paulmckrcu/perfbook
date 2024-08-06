@@ -557,7 +557,7 @@ each operation takes, the second the CPU performing the operation,
 the third the operation being performed, the next four the state
 of each CPU's cache line (memory address followed by MESI state),
 and the final two columns whether the corresponding memory contents
-are valid (``V'') or invalid (``I'').
+are valid (``V'') or invalid (``I'')\@.
 As we will see, a single machine instructions can require several steps
 in order to keep the cache and memory state consistent.
 
@@ -581,30 +581,30 @@ example might lead you to believe.
 %	Step CPU Operation	------------- CPU -------------   - Memory -
 %				   0	   1	   2	   3	    0   8
 	0   &   & Initial State	& $-$/I & $-$/I & $-$/I & $-$/I   & V & V \\
-	1   & 0 & Load 0 (cache value miss)
+	1   & 0 & Load 0 (cache miss)
 				& 0/S   & $-$/I & $-$/I & $-$/I   & V & V \\
-	2   & 2 & Load 0 (cache value miss)
+	2   & 2 & Load 0 (cache miss)
 				& 0/S   & $-$/I & 0/S   & $-$/I   & V & V \\
 	3.1 & 0 & Load 8 (collision, invalidation)
 				& $-$/I & $-$/I & 0/S   & $-$/I   & V & V \\
-	3.2 & 0 & Load 8 (cache value miss)
+	3.2 & 0 & Load 8 (cache miss)
 				& 8/S   & $-$/I & 0/S   & $-$/I   & V & V \\
-	4   & 3 & Load 0 (cache value miss)
+	4   & 3 & Load 0 (cache miss)
 				& 8/S   & $-$/I & 0/S   & 0/S     & V & V \\
-	5.1 & 3 & CAS 0 (cache value hit)
+	5.1 & 3 & CAS 0 (cache hit)
 				& 8/S   & $-$/I & 0/S   & 0/S     & V & V \\
-	5.2 & 3 & CAS 0 (cache permission miss)
+	5.2 & 3 & CAS 0 (cache write miss)
 				& 8/S   & $-$/I & $-$/I & 0/E     & V & V \\
 	5.3 & 3 & CAS 0		& 8/S   & $-$/I & $-$/I & 0/M     & I & V \\
-	6.1 & 1 & Store 8 (cache value miss)
+	6.1 & 1 & Store 8 (cache miss \& write miss)
 				& $-$/I & 8/E   & $-$/I & 0/M     & I & V \\
 	6.2 & 1 & Store 8 	& $-$/I & 8/M   & $-$/I & 0/M     & I & I \\
 	7   & 3 & CAS 0		& $-$/I & 8/M   & $-$/I & 0/M     & I & I \\
 	8.1 & 1 & Load 0 (collision, flush)
 				& $-$/I & $-$/I & $-$/I & 0/M     & I & V \\
-	8.2 & 1 & Load 0 (cache value miss)
+	8.2 & 1 & Load 0 (cache miss)
 				& $-$/I & 0/S   & $-$/I & 0/S     & I & V \\
-	9   & 3 & Load 0 (cache value hit)
+	9   & 3 & Load 0 (cache hit)
 				& $-$/I & 0/S   & $-$/I & 0/S     & I & V \\
 	\bottomrule
 \end{tabular}
@@ -613,7 +613,7 @@ example might lead you to believe.
 \label{tab:app:whymb:Cache Coherence Example}
 \end{table*}
 
-Initially, the CPU cache lines in which the data would reside are
+Initially, the CPU cache lines in which the data could reside are
 in the ``invalid'' state, and the data is valid in memory, as shown
 in step~0.
 In step~1, CPU~0 loads the data at address~0, incurring a cache miss,
@@ -643,12 +643,13 @@ both CPU~2's and~3's caches, and memory state remains unchanged.
 In step~5.1, CPU~3 commences a CAS operation on the data at
 address~0, enjoying a cache hit.
 However, in step~5.2, CPU~3 incurs what can be thought of as a cache
-permission miss:
+write miss:
 The data is there, but CPU~3 does not have the necessary permissions
-to complete its CAS operation.
+to complete the memory-write portion of its CAS operation.
 So it causes CPU~2 to invalidate this address from its cache, transitioning
 CPU~3's cache line to the ``exclusive'' state.
-This permits step~5.3 to complete CPU~3's CAS, transitioning
+This ensures that CPU~3's cache contains the only copy of the data at
+address~0, permitting step~5.3 to complete CPU~3's CAS, transitioning
 its cache line to the ``modified'' state.
 Note that the data residing in memory at address~0 is now invalid.
 
@@ -657,9 +658,11 @@ must leave the other seven bytes unchanged.
 CPU~1 must therefore load this data (either from CPU~0 or from memory),
 incurring a cache miss, loading the data into its cache (obtaining the
 data from either CPU~0 or from memory), and transitioning that cache
-line directly to the exclusive state, thus invalidating CPU~0's cache.
-This permits step~6.2 to complete CPU~1's store, transitioning its cache
-line to the ``modified'' state.
+line directly to the exclusive state, while at the same time invalidating
+CPU~0's cache.
+This again ensures that CPU~1's cache contains the only copy of the
+data at address~8, permitting step~6.2 to complete CPU~1's store,
+transitioning its cache line to the ``modified'' state.
 Note that the data residing in memory at both address~0 and address~8
 is now invalid.
 
@@ -669,7 +672,7 @@ CPU~3 can immediately execute that CAS without any change to cache or
 memory state.
 
 In step~8.1, CPU~1 loads the data at address~0, incurring a cache
-miss.
+miss that is also a write miss.
 Because the data from address~8 is modified in its cache, it must
 first flush that data to memory, transitioning its cache line to
 ``shared'' state and causing the memory at address~8 to once again
