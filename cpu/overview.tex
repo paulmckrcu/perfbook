@@ -152,7 +152,7 @@ single-cycle access.\footnote{
 Present-day CPU designers still can construct a 4\,KB memory with single-cycle
 access, even on systems with multi-GHz clock frequencies.
 And in fact they frequently do construct such memories, but they now
-call them ``level-0 caches'', plus they can be quite a bit bigger than 4\,KB.
+call them ``level-0 caches'', plus they can be a bit larger than 4\,KB.
 
 \begin{figure}
 \centering
@@ -197,7 +197,7 @@ interfere with the atomic operation despite the piece-at-a-time nature
 of the CPU's pipeline.
 Needless to say, this sort of trick can require that
 the pipeline must be delayed or even flushed in order to
-perform the setup operations that
+perform the cacheline-setup operations that
 permit a given atomic operation to complete correctly.
 
 \begin{figure}
@@ -211,8 +211,8 @@ In contrast, when executing a non-atomic operation, the CPU can load
 values from cachelines as they appear and place the results in the
 store buffer, without the need to wait for cacheline ownership.
 Although there are a number of hardware optimizations that can sometimes
-hide cache latencies, the resulting effect on performance is all too
-often as depicted in
+hide cache latencies, an atomic operation's effect on performance is
+all too often as depicted in
 \cref{fig:cpu:CPU Meets an Atomic Operation}.
 
 Unfortunately, atomic operations usually apply only to single elements
@@ -266,15 +266,16 @@ spin_unlock(&mylock);
 \ContributedBy{fig:cpu:CPU Meets a Memory Barrier}{Melissa Broussard}
 \end{figure}
 
-If the CPU were not constrained to execute these statements in the
-order shown, the effect would be that the variable ``a'' would be
-incremented without the protection of ``mylock'', which would certainly
-defeat the purpose of acquiring it.
+If the CPU were not constrained to execute these statements in the order
+shown, the effect would be that the variable ``a'' would be incremented
+without the protection of ``mylock'', which would defeat the purpose of
+acquiring it.
 To prevent such destructive reordering, locking primitives contain
 either explicit or implicit memory barriers.
-Because the whole purpose of these memory barriers is to prevent reorderings
-that the CPU would otherwise undertake in order to increase performance,
-memory barriers almost always reduce performance, as depicted in
+Because the whole purpose of these memory barriers is to prevent
+reorderings that the CPU (to say nothing of the compiler) would otherwise
+undertake in order to increase performance, memory barriers almost always
+reduce performance, as depicted in
 \cref{fig:cpu:CPU Meets a Memory Barrier}.
 
 As with atomic operations, CPU designers have been working hard to
@@ -345,10 +346,22 @@ For example, you might need to apply algorithmic optimizations instead
 of hardware-centric micro-optimizations.
 Alternatively, perhaps you can parallelize your code, spreading the
 work (and thus the heat) over multiple CPU cores.
+
+Some recommend normalizing the results of a given test based on
+the various CPU core clock frequencies, which can help.
+However, the latency of cache misses and memory accesses do not
+depend on CPU core clock frequency.
+In addition, if the code under test features tight interaction among
+multiple CPUs, then the performance that code running on one of the CPUs
+will depend on the core clock frequencies of those other CPUs.
+
 Finally, if the goal is instead to obtain repeatable benchmark
 measurements, one approach is to extend traditional cache warmup to
 include thermal warmup, with the required warm-up duration depending on
 the size and thus the thermal inertia of the system under test.
+Even given careful thermal warmup, results will likely vary depending
+on ambient temperature, which can depend strongly on time of day, to
+say nothing of time of year in certain parts of the world.
 
 \subsection{Cache Misses}
 \label{sec:cpu:Cache Misses}
