@@ -35,7 +35,8 @@ Data moves through this system in units of ``\IXpl{cache line}'', which
 are power-of-two fixed-size aligned blocks of memory, usually ranging
 from 32 to 256 bytes in size.
 When a CPU loads a variable from memory to one of its registers, it must
-first load the cacheline containing that variable into its cache.
+first load the cacheline containing that variable into its cache,
+which may be thought of as a hardware hash table.
 Similarly, when a CPU stores a value from one of its registers into
 memory, it must also load the cacheline containing that variable into
 its cache, but must also ensure that no other CPU has a copy of that
@@ -48,32 +49,55 @@ cacheline.
 \label{fig:cpu:Lifetime of a Simple Store}
 \end{figure}
 
-For example, if CPU~0 were to write to a variable whose cacheline
-resided in CPU~7's cache, the following over-simplified sequence of
-events might ensue:
+For example, suppose that CPU~1 wrote to a variable \co{x} whose cacheline
+was in CPU~6's cache.
+An over-simplified view of this process is illustrated by the following
+sequence of steps in conjunction with
+\cref{fig:cpu:Lifetime of a Simple Store},
+each row of which condenses
+\cref{fig:cpu:System Hardware Architecture}
+to show only CPUs~1 and~6, their store buffers and local caches, along
+with the system interconnect denoted by the grey rectangle connecting
+the pair of CPUs.
 
 \begin{enumerate}
-\item	CPU~0 checks its local cache, and does not find the cacheline.
-	It therefore records the write in its store buffer.
+\item	CPU~1 checks its local cache, and does not find the cacheline.
+	It therefore records the write in its store buffer as shown
+	in row~A of
+	\cref{fig:cpu:Lifetime of a Simple Store}.
 \item	A request for this cacheline is forwarded to CPU~0's and~1's
 	interconnect, which checks CPU~1's local cache, and does not
 	find the cacheline.
-\item	This request is forwarded to the system interconnect, which
-	checks with the other three dies, learning that the cacheline
-	is held by the die containing CPU~6 and~7.
+	Because nothing has changed, the system state is still as shown
+	in row~A of
+	\cref{fig:cpu:Lifetime of a Simple Store}.
+\item	This request is forwarded to the system interconnect, as shown
+	in row~B of
+	\cref{fig:cpu:Lifetime of a Simple Store},
+	which checks with the other three dies, learning that the
+	cacheline is held by the die containing CPU~6 and~7.
 \item	This request is forwarded to CPU~6's and~7's interconnect, which
-	checks both CPUs' caches, finding the value in CPU~7's cache.
-\item	CPU~7 forwards the cacheline to its interconnect, and also
-	flushes the cacheline from its cache.
-\item	CPU~6's and~7's interconnect forwards the cacheline to the
-	system interconnect.
+	checks both CPUs' caches, finding the value in CPU~6's cache,
+	as shown in row~C of
+	\cref{fig:cpu:Lifetime of a Simple Store}.
+\item	CPU~6 forwards the cacheline to its interconnect, and also
+	flushes the cacheline from its cache, and then
+	CPU~6's and~7's interconnect forwards the cacheline to the
+	system interconnect, as shown in row~D of
+	\cref{fig:cpu:Lifetime of a Simple Store}.
 \item	The system interconnect forwards the cacheline to CPU~0's and~1's
-	interconnect.
-\item	CPU~0's and~1's interconnect forwards the cacheline to CPU~0's
-	cache.
-\item	CPU~0 can now complete the write, updating the relevant portions
+	interconnect, as shown in row~E of
+	\cref{fig:cpu:Lifetime of a Simple Store}.
+\item	CPU~0's and~1's interconnect forwards the cacheline to CPU~1,
+	as shown in row~F of
+	\cref{fig:cpu:Lifetime of a Simple Store}.
+\item	The cache line is deposited into CPU~1's cache, as shown in
+	row~G of
+	\cref{fig:cpu:Lifetime of a Simple Store}.
+\item	CPU~1 can now complete the write, updating the relevant portions
 	of the newly arrived cacheline from the value previously
-	recorded in the store buffer.
+	recorded in the store buffer, as shown in row~H of
+	\cref{fig:cpu:Lifetime of a Simple Store}.
 \end{enumerate}
 
 \QuickQuizSeries{%
@@ -90,11 +114,11 @@ events might ensue:
 	\item	The cacheline might have been replicated read-only in
 		several CPUs' caches, in which case, it would need to
 		be flushed from their caches.
-	\item	CPU~7 might have been operating on the cache line when
-		the request for it arrived, in which case CPU~7 might
+	\item	CPU~6 might have been operating on the cache line when
+		the request for it arrived, in which case CPU~6 might
 		need to hold off the request until its own operation
 		completed.
-	\item	CPU~7 might have ejected the cacheline from its cache
+	\item	CPU~6 might have ejected the cacheline from its cache
 		(for example, in order to make room for other data),
 		so that by the time that the request arrived, the
 		cacheline was on its way to memory.
@@ -110,10 +134,10 @@ events might ensue:
 }\QuickQuizEndB
 %
 \QuickQuizE{
-	Why is it necessary to flush the cacheline from CPU~7's cache?
+	Why is it necessary to flush the cacheline from CPU~6's cache?
 }\QuickQuizAnswerE{
-	If the cacheline was not flushed from CPU~7's cache, then
-	CPUs~0 and~7 might have different values for the same set
+	If the cacheline was not flushed from CPU~6's cache, then
+	CPUs~1 and~6 might have different values for the same set
 	of variables in the cacheline.
 	This sort of incoherence greatly complicates parallel software,
 	which is why wise hardware architects avoid it.
@@ -124,7 +148,8 @@ This simplified sequence is just the beginning of a discipline called
 \emph{cache-coherency protocols}~\cite{Hennessy95a,DavidECuller1999,MiloMKMartin2012scale,DanielJSorin2011MemModel},
 which is discussed in more detail in
 \cref{chp:app:whymb:Why Memory Barriers?}\@.
-As can be seen in the sequence of events triggered by a \IXacr{cas} operation,
+As can be seen in the sequence of events triggered by a simple memory
+write operation,
 a single instruction can cause considerable protocol traffic, which
 can significantly degrade your parallel program's performance.
 
