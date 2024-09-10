@@ -83,7 +83,7 @@ sub check_line {
 		$line =~ /^(?=[\s]*+[^%])[^%]*.*[\.:][\)\}\']*\s+\\\\/ ) {
 		$ng -= 1;
 	    } else {
-		print "vvv Hint: end of sentence needs new line vvv\n";
+		print "Hint: Break at end of sentence or mark mid-sentence punct as such (xxx.\\@).\n";
 	    }
 	}
 	if ($line =~ /^(?=[\s]*+[^%])[^%]*[^~]\\cite/) {
