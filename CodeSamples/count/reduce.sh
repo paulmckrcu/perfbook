@@ -92,7 +92,7 @@ do
 			max = $2;
 			sum = 0;
 			n = 0;
-			for (i = 2; i <= (NF - 1) / 2 + 1; i++) {
+			for (i = 2; i <= NF; i += 2) {
 				sum += $i;
 				n++;
 				if ($i < min)
@@ -112,12 +112,12 @@ do
 	awk < $i > $bn.dat '
 		{
 			cpus = $1;
-			first = (NF - 1) / 2 + 2;
+			first = 3;
 			min = $first;
 			max = $first;
 			sum = 0;
 			n = 0;
-			for (i = first; i <= NF; i++) {
+			for (i = first; i <= NF; i += 2) {
 				sum += $i;
 				n++;
 				if ($i < min)
