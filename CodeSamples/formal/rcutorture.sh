@@ -20,10 +20,18 @@
 #
 # Copyright (c) 2019 Paul E. McKenney, Facebook.
 
-tags="`git tag -l | grep '^v' | grep -v -e - | grep -v '\..*\..*\.' | grep -v '2.6.11' | sort -k1.2,1.2n -k1.4n`"
+# Override by saying, e.g.:
+#     "SINCE=v6 sh <path of this script>"
+: ${SINCE:=v2.6.12}
+
+tags="`git tag -l | grep -E -e '^v(2\.6|[3-9]|[1-9][0-9]+)\.[0-9]+$' | sort -V`"
 
 for t in $tags
 do
+	tagsince=`echo "$SINCE\n$t" | sort -V | head -n 1`
+	if [ $tagsince != $SINCE ] ; then
+		continue
+	fi
 	git reset --hard $t > /dev/null 2>&1
 	nontorture="`ls kernel/*rcu*.* kernel/rcu/* include/linux/*rcu* 2> /dev/null | grep -v torture | grep -v rcuperf | grep -v refperf | grep -v rcuscale | grep -v refscale | grep -v Makefile | grep -v Kconfig`"
 	ntn="`wc -l $nontorture 2> /dev/null | tail -1 | awk '{ print $1 }'`"
