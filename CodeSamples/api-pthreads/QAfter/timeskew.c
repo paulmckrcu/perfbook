@@ -32,50 +32,7 @@ struct timespec *mono1;		// Monotonic time, first re-read (after wc).
 struct timespec *mono2;		// Monotonic time, second re-read.
 struct timespec *wc;		// Wall-clock ("real") time.
 
-static int timespeccmp(struct timespec *tsp1, struct timespec *tsp2)
-{
-	if (tsp1->tv_sec < tsp2->tv_sec ||
-	    (tsp1->tv_sec == tsp2->tv_sec && tsp1->tv_nsec < tsp2->tv_nsec))
-		return -1;
-	if (tsp1->tv_sec == tsp2->tv_sec && tsp1->tv_sec == tsp2->tv_sec)
-		return 0;
-	return 1;
-}
-
-// Convert a single timespec to double precision.
-static double timespec2double(struct timespec *tsp)
-{
-	return tsp->tv_sec + (double)tsp->tv_nsec / 1000. / 1000. / 1000.;
-}
-
-// Compute the difference of a pair of timespec structures.
-static struct timespec timespecsub(struct timespec *tsp1, struct timespec *tsp2)
-{
-	struct timespec tsdiff = {};
-
-	assert(tsdiff.tv_nsec == 0 && tsdiff.tv_sec == 0);
-	if (tsp1->tv_sec < tsp2->tv_sec ||
-	    (tsp1->tv_sec == tsp2->tv_sec && tsp1->tv_nsec < tsp2->tv_nsec)) {
-		tsdiff = timespecsub(tsp2, tsp1);
-		tsdiff.tv_sec = -tsdiff.tv_sec;
-		tsdiff.tv_nsec = -tsdiff.tv_nsec;
-		return tsdiff;
-	}
-	tsdiff.tv_nsec = tsp1->tv_nsec - tsp2->tv_nsec;
-	if (tsdiff.tv_nsec < 0) {
-		tsdiff.tv_nsec += 1000. * 1000. * 1000.;
-		tsdiff.tv_sec--;
-	}
-	tsdiff.tv_sec += tsp1->tv_sec - tsp2->tv_sec;
-	return tsdiff;
-}
-
-static char *timespec2str(char *cp, struct timespec *tsp)
-{
-	sprintf(cp, "%ld.%09ld",
-		tsp->tv_sec, tsp->tv_nsec >= 0 ? tsp->tv_nsec : -tsp->tv_nsec);
-	return cp;
-}
+#include "timespec.h"
 
 void usage(char *progname, const char *format, ...)
 {
