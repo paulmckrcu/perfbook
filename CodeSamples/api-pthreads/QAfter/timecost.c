@@ -21,6 +21,9 @@
 #include "../util.h"
 #include "timespec.h"
 
+#define NSAMPLES 100
+#define COOLDOWN 5
+
 int dblcmp(const void *a_in, const void *b_in)
 {
 	double a = *(double *)a_in;
@@ -73,7 +76,7 @@ static void measure_overhead_arch(void)
 	double dtmax;
 	double dtmed;
 	double dtmin;
-	double dts[100];
+	double dts[NSAMPLES];
 	int i;
 	int j;
 	int retval;
@@ -85,10 +88,10 @@ static void measure_overhead_arch(void)
 			t1 = rdtsc();
 		dt2 = dgettimeofday();
 		dts[i] = (dt2 - dt1) / (double)j;
-		poll(NULL, 0, 2);
+		poll(NULL, 0, COOLDOWN);
 	}
 	getstats(dts, i, &dtmin, &dtmed, &dtmax);
-	printf("x86_64 rdtsc              overhead: %g (%g -> %g) reads: %d\n",
+	printf("x86_64 rdtsc              %#8.3g s (%#8.3g -> %#8.3g) reads: %d\n",
 	       dtmed, dtmin, dtmax, i * j);
 }
 
@@ -156,29 +159,37 @@ static void measure_overhead(int cidx)
 	clockid_t c = clocks[cidx];
 	double dt1;
 	double dt2;
-	double dtavg;
+	double dtmax;
+	double dtmed;
+	double dtmin;
+	double dts[NSAMPLES];
 	int i;
+	int j;
 	int retval;
 	struct timespec t1;
 
-	dt1 = dgettimeofday();
-	for (i = 0; i < 1000 * 1000; i++) {
-		retval = clock_gettime(c, &t1);
-		assert(!retval);
+	for (i = 0; i < sizeof(dts) / sizeof(dts[0]); i++) {
+		dt1 = dgettimeofday();
+		for (j = 0; j < 10000; j++) {
+			retval = clock_gettime(c, &t1);
+			assert(!retval);
+		}
+		dt2 = dgettimeofday();
+		dts[i] = (dt2 - dt1) / (double)j;
+		poll(NULL, 0, COOLDOWN);
 	}
-	dt2 = dgettimeofday();
-	dtavg = (dt2 - dt1) / i;
-	printf("%d %s overhead: %g (%g) reads: %d\n",
-	       c, clocknames[cidx], dt2 - dt1, dtavg, i);
+	getstats(dts, i, &dtmin, &dtmed, &dtmax);
+	printf("%d %s %#8.3g s (%#8.3g -> %#8.3g) reads: %d\n",
+	       c, clocknames[cidx], dtmed, dtmin, dtmax, i * j);
 }
 
 static void measure_overheads(void)
 {
 	int c;
 
+	poll(NULL, 0, COOLDOWN);
 	for (c = 0; c < sizeof(clocks) / sizeof(clocks[0]); c++) {
 		measure_overhead(c);
-		// poll(NULL, 0, 15 * 1000); // Let the chip cool down
 	}
 	measure_overhead_arch();
 }
