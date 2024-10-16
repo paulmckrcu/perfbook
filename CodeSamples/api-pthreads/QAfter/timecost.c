@@ -21,6 +21,49 @@
 #include "../util.h"
 #include "timespec.h"
 
+#ifdef __x86_64__
+
+// Taken from Linux kernel v6.11.
+#define DECLARE_ARGS(val, low, high)	unsigned long low, high
+#define EAX_EDX_VAL(val, low, high)	((low) | (high) << 32)
+#define EAX_EDX_RET(val, low, high)	"=a" (low), "=d" (high)
+
+static __always_inline unsigned long long rdtsc(void)
+{
+	DECLARE_ARGS(val, low, high);
+
+	asm volatile("rdtsc" : EAX_EDX_RET(val, low, high));
+
+	return EAX_EDX_VAL(val, low, high);
+}
+
+static void measure_overhead_arch(void)
+{
+	double dt1;
+	double dt2;
+	double dtavg;
+	int i;
+	int retval;
+	unsigned long long t1;
+
+	dt1 = dgettimeofday();
+	for (i = 0; i < 1000 * 1000; i++)
+		t1 = rdtsc();
+	dt2 = dgettimeofday();
+	dtavg = (dt2 - dt1) / i;
+	printf("x86_64 rdtsc              overhead: %g (%g) reads: %d\n",
+	       dt2 - dt1, dtavg, i);
+}
+
+#else
+
+static void measure_overhead_arch(void)
+{
+	printf("Architecture unsupported.\n");
+}
+
+#endif
+
 static clockid_t clocks[] = {
 	CLOCK_REALTIME,
 	CLOCK_REALTIME_COARSE,
@@ -98,8 +141,9 @@ static void measure_overheads(void)
 
 	for (c = 0; c < sizeof(clocks) / sizeof(clocks[0]); c++) {
 		measure_overhead(c);
-		poll(NULL, 0, 10 * 1000);
+		poll(NULL, 0, 15 * 1000); // Let the chip cool down
 	}
+	measure_overhead_arch();
 }
 
 int main(int argc, char *argv[])
