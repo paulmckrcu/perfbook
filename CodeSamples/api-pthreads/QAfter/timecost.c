@@ -71,8 +71,7 @@ static __always_inline unsigned long long rdtsc(void)
 
 static void measure_overhead_arch(void)
 {
-	double dt1;
-	double dt2;
+	double dtdiff;
 	double dtmax;
 	double dtmed;
 	double dtmin;
@@ -81,13 +80,18 @@ static void measure_overhead_arch(void)
 	int j;
 	int retval;
 	unsigned long long t1;
+	struct timespec ts1;
+	struct timespec ts2;
 
 	for (i = 0; i < sizeof(dts) / sizeof(dts[0]); i++) {
-		dt1 = dgettimeofday();
+		retval = clock_gettime(CLOCK_BOOTTIME, &ts1);
+		assert(!retval);
 		for (j = 0; j < 10000; j++)
 			t1 = rdtsc();
-		dt2 = dgettimeofday();
-		dts[i] = (dt2 - dt1) / (double)j;
+		retval = clock_gettime(CLOCK_BOOTTIME, &ts2);
+		assert(!retval);
+		dtdiff = timespecs2double(&ts2, &ts1);
+		dts[i] = dtdiff / (double)j;
 		poll(NULL, 0, COOLDOWN);
 	}
 	getstats(dts, i, &dtmin, &dtmed, &dtmax);
@@ -157,8 +161,7 @@ void measure_granularities(void)
 static void measure_overhead(int cidx)
 {
 	clockid_t c = clocks[cidx];
-	double dt1;
-	double dt2;
+	double dtdiff;
 	double dtmax;
 	double dtmed;
 	double dtmin;
@@ -167,15 +170,20 @@ static void measure_overhead(int cidx)
 	int j;
 	int retval;
 	struct timespec t1;
+	struct timespec ts1;
+	struct timespec ts2;
 
 	for (i = 0; i < sizeof(dts) / sizeof(dts[0]); i++) {
-		dt1 = dgettimeofday();
+		retval = clock_gettime(CLOCK_BOOTTIME, &ts1);
+		assert(!retval);
 		for (j = 0; j < 10000; j++) {
 			retval = clock_gettime(c, &t1);
 			assert(!retval);
 		}
-		dt2 = dgettimeofday();
-		dts[i] = (dt2 - dt1) / (double)j;
+		retval = clock_gettime(CLOCK_BOOTTIME, &ts2);
+		assert(!retval);
+		dtdiff = timespecs2double(&ts2, &ts1);
+		dts[i] = dtdiff / (double)j;
 		poll(NULL, 0, COOLDOWN);
 	}
 	getstats(dts, i, &dtmin, &dtmed, &dtmax);
