@@ -22,6 +22,7 @@
 #include "../include/timespec.h"
 
 #define NSAMPLES 100
+#define NSUBSAMPLES 1000
 #define COOLDOWN 5
 
 int dblcmp(const void *a_in, const void *b_in)
@@ -86,7 +87,7 @@ static void measure_overhead_arch(void)
 	for (i = 0; i < sizeof(dts) / sizeof(dts[0]); i++) {
 		retval = clock_gettime(CLOCK_BOOTTIME, &ts1);
 		assert(!retval);
-		for (j = 0; j < 10000; j++)
+		for (j = 0; j < NSUBSAMPLES; j++)
 			t1 = rdtsc();
 		retval = clock_gettime(CLOCK_BOOTTIME, &ts2);
 		assert(!retval);
@@ -176,7 +177,7 @@ static void measure_overhead(int cidx)
 	for (i = 0; i < sizeof(dts) / sizeof(dts[0]); i++) {
 		retval = clock_gettime(CLOCK_BOOTTIME, &ts1);
 		assert(!retval);
-		for (j = 0; j < 10000; j++) {
+		for (j = 0; j < NSUBSAMPLES; j++) {
 			retval = clock_gettime(c, &t1);
 			assert(!retval);
 		}
