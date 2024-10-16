@@ -39,7 +39,7 @@ static inline double timespec2double(struct timespec *tsp)
 	return tsp->tv_sec + (double)tsp->tv_nsec / 1000. / 1000. / 1000.;
 }
 
-// Compute the difference of a pair of timespec structures.
+// Compute the difference of a pair of timespec structures, *tsp1 - *tsp2.
 static inline struct timespec timespecsub(struct timespec *tsp1, struct timespec *tsp2)
 {
 	struct timespec tsdiff = {};
@@ -59,6 +59,15 @@ static inline struct timespec timespecsub(struct timespec *tsp1, struct timespec
 	}
 	tsdiff.tv_sec += tsp1->tv_sec - tsp2->tv_sec;
 	return tsdiff;
+}
+
+// Convert (*tsp1 - *tsp2) to double precision (decimal seconds).
+static inline double timespecs2double(struct timespec *tsp1, struct timespec *tsp2)
+{
+	struct timespec tsdiff;
+
+	tsdiff = timespecsub(tsp1, tsp2);
+	return tsdiff.tv_sec + (double)tsdiff.tv_nsec / 1000. / 1000. / 1000.;
 }
 
 static inline char *timespec2str(char *cp, struct timespec *tsp)
