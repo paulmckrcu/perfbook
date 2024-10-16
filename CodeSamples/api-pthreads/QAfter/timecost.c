@@ -115,6 +115,9 @@ static clockid_t clocks[] = {
 	CLOCK_MONOTONIC,
 	CLOCK_MONOTONIC_RAW,
 	CLOCK_MONOTONIC_COARSE,
+#ifdef CLOCK_NON_MONOTONIC
+	CLOCK_NON_MONOTONIC,
+#endif
 	CLOCK_BOOTTIME,
 };
 static char *clocknames[] = {
@@ -123,6 +126,9 @@ static char *clocknames[] = {
 	"CLOCK_MONOTONIC        ",
 	"CLOCK_MONOTONIC_RAW    ",
 	"CLOCK_MONOTONIC_COARSE ",
+#ifdef CLOCK_NON_MONOTONIC
+	"CLOCK_NON_MONOTONIC    ",
+#endif
 	"CLOCK_BOOTTIME         ",
 };
 
