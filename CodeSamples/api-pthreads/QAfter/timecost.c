@@ -23,6 +23,7 @@
 
 static clockid_t clocks[] = {
 	CLOCK_REALTIME,
+	CLOCK_REALTIME_COARSE,
 	CLOCK_MONOTONIC,
 	CLOCK_MONOTONIC_RAW,
 	CLOCK_MONOTONIC_COARSE,
@@ -30,14 +31,16 @@ static clockid_t clocks[] = {
 };
 static char *clocknames[] = {
 	"CLOCK_REALTIME         ",
+	"CLOCK_REALTIME_COARSE  ",
 	"CLOCK_MONOTONIC        ",
 	"CLOCK_MONOTONIC_RAW    ",
 	"CLOCK_MONOTONIC_COARSE ",
 	"CLOCK_BOOTTIME         ",
 };
 
-static void measure_granularity(clockid_t c)
+static void measure_granularity(int cidx)
 {
+	clockid_t c = clocks[cidx];
 	int i = 0;
 	int retval;
 	struct timespec t1;
@@ -51,10 +54,12 @@ static void measure_granularity(clockid_t c)
 		retval = clock_gettime(c, &t2);
 		assert(!retval);
 		i++;
-	} while (t1.tv_sec == t2.tv_nsec && t1.tv_nsec == t2.tv_nsec);
+	} while (t1.tv_sec == t2.tv_sec && t1.tv_nsec == t2.tv_nsec);
 	tdiff = timespecsub(&t2, &t1);
-	printf("%s granularity: %s  tries: %d\n",
-	       clocknames[c], timespec2str(tdiffstr, &tdiff), i);
+	printf("%d %s granularity: %ld.%09ld  tries: %d\n",
+	       c, clocknames[cidx], tdiff.tv_sec, tdiff.tv_nsec, i);
+	// printf("\tt1: %ld.%09ld t2: %ld.%09ld\n",
+	//        t1.tv_sec, t1.tv_nsec, t2.tv_sec, t2.tv_nsec);
 }
 
 void measure_granularities(void)
@@ -66,8 +71,9 @@ void measure_granularities(void)
 	}
 }
 
-static void measure_overhead(clockid_t c)
+static void measure_overhead(int cidx)
 {
+	clockid_t c = clocks[cidx];
 	double dt1;
 	double dt2;
 	double dtavg;
@@ -82,8 +88,8 @@ static void measure_overhead(clockid_t c)
 	}
 	dt2 = dgettimeofday();
 	dtavg = (dt2 - dt1) / i;
-	printf("%s overhead: %g (%g) reads: %d\n",
-	       clocknames[c], dt2 - dt1, dtavg, i);
+	printf("%d %s overhead: %g (%g) reads: %d\n",
+	       c, clocknames[cidx], dt2 - dt1, dtavg, i);
 }
 
 static void measure_overheads(void)
@@ -92,6 +98,7 @@ static void measure_overheads(void)
 
 	for (c = 0; c < sizeof(clocks) / sizeof(clocks[0]); c++) {
 		measure_overhead(c);
+		poll(NULL, 0, 10 * 1000);
 	}
 }
 
