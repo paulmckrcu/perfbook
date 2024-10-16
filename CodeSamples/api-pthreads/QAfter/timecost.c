@@ -19,7 +19,7 @@
  */
 
 #include "../util.h"
-#include "timespec.h"
+#include "../include/timespec.h"
 
 #define NSAMPLES 100
 #define COOLDOWN 5

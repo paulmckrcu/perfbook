@@ -32,7 +32,7 @@ struct timespec *mono1;		// Monotonic time, first re-read (after wc).
 struct timespec *mono2;		// Monotonic time, second re-read.
 struct timespec *wc;		// Wall-clock ("real") time.
 
-#include "timespec.h"
+#include "../include/timespec.h"
 
 void usage(char *progname, const char *format, ...)
 {
