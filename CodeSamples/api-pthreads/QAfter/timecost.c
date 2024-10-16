@@ -21,6 +21,35 @@
 #include "../util.h"
 #include "timespec.h"
 
+int dblcmp(const void *a_in, const void *b_in)
+{
+	double a = *(double *)a_in;
+	double b = *(double *)b_in;
+
+	if (a > b)
+		return 1;
+	if (b < a)
+		return -1;
+	return 0;
+}
+
+void getstats(double *x, int xn, double *dtmin, double *dtmed, double *dtmax)
+{
+	int i;
+
+	if (xn <= 0) {
+		*dtmin = *dtmed = *dtmax = 0.0;
+		return;
+	}
+	qsort(x, xn, sizeof(x[0]), dblcmp);
+	if (xn & 0x1)
+		*dtmed = x[xn / 2];
+	else
+		*dtmed = (x[xn / 2] + x[xn / 2 - 1]) / 2.0;
+	*dtmin = x[0];
+	*dtmax = x[xn - 1];
+}
+
 #ifdef __x86_64__
 
 // Taken from Linux kernel v6.11.
@@ -41,18 +70,26 @@ static void measure_overhead_arch(void)
 {
 	double dt1;
 	double dt2;
-	double dtavg;
+	double dtmax;
+	double dtmed;
+	double dtmin;
+	double dts[100];
 	int i;
+	int j;
 	int retval;
 	unsigned long long t1;
 
-	dt1 = dgettimeofday();
-	for (i = 0; i < 1000 * 1000; i++)
-		t1 = rdtsc();
-	dt2 = dgettimeofday();
-	dtavg = (dt2 - dt1) / i;
-	printf("x86_64 rdtsc              overhead: %g (%g) reads: %d\n",
-	       dt2 - dt1, dtavg, i);
+	for (i = 0; i < sizeof(dts) / sizeof(dts[0]); i++) {
+		dt1 = dgettimeofday();
+		for (j = 0; j < 10000; j++)
+			t1 = rdtsc();
+		dt2 = dgettimeofday();
+		dts[i] = (dt2 - dt1) / (double)j;
+		poll(NULL, 0, 2);
+	}
+	getstats(dts, i, &dtmin, &dtmed, &dtmax);
+	printf("x86_64 rdtsc              overhead: %g (%g -> %g) reads: %d\n",
+	       dtmed, dtmin, dtmax, i * j);
 }
 
 #else
@@ -141,7 +178,7 @@ static void measure_overheads(void)
 
 	for (c = 0; c < sizeof(clocks) / sizeof(clocks[0]); c++) {
 		measure_overhead(c);
-		poll(NULL, 0, 15 * 1000); // Let the chip cool down
+		// poll(NULL, 0, 15 * 1000); // Let the chip cool down
 	}
 	measure_overhead_arch();
 }
