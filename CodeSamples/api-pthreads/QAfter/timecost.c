@@ -25,6 +25,9 @@
 #define NSUBSAMPLES 1000
 #define COOLDOWN 5
 
+int nsubsamples = NSUBSAMPLES;
+int cooldown = COOLDOWN;
+
 int dblcmp(const void *a_in, const void *b_in)
 {
 	double a = *(double *)a_in;
@@ -79,6 +82,7 @@ static void measure_overhead_arch(void)
 	double dts[NSAMPLES];
 	int i;
 	int j;
+	const int nss = nsubsamples;
 	int retval;
 	unsigned long long t1;
 	struct timespec ts1;
@@ -87,13 +91,13 @@ static void measure_overhead_arch(void)
 	for (i = 0; i < sizeof(dts) / sizeof(dts[0]); i++) {
 		retval = clock_gettime(CLOCK_BOOTTIME, &ts1);
 		assert(!retval);
-		for (j = 0; j < NSUBSAMPLES; j++)
+		for (j = 0; j < nss; j++)
 			t1 = rdtsc();
 		retval = clock_gettime(CLOCK_BOOTTIME, &ts2);
 		assert(!retval);
 		dtdiff = timespecs2double(&ts2, &ts1);
 		dts[i] = dtdiff / (double)j;
-		poll(NULL, 0, COOLDOWN);
+		poll(NULL, 0, cooldown);
 	}
 	getstats(dts, i, &dtmin, &dtmed, &dtmax);
 	printf("x86_64 rdtsc              %#8.3g s (%#8.3g -> %#8.3g) reads: %d\n",
@@ -175,6 +179,7 @@ static void measure_overhead(int cidx)
 	double dts[NSAMPLES];
 	int i;
 	int j;
+	const int nss = nsubsamples;
 	int retval;
 	struct timespec t1;
 	struct timespec ts1;
@@ -183,7 +188,7 @@ static void measure_overhead(int cidx)
 	for (i = 0; i < sizeof(dts) / sizeof(dts[0]); i++) {
 		retval = clock_gettime(CLOCK_BOOTTIME, &ts1);
 		assert(!retval);
-		for (j = 0; j < NSUBSAMPLES; j++) {
+		for (j = 0; j < nss; j++) {
 			retval = clock_gettime(c, &t1);
 			assert(!retval);
 		}
@@ -191,7 +196,7 @@ static void measure_overhead(int cidx)
 		assert(!retval);
 		dtdiff = timespecs2double(&ts2, &ts1);
 		dts[i] = dtdiff / (double)j;
-		poll(NULL, 0, COOLDOWN);
+		poll(NULL, 0, cooldown);
 	}
 	getstats(dts, i, &dtmin, &dtmed, &dtmax);
 	printf("%d %s %#8.3g s (%#8.3g -> %#8.3g) reads: %d\n",
@@ -202,7 +207,7 @@ static void measure_overheads(void)
 {
 	int c;
 
-	poll(NULL, 0, COOLDOWN);
+	poll(NULL, 0, cooldown);
 	for (c = 0; c < sizeof(clocks) / sizeof(clocks[0]); c++) {
 		measure_overhead(c);
 	}
