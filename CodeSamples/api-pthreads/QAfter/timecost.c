@@ -18,6 +18,7 @@
  * Copyright (c) 2024 Paul E. McKenney, Meta Platforms, Inc.
  */
 
+#include <stdarg.h>
 #include "../util.h"
 #include "../include/timespec.h"
 
@@ -221,8 +222,51 @@ static void measure_overheads(void)
 	measure_overhead_arch();
 }
 
+void usage(char *progname, const char *format, ...)
+{
+	va_list ap;
+
+	va_start(ap, format);
+	vfprintf(stderr, format, ap);
+	va_end(ap);
+	fprintf(stderr, "Usage: %s\n", progname);
+	fprintf(stderr, "\t--cooldown\n");
+	fprintf(stderr, "\t\tCooldown period between tests in milliseconds.\n");
+	fprintf(stderr, "\t\tDefaults to %d.\n", COOLDOWN);
+	fprintf(stderr, "\t--nsamples\n");
+	fprintf(stderr, "\t\tNumber of per-clocksource samples to take.\n");
+	fprintf(stderr, "\t\tDefaults to %d.\n", NSAMPLES);
+	fprintf(stderr, "\t--nsubsamples\n");
+	fprintf(stderr, "\t\tNumber of measurements per sample.\n");
+	fprintf(stderr, "\t\tDefaults to %d.\n", NSUBSAMPLES);
+	exit(-1);
+}
+
 int main(int argc, char *argv[])
 {
+	int i = 1;
+
+	while (i < argc) {
+		if (strcmp(argv[i], "--cooldown") == 0) {
+			cooldown = atoi(argv[++i]);
+			if (cooldown < 0)
+				usage(argv[0], "%s must be > 0\n",
+				      argv[ i - 1]);
+		} else if (strcmp(argv[i], "--nsamples") == 0) {
+			nsamples = atoi(argv[++i]);
+			if (nsamples < 1)
+				usage(argv[0], "%s must be >= 0\n",
+				      argv[ i - 1]);
+		} else if (strcmp(argv[i], "--nsubsamples") == 0) {
+			nsubsamples = atoi(argv[++i]);
+			if (nsubsamples < 1)
+				usage(argv[0], "%s must be >= 0\n",
+				      argv[ i - 1]);
+		} else {
+			usage(argv[0], "Unrecognized argument: %s\n", argv[i]);
+		}
+		i++;
+	}
 	measure_granularities();
 	printf("\n");
 	measure_overheads();
