@@ -25,6 +25,7 @@
 #define NSUBSAMPLES 1000
 #define COOLDOWN 5
 
+int nsamples = NSAMPLES;
 int nsubsamples = NSUBSAMPLES;
 int cooldown = COOLDOWN;
 
@@ -79,16 +80,18 @@ static void measure_overhead_arch(void)
 	double dtmax;
 	double dtmed;
 	double dtmin;
-	double dts[NSAMPLES];
+	double *dts;
 	int i;
 	int j;
+	const int ns = nsamples;
 	const int nss = nsubsamples;
 	int retval;
 	unsigned long long t1;
 	struct timespec ts1;
 	struct timespec ts2;
 
-	for (i = 0; i < sizeof(dts) / sizeof(dts[0]); i++) {
+	dts = malloc(sizeof(*dts) * nsamples);
+	for (i = 0; i < ns; i++) {
 		retval = clock_gettime(CLOCK_BOOTTIME, &ts1);
 		assert(!retval);
 		for (j = 0; j < nss; j++)
@@ -102,6 +105,7 @@ static void measure_overhead_arch(void)
 	getstats(dts, i, &dtmin, &dtmed, &dtmax);
 	printf("x86_64 rdtsc              %#8.3g s (%#8.3g -> %#8.3g) reads: %d\n",
 	       dtmed, dtmin, dtmax, i * j);
+	free(dts);
 }
 
 #else
@@ -176,16 +180,18 @@ static void measure_overhead(int cidx)
 	double dtmax;
 	double dtmed;
 	double dtmin;
-	double dts[NSAMPLES];
+	double *dts;
 	int i;
 	int j;
+	const int ns = nsamples;
 	const int nss = nsubsamples;
 	int retval;
 	struct timespec t1;
 	struct timespec ts1;
 	struct timespec ts2;
 
-	for (i = 0; i < sizeof(dts) / sizeof(dts[0]); i++) {
+	dts = malloc(sizeof(*dts) * nsamples);
+	for (i = 0; i < ns; i++) {
 		retval = clock_gettime(CLOCK_BOOTTIME, &ts1);
 		assert(!retval);
 		for (j = 0; j < nss; j++) {
@@ -201,6 +207,7 @@ static void measure_overhead(int cidx)
 	getstats(dts, i, &dtmin, &dtmed, &dtmax);
 	printf("%d %s %#8.3g s (%#8.3g -> %#8.3g) reads: %d\n",
 	       c, clocknames[cidx], dtmed, dtmin, dtmax, i * j);
+	free(dts);
 }
 
 static void measure_overheads(void)
