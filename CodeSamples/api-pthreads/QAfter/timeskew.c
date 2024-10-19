@@ -46,7 +46,7 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t\tInterval between samples in milliseconds.\n");
 	fprintf(stderr, "\t\tDefaults to 100\n");
 	fprintf(stderr, "\t--nsamples\n");
-	fprintf(stderr, "\t\tNumber of time-skew samples to taek.\n");
+	fprintf(stderr, "\t\tNumber of time-skew samples to take.\n");
 	fprintf(stderr, "\t\tDefaults to 20\n");
 	exit(-1);
 }
