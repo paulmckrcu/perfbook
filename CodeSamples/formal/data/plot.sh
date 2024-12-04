@@ -17,7 +17,7 @@ set ytics out
 set y2tics 1 10
 set y2tics out
 set ytics nomirror
-set yrange [0:35000]
+set yrange [0:40000]
 set y2range [0:50]
 set style data histogram
 set style histogram rowstacked
