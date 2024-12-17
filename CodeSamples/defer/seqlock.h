@@ -60,14 +60,14 @@ static inline int read_seqretry(seqlock_t *slp,		//\lnlbl{read_seqretry:b}
 static inline void write_seqlock(seqlock_t *slp)	//\lnlbl{write_seqlock:b}
 {
 	spin_lock(&slp->lock);
-	++slp->seq;
+	WRITE_ONCE(slp->seq, READ_ONCE(slp->seq) + 1);
 	smp_mb();
 }							//\lnlbl{write_seqlock:e}
 
 static inline void write_sequnlock(seqlock_t *slp)	//\lnlbl{write_sequnlock:b}
 {
 	smp_mb();					//\lnlbl{write_sequnlock:mb}
-	++slp->seq;					//\lnlbl{write_sequnlock:inc}
+	WRITE_ONCE(slp->seq, READ_ONCE(slp->seq) + 1);  //\lnlbl{write_sequnlock:inc}
 	spin_unlock(&slp->lock);
 }							//\lnlbl{write_sequnlock:e}
 //\end{snippet}
