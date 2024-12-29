@@ -62,6 +62,7 @@ endif
 include $(top)/recipes.mk
 
 GCC_ARGS += -fcommon
+LURCU_SIG := $(shell pkg-config --libs liburcu-signal 2>/dev/null)
 
 # Note that bug_srcu_a is disabled until completed.
 bug_srcu_a: bug_srcu_a.c srcu.c ../api.h
@@ -80,7 +81,7 @@ hazptr: hazptr.c hazptr.h ../api.h hazptrtorture.h
 	cc $(GCC_ARGS) -o hazptr -DTEST hazptr.c -lpthread
 
 ptxroute: ptxroute.c ../api.h
-	cc $(GCC_ARGS) -o ptxroute ptxroute.c -lpthread -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -o ptxroute ptxroute.c -lpthread -lurcu $(LURCU_SIG)
 
 rcu: rcu.c rcu.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu -DTEST rcu.c -lpthread
@@ -131,7 +132,7 @@ route_hazptr: route_hazptr.c hazptr.c hazptr.h ../api.h ../lib/random.h ../lib/r
 	cc $(GCC_ARGS) -o route_hazptr route_hazptr.c hazptr.c ../lib/random.c -lpthread
 
 route_rcu: route_rcu.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
-	cc $(GCC_ARGS) -o route_rcu route_rcu.c ../lib/random.c -lpthread  -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -o route_rcu route_rcu.c ../lib/random.c -lpthread  -lurcu $(LURCU_SIG)
 
 route_rcu_qsbr: route_rcu.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
 	cc $(GCC_ARGS) -o route_rcu_qsbr -DDO_QSBR route_rcu.c ../lib/random.c -lpthread  -lurcu-qsbr
@@ -149,7 +150,7 @@ seqlocktorture: seqlocktorture.c seqlock.h ../api.h
 	cc $(GCC_ARGS) -o seqlocktorture seqlocktorture.c -lpthread
 
 singleton: singleton.c ../api.h ../lib/random.h ../lib/random.c
-	cc $(GCC_ARGS) -Wall -g -o singleton singleton.c ../lib/random.c -lpthread  -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -Wall -g -o singleton singleton.c ../lib/random.c -lpthread  -lurcu $(LURCU_SIG)
 
 clean:
 	rm -f $(PROGS)

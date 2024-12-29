@@ -31,12 +31,13 @@ all: $(PROGS)
 endif
 
 include $(top)/recipes.mk
+LURCU_SIG := $(shell pkg-config --libs liburcu-signal  2>/dev/null)
 
 skiplist: skiplist.c ../../api.h skiplisttorture.h skiplist.h
-	cc $(GCC_ARGS) -DTEST_SKIPLIST -I $(LIB) -g -o skiplist skiplist.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -DTEST_SKIPLIST -I $(LIB) -g -o skiplist skiplist.c $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
 
 skiplist_glock: skiplist_glock.c ../../api.h skiplisttorture.h skiplist.h
-	cc $(GCC_ARGS) -DTEST_SKIPLIST -I $(LIB) -g -o skiplist_glock skiplist_glock.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -DTEST_SKIPLIST -I $(LIB) -g -o skiplist_glock skiplist_glock.c $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
 
 clean:
 	rm -f $(PROGS)

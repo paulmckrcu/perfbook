@@ -33,6 +33,7 @@ endif
 include $(top)/recipes.mk
 
 GCC_ARGS += -fcommon
+LURCU_SIG := $(shell pkg-config --libs liburcu-signal 2>/dev/null)
 
 # NOTE:  For decent scalability on update-side tests as of early 2015,
 #	 use something like jemalloc() instead of glibc malloc().
@@ -45,10 +46,10 @@ GCC_ARGS += -fcommon
 #	 Verify by using the nm command and searching output for malloc.
 
 existence_test: existence.c existence_test.c
-	cc $(GCC_ARGS) -o existence_test existence.c existence_test.c -lpthread -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -o existence_test existence.c existence_test.c -lpthread -lurcu $(LURCU_SIG)
 
 treetorture: tree.c existence.c spinlockmult.c $(LIB)/random.c ../../api.h treetorture.h treetorturetrace.h $(LIB)/random.h existence.h tree.h
-	cc $(GCC_ARGS) -o treetorture tree.c existence.c spinlockmult.c $(LIB)/random.c -lpthread -lurcu -lurcu-signal
+	cc $(GCC_ARGS) -o treetorture tree.c existence.c spinlockmult.c $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
 
 clean:
 	rm -f $(PROGS)
