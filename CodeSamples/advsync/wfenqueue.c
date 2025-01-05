@@ -35,7 +35,7 @@ int q_push(struct el *ep, struct queue *qp)
 	struct el **tail;
 
 	ep->next = NULL;
-	tail = xchg(&qp->tail, ep);
+	tail = xchg(&qp->tail, (struct el **)ep);
 	*tail = ep;
 	return 1;
 }
