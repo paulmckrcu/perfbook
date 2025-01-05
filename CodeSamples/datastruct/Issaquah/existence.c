@@ -37,12 +37,6 @@
 /* Existence-switch array. */
 const int existence_array[4] = { 1, 0, 0, 1 };
 
-/* Existence structure associated with each moving structure. */
-struct existence {
-	const int **existence_switch;
-	int offset;
-};
-
 /* Existence-group structure associated with multi-structure change. */
 struct existence_group {
 	struct existence outgoing;

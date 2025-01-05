@@ -22,7 +22,12 @@
 #ifndef __EXISTENCE_H
 #define __EXISTENCE_H
 
-struct existence;
+/* Existence structure associated with each moving structure. */
+struct existence {
+	const int **existence_switch;
+	int offset;
+};
+
 struct existence_group;
 
 void existence_wire_call_rcu(void);
