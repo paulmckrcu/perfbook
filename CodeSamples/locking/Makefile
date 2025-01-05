@@ -15,13 +15,13 @@ endif
 include $(top)/recipes.mk
 
 locked_list: locked_list.c ../api.h
-	cc -g -Wall -o locked_list locked_list.c
+	cc -g -Wall $(GCC_ARGS) -o locked_list locked_list.c
 
 xchglock: xchglock.c ../api.h
-	cc -g -Wall -o xchglock xchglock.c -lpthread
+	cc -g -Wall $(GCC_ARGS) -o xchglock xchglock.c -lpthread
 
 rec_tree_itr: rec_tree_itr.c ../api.h
-	cc -g -Wall -o rec_tree_itr rec_tree_itr.c -lpthread
+	cc -g -Wall $(GCC_ARGS) -o rec_tree_itr rec_tree_itr.c -lpthread
 
 clean:
 	rm -f $(PROGS)

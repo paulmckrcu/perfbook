@@ -15,22 +15,22 @@ endif
 include $(top)/recipes.mk
 
 initrace: initrace.c ../api.h
-	cc -g -Wall -o initrace initrace.c -lpthread
+	cc -g -Wall $(GCC_ARGS) -o initrace initrace.c -lpthread
 
 initraceperf: initraceperf.c ../api.h
-	cc -g -Wall -o initraceperf initraceperf.c -lpthread
+	cc -g -Wall $(GCC_ARGS) -o initraceperf initraceperf.c -lpthread
 
 lockinc: lockinc.c ../api.h
-	cc -g -Wall -o lockinc lockinc.c -lpthread
+	cc -g -Wall $(GCC_ARGS) -o lockinc lockinc.c -lpthread
 
 nakedinc: nakedinc.c ../api.h
-	cc -g -Wall -o nakedinc nakedinc.c -lpthread
+	cc -g -Wall $(GCC_ARGS) -o nakedinc nakedinc.c -lpthread
 
 perthreadinc: perthreadinc.c ../api.h
-	cc -g -Wall -o perthreadinc perthreadinc.c -lpthread
+	cc -g -Wall $(GCC_ARGS) -o perthreadinc perthreadinc.c -lpthread
 
 threadcreate: threadcreate.c ../api.h
-	cc -g -Wall -o threadcreate threadcreate.c -lpthread
+	cc -g -Wall $(GCC_ARGS) -o threadcreate threadcreate.c -lpthread
 
 clean:
 	rm -f $(PROGS)
