@@ -34,7 +34,7 @@ unsigned long __thread counter = 0;		//\lnlbl{perthread:b}
 struct countarray *countarrayp = NULL;
 DEFINE_SPINLOCK(final_mutex);			//\lnlbl{perthread:e}
 
-__inline__ void inc_count(void)			//\lnlbl{inc:b}
+static __inline__ void inc_count(void)		//\lnlbl{inc:b}
 {
 	WRITE_ONCE(counter, counter + 1);
 }						//\lnlbl{inc:e}
@@ -99,7 +99,7 @@ void count_unregister_thread(int nthreadsexpected)	//\lnlbl{unreg:b}
 }							//\lnlbl{unreg:e}
 //\end{snippet}
 
-__inline__ void count_cleanup(void)
+static __inline__ void count_cleanup(void)
 {
 }
 

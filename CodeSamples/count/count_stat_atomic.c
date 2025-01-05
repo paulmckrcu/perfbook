@@ -28,7 +28,7 @@ void inc_count(void)
 	atomic_inc(&__get_thread_var(counter));
 }
 
-__inline__ unsigned long read_count(void)
+static __inline__ unsigned long read_count(void)
 {
 	int t;
 	unsigned long sum = 0;
@@ -38,11 +38,11 @@ __inline__ unsigned long read_count(void)
 	return sum;
 }
 
-__inline__ void count_init(void)
+static __inline__ void count_init(void)
 {
 }
 
-__inline__ void count_cleanup(void)
+static __inline__ void count_cleanup(void)
 {
 }
 

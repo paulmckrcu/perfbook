@@ -48,7 +48,7 @@ static inline unsigned long read_count(void)
 }
 
 #ifndef FCV_SNIPPET
-inline void count_init(void)
+static __inline__ void count_init(void)
 {
 }
 #endif /* FCV_SNIPPET */
@@ -73,7 +73,7 @@ void count_unregister_thread(int nthreadsexpected)	//\lnlbl{unreg:b}
 }							//\lnlbl{unreg:e}
 //\end{snippet}
 
-inline void count_cleanup(void)
+static __inline__ void count_cleanup(void)
 {
 }
 
