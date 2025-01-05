@@ -504,10 +504,8 @@ void *tree_lookup(struct treeroot *trp, int key, void (*func)(void *data))
 	struct treenode *par;
 	spinlock_t *lockp = NULL;
 	int wantdelay = 0;
-	int tries = 0;
 
 retry:
-	tries++;
 	rcu_read_lock();
 	cur = _tree_lookup(trp, key, &par);
 	TREE_BUG_ON(cur == NULL);
@@ -580,7 +578,6 @@ int tree_insert_existence(struct treeroot *trp, int key, void *data,
 	struct treenode *par;
 	int ret = 0;
 	spinlock_t *lockp[2];
-	int tries = 0;
 	int wantdelay = 0;
 
 	TREE_BUG_ON(data == NULL);
@@ -588,7 +585,6 @@ int tree_insert_existence(struct treeroot *trp, int key, void *data,
 	if (!new)
 		return -ENOMEM;
 retry:
-	tries++;
 	rcu_read_lock();
 	cur = _tree_lookup(trp, key, &par);
 	TREE_BUG_ON(cur == NULL || par == NULL);
@@ -660,11 +656,9 @@ static int tree_delete_existence(struct treeroot *trp, int key,
 	struct treenode *par;
 	spinlock_t *lockp[2];
 	int ret = -ENOENT;
-	int tries = 0;
 	int wantdelay = 0;
 
 retry:
-	tries++;
 	rcu_read_lock();
 	cur = _tree_lookup(trp, key, &par);
 	TREE_BUG_ON(cur == NULL || par == NULL);

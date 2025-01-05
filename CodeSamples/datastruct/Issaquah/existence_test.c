@@ -36,8 +36,6 @@ struct existence_group *egp;
 
 static void *scan_existence(void *arg)
 {
-	int i = 0;
-
 	for (;;) {
 		if (!existence_exists(&outgoing)) {
 			BUG_ON(!existence_exists(&incoming));
@@ -47,7 +45,6 @@ static void *scan_existence(void *arg)
 			BUG_ON(existence_exists(&outgoing));
 			break;
 		}
-		i++;
 	}
 	/* printf("scan_existence(): %d loops\n", i); */
 	return NULL;
