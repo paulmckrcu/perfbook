@@ -45,11 +45,17 @@ LURCU_SIG := $(shell pkg-config --libs liburcu-signal 2>/dev/null)
 #		-DUSE_JEMALLOC
 #	 Verify by using the nm command and searching output for malloc.
 
-existence_test: existence.c existence_test.c
-	cc $(GCC_ARGS) -o existence_test existence.c existence_test.c -lpthread -lurcu $(LURCU_SIG)
+existence_sub.o: existence.c existence.h ../../api.h
+	cc $(GCC_ARGS) -o existence_sub.o -c -DSUBOBJ existence.c
 
-treetorture: tree.c existence.c spinlockmult.c $(LIB)/random.c ../../api.h treetorture.h treetorturetrace.h $(LIB)/random.h existence.h tree.h
-	cc $(GCC_ARGS) -o treetorture tree.c existence.c spinlockmult.c $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
+existence_test: existence_sub.o existence_test.c ../../api.h
+	cc $(GCC_ARGS) -o existence_test existence_sub.o existence_test.c -lpthread -lurcu $(LURCU_SIG)
+
+spinlockmult_sub.o: spinlockmult.c spinlockmult.h ../../api.h
+	cc $(GCC_ARGS) -o spinlockmult_sub.o -c -DSUBOBJ spinlockmult.c
+
+treetorture: tree.c existence_sub.o spinlockmult_sub.o $(LIB)/random.c ../../api.h treetorture.h treetorturetrace.h $(LIB)/random.h existence.h tree.h
+	cc $(GCC_ARGS) -o treetorture tree.c existence_sub.o spinlockmult_sub.o $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
 
 clean:
 	rm -f $(PROGS)

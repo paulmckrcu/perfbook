@@ -47,8 +47,11 @@ hash_bkt_qsbr: hash_bkt_rcu.c ../../api.h hashtorture.h
 hash_bkt_rcu: hash_bkt_rcu.c ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_bkt_rcu hash_bkt_rcu.c $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
 
-hash_bkt_hazptr: hash_bkt_hazptr.c ../../defer/hazptr.c ../../defer/hazptr.h ../../api.h hashtorture.h
-	cc $(GCC_ARGS) -DTEST_HASH -o hash_bkt_hazptr hash_bkt_hazptr.c ../../defer/hazptr.c $(LIB)/random.c -lpthread
+../../defer/hazptr_sub.o: ../../defer/hazptr.c ../../defer/hazptr.h ../../api.h
+	$(MAKE) -C ../../defer hazptr_sub.o
+
+hash_bkt_hazptr: hash_bkt_hazptr.c ../../defer/hazptr_sub.o ../../api.h hashtorture.h
+	cc $(GCC_ARGS) -DTEST_HASH -o hash_bkt_hazptr hash_bkt_hazptr.c ../../defer/hazptr_sub.o $(LIB)/random.c -lpthread
 
 hash_global: hash_global.c ../../api.h hashtorture.h
 	cc $(GCC_ARGS) -DTEST_HASH -o hash_global hash_global.c $(LIB)/random.c -lpthread

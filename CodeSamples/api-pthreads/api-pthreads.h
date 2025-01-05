@@ -159,8 +159,14 @@ typedef pthread_t thread_id_t;
 
 #define __THREAD_ID_MAP_EMPTY 0
 #define __THREAD_ID_MAP_WAITING 1
+
+#ifndef SUBOBJ
 thread_id_t __thread_id_map[NR_THREADS];
 spinlock_t __thread_id_map_mutex;
+#else
+extern thread_id_t __thread_id_map[NR_THREADS];
+extern spinlock_t __thread_id_map_mutex;
+#endif
 
 #define for_each_thread(t) \
 	for (t = 0; t < NR_THREADS; t++)
@@ -175,7 +181,11 @@ spinlock_t __thread_id_map_mutex;
 		if ((((tid) = __thread_id_map[t]) != __THREAD_ID_MAP_EMPTY) && \
 		    ((tid) != __THREAD_ID_MAP_WAITING))
 
+#ifndef SUBOBJ
 pthread_key_t thread_id_key;
+#else
+extern pthread_key_t thread_id_key;
+#endif
 
 static __inline__ int num_online_threads(void)
 {
@@ -368,7 +378,11 @@ static __inline__ long long get_microseconds(void)
 	} __per_cpu_##name[NR_CPUS]
 #define DECLARE_PER_CPU(type, name) extern DEFINE_PER_CPU(type, name)
 
+#ifndef SUBOBJ
 DEFINE_PER_THREAD(int, smp_processor_id);
+#else
+DECLARE_PER_THREAD(int, smp_processor_id);
+#endif
 
 static __inline__ int smp_processor_id(void)
 {

@@ -52,8 +52,12 @@ typedef struct hazard_pointer_s {
 } hazard_pointer;
 
 /* Must be dynamically initialized to be an array of size H. */
+#ifndef SUBOBJ
 hazard_pointer *HP;
- 
+#else
+extern hazard_pointer *HP;
+#endif
+
 void hazptr_init(void);
 void hazptr_thread_exit(void);
 void hazptr_scan();
