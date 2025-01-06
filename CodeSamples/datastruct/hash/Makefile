@@ -32,7 +32,6 @@ endif
 
 include $(top)/recipes.mk
 
-GCC_ARGS += -fcommon
 LURCU_SIG := $(shell pkg-config --libs liburcu-signal 2>/dev/null)
 
 hash_bkt: hash_bkt.c ../../api.h hashtorture.h

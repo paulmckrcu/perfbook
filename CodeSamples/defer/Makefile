@@ -61,7 +61,6 @@ endif
 
 include $(top)/recipes.mk
 
-GCC_ARGS += -fcommon
 LURCU_SIG := $(shell pkg-config --libs liburcu-signal 2>/dev/null)
 
 # Note that bug_srcu_a is disabled until completed.

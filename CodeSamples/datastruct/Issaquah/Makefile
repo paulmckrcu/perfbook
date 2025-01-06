@@ -32,7 +32,6 @@ endif
 
 include $(top)/recipes.mk
 
-GCC_ARGS += -fcommon
 LURCU_SIG := $(shell pkg-config --libs liburcu-signal 2>/dev/null)
 
 # NOTE:  For decent scalability on update-side tests as of early 2015,
