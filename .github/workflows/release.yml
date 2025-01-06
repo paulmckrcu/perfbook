@@ -1,0 +1,61 @@
+name: Build perfbook PDFs
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:  # Allows manual trigger
+  release:
+    types:
+      - published
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt install -y make texlive texlive-font-utils texlive-fonts-extra \
+          texlive-pstricks texlive-science fig2ps graphviz inkscape gnuplot 
+
+    - name: Install Steel City Comic font
+      run:         
+        mkdir -p $HOME/.local/share/fonts/
+        
+        cp fonts/steel-city-comic.regular.ttf $HOME/.local/share/fonts/steel-city-comic.regular.ttf
+        
+        fc-cache -fv
+                        
+    - name: Build regular PDF
+      run: make
+        
+    - name: Build ebook PDF
+      run: make clean eb
+        
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          perfbook.pdf
+          perfbook-eb.pdf
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload PDFs as artifacts (for manual runs)
+      if: "!startsWith(github.ref, 'refs/tags/')"
+      uses: actions/upload-artifact@v4.5.0
+      with:
+        name: perfbook-pdfs
+        path: |
+          perfbook.pdf
+          perfbook-eb.pdf
