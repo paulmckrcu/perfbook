@@ -69,8 +69,9 @@ iterate_latex () {
 	perl utilities/adjustindexformat.pl $basename.idx > $basename-adjust.idx
 	cp -f $basename-adjust.idx $basename.idx
 	makeindex $basename.idx > /dev/null 2>&1
+	makeindex $basename-ppl.idx > /dev/null 2>&1
 	makeindex $basename-api.idx > /dev/null 2>&1
-	if grep -q '## Warning' $basename.ilg $basename-api.ilg
+	if grep -q '## Warning' $basename.ilg $basename-ppl.ilg $basename-api.ilg
 	then
 		echo "----- Warning in makeindex, see .ilg log files. -----"
 		exit 1
