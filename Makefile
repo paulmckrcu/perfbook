@@ -498,6 +498,19 @@ endif
 	    sh plot.sh && \
 	    cd ../../..
 
+ifdef RSVG_CONVERT
+  FALLBACK_RSVG_CONVERT = || (cat $<i | rsvg-convert $(RSVG_FMT_OPT) > $@ && echo "$< --> $(suffix $@) (fallback rsvg-convert)")
+endif
+ifeq ($(RSVG_CONVERT_GOOD),1)
+  SVG_TO_PDF_COMMAND = cat $<i | rsvg-convert $(RSVG_FMT_OPT) > $@
+else
+  ifeq ($(INKSCAPE_ONE),0)
+    SVG_TO_PDF_COMMAND = inkscape --export-pdf=$@ $<i > /dev/null 2>&1 $(FALLBACK_RSVG_CONVERT)
+  else
+    SVG_TO_PDF_COMMAND = $(ISOLATE_INKSCAPE) inkscape -o $@ $<i > /dev/null 2>&1 $(FALLBACK_RSVG_CONVERT)
+  endif
+endif
+
 $(PDFTARGETS_OF_SVG): $(FIXSVGFONTS)
 $(PDFTARGETS_OF_SVG): %.pdf: %.svg
 	@echo "$< --> $(suffix $@) $(SVG_PDF_CONVERTER)"
@@ -529,16 +542,7 @@ endif
 ifeq ($(RECOMMEND_LIBERATIONMONO),1)
 	$(info Nice-to-have font family 'Liberation Mono' not found. See #9 in FAQ-BUILD.txt)
 endif
-
-ifeq ($(RSVG_CONVERT_GOOD),1)
-	@cat $<i | rsvg-convert $(RSVG_FMT_OPT) > $@
-else
-  ifeq ($(INKSCAPE_ONE),0)
-	@inkscape --export-pdf=$@ $<i > /dev/null 2>&1
-  else
-	@$(ISOLATE_INKSCAPE) inkscape -o $@ $<i > /dev/null 2>&1
-  endif
-endif
+	@$(SVG_TO_PDF_COMMAND)
 	@rm -f $<i
 ifeq ($(chkpagegroup),on)
 ifndef QPDF
