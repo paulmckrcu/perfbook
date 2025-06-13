@@ -72,6 +72,16 @@ basename=`echo $1 | sed -e 's/\.tex$//'`
 echo "$LATEX 1 for $basename.pdf"
 $LATEX $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null
 exitcode=$?
+ENCGUESS_CMD=`command -v encguess`
+if [ "x$ENCGUESS_CMD" != "x" ]
+then
+	if encguess -s iso-8859-1 $basename.log | grep -q ISO-8859-1
+	then
+		mv $basename.log $basename-tmp.log
+		iconv -f ISO-8859-1 -t UTF-8 $basename-tmp.log > $basename.log
+		rm $basename-tmp.log
+	fi
+fi
 if grep -q 'LaTeX Warning: You have requested' $basename.log
 then
 	grep -A 4 'LaTeX Warning: You have requested' $basename.log
