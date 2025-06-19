@@ -1,7 +1,9 @@
 /*
  * tscalibrate.c: Calibrate the get_timestamp() function
  *
- * @@@ This test produces output as follows:
+ * This test produces output similar to the following:
+ *
+ * duration: 100 maxlatency: 5 nsamples: 24 min: 0.416666 max: 0.416674 avg: 0.41667 (ns per timestamp unit)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
