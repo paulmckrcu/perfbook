@@ -114,6 +114,7 @@ void readval(struct sample *sp)
 void collect_data(struct sample_data *sdp)
 {
 	int i = 1;
+	int n = sdp->sd_n;
 	struct sample s;
 	struct sample *sp;
 
@@ -126,13 +127,13 @@ void collect_data(struct sample_data *sdp)
 			sp->tbeforelast = s.tbefore;
 			sp->tafterlast = s.tafter;
 		} else {
-			sdp->sd_nsamples = i + 1;
-			if (++i >= sdp->sd_n)
+			if (++i >= n)
 				break;
 			sp++;
 			*sp = s;
 		}
 	}
+	sdp->sd_nsamples = i;
 }
 
 // Generic child thread, with ->sd_func to invoke.  Or not.
