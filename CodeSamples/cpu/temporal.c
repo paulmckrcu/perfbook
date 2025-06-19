@@ -232,6 +232,7 @@ void coe_parent(void)
 	WRITE_ONCE(goflag, GOFLAG_STOP);
 	wait_all_threads();
 	dump_all_threads(sdp, &ts);
+	printf("COE-final %d\n", sharedvar);
 }
 
 // The fre and rfe parent threads do the writing themselves.

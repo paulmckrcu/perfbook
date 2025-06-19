@@ -46,6 +46,11 @@ $1 ~ /^[0-9][0-9]*$/ {
 	}
 }
 
+/^COE-final / {
+	winningcpu = $2;
+	# print $0
+}
+
 END {
 	# print "Winning CPU: " winningcpu; # @@@
 	mindelta = "";
