@@ -4,6 +4,10 @@
 #
 # Usage: bash coe.sh [ nthreads ]
 #
+# Sample output:
+#
+# 2 2234900 2235044 -144 !!!
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -35,7 +39,7 @@ BEGIN {
 		print "Last entry: " lastentry; # @@@
 	st[$2] = $3;
 	et[$2] = $5;
-	print  "Input line: " $0 # @@@
+	# print  "Input line: " $0 # @@@
 }
 
 $1 ~ /^[0-9][0-9]*$/ {
