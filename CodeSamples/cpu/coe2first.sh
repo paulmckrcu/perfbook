@@ -3,7 +3,7 @@
 # Produce first thread/value reads from temporal coe data that has been
 # previously collected, for example, using: "./temporal --coe --nthreads 15"
 #
-# Usage: bash coe2dot.sh
+# Usage: bash coe2first.sh
 #
 # Takes the temporal coe data as standard input and produces on standard
 # output a table of numbers in thread order, when that thread first started
