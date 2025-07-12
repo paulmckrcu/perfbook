@@ -1785,6 +1785,78 @@ The \co{smp_store_release()} and \co{smp_load_acquire()} guarantee that
 the \co{exists} clause on \clnref{exists} never triggers.
 \end{fcvref}
 
+\QuickQuiz{
+	Why should it be rare for systems to reorder prior loads with
+	later stores?
+}\QuickQuizAnswer{
+	Keep in mind that conventional computer systems are not permitted
+	to make a given CPU's speculative stores visible to other CPUs.
+
+	This constraint has consequences.
+
+	For example, suppose that address translation has not yet completed
+	for that prior load.
+	In that case, it is quite possible that this address translation
+	will result in a segmentation violation, which might in turn mean
+	that the later store would never execute.
+	Therefore, a given store cannot make its value visible to other
+	CPUs until address translation has completed for each and every
+	prior load.
+
+	Of course, memory latencies can be quite long compared to
+	address-translation delays, especially if all the information
+	required for a given address translation is already present
+	in the translation lookaside buffer (TLB).
+	Although these long memory latencies should provide ample
+	opportunity for store-to-load reordering, the fact its that such
+	reordering is demonstrably rare, especially on the large systems
+	that would be expected to have the longest memory latencies.
+
+	And the reason for that is that large systems are most likely
+	to have parity or error-correcting code (ECC) checking on memory.
+
+	An uncorrectable parity or ECC error would cause a load to take a
+	fault, which would prevent subsequent stores from ever executing
+	just as surely as would a segmentation violation.
+	Therefore, on systems featuring parity or ECC, a subsequent store
+	cannot expose its value to other CPUs until after parity or
+	ECC checking has completed for all prior loads.
+	A given load's checking clearly cannot be carried out until that
+	load's value has been returned (check bits and all), which has
+	the side effect of prohibiting reordering of prior loads with
+	later stores.
+
+	So the only systems that can exhibit load-to-store reordering are
+	those lacking both parity and ECC, for example, small embedded
+	systems and GPGPUs.
+
+	Given that load-to-store reordering is not possible on common-case
+	computer systems, why do hardware memory models continue to
+	permit it?
+	Only CPU architects know for sure, but here are some possible
+	reasons:
+
+	\begin{enumerate}
+	\item	There might be increased demand for small systems that
+		do not require parity or ECC.
+	\item	Memory might become more reliable, so that larger systems
+		no longer require parity or ECC.
+	\item	Systems having multiple hardware threads per core might
+		permit cross-hardware-thread speculation, which would
+		permit speculative stores to make their values visible
+		to other threads in that core.
+	\item	Operating systems and hardware might work together to
+		terminate any processes affected by an uncorrectable
+		parity or ECC error.
+		This might allow speculative stores to make their
+		values visible to other CPUs, give or take things
+		like debuggers and assertions.
+	\end{enumerate}
+
+	In all of these cases, there might well be compelling performance
+	advantages to once again permitting load-to-store reordering.
+}\QuickQuizEnd
+
 \begin{listing}
 \input{CodeSamples/formal/litmus/C-MP+o-o+o-rmb-o@whole.fcv}
 \caption{Message-Passing Litmus Test, No Writer Ordering (No Ordering)}
