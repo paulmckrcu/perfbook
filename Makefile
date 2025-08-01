@@ -58,6 +58,7 @@ SVG_GENERATED := CodeSamples/formal/data/RCU-test-ratio.svg
 SVGSOURCES := $(filter-out $(SVG_EMERGENCY) $(SVG_GENERATED),$(SVGSOURCES_ALL)) $(SVG_GENERATED)
 FAKE_EPS_FROM_SVG := $(SVGSOURCES:%.svg=%.eps)
 PDFTARGETS_OF_SVG := $(SVGSOURCES:%.svg=%.pdf)
+PDFTARGETS_OF_SVG_CROP := CodeSamples/formal/data/RCU-test-ratio-crop.pdf
 
 OBSOLETE_FILES = extraction $(FAKE_EPS_FROM_SVG) CodeSamples/snippets.mk
 
@@ -298,8 +299,9 @@ endif
 	LATEX=$(LATEX) sh utilities/runfirstlatex.sh $(basename $@)
 
 autodate.tex: $(LATEXSOURCES) $(BIBSOURCES) $(LST_SOURCES) \
-    $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(FCVSNIPPETS) $(FCVSNIPPETS_VIA_LTMS) \
-     $(GITREFSTAGS) utilities/autodate.sh
+    $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(PDFTARGETS_OF_SVG_CROP) \
+    $(FCVSNIPPETS) $(FCVSNIPPETS_VIA_LTMS) \
+    $(GITREFSTAGS) utilities/autodate.sh
 	sh utilities/autodate.sh
 
 perfbook_flat.tex: autodate.tex
@@ -498,6 +500,10 @@ endif
 	    sh plot.sh && \
 	    cd ../../..
 
+$(PDFTARGETS_OF_SVG_CROP): %-crop.pdf: %.pdf
+	@echo "Crop $< (pdfcrop)"
+	@pdfcrop $< $@ > /dev/null
+
 ifdef RSVG_CONVERT
   FALLBACK_RSVG_CONVERT = || (cat $<i | rsvg-convert $(RSVG_FMT_OPT) > $@ && echo "$< --> $(suffix $@) (fallback rsvg-convert)")
 endif
@@ -682,11 +688,11 @@ cleanfigs-eps:
 	rm -f $(PDFTARGETS_OF_EPS)
 
 cleanfigs-svg:
-	rm -f $(PDFTARGETS_OF_SVG) $(SVG_EMERGENCY) $(SVG_GENERATED)
+	rm -f $(PDFTARGETS_OF_SVG) $(SVG_EMERGENCY) $(SVG_GENERATED) $(PDFTARGETS_OF_SVG_CROP)
 
 cleanfigs: cleanfigs-eps cleanfigs-svg
 
-figs: $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG)
+figs: $(PDFTARGETS_OF_EPS) $(PDFTARGETS_OF_SVG) $(PDFTARGETS_OF_SVG_CROP)
 
 punctcheck:
 	utilities/punctcheck.sh
