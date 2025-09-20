@@ -21,4 +21,5 @@ done
 for g in $tex_sources
 do
 	utilities/punctcheck.pl $g
+	utilities/percentcheck.pl $g
 done
