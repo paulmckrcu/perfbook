@@ -856,4 +856,71 @@ dropping out of an RCU read-side critical section.
 	gain much insight from this task.
 }\QuickQuizEnd
 
+\subsection{Lockless Configuration Update}
+\label{sec:together:Lockless Configuration Update}
+
+Suppose that you have a single global pointer that is either \co{NULL}
+or points to a singleton data structure that provides configuration
+information, similar to that discussed in
+\cref{sec:defer:Minimal Insertion and Deletion}.
+The twist being added in this section is allowing concurrent lockless
+updates.
+
+\begin{listing}
+\input{CodeSamples/formal/herd/C-MP+o-xchg-rcusync-o+o-xchg-rcusync-o+rl-o-o-rul@whole.fcv}
+\caption{Configuration-Update Example}
+\label{lst:formal:Configuration-Update Example}
+\end{listing}
+
+At first glance, the updates in that section are lockless, given that
+they use \co{rcu_assign_pointer()}.
+However, if we have concurrent lockless updates, one update's
+\co{rcu_assign_pointer()} can be silently overwritten by the next update,
+resulting in a memory leak.
+One way to avoid this is to use an atomic \co{xchg()} instruction,
+as shown on lines~15 and~25 of
+\cref{lst:formal:Configuration-Update Example}.
+This way, the pointer from the overwritten \co{xchg()} is returned by
+the next \co{xchg()}, allowing the caller to free it after an RCU
+grace period (lines~16 and 26).
+Because the Linux-kernel memory model does not support dynamic allocation,
+this code emulates freeing by storing the value zero.
+
+\QuickQuiz{
+	Wait!!!
+	Isn't it necessary for lines~17 and~27 of
+	\cref{lst:formal:Configuration-Update Example}
+	to check for a \co{NULL} pointer returned from lines~15
+	and~25?
+}\QuickQuizAnswer{
+	In this textbook example, no.
+
+	This is because line~7 initialized pointer \co{p} to point to
+	variable \co{a}, so that this pointer will never be \co{NULL}.
+	However, this is a very good question to ask because in most
+	production-quality code, a \co{NULL} check would indeed be
+	necessary.
+	On top of that, the first sentence of this section suggested
+	that the pointer might in fact be \co{NULL}.
+	Adding the NULL checks is left as an exercise for the reader.
+}\QuickQuizEnd
+
+The reader can then be written as a straightforward RCU reader
+(lines~35 and~38), loading the current pointer on line~36 and
+dereferencing it on line~37.
+
+Running this example
+(\path{CodeSamples/formal/herd/C-MP+o-xchg-rcusync-o+o-xchg-rcusync-o+rl-o-o-rul.litmus})
+through \co{herd}
+(see \cref{sec:formal:Axiomatic Approaches})
+verifies that this algorithm avoid use-after-free errors (line~43) and that it
+emulates freeing of all but one of the objects \co{a}, \co{b}, and \co{c}
+(line~45), thus also avoiding memory leaks.
+
+\subsection{Lockless Double-Checked Locking}
+
+% @@@ Make RCU summary hit hard on waiting for readers and describe th
+% @@@ other operations as secondary.
+\label{sec:together:Lockless Double-Checked Locking}
+
 % @@@ RCU link counts
