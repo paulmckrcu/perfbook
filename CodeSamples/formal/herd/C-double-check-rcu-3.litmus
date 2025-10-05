@@ -1,0 +1,82 @@
+C C-double-check-rcu-3
+//\begin[snippet][labelbase=ln:formal:C-double-check-rcu-3:whole,commandchars=\%\@\$]
+
+{
+	int a;
+	int b;
+	int c;
+	int *p=0;
+}
+
+P0(int *a, int *b, int *c, int **p)
+{
+	int *r1;
+	int r2;
+
+	rcu_read_lock();
+	r1 = rcu_dereference(*p);
+	if (r1) {
+		r2 = *r1;
+		rcu_read_unlock();
+	} else {
+		rcu_read_unlock();
+		*a = 1;
+		r1 = xchg(p, a);
+		if (r1) {
+			synchronize_rcu();
+			*r1 = 0; // Emulate kfree();
+		}
+		r2 = 1;
+	}
+}
+
+P1(int *a, int *b, int *c, int **p)
+{
+	int *r1;
+	int r2;
+
+	rcu_read_lock();
+	r1 = rcu_dereference(*p);
+	if (r1) {
+		r2 = *r1;
+		rcu_read_unlock();
+	} else {
+		rcu_read_unlock();
+		*b = 1;
+		r1 = xchg(p, b);
+		if (r1) {
+			synchronize_rcu();
+			*r1 = 0; // Emulate kfree();
+		}
+		r2 = 1;
+	}
+}
+
+P2(int *a, int *b, int *c, int **p)
+{
+	int *r1;
+	int r2;
+
+	rcu_read_lock();
+	r1 = rcu_dereference(*p);
+	if (r1) {
+		r2 = *r1;
+		rcu_read_unlock();
+	} else {
+		rcu_read_unlock();
+		*c = 1;
+		r1 = xchg(p, c);
+		if (r1) {
+			synchronize_rcu();
+			*r1 = 0; // Emulate kfree();
+		}
+		r2 = 1;
+	}
+}
+
+//\end[snippet]
+locations [0:r1; 1:r1; 2:r1; 2:r2; a; b; c; p]
+(* Reader better not see freed element!!! *)
+exists (0:r2=0 \/ 1:r2=0 \/ 2:r2=0 \/
+	(* Better be exactly one in use! *)
+	(a=1 /\ b=1) \/ (a=1 /\ c=1) \/ (b=1 /\ c=1) \/ (a=0 /\ b=0 /\ c=0))
