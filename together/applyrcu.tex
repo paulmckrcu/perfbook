@@ -933,7 +933,8 @@ Double-check locking is a well-known pattern that provides first-use
 initialization of shared state.
 But consider an extreme low-latency environment in which any and all
 use of locking is forbidden.
-How can first-use initialization be implemented under such constraints?
+How can first-use initialization (and subsequent update) be implemented
+under such constraints?
 
 \begin{listing}
 \ebresizeverb{.9}{
@@ -997,4 +998,82 @@ Running \co{herd} confirms that this code satisfies these constraints.
 	element.
 }\QuickQuizEnd
 
-% @@@ RCU link counts
+\subsection{Lockless Double-Checked Initialization}
+\label{sec:together:Lockless Double-Checked Initialization}
+
+Suppose we have the situation described in
+\cref{sec:together:Lockless Double-Checked Locking}
+but without the need for subsequent updates.
+What is the best way to implement first-use initialization (but without
+subsequent update) under such constraints?
+
+\begin{listing}
+\ebresizeverb{.9}{
+\input{CodeSamples/formal/herd/C-double-check-cas-2@whole.fcv}
+}
+\caption{Two-Process Double-Check CAS}
+\label{lst:formal:Two-Process Double-Check CAS}
+\end{listing}
+
+In this case, we only ever need to set pointer~\co{p} the one time.
+This means that if any would-be initializing process finds that
+this pointer in non-\co{NULL}, it can simply abandon its attempt at
+initialization.
+This in turn means that any reader will only ever get a reference to
+the one (immortal) element, removing any need for any sort of deferred
+reclamation.
+This initialization procedure can therefore be implemented using a simple
+\co{cmpxchg()} in \cref{lst:formal:Two-Process Double-Check CAS}.
+
+\begin{fcvref}[ln:formal:C-double-check-cas-2:whole:P0]
+\Clnref{load} fetches the pointer, and if \clnref{if} sees that it is
+non-\co{NULL}, \clnref{deref} picks up the value.
+
+Otherwise, \clnref{init:a} initializes an element and \clnref{cmpxchg}
+attempts to install it at pointer~\co{p}.
+If this attempt fails, it means that some other process has already done
+the initialization, so \clnref{free} frees this process's element.
+\end{fcvref}
+
+\QuickQuiz{
+	\begin{fcvref}[ln:formal:C-double-check-cas-2:whole:P0]
+	Doesn't that \co{READ_ONCE()} on \clnref{load}
+	\cref{lst:formal:Two-Process Double-Check CAS}
+	need to be \co{smp_load_acquire()} in order to prevent early
+	readers running concurrently with the initialization from seeing
+	pre-initialization garbage?
+	\end{fcvref}
+}\QuickQuizAnswer{
+	No, because \co{READ_ONCE()} is a volatile operation and therefore
+	can head address dependency chains.
+	In theory, another alternative is \co{rcu_dereference_raw()}.
+	Except that this could be misleading because the element is
+	never freed, not protected by \co{rcu_read_lock()}, and thus
+	not really an RCU-protected pointer.
+
+	For more information on address dependencies, please refer to
+	\cref{sec:memorder:Address- and Data-Dependency Difficulties}
+	starting on
+	\cpageref{sec:memorder:Address- and Data-Dependency Difficulties}.
+}\QuickQuizEnd
+
+This example underscores the need to thoroughly understand the
+requirements.
+In this example, dropping the requirement for runtime update simplified
+the synchronization by removing the need for RCU.
+
+\QuickQuiz{
+	Given an algorithm like that shown in
+	\cref{lst:formal:Two-Process Double-Check CAS},
+	why would anyone use double-checked locking?
+}\QuickQuizAnswer{
+	If the flag and data are carefully placed into the same cache
+	line, then double-checked locking can offer better cache locality
+	than can double-checked CAS\@.
+	This is because in the double-checked CAS case, the pointer and
+	the pointed-to element will almost always be in separate cache
+	lines, potential resulting in two cache misses to double-checked
+	locking's single cache miss.
+
+	However, as the element grows in size, this advantage diminishes.
+}\QuickQuizEnd

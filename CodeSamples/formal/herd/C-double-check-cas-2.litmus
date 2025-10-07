@@ -1,0 +1,51 @@
+C C-double-check-cas-2
+//\begin[snippet][labelbase=ln:formal:C-double-check-cas-2:whole,commandchars=\%\@\$]
+
+{
+	int a;
+	int b;
+	int *p=0;
+}
+
+P0(int *a, int *b, int **p)
+{
+	int *r1;
+	int r2;
+
+	r1 = READ_ONCE(*p);		//\lnlbl[P0:load]
+	if (r1) {			//\lnlbl[P0:if]
+		r2 = *r1;		//\lnlbl[P0:deref]
+	} else {
+		*a = 1;			//\lnlbl[P0:init:a]
+		r1 = cmpxchg(p, 0, a);	//\lnlbl[P0:cmpxchg]
+		if (r1) {				//\lnlbl[P0:if:2]
+			*a = 0; // Emulate kfree();	//\lnlbl[P0:free]
+		}
+		r2 = 1;
+	}
+}
+
+P1(int *a, int *b, int **p)		//\lnlbl[P1:b]
+{
+	int *r1;
+	int r2;
+
+	r1 = rcu_dereference(*p);
+	if (r1) {
+		r2 = *r1;
+	} else {
+		*b = 1;
+		r1 = cmpxchg(p, 0, b);
+		if (r1) {
+			*b = 0; // Emulate kfree();
+		}
+		r2 = 1;
+	}
+}					//\lnlbl[P1:e]
+
+//\end[snippet]
+locations [0:r1; 1:r1; a; b; p]		(* \lnlbl[loc] *)
+(* Reader better not see freed element!!! *)
+exists (0:r2=0 \/ 1:r2=0 \/		(* \lnlbl[ex:1] *)
+	(* Better only be one in use! *)
+	(a=1 /\ b=1) \/ (a=0 /\ b=0))	(* \lnlbl[ex:2] *)
