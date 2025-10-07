@@ -12,24 +12,24 @@ P0(int *a, int *b, int **p)
 	int *r1;
 	int r2;
 
-	rcu_read_lock();
-	r1 = rcu_dereference(*p);
-	if (r1) {
-		r2 = *r1;
-		rcu_read_unlock();
+	rcu_read_lock();		//\lnlbl[P0:lock]
+	r1 = rcu_dereference(*p);	//\lnlbl[P0:load]
+	if (r1) {			//\lnlbl[P0:if]
+		r2 = *r1;		//\lnlbl[P0:deref]
+		rcu_read_unlock();	//\lnlbl[P0:unl:1]
 	} else {
-		rcu_read_unlock();
-		*a = 1;
-		r1 = xchg(p, a);
-		if (r1) {
-			synchronize_rcu();
-			*r1 = 0; // Emulate kfree();
+		rcu_read_unlock();	//\lnlbl[P0:unl:2]
+		*a = 1;			//\lnlbl[P0:init:a]
+		r1 = xchg(p, a);	//\lnlbl[P0:xchg]
+		if (r1) {				//\lnlbl[P0:if:2]
+			synchronize_rcu();		//\lnlbl[P0:sync]
+			*r1 = 0; // Emulate kfree();	//\lnlbl[P0:free]
 		}
 		r2 = 1;
 	}
 }
 
-P1(int *a, int *b, int **p)
+P1(int *a, int *b, int **p)		//\lnlbl[P1:b]
 {
 	int *r1;
 	int r2;
@@ -49,11 +49,11 @@ P1(int *a, int *b, int **p)
 		}
 		r2 = 1;
 	}
-}
+}					//\lnlbl[P1:e]
 
 //\end[snippet]
-locations [0:r1; 1:r1; a; b; p]
+locations [0:r1; 1:r1; a; b; p]		(* \lnlbl[loc] *)
 (* Reader better not see freed element!!! *)
-exists (0:r2=0 \/ 1:r2=0 \/
+exists (0:r2=0 \/ 1:r2=0 \/		(* \lnlbl[ex:1] *)
 	(* Better only be one in use! *)
-	(a=1 /\ b=1) \/ (a=0 /\ b=0))
+	(a=1 /\ b=1) \/ (a=0 /\ b=0))	(* \lnlbl[ex:2] *)

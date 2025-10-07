@@ -957,31 +957,35 @@ avoid disrupting concurrent readers, for example, as shown in
 
 The fastpath covers the common case where initialization has already
 completed.
-Line~14 begins an RCU read-side critical section, and line~15 fetches
+\begin{fcvref}[ln:formal:C-double-check-rcu-2:whole:P0]
+\Clnref{lock} begins an RCU read-side critical section, and \clnref{load} fetches
 the current pointer.
-If line~16 determines that this pointer is non-\co{NULL}, then
-initialization is complete, so that line~17 fetches the element's contents
-and line~18 exits the critical section.
+If \clnref{if} determines that this pointer is non-\co{NULL}, then
+initialization is complete, so that \clnref{deref} fetches the element's contents
+and \clnref{unl:1} exits the critical section.
 
-Otherwise, line~16 will see the pre-initialization \co{NULL} pointer
-and transfer control to line~20, which exits the RCU read-side critical
+Otherwise, \clnref{if} will see the pre-initialization \co{NULL} pointer
+and transfer control to \clnref{unl:2}, which exits the RCU read-side critical
 section.
-Line~21 initializes the element (abstracting away any required allocation),
-line~22 atomically exchanges the pointer to this element with the global
+\Clnref{init:a} initializes the element (abstracting away any required allocation),
+\clnref{xchg} atomically exchanges the pointer to this element with the global
 pointer \co{p}, returning the old value in \co{r1}.
-If line~23 determines that \co{r1} was non-\co{NULL}, then line~24
-waits for any readers accessing the old element to finish and line~25
+If \clnref{if:2} determines that \co{r1} was non-\co{NULL}, then \clnref{sync}
+waits for any readers accessing the old element to finish and \clnref{free}
 emulates a \co{kfree()}.
 Either way, \co{r2} is set to the initial value of 1.
+\end{fcvref}
 
-Lines~31-51 operate in the same manner, but using element \co{b} instead
+\begin{fcvref}[ln:formal:C-double-check-rcu-2:whole]
+\Clnrefrange{P1:b}{P1:e} operate in the same manner, but using element \co{b} instead
 of \co{a}.
 
-Line~53 displays all variables to ease debugging of the litmus test.
-Line~55 verifies that both processes obtain an initialized value,
-and line~57 verifies that there are no memory leaks and that at least
+\Clnref{loc} displays all variables to ease debugging of the litmus test.
+\Clnref{ex:1} verifies that both processes obtain an initialized value,
+and \clnref{ex:2} verifies that there are no memory leaks and that at least
 one element remains in use.
 Running \co{herd} confirms that this code satisfies these constraints.
+\end{fcvref}
 
 \QuickQuiz{
 	But wouldn't memory allocation also be forbidden in such
