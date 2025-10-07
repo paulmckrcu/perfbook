@@ -1,0 +1,53 @@
+C C-MP+o-o-rcusync-o+o-o-rcusync-o+rl-o-o-rul
+//\begin[snippet][labelbase=ln:formal:C-MP+o-o-rcusync-o+o-o-rcusync-o+rl-o-o-rul:whole,commandchars=\%\@\$]
+
+{
+	int a=1;
+	int b;
+	int c;
+	int *p=a;
+}
+
+P0(int *a, int *b, int *c, int **p)
+{
+	int *r1;
+
+	*b = 1;
+	r1 = READ_ONCE(*p);
+	WRITE_ONCE(*p, b);
+	synchronize_rcu();
+	if (r1)
+		*r1 = 0; // Emulate kfree();
+}
+
+P1(int *a, int *b, int *c, int **p)
+{
+	int *r1;
+
+	*c = 1;
+	r1 = READ_ONCE(*p);
+	WRITE_ONCE(*p, c);
+	synchronize_rcu();
+	if (r1)
+		*r1 = 0; // Emulate kfree();
+}
+
+P2(int *a, int *b, int *c, int **p)
+{
+	int *r1;
+	int r2;
+
+	rcu_read_lock();
+	r1 = rcu_dereference(*p);
+	r2 = *r1;
+	rcu_read_unlock();
+}
+
+//\end[snippet]
+locations [0:r1; 1:r1; 2:r1; 2:r2; a; b; c; p]
+(* Better not be freed!!! *)
+exists (2:r2=0 \/ a=1 \/
+	(* Better not be duplicate frees! *)
+	0:r1=0 \/ 1:r1=0 \/
+	(* Better be only one in use! *)
+	(b=1 /\ c=1) \/ (b=0 /\ c=0))
