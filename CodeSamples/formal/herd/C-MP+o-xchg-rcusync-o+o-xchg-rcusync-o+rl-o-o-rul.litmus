@@ -5,7 +5,7 @@ C C-MP+o-xchg-rcusync-o+o-xchg-rcusync-o+rl-o-o-rul
 	int a=1;
 	int b;
 	int c;
-	int *p=a;
+	int *p=a;			//\lnlbl[init:p]
 }
 
 P0(int *a, int *b, int *c, int **p)
@@ -13,9 +13,9 @@ P0(int *a, int *b, int *c, int **p)
 	int *r1;
 
 	*b = 1;
-	r1 = xchg(p, b);
-	synchronize_rcu();
-	*r1 = 0; // Emulate kfree();
+	r1 = xchg(p, b);		//\lnlbl[P0:xchg]
+	synchronize_rcu();		//\lnlbl[P0:sync]
+	*r1 = 0; // Emulate kfree();	//\lnlbl[P0:free]
 }
 
 P1(int *a, int *b, int *c, int **p)
@@ -23,9 +23,9 @@ P1(int *a, int *b, int *c, int **p)
 	int *r1;
 
 	*c = 1;
-	r1 = xchg(p, c);
-	synchronize_rcu();
-	*r1 = 0; // Emulate kfree();
+	r1 = xchg(p, c);		//\lnlbl[P1:xchg]
+	synchronize_rcu();		//\lnlbl[P1:sync]
+	*r1 = 0; // Emulate kfree();	//\lnlbl[P1:free]
 }
 
 P2(int *a, int *b, int *c, int **p)
@@ -33,15 +33,15 @@ P2(int *a, int *b, int *c, int **p)
 	int *r1;
 	int r2;
 
-	rcu_read_lock();
-	r1 = rcu_dereference(*p);
-	r2 = *r1;
-	rcu_read_unlock();
+	rcu_read_lock();		//\lnlbl[P2:lock]
+	r1 = rcu_dereference(*p);	//\lnlbl[P2:load]
+	r2 = *r1;			//\lnlbl[P2:deref]
+	rcu_read_unlock();		//\lnlbl[P2:unlock]
 }
 
 //\end[snippet]
 locations [0:r1; 1:r1; 2:r1; 2:r2; a; b; c; p]
 (* Better not be freed!!! *)
-exists (2:r2=0 \/ a=1 \/
+exists (2:r2=0 \/ a=1 \/			(* \lnlbl[ex:1] *)
 	(* Better be only one in use! *)
-	(b=1 /\ c=1) \/ (b=0 /\ c=0))
+	(b=1 /\ c=1) \/ (b=0 /\ c=0))		(* \lnlbl[ex:2] *)
