@@ -9,7 +9,9 @@
 This section looks at RCU from the viewpoint of its Linux-kernel API\@.\footnote{
 	Userspace RCU's API is documented
 	elsewhere~\cite{PaulMcKenney2013LWNURCU}.}
-\Cref{sec:defer:RCU has a Family of Wait-to-Finish APIs}
+\Cref{sec:defer:RCU API and Software Engineering}
+explores the relationship between RCU's API and software engineering,
+\cref{sec:defer:RCU has a Family of Wait-to-Finish APIs}
 presents RCU's wait-to-finish APIs,
 \cref{sec:defer:RCU has Publish-Subscribe and Version-Maintenance APIs}
 presents RCU's publish-subscribe and version-maintenance APIs,
@@ -34,6 +36,9 @@ considerations.
 
 Readers who have looked ahead to
 \cref{tab:defer:RCU Wait-to-Finish APIs,%
+tab:defer:RCU Markers for Read-Side Critical Sections,%
+tab:defer:SRCU Markers for Read-Side Critical Sections,%
+tab:defer:RCU Polled Update-Side Primitives,%
 tab:defer:RCU Publish-Subscribe and Version Maintenance APIs,%
 tab:defer:RCU-Protected List APIs,%
 tab:defer:RCU Diagnostic APIs}
@@ -116,8 +121,15 @@ an API\@.
 For example, the RCU implementation used in the Linux kernel is
 summarized by
 \cref{tab:defer:RCU Wait-to-Finish APIs},
-which shows the wait-for-readers portions of the RCU, ``sleepable'' RCU
-(SRCU), Tasks RCU, and generic APIs, respectively,
+whose columns show the wait-for-readers portions of the RCU, ``sleepable''
+RCU (SRCU), Tasks RCU, Tasks RCU Rude, Tasks RCU Trace, and generic APIs,
+respectively,
+\cref{tab:defer:RCU Markers for Read-Side Critical Sections},
+which shows the full range of RCU read-side markers,
+\cref{tab:defer:SRCU Markers for Read-Side Critical Sections},
+which shows the full range of SRCU read-side markers,
+\cref{tab:defer:RCU Polled Update-Side Primitives},
+which shows the full RCU polled grace-period API,
 and by
 \cref{tab:defer:RCU Publish-Subscribe and Version Maintenance APIs},
 which shows the publish-subscribe portions of the
@@ -156,24 +168,28 @@ API~\cite{PaulEMcKenney2024RCUAPI}.\footnote{
 		&
 		    \\
 {\bf Read-side critical-section markers} &
-    \tco{rcu_read_lock()}~! \tco{rcu_read_unlock()}~!
-    \tco{rcu_read_lock_bh()} \tco{rcu_read_unlock_bh()}
-    \tco{rcu_read_lock_sched()} \tco{rcu_read_unlock_sched()}
-    (Plus anything disabing bottom halves, preemption, or interrupts.) &
-	\tco{srcu_read_lock()} \tco{srcu_read_unlock()} &
-	    Voluntary context switch &
-		Voluntary context switch and preempt-enable regions of code &
-		    \tco{rcu_read_lock_trace()} \tco{rcu_read_unlock_trace()} \\
+    \tco{rcu_read_lock()}~! \tco{rcu_read_unlock()}~!  ~~~~~~~~~~~~~~~~~~
+    (See \cref{tab:defer:RCU Markers for Read-Side Critical Sections} for more.) &
+	\tco{srcu_read_lock()} \tco{srcu_read_unlock()} ~~~~~~~~~~~~
+	(See \cref{tab:defer:SRCU Markers for Read-Side Critical Sections} for more.) &
+	    Voluntary context switch in non-idle tasks. &
+		Preemption-disabled regions of code. &
+		    \tco{rcu_read_lock_trace()} \tco{rcu_read_unlock_trace()}
+		    \tco{guard(rcu_tasks_trace)()}
+		    \tco{scoped_guard(rcu_tasks_trace)} \\
 {\bf Update-side primitives (synchronous) } &
     { \tco{synchronize_rcu()}
       \tco{synchronize_net()}
       \tco{synchronize_rcu_expedited()} } &
 	\tco{synchronize_srcu()} \tco{synchronize_srcu_expedited()} &
-	    \tco{synchronize_rcu_tasks()} &
+	    \tco{synchronize_rcu_tasks()}
+	    \tco{synchronize_rcu_mult()} &
 		\tco{synchronize_rcu_tasks_rude()} &
-		    \tco{synchronize_rcu_tasks_trace()} \\
+		    \tco{synchronize_rcu_tasks_trace()}
+		    \tco{rcu_trace_implies_rcu_gp()} \\
 {\bf Update-side primitives (asynchronous / callback) } &
-    \tco{call_rcu()} ! &
+    \tco{call_rcu()} !
+    \tco{call_rcu_hurry()} &
 	\tco{call_srcu()} &
 	    \tco{call_rcu_tasks()} &
 		\tco{call_rcu_tasks_rude()} &
@@ -184,6 +200,17 @@ API~\cite{PaulEMcKenney2024RCUAPI}.\footnote{
 	    \tco{rcu_barrier_tasks()} &
 		\tco{rcu_barrier_tasks_rude()} &
 		    \tco{rcu_barrier_tasks_trace()} \\
+{\bf Update-side primitives (polled) } &
+    \tco{get_state_synchronize_rcu()}
+    \tco{start_poll_synchronize_rcu()}
+    \tco{poll_state_synchronize_rcu()} ~~~~~~~~~~~~~~~~~~
+    (See \cref{tab:defer:RCU Polled Update-Side Primitives} for more.) &
+	\tco{get_state_synchronize_srcu()}
+	\tco{start_poll_synchronize_srcu()}
+	\tco{poll_state_synchronize_srcu()} &
+	    &
+		&
+		    \\
 {\bf Update-side primitives (initiate / wait)} &
     \tco{get_state_synchronize_rcu()}
     \tco{cond_synchronize_rcu()} &
@@ -192,7 +219,10 @@ API~\cite{PaulEMcKenney2024RCUAPI}.\footnote{
 		&
 		    \\
 {\bf Update-side primitives (free memory) } &
-    \tco{kfree_rcu()} &
+    \tco{kfree_rcu()}
+    \tco{kfree_rcu_mightsleep()}
+    \tco{kvfree_rcu()}
+    \tco{kvfree_rcu_mightsleep()} &
 	&
 	    &
 		&
@@ -238,6 +268,121 @@ API~\cite{PaulEMcKenney2024RCUAPI}.\footnote{
 }
 \end{sidewaystable*}
 
+\begin{table*}
+\rowcolors{1}{}{lightgray}
+\renewcommand*{\arraystretch}{1.15}
+\footnotesize
+\centering\OneColumnHSpace{-.4in}
+\ebresizewidth{
+\begin{tabular}{llp{2.0in}}
+\toprule
+Acquisition &
+	Release &
+		Comments \\
+\midrule
+\tco{rcu_read_lock()} &
+	\tco{rcu_read_unlock()} & \\
+\tco{guard(rcu)()} & & RCU reader to end of enclosing scope. \\
+\tco{scoped_guard(rcu)} & & RCU reader for following statement. \\
+\tco{rcu_read_lock_bh()} &
+	\tco{rcu_read_unlock_bh()} & \\
+\tco{rcu_read_lock_sched()} &
+	\tco{rcu_read_unlock_sched()} & \\
+\tco{rcu_read_lock_sched_notrace()} &
+	\tco{rcu_read_unlock_sched_notrace()} & \\
+\tco{local_bh_disable()} &
+	\tco{local_bh_enable()} &
+		And anything else that disables bottom halves. \\
+\tco{preempt_disable()} &
+	\tco{preempt_enable()} &
+		And anything else that disables preemption. \\
+\tco{local_irq_save()} &
+	\tco{local_irq_restore()} &
+		And anything else that disables interrupts. \\
+\bottomrule
+\end{tabular}
+}
+\caption{RCU Markers for Read-Side Critical Sections}
+\label{tab:defer:RCU Markers for Read-Side Critical Sections}
+\end{table*}
+
+\begin{table*}
+\rowcolors{1}{}{lightgray}
+\renewcommand*{\arraystretch}{1.15}
+\footnotesize
+\centering\OneColumnHSpace{-.4in}
+\ebresizewidth{
+\begin{tabular}{llp{2.0in}}
+\toprule
+Acquisition &
+	Release &
+		Comments \\
+\midrule
+\tco{srcu_read_lock()} &
+	\tco{srcu_read_unlock()} & \\
+\tco{guard(srcu)(&my_srcu)} & & SRCU reader to end of enclosing scope. \\
+\tco{scoped_guard(srcu, &my_srcu)} & & SRCU reader for following statement. \\
+\tco{srcu_read_lock_nmisafe()} &
+	\tco{srcu_read_unlock_nmisafe()} & \\
+\tco{srcu_read_lock_notrace()} &
+	\tco{srcu_read_unlock_notrace()} & \\
+\tco{srcu_down_read()} &
+	\tco{srcu_down_read()} & \\
+\bottomrule
+\end{tabular}
+}
+\caption{SRCU Markers for Read-Side Critical Sections}
+\label{tab:defer:SRCU Markers for Read-Side Critical Sections}
+\end{table*}
+
+\begin{table*}
+\rowcolors{1}{}{lightgray}
+\renewcommand*{\arraystretch}{1.15}
+\footnotesize
+\centering\OneColumnHSpace{-.4in}
+\ebresizewidth{
+\begin{tabular}{p{2.5in}p{2.5in}}
+\toprule
+Compressed State / Full State &
+		Comments \\
+\midrule
+\tco{get_completed_synchronize_rcu()}
+\tco{get_completed_synchronize_rcu_full()} &
+	Return always-completed state. \\
+\tco{get_state_synchronize_rcu()}
+\tco{get_state_synchronize_rcu_full()} &
+	Return state for grace-period completion. \\
+\tco{start_poll_synchronize_rcu()}
+\tco{start_poll_synchronize_rcu_full()} &
+	Return state for grace-period completion and start
+	a grace period if needed. \\
+\tco{start_poll_synchronize_rcu_expedited()}
+\tco{start_poll_synchronize_rcu_expedited_full()} &
+	Return state for grace-period completion and start
+	an expedited grace period if needed. \\
+\tco{poll_state_synchronize_rcu()}
+\tco{poll_state_synchronize_rcu_full()} &
+	Return true if state's grace period has ended. \\
+\tco{cond_synchronize_rcu()}
+\tco{cond_synchronize_rcu_full()} &
+	Wait (if needed) for state's grace period to end. \\
+\tco{cond_synchronize_rcu_expedited()}
+\tco{cond_synchronize_rcu_expedited_full()} &
+	Expedited wait (if needed) for state's grace period to end. \\
+\tco{NUM_ACTIVE_RCU_POLL_OLDSTATE}
+\tco{NUM_ACTIVE_RCU_POLL_OLDSTATE} &
+	Maximum number of states corresponding to in-flight grace
+	periods. \\
+\tco{same_state_synchronize_rcu()}
+\tco{same_state_synchronize_rcu_full()} &
+	Are two states equivalent? \\
+\bottomrule
+\end{tabular}
+}
+\caption{RCU Polled Update-Side Primitives}
+\label{tab:defer:RCU Polled Update-Side Primitives}
+\end{table*}
+
 If you are new to RCU, you might consider focusing on just one
 of the columns in
 \cref{tab:defer:RCU Wait-to-Finish APIs},
@@ -246,7 +391,7 @@ For example, if you are primarily interested in understanding how RCU
 is used in the Linux kernel, ``RCU'' would be the place to start,
 as it is used most frequently.
 On the other hand, if you want to understand RCU for its own sake,
-``Tasks RCU'' has the simplest API\@.
+``Tasks RCU Rude'' has the simplest API\@.
 You can always come back for the other columns later.
 
 If you are already familiar with RCU, these tables can
@@ -269,12 +414,16 @@ The ``RCU'' column corresponds to the consolidation of the
 three Linux-kernel RCU
 implementations~\cite{PaulEMcKenney2019RCUCVE,McKenney:2019:CRS:3319647.3325836},
 in which RCU read-side critical sections start with
-\apik{rcu_read_lock()}, \apik{rcu_read_lock_bh()}, or \apik{rcu_read_lock_sched()}
-and end with \apik{rcu_read_unlock()}, \apik{rcu_read_unlock_bh()},
-or \apik{rcu_read_unlock_sched()}, respectively.
-Any region of code that disables bottom halves, interrupts, or preemption
-also acts as an RCU read-side critical section.
-RCU read-side critical sections may be nested.
+\apik{rcu_read_lock()} and end with \apik{rcu_read_unlock()}.
+These critical sections can also use  APIs in
+\cref{tab:defer:RCU Markers for Read-Side Critical Sections}, including
+\apik{rcu_read_lock_bh()}, \apik{rcu_read_lock_sched()},
+and \apik{rcu_read_unlock_bh()}, or \apik{rcu_read_unlock_sched()}.
+In addition, any region of code that disables bottom halves, interrupts,
+or preemption also acts as an RCU read-side critical section.
+RCU read-side critical sections may be nested.\footnote{
+	Note well the RAII variants provided by \co{guard(rcu)()} and
+	\co{scoped_guard(rcu)}.}
 The corresponding synchronous update-side primitives,
 \apik{synchronize_rcu()} and \apik{synchronize_rcu_expedited()}, along with
 their synonym \apik{synchronize_net()}, wait for any type of currently
@@ -288,9 +437,14 @@ subsequent grace period.
 For example, \co{call_rcu(p,f);} will result in
 the ``RCU callback'' \co{f(p)}
 being invoked after a subsequent grace period.
+Kernels built with \co{CONFIG_RCU_LAZY=y} delay grace periods that would
+otherwise be started immediately by \co{call_rcu()} to be delayed by up
+to several seconds.
+Where such delays are unacceptable, \apik{call_rcu_hurry()} can be used
+to start grace periods immediately.
 There are situations,
-such as when unloading a Linux-kernel module that uses \co{call_rcu()},
-when it is necessary to wait for all
+such as when unloading a Linux-kernel module that uses \co{call_rcu()}
+or \co{call_rcu_hurry()}, when it is necessary to wait for all
 outstanding RCU callbacks to complete~\cite{PaulEMcKenney2007rcubarrier}.
 The \apik{rcu_barrier()} primitive does this job.
 
@@ -436,6 +590,32 @@ The \apik{rcu_barrier()} primitive does this job.
 }\QuickQuizEndE
 }
 
+The \co{synchronize_rcu()} and \co{call_rcu()} families of APIs are easy
+to use, with queueing, batching, and wakeups provided automatically for
+the user.
+However, there are situations where this ease of use gets in the way,
+for example, when a cache of RCU-protected objects might be subject
+to reuse during the grace period that otherwise would have allowed them
+to be freed.
+Although this can be handed through careful use of flags that interact
+with the RCU callback queued by \co{call_rcu()}, this can be inconvenient
+and can waste CPU times due to the overhead of the doomed \co{call_rcu()}
+invocations.
+
+In these cases, RCU's polled grace-period primitives can be helpful.
+The \apik{get_state_synchronize_rcu()} and \apik{start_poll_synchronize_rcu()}
+functions return a grace-period state ``cookie'' that encapsulates the
+grace-period state after the completion of a later grace period.
+Once such a later grace period ends, the \apik{poll_state_synchronize_rcu()}
+will return \co{true}.
+There are quite a few additional functions in RCU's polled grace
+period API\@.
+For more information on them, including example code, see slides~34 and
+later of the 2024 LSF/MM presentation on this
+topic~\cite{PaulEMcKenney2024ReclamationInteractionsWithRCU}.\footnote{
+	These functions' kernel-doc headers in the Linux-kernel source
+	code can also be quite helpful.}
+
 Finally, RCU may be used to provide
 \IX{type-safe memory}~\cite{Cheriton96a}, as described in
 \cref{sec:defer:Type-Safe Memory}.
@@ -459,6 +639,9 @@ convenient place to store a per-task reader-nesting count.
 (Keep in mind that although the Linux kernel provides dynamically
 allocated per-CPU storage, there is not yet dynamically allocated
 per-task storage.)
+SRCU read-side critical sections can also be marked by the APIs shown in
+\cref{tab:defer:SRCU Markers for Read-Side Critical Sections}, again
+noting the new RAII variants.
 
 A given \co{srcu_struct} structure may be defined as a global
 variable with \co{DEFINE_SRCU()} if the structure must be used in
@@ -478,10 +661,14 @@ prevent SRCU read-side critical sections from blocking unrelated
 invocations.
 Of course, use of either \apik{synchronize_srcu()} or
 \apik{synchronize_srcu_expedited()} within an SRCU read-side critical
-section can result in self-deadlock, so should be avoided.
+section can result in self-deadlock, so should be avoided (and which
+is checked for by lockdep in v6.4 and later).
 As with RCU, SRCU's \co{synchronize_srcu_expedited()} decreases
 grace-period latency compared to \co{synchronize_srcu()}, but at
 the expense of increased CPU overhead.
+Also as with RCU, there are \apik{get_state_synchronize_srcu()},
+\apik{start_poll_synchronize_srcu()}, and \apik{poll_state_synchronize_srcu()}
+functions that permit polling of SRCU grace-period APIs.
 
 \QuickQuiz{
 	Under what conditions can \co{synchronize_srcu()} be safely
@@ -494,7 +681,8 @@ the expense of increased CPU overhead.
 	In practice, however, doing this is almost certainly a bad idea.
 	In particular, the code shown in
 	\cref{lst:defer:Multistage SRCU Deadlocks}
-	could still result in deadlock.
+	could still result in deadlock, which lockdep will complain about
+	in v6.4 and later Linux kernels.
 
 \begin{listing}
 \begin{VerbatimL}
@@ -517,7 +705,7 @@ Similar to normal RCU, self-deadlock can be avoided using the
 asynchronous \apik{call_srcu()} function.
 However, special care must be taken when using \co{call_srcu()} because
 a single task could register SRCU callbacks very quickly.
-Given that SRCU allows readers to block for arbitrary periods of
+Given that SRCU readers can block for an arbitrarily long
 time, this could consume an arbitrarily large quantity of memory.
 In contrast, given the synchronous \co{synchronize_srcu()}
 interface, a given task must finish waiting for a given grace period
@@ -565,7 +753,9 @@ This variant is Tasks RCU\@.
 
 Tasks RCU is unusual in having no read-side marking functions, which
 is good given that its main use case has nowhere to put such markings.
-Instead, calls to \co{schedule()} serve directly as quiescent states.
+Instead, calls to \co{schedule()} serve directly as quiescent states,
+but only those calls to \co{schedule()} that correspond to voluntary
+context switches.
 Updates can use \apik{synchronize_rcu_tasks()} to wait for all pre-existing
 trampoline execution to complete, or they can use its asynchronous
 counterpart, \apik{call_rcu_tasks()}.
@@ -585,6 +775,9 @@ it would not be free of challenges.
 
 	In fact, in nonpreemptible kernels, \co{synchronize_rcu_tasks()}
 	is a wrapper around \co{synchronize_rcu()}.
+	But note that kernels with runtime-settable preemption
+	(\co{CONFIG_PREEMPT_DYNAMIC=y}) or with lazy preemption enabled
+	(\co{CONFIG_PREEMPT_LAZY=y}) are in fact preemptible.
 }\QuickQuizEnd
 
 The ``Tasks RCU Rude'' column provides a more effective variant
@@ -602,13 +795,12 @@ read-side markers.
 Finally, the ``Tasks RCU Trace'' column provides an RCU implementation
 with functionality similar to that of SRCU, except with much faster
 read-side markers.\footnote{
-	And thus is unusual for the Tasks RCU family for having
+	And thus is unusual for the Tasks RCU family due to having
 	explicit read-side markers!}
 However, this speed is a consequence of the fact that these markers
-do not execute memory-barrier instructions, which means that Tasks RCU
-Trace grace periods must often send IPIs to all CPUs and must always
-scan the entire task list, thus degrading real-time response and
-consuming considerable CPU time.
+do not execute memory-barrier instructions, which means that Tasks
+RCU Trace grace periods must often send IPIs to all, thus degrading
+real-time response.
 Nevertheless, in the absence of readers, the resulting grace-period
 latency is reasonably short, rivaling that of RCU\@.
 
@@ -648,6 +840,9 @@ Pointer publish &
 	\tco{rcu_pointer_handoff()} &
 		Simple instructions \\
 &
+	\tco{unrcu_pointer()} &
+		Simple instructions \\
+&
 	\tco{RCU_INIT_POINTER()} &
 		Simple instructions \\
 &
@@ -664,14 +859,36 @@ Pointer subscribe (traversal) &
 	\tco{rcu_dereference_check()} &
 		Simple instructions (memory barrier on Alpha) \\
 &
+	\tco{rcu_dereference_bh()} &
+		Simple instructions (memory barrier on Alpha) \\
+&
+	\tco{rcu_dereference_bh_check()} &
+		Simple instructions (memory barrier on Alpha) \\
+&
+	\tco{rcu_dereference_sched()} &
+		Simple instructions (memory barrier on Alpha) \\
+&
+	\tco{rcu_dereference_sched_check()} &
+		Simple instructions (memory barrier on Alpha) \\
+&
 	\tco{rcu_dereference_protected()} &
 		Simple instructions \\
 &
 	\tco{rcu_dereference_raw()} &
 		Simple instructions (memory barrier on Alpha) \\
 &
-	\tco{rcu_dereference_raw_notrace()} &
+	\tco{rcu_dereference_raw_check()} &
 		Simple instructions (memory barrier on Alpha) \\
+\midrule
+SRCU pointer subscribe (traversal) &
+	\tco{srcu_dereference()} &
+		Simple instructions \\
+&
+	\tco{srcu_dereference_check()} &
+		Simple instructions \\
+&
+	\tco{srcu_dereference_notrace()} &
+		Simple instructions \\
 \bottomrule
 \end{tabular}
 }
@@ -1195,7 +1412,6 @@ lockdep support &
 &	\tco{srcu_read_lock_held()} \\
 &	\tco{rcu_is_watching()} \\
 &	\tco{RCU_LOCKDEP_WARN()} \\
-&	\tco{RCU_NONIDLE()} \\
 &	\tco{rcu_sleep_check()} \\
 \bottomrule
 \end{tabular}
