@@ -169,22 +169,6 @@ then
 	echo "### Consider upgrading to Ubuntu 20.04 LTS or later.     ###"
 	echo "############################################################"
 fi
-# fvextra version check (Ubuntu 25.04 and 25.10 have buggy one
-FVEXTRA_VER=`grep -E -e 'fvextra .* v[0-9\.]+' $basename.log | \
-		sed -e 's/.* \(v.*\) fv.*/\1/'`
-#echo $FVEXTRA_VER
-FVEXTRA_BUGGY_SINCE=v1.11.0
-FVEXTRA_BUGGY_UNTIL=v1.13.2
-
-fvextra_since=`env printf "$FVEXTRA_BUGGY_SINCE\n$FVEXTRA_VER" | sort -V | head -n 1`
-fvextra_until=`env printf "$FVEXTRA_BUGGY_UNTIL\n$FVEXTRA_VER" | sort -V | tail -n 1`
-
-if [ $fvextra_since = $FVEXTRA_BUGGY_SINCE -a $fvextra_until = $FVEXTRA_BUGGY_UNTIL ] ; then
-	echo "Buggy fvextra $FVEXTRA_VER detected."
-	echo "It causes undesirable page/column breaks in short code snippets."
-	echo "Consider installing fvextra < $FVEXTRA_BUGGY_SINCE or > $FVEXTRA_BUGGY_UNTIL."
-fi
-
 # to avoid redundant run of bibtex and pdflatex
 touch $basename.bbl
 touch $basename.pdf
