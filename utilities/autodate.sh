@@ -133,3 +133,20 @@ if [ $(echo $tcbversion $tcbold | awk '{if ($1 > $2) print 1;}') ] ;
 then
 	env printf '\\tcbsetforeverylayer{autoparskip}\n' >> $fn
 fi
+
+# check if fvextra is buggy ("samepage=true")
+FVEXTRA_BUGGY_SINCE=v1.11.0
+FVEXTRA_BUGGY_UNTIL=v1.13.2
+
+fvextra_sty=`kpsewhich fvextra.sty`
+if [ "x$fvextra_sty" != "x" ] ; then
+	fvextra_ver=`grep -E -e 'v[0-9\.]+ fvextra' $fvextra_sty | \
+		        sed -e 's/.* \(v.*\) fv.*/\1/'`
+	fvextra_since=`env printf "$FVEXTRA_BUGGY_SINCE\n$fvextra_ver" | sort -V | head -n 1`
+	fvextra_until=`env printf "$FVEXTRA_BUGGY_UNTIL\n$fvextra_ver" | sort -V | tail -n 1`
+fi
+
+if [ $fvextra_since = $FVEXTRA_BUGGY_SINCE -a $fvextra_until = $FVEXTRA_BUGGY_UNTIL ] ; then
+	env printf '%% fvextra buggy: %s\n' $fvextra_ver >> $fn
+	env printf '\\setboolean{buggyfvextra}{true}\n' >> $fn
+fi

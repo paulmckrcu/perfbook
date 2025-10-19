@@ -13,6 +13,7 @@ LATEXSOURCES = \
 	pfbook.cls \
 	ushyphex.tex pfhyphex.tex \
 	ack.tex \
+	*.ltx \
 	*/*.tex \
 	*/*/*.tex
 
