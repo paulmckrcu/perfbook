@@ -1124,11 +1124,60 @@ In addition, if a large number of invalidate messages arrive
 in a short time period, a given CPU might fall behind in processing
 them, thus possibly stalling all the other CPUs.
 
-However, the CPU need not actually invalidate the cache line
-before sending the acknowledgement.
-It could instead queue the invalidate message with the understanding
+However, in real-world systems, the CPU might not actually invalidate
+the cache line before sending the acknowledgement.
+It might instead queue the invalidate message with the understanding
 that the message will be processed before the CPU sends any further
 messages regarding that cache line.
+
+\QuickQuiz{
+	How can the CPU possibly send the invalidate acknowledge before
+	actually invalidating the corresponding cache line without
+	wreaking all kinds of havoc, including different CPUs seeing
+	multiple different values for the same variables at the same
+	time???
+}\QuickQuizAnswer{
+	To start with, CPUs can already see multiple values for a given
+	variable at the same time, as amply demonstrated by
+	\cref{fig:memorder:A Variable With More Simultaneous Values}
+	on
+	\cpageref{fig:memorder:A Variable With More Simultaneous Values}.
+	Furthermore, on weakly ordered architectures, there are very few
+	guarantees, so if the CPU can prove that the cache coherence
+	protocol allows the CPU to order subsequent loads before the
+	other CPU's store (the one that caused the invalidate to be sent),
+	then it can continue supplying loads from the doomed cache line.
+
+	Furthermore, the CPU might be able to commence speculative
+	execution, which can be squashed if need be.
+	In short, speculative execution allows the CPU to violate the
+	rules if (and only if!\@) it can hide any such violations from
+	the user code.
+
+	However, if the cache line was in ``modified'' or ``exclusive''
+	state when the invalidate was received, it will be necessary
+	to transition its state to at least ``shared'' prior to sending
+	the invalidate acknowledge message.
+	Otherwise, stores might be lost or atomic read-modify-write
+	operations on the other CPU might be executed incorrectly.
+	And even then, the CPU will need to keep track of the fact that
+	the cache line is doomed, which means that we are using something
+	other than strict MESI\@.
+	On the other hand, hardware architects can and do use much more
+	complex cache-coherence protocols than MESI, which in turn permit
+	more optimizations courtesy of the additional state information
+	that these more complex protocols track.
+
+	This is all in the name of optimization, although such hardware
+	optimizations must be implemented extremely carefully.
+	Of course, if the code contains memory-ordering instructions
+	such as memory barriers, then the CPU's ability to optimize
+	will be more limited.
+
+	But never forget that CPU-based optimizations are quite limited
+	compared to those of modern optimizing compilers!
+	Whose optimizations are also limited by memory-ordering constraints.
+}\QuickQuizEnd
 
 \subsection{Invalidate Queues and Invalidate Acknowledge}
 \label{sec:app:whymb:Invalidate Queues and Invalidate Acknowledge}
