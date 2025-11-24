@@ -7,6 +7,7 @@
 # cross-klitmus7:  Cross-compile transformed litmus tests by klitmus7
 # run-absperf:     Run memory model benchmark tests of absperf
 # run-absperf-all: Run all absperf tests (including those take quite a while)
+# run-dblcheck4:   Run C-double-check-rcu-4 (takes 20 mins or so)
 #
 # Warning: absperf tests take more than 1 hour by default.
 #
@@ -47,7 +48,9 @@ ABSPERF_TEST   := $(wildcard C-SB+l-*.litmus)
 ABSPERF_LONG   := $(wildcard C-SB+l-o-o-u+l-o-o-u+l-o-o-u+l-o-o-u+l-o-o-u-*.litmus)
 ABSPERF_SHORT  := $(filter-out $(ABSPERF_LONG),$(ABSPERF_TEST))
 ABSPERF_OUT    = absperf.out absperf-all.out
-HERD7_TEST     := $(filter-out $(ABSPERF_TEST),$(HERD7_LITMUS))
+DBL_CHECK_LONG = C-double-check-rcu-4.litmus
+DBL_CHECK_LONG_OUT := $(DBL_CHECK_LONG:%.litmus=%.out)
+HERD7_TEST     := $(filter-out $(ABSPERF_TEST) $(DBL_CHECK_LONG),$(HERD7_LITMUS))
 HERD7_OUT      := $(HERD7_TEST:%.litmus=%.out)
 KLITMUS_READY = \
     C-Lock1 C-Lock2 \
@@ -61,7 +64,7 @@ KLITMUS_READY = \
 KLITMUS_TEST   := $(addsuffix .litmus,$(KLITMUS_READY))
 
 .PHONY: all clean litmus2herd run-herd7 run-absperf run-absperf-all cross-klitmus
-.PHONY: help
+.PHONY: run-dblcheck4 help
 
 all: litmus2herd
 
@@ -73,6 +76,7 @@ $(LITMUS7_HERD_TEST): %.herd: ../litmus/%
 run-herd7: $(LITMUS7_HERD_OUT) $(HERD7_OUT)
 run-absperf: absperf.out
 run-absperf-all: absperf-all.out
+run-dblcheck4: $(DBL_CHECK_LONG_OUT)
 
 $(LKMM_LIST):
 	@echo "#####################################################"
@@ -89,7 +93,7 @@ $(LITMUS7_HERD_OUT) $(ABSPERF_OUT) $(HERD7_OUT): $(LKMM_LIST)
 $(LITMUS7_HERD_OUT): %.out: %.herd
 	cd $(LKMM_DIR); herd7 -conf linux-kernel.cfg $(HERD_DIR)/$< > $(HERD_DIR)/$@
 
-$(HERD7_OUT): %.out: %.litmus
+$(HERD7_OUT) $(DBL_CHECK_LONG_OUT): %.out: %.litmus
 	cd $(LKMM_DIR); herd7 -conf linux-kernel.cfg $(HERD_DIR)/$< > $(HERD_DIR)/$@
 
 absperf.out: ABSPERF_LIST = $(ABSPERF_SHORT)
@@ -122,6 +126,7 @@ help:
 	@echo "    cross-klitmus7:  Cross-compile transformed litmus tests by klitmus7"
 	@echo "    run-absperf:     Run memory model benchmark tests of absperf"
 	@echo "    run-absperf-all: Run all absperf tests (including those take quite a while)"
+	@echo "    run-dblcheck4:   Run C-double-check-rcu-4 (takes 20 mins or so)"
 	@echo
 	@echo "Warning: absperf tests require more than 1 hour by default."
 	@echo "    Refer to comment in Makefile for instructions to override default setting."
