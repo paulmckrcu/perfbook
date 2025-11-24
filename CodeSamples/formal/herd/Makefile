@@ -49,7 +49,15 @@ ABSPERF_SHORT  := $(filter-out $(ABSPERF_LONG),$(ABSPERF_TEST))
 ABSPERF_OUT    = absperf.out absperf-all.out
 HERD7_TEST     := $(filter-out $(ABSPERF_TEST),$(HERD7_LITMUS))
 HERD7_OUT      := $(HERD7_TEST:%.litmus=%.out)
-KLITMUS_READY = C-Lock1 C-Lock2 C-RCU-remove C-RomanPenyaev-list-rcu-rr C-SB+o-rcusync-o+rl-o-o-rul
+KLITMUS_READY = \
+    C-Lock1 C-Lock2 \
+    C-RCU-remove C-RomanPenyaev-list-rcu-rr \
+    C-SB+o-rcusync-o+rl-o-o-rul \
+    C-MP+o-xchg-rcusync-o+o-xchg-rcusync-o+rl-o-o-rul \
+    C-MP+o-o-rcusync-o+o-o-rcusync-o+rl-o-o-rul \
+    C-double-check-cas-2 \
+    C-double-check-rcu-2 C-double-check-rcu-3 C-double-check-rcu-4
+
 KLITMUS_TEST   := $(addsuffix .litmus,$(KLITMUS_READY))
 
 .PHONY: all clean litmus2herd run-herd7 run-absperf run-absperf-all cross-klitmus
