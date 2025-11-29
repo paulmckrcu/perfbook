@@ -248,7 +248,7 @@ But those wishing more detail should continue on to the next section.
 		& Lock free
 			& Lock free
 				& Blocking
-					& Bounded wait free \\
+					& Bounded wait free (QSBR \& urcu) \\
 	Reader Reference Acquisition
 		& Can fail (conditional)
 			& Can fail (conditional)
@@ -357,6 +357,52 @@ has a \IXalth{bounded wait-free}{bounded}{wait free}
 \IX{forward-progress guarantee}, which means that
 it can carry out a finite traversal by executing a bounded number of
 instructions.
+
+\QuickQuiz{
+	Wait a minute!!!
+	Linux-kernel RCU's \co{rcu_read_unlock()} can do lock
+	acquisitions, and that cannot possibly be wait-free!
+	What are you trying to pull???
+}\QuickQuizAnswer{
+	You seem to have missed the ``(QSBR \& urcu)'' in that cell.
+
+	Non-preemptible Linux kernels use QSBR, in which
+	\co{rcu_read_lock()} is not just bounded population-oblivious
+	wait free, but executes zero instructions.
+
+	Userspace RCU executes a finite sequence of simple instructions,
+	thus also qualifying as bounded population-oblivious wait free.
+
+	The one exception to this is the ``bullet-proof'' variant of
+	userspace RCU, in which the first call to \co{rcu_read_lock()}
+	registers the current thread as an RCU reader.
+	But only the first call, so this added overhead can be rendered
+	harmless by ensuring that each thread invokes \co{rcu_read_lock()}
+	before undertaking any work requiring wait-free forward-progress
+	guarantees.
+
+	But what about preemptible Linux kernels?
+
+	There, the goal is instead aggressive real-time response,
+	which is covered in
+	\cref{sec:advsync:Parallel Real-Time Computing}.
+	
+	In the meantime, please note that the Linux kernel supports
+	only finite numbers of CPUs and that the lock acquisitions
+	in \co{rcu_preempt_deferred_qs_irqrestore()}, which is
+	called indirectly from \co{rcu_read_unlock()}, have
+	interrupts disabled.
+	In addition, those locks are replicated, so that a given lock
+	is normally only acquired by one of sixteen CPUs.
+	This limits lock contention and prevents both preemption and
+	interrupts from delaying execution while those locks are held,
+	in turn providing excellent forward
+	progrees~\cite{BjoernBrandenburgPhD,DanielBristot2019RTtrace,Hillier86,DipankarSarma2004OLSscalability}.
+
+	In short, formalisms such as wait-free synchronization have their
+	place, but the really important thing is to figure out what your
+	users really need and then to implement it for them.
+}\QuickQuizEnd
 
 The ``Reader Reference Acquisition'' row indicates that only RCU is
 capable of unconditionally acquiring references.
