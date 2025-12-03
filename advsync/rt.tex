@@ -842,6 +842,43 @@ bare-metal systems~\cite{AbdullahAljuhni2018nohzfull}.
 	FredericWeisbecker2022practicalExample,
 	FredericWeisbecker2022nohzfullTSC}.
 
+The \co{CONFIG_NO_HZ_FULL} approach focuses primarily on reducing jitter
+from scheduling clock interrupts, which is the major concern for many
+workloads.
+However, ever-increasing CPU counts mean that it is increasingly
+advantageous to run real-time and non-realtime applications on a single
+system at the same time.
+These non-realtime systems are likely to need to remap memory, and worse
+yet the kernel may also need to remap kernel memory on their behalf.
+This will result in TLB-flush IPIs being sent to all CPUs, including
+the \co{nohz_full} CPUs, which will induce undesirable jitter on the
+real-time workload.
+
+These TLB-flush IPIs can be avoided on architectures such as ARM and
+PowerPC that provide machine instructions that flush other CPUs'
+TLBs, but even on these architectures, CPUs will still be subject
+to IPIs due to scheduling events, the Linux-kernel \co{smp_call_function()}
+and \co{irq_queue_work()} primitives, and much else besides.
+In addition, even when the entire system is dedicated to the real-time
+application, the most aggressive real-time applications would be best
+served by preventing \emph{all} IPIs.
+
+Zhou et al.~\cite{ZhouyiZhou2025deterministicsub05responselinux}
+therefore propose placing yet more housekeeping responsibility onto
+the real-time application.
+In their approach, all IPIs to CPUs running real-time applications are
+deferred until that application reaches a safe point where those IPIs'
+latencies can be tolerated.
+The application then calls into the kernel, which processes those
+deferred IPIs.
+
+This approach might be criticized as having some serious usability
+issues, but it achieves 0.5-microsecond latencies, which constitutes an
+improvement of more than an order of magnitude over the best latencies
+reported for Linux-kernel real-time systems.
+For some users, this improvement will more than justify the additional
+effort and care required by this approach.
+
 There has of course been much debate over which of these approaches
 is best for real-time systems, and this debate has been going on for
 quite some
