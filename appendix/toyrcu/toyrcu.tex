@@ -666,6 +666,130 @@ However, it would not likely scale well beyond a few CPUs.
 The next section describes yet another variation on the reference-counting
 scheme that provides greatly improved read-side performance and scalability.
 
+\section{Scalable Single-Counter RCU}
+\label{sec:app:toyrcu:Scalable Single-Counter RCU}
+
+The single global counter used in
+\cref{sec:app:toyrcu:Simple Counter-Based RCU}
+will be non-zero any time that any thread is executing within
+an RCU read-side critical section.
+Assuming that each thread spends a fixed fraction of its time in
+such a critical section, as threads are added, the probability
+that the global counter is non-zero approaches unity, resulting
+in starvation of the updater.
+One way to avoid such starvation is to use a pair of global counters,
+as discussed in
+\cref{sec:app:toyrcu:Starvation-Free Counter-Based RCU},
+however, this still suffers from memory contention as illustrated by
+\cref{fig:count:Atomic Increment Scalability on x86}.
+Another approach is to use a per-thread counter, so that a given thread's
+counter will be zero whenever that thread is outside of an RCU read-side
+critical section, no matter how many threads there are.
+
+\Cref{lst:app:toyrcu:RCU Read-Side Using Per-Thread Reference-Count}
+(\path{rcu_rcpl.h})
+shows the read-side primitives of an RCU implementation that uses per-thread
+reference counters.\footnote{
+	Or, if you prefer, nesting-level counters.}
+One benefit of per-thread \co{rcu_nesting[]} counter is that the
+\co{rcu_read_lock()} and \co{rcu_read_unlock()} primitives no longer
+execute atomic instructions, but instead execute non-atomic increments
+and decrements of per-thread counters.
+
+\begin{listing}
+\input{CodeSamples/defer/rcu_rcl@define.fcv}
+\caption{RCU Per-Thread Reference-Count Data}
+\label{lst:app:toyrcu:RCU Per-Thread Reference-Count Data}
+\end{listing}
+
+\begin{listing}
+\input{CodeSamples/defer/rcu_rcl@r.fcv}
+\caption{RCU Read-Side Using Per-Thread Reference-Count}
+\label{lst:app:toyrcu:RCU Read-Side Using Per-Thread Reference-Count}
+\end{listing}
+
+\QuickQuiz{
+	Come off it!
+	We can see the \co{atomic_read()} primitive in
+	\co{rcu_read_lock()}!!!
+	So why are you trying to pretend that \co{rcu_read_lock()}
+	contains no atomic operations???
+}\QuickQuizAnswer{
+	Yes, the \co{atomic_read()} primitives is an atomic operation,
+	but it does not execute atomic machine instructions.
+	It instead executes a normal load from an \co{atomic_t}.
+	Its sole purpose is to keep the compiler's type-checking happy.
+	If the Linux kernel ran on 8-bit CPUs, it would also need to
+	prevent ``store tearing'', which could happen due to the need
+	to store a 16-bit pointer with two eight-bit accesses on some
+	8-bit systems.
+	But thankfully, it seems that no one runs Linux on 8-bit systems.
+}\QuickQuizEnd
+
+\begin{listing}
+\input{CodeSamples/defer/rcu_rcl@u.fcv}
+\caption{RCU Update Using Per-Thread Reference-Count}
+\label{lst:app:toyrcu:RCU Update Using Per-Thread Reference-Count}
+\end{listing}
+
+\Cref{lst:app:toyrcu:RCU Update Using Per-Thread Reference-Count}
+(\path{rcu_rcl.c})
+shows the implementation of \co{synchronize_rcu()}.
+\begin{fcvref}[ln:defer:rcu_rcl:u:sync]
+The \co{synchronize_rcu()} function resembles that shown in
+\cref{lst:app:toyrcu:RCU Implementation Using Single Global Reference Counter},
+except that the polling of the global counter is replaced by a scan on
+\clnrefrange{loop:b}{loop:e}
+that polls each per-thread counter in turn.
+\end{fcvref}
+
+This RCU implementation imposes important new requirements on its
+software environment, namely, (1) that it be possible to declare
+per-thread variables, (2) that these per-thread variables be accessible
+from other threads, and (3) that it is possible to enumerate all threads.
+These requirements can be met in almost all software environments,
+but often result in fixed upper bounds on the number of threads.
+More-complex implementations might avoid such bounds, for example, by using
+expandable hash tables.
+Such implementations might dynamically track threads, for example, by
+adding them on their first call to \co{rcu_read_lock()}.
+
+\QuickQuiz{
+	Great, if we have $N$ threads, we can have $2N$ ten-millisecond
+	waits (one set per \co{flip_counter_and_wait()} invocation,
+	and even that assumes that we wait only once for each thread).
+	Don't we need the grace period to complete \emph{much} more quickly?
+}\QuickQuizAnswer{
+	Keep in mind that we only wait for a given thread if that thread
+	is still in an RCU read-side critical section.
+	So the only way that we would wait for $2N$ intervals would
+	be if each thread happened to be in an RCU read-side critical
+	section at the time that the update iterated over that thread.
+
+	However, the implementation in
+	\cref{sec:app:toyrcu:Scalable Counter-Based RCU}
+	does even better.
+}\QuickQuizEnd
+
+This implementation still has several shortcomings.
+First, \co{synchronize_rcu()} must now examine a number of variables
+that increases linearly with the number of threads, imposing substantial
+overhead on applications with large numbers of threads.
+
+Third, as before, although concurrent RCU updates could in principle
+be satisfied by a common grace period, this implementation serializes
+grace periods, preventing grace-period sharing.
+
+Finally, as noted in the text, the need for per-thread variables
+and for enumerating threads may be problematic in some software
+environments.
+
+That said, the read-side primitives scale very nicely, executing a
+fixed set of machine instructions that access a per-thread counter.
+
+The next section describes an algorithm that prevents readers from
+starving even the most unlucky updaters.
+
 \section{Scalable Counter-Based RCU}
 \label{sec:app:toyrcu:Scalable Counter-Based RCU}
 
@@ -674,15 +798,14 @@ scheme that provides greatly improved read-side performance and scalability.
 shows the read-side primitives of an RCU implementation that uses per-thread
 pairs of reference counters.
 This implementation is quite similar to that shown in
+\cref{lst:app:toyrcu:RCU Read-Side Using Per-Thread Reference-Count},
+the main difference being the addition of the \co{rcu_refcnt} per-thread
+array shown in
+\cref{lst:app:toyrcu:RCU Per-Thread Reference-Count Pair Data}.
+As with the algorithm in 
 \cref{lst:app:toyrcu:RCU Read-Side Using Global Reference-Count Pair},
-the only difference being that \co{rcu_refcnt} is now a per-thread
-array (as shown in
-\cref{lst:app:toyrcu:RCU Per-Thread Reference-Count Pair Data}).
-As with the algorithm in the previous section, use of this two-element
-array prevents readers from starving updaters.
-One benefit of per-thread \co{rcu_refcnt[]} array is that the
-\co{rcu_read_lock()} and \co{rcu_read_unlock()} primitives no longer
-perform atomic operations.
+use of this two-element array prevents readers from starving even the
+least lucky updaters.
 
 \begin{listing}
 \input{CodeSamples/defer/rcu_rcpl@define.fcv}
@@ -695,24 +818,6 @@ perform atomic operations.
 \caption{RCU Read-Side Using Per-Thread Reference-Count Pair}
 \label{lst:app:toyrcu:RCU Read-Side Using Per-Thread Reference-Count Pair}
 \end{listing}
-
-\QuickQuiz{
-	Come off it!
-	We can see the \co{atomic_read()} primitive in
-	\co{rcu_read_lock()}!!!
-	So why are you trying to pretend that \co{rcu_read_lock()}
-	contains no atomic operations???
-}\QuickQuizAnswer{
-	The \co{atomic_read()} primitives does not actually execute
-	atomic machine instructions, but rather does a normal load
-	from an \co{atomic_t}.
-	Its sole purpose is to keep the compiler's type-checking happy.
-	If the Linux kernel ran on 8-bit CPUs, it would also need to
-	prevent ``store tearing'', which could happen due to the need
-	to store a 16-bit pointer with two eight-bit accesses on some
-	8-bit systems.
-	But thankfully, it seems that no one runs Linux on 8-bit systems.
-}\QuickQuizEnd
 
 \begin{listing}
 \input{CodeSamples/defer/rcu_rcpl@u.fcv}
@@ -742,52 +847,21 @@ Once all such elements have gone to zero,
 it executes another memory barrier on \clnref{mb2} and returns.
 \end{fcvref}
 
-This RCU implementation imposes important new requirements on its
-software environment, namely, (1) that it be possible to declare
-per-thread variables, (2) that these per-thread variables be accessible
-from other threads, and (3) that it is possible to enumerate all threads.
-These requirements can be met in almost all software environments,
-but often result in fixed upper bounds on the number of threads.
-More-complex implementations might avoid such bounds, for example, by using
-expandable hash tables.
-Such implementations might dynamically track threads, for example, by
-adding them on their first call to \co{rcu_read_lock()}.
-
-\QuickQuiz{
-	Great, if we have $N$ threads, we can have $2N$ ten-millisecond
-	waits (one set per \co{flip_counter_and_wait()} invocation,
-	and even that assumes that we wait only once for each thread).
-	Don't we need the grace period to complete \emph{much} more quickly?
-}\QuickQuizAnswer{
-	Keep in mind that we only wait for a given thread if that thread
-	is still in a pre-existing RCU read-side critical section,
-	and that waiting for one hold-out thread gives all the other
-	threads a chance to complete any pre-existing RCU read-side
-	critical sections that they might still be executing.
-	So the only way that we would wait for $2N$ intervals
-	would be if the last thread still remained in a pre-existing
-	RCU read-side critical section despite all the waiting for
-	all the prior threads.
-	In short, this implementation will not wait unnecessarily.
-
-	However, if you are stress-testing code that uses RCU, you
-	might want to comment out the \co{poll()} statement in
-	order to better catch bugs that incorrectly retain a reference
-	to an RCU-protected data element outside of an RCU
-	read-side critical section.
-}\QuickQuizEnd
-
 This implementation still has several shortcomings.
 First, the need to flip \co{rcu_idx} twice imposes substantial overhead
 on updates, especially if there are large numbers of threads.
 
-Second, \co{synchronize_rcu()} must now examine a number of variables
-that increases linearly with the number of threads, imposing substantial
-overhead on applications with large numbers of threads.
+Second, as before, \co{synchronize_rcu()} must now examine a number of
+variables that increases linearly with the number of threads, imposing
+substantial overhead on applications with large numbers of threads.
 
 Third, as before, although concurrent RCU updates could in principle
 be satisfied by a common grace period, this implementation serializes
 grace periods, preventing grace-period sharing.
+
+Fourth, the need to consult \co{rcu_idx} slows readers slightly compared
+to the implementation presented in
+\co{sec:app:toyrcu:Scalable Single-Counter RCU}.
 
 Finally, as noted in the text, the need for per-thread variables
 and for enumerating threads may be problematic in some software
