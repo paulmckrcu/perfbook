@@ -34,6 +34,7 @@ ARCH_DEPENDENT = gettimestamp \
 	rcu_qs \
 	rcu_rcg \
 	rcu_rcpg \
+	rcu_rcl \
 	rcu_rcpl \
 	rcu_rcpls \
 	rcu_sig \
@@ -114,6 +115,9 @@ rcu_rcg: rcu_rcg.c rcu_rcg.h ../api.h rcutorture.h
 
 rcu_rcpg: rcu_rcpg.c rcu_rcpg.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_rcpg -DTEST rcu_rcpg.c -lpthread
+
+rcu_rcl: rcu_rcl.c rcu_rcl.h ../api.h rcutorture.h
+	cc $(GCC_ARGS) -o rcu_rcl -DTEST rcu_rcl.c -lpthread
 
 rcu_rcpl: rcu_rcpl.c rcu_rcpl.h ../api.h rcutorture.h
 	cc $(GCC_ARGS) -o rcu_rcpl -DTEST rcu_rcpl.c -lpthread
