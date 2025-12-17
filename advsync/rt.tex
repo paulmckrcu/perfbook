@@ -857,12 +857,21 @@ real-time workload.
 These TLB-flush IPIs can be avoided on architectures such as ARM and
 PowerPC that provide machine instructions that flush other CPUs'
 TLBs, but even on these architectures, CPUs will still be subject
-to IPIs due to scheduling events, the Linux-kernel \co{smp_call_function()}
+to IPIs due to scheduling events, the \co{smp_text_poke()} IPIs supporting
+in-kernel self-modifying code, the Linux-kernel \co{smp_call_function()}
 and \co{irq_queue_work()} primitives, and much else besides.
-In addition, even when the entire system is dedicated to the real-time
-application, the most aggressive real-time applications would be best
-served by preventing \emph{all} IPIs.
+Schneider~\cite{ValentinScheider2025IPIinterference}
+is working on IPIs that do not affect userspace execution, deferring
+them until the next kernel entry.
+This work currently features the \co{smp_text_poke()} IPIs supporting
+in-kernel self-modifying code.
+Work has also started on the more challenging IPIs flushing kernel TLBs,
+which are still needed for systems not providing off-CPU TLB-flush
+machine instructions.
 
+However, even when the entire system is dedicated to the real-time
+application, the most aggressive real-time applications would be best
+served by deferring or otherwise preventing \emph{all} IPIs.
 Zhou et al.~\cite{ZhouyiZhou2025deterministicsub05responselinux}
 therefore propose placing yet more housekeeping responsibility onto
 the real-time application.
@@ -872,7 +881,7 @@ latencies can be tolerated.
 The application then calls into the kernel, which processes those
 deferred IPIs.
 
-This approach might be criticized as having some serious usability
+This last approach might be criticized as having some serious usability
 issues, but it achieves 0.5-microsecond latencies, which constitutes an
 improvement of more than an order of magnitude over the best latencies
 reported for Linux-kernel real-time systems.
