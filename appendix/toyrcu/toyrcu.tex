@@ -8,19 +8,6 @@
 	 {M. H\'ebert}
 % https://www.ncbi.nlm.nih.gov/pubmed/11548147
 
-The toy RCU implementations in this appendix are designed not for
-high performance, practicality, or any kind of production use,\footnote{
-	However, production-quality user-level RCU implementations
-	are available~\cite{MathieuDesnoyers2009URCU,MathieuDesnoyers2012URCU}.}
-but rather for clarity.
-Nevertheless, you will need a thorough understanding of
-\cref{chp:Introduction,%
-chp:Hardware and its Habits,%
-chp:Tools of the Trade,%
-chp:Partitioning and Synchronization Design,%
-chp:Deferred Processing}
-for even these toy RCU implementations to be easily understandable.
-
 This appendix provides a series of RCU implementations in order of
 increasing sophistication, from the viewpoint of solving the
 existence-guarantee problem.
@@ -34,6 +21,19 @@ simple RCU implementations based on locking,
 and free-running counters.
 Finally, \cref{sec:app:toyrcu:Summary of Toy RCU Implementations}
 provides a summary and a list of desirable RCU properties.
+
+The toy RCU implementations in this appendix are designed not for
+high performance, practicality, or any kind of production use,\footnote{
+	However, production-quality user-level RCU implementations
+	are available~\cite{MathieuDesnoyers2009URCU,MathieuDesnoyers2012URCU}.}
+but rather for clarity and for instructional purposes.
+Nevertheless, you will need a thorough understanding of
+\cref{chp:Introduction,%
+chp:Hardware and its Habits,%
+chp:Tools of the Trade,%
+chp:Partitioning and Synchronization Design,%
+chp:Deferred Processing}
+for even these toy RCU implementations to be easily understood.
 
 \section{Lock-Based RCU}
 \label{sec:app:toyrcu:Lock-Based RCU}
@@ -1692,10 +1692,15 @@ create a new RCU implementation.
 	be avoided.
 \item	RCU read-side primitives should have $\O{1}$ computational
 	complexity to enable real-time use.
-	(This implies that readers run concurrently with updaters.)
-\item	RCU read-side primitives should be usable in all contexts
-	(in the Linux kernel, they are permitted everywhere except in
-	the idle loop).
+	This implies that readers run concurrently with updaters.
+	(But note that preemptible Linux-kernel RCU's
+	\co{rcu_read_unlock()} can violate this desideratum for
+	low-priority threads and at the end of extremely long-running
+	RCU read-side critical sections.)
+\item	RCU read-side primitives should be usable in all contexts (in
+	the Linux kernel, they are permitted everywhere except in deep
+	in the idle loop, from offline CPUs, and in kernel entry/exit
+	code paths).
 	An important special case is that RCU read-side primitives be
 	usable within an RCU read-side critical section, in other words,
 	that it be possible to nest RCU read-side critical sections.
@@ -1736,5 +1741,9 @@ create a new RCU implementation.
 	to a (mythical) unconditional read-to-write upgrade for
 	reader-writer locking.
 }\QuickQuizEnd
+
+Those wishing more detail on requirements for
+Linux-kernel RCU should refer to its internal
+documentation~\cite{PaulEMcKenney2015rcu-requirements}.
 
 \QuickQuizAnswersChp{qqztoyrcu}
