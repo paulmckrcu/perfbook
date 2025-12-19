@@ -53,7 +53,8 @@ find */ -type d -print |
 	sed -e "s,^,mkdir ${destdir}/," |
 	sh
 
-cp ack.tex autodate.tex glsdict.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex summary.tex origpub.sty qqz.sty pfbook.cls pfhyphex.tex perfbook.bbl perfbook.acr perfbook.ind perfbook-api.ind indexsee.tex ${destdir}
+# Copy miscellaneous files
+cp ack.tex alphapf.bst autodate.tex fixfvextra.ltx glsdict.tex glossary.tex origpub.tex contrib.tex legal.tex qqz.tex summary.tex origpub.sty qqz.sty pfbook.cls pfhyphex.tex perfbook.bbl perfbook.acr perfbook.ind perfbook-api.ind indexsee.tex ${destdir}
 cp `kpsewhich fvextra.sty` ${destdir}
 cp `kpsewhich epigraph.sty` ${destdir}
 
@@ -85,3 +86,5 @@ sed	-e '/usepackage{footnotebackref}/d' \
 	-e 's/{toarxiv}{false}/{toarxiv}{true}/' \
 	< perfbook.tex > ${destdir}/perfbook.tex
 # echo "nohypertex" > ${destdir}/00README.XXX
+
+echo "Make a .tar.gz tarball and submit on the arxiv.org site."
