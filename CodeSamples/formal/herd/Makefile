@@ -114,7 +114,7 @@ cross-klitmus: klitmus.tar
 
 klitmus.tar: litmus2herd $(KLITMUS_TEST)
 	mkdir -p klitmus
-	klitmus7 -rcu yes -o klitmus $(LITMUS7_HERD_TEST) $(KLITMUS_TEST)
+	klitmus7 -o klitmus $(KLITMUS7_EXTRAOPTS) $(LITMUS7_HERD_TEST) $(KLITMUS_TEST)
 	tar cf klitmus.tar ./klitmus
 
 help:
@@ -124,6 +124,7 @@ help:
 	@echo "Other targets:"
 	@echo "    run-herd7:       Examine transformed litmus tests by herd7 with LKMM"
 	@echo "    cross-klitmus7:  Cross-compile transformed litmus tests by klitmus7"
+	@echo "        Say \"make KLITMUS7_EXTRAOPTS='-rcu yes' cross-klitmus7\" to include RCU tests."
 	@echo "    run-absperf:     Run memory model benchmark tests of absperf"
 	@echo "    run-absperf-all: Run all absperf tests (including those take quite a while)"
 	@echo "    run-dblcheck4:   Run C-double-check-rcu-4 (takes 20 mins or so)"
