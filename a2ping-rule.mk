@@ -38,10 +38,14 @@ endif
 ifeq ($(A2PING_GSCNFL),1)
 	$(error You need to update a2ping. See #7 in FAQ-BUILD.txt)
 endif
-	@cp $< $<i
-	@sh $(FIXANEPSFONTS) $<i
-	@a2ping --below --hires --bboxfrom=compute-gs $<i $@ > /dev/null 2>&1
-	@rm -f $<i
+	@TMP=`mktemp -d` && \
+	    TMP1=$$TMP/$(notdir $<i) && \
+	    TMPDST=$$TMP/$(notdir $@) && \
+	    cp $< $$TMP1 && \
+	    sh $(FIXANEPSFONTS) $$TMP1 && \
+	    a2ping --below --hires --bboxfrom=compute-gs $$TMP1 $$TMPDST > /dev/null 2>&1 && \
+	    mv -f $$TMPDST $@ && \
+	    rm -rf $$TMP
 
 $(PDFTARGETS_OF_TEX): %.pdf: %.eps
 	@echo "$< --> $(suffix $@) (by a2ping)"
@@ -52,11 +56,23 @@ ifeq ($(A2PING_GSCNFL),1)
 	$(error a2ping version conflict. See #7 in FAQ-BUILD.txt)
 endif
 ifeq ($(A2PING_GSCNFL),2)
-	@a2ping --below --gsextra=-dALLOWPSTRANSPARENCY $< $(basename $@)__.pdf > /dev/null 2>&1
-	@pdfcrop --hires $(basename $@)__.pdf $@ > /dev/null
-	@rm -f $(basename $@)__.pdf
+	@TMP=`mktemp -d` && \
+	    TMPSRC=$$TMP/$(notdir $<) && \
+	    TMP1=$$TMP/$(notdir $(basename $@)__.pdf) && \
+	    TMPDST=$$TMP/$(notdir $@) && \
+	    cp $< $$TMPSRC && \
+	    a2ping --below --gsextra=-dALLOWPSTRANSPARENCY $$TMPSRC $$TMP1 > /dev/null 2>&1 && \
+	    pdfcrop --hires $$TMP1 $$TMPDST > /dev/null && \
+	    mv -f $$TMPDST $@ && \
+	    rm -rf $$TMP
 else
-	@a2ping --below --hires --bboxfrom=compute-gs $< $@ > /dev/null 2>&1
+	@TMP=`mktemp -d` && \
+	    TMPSRC=$$TMP/$(notdir $<) && \
+	    TMPDST=$$TMP/$(notdir $@) && \
+	    cp $< $$TMPSRC && \
+	    a2ping --below --hires --bboxfrom=compute-gs $$TMPSRC $$TMPDST > /dev/null 2>&1 && \
+	    mv -f $$TMPDST $@ && \
+	    rm -rf $$TMP
 endif
 
 $(PDFTARGETS_OF_EPSORIG_NOFIXFONTS) $(PDFTARGETS_OF_EPSOTHER): %.pdf: %.eps
@@ -67,4 +83,10 @@ endif
 ifeq ($(A2PING_GSCNFL),1)
 	$(error a2ping version conflict. See #7 in FAQ-BUILD.txt)
 endif
-	@a2ping --below --hires --bboxfrom=compute-gs $< $@ > /dev/null 2>&1
+	@TMP=`mktemp -d` && \
+	    TMPSRC=$$TMP/$(notdir $<) && \
+	    TMPDST=$$TMP/$(notdir $@) && \
+	    cp $< $$TMPSRC && \
+	    a2ping --below --hires --bboxfrom=compute-gs $$TMPSRC $$TMPDST > /dev/null 2>&1 && \
+	    mv -f $$TMPDST $@ && \
+	    rm -rf $$TMP

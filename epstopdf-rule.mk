@@ -14,10 +14,15 @@ $(PDFTARGETS_OF_GNUPLOT_NEEDFIXFONTS): %.pdf: %.eps
 ifndef EPSTOPDF
 	$(error $< --> $@: epstopdf not found. Please install it)
 endif
-	@sh $(FIXFONTS) < $< > $(basename $<)__.eps
-	@eps2eps $(basename $<)__.eps $(basename $<)___.eps
-	@epstopdf $(GS_OPT) $(basename $<)___.eps $@
-	@rm -f $(basename $<)__.eps $(basename $<)___.eps
+	@TMP=`mktemp -d` && \
+	    TMP1=$$TMP/$(notdir $(basename $<)__.eps) && \
+	    TMP2=$$TMP/$(notdir $(basename $<)___.eps) && \
+	    TMPDST=$$TMP/$(notdir $@) && \
+	    sh $(FIXFONTS) < $< > $$TMP1 && \
+	    eps2eps $$TMP1 $$TMP2 && \
+	    epstopdf $(GS_OPT) $$TMP2 $$TMPDST && \
+	    mv -f $$TMPDST $@ && \
+	    rm -rf $$TMP
 
 $(PDFTARGETS_OF_TEX): %.pdf: %.eps
 	@echo "$< --> $(suffix $@)"
@@ -25,19 +30,38 @@ ifndef EPSTOPDF
 	$(error $< --> $@: epstopdf not found. Please install it)
 endif
 ifeq ($(GS_953_OR_LATER),1)
-	@eps2eps -dALLOWPSTRANSPARENCY $< $(basename $<)__.eps
-	@epstopdf --gsopt=-dALLOWPSTRANSPARENCY $(GS_OPT) $(basename $<)__.eps $@
+	@TMP=`mktemp -d` && \
+	    TMPSRC=$$TMP/$(notdir $<) && \
+	    TMP1=$$TMP/$(notdir $(basename $<)__.eps) && \
+	    TMPDST=$$TMP/$(notdir $@) && \
+	    cp $< $$TMPSRC && \
+	    eps2eps -dALLOWPSTRANSPARENCY $$TMPSRC $$TMP1 && \
+	    epstopdf --gsopt=-dALLOWPSTRANSPARENCY $(GS_OPT) $$TMP1 $$TMPDST && \
+	    mv -f $$TMPDST $@ && \
+	    rm -rf $$TMP
 else
-	@eps2eps -dNOSAFER $< $(basename $<)__.eps
-	@epstopdf --nosafer $(GS_OPT) $(basename $<)__.eps $@
+	@TMP=`mktemp -d` && \
+	    TMPSRC=$$TMP/$(notdir $<) && \
+	    TMP1=$$TMP/$(notdir $(basename $<)__.eps) && \
+	    TMPDST=$$TMP/$(notdir $@) && \
+	    cp $< $$TMPSRC && \
+	    eps2eps -dNOSAFER $$TMPSRC $$TMP1 && \
+	    epstopdf --nosafer $(GS_OPT) $$TMP1 $$TMPDST && \
+	    mv -f $$TMPDST $@ && \
+	    rm -rf $$TMP
 endif
-	@rm -f $(basename $<)__.eps
 
 $(PDFTARGETS_OF_EPSORIG_NOFIXFONTS) $(PDFTARGETS_OF_EPSOTHER): %.pdf: %.eps
 	@echo "$< --> $(suffix $@)"
 ifndef EPSTOPDF
 	$(error $< --> $@: epstopdf not found. Please install it)
 endif
-	@eps2eps $< $(basename $<)__.eps
-	@epstopdf $(GS_OPT) $(basename $<)__.eps $@
-	@rm -f $(basename $<)__.eps
+	@TMP=`mktemp -d` && \
+	    TMPSRC=$$TMP/$(notdir $<) && \
+	    TMP1=$$TMP/$(notdir $(basename $<)__.eps) && \
+	    TMPDST=$$TMP/$(notdir $@) && \
+	    cp $< $$TMPSRC && \
+	    eps2eps $$TMPSRC $$TMP1 && \
+	    epstopdf $(GS_OPT) $$TMP1 $$TMPDST && \
+	    mv -f $$TMPDST $@ && \
+	    rm -rf $$TMP

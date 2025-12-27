@@ -503,7 +503,10 @@ endif
 
 $(PDFTARGETS_OF_SVG_CROP): %-crop.pdf: %.pdf
 	@echo "Crop $< (pdfcrop)"
-	@pdfcrop $< $@ > /dev/null
+	@TMP=`mktemp -d` && cp $< $$TMP/$(notdir $<) && \
+	    pdfcrop $$TMP/$(notdir $<) $$TMP/$(notdir $@) > /dev/null && \
+	    mv -f $$TMP/$(notdir $@) $@ && \
+	    rm -rf $$TMP/
 
 ifdef RSVG_CONVERT
   FALLBACK_RSVG_CONVERT = || (cat $<i | rsvg-convert $(RSVG_FMT_OPT) > $@ && echo "$< --> $(suffix $@) (fallback rsvg-convert)")
