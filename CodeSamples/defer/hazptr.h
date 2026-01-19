@@ -74,7 +74,7 @@ static inline void *_h_t_r_impl(void **p,		//\lnlbl{htr:b}
 	void *tmp;
 
 	tmp = READ_ONCE(*p);				//\lnlbl{htr:ro1}
-	if (!tmp || tmp == (void *)HAZPTR_POISON)
+	if (!tmp || tmp == (void *)HAZPTR_POISON)	//\lnlbl{htr:check}
 		return tmp;				//\lnlbl{htr:race1}
 	WRITE_ONCE(hp->p, tmp);				//\lnlbl{htr:store}
 	smp_mb();					//\lnlbl{htr:mb}
