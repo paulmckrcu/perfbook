@@ -120,17 +120,16 @@ int route_del(unsigned long addr)
 void route_clear(void)
 {
 	struct route_entry *rep;
+	struct route_entry *rep_local;
 
-	for (;;) {
-		spin_lock(&routelock);
-		rep = route_list;
-		if (!rep) {
-			spin_unlock(&routelock);
+	spin_lock(&routelock);
+	rep_local = route_list;
+	route_list = NULL;
+	synchronize_rcu();
+	for (rep = rep_local; rep; rep = rep_local) {
+		if (!rep)
 			return;
-		}
-		route_list = rep->next;
-		spin_unlock(&routelock);
-		synchronize_rcu();
+		rep_local = rep->next;
 		re_free(rep);
 	}
 }
