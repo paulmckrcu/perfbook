@@ -32,10 +32,10 @@
 
 /* Route-table entry to be included in the routing list. */
 struct route_entry {
-	struct route_entry *re_next;
+	struct route_entry *next;
 	unsigned long addr;
 	unsigned long iface;
-	int re_freed;
+	int freed;
 };
 
 struct route_entry *route_list;
@@ -43,7 +43,7 @@ DEFINE_SPINLOCK(routelock);
 
 static void re_free(struct route_entry *rep)
 {
-	WRITE_ONCE(rep->re_freed, 1);
+	WRITE_ONCE(rep->freed, 1);
 	free(rep);
 }
 
@@ -57,10 +57,10 @@ unsigned long route_lookup(unsigned long addr)
 
 	rcu_read_lock();
 	for (rep = rcu_dereference(route_list); rep;
-	     rep = rcu_dereference(rep->re_next)) {
+	     rep = rcu_dereference(rep->next)) {
 		if (rep->addr == addr) {
 			ret = rep->iface;
-			if (READ_ONCE(rep->re_freed))
+			if (READ_ONCE(rep->freed))
 				abort();
 			rcu_read_unlock();
 			return ret;
@@ -82,9 +82,9 @@ int route_add(unsigned long addr, unsigned long interface)
 		return -ENOMEM;
 	rep->addr = addr;
 	rep->iface = interface;
-	rep->re_freed = 0;
+	rep->freed = 0;
 	spin_lock(&routelock);
-	rep->re_next = route_list;
+	rep->next = route_list;
 	route_list = rep;
 	spin_unlock(&routelock);
 	return 0;
@@ -100,10 +100,10 @@ int route_del(unsigned long addr)
 
 	spin_lock(&routelock);
 	for (repp = &route_list; *repp;
-	     rep = rcu_dereference(*repp), repp = &rep->re_next) {
+	     rep = rcu_dereference(*repp), repp = &rep->next) {
 		rep = rcu_dereference(*repp);
 		if (rep->addr == addr) {
-			rcu_assign_pointer(*repp, rep->re_next);
+			rcu_assign_pointer(*repp, rep->next);
 			spin_unlock(&routelock);
 			synchronize_rcu();
 			re_free(rep);
@@ -128,7 +128,7 @@ void route_clear(void)
 			spin_unlock(&routelock);
 			return;
 		}
-		route_list = rep->re_next;
+		route_list = rep->next;
 		spin_unlock(&routelock);
 		synchronize_rcu();
 		re_free(rep);
