@@ -18,17 +18,78 @@
  * Copyright (c) 2026 Paul E. McKenney, Meta Platforms, Inc.
  */
 
-#define _GNU_SOURCE
-#define _LGPL_SOURCE
-
-#ifndef DO_QSBR
-#define RCU_SIGNAL
-#include <urcu.h>
-#else /* #ifndef DO_QSBR */
-#include <urcu-qsbr.h>
-#endif /* #else #ifndef DO_QSBR */
-
 #include "../api.h"
+
+#undef rcu_dereference
+#undef rcu_assign_pointer
+
+/* Trivial preemptible RCU implementation. */
+
+#define rcu_dereference(p) READ_ONCE(p)
+#define rcu_assign_pointer(p, v) smp_store_release(&(p), v)
+
+spinlock_t rcu_gp_lock;
+
+struct per_thread_rcu {
+	int rcu_here;
+	int rcu_nesting;
+	char pad[CACHE_LINE_SIZE - 2 * sizeof(int)];
+};
+
+int __thread myidx;
+atomic_t nthreads;
+
+struct per_thread_rcu per_thread_rcu[NR_THREADS];
+
+static void rcu_read_lock(void)
+{
+	int *rnp = &per_thread_rcu[myidx].rcu_nesting;
+
+	WRITE_ONCE(*rnp, READ_ONCE(*rnp) + 1);
+	smp_mb(); // Can be optimized away
+}
+
+static void rcu_read_unlock(void)
+{
+	int *rnp = &per_thread_rcu[myidx].rcu_nesting;
+
+	smp_mb(); // Can be optimized away
+	WRITE_ONCE(*rnp, READ_ONCE(*rnp) - 1);
+}
+
+void synchronize_rcu(void)
+{
+	int i;
+	struct per_thread_rcu *ptrp;
+
+	smp_mb();
+	spin_lock(&rcu_gp_lock);
+	for (i = 0; i < NR_THREADS; i++) {
+		ptrp = &per_thread_rcu[i];
+		if (!READ_ONCE(ptrp->rcu_here))
+			continue;
+		while (READ_ONCE(ptrp->rcu_nesting))
+			continue;
+	}
+	spin_unlock(&rcu_gp_lock);
+	smp_mb();
+}
+
+void route_register_thread(void)
+{
+	myidx = atomic_inc_return(&nthreads);
+	WRITE_ONCE(per_thread_rcu[myidx].rcu_here, 1);
+}
+
+void route_unregister_thread(void)
+{
+	smp_mb();
+	WRITE_ONCE(per_thread_rcu[myidx].rcu_here, 0);
+}
+
+#define route_register_thread route_register_thread
+#define route_unregister_thread route_unregister_thread
+#define quiescent_state() do { } while (0)
 
 /* Route-table entry to be included in the routing list. */
 struct route_entry {
@@ -134,10 +195,5 @@ void route_clear(void)
 	}
 }
 
-
-#define route_register_thread() rcu_register_thread()
-#define route_unregister_thread() rcu_unregister_thread()
-
-#define quiescent_state() rcu_quiescent_state()
 
 #include "routetorture.h"
