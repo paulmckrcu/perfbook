@@ -48,7 +48,7 @@ struct per_thread_rcu {
 };
 
 int _Thread_local myidx;
-atomic_t nthreads;
+_Atomic int nthreads;
 
 struct per_thread_rcu per_thread_rcu[NR_THREADS];
 
@@ -93,7 +93,7 @@ void synchronize_rcu(void)
 
 void route_register_thread(void)
 {
-	myidx = atomic_inc_return(&nthreads);
+	myidx = atomic_fetch_add(&nthreads, 1) + 1;
 	atomic_store_explicit(&per_thread_rcu[myidx].rcu_here, 1, memory_order_relaxed);
 }
 
