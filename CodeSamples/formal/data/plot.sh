@@ -22,7 +22,8 @@ set y2range [0:50]
 set style data histogram
 set style histogram rowstacked
 set style fill solid 0.7 noborder
-set key top center
+#set key top center
+set key at 50,39000 box 3
 # Set linestyle 1
 set style line 1 \
     linetype 1 linewidth 0.5 \
