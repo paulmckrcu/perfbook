@@ -146,7 +146,7 @@ int route_add(unsigned long addr, unsigned long interface)
 	rep->freed = 0;
 	spin_lock(&routelock);
 	rep->next = route_list;
-	route_list = rep;
+	rcu_assign_pointer(route_list, rep);
 	spin_unlock(&routelock);
 	return 0;
 }
@@ -185,7 +185,7 @@ void route_clear(void)
 
 	spin_lock(&routelock);
 	rep_local = route_list;
-	route_list = NULL;
+	rcu_assign_pointer(route_list, NULL);
 	synchronize_rcu();
 	for (rep = rep_local; rep; rep = rep_local) {
 		if (!rep)
