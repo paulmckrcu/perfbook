@@ -102,7 +102,7 @@ struct route_entry {
 	struct route_entry *volatile _Atomic next;
 	unsigned long addr;
 	unsigned long iface;
-	int freed;
+	_Atomic int freed;
 };
 
 struct route_entry *volatile _Atomic route_list;
@@ -110,7 +110,7 @@ DEFINE_SPINLOCK(routelock);
 
 static void re_free(struct route_entry *rep)
 {
-	WRITE_ONCE(rep->freed, 1);
+	atomic_store_explicit(&rep->freed, 1, memory_order_relaxed);
 	free(rep);
 }
 
@@ -127,7 +127,7 @@ unsigned long route_lookup(unsigned long addr)
 	     rep = rcu_dereference(rep->next)) {
 		if (rep->addr == addr) {
 			ret = rep->iface;
-			if (READ_ONCE(rep->freed))
+			if (atomic_load_explicit(&rep->freed, memory_order_relaxed))
 				abort();
 			rcu_read_unlock();
 			return ret;
@@ -149,7 +149,7 @@ int route_add(unsigned long addr, unsigned long interface)
 		return -ENOMEM;
 	rep->addr = addr;
 	rep->iface = interface;
-	rep->freed = 0;
+	atomic_store_explicit(&rep->freed, 0, memory_order_relaxed);
 	spin_lock(&routelock);
 	atomic_store_explicit(&rep->next, rcu_dereference(route_list),
 			      memory_order_relaxed);
