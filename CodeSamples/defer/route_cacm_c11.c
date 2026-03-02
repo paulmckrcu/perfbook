@@ -38,7 +38,7 @@ struct per_thread_rcu {
 	char pad[CACHE_LINE_SIZE - 2 * sizeof(int)];
 };
 
-int __thread myidx;
+int _Thread_local myidx;
 atomic_t nthreads;
 
 struct per_thread_rcu per_thread_rcu[NR_THREADS];
