@@ -21,6 +21,7 @@
 
 #include "../api.h"
 #include <stdatomic.h>
+#include <threads.h>
 
 #undef rcu_dereference
 #undef rcu_assign_pointer
@@ -30,7 +31,15 @@
 #define rcu_dereference(p) atomic_load_explicit(&(p), memory_order_relaxed)
 #define rcu_assign_pointer(p, v) smp_store_release(&(p), v)
 
-spinlock_t rcu_gp_lock;
+mtx_t rcu_gp_lock;
+static once_flag rcu_gp_lock_flag = ONCE_FLAG_INIT;
+static mtx_t routelock;
+
+static void lock_init(void)
+{
+	mtx_init(&rcu_gp_lock, mtx_plain);
+	mtx_init(&routelock, mtx_plain);
+}
 
 struct per_thread_rcu {
 	_Atomic int rcu_here;
@@ -69,7 +78,8 @@ void synchronize_rcu(void)
 	struct per_thread_rcu *ptrp;
 
 	atomic_thread_fence(memory_order_seq_cst);
-	spin_lock(&rcu_gp_lock);
+	call_once(&rcu_gp_lock_flag, lock_init);
+	mtx_lock(&rcu_gp_lock);
 	for (i = 0; i < NR_THREADS; i++) {
 		ptrp = &per_thread_rcu[i];
 		if (!atomic_load_explicit(&ptrp->rcu_here, memory_order_relaxed))
@@ -77,7 +87,7 @@ void synchronize_rcu(void)
 		while (atomic_load_explicit(&ptrp->rcu_nesting, memory_order_relaxed))
 			continue;
 	}
-	spin_unlock(&rcu_gp_lock);
+	mtx_unlock(&rcu_gp_lock);
 	atomic_thread_fence(memory_order_seq_cst);
 }
 
@@ -106,7 +116,7 @@ struct route_entry {
 };
 
 struct route_entry *volatile _Atomic route_list;
-DEFINE_SPINLOCK(routelock);
+static mtx_t routelock;
 
 static void re_free(struct route_entry *rep)
 {
@@ -150,11 +160,12 @@ int route_add(unsigned long addr, unsigned long interface)
 	rep->addr = addr;
 	rep->iface = interface;
 	atomic_store_explicit(&rep->freed, 0, memory_order_relaxed);
-	spin_lock(&routelock);
+	call_once(&rcu_gp_lock_flag, lock_init);
+	mtx_lock(&routelock);
 	atomic_store_explicit(&rep->next, rcu_dereference(route_list),
 			      memory_order_relaxed);
 	atomic_store_explicit(&route_list, rep, memory_order_release);
-	spin_unlock(&routelock);
+	mtx_unlock(&routelock);
 	return 0;
 }
 
@@ -166,19 +177,20 @@ int route_del(unsigned long addr)
 	struct route_entry *rep;
 	struct route_entry *volatile _Atomic *repp;
 
-	spin_lock(&routelock);
+	call_once(&rcu_gp_lock_flag, lock_init);
+	mtx_lock(&routelock);
 	for (repp = &route_list; *repp;
 	     rep = rcu_dereference(*repp), repp = &rep->next) {
 		rep = rcu_dereference(*repp);
 		if (rep->addr == addr) {
 			rcu_assign_pointer(*repp, rep->next);
-			spin_unlock(&routelock);
+			mtx_unlock(&routelock);
 			synchronize_rcu();
 			re_free(rep);
 			return 0;
 		}
 	}
-	spin_unlock(&routelock);
+	mtx_unlock(&routelock);
 	return -ENOENT;
 }
 
@@ -190,7 +202,8 @@ void route_clear(void)
 	struct route_entry *rep;
 	struct route_entry *rep_local;
 
-	spin_lock(&routelock);
+	call_once(&rcu_gp_lock_flag, lock_init);
+	mtx_lock(&routelock);
 	rep_local = rcu_dereference(route_list);
 	rcu_assign_pointer(route_list, NULL);
 	synchronize_rcu();
