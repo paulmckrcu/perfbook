@@ -33,7 +33,7 @@
 spinlock_t rcu_gp_lock;
 
 struct per_thread_rcu {
-	int rcu_here;
+	_Atomic int rcu_here;
 	_Atomic int rcu_nesting;
 	char pad[CACHE_LINE_SIZE - 2 * sizeof(int)];
 };
@@ -72,7 +72,7 @@ void synchronize_rcu(void)
 	spin_lock(&rcu_gp_lock);
 	for (i = 0; i < NR_THREADS; i++) {
 		ptrp = &per_thread_rcu[i];
-		if (!READ_ONCE(ptrp->rcu_here))
+		if (!atomic_load_explicit(&ptrp->rcu_here, memory_order_relaxed))
 			continue;
 		while (atomic_load_explicit(&ptrp->rcu_nesting, memory_order_relaxed))
 			continue;
@@ -84,13 +84,13 @@ void synchronize_rcu(void)
 void route_register_thread(void)
 {
 	myidx = atomic_inc_return(&nthreads);
-	WRITE_ONCE(per_thread_rcu[myidx].rcu_here, 1);
+	atomic_store_explicit(&per_thread_rcu[myidx].rcu_here, 1, memory_order_relaxed);
 }
 
 void route_unregister_thread(void)
 {
 	atomic_thread_fence(memory_order_seq_cst);
-	WRITE_ONCE(per_thread_rcu[myidx].rcu_here, 0);
+	atomic_store_explicit(&per_thread_rcu[myidx].rcu_here, 0, memory_order_relaxed);
 }
 
 #define route_register_thread route_register_thread
