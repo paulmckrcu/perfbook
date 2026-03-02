@@ -34,7 +34,7 @@ spinlock_t rcu_gp_lock;
 
 struct per_thread_rcu {
 	int rcu_here;
-	int rcu_nesting;
+	_Atomic int rcu_nesting;
 	char pad[CACHE_LINE_SIZE - 2 * sizeof(int)];
 };
 
@@ -45,18 +45,22 @@ struct per_thread_rcu per_thread_rcu[NR_THREADS];
 
 static void rcu_read_lock(void)
 {
-	int *rnp = &per_thread_rcu[myidx].rcu_nesting;
+	int nesting;
+	_Atomic int *rnp = &per_thread_rcu[myidx].rcu_nesting;
 
-	WRITE_ONCE(*rnp, READ_ONCE(*rnp) + 1);
+	nesting = atomic_load_explicit(rnp, memory_order_relaxed);
+	atomic_store_explicit(rnp, nesting + 1, memory_order_relaxed);
 	atomic_thread_fence(memory_order_seq_cst); // Can be optimized away
 }
 
 static void rcu_read_unlock(void)
 {
-	int *rnp = &per_thread_rcu[myidx].rcu_nesting;
+	int nesting;
+	_Atomic int *rnp = &per_thread_rcu[myidx].rcu_nesting;
 
 	atomic_thread_fence(memory_order_seq_cst); // Can be optimized away
-	WRITE_ONCE(*rnp, READ_ONCE(*rnp) - 1);
+	nesting = atomic_load_explicit(rnp, memory_order_relaxed);
+	atomic_store_explicit(rnp, nesting - 1, memory_order_relaxed);
 }
 
 void synchronize_rcu(void)
@@ -70,7 +74,7 @@ void synchronize_rcu(void)
 		ptrp = &per_thread_rcu[i];
 		if (!READ_ONCE(ptrp->rcu_here))
 			continue;
-		while (READ_ONCE(ptrp->rcu_nesting))
+		while (atomic_load_explicit(&ptrp->rcu_nesting, memory_order_relaxed))
 			continue;
 	}
 	spin_unlock(&rcu_gp_lock);
