@@ -48,14 +48,14 @@ static void rcu_read_lock(void)
 	int *rnp = &per_thread_rcu[myidx].rcu_nesting;
 
 	WRITE_ONCE(*rnp, READ_ONCE(*rnp) + 1);
-	smp_mb(); // Can be optimized away
+	atomic_thread_fence(memory_order_seq_cst); // Can be optimized away
 }
 
 static void rcu_read_unlock(void)
 {
 	int *rnp = &per_thread_rcu[myidx].rcu_nesting;
 
-	smp_mb(); // Can be optimized away
+	atomic_thread_fence(memory_order_seq_cst); // Can be optimized away
 	WRITE_ONCE(*rnp, READ_ONCE(*rnp) - 1);
 }
 
@@ -64,7 +64,7 @@ void synchronize_rcu(void)
 	int i;
 	struct per_thread_rcu *ptrp;
 
-	smp_mb();
+	atomic_thread_fence(memory_order_seq_cst);
 	spin_lock(&rcu_gp_lock);
 	for (i = 0; i < NR_THREADS; i++) {
 		ptrp = &per_thread_rcu[i];
@@ -74,7 +74,7 @@ void synchronize_rcu(void)
 			continue;
 	}
 	spin_unlock(&rcu_gp_lock);
-	smp_mb();
+	atomic_thread_fence(memory_order_seq_cst);
 }
 
 void route_register_thread(void)
@@ -85,7 +85,7 @@ void route_register_thread(void)
 
 void route_unregister_thread(void)
 {
-	smp_mb();
+	atomic_thread_fence(memory_order_seq_cst);
 	WRITE_ONCE(per_thread_rcu[myidx].rcu_here, 0);
 }
 
