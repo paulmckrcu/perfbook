@@ -19,9 +19,19 @@
  * Copyright (c) 2026 Paul E. McKenney, Meta Platforms, Inc.
  */
 
+#ifndef CHECK_C11
 #include "../api.h"
+#endif // #ifndef CHECK_C11
 #include <stdatomic.h>
 #include <threads.h>
+
+#ifdef CHECK_C11
+#define CACHE_LINE_SIZE 64
+#define NR_THREADS 512
+#include <errno.h>
+#include <limits.h>
+#include <stdlib.h>
+#endif // #ifdef CHECK_C11
 
 #undef rcu_dereference
 #undef rcu_assign_pointer
@@ -29,7 +39,7 @@
 /* Trivial preemptible RCU implementation. */
 
 #define rcu_dereference(p) atomic_load_explicit(&(p), memory_order_relaxed)
-#define rcu_assign_pointer(p, v) smp_store_release(&(p), v)
+#define rcu_assign_pointer(p, v) atomic_store_explicit(&(p), v, memory_order_release)
 
 mtx_t rcu_gp_lock;
 static once_flag rcu_gp_lock_flag = ONCE_FLAG_INIT;
@@ -216,4 +226,6 @@ void route_clear(void)
 }
 
 
+#ifndef CHECK_C11
 #include "routetorture.h"
+#endif // #ifndef CHECK_C11
