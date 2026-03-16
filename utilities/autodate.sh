@@ -136,7 +136,7 @@ fi
 
 # check if fvextra is buggy ("samepage=true")
 FVEXTRA_BUGGY_SINCE=v1.11.0
-FVEXTRA_BUGGY_UNTIL=v1.13.2
+FVEXTRA_BUGGY_UNTIL=v1.14.0 # as of 2026/02/25
 
 fvextra_sty=`kpsewhich fvextra.sty`
 if [ "x$fvextra_sty" != "x" ] ; then
