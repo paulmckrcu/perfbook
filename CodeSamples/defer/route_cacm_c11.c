@@ -41,7 +41,7 @@
 #define rcu_dereference(p) atomic_load_explicit(&(p), memory_order_relaxed)
 #define rcu_assign_pointer(p, v) atomic_store_explicit(&(p), v, memory_order_release)
 
-mtx_t rcu_gp_lock;
+static mtx_t rcu_gp_lock;
 static once_flag rcu_gp_lock_flag = ONCE_FLAG_INIT;
 static mtx_t routelock;
 
@@ -174,7 +174,7 @@ int route_add(unsigned long addr, unsigned long interface)
 	mtx_lock(&routelock);
 	atomic_store_explicit(&rep->next, rcu_dereference(route_list),
 			      memory_order_relaxed);
-	atomic_store_explicit(&route_list, rep, memory_order_release);
+	rcu_assign_pointer(route_list, rep);
 	mtx_unlock(&routelock);
 	return 0;
 }
