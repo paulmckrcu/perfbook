@@ -2055,6 +2055,38 @@ on \clnrefrange{upd:b}{upd:e}.
 This example shows how RCU can provide deterministic read-side
 data-structure access to real-time programs.
 
+\QuickQuiz{
+	But what if deterministic updates are also required?
+	Doesn't this have a problem with non-deterministic RCU grace
+	periods?
+}\QuickQuizAnswer{
+	It certainly has a problem with \co{synchronize_rcu()}, which
+	blocks waiting for an RCU grace period to elapse, but there are
+	other ways to handle grace periods.
+
+	One approach is to instead use \co{call_rcu()}, which simply
+	queues an RCU callback and continues execution.
+	After a grace period has elapsed, this callback will be invoked,
+	so that the RCU grace-period latency is offloaded from the
+	thread doing the updates.
+	However, some RCU implementations make \co{call_rcu()} do
+	significant work, up to and including invoking arbitrary numbers
+	of callbacks.
+	Such implementations will require a different approach.
+
+	And as of the early 2020s, one different approach within the Linux
+	kernel is to use the polled RCU grace-period APIs described in
+	\cref{sec:defer:RCU has a Family of Wait-to-Finish APIs}.
+	Both the \apik{get_state_synchronize_rcu()} and the
+	\apik{poll_state_synchronize_rcu()} APIs are non-blocking,
+	which permits non-blocking algorithms to use RCU,
+	at least as long as some other RCU function, such as
+	\apik{start_poll_synchronize_rcu()}, is periodically invoked
+	in order to ensure that the required RCU grace period is started.
+	It is hoped that polled RCU grace-period APIs will appear in
+	additional RCU implementations.
+}\QuickQuizEnd
+
 \subsection{Real Time vs.~Real Fast:
 				     How to Choose?}
 \label{sec:advsync:Real Time vs. Real Fast: How to Choose?}
