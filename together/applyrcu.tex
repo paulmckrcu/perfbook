@@ -752,11 +752,37 @@ However, converting to RCU does not always suffice.
 For example, the code might traverse an extremely large linked data
 structure within a single RCU read-side critical section, which might
 so greatly extend the RCU grace period that the system runs out of memory.
-These situations can be handled in a couple of different ways:
+These situations can be handled in several ways:
 \begin{enumerate*}[(1)]
-\item	Use SRCU instead of RCU and
-\item	Acquire a reference to exit the RCU reader.
+\item	Use SRCU instead of RCU,
+\item	Acquire a (possibly per-CPU) reference before exiting the RCU
+	reader, or
+\item	Acquire a hazard pointer before exiting the RCU reader.
 \end{enumerate*}
+
+\QuickQuiz{
+	But if you are going to use hazard pointers anyway, why not just
+	use them everywhere and dispense entirely with RCU?
+}\QuickQuizAnswer{
+	In many cases, switching completely to hazard pointers makes a
+	great deal of sense.
+
+	However, please keep in mind that hazard pointers cannot
+	unconditionally traverse a hazard-protected pointer in all cases.
+	In such cases, completely dispensing with RCU might greatly
+	complicate the traversal of the linked data structure leading
+	to the data element requiring long-term protection.
+	The best strategy would then be to use RCU to traverse the linked
+	data structure and hazard pointers to protect the data element
+	at the end of this traversal.
+
+	In contrast to other
+	work~\cite{JeehoonKang2020MarryHazptrRCU},
+	this method of marrying hazard pointers and RCU leverages the
+	strengths of both mechanisms.
+	Just be very careful to acquire the hazard pointer \emph{before}
+	exiting the RCU read-side critical section!
+}\QuickQuizEnd
 
 \subsubsection{Use SRCU}
 \label{sec:together:Use SRCU}
