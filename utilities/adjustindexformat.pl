@@ -38,5 +38,11 @@ while($line = <$fh>) {
     $line =~ s/\{([^\|]+)(\|hyperindexformat)\{\\gl(@\\makefirstuc )\{.+\}\}\}/\{$1$3\{$1\}$2\{\\GL\}\}/ ;
     $line =~ s/\{([^\|]+)(\|hyperindexformat)\{\\gl(@\\makefirstuc )\{.+\}!([^\}]+)\}\}/\{$1$3\{$1}!$4$2\{\\GL\}\}/ ;
     $line =~ s/(\\makefirstuc )\{([^\)]+)\} \<([^\]]+)\>\|hyperpage\}/$1\{$2\} \($3\)|hyperindexformat\{\\GL\}\}/ ;
+    $line =~ s/\{([^\|]+)(\|hyperxindexformat)\{\\bf(@\\makefirstuc )\{.+\}\}\}/\{$1$3\{$1\}$2\{\\BF\}\}/ ;
+    $line =~ s/\{([^\|]+)(\|hyperxindexformat)\{\\bf(@\\makefirstuc )\{.+\}!([^\}]+)\}\}/\{$1$3\{$1}!$4$2\{\\BF\}\}/ ;
+    $line =~ s/(\\makefirstuc )\{([^\)]+)\} \[([^\]]+)\]\|hyperpage\}/$1\{$2\} \($3\)|hyperxindexformat\{\\BF\}\}/ ;
+    $line =~ s/\{([^\|]+)(\|hyperxindexformat)\{\\gl(@\\makefirstuc )\{.+\}\}\}/\{$1$3\{$1\}$2\{\\GL\}\}/ ;
+    $line =~ s/\{([^\|]+)(\|hyperxindexformat)\{\\gl(@\\makefirstuc )\{.+\}!([^\}]+)\}\}/\{$1$3\{$1}!$4$2\{\\GL\}\}/ ;
+    $line =~ s/(\\makefirstuc )\{([^\)]+)\} \<([^\]]+)\>\|hyperpage\}/$1\{$2\} \($3\)|hyperxindexformat\{\\GL\}\}/ ;
     print $line ;
 }
