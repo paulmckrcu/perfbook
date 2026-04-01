@@ -1130,7 +1130,7 @@ the synchronization by removing the need for RCU\@.\footnote{
 
 Over a period of about ten years, Linux-kernel RCU has gained polling
 grace-period APIs.
-This section gives an overview of their use cases, focusing on RCU.
+This section gives an overview of their use cases, focusing on RCU\@.
 The material in this section also applies to SRCU via the
 \apik{get_state_synchronize_srcu()}, \apik{start_poll_synchronize_srcu()},
 and \apik{poll_state_synchronize_srcu()} APIs.
@@ -1224,13 +1224,17 @@ In the Linux kernel, this situation can usually be handled with callback
 offloading by building the kernel with \co{CONFIG_RCU_NOCB_CPU=y} and
 setting the to-be-offloaded CPUs' bits in the \co{rcu_nocbs} kernel
 boot parameter.
-The system administrator can then set priorities and CPU bindins for
+The system administrator can then set priorities and CPU bindings for
 the resulting \co{rcuo} kernel threads, thus preventing these threads from
 disturbing higher-priority threads or threads running on other CPUs.\footnote{
 	See \url{https://lwn.net/Articles/988641/} for more information.}
 This works, but requires global management of CPUs and priorities,
 which is becoming increasingly difficult as larger and larger numbers
 of workloads are consolidated onto a single system.
+In addition, each individual RCU callback is invoked with softirq (also
+known as ``bottom halves'') disabled, which means that a given callback
+cannot be preempted even by the highest-priority thread, regardless of
+whether that thread is running in the kernel or in userspace.
 
 Another approach is for the in-kernel user to tag each data element
 (or groups of them) with the return value from either
@@ -1244,6 +1248,107 @@ normal and expedited RCU grace periods.
 \subsubsection{Proactive Reclamation}
 \label{sec:together:Proactive Reclamation}
 
+There are sharp tradeoffs among the traditional RCU grace-period-wait
+APIs.
+On the one hand, \apik{synchronize_rcu()} incurs zero storage overhead,
+but on the other hand it inflicts many milliseconds of latency on
+its caller.
+Although \apik{synchronize_rcu_expedited()} inflicts less latency
+on its caller than does \co{synchronize_rcu()}, it still inflicts
+tens of microseconds even on small systems, ranging beyond a
+millisecond on larger systems.
+For their part, \apik{call_rcu()} and \apik{kfree_rcu()} avoid this
+latency, but at the expense of adding to pointers worth of \co{rcu_head}
+to each RCU-protected data structure.
+Finally, \apik{kfree_rcu_mightsleep()} avoids the \co{rcu_head} storage
+overhead, and also avoids the multi-millisecond latency, but only if
+there is ample free memory available.
+When there is no free memory, \co{kfree_rcu_mightsleep()} inflicts just
+as much latency on its caller as does \co{synchronize_rcu()}.
+
+Those wanting the best of all possible worlds would of course advocate
+for something that never inflicts any latency and that requires no pesky
+\co{rcu_head} structures be added to RCU-protected data elements.
+
+It \emph{is} possible to inflict minimal latency while also reducing the
+per-data-element overhead (almost) to a single pointer by constructing a
+singly linked list of data elements that have recently been removed from
+an RCU-protected linked data structure, and then periodically passing
+the full list to \co{call_rcu()}.
+However, this means that a single RCU callback will be traversing and
+and freeing each element of this list, thereby further increasing the
+disruption that invoking callbacks inflicts on the workload.
+The priority level of the disruption (though not its duration) can
+be reduced by using \apik{queue_rcu_work()}, which invokes the callback
+in a workqueue handler with preemption enabled.
+Except that this can result in per-callback context switches, and even
+ignoring that, the callbacks are being invoked at a time of RCU's and
+the workqueue subsystem's choosing.
+
+\begin{figure}[tbp]
+\centering
+\resizebox{3.0in}{!}{\includegraphics{together/PolledRCUcache}}
+\caption{Polled RCU Cache}
+\label{fig:together:Polled RCU Cache}
+\end{figure}
+
+This situation might seem grim, but there are use cases where the
+RCU-protected data elements are linked into a search structure that
+caches some fraction of the universe of such structures.
+This is represented by the leftmost ``Accessible to readers'' box in
+\cref{fig:together:Polled RCU Cache}.
+
+Data elements that are unused for some time might be removed from the
+reader-accessible cache and moved to a holding area, which is represented
+by the ``Old readers access'' box in the figure.
+Such elements can be tagged with the return value from
+one of the polled-grace-period API members, for example,
+\co{get_state_synchronize_rcu()}.
+Because there is only a limited number of polled values that can represent
+a pending RCU grace period, this holding area could contain a small array,
+each element of which contains the grace-period \co{oldstate} value.
+The number of elements is specifed by \apik{NUM_ACTIVE_RCU_POLL_OLDSTATE}
+and \apik{NUM_ACTIVE_RCU_POLL_OLDSTATE_FULL} macros.
+If a reader needs a data element that has been relegated to the
+``Old readers access'' area, it can be once again made accessible to
+readers, as indicated by the arrow at the top of the figure.
+
+When one of the polling APIs (for example, \co{poll_state_synchronize_rcu()}
+indicates that the corresponding RCU grace period has elapsed, then there
+can be \emph{no} readers accessing them.
+Those data elements are then moved to the ``No reader access'' area, as
+indicated by the arrow labeled ``B''\@.
+They can still be made accessible to readers, again as indicated by the
+arrow at the top of the figure.
+
+Finally, should memory run low, data elements can be freed, as indicated
+by the arrow labeled ``C''.
+
+This approach requires negligible per-data-element storage, inflicts almost
+no latency on calling functions, and provides full control of both the
+``when'' and ``how'' of reclamation.
+
 \subsubsection{Nurturing Non-Blocking Synchronization}
 \label{sec:together:Nurturing Non-Blocking Synchronization}
 
+As noted in the previous section, \apik{synchronize_rcu()} and
+\apik{synchronize_rcu_expedited()} both inflict significant latencies
+on their callers.
+Although \apik{call_rcu()} and \apik{kfree_rcu()} inflict almost no
+latency in the common case, in the Linux kernel \co{call_rcu()} can
+inflict wake-up latencies and \co{kfree_rcu()} can inflict
+memory-allocation latencies, both involving acquiring in-kernel locks.
+Any of these latencies might be unacceptable for low-latency applications
+that often choose to use non-blocking synchronization.
+
+The in-kernel portions of such applications can use the polled APIs called
+out earlier in this section, of which \apik{get_state_synchronize_rcu()},
+\apik{get_state_synchronize_rcu_full()},
+\apik{poll_state_synchronize_rcu()}, and
+\apik{poll_state_synchronize_rcu_full()}
+are wait-free.
+None of these APIs will actually start a grace period,
+however, any of the traditional grace-period-wait
+APIs plus both \apik{start_poll_synchronize_rcu()} and
+\apik{start_poll_synchronize_rcu_full()} may be invoked from some
+latency-insensitive time or place to start the needed grace periods.
