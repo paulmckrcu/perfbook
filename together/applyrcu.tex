@@ -1146,44 +1146,50 @@ function that momentarily exited the critical section.
 
 \begin{listing}[tbp] 
 { \scriptsize
-\begin{verbatim}
- 1 rcu_read_lock();
- 2 oldstate = get_state_synchronize_rcu();
- 3 p = rcu_dereference(gp);
- 4 suspicious_function();
- 5 do_something_with(p);
- 6 WARN_ON_ONCE(poll_state_synchronize_rcu(oldstate));
- 7 rcu_read_unlock();
-\end{verbatim}
+\begin{fcvlabel}[ln:together:Polling For Broken RCU Readers]
+\begin{VerbatimL}[commandchars=\\\[\]]
+rcu_read_lock();					\lnlbl[rrl]
+oldstate = get_state_synchronize_rcu();			\lnlbl[gssr]
+p = rcu_dereference(gp);				\lnlbl[rd]
+suspicious_function();					\lnlbl[sf]
+do_something_with(p);					\lnlbl[dsw]
+WARN_ON_ONCE(poll_state_synchronize_rcu(oldstate));	\lnlbl[pssr]
+rcu_read_unlock();					\lnlbl[rrul]
+\end{VerbatimL}
+\end{fcvlabel}
 }
 \caption{Polling For Broken RCU Readers}
-\label{fig:together:Polling For Broken RCU Readers}
+\label{lst:together:Polling For Broken RCU Readers}
 \end{listing}
 
+\begin{fcvref}[ln:together:Polling For Broken RCU Readers]
 Polled RCU grace periods provide at least some chance of detecting such
 fatal surprises, as shown in
-\cref{fig:together:Polling For Broken RCU Readers}.
-Line~1 enters an RCU read-side critical section, and line~5 exits it.
-Line~3 loads a global pointer \co{gp} into local variable \co{p}, preparing
-it to be dereferenced.
-Line~4 invokes a function that might possibly (and erroneously) momentarily
-exit the critical section.
-Line~5 passes \co{p} to \co{do_something_with()}, which might dereference
-this pointer, which could fail if \co{suspicious_function()} had exited
-the critical section, even if only momentarily.
+\cref{lst:together:Polling For Broken RCU Readers}.
+\Clnref{rrl} enters an RCU read-side critical section, and \clnref{rrul}
+exits it.
+\Clnref{rd} loads a global pointer \co{gp} into local variable \co{p},
+preparing it to be dereferenced.
+\Clnref{sf} invokes a function that might possibly (and erroneously)
+momentarily exit the critical section.
+\Clnref{dsw} passes \co{p} to \co{do_something_with()}, which might
+dereference this pointer, which could fail if \co{suspicious_function()}
+had exited the critical section, even if only momentarily.
 
 The \apik{get_state_synchronize_rcu()} and \apik{poll_state_synchronize_rcu()}
 functions may be used to detect a momentary exit from the critical section,
-as shown on lines~2 and~6.\footnote{
+as shown on \clnref{gssr,pssr}.\footnote{
 	Kudos to Vlastimil Babka for inventing this technique.}
-Line~2 invokes \co{get_state_synchronize_rcu()}, placing its return value
-in \co{oldstate}.
-Line~6 then passes \co{oldstate} to \co{poll_state_synchronize_rcu()},
-which returns \co{true} only if a full RCU grace period has elapsed since
-the call to \co{get_state_synchronize_rcu()}.
+\Clnref{gssr} invokes \co{get_state_synchronize_rcu()}, placing its
+return value in \co{oldstate}.
+\Clnref{pssr} then passes \co{oldstate} to
+\co{poll_state_synchronize_rcu()}, which returns \co{true}
+only if a full RCU grace period has elapsed since the call to
+\co{get_state_synchronize_rcu()}.
 Assuming a correctly operating RCU implementation, this \co{true} return
 can happen only if \co{suspicious_function()} exited the critical section,
 hence the \apik{WARN_ON_ONCE()}.
+\end{fcvref}
 
 Unfortunately, RCU grace periods persist for many milliseconds, and
 \co{suspicious_function()} might well exit the critical section for only
