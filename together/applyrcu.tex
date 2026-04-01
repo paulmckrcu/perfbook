@@ -1130,7 +1130,10 @@ the synchronization by removing the need for RCU\@.\footnote{
 
 Over a period of about ten years, Linux-kernel RCU has gained polling
 grace-period APIs.
-This section gives an overview of their use cases.
+This section gives an overview of their use cases, focusing on RCU.
+The material in this section also applies to SRCU via the
+\apik{get_state_synchronize_srcu()}, \apik{start_poll_synchronize_srcu()},
+and \apik{poll_state_synchronize_srcu()} APIs.
 
 \subsubsection{Detecting Broken Readers}
 \label{sec:together:Detecting Broken Readers}
@@ -1208,6 +1211,35 @@ RCU read-side critical sections.
 
 \subsubsection{Restraining Reclamation}
 \label{sec:together:Restraining Reclamation}
+
+RCU implementations typically invoke callbacks\footnote{
+	From Linux-kernel \co{call_rcu()} or C++26 \co{rcu_retire()}.}
+at a time of their choosing, which might or might not be at all convenient
+for the workload.
+This can be especially annoying for real-time workloads, for which
+resuming a high-priority thread immediately after it is awakened will
+usually be much more urgent than freeing a little memory.
+
+In the Linux kernel, this situation can usually be handled with callback
+offloading by building the kernel with \co{CONFIG_RCU_NOCB_CPU=y} and
+setting the to-be-offloaded CPUs' bits in the \co{rcu_nocbs} kernel
+boot parameter.
+The system administrator can then set priorities and CPU bindins for
+the resulting \co{rcuo} kernel threads, thus preventing these threads from
+disturbing higher-priority threads or threads running on other CPUs.\footnote{
+	See \url{https://lwn.net/Articles/988641/} for more information.}
+This works, but requires global management of CPUs and priorities,
+which is becoming increasingly difficult as larger and larger numbers
+of workloads are consolidated onto a single system.
+
+Another approach is for the in-kernel user to tag each data element
+(or groups of them) with the return value from either
+\apik{get_state_synchronize_rcu()} or \apik{start_poll_synchronize_rcu()},
+then periodically call \apik{poll_state_synchronize_rcu()} when it is
+a good time to free the memory.
+Alternatively, the \co{_free()} counterparts of these three APIs may be
+used, which consumes more memory, but more accurately accounts for both
+normal and expedited RCU grace periods.
 
 \subsubsection{Proactive Reclamation}
 \label{sec:together:Proactive Reclamation}
