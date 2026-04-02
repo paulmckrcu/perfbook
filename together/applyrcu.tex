@@ -1149,6 +1149,37 @@ function that momentarily exited the critical section.
 
 \begin{listing}[tbp] 
 { \scriptsize
+\begin{fcvlabel}[ln:together:Broken RCU Readers?]
+\begin{VerbatimL}[commandchars=\\\[\]]
+rcu_read_lock();					\lnlbl[rrl]
+p = rcu_dereference(gp);				\lnlbl[rd]
+suspicious_function();					\lnlbl[sf]
+do_something_with(p);					\lnlbl[dsw]
+rcu_read_unlock();					\lnlbl[rrul]
+\end{VerbatimL}
+\end{fcvlabel}
+}
+\caption{Broken RCU Readers?}
+\label{lst:together:Broken RCU Readers?}
+\end{listing}
+
+\begin{fcvref}[ln:together:Broken RCU Readers?]
+For example, see
+\cref{lst:together:Broken RCU Readers?}.
+\Clnref{rrl} enters an RCU read-side critical section, and \clnref{rrul}
+exits it.
+\Clnref{rd} loads a global pointer \co{gp} into local variable \co{p},
+preparing it to be dereferenced.
+\Clnref{sf} invokes a function that might possibly (and erroneously)
+momentarily exit the critical section.
+\Clnref{dsw} passes \co{p} to \co{do_something_with()}, which might
+dereference this pointer, which could fail if \co{suspicious_function()}
+had exited the critical section, even if only momentarily.
+
+\end{fcvref}
+
+\begin{listing}[tbp] 
+{ \scriptsize
 \begin{fcvlabel}[ln:together:Polling For Broken RCU Readers]
 \begin{VerbatimL}[commandchars=\\\[\]]
 rcu_read_lock();					\lnlbl[rrl]
@@ -1169,16 +1200,6 @@ rcu_read_unlock();					\lnlbl[rrul]
 Polled RCU grace periods provide at least some chance of detecting such
 fatal surprises, as shown in
 \cref{lst:together:Polling For Broken RCU Readers}.
-\Clnref{rrl} enters an RCU read-side critical section, and \clnref{rrul}
-exits it.
-\Clnref{rd} loads a global pointer \co{gp} into local variable \co{p},
-preparing it to be dereferenced.
-\Clnref{sf} invokes a function that might possibly (and erroneously)
-momentarily exit the critical section.
-\Clnref{dsw} passes \co{p} to \co{do_something_with()}, which might
-dereference this pointer, which could fail if \co{suspicious_function()}
-had exited the critical section, even if only momentarily.
-
 The \apik{get_state_synchronize_rcu()} and \apik{poll_state_synchronize_rcu()}
 functions may be used to detect a momentary exit from the critical section,
 as shown on \clnref{gssr,pssr}.\footnote{
@@ -1299,8 +1320,9 @@ This is represented by the leftmost ``Accessible to readers'' box in
 \cref{fig:together:Polled RCU Cache}.
 
 Data elements that are unused for some time might be removed from the
-reader-accessible cache and moved to a holding area, which is represented
-by the ``Old readers access'' box in the figure.
+reader-accessible cache and moved to a holding area (see the arrow
+labeled ``A''), which is represented by the ``Old readers access''
+box in the figure.
 Such elements can be tagged with the return value from
 one of the polled-grace-period API members, for example,
 \co{get_state_synchronize_rcu()}.
@@ -1309,6 +1331,9 @@ a pending RCU grace period, this holding area could contain a small array,
 each element of which contains the grace-period \co{oldstate} value.
 The number of elements is specifed by \apik{NUM_ACTIVE_RCU_POLL_OLDSTATE}
 and \apik{NUM_ACTIVE_RCU_POLL_OLDSTATE_FULL} macros.
+Each entry of this array would head a list of elements that have been
+removed from the left-most ``Accessible to readers'' list, but that might
+still be referenced by old readers.
 If a reader needs a data element that has been relegated to the
 ``Old readers access'' area, it can be once again made accessible to
 readers, as indicated by the arrow at the top of the figure.
@@ -1324,9 +1349,9 @@ arrow at the top of the figure.
 Finally, should memory run low, data elements can be freed, as indicated
 by the arrow labeled ``C''.
 
-This approach requires negligible per-data-element storage, inflicts almost
-no latency on calling functions, and provides full control of both the
-``when'' and ``how'' of reclamation.
+This approach requires negligible additional per-data-element storage,
+inflicts almost no latency on calling functions, and provides full
+control of both the ``when'' and ``how'' of reclamation.
 
 \subsubsection{Nurturing Non-Blocking Synchronization}
 \label{sec:together:Nurturing Non-Blocking Synchronization}
