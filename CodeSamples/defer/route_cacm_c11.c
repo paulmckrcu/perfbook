@@ -24,6 +24,7 @@
 #endif // #ifndef CHECK_C11
 #include <stdatomic.h>
 #include <threads.h>
+#include <assert.h>
 
 #ifdef CHECK_C11
 #define CACHE_LINE_SIZE 64
@@ -38,7 +39,7 @@
 
 /* Trivial preemptible RCU implementation. */
 
-#define rcu_dereference(p) atomic_load_explicit(&(p), memory_order_relaxed)
+#define rcu_dereference(p) atomic_load_explicit(&(p), memory_order_acquire)
 #define rcu_assign_pointer(p, v) atomic_store_explicit(&(p), v, memory_order_release)
 
 static mtx_t rcu_gp_lock;
@@ -52,9 +53,8 @@ static void lock_init(void)
 }
 
 struct per_thread_rcu {
-	_Atomic int rcu_here;
 	_Atomic int rcu_nesting;
-	char pad[CACHE_LINE_SIZE - 2 * sizeof(int)];
+	char pad[CACHE_LINE_SIZE - sizeof(int)];
 };
 
 int _Thread_local myidx;
@@ -92,8 +92,6 @@ void synchronize_rcu(void)
 	mtx_lock(&rcu_gp_lock);
 	for (i = 0; i < NR_THREADS; i++) {
 		ptrp = &per_thread_rcu[i];
-		if (!atomic_load_explicit(&ptrp->rcu_here, memory_order_relaxed))
-			continue;
 		while (atomic_load_explicit(&ptrp->rcu_nesting, memory_order_relaxed))
 			continue;
 	}
@@ -103,14 +101,13 @@ void synchronize_rcu(void)
 
 void route_register_thread(void)
 {
-	myidx = atomic_fetch_add(&nthreads, 1) + 1;
-	atomic_store_explicit(&per_thread_rcu[myidx].rcu_here, 1, memory_order_relaxed);
+	myidx = atomic_fetch_add(&nthreads, 1);
 }
 
 void route_unregister_thread(void)
 {
 	atomic_thread_fence(memory_order_seq_cst);
-	atomic_store_explicit(&per_thread_rcu[myidx].rcu_here, 0, memory_order_relaxed);
+	assert(atomic_load(&per_thread_rcu[myidx].rcu_nesting) == 0);
 }
 
 #define route_register_thread route_register_thread
