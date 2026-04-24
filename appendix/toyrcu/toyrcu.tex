@@ -1668,6 +1668,49 @@ to \co{synchronize_rcu()} to share grace periods.
 That said, one could easily imagine a production-quality RCU
 implementation based on this version of RCU\@.
 
+\section{Fixed-Space RCU}
+\label{sec:app:toyrcu:Fixed-Space RCU}
+
+\Cref{sec:defer:Waiting for Readers}
+described a class of RCU implementations where the grace period is a
+fixed time interval.
+\Cref{fig:defer:RCU Spatial/Temporal Synchronization} and
+its discussion in
+\cref{sec:defer:Quasi Reader-Writer Lock}
+suggests that there might be a corresponding class of RCU implementations
+where the grace period is not a fixed period of time, but instead a
+fixed quantity of address space, and a 2026 discussion with \ppl{Hui}{Xie}
+focused my attention on this possibility.
+
+One can argue that the Linux-kernel address sanitizer
+(KASAN)~\cite{AndreyRyabinin2015KASAN} incorporates fixed-space RCU\@.
+KASAN keeps newly freed blocks of memory in a fixed-size quarantine.
+This is done to increase the probability that a use-after-free access
+occurs while the corresponding  block of memory has not yet been
+reallocated, thus in turn reducing the number of false negatives that
+could otherwise occur if freed memory was reallocated before the end of
+life of any hanging pointer still (incorrectly) referencing it.
+However, this can be thought of as a fixed-space RCU implementation,
+where the ``readers'' (tasks with hanging pointers to newly freed blocks
+of memory) are assumed to complete before the corresponding block of
+memory passes through the fixed-sized quarantine and then is reallocated.
+
+For its part, rcutorture does something similar by deferring freeing
+of \co{RCU_TORTURE_PIPE_LEN} (that is, 10) of the blocks previously
+referenced by the global variable \co{rcu_torture_current}.
+In addition, there are 10 times that many elements total (that is,
+100 of them).
+As with KASAN, the idea is to reduce the incidence of false negatives,
+so that an extremely long RCU reader combined with a series of extremely
+short RCU grace periods would still have roughly a 99\pct\ chance of each
+reader issuing a diagnostic for those too-short grace periods.
+
+Although in these two examples, the intent of the fixed buffers is bug
+detection, they could instead be used to create an extremely limited
+and rather sharp-edged RCU grace-period detection mechanism.
+So fixed-space RCU is quite real, although perhaps only very rarely
+advisable.
+
 \section{Summary of Toy RCU Implementations}
 \label{sec:app:toyrcu:Summary of Toy RCU Implementations}
 
