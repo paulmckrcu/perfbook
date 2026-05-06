@@ -46,6 +46,28 @@ else
 	fatal="date-format $fatal"
 fi
 
+# test availability of ptmro7t.tfm and pst-tools.sty
+# (to cope with Fedora 44's change in package dependencies)
+
+KPSEWHICH=`$WHICH kpsewhich`
+
+if [ "$KPSEWHICH" != "" ] ; then
+	ptmro7t_tfm=`$KPSEWHICH ptmro7t.tfm`
+	pst_tools_sty=`$KPSEWHICH pst-tools.sty`
+	if [ "$ptmro7t_tfm" = "" ] ; then
+		ptmro7t_result="NG"
+		fatal="ptmro7t.tfm $fatal"
+	else
+		ptmro7t_result="OK"
+	fi
+	if [ "$pst_tools_sty" = "" ] ; then
+		pst_tools_result="NG"
+		fatal="pst-tools.sty $fatal"
+	else
+		pst_tools_result="OK"
+	fi
+fi	
+
 if [ "$fatal" = "" -a "$VERBOSE" = "" ] ; then
 	exit 0
 fi
@@ -84,8 +106,24 @@ if [ "$date_result" != "OK" -o "$VERBOSE" != "" ] ; then
 		fi
 	fi
 fi
-
+if [ "$ptmro7t_result" != "OK" ] ; then
+	echo
+	echo "------------------------------------------"
+	echo " testing ptmro7t.tfm                      "
+	echo "------------------------------------------"
+	echo "ptmro7t.tfm ...  Not found!"
+	echo "Please install texlive-collection-fontsrecommended."
+fi
+if [ "$pst_tools_result" != "OK" ] ; then
+	echo
+	echo "------------------------------------------"
+	echo " testing pst-tools.sty                    "
+	echo "------------------------------------------"
+	echo "pst-tools.sty ...  Not found!"
+	echo "Please install texlive-collection-pstricks."
+fi
 if [ "$fatal" != "" ] ; then
+	echo
 	echo "See #14 in FAQ-BUILD.txt for further info."
 	echo "fatal: $fatal"
 	exit 1
