@@ -69,6 +69,13 @@ basename=`echo $1 | sed -e 's/\.tex$//'`
 
 : ${LATEX:=pdflatex}
 
+if iconv --list | grep -q -i iso-8859-1
+then
+	ICONV="iconv -f ISO-8859-1 -t UTF-8"
+else
+	ICONV="cat"
+fi
+
 echo "$LATEX 1 for $basename.pdf"
 $LATEX $LATEX_OPT $basename > /dev/null 2>&1 < /dev/null
 exitcode=$?
@@ -78,7 +85,7 @@ then
 	if encguess -s iso-8859-1 $basename.log | grep -q ISO-8859-1
 	then
 		mv $basename.log $basename-tmp.log
-		iconv -f ISO-8859-1 -t UTF-8 $basename-tmp.log > $basename.log
+		$ICONV $basename-tmp.log > $basename.log
 		rm $basename-tmp.log
 	fi
 fi
