@@ -5,6 +5,8 @@
 #
 # Copyright (C) Akira Yokosawa, 2026
 
+: ${WARNEXIT:=1}
+
 KPSEWHICH=`command -v kpsewhich`
 
 if [ "$KPSEWHICH" != "" ] ; then
@@ -60,6 +62,44 @@ if [ "$hyperrefsince" = "$HYPERREF_SINCE" ] ; then  # older
 	echo "microtype.sty $microtype_ver is too young for hyperref.sty $hyperref_ver."
 	echo "Upgrade microtype.sty to at least $MICROTYPE_AT_LEAST."
         echo "Treat this as a minor issue and continue building nonetheless."
+    fi
+fi
+
+#### Tentative check of packaging inconsistency in Fedora 44 #############
+# latex-base vs array (provided in texlive-tools)
+
+latex_release_dev=`kpsewhich latex-dev/base/latexrelease.sty`
+
+if [ "$latex_release_dev" != "" ] ; then
+	latex_dev_ver=`grep -F -A1 -e '\edef\latexreleaseversion' $latex_release_dev | \
+	grep -F '{' | \
+	sed -E -e 's/[ ]+\{([0-9\-]+)\}/<\1>/' -e 's/\//\-/g'`
+fi
+
+array_sty=`kpsewhich array.sty`
+array_req_ver=`grep -F -e '\NeedsTeXFormat{LaTeX2e}' $array_sty | \
+	tail -n 1 | \
+	sed -e 's/\\\\NeedsTeXFormat{LaTeX2e}//' | \
+	sed -E -e 's/\[/</' -e 's/\]/>/' -e 's/\//\-/g'`
+
+if [ "$LATEX" != "pdflatex-dev" ] ; then
+    if [ "$array_req_ver" \> "$latex_ver" -a "$WARNEXIT" = "1" ] ; then
+	echo "#### array.sty requires a later release of LaTeX2e.     ####"
+	echo "#### arary.sty requires LaTeX2e $array_req_ver,           ####"
+	echo "#### while your LaTeX2e is $latex_ver.                ####"
+	echo "#### Check your TeX Live installation.  (Known issue under Fedora 44.)"
+	echo "#### 1st option is to downgrade array.sty to v2.6n."
+	echo "#### 2nd option is to install texlive-latex-base-dev and"
+	echo "####     say 'make LATEX=pdflatex-dev'."
+	echo "#### As a last resort, 'make WARNEXIT=0' would ignore such 'LaTeX Warning:'"
+	echo "####     messages and complete iteration of latex runs (if you are lucky)."
+	exit 1
+    fi
+else
+    if [ "$latex_dev_ver" = "" ] ; then
+	echo "#### LaTeX2e (-dev) is not found!                       ####"
+	echo "#### You need to install texlive-latex-base-dev.        ####"
+	exit 1
     fi
 fi
 
