@@ -68,6 +68,7 @@ fi
 basename=`echo $1 | sed -e 's/\.tex$//'`
 
 : ${LATEX:=pdflatex}
+: ${WARNEXIT:=1}
 
 if iconv --list | grep -q -i iso-8859-1
 then
@@ -94,7 +95,10 @@ then
 	grep -A 4 'LaTeX Warning: You have requested' $basename.log
 	echo "### Incompatible package(s) detected. See $basename.log for details. ###"
 	echo "### See items 9 and 10 in FAQ-BUILD.txt for how to update.          ###"
-	exit 1
+	if [ $WARNEXIT -eq 0 ] ; then
+		touch $basename-first.log
+	fi
+	exit $WARNEXIT
 fi
 if grep -q 'LaTeX Error:' $basename.log
 then

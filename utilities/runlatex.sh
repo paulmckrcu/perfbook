@@ -30,6 +30,9 @@
 #          Akira Yokosawa <akiyks@gmail.com>
 
 : ${LATEX:=pdflatex}
+: ${WARNEXIT:=1}
+
+WARN_REMAIN=0
 
 if iconv --list | grep -q -i iso-8859-1
 then
@@ -68,7 +71,10 @@ excerpt_warnings () {
 		echo "----- You can see $basename-warning.log for the warnings above. -----"
 		echo "----- If you need to, see $basename.log for details. -----"
 		rm -f $basename-warning-prev.log
-		exit 1
+		WARN_REMAIN=1
+		if [ $WARNEXIT -ne 0 ] ; then
+			exit $WARNEXIT
+		fi
 	fi
 }
 
@@ -169,8 +175,14 @@ do
 	iterate_latex
 done
 excerpt_warnings
-rm -f $basename-warning.log $basename-warning-prev.log
-echo "'$basename.pdf' is ready."
+if [ $WARNEXIT -ne 0 ] ; then
+	rm -f $basename-warning.log $basename-warning-prev.log
+fi
+if [ $WARN_REMAIN -eq 0 ] ; then
+	echo "'$basename.pdf' is ready."
+else
+	echo "'$basename.pdf' is ready, with above warning(s) ignored."
+fi
 # cleveref version check (Ubuntu 18.04 LTS has buggy one
 if grep -q -F "packageversion{0.21.1}" `kpsewhich cleveref.sty`
 then
