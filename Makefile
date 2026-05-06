@@ -297,6 +297,7 @@ endif
 ifeq ($(LATEX_CMD),)
 	$(error LaTeX engine "$(LATEX)" not found.)
 endif
+	LATEX=$(LATEX) sh utilities/precheck-tentative.sh
 	LATEX=$(LATEX) sh utilities/runfirstlatex.sh $(basename $@)
 
 autodate.tex: $(LATEXSOURCES) $(BIBSOURCES) $(LST_SOURCES) \
