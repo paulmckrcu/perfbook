@@ -77,15 +77,24 @@ if [ "$latex_release_dev" != "" ] ; then
 fi
 
 array_sty=`kpsewhich array.sty`
-array_req_ver=`grep -F -e '\NeedsTeXFormat{LaTeX2e}' $array_sty | \
-	tail -n 1 | \
-	sed -e 's/\\\\NeedsTeXFormat{LaTeX2e}//' | \
-	sed -E -e 's/\[/</' -e 's/\]/>/' -e 's/\//\-/g'`
+if [ "$array_sty" != "" ] ; then
+	array_req_ver=`grep -F -e '\NeedsTeXFormat{LaTeX2e}' $array_sty | \
+		tail -n 1 | \
+		sed -e 's/\\\\NeedsTeXFormat{LaTeX2e}//' | \
+		sed -E -e 's/\[/</' -e 's/\]/>/' -e 's/\//\-/g'`
+else
+	array_req_ver=""
+fi
 
 if [ "$LATEX" != "pdflatex-dev" ] ; then
+    if [ "$array_req_ver" = "" ] ; then
+	echo "array.sty is not found!"
+	echo "Check your TeX Live installation."
+	exit 1
+    fi
     if [ "$array_req_ver" \> "$latex_ver" -a "$WARNEXIT" = "1" ] ; then
 	echo "#### array.sty requires a later release of LaTeX2e.     ####"
-	echo "#### arary.sty requires LaTeX2e $array_req_ver,           ####"
+	echo "#### array.sty requires LaTeX2e $array_req_ver,           ####"
 	echo "#### while your LaTeX2e is $latex_ver.                ####"
 	echo "#### Check your TeX Live installation.  (Known issue under Fedora 44.)"
 	echo "#### 1st option is to downgrade array.sty to v2.6n."
