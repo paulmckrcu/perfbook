@@ -1557,6 +1557,114 @@ Note that as a general rule, primitives from other families of RCU
 may be substituted, although \co{srcu_read_lock_nmisafe()} but not
 \co{srcu_read_lock()} may be used in NMI context.
 
+\subsubsection{RCU in Userspace Applications?}
+\label{sec:defer:RCU in Userspace Applications?}
+
+The userspace RCU library uses a C-language API similar to that of
+the kernel's core RCU API~\cite{PaulMcKenney2013LWNURCUAPI},
+with extensions for
+hash tables~\cite{PaulMcKenney2013LWNURCUhashAPI},
+queues and stacks~\cite{PaulMcKenney2013LWNURCUqueuestackAPI},
+atomic operations~\cite{PaulMcKenney2013LWNURCUatomicop}, and
+linked lists~\cite{PaulMcKenney2013LWNURCUlist}.
+
+\begin{table*}
+\rowcolors{1}{}{lightgray}
+\renewcommand*{\arraystretch}{1.15}
+\footnotesize
+\centering\OneColumnHSpace{-.4in}
+\ebresizewidth{
+\begin{tabular}{ll}
+\toprule
+\multicolumn{1}{c}{Linux Kernel} &
+	\multicolumn{1}{c}{C++26} \\
+\midrule
+\tco{guard(rcu)()} &
+	\tco{std::scoped_lock l(std::rcu_default_domain())} \\
+\tco{rcu_read_lock()} &
+	\tco{std::rcu_default_domain().lock()} \\
+\tco{rcu_read_unlock()} &
+	\tco{std::rcu_default_domain().unlock()} \\
+\tco{synchronize_rcu()} &
+	\tco{std::rcu_synchronize()} \\
+\tco{struct rcu_head} &
+	\tco{std::rcu_obj_base<T>} \\
+\tco{call_rcu()} &
+	\tco{std::rcu_obj_base<T> .retire()} \\
+\tco{kfree_rcu_mightsleep()} &
+	\tco{std::rcu_retire()} \\
+\tco{rcu_barrier()} &
+	\tco{std::rcu_barrier()} \\
+\bottomrule
+\end{tabular}
+}
+\caption{RCU API Decoder Ring For Linux Kernel and C++26}
+\label{tab:defer:RCU API Decoder Ring For Linux Kernel and C++26}
+\end{table*}
+
+Although the userspace RCU library has served well for many years as the
+defacto definition of the C-language userspace RCU API, in 2023 the RCU
+API was added to the C++26 draft
+standard~\cite{PaulEMcKennney2023C++26RCU4,ThomasKoeppe2025N5032}.
+The mapping from the Linux-kernel RCU API to that of
+C++~\cite{PaulEMcKenney2023P0124R8-LKMM,PaulEMcKenney2026cppRCU}
+is shown in
+\cref{tab:defer:RCU API Decoder Ring For Linux Kernel and C++26}.
+The many differences between C and C++ do complicate this mapping.
+
+The \co{std::rcu_default_domain()} function returns a reference to
+the only possible member of the \co{rcu_domain} class, which is provided
+solely to permit RCU readers to be managed by the existing C++ scoped-locking
+API members, in this case, \co{std::scoped_lock}.
+A future version of the C++ standard might provide for multiple
+\co{rcu_domain} objects, perhaps similar to Linux-kernel SRCU, but in
+the meantime, there can only be one.
+In cases where scoped RCU readers are not sufficient, the \co{rcu_domain}
+object's \co{.lock()} and \co{.unlock()} member functions may be
+invoked directly, providing the same capabilities (and risks) as do
+\co{rcu_read_lock()} and \co{rcu_read_unlock()}.
+
+Perhaps the Linux kernel's \co{synchronize_rcu()} should have instead been
+named \co{rcu_synchronize()}, but the historical path from the pre-existing
+\co{synchronize_irq()} to \co{synchronize_kernel()} to \co{synchronize_rcu()}
+forced the Linux kernel's naming.
+
+In the Linux kernel, you embed an \co{rcu_head} structure into your
+RCU-protected structure in order to use \co{call_rcu()} and friends.
+Given the C++ object orientation, you instead make your RCU-protected
+class inherit from the \co{std::rcu_obj_base} class.
+Instead of invoking a free function like \co{call_rcu()}, you use the
+\co{rcu_obj_base} class's \co{.retire()} member function, which is the C++
+counterpart to \co{call_rcu()} when a \emph{deleter} function is supplied
+to \co{.retire()} and the C++ counterpart to \co{kfree_rcu()} otherwise.
+C++ also supplies an \co{std::rcu_retire()} free function, which can be
+passed objects which do not inherit from \co{std::rcu_obj_base}, just
+as structures passed to the Linux kernel's \co{kfree_rcu_mightsleep()}
+need not include an \co{rcu_head} structure.
+
+However, the Linux kernel's \co{rcu_barrier()} function maps directly
+to the C++ \co{std::rcu_barrier()} free function.
+
+An additional complication stems from the C++ language's need to support
+minimal unhosted and freestanding platforms.
+Such platforms might not be able to create background threads, which
+means that they must be permitted to drive RCU's grace-period state machine
+forward from calls to \co{.retire()} and \co{rcu_retire()}.
+This in turn means that these two functions must be permitted to
+invoke RCU deleters (C++'s counterparts to the Linux kernel's RCU
+callback function) from within a call to either \co{.retire()} or
+\co{rcu_retire()}.
+Therefore, in C++ (but not in the Linux kernel), fully portable C++ code
+cannot hold a mutex across either \co{.retire()} or \co{rcu_retire()} if
+that mutex is acquired by \emph{any} deleter that is passed to \emph{any}
+invocation of \co{.retire()} or \co{rcu_retire()} \emph{anywhere} in
+the application.
+
+In short, although there are many similarities between Linux-kernel RCU
+and C++ RCU, there are many important differences.
+It will be interesting to see how both APIs evolve over time, and also
+how RCU will be used in other languages, for example, Rust.
+
 \subsubsection{So, What \emph{is} RCU Really?}
 \label{sec:defer:So; What is RCU Really?}
 
