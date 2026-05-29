@@ -491,10 +491,13 @@ Therefore, if two CPUs need to synchronize with each other, they both
 need to execute memory-ordering instructions so that they both interact
 properly with the memory subsystem, and thus indirectly with each other.
 That is, the two CPUs' memory-ordering instructions must \emph{pair}
-with each other as hinted at in
-\cref{fig:memorder:If-Then Nature of Memory Ordering},
+with each other,
 which is sometimes referred to as \emph{memory-barrier
 pairing}.
+This memory-barrier pairing can be seen in
+\cref{fig:memorder:If-Then Nature of Memory Ordering},
+where the orderings provided by CPU~0 and~1 work together to provide
+the if-then ordering,
 
 The first rule of thumb is that memory-ordering operations are only
 required where there is a possibility of interaction between at least
@@ -822,7 +825,8 @@ labelled store buffer in
 
 Removing the internal CPU complexity from
 \cref{fig:memorder:Intel Core 2 Architecture Simplified},
-adding a second CPU, and showing main memory results in
+adding a second CPU, and showing the interconnect and main memory
+results in
 \cref{fig:memorder:System Architecture With Store Buffers}.
 When a given CPU stores to a variable
 not present in that CPU's cache, then the new value
@@ -4445,9 +4449,11 @@ themselves.
 \Cref{sec:memorder:Memory Allocation}
 takes a look at memory allocation,
 \cref{sec:memorder:Locking}
-examines the surprisingly varied semantics of locking, and
+examines the surprisingly varied semantics of locking,
 \cref{sec:memorder:RCU}
-digs more deeply into RCU\@.
+digs more deeply into RCU, and
+\cref{sec:memorder:Asymmetric Memory Barriers}
+discusses asymmetric memory barriers.
 
 \subsection{Memory Allocation}
 \label{sec:memorder:Memory Allocation}
@@ -5320,6 +5326,143 @@ formalized~\cite{PaulMcKenney2005RCUSemantics,MathieuDesnoyers2012URCU,AlexeyGot
 
 % When augmented by \co{smp_mb__after_srcu_read_unlock()}.
 
+\subsection{Asymmetric Memory Barriers}
+\label{sec:memorder:Asymmetric Memory Barriers}
+
+Given that reader-writer locking and RCU are asymmetric, both favoring
+readers, and given that the overhead of the \co{smp_mb()} full memory
+barrier is too high for some use cases, it is only reasonable to ask
+if there are asymmetric memory barriers with lightweight API members
+for fastpaths.
+
+And the answer is ``yes''.
+
+\begin{figure}
+\centering
+\resizebox{2.5in}{!}{\includegraphics{memorder/SystemArchSB-smb}}
+\caption{Symmetric Memory Barriers Interactions}
+\label{fig:memorder:Symmetric Memory Barriers Interactions}
+\end{figure}
+
+Recall from the discussion of
+\cref{fig:memorder:If-Then Nature of Memory Ordering}
+in
+\cref{sec:memorder:Rules of Thumb}
+on
+\cpageref{fig:memorder:If-Then Nature of Memory Ordering}
+that a given CPU's memory-barrier instructions interact only with the
+memory subsystem (store buffers, caches, and interconnects), but not
+directly with other CPUs.
+This means that for two CPUs to synchronize with each other, each must
+execute a memory-barrier instruction, as shown for CPUs~0 and~1 in
+\cref{fig:memorder:Symmetric Memory Barriers Interactions}.
+This should not be a surprise given the need for memory-barrier pairing
+and by its generalization, cycles.
+
+\QuickQuiz{
+	\Cref{fig:memorder:Symmetric Memory Barriers Interactions}
+	shows memory barriers interacting with the store buffer, the
+	cache, interconnects, and memory.
+	But don't light-weight memory-ordering operations (load-acquire,
+	store-release, and the PowerPC \co{lwsync} instruction) interact
+	only with the store buffer?
+}\QuickQuizAnswer{
+	Very often, they do indeed, as shown in
+	\cref{fig:memorder:Light-Weight Symmetric Memory Barriers Interactions}.
+
+	\begin{figure}
+	\centering
+	\resizebox{2.5in}{!}{\includegraphics{memorder/SystemArchSB-slmb}}
+	\caption{Light-Weight Symmetric Memory Barriers Interactions}
+	\label{fig:memorder:Light-Weight Symmetric Memory Barriers Interactions}
+	\end{figure}
+
+	However, true though this might often be, it is an
+	oversimplification.
+	The only reason that light-weight memory-ordering operations can
+	get away with interacting only with the store buffer is that the
+	cache-coherence protocol propagates these interactions into the
+	cache, which in turn propagates the required ordering through
+	the interconnect and, if needed, to memory.
+}\QuickQuizEnd
+
+\begin{figure}
+\centering
+\resizebox{2.5in}{!}{\includegraphics{memorder/SystemArchSB-amb}}
+\caption{Asymmetric Memory Barriers Interactions}
+\label{fig:memorder:Asymmetric Memory Barriers Interactions}
+\end{figure}
+
+The trick behind \emph{asymmetric memory barriers} is to create
+a \emph{heavy} memory barrier that, when executed by a given CPU,
+interacts not only with the memory subsystem, but also directly with
+the target CPUs, for example, by sending \IXacrfpl{ipi} to those CPUs.
+These target CPUs then interact with the memory subsystem, which on
+many architectures happens just by virtue of the IPI being handled.
+This is depicted by
+\cref{fig:memorder:Asymmetric Memory Barriers Interactions},
+which shows CPU~0 executing a memory-barrier instruction but also
+sending an IPI to CPU~1.
+When CPU~1 executes the IPI handler, it also executes a memory-barrier
+instruction, thus providing the needed memory-barrier pairing, but
+without requiring CPU~1 to execute any memory-barrier instructions of
+its own accord.
+CPU~0's memory barrier combined with its IPI (and thus with CPU~1's
+involuntary memory barrier) comprise the heavy memory barrier.
+
+However, CPU~1 cannot be completely passive because the compiler can
+reorder memory-reference operations, which could destroy ordering.
+CPU~1's code must therefore include a Linux-kernel \co{barrier()}
+compiler directive, which is termed a \emph{light} memory barrier.
+
+A heavy asymmetric memory barrier can pair with a symmetric memory barrier
+(or any other operation that provides sufficient ordering) on the one hand,
+or either a heavy or light asymmetric memory barrier on the other.
+In other words, a heavy asymmetric memory barrier can pair with everything
+that a symmetric memory barrier can pair with, and it can also pair with
+light asymmetric memory barriers.
+However, a light asymmetric memory barrier can pair \emph{only} with a
+heavy memory barrier.
+% @@@ Double-check this with litmus tests.
+
+Many systems provide userspace access to heavy asymmetric memory barriers.
+For example, Linux provides the \co{membarrier()} system
+call~\cite{Corbet2010membarrier}.
+But to be fair, some years before that back in 2008, Windows started
+providing the \co{FlushProcessWriteBuffers()} system call.
+
+\QuickQuiz{
+	But isn't RCU an example of an asymmetric memory barrier
+	going way back before the year 2000, with the heavy barrier
+	provided by \co{synchronize_rcu()} and the light barrier being
+	implicit anywhere you want between \co{rcu_read_lock()} and
+	\co{rcu_read_unlock()}?
+}\QuickQuizAnswer{
+	Kinda?
+
+	If you take that viewpoint, you could think of asymmetric memory
+	barriers as being an optimization for a specific RCU use case.
+	After all, unlike \co{synchronize_rcu()}, a heavy asymmetric
+	barrier need not wait for RCU quiescent states.
+
+	But if you want to go back before 2008, a 2001 Linux-kernel
+	patch implemented asymmetric memory barriers for the special case of
+	maintaining address dependencies on DEC Alpha~\cite{McKenney01f}.
+	And there are unsubstantiated rumors of DEC's Digital UNIX using
+	asymmetric memory barriers back in the 1990s.
+
+	But we likely need to face the fact that the invention of the
+	asymmetric memory barrier has been lost in the sands of time.
+}\QuickQuizEnd
+
+% @@@ Formal verification emulation in ~/paper/cpp-threads/2026/afence.
+% @@@ Could add these to LKMM by encoding memory order into function name.
+% @@@ Might be able to prototype them in herd7's C++ memory model?
+
+Currently, there are different asymmetric-barrier APIs in different
+environments, but there is a proposal to add a specific asymmetric-fence
+API to the C++ standard~\cite{DavidGoldblatt2022asymmetricFences}.
+
 \subsection{Higher-Level Primitives:
 	    Discussion}
 \label{sec:memorder:Higher-Level Primitives: Discussion}
@@ -5735,7 +5878,9 @@ This software barrier could be implemented by sending \IXacrfpl{ipi}
 to all other CPUs.
 Upon receipt of such an IPI, a CPU would execute a memory-barrier
 instruction, implementing a system-wide memory barrier similar to that
-provided by the Linux kernel's \co{sys_membarrier()} system call.
+provided by the Linux kernel's \co{sys_membarrier()} system call, thus
+being an early example of the asymmetric memory barriers discussed in
+\cref{sec:memorder:Asymmetric Memory Barriers}.
 Additional logic is required to avoid deadlocks.
 Of course, CPUs that respect address dependencies would define such a barrier
 to simply be \co{smp_store_release()}.
