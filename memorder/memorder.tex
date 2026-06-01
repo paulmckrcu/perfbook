@@ -4451,7 +4451,9 @@ takes a look at memory allocation,
 \cref{sec:memorder:Locking}
 examines the surprisingly varied semantics of locking,
 \cref{sec:memorder:RCU}
-digs more deeply into RCU, and
+digs more deeply into RCU,
+\cref{sec:memorder:SRCU}
+looks at idiosyncrasies of SRCU, and
 \cref{sec:memorder:Asymmetric Memory Barriers}
 discusses asymmetric memory barriers.
 
@@ -5317,14 +5319,113 @@ In short, where RCU's semantics were once purely pragmatic, they are
 now fully
 formalized~\cite{PaulMcKenney2005RCUSemantics,MathieuDesnoyers2012URCU,AlexeyGotsman2013ESOPRCU,Alglave:2018:FSC:3173162.3177156}.
 
-% \subsection{SRCU}
-% \label{sec:memorder:SRCU}
-% @@@ After LWN article
+\subsection{SRCU}
+\label{sec:memorder:SRCU}
 
-% Nesting vs. value passed from \co{srcu_read_lock()} to
-% \co{srcu_read_unlock()}.
+Although SRCU (for sleepable RCU) has properties quite similar to those
+of RCU, it differs from RCU in several important ways:
+\begin{enumerate*}[(1)]
+\item	Linux-kernel SRCU readers can block,
+\item	Each \tco{srcu_struct} structure provides a separate SRCU domain, and
+\item	SRCU readers neither nest nor flatten.
+\end{enumerate*}
 
-% When augmented by \co{smp_mb__after_srcu_read_unlock()}.
+Blocking is currently out of scope for most formal-verification tools, so
+the following sections will focus on the SRCU domains and the non-nesting
+RCU readers.
+
+\subsubsection{SRCU Domains}
+\label{sec:memorder:SRCU Domains}
+
+SRCU offers multiple independent domains, one for each \co{srcu_struct}
+structure in the system.
+This means that a \co{synchronize_srcu()} invoked for one \co{srcu_struct}
+structure will not wait for an SRCU reader (a \co{srcu_read_lock()} and
+\co{srcu_read_unlock()} pair) invoked for some other \co{srcu_struct}
+structure.
+
+\begin{listing}
+\input{CodeSamples/formal/herd/C-SRCU-xdomain@whole.fcv}
+\caption{SRCU Domains}
+\label{lst:memorder:SRCU Domains}
+\end{listing}
+
+\Cref{lst:memorder:SRCU Domains}
+demonstrates this property.
+\co{P0()}'s SRCU read-side critical section spanning lines~11
+and~14 uses \co{srcu_struct} structure \co{s1}, but \co{P1()}'s
+\co{synchronize_srcu()} on line~20 uses \co{srcu_struct} structure
+\co{s2}.
+These two processes are therefore completely independent, which means
+that \co{P1()}'s \co{synchronize_srcu()} is not guaranteed to wait
+on \co{P0()}'s SRCU reader, which in turn means that the \co{exists}
+clause on line~25 can be satisfied.
+
+Modifying \co{P1()} to use \co{s1} instead of \co{s2} forbids this outcome.
+
+\subsubsection{SRCU Non-Nesting Readers}
+\label{sec:memorder:SRCU Non-Nesting Readers}
+
+RCU readers nest, but as described in
+\cref{sec:defer:RCU has a Family of Wait-to-Finish APIs},
+\co{srcu_read_lock()} and friends return a value that is passed into
+the corresponding \co{srcu_read_unlock()} function (see
+\cref{tab:defer:SRCU Markers for Read-Side Critical Sections}
+for a list of the friends).
+When the value returned by a call to \co{srcu_read_lock()} is passed
+to \co{srcu_read_unlock()}, those two calls mark the bounds of an SRCU
+read-side critical section, which does not interact with any other SRCU
+read-side critical section.
+
+\begin{listing}
+\input{CodeSamples/formal/herd/C-SRCU-readers-no-nest@whole.fcv}
+\caption{SRCU Readers Don't Nest}
+\label{lst:memorder:SRCU Readers Don't Nest}
+\end{listing}
+
+\Cref{lst:memorder:SRCU Readers Don't Nest}
+demonstrates this property.
+The return value from the \co{srcu_read_lock()} on line~12 is passed to
+the \co{srcu_read_unlock()} on line~15 and that on line~14 is passed to
+that on line~17.
+If this was RCU rather than SRCU, this would be interpreted as an outer
+read-side critical section spanning lines~12--17 with an (empty) inner
+critical section spanning lines~14--15, which would suffice to forbid
+the outcome shown in the \co{exists} clause on line~28.
+
+But this is SRCU, so there are two independent SRCU read-side critical
+sections, one spanning lines~12--15 and the other spanning lines~14-17.
+And the fact that they overlap does not help, as you can see by considering
+the following sequence of events:
+
+\begin{enumerate}
+\item	\co{P0()} executes line~12, entering its first SRCU
+	read-side critical section.
+\item	\co{P1()} executes lines~22 and~23, writing the value \co{1}
+	to \co{y} and starting its SRCU grace period.
+\item	\co{P0()} executes line~13, reading the value \co{1} from \co{y}.
+\item	\co{P0()} executes lines~14 and~15, exiting its first critical
+	section and entering its second.
+\item	\co{P1()} returns from \co{synchronize_srcu()} because \co{P0()}'s
+	first critical section has completed.
+	This call to \co{synchronize_srcu()} need not wait for \co{P0()}'s
+	second critical section because it began after this call to
+	\co{synchronize_srcu()}.
+\item	\co{P0()} executes lines~16 and~17, reading the value \co{0}
+	from \co{x}.
+\item	\co{P1()} executes line~24, writing the value \co{1} to \co{x},
+	but too late to affect the value read by \co{P0()}.
+\item	\co{P0()} executes line~17, exiting its second critical section.
+\end{enumerate}
+
+This straightforward sequence of events satisfies the \co{exists} clause,
+as can be confirmed by \co{herd7}.
+Of course, removing lines~14 and~15 and replacing line~17's \co{r4} with
+\co{r3} forbids this outcome, which also can be confirmed by \co{herd7}.
+Finally, converting this litmus test from SRCU to RCU would also forbid
+this outcome.
+
+% @@@ When augmented by \co{smp_mb__after_srcu_read_unlock()}.
 
 \subsection{Asymmetric Memory Barriers}
 \label{sec:memorder:Asymmetric Memory Barriers}

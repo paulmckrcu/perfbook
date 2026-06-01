@@ -1,0 +1,30 @@
+C C-SRCU-readers-no-nest
+//\begin[snippet][labelbase=ln:formal:C-SRCU-readers-no-nest:whole,commandchars=\%\@\$]
+
+{}
+
+P0(int *x, int *y, struct srcu_struct *s1)
+{
+	int r1;
+	int r2;
+	int r3;
+	int r4;
+
+	r3 = srcu_read_lock(s1);
+	r2 = READ_ONCE(*y);
+	r4 = srcu_read_lock(s1);
+	srcu_read_unlock(s1, r3);
+	r1 = READ_ONCE(*x);
+	srcu_read_unlock(s1, r4);
+}
+
+P1(int *x, int *y, struct srcu_struct *s1)
+{
+	WRITE_ONCE(*y, 1);
+	synchronize_srcu(s1);
+	WRITE_ONCE(*x, 1);
+}
+
+//\end[snippet]
+locations [0:r1]
+exists (0:r1=1 /\ 0:r2=0)
