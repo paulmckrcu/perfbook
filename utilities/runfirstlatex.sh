@@ -70,7 +70,7 @@ basename=`echo $1 | sed -e 's/\.tex$//'`
 : ${LATEX:=pdflatex}
 : ${WARNEXIT:=1}
 
-if iconv --list | grep -q -i iso-8859-1
+if iconv -l | grep -q -i iso-8859-1
 then
 	ICONV="iconv -f ISO-8859-1 -t UTF-8"
 else
