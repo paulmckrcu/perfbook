@@ -164,6 +164,16 @@
 \newboolean{indexhier}
 \setboolean{indexhier}{true}
 \newcommand{\IfIndexHier}[2]{\ifthenelse{\boolean{indexhier}}{#1}{#2}}
+\newboolean{usecleveref}
+\makeatletter%
+ \providecommand\IfFormatAtLeastTF{\@ifl@t@r\fmtversion}%
+\makeatother
+\IfFormatAtLeastTF{2024-11-01}{ %
+  \setboolean{usecleveref}{false}
+}{ %
+  \setboolean{usecleveref}{true}
+}
+\newcommand{\IfCleverefTF}[2]{\ifthenelse{\boolean{usecleveref}}{#1}{#2}}
 
 % Tweak width params of TOC
 \makeatletter
@@ -409,26 +419,60 @@
 \captionsetup{hangindent=20pt}
 \captionsetup[listing]{hangindent=20pt}
 
-\usepackage[capitalise,noabbrev,nosort]{cleveref}
-\crefname{subsubsubappendix}{Appendix}{Appendices}
-\crefname{sublisting}{Listing}{Listings}
-\crefname{sequencei}{step}{steps}
-\Crefname{sequencei}{Step}{Steps}
-\crefname{enumi}{item}{items}
-\Crefname{enumi}{Item}{Items}
-\crefname{page}{page}{pages}
-\Crefname{page}{Page}{Pages}
-\Crefformat{equation}{Equation~#2#1#3}
-\crefformat{equation}{Eq.~#2#1#3}
-\newcommand{\crefrangeconjunction}{--}
-\newcommand{\creflastconjunction}{, and~}
+\IfCleverefTF{
+  \usepackage[capitalise,noabbrev,nosort]{cleveref}
+  \crefname{subsubsubappendix}{Appendix}{Appendices}
+  \crefname{sublisting}{Listing}{Listings}
+  \crefname{sequencei}{step}{steps}
+  \Crefname{sequencei}{Step}{Steps}
+  \crefname{enumi}{item}{items}
+  \Crefname{enumi}{Item}{Items}
+  \crefname{page}{page}{pages}
+  \Crefname{page}{Page}{Pages}
+  \Crefformat{equation}{Equation~#2#1#3}
+  \crefformat{equation}{Eq.~#2#1#3}
+  \newcommand{\crefrangeconjunction}{--}
+  \newcommand{\creflastconjunction}{, and~}
+  % Define \crefthro{} for "Sections~m.n through~m.p"
+  \newcommand{\crefthro}[2]{%
+    \namecrefs{#1}~\ref{#1} through~\ref{#2}%
+  }
+  \newcommand{\Crefthro}[2]{%
+    \nameCrefs{#1}~\ref{#1} through~\ref{#2}%
+  }
 
-% Define \crefthro{} for "Sections~m.n through~m.p"
-\newcommand{\crefthro}[2]{%
-  \namecrefs{#1}~\ref{#1} through~\ref{#2}%
-}
-\newcommand{\Crefthro}[2]{%
-  \nameCrefs{#1}~\ref{#1} through~\ref{#2}%
+}{ % emulate cleveref via zref-clever (not portable before 2024?)
+  \usepackage{zref-clever}[2023-11-14]
+  \zcsetup{cap=true, nameinlink=false, lastsep={, and~}}
+  \zcRefTypeSetup{sequencei}{
+    Name-sg=step,
+    name-sg=step,
+    Name-pl=steps,
+    name-pl=steps,
+  }
+  \zcRefTypeSetup{sublisting}{
+    Name-sg=Listing,
+    name-sg=listing,
+    Name-pl=Listings,
+    name-pl=listings,
+  }
+  \zcRefTypeSetup{page}{
+    Name-sg=page,
+    name-sg=page,
+    Name-pl=pages,
+    name-pl=pages,
+  }
+  \newcommand\cref[1]{\zcref[nocomp]{#1}}
+  \newcommand\Cref[1]{\zcref[S,nocomp]{#1}}
+  \newcommand\cpageref[1]{\zcpageref{#1}}
+  \newcommand\Cpageref[1]{\zcpageref[S]{#1}}
+  \newcommand\crefrange[2]{\zcref[range,rangesep={--}]{#1,#2}}
+  \newcommand\Crefrange[2]{\zcref[S,range,rangesep={--}]{#1,#2}}
+  \newcommand\lcnamecref[1]{\zcref[noref]{#1}}
+  \newcommand\cpagerefrange[2]{\zcpageref[range,rangesep={--}]{#1,#2}}
+  \newcommand\crefthro[2]{\zcref[range,rangesep={ through~}]{#1,#2}}
+  \newcommand\Crefthro[2]{\zcref[S,range,rangesep={ through~}]{#1,#2}}
+  \newcommand\namecrefs[1]{\zcref[noref]{#1}s}
 }
 
 % Define \clnref{} and \Clnref{} for reference to line labels
@@ -477,8 +521,8 @@
 \newcommand{\Clnrefrange}[2]{Lines~\lnref{#1}\==\lnref{#2}}
 \newcommand{\clnrefthro}[2]{lines~\lnref{#1} through~\lnref{#2}}
 \newcommand{\Clnrefthro}[2]{Lines~\lnref{#1} through~\lnref{#2}}
-\newcommand{\pararef}[1]{Paragraph ``\nameref{#1}'' on Page~\pageref{#1}}
-\newcommand{\Pararef}[1]{Paragraph ``\nameref{#1}'' on Page~\pageref{#1}}
+\newcommand{\pararef}[1]{paragraph ``\nameref{#1}'' on page~\pageref{#1}}
+\newcommand{\Pararef}[1]{Paragraph ``\nameref{#1}'' on page~\pageref{#1}}
 
 % geometry setting
 \newlength{\twocolumnwidth}
@@ -592,8 +636,6 @@
 \ifthenelse{\boolean{buggyfvextra}}{
   \input{fixfvextra.ltx}
 }{}
-
-\input{fixcleveref.ltx}
 
 \begin{document}
 
