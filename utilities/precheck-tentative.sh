@@ -19,7 +19,7 @@ if [ "$KPSEWHICH" != "" ] ; then
 
 lineno_sty=`kpsewhich lineno.sty`
 lineno_ver=`grep -F '\def\fileversion' $lineno_sty | \
-	sed -E -e 's/.*\{(v[0-9\.]+)\}.*$/\1/'`
+	sed -E -e 's/.*\{(v[0-9a-z\.]+)\}.*$/\1/'`
 LINENO_AT_LEAST=v5.7
 linenosince=`env printf "$LINENO_AT_LEAST\n$lineno_ver" | sort -V | head -n 1`
 
