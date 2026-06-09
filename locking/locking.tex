@@ -227,6 +227,35 @@ Either way, in large program, it is wise to use tools such as the Linux-kernel
 \co{lockdep}~\cite{JonathanCorbet2006lockdep}
 to enforce your locking hierarchy.
 
+\QuickQuiz{
+	Acquiring the locks in address order makes a lot of sense!!!
+	But I looked at an implementation of the C++ \co{lock()} free
+	function, which acquires all of the specified locks at one go,
+	avoiding deadlock.
+	Why didn't that implementation use this address-ordering trick?
+}\QuickQuizAnswer{
+	For one thing, it must interoperate with the C++ \co{unique_lock}
+	class's \co{.lock()} member function, which acquires just the
+	one lock.
+	So if the user invokes the \co{unique_lock} class's \co{.lock()}
+	member function twice so as to acquire two different locks
+	within the same thread, and without releasing the first lock in
+	the meantime, then the \co{lock()} free function must respect
+	that ordering.
+	And the user probably did not acquire those two locks in address
+	order.
+
+	Worse yet, in C++ it is possible to create wrapper classes,
+	so that a given lock might have several wrappers, each at its
+	own arbitrary address.
+	This also defeats address-order acquisition of locks.
+
+	So the \co{lock()} free function must use other tricks to acquire
+	its list of locks in a deadlock-free fashion.\footnote{
+		Kudos to \ppl{Anthony}{Williams} for explaining this
+		situation to me.}
+}\QuickQuizEnd
+
 \subsubsection{Local Locking Hierarchies}
 \label{sec:locking:Local Locking Hierarchies}
 
