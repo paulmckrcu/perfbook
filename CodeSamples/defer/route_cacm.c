@@ -96,6 +96,10 @@ struct route_entry {
 	struct route_entry *next;
 	unsigned long addr;
 	unsigned long iface;
+#ifdef FRESH
+	int removed;
+	spinlock_t route_entry_lock;
+#endif // #ifdef FRESH
 	int freed;
 };
 
@@ -107,6 +111,28 @@ static void re_free(struct route_entry *rep)
 	WRITE_ONCE(rep->freed, 1);
 	free(rep);
 }
+
+#ifdef FRESH
+static void do_something_with(struct route_entry *rep)
+{
+}
+#endif // #ifdef FRESH
+
+#ifdef FRESH
+static inline int
+route_lookup_check(struct route_entry *rep, unsigned long ret)
+{
+	unsigned long ret1 = ret;
+
+	spin_lock(&rep->route_entry_lock);
+	if (rep->removed)
+		ret1 = ULONG_MAX;
+	else
+		do_something_with(rep);
+	spin_unlock(&rep->route_entry_lock);
+	return ret1;
+}
+#endif // #ifdef FRESH
 
 /*
  * Look up a route entry, return the corresponding interface.
@@ -123,6 +149,9 @@ unsigned long route_lookup(unsigned long addr)
 			ret = rep->iface;
 			if (READ_ONCE(rep->freed))
 				abort();
+#ifdef FRESH
+			ret = route_lookup_check(rep, ret);
+#endif // #ifdef FRESH
 			rcu_read_unlock();
 			return ret;
 		}
@@ -143,6 +172,10 @@ int route_add(unsigned long addr, unsigned long interface)
 		return -ENOMEM;
 	rep->addr = addr;
 	rep->iface = interface;
+#ifdef FRESH
+	rep->removed = 0;
+	spin_lock_init(&rep->route_entry_lock);
+#endif // #ifdef FRESH
 	rep->freed = 0;
 	spin_lock(&routelock);
 	rep->next = route_list;
@@ -164,6 +197,11 @@ int route_del(unsigned long addr)
 	     rep = rcu_dereference(*repp), repp = &rep->next) {
 		rep = rcu_dereference(*repp);
 		if (rep->addr == addr) {
+#ifdef FRESH
+			spin_lock(&rep->route_entry_lock);
+			rep->removed = 1;
+			spin_unlock(&rep->route_entry_lock);
+#endif // #ifdef FRESH
 			rcu_assign_pointer(*repp, rep->next);
 			spin_unlock(&routelock);
 			synchronize_rcu();

@@ -40,6 +40,7 @@ ARCH_DEPENDENT = gettimestamp \
 	rcu_sig \
 	rcu_ts \
 	route_cacm \
+	route_cacm_fresh \
 	route_cacm_c11 \
 	route_cacm_c11-c.o \
 	route_cacm_fresh_c11 \
@@ -141,6 +142,9 @@ hazptr_sub.o: hazptr.c hazptr.h ../api.h
 
 route_cacm: route_cacm.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
 	cc $(GCC_ARGS) -o route_cacm route_cacm.c ../lib/random.c -lpthread
+
+route_cacm_fresh: route_cacm.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
+	cc $(GCC_ARGS) -o route_cacm_fresh -DFRESH route_cacm.c ../lib/random.c -lpthread
 
 route_cacm_c11: route_cacm_c11.c ../api.h ../lib/random.h ../lib/random.c routetorture.h
 	cc $(GCC_ARGS) -o route_cacm_c11 route_cacm_c11.c ../lib/random.c -lpthread
