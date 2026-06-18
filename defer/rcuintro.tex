@@ -68,6 +68,101 @@ However, on most modern computer systems, each of these read-side primitives
 can be implemented with a single load instruction, exactly the instruction
 that would normally be used in single-threaded code.
 
+\begin{listing}[tb]
+{ \small
+\begin{verbatim}
+ A1  p = gp;
+ A2  do_something_with(p->a);
+ A3  do_something_with(p->b);
+\end{verbatim}
+Might be transformed to:
+\begin{verbatim}
+ B1  p = gp;
+ B2  do_something_with(p->a);
+ B3  p = gp;
+ B4  do_something_with(p->b);
+\end{verbatim}
+The compiler assumes normal variables do not spontaneously change,
+\co{do_something_with()} might use many machine registers, and this
+transformation reduces register pressure.
+But if some other thread changes \co{gp} between lines~1 and~3 of the
+transformed code, the values of \co{p->a} and \co{p->b} will be mismatched.
+Prevent this by using \co{rcu_dereference()} as follows:
+\begin{verbatim}
+ C1  p = rcu_dereference(gp);
+ C2  do_something_with(p->a);
+ C3  do_something_with(p->b);
+\end{verbatim}
+}
+\caption{Compilers Can Reload Values}
+\label{lst:defer:Compilers Can Reload Values}
+\end{listing}
+
+\begin{listing}[tb]
+{ \small
+\begin{verbatim}
+ A1  p = malloc(sizeof(*p));
+ A2  p->a = compute_value();
+ A3  p->b = 42;
+ A4  gp = p;
+\end{verbatim}
+Might be transformed to:
+\begin{verbatim}
+ B1  p = malloc(sizeof(*p));
+ B2  gp = p;
+ B3  p->a = compute_value();
+ B4  p->b = 42;
+\end{verbatim}
+The compiler assumes normal variables are not concurrently accessed,
+and thus that the order of stores does not matter.
+If \co{compute_value()} was inlined, this transformation might produce
+better code.
+In this example, if some other thread loads \co{gp} immediately after
+line~2 of the transformed code, that thread might see pre-initialization
+garbage in \co{p->a} and \co{p->b}.
+Prevent this by using \co{rcu_assign_pointer()} as follows:
+\begin{verbatim}
+ C1  p = malloc(sizeof(*p));
+ C2  p->a = compute_value();
+ C3  p->b = 42;
+ C4  rcu_assign_pointer(gp, p);
+\end{verbatim}
+}
+\caption{Compilers Can Reorder Accesses}
+\label{lst:defer:Compilers Can Reorder Accesses}
+\end{listing}
+
+To see the need for \co{rcu_dereference()}, please see lines~A1--A3 of
+\cref{lst:defer:Compilers Can Reload Values}.
+Here, the compiler may assume that \co{gp} retains the same value
+throughout.
+If \co{do_something_with()} uses many machine registers, then the
+compiler might transform this code to the form shown in lines~B1--B4 of
+this listing, thus avoiding the need to dedicate a register to the value
+loaded from \co{gp}, but also possibly passing values from two
+different structures to the pair of calls to \co{do_something_with()}
+on lines~B2 and~B4.
+This transformation would fatally confuse any implementation of
+\co{do_something_with()} that assumed that it was being passed values
+from the same structure.
+To prevent this transformation, use \co{rcu_dereference()} as
+shown on lines~C1-C3 of this listing, thus informing the compiler of the
+possibility of concurrent updates to \co{gp}.
+
+To see the need for \co{rcu_assign_pointer()}, please see lines~A1--A4 of
+\cref{lst:defer:Compilers Can Reorder Accesses},
+in which the compiler may assume that \co{gp} is not concurrently accessed
+at all.
+If \co{compute_value()} is inlined, the compiler might generate better
+code by pulling the assignment to \co{gp} from line~A4 to follow line~A1,
+as shown in the transformed code on lines~B1--B4.
+If some other thread were to load fields \co{gp->a} or \co{gp->b} between
+the store on line~B2 and the initializations on lines~B3 and~B4, that
+other thread's acceses would return pre-initialization garbage.
+You can prevent this transformation by using \co{rcu_assign_pointer()}
+as shown on lines~C1--C4, thus informing the compiler of the possibility
+of concurrent accesses to \co{gp} and of the need to preserve ordering.
+
 Reviewing \cref{fig:defer:Insertion With Concurrent Readers}
 from the viewpoint of readers, in the first three states all readers
 see \co{gptr} having the value \co{NULL}.
