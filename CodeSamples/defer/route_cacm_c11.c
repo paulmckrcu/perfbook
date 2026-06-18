@@ -119,6 +119,10 @@ struct route_entry {
 	struct route_entry *volatile _Atomic next;
 	unsigned long addr;
 	unsigned long iface;
+#ifdef FRESH
+	int removed;
+	mtx_t route_entry_lock;
+#endif // #ifdef FRESH
 	_Atomic int freed;
 };
 
@@ -130,6 +134,22 @@ static void re_free(struct route_entry *rep)
 	atomic_store_explicit(&rep->freed, 1, memory_order_relaxed);
 	free(rep);
 }
+
+#ifdef FRESH
+static inline int
+route_lookup_check(struct route_entry *rep, unsigned long ret)
+{
+	unsigned long ret1 = ret;
+
+	mtx_lock(&rep->route_entry_lock);
+	if (rep->removed)
+		ret1 = ULONG_MAX;
+	else
+		// Do something with rep.
+	mtx_unlock(&rep->route_entry_lock);
+	return ret1;
+}
+#endif // #ifdef FRESH
 
 /*
  * Look up a route entry, return the corresponding interface.
@@ -146,6 +166,9 @@ unsigned long route_lookup(unsigned long addr)
 			ret = rep->iface;
 			if (atomic_load_explicit(&rep->freed, memory_order_relaxed))
 				abort();
+#ifdef FRESH
+			ret = route_lookup_check(rep, ret);
+#endif // #ifdef FRESH
 			rcu_read_unlock();
 			return ret;
 		}
@@ -166,6 +189,10 @@ int route_add(unsigned long addr, unsigned long interface)
 		return -ENOMEM;
 	rep->addr = addr;
 	rep->iface = interface;
+#ifdef FRESH
+	rep->removed = 0;
+	mtx_init(&rep->route_entry_lock, mtx_plain);
+#endif // #ifdef FRESH
 	atomic_store_explicit(&rep->freed, 0, memory_order_relaxed);
 	call_once(&rcu_gp_lock_flag, lock_init);
 	mtx_lock(&routelock);
@@ -190,6 +217,11 @@ int route_del(unsigned long addr)
 	     rep = rcu_dereference(*repp), repp = &rep->next) {
 		rep = rcu_dereference(*repp);
 		if (rep->addr == addr) {
+#ifdef FRESH
+			mtx_lock(&rep->route_entry_lock);
+			rep->removed = 1;
+			mtx_unlock(&rep->route_entry_lock);
+#endif // #ifdef FRESH
 			rcu_assign_pointer(*repp, rep->next);
 			mtx_unlock(&routelock);
 			synchronize_rcu();
