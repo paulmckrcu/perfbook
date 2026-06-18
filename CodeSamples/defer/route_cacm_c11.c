@@ -136,6 +136,12 @@ static void re_free(struct route_entry *rep)
 }
 
 #ifdef FRESH
+static void do_something_with(struct route_entry *rep)
+{
+}
+#endif // #ifdef FRESH
+
+#ifdef FRESH
 static inline int
 route_lookup_check(struct route_entry *rep, unsigned long ret)
 {
@@ -145,7 +151,7 @@ route_lookup_check(struct route_entry *rep, unsigned long ret)
 	if (rep->removed)
 		ret1 = ULONG_MAX;
 	else
-		// Do something with rep.
+		do_something_with(rep);
 	mtx_unlock(&rep->route_entry_lock);
 	return ret1;
 }
