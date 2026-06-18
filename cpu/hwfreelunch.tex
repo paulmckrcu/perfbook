@@ -11,11 +11,10 @@
 	  doing something for themselves.}
 	 {Henry Ford, updated}
 
-The major reason that concurrency has been receiving so much focus over
-the past few years is the end of \IXaltr{Moore's-Law}{Moore's Law}
-induced single-threaded
-performance increases
-(or ``free lunch''~\cite{HerbSutter2008EffectiveConcurrency}),
+The major reason that concurrency has been receiving so much focus
+over the past couple of decades is the end of 8\pct-per-\emph{week}
+\IXaltr{Moore's-Law}{Moore's Law} induced single-threaded performance
+increases (or ``free lunch''~\cite{HerbSutter2008EffectiveConcurrency}),
 as shown in
 \cref{fig:intro:Clock-Frequency Trend for Intel CPUs} on
 \cpageref{fig:intro:Clock-Frequency Trend for Intel CPUs}.
@@ -24,25 +23,47 @@ might bring back the ``free lunch''.
 
 However, the preceding section presented some substantial hardware
 obstacles to exploiting concurrency.
-One severe physical limitation that hardware designers face is the
-finite speed of light.
-As noted in
+One severe physical limitation that hardware designers face is the finite
+speed of light, which is limited to about 30~centimeters per nanosecond.
+Fans of the inimitable \ppl{Grace}{Hopper} might prefer a rough and
+ready one foot per nanosecond, while those well-versed in paper sizes
+might advocate for the height of either an A4 or an 8~1/2x11 sheet of
+paper per nanosecond.
+
+Worse yet, as noted in
 \cref{fig:cpu:System Hardware Architecture} on
 \cpageref{fig:cpu:System Hardware Architecture},
-light can manage only about an 8-centimeters round trip in a vacuum
+computer systems use request-response interactions, and are thus
+limited not by the speed of light, but instead by half that speed.
+In addition, CPU clock frequencies are usually well in excess of 1\,GHz,
+which means that those clock's periods are quite a bit shorter than
+one nanosecond.
+For example, light can manage only about an 8-centimeter round trip
 during the duration of a 1.8\,GHz clock period.
-This distance drops to about 3~centimeters for a 5\,GHz clock.
+This distance drops to about 3~centimeters given a 5\,GHz clock.
 Both of these distances are relatively small compared to the size
 of modern computer systems.
 
-To make matters even worse, electric waves in silicon move from three to
-thirty times more slowly than does light in a vacuum, and common
-clocked logic constructs run still more slowly, for example, a
-memory reference may need to wait for a local cache lookup to complete
+To make matters even worse, computer systems communicate not via light
+in a vacuum, but rather via electric waves through solids.
+Electric waves move through copper at about 30\pct\ the speed of light
+in a vacuum, and through silicon transistors at about 3\pct\ the speed
+of light in a vacuum.
+Plus common clocked logic constructs run still more slowly, for example,
+a memory reference may need to wait for a local cache lookup to complete
 before the request may be passed on to the rest of the system.
+In addition, systems have multiple clock domains, with CPUs running
+quite a bit faster than the memory system, and reliably communicating
+a signal from one clock domain to another requires three of the slow
+domain's clock periods.
 Furthermore, relatively low speed and high power drivers are required
 to move electrical signals from one silicon die to another, for example,
-to communicate between a CPU and main memory.
+to communicate between a pair of CPU sockets or between a given CPU and
+main memory.
+Finally, as will be see in
+\cref{sec:count:Why Isn't Concurrent Counting Trivial?}
+if the communication involves more than just one pair of
+CPUs, additional trips are required.
 
 \QuickQuiz{
 	But individual electrons don't move anywhere near that fast,
@@ -110,10 +131,10 @@ to communicate between a CPU and main memory.
 }\QuickQuizEnd
 
 In fact, Stephen Hawking is said to have claimed that semiconductor
-manufacturers have but two fundamental problems:
+manufacturers have but two fundamental problems~\cite{BryanGardiner2007}:
 \begin{enumerate*}[(1)]
-\item The finite speed of light and
-\item The atomic nature of matter~\cite{BryanGardiner2007}.
+\item The finite speed of light~\cite{OleRoemer1671SpeedOfLight} and
+\item The atomic nature of matter~\cite{JeanBaptistePerrin1923AtomSize}.
 \end{enumerate*}
 That is right, light is too slow and atoms are too big!!!
 
@@ -133,7 +154,8 @@ levels.\footnote{
 	Which is why some real-time and safety-critical applications
 	use simple and slow unoptimized hardware:
 	Doing so can reduce interrupt, context-switch, and
-	privilege-switch overheads.}
+	privilege-switch overheads by more than enough to offset the
+	otherwise unoptimized hardware.}
 
 There are nevertheless some technologies (both hardware and software)
 that might help improve matters:
@@ -175,10 +197,13 @@ Yet another proposed workaround is to replace the atoms making up the
 base of a traditional transistor with a vacuum, resulting in the
 vacuum-channel transistor~\cite{JinWooHan2014VacuumGapTransistor}.
 The good news is that at these transistors' scale, the Earth's atmosphere
-essentially a vacuum.
-The less-good news is that these devices currently have low reliability
-and short lifetime because their extremely intense electric fields
-degrade their electrodes.
+for all intents and purposes a vacuum.
+In addition, these devices have great nostalgia value for those of us
+old enough to remember when vacuum tubes were still the dominant active
+electronic device.
+However, the much-less-good news is that these devices currently have low
+reliability and short lifetime because their extremely intense electric
+fields degrade their electrodes.
 
 One challenge of hardware-device-level breakthroughs is their need for
 very tight control of which atoms are placed
@@ -190,19 +215,19 @@ excellent bragging rights, if nothing else!
 \subsection{Light, Not Electrons}
 \label{sec:cpu:Light; Not Electrons}
 
-Although the speed of light would be a hard limit, the fact is that
-semiconductor devices are limited by the speed of electricity rather
-than that of light, given that electric waves in semiconductor materials
-move at between 3\pct\ and 30\pct\ of the speed of light in a vacuum.
-The use of copper connections on silicon devices is one way to increase
-the speed of electricity, and it is quite possible that additional
-advances will push closer still to the actual speed of light.
+Although the speed of light in a vacuum would be a hard limit, the fact
+is that semiconductor devices are instead limited by the much slower
+electric waves in solids.
+Electric waves travel about an order of magnitude faster in copper than
+in silicon, so increased use of copper connections on silicon devices can
+improve performance, and it is quite possible that additional advances
+will push closer still to the actual speed of light.
 In addition, there have been some experiments with tiny optical fibers
 as interconnects within and between chips, based on the fact that
 the speed of light in glass is more than 60\pct\ of the speed of light
 in a vacuum.
-One obstacle to such optical fibers is the inefficiency conversion
-between electricity and light and vice versa, resulting in both
+One obstacle to such optical fibers is inefficiencies in converting
+between electric waves and light and vice versa, resulting in both
 power-consumption and heat-dissipation problems.
 
 That said, absent some fundamental advances in the field of physics,
