@@ -184,9 +184,30 @@ then sequence locking's inability to protect pointers is irrelevant.
 
 Finally, there is some work on dynamically switching between hazard
 pointers and RCU based on dynamic sampling of
-delays~\cite{Balmau:2016:FRM:2935764.2935790}.
-This defers the choice between hazard pointers and RCU to runtime,
+delays~\cite{Balmau:2016:FRM:2935764.2935790,JeehoonKang2020MarryHazptrRCU}.
+These defer the choice between hazard pointers and RCU to runtime,
 and delegates responsibility for the decision to the software.
+However, it is wise to remember that the
+biggest advantage of hazard pointers over RCU is that a
+hazard-pointers reader that maintains a long-term reference to a given
+object does not prevent other objects from being freed.
+In contrast, any long-running RCU reader will prevent all RCU-protected
+objects from being freed.
+On the other hand, the biggest advantage of RCU over hazard pointers is
+that an RCU reader can unconditionally traverse an RCU-protected pointer.
+In contrast, as with many reference-counting use cases, if the destination
+object is concurrently removed, hazard pointers can (and must) refuse to
+permit the traversal, in many cases requiring the traversal to restart
+from the beginning.
+These two aspects are mirror images of each other:
+The reason that RCU can permit unconditional traversal is because any
+RCU reader blocks freeing of all RCU-protected objects, and the reason
+that hazard pointers can free any already-removed no-longer-protected
+object that is not currently referenced by a hazard pointer is because
+hazard pointers can refuse to permit a pointer traversal.
+These mirror-imaged properties might explain why attempts to combine
+hazard pointers and RCU into a single synchronization mechanism have
+failed to catch on.`
 
 Nevertheless, this table should be of great help when choosing between
 these techniques.
@@ -475,6 +496,9 @@ updates.
 However, there are situations in which the only blocking operation is
 a wait to free memory, which results in a situation that, for many
 purposes, is as good as non-blocking~\cite{MathieuDesnoyers2012URCU}.
+Furthermore, use of RCU polling APIs can provide a non-blocking
+view of RCU grace periods, as discussed in
+\cref{sec:together:Nurturing Non-Blocking Synchronization}.
 
 As shown in the ``Automatic Reclamation'' row, only reference
 counting can automate freeing of memory, and even then only
