@@ -92,16 +92,18 @@ void route_unregister_thread(void)
 #define quiescent_state() do { } while (0)
 
 /* Route-table entry to be included in the routing list. */
+//\begin{snippet}[labelbase=ln:defer:route_cacm:data,commandchars=\\\[\]]
 struct route_entry {
 	struct route_entry *next;
 	unsigned long addr;
 	unsigned long iface;
 #ifdef FRESH
-	int removed;
-	spinlock_t route_entry_lock;
+	int removed;				//\lnlbl{re_removed}
+	spinlock_t route_entry_lock;		//\lnlbl{re_lock}
 #endif // #ifdef FRESH
 	int freed;
 };
+//\end{snippet}
 
 struct route_entry *route_list;
 DEFINE_SPINLOCK(routelock);
@@ -118,20 +120,21 @@ static void do_something_with(struct route_entry *rep)
 }
 #endif // #ifdef FRESH
 
+//\begin{snippet}[labelbase=ln:defer:route_cacm:lookup,commandchars=\\\[\]]
 #ifdef FRESH
-static inline int
+static inline int					//\lnlbl{rlc:b}
 route_lookup_check(struct route_entry *rep, unsigned long ret)
 {
 	unsigned long ret1 = ret;
 
-	spin_lock(&rep->route_entry_lock);
-	if (rep->removed)
-		ret1 = ULONG_MAX;
+	spin_lock(&rep->route_entry_lock);		//\lnlbl{rlc:acq}
+	if (rep->removed)				//\lnlbl{rlc:ckrem}
+		ret1 = ULONG_MAX;			//\lnlbl{rlc:retfail}
 	else
-		do_something_with(rep);
-	spin_unlock(&rep->route_entry_lock);
-	return ret1;
-}
+		do_something_with(rep);			//\lnlbl{rlc:dsw}
+	spin_unlock(&rep->route_entry_lock);		//\lnlbl{rlc:rel}
+	return ret1;					//\lnlbl{rlc:ret}
+}							//\lnlbl{rlc:e}
 #endif // #ifdef FRESH
 
 /*
@@ -150,7 +153,7 @@ unsigned long route_lookup(unsigned long addr)
 			if (READ_ONCE(rep->freed))
 				abort();
 #ifdef FRESH
-			ret = route_lookup_check(rep, ret);
+			ret = route_lookup_check(rep, ret); //\lnlbl{call_check}
 #endif // #ifdef FRESH
 			rcu_read_unlock();
 			return ret;
@@ -159,10 +162,12 @@ unsigned long route_lookup(unsigned long addr)
 	rcu_read_unlock();
 	return ULONG_MAX;
 }
+//\end{snippet}
 
 /*
  * Add an element to the route table.
  */
+//\begin{snippet}[labelbase=ln:defer:route_cacm:add_del,commandchars=\\\[\]]
 int route_add(unsigned long addr, unsigned long interface)
 {
 	struct route_entry *rep;
@@ -173,8 +178,8 @@ int route_add(unsigned long addr, unsigned long interface)
 	rep->addr = addr;
 	rep->iface = interface;
 #ifdef FRESH
-	rep->removed = 0;
-	spin_lock_init(&rep->route_entry_lock);
+	rep->removed = 0;				//\lnlbl{ra:irem}
+	spin_lock_init(&rep->route_entry_lock);		//\lnlbl{ra:isl}
 #endif // #ifdef FRESH
 	rep->freed = 0;
 	spin_lock(&routelock);
@@ -198,9 +203,9 @@ int route_del(unsigned long addr)
 		rep = rcu_dereference(*repp);
 		if (rep->addr == addr) {
 #ifdef FRESH
-			spin_lock(&rep->route_entry_lock);
-			rep->removed = 1;
-			spin_unlock(&rep->route_entry_lock);
+			spin_lock(&rep->route_entry_lock);	//\lnlbl{rd:acq}
+			rep->removed = 1;			//\lnlbl{rd:rem}
+			spin_unlock(&rep->route_entry_lock);	//\lnlbl{rd:rel}
 #endif // #ifdef FRESH
 			rcu_assign_pointer(*repp, rep->next);
 			spin_unlock(&routelock);
@@ -212,6 +217,7 @@ int route_del(unsigned long addr)
 	spin_unlock(&routelock);
 	return -ENOENT;
 }
+//\end{snippet}
 
 /*
  * Clear all elements from the route table.

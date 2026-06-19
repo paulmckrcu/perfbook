@@ -293,6 +293,121 @@ tradeoff.
 \end{fcvref}
 
 \FloatBarrier
+\subsection{Fresh and Consistent Data}
+\label{sec:together:Fresh and Consistent Data}
+
+As noted in
+\cref{sec:defer:RCU Usage Summary},
+the data accessed by an RCU reader might be stale or inconsistent.
+However, freshness and consistency can often be restored after the
+fact.
+
+For example, consider the RCU-protected pre-BSD routing structure
+presented in
+\cref{sec:defer:RCU for Pre-BSD Routing}.
+Freshness and consistency can be restored by adding a
+\co{false}-initialized \co{->removed} flag and a spinlock to each object.
+During insertion, just before an object is made visible to RCU readers,
+the \co{->removed} flag is initialized to zero and the spinlock is simply
+initialized.
+When an object is removed, its \co{->removed} flag is set to the value
+one while holding its lock.
+When a search finds an object, it acquires that object's lock.
+If the \co{->removed} flag is set, the search simply releases the lock
+and then proceeds as if the search had failed.
+
+\begin{listing}
+\input{CodeSamples/defer/route_cacm@data.fcv}
+\caption{RCU Fresh-Data Routing Table Data Structures}
+\label{lst:defer:RCU Fresh-Data Routing Table Data Structures}
+\end{listing}
+
+\begin{fcvref}[ln:defer:route_cacm:data]
+For example, the \co{route_entry} structure in
+\cref{lst:defer:RCU Fresh-Data Routing Table Data Structures}
+can be modified to provide fresh and consistent data as shown by the
+\co{->removed} field on \clnref{re_removed} and the \co{->route_entry_lock}
+field on \clnref{re_lock}, both under \co{#ifdef FRESH}.
+\end{fcvref}
+
+\begin{listing}
+\input{CodeSamples/defer/route_cacm@lookup.fcv}
+\caption{RCU Fresh-Data Routing Table Lookup}
+\label{lst:defer:RCU Fresh-Data Routing Table Lookup}
+\end{listing}
+
+\begin{fcvref}[ln:defer:route_cacm:lookup]
+The \co{route_lookup()} function in
+\cref{lst:defer:RCU Fresh-Data Routing Table Lookup}
+can also be modified to provide fresh and consistent data as shown by
+the code under \co{#ifdef FRESH}.
+\Clnref{call_check} invokes the new \co{route_lookup_check} function
+defined on \clnrefrange{rlc:b}{rlc:e}, passing it a pointer to the
+current \co{route_entry} structure and also the current return value.
+The return value from this function is used to update the \co{ret}
+local variable, thus allowing this function to change the return value.
+
+The \co{route_lookup_check()} function acquires the spinlock on
+\clnref{rlc:acq}, and if \clnref{rlc:ckrem} determines that this element
+has been removed, \clnref{rlc:retfail} sets the value of the local
+variable \co{ret1} to \co{ULONG_MAX} to indicate lookup failure.
+Of course, as soon \clnref{rlc:rel} releases the lock, some other thread
+might invoke \co{route_del()} to remove this same object, thus rendering
+the return value stale.
+Therefore, any code requiring fresh and consistent data should be
+placed in the \co{do_something_with()} function that is invoked on
+\clnref{rlc:dsw}, where the object's \co{->route_entry_lock} will exclude
+such removal.
+Either way, \clnref{rlc:ret} returns either the passed-in interface or
+the failure indication.
+
+This listing's code structure was designed for ease of comparison with
+\cref{lst:defer:RCU Pre-BSD Routing Table Lookup}.
+Alert readers will note that this structure is not particularly good
+for modularity, abstraction, or information hiding.
+Such readers are encouraged to consider alternative APIs, perhaps passing
+a function to \co{route_lookup()} or returning from \co{route_lookup()}
+with the \co{->route_entry_lock} held.
+\end{fcvref}
+
+\begin{listing}
+\input{CodeSamples/defer/route_cacm@add_del.fcv}
+\caption{RCU Fresh-Data Routing Table Data Update}
+\label{lst:defer:RCU Fresh-Data Routing Table Data Update}
+\end{listing}
+
+\begin{fcvref}[ln:defer:route_cacm:add_del]
+For their part, the \co{route_add()} and \co{route_del()} functions
+shown in
+\cref{lst:defer:RCU Fresh-Data Routing Table Data Update}
+can be easily modified to provide fresh and consistent data as shown by
+the code under \co{#ifdef FRESH}.
+In \co{route_add()}, \clnref{ra:irem} initializes the new \co{->removed}
+field to zero and \clnref{ra:isl} initializes the new per-entry spinlock.
+In \co{route_del()}, \clnref{rd:acq} acquires the mutex, \clnref{rd:rem}
+sets the \co{->removed} field to the value one, and \clnref{rd:rel}
+releases the mutex.
+\end{fcvref}
+
+This technique is used in the Linux kernel~\cite{Arcangeli03}, but it
+is all to easy to overuse it.
+Never forget that although holding the \co{->route_entry_lock} can
+prevent the in-memory routing entry from changing, it can do absolutely
+nothing to prevent changes in the external network configuration.
+For example, if a ship's anchor severs an undersea fiber-optic cable,
+re-routing of data will be required no matter how many systems hold
+mutexes protecting the affected routing data.
+
+Therefore, this technique tends not to be used in network routing, but
+to instead in situations where the operations on the destination object
+require a lock.
+Examples include in-kernel operations on POSIX file descriptors and on
+System-V semaphores.
+In such cases, RCU provides fast and scalable traversal of the
+search structure, and the per-object (as opposed to global) lock
+provides the needed mutual exclusion, while also avoiding unnecessary
+lock-contention-induced performance loss.
+
 \subsection{Array and Length}
 \label{sec:together:Array and Length}
 
