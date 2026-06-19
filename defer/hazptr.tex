@@ -18,9 +18,34 @@ Each element of these lists is called a
 The value of a given data element's ``virtual reference counter'' can
 then be obtained by counting the number of hazard pointers referencing
 that element.
-Therefore, if that element has been rendered inaccessible to readers,
-and there are no longer any hazard pointers referencing it, that element
-may safely be freed.
+
+\begin{figure}
+\centering
+\resizebox{3in}{!}{\includegraphics{defer/hazptr}}
+\caption{Reference Counting vs.\@ Hazard Pointers}
+\label{fig:defer:Reference Counting vs. Hazard Pointers}
+\end{figure}
+
+This arrangement is illustrated by
+\cref{fig:defer:Reference Counting vs. Hazard Pointers},
+in which the left side illustrates conventional reference counting
+(using a \co{->refctr} field within the object), and with the right
+side illustrating hazard pointers, in which a per-CPU
+pointer references a specific structure or is the \co{NULL} pointer.
+In both cases, the corresponding object has two references, one from
+CPU~0 and the other from CPU~2.
+
+The biggest advantage of hazard pointers over conventional reference
+counting is that updating hazard pointers is a low-cost CPU-local
+operation.
+In contrast, updating traditional reference counters often requires
+costly atomic operations that are subject to expensive cache misses.
+Hazard pointers can thus be thought of as a scalable replacement for
+reference counting~\cite{McKenney:2013:SDS:2483852.2483867}.
+But nothing comes for free, and the corresponding hazard-pointers penalty
+is that there is no efficient low-latency mechanism for determining when
+the number of hazard-pointer references to a given object has decreased
+to zero.
 
 \begin{listing}
 \input{CodeSamples/defer/hazptr@record_clear.fcv}
@@ -28,9 +53,9 @@ may safely be freed.
 \label{lst:defer:Hazard-Pointer Recording and Clearing}
 \end{listing}
 
-Of course, this means that hazard-pointer acquisition must be carried
-out quite carefully in order to avoid destructive races with concurrent
-deletion.
+Of course, this also means that hazard-pointer acquisition must be
+carried out quite carefully in order to avoid destructive races with
+concurrent deletion.
 \begin{fcvref}[ln:defer:hazptr:record_clear]
 One implementation is shown in
 \cref{lst:defer:Hazard-Pointer Recording and Clearing},
