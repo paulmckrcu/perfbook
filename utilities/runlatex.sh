@@ -184,14 +184,17 @@ else
 	echo "'$basename.pdf' is ready, with above warning(s) ignored."
 fi
 # cleveref version check (Ubuntu 18.04 LTS has buggy one
-if grep -q -F "packageversion{0.21.1}" `kpsewhich cleveref.sty`
-then
+CLEVEREF_STY=`kpsewhich cleveref.sty`
+if [ "$CLEVEREF_STY" != "" ] ; then
+    if grep -q -F "packageversion{0.21.1}" $CLEVEREF_STY
+    then
 	echo "############################################################"
 	echo "### Buggy version of LaTeX package 'cleveref' detected!! ###"
 	echo "### (Known issue on Ubuntu 18.04 LTS)                    ###"
 	echo "### Required TeX Live is 2019/Debian or later.           ###"
 	echo "### Consider upgrading to Ubuntu 20.04 LTS or later.     ###"
 	echo "############################################################"
+    fi
 fi
 # to avoid redundant run of bibtex and pdflatex
 touch $basename.bbl
