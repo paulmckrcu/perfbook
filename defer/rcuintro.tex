@@ -69,64 +69,82 @@ can be implemented with a single load instruction, exactly the instruction
 that would normally be used in single-threaded code.
 
 \begin{listing}[tb]
-{ \small
-\begin{verbatim}
- A1  p = gp;
- A2  do_something_with(p->a);
- A3  do_something_with(p->b);
-\end{verbatim}
+\small
+\fvset{numbers=left,numbersep=5pt,fontsize=\scriptsize,frame=single,xleftmargin=15pt,xrightmargin=5pt}
+{\renewcommand{\theFancyVerbLine}{%
+  {\rmfamily\tiny A\arabic{FancyVerbLine}}}
+\begin{Verbatim}
+ p = gp;
+ do_something_with(p->a);
+ do_something_with(p->b);
+\end{Verbatim}
+}
 Might be transformed to:
-\begin{verbatim}
- B1  p = gp;
- B2  do_something_with(p->a);
- B3  p = gp;
- B4  do_something_with(p->b);
-\end{verbatim}
+{\renewcommand{\theFancyVerbLine}{%
+  {\rmfamily\tiny B\arabic{FancyVerbLine}}}
+\begin{Verbatim}
+ p = gp;
+ do_something_with(p->a);
+ p = gp;
+ do_something_with(p->b);
+\end{Verbatim}
+}
 The compiler assumes normal variables do not spontaneously change,
 \co{do_something_with()} might use many machine registers, and this
 transformation reduces register pressure.
-But if some other thread changes \co{gp} between lines~1 and~3 of the
+But if some other thread changes \co{gp} between lines~B1 and~B3 of the
 transformed code, the values of \co{p->a} and \co{p->b} will be mismatched.
 Prevent this by using \co{rcu_dereference()} as follows:
-\begin{verbatim}
- C1  p = rcu_dereference(gp);
- C2  do_something_with(p->a);
- C3  do_something_with(p->b);
-\end{verbatim}
+{\renewcommand{\theFancyVerbLine}{%
+  {\rmfamily\tiny C\arabic{FancyVerbLine}}}
+\begin{Verbatim}
+ p = rcu_dereference(gp);
+ do_something_with(p->a);
+ do_something_with(p->b);
+\end{Verbatim}
 }
 \caption{Compilers Can Reload Values}
 \label{lst:defer:Compilers Can Reload Values}
 \end{listing}
 
 \begin{listing}[tb]
-{ \small
-\begin{verbatim}
- A1  p = malloc(sizeof(*p));
- A2  p->a = compute_value();
- A3  p->b = 42;
- A4  gp = p;
-\end{verbatim}
+\small
+\fvset{numbers=left,numbersep=5pt,fontsize=\scriptsize,frame=single,xleftmargin=15pt,xrightmargin=5pt}
+{\renewcommand{\theFancyVerbLine}{%
+  {\rmfamily\tiny A\arabic{FancyVerbLine}}}
+\begin{Verbatim}
+ p = malloc(sizeof(*p));
+ p->a = compute_value();
+ p->b = 42;
+ gp = p;
+\end{Verbatim}
+}
 Might be transformed to:
-\begin{verbatim}
- B1  p = malloc(sizeof(*p));
- B2  gp = p;
- B3  p->a = compute_value();
- B4  p->b = 42;
-\end{verbatim}
+{\renewcommand{\theFancyVerbLine}{%
+  {\rmfamily\tiny B\arabic{FancyVerbLine}}}
+\begin{Verbatim}
+ p = malloc(sizeof(*p));
+ gp = p;
+ p->a = compute_value();
+ p->b = 42;
+\end{Verbatim}
+}
 The compiler assumes normal variables are not concurrently accessed,
 and thus that the order of stores does not matter.
 If \co{compute_value()} was inlined, this transformation might produce
 better code.
 In this example, if some other thread loads \co{gp} immediately after
-line~2 of the transformed code, that thread might see pre-initialization
+line~B2 of the transformed code, that thread might see pre-initialization
 garbage in \co{p->a} and \co{p->b}.
 Prevent this by using \co{rcu_assign_pointer()} as follows:
-\begin{verbatim}
- C1  p = malloc(sizeof(*p));
- C2  p->a = compute_value();
- C3  p->b = 42;
- C4  rcu_assign_pointer(gp, p);
-\end{verbatim}
+{\renewcommand{\theFancyVerbLine}{%
+  {\rmfamily\tiny C\arabic{FancyVerbLine}}}
+\begin{Verbatim}
+ p = malloc(sizeof(*p));
+ p->a = compute_value();
+ p->b = 42;
+ rcu_assign_pointer(gp, p);
+\end{Verbatim}
 }
 \caption{Compilers Can Reorder Accesses}
 \label{lst:defer:Compilers Can Reorder Accesses}
@@ -146,7 +164,7 @@ This transformation would fatally confuse any implementation of
 \co{do_something_with()} that assumed that it was being passed values
 from the same structure.
 To prevent this transformation, use \co{rcu_dereference()} as
-shown on lines~C1-C3 of this listing, thus informing the compiler of the
+shown on lines~C1--C3 of this listing, thus informing the compiler of the
 possibility of concurrent updates to \co{gp}.
 
 To see the need for \co{rcu_assign_pointer()}, please see lines~A1--A4 of
