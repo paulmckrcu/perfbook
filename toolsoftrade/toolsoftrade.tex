@@ -1484,44 +1484,62 @@ This raises the question as to what today's greybeards did back
 in long-past pre-C11 days.
 A short answer to this question is ``they lived dangerously''.
 
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:Living Dangerously Early 1990s Style]
-\begin{VerbatimL}[commandchars=\\\{\}]
-ptr = global_ptr;\lnlbl{temp}
+\begin{listing}[tb]
+\begin{adjustwidth}{10pt}{5pt}
+\footnotesize
+\fvset{numbers=left,numbersep=5pt,fontsize=\scriptsize,frame=single,xrightmargin=5pt}
+{\renewcommand{\theFancyVerbLine}{%
+  {\rmfamily\tiny A\arabic{FancyVerbLine}}}
+\begin{VerbatimT}
+ptr = global_ptr;
 if (ptr != NULL && ptr < high_address)
 	do_low(ptr);
-\end{VerbatimL}
-\end{fcvlabel}
+\end{VerbatimT}
+}
+Might be transformed to:
+{\renewcommand{\theFancyVerbLine}{%
+  {\rmfamily\tiny B\arabic{FancyVerbLine}}}
+\begin{VerbatimT}
+if (global_ptr != NULL &&
+    global_ptr < high_address)
+	do_low(global_ptr);
+\end{VerbatimT}
+}
+The compiler assumes normal variables do not spontaneously change,
+the surrounding code  might use many machine registers, and this
+transformation reduces register pressure.
+But if some other thread changes \co{global_ptr} from non-\co{NULL}
+to \co{NULL} between lines~B1 and~B2 of the transformed code, the
+two comparisons will be against different variables, possibly passing
+\co{do_low} a \co{NULL} pointer.
+Prevent this by using \co{READ_ONCE()} as follows:
+{\renewcommand{\theFancyVerbLine}{%
+  {\rmfamily\tiny C\arabic{FancyVerbLine}}}
+\begin{VerbatimT}
+ptr = READ_ONCE(global_ptr);
+if (ptr != NULL && ptr < high_address)
+	do_low(ptr);
+\end{VerbatimT}
+}
+\end{adjustwidth}
 \caption{Living Dangerously Early 1990s Style}
 \label{lst:toolsoftrade:Living Dangerously Early 1990s Style}
 \end{listing}
 
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:C Compilers Can Invent Loads]
-\begin{VerbatimL}[commandchars=\\\{\}]
-if (global_ptr != NULL &&\lnlbl{if:a}
-    global_ptr < high_address)\lnlbl{if:b}
-	do_low(global_ptr);\lnlbl{do_low}
-\end{VerbatimL}
-\end{fcvlabel}
-\caption{C Compilers Can Invent Loads}
-\label{lst:toolsoftrade:C Compilers Can Invent Loads}
-\end{listing}
-
 At least they would have been living dangerously had they been using
-2021 compilers.
+present-day compilers.
 In (say) the early 1990s, compilers did fewer optimizations, in part
 because there were fewer compiler writers and in part due to the
 relatively small memories of that era.
-Nevertheless, problems did arise, as shown in
+Nevertheless, problems did arise, as shown in lines~A1--A3 of
 \cref{lst:toolsoftrade:Living Dangerously Early 1990s Style},
 which the compiler is within its rights to transform into
-\cref{lst:toolsoftrade:C Compilers Can Invent Loads}.
-As you can see, the temporary on
-\clnrefr{ln:toolsoftrade:Living Dangerously Early 1990s Style:temp} of
-\cref{lst:toolsoftrade:Living Dangerously Early 1990s Style}
-has been optimized away, so that \co{global_ptr} will be loaded
-up to three times.
+lines~B1--B4.
+As you can see, the temporary on line~A1 has been optimized away, so
+that \co{global_ptr} will be loaded up to three times.
+This can be prevented using \co{READ_ONCE()} as shown on line~C1,
+as is explained in detail in
+\cref{sec:toolsoftrade:A Volatile Solution}.
 
 \QuickQuiz{
 	What is wrong with loading
@@ -1530,18 +1548,15 @@ up to three times.
 }\QuickQuizAnswer{
 	Suppose that \co{global_ptr} is initially non-\co{NULL},
 	but that some other thread sets \co{global_ptr} to \co{NULL}.
-	\begin{fcvref}[ln:toolsoftrade:C Compilers Can Invent Loads]
-	Suppose further that \clnref{if:a} of the transformed code
-	(\cref{lst:toolsoftrade:C Compilers Can Invent Loads})
+	Suppose further that line~B1 of the transformed code
+	(\cref{lst:toolsoftrade:Living Dangerously Early 1990s Style})
 	executes just before \co{global_ptr} is set to \co{NULL} and
-	\clnref{if:b} just after.
-	Then \clnref{if:a} will conclude that
-	\co{global_ptr} is non-\co{NULL},
-	\clnref{if:b} will conclude that it is less than
+	line~B2 just after.
+	Then line~B1 will conclude that \co{global_ptr} is non-\co{NULL},
+	and line~B2  will conclude that it is less than
 	\co{high_address},
-	so that \clnref{do_low} passes \co{do_low()} a \co{NULL} pointer,
+	so that line~B3 passes \co{do_low()} a \co{NULL} pointer,
 	which \co{do_low()} just might not be prepared to deal with.
-	\end{fcvref}
 
 	Your editor made exactly this mistake in the DYNIX/ptx
 	kernel's memory allocator in the early 1990s.
@@ -1552,7 +1567,8 @@ up to three times.
 }\QuickQuizEnd
 
 \Cref{sec:toolsoftrade:Shared-Variable Shenanigans}
-describes additional problems caused by plain accesses,
+describes (and provides examples for) additional problems caused by
+plain accesses,
 \cref{sec:toolsoftrade:A Volatile Solution,%
 sec:toolsoftrade:Assembling the Rest of a Solution}
 describe some pre-C11 solutions.
@@ -1587,8 +1603,7 @@ or shared-variable shenanigans, as described below.
 \item[Load tearing] occurs when the compiler uses multiple load
 instructions for a single access.
 For example, the compiler could in theory compile the load from
-\co{global_ptr} (see
-\clnrefr{ln:toolsoftrade:Living Dangerously Early 1990s Style:temp} of
+\co{global_ptr} (see line~A1 of
 \cref{lst:toolsoftrade:Living Dangerously Early 1990s Style})
 as a series of one-byte loads.
 If some other thread was concurrently setting \co{global_ptr} to
@@ -1602,6 +1617,9 @@ might have no choice but to use a pair of 8-bit instructions to access
 a given pointer.
 Because the C standard must support all manner of systems, the standard
 cannot rule out load tearing in the general case.
+
+However, adding a \co{READ_ONCE()} as shown on line~C1 prevents load
+tearing on modern systems in most situations.
 
 \item[Store tearing] occurs when the compiler uses multiple store
 instructions for a single access.
@@ -1857,8 +1875,7 @@ independent of the ordering provided by the underlying hardware.\footnote{
 	of \apik{READ_ONCE()} and \apik{WRITE_ONCE()}.}
 
 \item[Invented loads] were illustrated by the code in
-\cref{lst:toolsoftrade:Living Dangerously Early 1990s Style,%
-lst:toolsoftrade:C Compilers Can Invent Loads},
+\cref{lst:toolsoftrade:Living Dangerously Early 1990s Style},
 in which the compiler optimized away a temporary variable,
 thus loading from a shared variable more often than intended.
 
@@ -2143,24 +2160,10 @@ complex, and are left aside for the time being.
 
 So how does \apic{volatile} stack up against the earlier examples?
 
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:Avoiding Danger, 2018 Style]
-\begin{VerbatimL}[commandchars=\\\{\}]
-ptr = READ_ONCE(global_ptr);\lnlbl{temp}
-if (ptr != NULL && ptr < high_address)
-	do_low(ptr);
-\end{VerbatimL}
-\end{fcvlabel}
-\caption{Avoiding Danger, 2018 Style}
-\label{lst:toolsoftrade:Avoiding Danger; 2018 Style}
-\end{listing}
-
-Using \apik{READ_ONCE()} on
-\clnrefr{ln:toolsoftrade:Living Dangerously Early 1990s Style:temp} of
+Using \apik{READ_ONCE()} on line~A1 of
 \cref{lst:toolsoftrade:Living Dangerously Early 1990s Style}
 avoids invented loads,
-resulting in the code shown in
-\cref{lst:toolsoftrade:Avoiding Danger; 2018 Style}.
+resulting in the code shown on lines~C1--C3.
 
 \begin{listing}
 \begin{fcvlabel}[ln:toolsoftrade:Preventing Load Fusing]
