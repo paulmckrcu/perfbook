@@ -71,38 +71,32 @@ that would normally be used in single-threaded code.
 \begin{listing}[tb]
 \begin{adjustwidth}{10pt}{5pt}
 \footnotesize
-{\renewcommand{\theFancyVerbLine}{%
-  {\rmfamily\tiny A\arabic{FancyVerbLine}}}
+\renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
 \begin{VerbatimT}
  p = gp;
  do_something_with(p->a);
  do_something_with(p->b);
 \end{VerbatimT}
-}
 Might be transformed to:
-{\renewcommand{\theFancyVerbLine}{%
-  {\rmfamily\tiny B\arabic{FancyVerbLine}}}
+\renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
 \begin{VerbatimT}
  p = gp;
  do_something_with(p->a);
  p = gp;
  do_something_with(p->b);
 \end{VerbatimT}
-}
 The compiler assumes normal variables do not spontaneously change,
 \co{do_something_with()} might use many machine registers, and this
 transformation reduces register pressure.
 But if some other thread changes \co{gp} between lines~B1 and~B3 of the
 transformed code, the values of \co{p->a} and \co{p->b} will be mismatched.
 Prevent this by using \co{rcu_dereference()} as follows:
-{\renewcommand{\theFancyVerbLine}{%
-  {\rmfamily\tiny C\arabic{FancyVerbLine}}}
+\renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
 \begin{VerbatimT}
  p = rcu_dereference(gp);
  do_something_with(p->a);
  do_something_with(p->b);
 \end{VerbatimT}
-}
 \end{adjustwidth}
 \caption{Compilers Can Reload Values}
 \label{lst:defer:Compilers Can Reload Values}
@@ -111,25 +105,21 @@ Prevent this by using \co{rcu_dereference()} as follows:
 \begin{listing}[tb]
 \begin{adjustwidth}{10pt}{5pt}
 \footnotesize
-{\renewcommand{\theFancyVerbLine}{%
-  {\rmfamily\tiny A\arabic{FancyVerbLine}}}
+\renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
 \begin{VerbatimT}
  p = malloc(sizeof(*p));
  p->a = compute_value();
  p->b = 42;
  gp = p;
 \end{VerbatimT}
-}
 Might be transformed to:
-{\renewcommand{\theFancyVerbLine}{%
-  {\rmfamily\tiny B\arabic{FancyVerbLine}}}
+\renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
 \begin{VerbatimT}
  p = malloc(sizeof(*p));
  gp = p;
  p->a = compute_value();
  p->b = 42;
 \end{VerbatimT}
-}
 The compiler assumes normal variables are not concurrently accessed,
 and thus that the order of stores does not matter.
 If \co{compute_value()} was inlined, this transformation might produce
@@ -138,15 +128,13 @@ In this example, if some other thread loads \co{gp} immediately after
 line~B2 of the transformed code, that thread might see pre-initialization
 garbage in \co{p->a} and \co{p->b}.
 Prevent this by using \co{rcu_assign_pointer()} as follows:
-{\renewcommand{\theFancyVerbLine}{%
-  {\rmfamily\tiny C\arabic{FancyVerbLine}}}
+\renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
 \begin{VerbatimT}
  p = malloc(sizeof(*p));
  p->a = compute_value();
  p->b = 42;
  rcu_assign_pointer(gp, p);
 \end{VerbatimT}
-}
 \end{adjustwidth}
 \caption{Compilers Can Reorder Accesses}
 \label{lst:defer:Compilers Can Reorder Accesses}
