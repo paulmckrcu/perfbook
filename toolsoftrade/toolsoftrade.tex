@@ -1581,16 +1581,19 @@ all of those accesses are loads.
 Given code that does \IXalt{plain loads and stores}{plain access},\footnote{
 	That is, normal loads and stores instead of C11 atomics, inline
 	assembly, or volatile accesses.}
-the compiler is within
-its rights to assume that the affected variables are neither accessed
-nor modified by any other thread.
+the compiler is within its rights to assume that any loaded-from variables
+are not concurrently stored to by any other thread and that any stored-to
+variables are neither loaded from nor stored to concurrently by any
+other thread.
 This assumption allows the compiler to carry out a large number of
 transformations, including load tearing, store tearing,
 load fusing, store fusing, code reordering, invented loads,
 invented stores, store-to-load transformations, and dead-code elimination,
 all of which work just fine in single-threaded code.
 But concurrent code can be broken by each of these transformations,
-or shared-variable shenanigans, as described below.
+or shared-variable shenanigans.
+Prevent this by informing the compiler of your intentions, as described
+below.
 
 \begin{description}[labelsep=.4em]
 \item[Load tearing] occurs when the compiler uses multiple load
@@ -1644,137 +1647,136 @@ the possibility of code using 64-bit integers running on a 32-bit system.
 But for properly aligned machine-sized stores, \apik{WRITE_ONCE()} will
 prevent store tearing.
 
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:Preventing Load Fusing]
-\begin{VerbatimLL}[commandchars=\\\{\}]
+\begin{listing}[tb]
+\begin{adjustwidth}{10pt}{5pt}
+\footnotesize
+\renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
+\begin{VerbatimT}
 while (!need_to_stop)
 	do_something_quickly();
-\end{VerbatimLL}
-\end{fcvlabel}
-\caption{Inviting Load Fusing}
-\label{lst:toolsoftrade:Inviting Load Fusing}
-\end{listing}
-
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:C Compilers Can Fuse Loads]
-\begin{VerbatimLL}[commandchars=\\\[\]]
+\end{VerbatimT}
+Might be transformed to:
+\renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
+\begin{VerbatimT}
 if (!need_to_stop)
-	for (;;) {\lnlbl[loop:b]
+	for (;;)
 		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-	}\lnlbl[loop:e]
-\end{VerbatimLL}
-\end{fcvlabel}
-\caption{C Compilers Can Fuse Loads}
-\label{lst:toolsoftrade:C Compilers Can Fuse Loads}
+\end{VerbatimT}
+The compiler assumes normal variables do not spontaneously change,
+and might thus load \co{need_to_stop} only the one time.
+Prevent this by using \co{READ_ONCE()} as follows:
+\renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+while (!READ_ONCE(need_to_stop))
+	do_something_quickly();
+\end{VerbatimT}
+\end{adjustwidth}
+\caption{Infinite Load Fusing}
+\label{lst:toolsoftrade:Infinite Load Fusing}
 \end{listing}
 
-\item[Load fusing] occurs when the compiler uses the result of a
-prior load from a given variable instead of repeating the load.
+\item[Load fusing] occurs when the compiler reuses the result of a prior
+load from a given variable instead of re-executing that load.
 Not only is this sort of optimization just fine in single-threaded
 code, it is often just fine in multithreaded code.
 Unfortunately, the word ``often'' hides some truly annoying exceptions.
 
-For example, suppose that a real-time system needs to invoke a
-function named \co{do_something_quickly()} repeatedly until the
-variable \co{need_to_stop} was set, and that the compiler can see
-that \co{do_something_quickly()} does not store to \co{need_to_stop}.
-One (unsafe) way to code this is shown in
-\cref{lst:toolsoftrade:Inviting Load Fusing}.
-The compiler might reasonably unroll this loop sixteen times in order
-to reduce the per-invocation of the backwards branch at the end of the
-loop.
-Worse yet, because the compiler knows that \co{do_something_quickly()}
-does not store to \co{need_to_stop}, the compiler could quite reasonably
-decide to check this variable only once, resulting in the code shown in
-\cref{lst:toolsoftrade:C Compilers Can Fuse Loads}.
-\begin{fcvref}[ln:toolsoftrade:C Compilers Can Fuse Loads]
-Once entered, the loop on
-\clnrefrange{loop:b}{loop:e} will never exit, regardless of how
+For example, suppose that it is necessary to invoke a function
+named \co{do_something_quickly()} repeatedly until the variable
+\co{need_to_stop} was set, and that the compiler can see that
+\co{do_something_quickly()} does not store to \co{need_to_stop}.
+One (unsafe) way to code this is shown on lines~A1--A2 of
+\cref{lst:toolsoftrade:Infinite Load Fusing}.
+Because line~A1 does a plain load and because the compiler knows that
+\co{do_something_quickly()} does not store to \co{need_to_stop}, the
+compiler could quite reasonably decide to check this variable only once,
+resulting in the code shown on lines~B1--B3 of the listing.
+Once entered, the loop on will never exit, regardless of how
 many times some other thread stores a non-zero value to \co{need_to_stop}.
-\end{fcvref}
-The result will at best be consternation, and might well also
-include severe physical damage.
+The result will at best be consternation, and might well also entail
+severe physical damage.
+You can prevent such disasters by using \co{READ_ONCE()} as shown
+on line~C1.
 
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads]
-\begin{VerbatimLL}[commandchars=\\\[\]]
-int *gp; \lnlbl[gp]
-
-void t0(void)
-{
-	WRITE_ONCE(gp, &myvar); \lnlbl[wgp]
-}
-
-void t1(void)
-{
-	p1 = gp; \lnlbl[p1]
-	do_something(p1);
-	p2 = READ_ONCE(gp); \lnlbl[p2]
-	if (p2) { \lnlbl[if]
-		do_something_else();
-		p3 = *gp; \lnlbl[p3]
+\begin{listing}[tb]
+\begin{adjustwidth}{10pt}{5pt}
+\footnotesize
+\renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+while (!nonvolatile_atomic_load(need_to_stop))
+	do_something_quickly();
+\end{VerbatimT}
+Might be transformed to:
+\renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+if (!nonvolatile_atomic_load(need_to_stop))
+	for (;;) {
+		do_something_quickly();
+		do_something_quickly();
+		do_something_quickly();
+		do_something_quickly();
 	}
-}
-\end{VerbatimLL}
-\end{fcvlabel}
-\caption{C Compilers Can Fuse Non-Adjacent Loads}
-\label{lst:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads}
+\end{VerbatimT}
+In the absence of ordering in \co{do_something_quickly()}, the compiler is
+permitted to do finite load fusing, in this case combining four adjacent
+non-volatile atomic loads into a single non-volatile atomic load.
+The resulting four back-to-back calls to \co{do_something_quickly()}
+might result in a failure to meet loop-exit latency constraints after
+some other thread stores to \co{need_to_stop}.
+Prevent this by using \co{READ_ONCE()} as follows:
+\renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+while (!READ_ONCE(need_to_stop))
+	do_something_quickly();
+\end{VerbatimT}
+\end{adjustwidth}
+\caption{Finite Load Fusing}
+\label{lst:toolsoftrade:Finite Load Fusing}
 \end{listing}
 
-\begin{fcvref}[ln:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads]
-The compiler can fuse loads across surprisingly large spans of code.
-For example, in
-\cref{lst:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads},
-\co{t0()} and \co{t1()} run concurrently, and \co{do_something()} and
-\co{do_something_else()} are inline functions.
-\Clnref{gp} declares pointer \co{gp}, which C initializes to \co{NULL}
-by default.
-At some point, \clnref{wgp} of \co{t0()} stores a non-\co{NULL}
-pointer to \co{gp}.
-Meanwhile, \co{t1()} loads from \co{gp} three times on
-\clnref{p1,p2,p3}.
-Given that \clnref{if} finds that \co{gp} is non-\co{NULL}, one might
-hope that the dereference on \clnref{p3} would be guaranteed never
-to fault.
-Unfortunately, the compiler is within its rights to fuse the read on
-\clnref{p1,p3}, which means that if \clnref{p1}
-loads \co{NULL} and \clnref{p2} loads \co{&myvar}, \clnref{p3}
-could load \co{NULL}, resulting in a fault.\footnote{
-	\ppl{Will}{Deacon} reports that this happened in the Linux kernel.}
-Note that the intervening \apik{READ_ONCE()} does not prevent the other
-two loads from being fused, despite the fact that all three are loading
-from the same variable.
-\end{fcvref}
+Users of C++ or Rust atomics might be tempted to instead use these
+language's non-volatile atomics, which often provide a nice compromise
+between reasonable guarantees and decent optimization.
+These optimizations can be especially effective when
+\co{do_something_quickly()} is an inline function.
+Because the C language provides only volatile atomic operations,
+line~A1 of
+\cref{lst:toolsoftrade:Finite Load Fusing}
+indicates this with the mythical \co{nonvolatile_atomic_load()} operation.
+
+However, those working on real-time code must take care because finite
+load fusing is permitted, which can lead to finite loop unrolling,
+as as exemplified by the four-way unrolling on lines~B1-B7 of
+the listing.
+Although this loop unrolling does not cause a functional failure, the
+unrolled loop might cause the \co{do_something_quickly()} function to be
+executed up to four times between the time that some other thread stores
+a non-zero value to \co{need_to_stop} and the time that the loop exits.
+These additional executions of \co{do_something_quickly()} might result
+in failures to meet loop-exit latency constraints, especially given that
+the value of ``finite'' can be extremely large.
+Prevent this latency-degrading unrolling by using \co{READ_ONCE()}
+as shown on line~C1.
 
 \QuickQuiz{
-	Why does it matter whether \co{do_something()} and
-	\co{do_something_else()} in
-	\cref{lst:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads}
-	are inline functions?
+	Why does it matter whether \co{do_something_quickly()} in
+	\cref{lst:toolsoftrade:Finite Load Fusing}
+	is an inline functions?
 }\QuickQuizAnswer{
-	\begin{fcvref}[ln:toolsoftrade:C Compilers Can Fuse Non-Adjacent Loads]
-	Because \co{gp} is not a static variable, if either
-	\co{do_something()} or \co{do_something_else()} were separately
-	compiled, the compiler would have to assume that either or both
-	of these two functions might change the value of \co{gp}.
-	This possibility would force the compiler to reload \co{gp}
-	on \clnref{p3}, thus avoiding the \co{NULL}-pointer dereference.
-	\end{fcvref}
+	Because if \co{need_to_stop} is non-static and if
+	\co{do_something_quickly()} was separately
+	compiled, the compiler would have to assume that this
+	function might change the value of \co{need_to_stop}.
+	This possibility would force the compiler to reload
+	\co{need_to_stop} on each pass through the loop on lines~A1--A2,
+	thus preventing the compiler from unrolling the loop, or,
+	alternatively, from omitting the load and test
+	when unrolling the loop.
+	This would in turn prevent the excessive latencies.
+
+	So function inlining can be a wonderful optimization, but it
+	can also inflict functionality and latency penalties on careless
+	coders.
 }\QuickQuizEnd
 
 \item[Store fusing] can occur when the compiler notices a pair of successive
@@ -2172,7 +2174,7 @@ while (!READ_ONCE(need_to_stop))
 As shown in
 \cref{lst:toolsoftrade:Preventing Load Fusing},
 \apik{READ_ONCE()} can also prevent the loop unrolling in
-\cref{lst:toolsoftrade:C Compilers Can Fuse Loads}.
+\cref{lst:toolsoftrade:Finite Load Fusing}.
 
 \begin{listing}
 \begin{fcvlabel}[ln:toolsoftrade:Preventing Store Fusing and Invented Stores]
@@ -2273,7 +2275,7 @@ this do-nothing asm can arbitrarily change memory.
 In response, the compiler will avoid moving any memory references across
 the \apik{barrier()} macro.
 This means that the real-time-destroying loop unrolling shown in
-\cref{lst:toolsoftrade:C Compilers Can Fuse Loads}
+\cref{lst:toolsoftrade:Finite Load Fusing}
 can be prevented by adding \apik{barrier()} calls as shown on
 \clnrefr{ln:toolsoftrade:Preventing C Compilers From Fusing Loads:b1,%
 ln:toolsoftrade:Preventing C Compilers From Fusing Loads:b2}
