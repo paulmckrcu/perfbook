@@ -1681,6 +1681,21 @@ Not only is this sort of optimization just fine in single-threaded
 code, it is often just fine in multithreaded code.
 Unfortunately, the word ``often'' hides some truly annoying exceptions.
 
+\QuickQuiz{
+	How does ``load fusing'' differ from ``load merging''?
+}\QuickQuizAnswer{
+	There is some variation in terminology.
+	For example, some would say that load fusing is instead when
+	the compiler uses a single instruction to load both of a pair
+	of adjacent variables, and would then use load merging to mean
+	reusing a prior load instead of
+	reloading~\cite{PaulEMcKenney2026P3692R4/OOTAwithoutTrying}.
+
+	But what is in a name?
+
+	In this field, sometimes quite a bit of confusion!
+}\QuickQuizEnd
+
 For example, suppose that it is necessary to invoke a function
 named \co{do_something_quickly()} repeatedly until the variable
 \co{need_to_stop} was set, and that the compiler can see that
@@ -1764,15 +1779,19 @@ as shown on line~C1.
 	is an inline functions?
 }\QuickQuizAnswer{
 	Because if \co{need_to_stop} is non-static and if
-	\co{do_something_quickly()} was separately
-	compiled, the compiler would have to assume that this
-	function might change the value of \co{need_to_stop}.
-	This possibility would force the compiler to reload
+	\co{do_something_quickly()} was separately compiled, the compiler
+	would have to assume that this function might change the value
+	of \co{need_to_stop}.  Or that this function might include
+	ordering constraints and accesses to other shared variables.
+	These possibilities would force the compiler to reload
 	\co{need_to_stop} on each pass through the loop on lines~A1--A2,
 	thus preventing the compiler from unrolling the loop, or,
-	alternatively, from omitting the load and test
-	when unrolling the loop.
-	This would in turn prevent the excessive latencies.
+	alternatively, from omitting the load and test when unrolling
+	the loop.
+	The compiler's ignorance, coupled with the fact that the compiler
+	understood that it was ignorant, would force the per-iteration
+	reload from \co{need_to_stop}, which would in turn prevent the
+	excessive latencies.
 
 	So function inlining can be a wonderful optimization, but it
 	can also inflict functionality and latency penalties on careless
