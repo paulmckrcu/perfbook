@@ -89,3 +89,23 @@ myrandom(void)
 	randseed = t;
 	return (t);
 }
+
+#ifdef TEST
+
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(int argc, char *argv[])
+{
+	int i;
+	u_long seed = 0;
+
+	if (argc > 1)
+		seed = strtoul(argv[1], NULL, 0);
+	printf("seed = %#lx\n", seed);
+	setrandom(seed);
+	for (i = 0; i < 20; i++)
+		printf("%d: %#lx\n", i, myrandom());
+}
+
+#endif
