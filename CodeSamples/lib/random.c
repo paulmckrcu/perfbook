@@ -67,7 +67,7 @@ setrandom(unsigned int seed)
 /*
  * Pseudo-random number generator for randomizing the profiling clock,
  * and whatever else we might use it for.  The result is uniform on
- * [0, 2^31 - 1].
+ * [1, 2^31 - 2].
  */
 u_long
 myrandom(void)
