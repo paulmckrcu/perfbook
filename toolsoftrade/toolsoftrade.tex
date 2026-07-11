@@ -1985,52 +1985,58 @@ Of course, a store of any value outside the range 0--2 to this variable
 could confuse and frustrate any user who would naturally be expecting
 its value to remain in this range.
 
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:Inviting an Invented Store]
-\begin{VerbatimLL}[commandchars=\\\{\}]
+\begin{listing}[tb]
+\begin{adjustwidth}{10pt}{5pt}
+\footnotesize
+\renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
+\begin{VerbatimT}
 if (condition)
 	a = 1;
 else
 	do_a_bunch_of_stuff(&a);
-\end{VerbatimLL}
-\end{fcvlabel}
-\caption{Inviting an Invented Store}
-\label{lst:toolsoftrade:Inviting an Invented Store}
-\end{listing}
-
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:Compiler Invents an Invited Store]
-\begin{VerbatimLL}[commandchars=\\\[\]]
-a = 1;\lnlbl[store:uncond]
+\end{VerbatimT}
+Might be transformed to:
+\renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+a = 1;
 if (!condition) {
-	a = 0;\lnlbl[store:cond]
+	a = 0;
 	do_a_bunch_of_stuff(&a);
 }
-\end{VerbatimLL}
-\end{fcvlabel}
-\caption{Compiler Invents an Invited Store}
-\label{lst:toolsoftrade:Compiler Invents an Invited Store}
+\end{VerbatimT}
+If \co{do_a_bunch_of_stuff()} uses a normal store to modify \co{a}, then
+there is a store to \co{a} on both legs of the \co{if} statement.
+This permits compiler to insert an unconditional store and a compensating
+store, reducing an if-then-else to an if-then.
+Prevent this by using \co{WRITE_ONCE()} as follows:
+\renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+if (condition)
+	WRITE_ONCE(a, 1);
+else
+	do_a_bunch_of_stuff(&a);
+\end{VerbatimT}
+\end{adjustwidth}
+\caption{Inventing Stores}
+\label{lst:toolsoftrade:Inventing Stores}
 \end{listing}
 
 Using a stored-to variable as a temporary might seem outlandish,
 but it is permitted by the standard.
 Nevertheless, readers might be justified in wanting a less
 outlandish example, which is provided by
-\cref{lst:toolsoftrade:Inviting an Invented Store,%
-lst:toolsoftrade:Compiler Invents an Invited Store}.
+\cref{lst:toolsoftrade:Inventing Stores}.
 
-A compiler emitting code for
-\cref{lst:toolsoftrade:Inviting an Invented Store}
-might know that the value of \co{a} is initially zero,
-which might be a strong temptation to optimize away one branch
-by transforming this code to that in
-\cref{lst:toolsoftrade:Compiler Invents an Invited Store}.
-\begin{fcvref}[ln:toolsoftrade:Compiler Invents an Invited Store]
-Here, \clnref{store:uncond} unconditionally stores \co{1} to \co{a}, then
-resets the value back to zero on
-\clnref{store:cond} if \co{condition} was not set.
+A compiler emitting code for lines~A1--A4 of
+\cref{lst:toolsoftrade:Inventing Stores}
+might know that the value of \co{a} is initially zero and that
+\co{do_a_bunch_of_stuff()} modifies the variable referenced by its
+argument (in this case, \co{a}).
+Such a compiler might be strongly tempted to optimize away one branch
+by transforming this code to that shown in lines~B1--B5.
+Here, line~B1 unconditionally stores \co{1} to \co{a}, then resets the
+value back to zero on line~B3 if the value of \co{condition} was zero.
 This transforms the if-then-else into an if-then, saving one branch.
-\end{fcvref}
 
 \QuickQuiz{
 	Ouch!
@@ -2057,8 +2063,8 @@ This transforms the if-then-else into an if-then, saving one branch.
 	By inventing the store, the compiler might be introducing a
 	data race, which it is not permitted to do.
 
-	Furthermore, in
-	\cref{lst:toolsoftrade:Compiler Invents an Invited Store},
+	Furthermore, on line C4 of
+	\cref{lst:toolsoftrade:Inventing Stores},
 	the address of that variable is passed to
 	\co{do_a_bunch_of_stuff()}.
 	If the compiler can see this function's definition, and
@@ -2309,10 +2315,8 @@ else
 \end{listing}
 
 Finally, \apik{WRITE_ONCE()} can be used to prevent the store invention
-shown in
-\cref{lst:toolsoftrade:Inviting an Invented Store},
-with the resulting code shown in
-\cref{lst:toolsoftrade:Disinviting an Invented Store}.
+shown on line~C2 of
+\cref{lst:toolsoftrade:Inventing Stores}.
 
 To summarize, the \apic{volatile} keyword can prevent load
 tearing and store tearing in cases where the loads and stores are
