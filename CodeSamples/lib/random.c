@@ -43,15 +43,25 @@
 
 #include <sys/types.h>
 
-static u_long __thread randseed;
+/*
+ * Zero is the absorbing state of the Park-Miller recurrence below,
+ * so default each thread to the canonical seed of 1 rather than
+ * relying on zero-initialized TLS.
+ */
+static u_long __thread randseed = 1;
 
 /*
- * Set the seed for the current thread.
+ * Set the seed for the current thread.  Seeds congruent to zero
+ * modulo 2^31 - 1 (that is, 0, 0x7fffffff, and 0xfffffffe) would
+ * put the Park-Miller recurrence into its absorbing state, so map
+ * them to 1.
  */
 void
 setrandom(unsigned int seed)
 {
-	randseed = seed;
+	randseed = seed % 0x7fffffff;
+	if (randseed == 0)
+		randseed = 1;
 }
 
 /*
