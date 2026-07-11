@@ -1807,71 +1807,136 @@ After all, if the two stores are executed in quick succession, there is
 very little chance that some other thread could load the value from the
 first store.
 
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:C Compilers Can Fuse Stores]
-\begin{VerbatimLL}[commandchars=\\\[\]]
-void shut_it_down(void)
-{
-	status = SHUTTING_DOWN; /* BUGGY!!! */\lnlbl[store:a]
-	start_shutdown();
-	while (!other_task_ready) /* BUGGY!!! */\lnlbl[loop:b]
-		continue;\lnlbl[loop:e]
-	finish_shutdown();\lnlbl[finish]
-	status = SHUT_DOWN; /* BUGGY!!! */\lnlbl[store:b]
-	do_something_else();
-}
-
-void work_until_shut_down(void)
-{
-	while (status != SHUTTING_DOWN) /* BUGGY!!! */\lnlbl[until:loop:b]
-		do_more_work();\lnlbl[until:loop:e]
-	other_task_ready = 1; /* BUGGY!!! */\lnlbl[other:store]
-}
-\end{VerbatimLL}
-\end{fcvlabel}
-\caption{C Compilers Can Fuse Stores}
-\label{lst:toolsoftrade:C Compilers Can Fuse Stores}
+\begin{listing}[tb]
+\begin{adjustwidth}{10pt}{5pt}
+\footnotesize
+\renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+in_progress = 1;
+do_something();
+in_progress = 2;
+do_something_else();
+in_progress = 0;
+\end{VerbatimT}
+Might be transformed to:
+\renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+do_something();
+do_something_else();
+in_progress = 0;
+\end{VerbatimT}
+Because this code stores to \co{in_progress}, the compiler is
+allowed so assume that there are neither concurrent loads nor
+stores.
+This permits the compiler to drop the first store to this variable, which
+might frustrate those expecting it to sometimes have a non-zero value.
+Prevent this by using \co{WRITE_ONCE()} and \co{barrier()} as follows:
+\renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+WRITE_ONCE(in_progress, 1);
+do_something();
+WRITE_ONCE(in_progress, 2);
+do_something_else();
+WRITE_ONCE(in_progress, 0);
+in_progress = false;
+\end{VerbatimT}
+\end{adjustwidth}
+\caption{Fusing Stores}
+\label{lst:toolsoftrade:Fusing Stores}
 \end{listing}
 
 However, there are exceptions, for example as shown in
-\cref{lst:toolsoftrade:C Compilers Can Fuse Stores}.
-\begin{fcvref}[ln:toolsoftrade:C Compilers Can Fuse Stores]
-The function \co{shut_it_down()} stores to the shared
-variable \co{status} on \clnref{store:a,store:b},
-and so assuming that neither
-\co{start_shutdown()} nor \co{finish_shutdown()} access \co{status},
-the compiler could reasonably remove the store to \co{status} on
-\clnref{store:a}.
-Unfortunately, this would mean that \co{work_until_shut_down()} would
-never exit its loop spanning
-\clnref{until:loop:b,until:loop:e}, and thus would never set
-\co{other_task_ready}, which would in turn mean that \co{shut_it_down()}
-would never exit its loop spanning
-\clnref{loop:b,loop:e}, even if
-the compiler chooses not to fuse the successive loads from
-\co{other_task_ready} on \clnref{loop:b}.
+\cref{lst:toolsoftrade:Fusing Stores}.
+The code on line~A1 sets the variable \co{in_progress} to the value~1
+to indicate that \co{do_something()} is executing, line~A3 sets it to~2
+to indicate that \co{do_something_else()} is executing, and line~5 sets
+it to~0 to indicate that neither is executing.
 
-And there are more problems with the code in
-\cref{lst:toolsoftrade:C Compilers Can Fuse Stores},
-including code reordering.
+Except that these are normal stores to a normal variable, which allows the
+compiler to assume that this variable is not subject to concurrent loads.
+As noted above, this in turn means that the stores on lines~A1 and~A3
+may be dropped, as shown on lines~B1-B3.
+This in turn means that the value of \co{in_progress} is always zero,
+which might confuse and frustrate users expecting its value to indicate
+whether either of \co{do_something()} or \co{do_something_else()} is
+currently executing.
+
+This problem can  be avoided by using \co{WRITE_ONCE()}, as shown
+on lines~C1, C3, and~C5.
+This use of \co{WRITE_ONCE()} informs the compiler that there might
+be concurrent loads and stores, preventing it from dropping the
+first two stores.
+
+Unfortunately, there are additional problems with the code in
+\cref{lst:toolsoftrade:Fusing Stores},
+that those \co{WRITE_ONCE()} calls do not solve, including code
+reordering.
+
+\begin{listing}[tb]
+\begin{adjustwidth}{10pt}{5pt}
+\footnotesize
+\renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+WRITE_ONCE(in_progress, 1);
+do_something();
+WRITE_ONCE(in_progress, 2);
+do_something_else();
+WRITE_ONCE(in_progress, 0);
+\end{VerbatimT}
+Might be transformed to:
+\renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+do_something();
+do_something_else();
+WRITE_ONCE(in_progress, 1);
+WRITE_ONCE(in_progress, 2);
+WRITE_ONCE(in_progress, 0);
+\end{VerbatimT}
+This can happen if neither \co{do_something()} nor
+\co{do_something_else()} contain atomic or volatile operations.
+The compiler is permitted to reorder these functions past both
+\co{WRITE_ONCE()} invocations, obtaining close to the same
+frustrating results as shown on lines~B1-B3 of
+\cref{lst:toolsoftrade:Fusing Stores}.
+Prevent this by using \co{barrier()} as follows:
+\renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+WRITE_ONCE(in_progress, 1);
+barrier();
+do_something();
+barrier();
+WRITE_ONCE(in_progress, 2);
+barrier();
+do_something_else();
+barrier();
+WRITE_ONCE(in_progress, 0);
+barrier();
+in_progress = false;
+\end{VerbatimT}
+\end{adjustwidth}
+\caption{Reordering Code}
+\label{lst:toolsoftrade:Reordering Code}
+\end{listing}
 
 \item[Code reordering] is a common compilation technique used to
 combine common subexpressions, reduce register pressure, and
 improve utilization of the many functional units available on
 modern superscalar microprocessors.
 It is also another reason why the code in
-\cref{lst:toolsoftrade:C Compilers Can Fuse Stores}
-is buggy.
-For example, suppose that the \co{do_more_work()} function on
-\clnref{until:loop:e}
-does not access \co{other_task_ready}.
-Then the compiler would be within its rights to move the assignment
-to \co{other_task_ready} on
-\clnref{other:store} to precede \clnref{until:loop:b}, which might
-be a great disappointment for anyone hoping that the last call to
-\co{do_more_work()} on \clnref{until:loop:e} happens before the call to
-\co{finish_shutdown()} on \clnref{finish}.
-\end{fcvref}
+\cref{lst:toolsoftrade:Fusing Stores}
+is buggy, as shown on lines~A1-A3 of
+\cref{lst:toolsoftrade:Reordering Code}.
+
+If the functions \co{do_something()} and \co{do_something_else()} are free
+of volatile and atomic operations, the compiler will assume that there
+are no conflicting accesses to variables accessed by these two functions.
+Here, conflicting accesses to a variable are a set of concurrent accesses
+to that variable, at least one of which is a store.
+Yes, the \co{WRITE_ONCE()} calls prevent the compiler from dropping
+any of the stores, but the compiler is under no obligation to maintain
+ordering of other code with those stores, as shown on lines~B1-B3.
+Because the three stores execute in quick succession, for most purposes,
+the first two stores (lines~B3 and~B4) might as well have been dropped!
 
 It might seem futile to prevent the compiler from changing the order of
 accesses in cases where the underlying hardware is free to reorder them.
@@ -1888,6 +1953,12 @@ independent of the ordering provided by the underlying hardware.\footnote{
 	you use atomics or variables of type \apic{sig_atomic_t}, instead
 	of \apik{READ_ONCE()} and \apik{WRITE_ONCE()}.}
 
+And this problem can be solved by inserting \co{barrier()}
+calls on lines~C2, C4, C6, C6, C8, and~C10.
+See
+\cref{sec:toolsoftrade:Assembling the Rest of a Solution}
+for more detail on \co{barrier()}.
+
 \item[Invented loads] were illustrated by the code in
 \cref{lst:toolsoftrade:Living Dangerously Early 1990s Style},
 in which the compiler optimized away a temporary variable,
@@ -1901,24 +1972,18 @@ increases in cache misses, and thus significant degradation of
 both performance and scalability.
 
 \item[Invented stores] can occur in a number of situations.
-\begin{fcvref}[ln:toolsoftrade:C Compilers Can Fuse Stores]
-For example, a compiler emitting code for \co{work_until_shut_down()} in
-\cref{lst:toolsoftrade:C Compilers Can Fuse Stores}
-might notice that \co{other_task_ready} is not accessed by
-\co{do_more_work()}, and stored to on \clnref{other:store}.
-If \co{do_more_work()} was a complex inline function, it might be
+For example, a compiler emitting code for lines~B1--B3 of
+\cref{lst:toolsoftrade:Fusing Stores}
+might notice that \co{in_progress} is not accessed by either
+\co{do_something()} or \co{do_something_else()}, and is stored to on line~B3.
+If either function was a complex and inline, it might be
 necessary to do a register spill, in which case one attractive
-place to use for temporary storage is \co{other_task_ready}.
+place to use for temporary storage is \co{in_progress}.
 After all, there are no accesses to it, so what is the harm?
 
-Of course, a non-zero store to this variable at just the wrong time
-would result in the \co{while} loop on
-\clnref{loop:b} terminating
-prematurely, again allowing \co{finish_shutdown()} to run
-concurrently with \co{do_more_work()}.
-Given that the entire point of this \co{while} appears to be to
-prevent such concurrency, this is not a good thing.
-\end{fcvref}
+Of course, a store of any value outside the range 0--2 to this variable
+could confuse and frustrate any user who would naturally be expecting
+its value to remain in this range.
 
 \begin{listing}
 \begin{fcvlabel}[ln:toolsoftrade:Inviting an Invented Store]
@@ -2223,7 +2288,7 @@ void work_until_shut_down(void)
 
 \apik{READ_ONCE()} and \apik{WRITE_ONCE()} can also be used to prevent the
 store fusing and invented stores that were shown in
-\cref{lst:toolsoftrade:C Compilers Can Fuse Stores},
+\cref{lst:toolsoftrade:Fusing Stores},
 with the result shown in
 \cref{lst:toolsoftrade:Preventing Store Fusing and Invented Stores}.
 However, this does nothing to prevent code reordering, which requires
@@ -2341,7 +2406,7 @@ references.
 In many cases, this is not a problem because the hardware can only do
 a certain amount of reordering.
 However, there are cases such as
-\cref{lst:toolsoftrade:C Compilers Can Fuse Stores} where the
+\cref{lst:toolsoftrade:Fusing Stores} where the
 hardware must be constrained.
 \Cref{lst:toolsoftrade:Preventing Store Fusing and Invented Stores}
 prevented store fusing and invention, and
