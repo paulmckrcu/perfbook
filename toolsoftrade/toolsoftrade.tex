@@ -2106,65 +2106,98 @@ variables~\cite[Section 4.2]{Boehm:2005:TCI:1064978.1065042}.
 This variant of invented stores has been outlawed by the prohibition
 against compiler optimizations that invent data races.
 
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:Inviting a Store-to-Load Conversion]
-\begin{VerbatimLL}[commandchars=\\\[\]]
-r1 = p;\lnlbl[load:p]
-if (unlikely(r1))\lnlbl[if]
-	do_something_with(r1);\lnlbl[dsw]
-barrier();\lnlbl[barrier]
-p = NULL;\lnlbl[null]
-\end{VerbatimLL}
-\end{fcvlabel}
-\caption{Inviting a Store-to-Load Conversion}
-\label{lst:toolsoftrade:Inviting a Store-to-Load Conversion}
+\begin{listing}[tb]
+\begin{adjustwidth}{10pt}{5pt}
+\footnotesize
+\renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+r1 = p;
+if (unlikely(r1))
+	do_something_with(r1);
+barrier();
+p = NULL;
+\end{VerbatimT}
+Might be transformed to:
+\renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+r1 = p;
+if (unlikely(r1))
+	do_something_with(r1);
+barrier();
+if (p != NULL)
+	p = NULL;
+\end{VerbatimT}
+Although the \co{barrier()} prevents the compiler from using the value
+loaded from \co{p} on line~A1, profile-guided optimization might tell
+the compiler that the value of \co{p} was almost always \co{NULL}.
+Checking the value before storing might be an attractive optimization,
+destructive though it might be to ordering in the case where
+\co{do_something_with()} contains an \co{smp_wmb()}.
+Prevent this by using \co{READ_ONCE()} and \co{WRITE_ONCE()} as follows:
+\renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
+\begin{VerbatimT}
+r1 = READ_ONCE(p);
+if (unlikely(r1))
+	do_something_with(r1);
+WRITE_ONCE(p, NULL);
+\end{VerbatimT}
+\end{adjustwidth}
+\caption{Store-to-Load Conversion}
+\label{lst:toolsoftrade:Store-to-Load Conversion}
 \end{listing}
 
 \item[Store-to-load transformations] can occur when the compiler notices
 that a plain store might not actually change the value in memory.
-\begin{fcvref}[ln:toolsoftrade:Inviting a Store-to-Load Conversion]
 For example, consider
-\cref{lst:toolsoftrade:Inviting a Store-to-Load Conversion}.
-\Clnref{load:p} fetches \co{p}, but the \qco{if} statement on
-\clnref{if} also tells the compiler that the developer thinks that
-\co{p} is usually zero.\footnote{
+\cref{lst:toolsoftrade:Store-to-Load Conversion}.
+Line~A1 fetches \co{p}, but the \qco{if} statement on
+line~A2 also tells the compiler that the developer thinks that
+\co{p} is usually \co{NULL}.\footnote{
 	The \apik{unlikely()} function provides this hint to the compiler,
 	and different compilers provide different ways of implementing
 	\co{unlikely()}.}
-The \apik{barrier()} statement on \clnref{barrier} forces the compiler
-to forget the value of \co{p}, but one could imagine a compiler
-choosing to remember the hint---or getting an additional hint via
-feedback-directed optimization.
-Doing so would cause the compiler to realize that \clnref{null}
-is often an expensive no-op.
-\end{fcvref}
+The \apik{barrier()} statement on line~A4 forces the compiler to forget
+the value of \co{p}, but one could imagine a (perhaps buggy) compiler
+choosing to remember the hint---or getting a replacement hint via
+profile-guided optimization.
+Doing so could cause the compiler to realize that line~A5 is often an
+expensive no-op.
 
-\begin{listing}
-\begin{fcvlabel}[ln:toolsoftrade:Compiler Converts a Store to a Load]
-\begin{VerbatimLL}[commandchars=\\\[\]]
-r1 = p;\lnlbl[load:p]
-if (unlikely(r1))\lnlbl[if]
-	do_something_with(r1);\lnlbl[dsw]
-barrier();\lnlbl[barrier]
-if (p != NULL)\lnlbl[if1]
-	p = NULL;\lnlbl[null]
-\end{VerbatimLL}
-\end{fcvlabel}
-\caption{Compiler Converts a Store to a Load}
-\label{lst:toolsoftrade:Compiler Converts a Store to a Load}
-\end{listing}
-
-\begin{fcvref}[ln:toolsoftrade:Compiler Converts a Store to a Load]
 Such a compiler might therefore guard the store of \co{NULL}
-with a check, as shown on \clnref{if1,null} of
-\cref{lst:toolsoftrade:Compiler Converts a Store to a Load}.
+with a check, as shown on lines~B5--B6.
 Although this transformation is often desirable, it could be problematic
 if the actual store was required for ordering.
-For example, a write memory barrier (Linux kernel \apik{smp_wmb()}) would
-order the store, but not the load.
+For example, if \co{do_something_with()} contained a write memory barrier
+(Linux kernel \apik{smp_wmb()}) would order the store, but not the
+check load.
 This situation might suggest use of \apik{smp_store_release()} over
 \apik{smp_wmb()}.
-\end{fcvref}
+Or alternatively, use of \co{READ_ONCE()} and \co{WRITE_ONCE()} combined
+with the assumed \co{smp_wmb()}, as shown on lines~C1 and~C4.
+
+\QuickQuiz{
+	But doesn't the \co{if} statement on line~C2 provide a control
+	dependency that makes the \co{smp_wmb} unnecessary?
+}\QuickQuizAnswer{
+	No, and for two reasons.
+
+	First, in the Linux-kernel memory model, the control dependency
+	does not extend beyond the end of the \co{if} on line~C3, and
+	thus does not extend to the store on line~C4.
+
+	Second, even if the control dependency did somehow extend to
+	line~C4 (perhaps due to C4 being moved into the body of the
+	\co{if} statement), that dependency would order the load on
+	line~C1 with the store on line~C4.
+	It would \emph{not} order any stores prior to the assumed
+	\co{smp_wmb()} in \co{do_something_with()}.
+
+	So there is a control dependency, but it does not extend far
+	enough and it also might not order the prior writes that the
+	\co{smp_wmb()} would order.
+
+	Please be careful out there!!!
+}\QuickQuizEnd
 
 \item[Dead-code elimination] can occur when the compiler notices that
 the value from a load is never used, or when a variable is stored to,
