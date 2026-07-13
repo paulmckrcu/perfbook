@@ -1488,32 +1488,37 @@ A short answer to this question is ``they lived dangerously''.
 \begin{adjustwidth}{10pt}{5pt}
 \footnotesize
 \renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
-\begin{VerbatimT}
-ptr = global_ptr;
-if (ptr != NULL && ptr < high_address)
-	do_low(ptr);
+\begin{fcvlabel}[ln:toolsoftrade:Living Dangerously Early 1990s Style]
+\begin{VerbatimT}[commandchars=\\\[\]]
+ptr = global_ptr;			\lnlbl[A1]
+if (ptr != NULL && ptr < high_address)	\lnlbl[A2]
+	do_low(ptr);			\lnlbl[A3]
 \end{VerbatimT}
 Might be transformed to:
 \renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
-\begin{VerbatimT}
-if (global_ptr != NULL &&
-    global_ptr < high_address)
-	do_low(global_ptr);
+\begin{VerbatimT}[commandchars=\\\[\]]
+if (global_ptr != NULL &&		\lnlbl[B1]
+    global_ptr < high_address)		\lnlbl[B2]
+	do_low(global_ptr);		\lnlbl[B3]
 \end{VerbatimT}
+\begin{fcvref}[ln:toolsoftrade:Living Dangerously Early 1990s Style]
 The compiler assumes normal variables do not spontaneously change,
 the surrounding code  might use many machine registers, and this
 transformation reduces register pressure.
+\setlnpref{B}
 But if some other thread changes \co{global_ptr} from non-\co{NULL}
-to \co{NULL} between lines~B1 and~B2 of the transformed code, the
+to \co{NULL} between \clnref{B1,B2} of the transformed code, the
 two comparisons will be against different variables, possibly passing
 \co{do_low} a \co{NULL} pointer.
 Prevent this by using \co{READ_ONCE()} as follows:
+\end{fcvref}
 \renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
-\begin{VerbatimT}
-ptr = READ_ONCE(global_ptr);
-if (ptr != NULL && ptr < high_address)
-	do_low(ptr);
+\begin{VerbatimT}[commandchars=\\\[\]]
+ptr = READ_ONCE(global_ptr);			\lnlbl[C1]
+if (ptr != NULL && ptr < high_address)		\lnlbl[C2]
+	do_low(ptr);				\lnlbl[C3]
 \end{VerbatimT}
+\end{fcvlabel}
 \end{adjustwidth}
 \caption{Living Dangerously Early 1990s Style}
 \label{lst:toolsoftrade:Living Dangerously Early 1990s Style}
@@ -1524,32 +1529,42 @@ present-day compilers.
 In (say) the early 1990s, compilers did fewer optimizations, in part
 because there were fewer compiler writers and in part due to the
 relatively small memories of that era.
-Nevertheless, problems did arise, as shown in lines~A1--A3 of
+\begin{fcvref}[ln:toolsoftrade:Living Dangerously Early 1990s Style]
+Nevertheless, problems did arise, as shown in
+\setlnpref{A}
+\clnrefrange{A1}{A3} of
 \cref{lst:toolsoftrade:Living Dangerously Early 1990s Style},
+\setlnpref{B}
 which the compiler is within its rights to transform into
-lines~B1--B3.
-As you can see, the temporary on line~A1 has been optimized away, so
+\clnrefrange{B1}{B3}.
+\setlnpref{A}
+As you can see, the temporary on \clnref{A1} has been optimized away, so
 that \co{global_ptr} will be loaded up to three times.
-This can be prevented using \co{READ_ONCE()} as shown on line~C1,
+\setlnpref{C}
+This can be prevented using \co{READ_ONCE()} as shown on \clnref{C1},
 as is explained in detail in
 \cref{sec:toolsoftrade:A Volatile Solution}.
+\end{fcvref}
 
 \QuickQuiz{
 	What is wrong with loading
 	\cref{lst:toolsoftrade:Living Dangerously Early 1990s Style}'s
 	\co{global_ptr} up to three times?
 }\QuickQuizAnswer{
+	\begin{fcvref}[ln:toolsoftrade:Living Dangerously Early 1990s Style]
+	\setlnpref{B}
 	Suppose that \co{global_ptr} is initially non-\co{NULL},
 	but that some other thread sets \co{global_ptr} to \co{NULL}.
-	Suppose further that line~B1 of the transformed code
+	Suppose further that \clnref{B1} of the transformed code
 	(\cref{lst:toolsoftrade:Living Dangerously Early 1990s Style})
 	executes just before \co{global_ptr} is set to \co{NULL} and
-	line~B2 just after.
-	Then line~B1 will conclude that \co{global_ptr} is non-\co{NULL},
-	and line~B2  will conclude that it is less than
+	\clnref{B2} just after.
+	Then \clnref{B1} will conclude that \co{global_ptr} is non-\co{NULL},
+	and \clnref{B2}  will conclude that it is less than
 	\co{high_address},
-	so that line~B3 passes \co{do_low()} a \co{NULL} pointer,
+	so that \clnref{B3} passes \co{do_low()} a \co{NULL} pointer,
 	which \co{do_low()} just might not be prepared to deal with.
+	\end{fcvref}
 
 	Your editor made exactly this mistake in the DYNIX/ptx
 	kernel's memory allocator in the early 1990s.
@@ -1598,10 +1613,13 @@ below.
 \begin{description}[labelsep=.4em]
 \item[Load tearing] occurs when the compiler uses multiple load
 instructions for a single access.
+\begin{fcvref}[ln:toolsoftrade:Living Dangerously Early 1990s Style]
+\setlnpref{A}
 For example, the compiler could in theory compile the load from
-\co{global_ptr} (see line~A1 of
+\co{global_ptr} (see \clnref{A1} of
 \cref{lst:toolsoftrade:Living Dangerously Early 1990s Style})
 as a series of one-byte loads.
+\end{fcvref}
 If some other thread was concurrently setting \co{global_ptr} to
 \co{NULL}, the result might have all but one byte of the pointer
 set to zero, thus forming a ``wild pointer''.
@@ -1614,8 +1632,11 @@ a given pointer.
 Because the C standard must support all manner of systems, the standard
 cannot rule out load tearing in the general case.
 
-However, adding a \co{READ_ONCE()} as shown on line~C1 prevents load
+\begin{fcvref}[ln:toolsoftrade:Living Dangerously Early 1990s Style]
+\setlnpref{C}
+However, adding a \co{READ_ONCE()} as shown on \clnref{C1} prevents load
 tearing on modern systems in most situations.
+\end{fcvref}
 
 \item[Store tearing] occurs when the compiler uses multiple store
 instructions for a single access.
@@ -1651,25 +1672,27 @@ prevent store tearing.
 \begin{adjustwidth}{10pt}{5pt}
 \footnotesize
 \renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
-\begin{VerbatimT}
-while (!need_to_stop)
-	do_something_quickly();
+\begin{fcvlabel}[ln:toolsoftrade:Infinite Load Fusing]
+\begin{VerbatimT}[commandchars=\\\[\]]
+while (!need_to_stop)			\lnlbl[A1]
+	do_something_quickly();		\lnlbl[A2]
 \end{VerbatimT}
 Might be transformed to:
 \renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
-\begin{VerbatimT}
-if (!need_to_stop)
-	for (;;)
-		do_something_quickly();
+\begin{VerbatimT}[commandchars=\\\[\]]
+if (!need_to_stop)			\lnlbl[B1]
+	for (;;)			\lnlbl[B2]
+		do_something_quickly();	\lnlbl[B3]
 \end{VerbatimT}
 The compiler assumes normal variables do not spontaneously change,
 and might thus load \co{need_to_stop} only the one time.
 Prevent this by using \co{READ_ONCE()} as follows:
 \renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
-\begin{VerbatimT}
-while (!READ_ONCE(need_to_stop))
-	do_something_quickly();
+\begin{VerbatimT}[commandchars=\\\[\]]
+while (!READ_ONCE(need_to_stop))	\lnlbl[C1]
+	do_something_quickly();		\lnlbl[C2]
 \end{VerbatimT}
+\end{fcvlabel}
 \end{adjustwidth}
 \caption{Infinite Load Fusing}
 \label{lst:toolsoftrade:Infinite Load Fusing}
@@ -1700,37 +1723,43 @@ For example, suppose that it is necessary to invoke a function
 named \co{do_something_quickly()} repeatedly until the variable
 \co{need_to_stop} was set, and that the compiler can see that
 \co{do_something_quickly()} does not store to \co{need_to_stop}.
-One (unsafe) way to code this is shown on lines~A1--A2 of
+\begin{fcvref}[ln:toolsoftrade:Infinite Load Fusing]
+\setlnpref{A}
+One (unsafe) way to code this is shown on \clnrefrange{A1}{A2} of
 \cref{lst:toolsoftrade:Infinite Load Fusing}.
-Because line~A1 does a plain load and because the compiler knows that
+Because \clnref{A1} does a plain load and because the compiler knows that
 \co{do_something_quickly()} does not store to \co{need_to_stop}, the
 compiler could quite reasonably decide to check this variable only once,
-resulting in the code shown on lines~B1--B3 of the listing.
+\setlnpref{B}
+resulting in the code shown on \clnrefrange{B1}{B3} of the listing.
 Once entered, the loop on will never exit, regardless of how
 many times some other thread stores a non-zero value to \co{need_to_stop}.
 The result will at best be consternation, and might well also entail
 severe physical damage.
+\setlnpref{C}
 You can prevent such disasters by using \co{READ_ONCE()} as shown
-on line~C1.
+on \clnref{C1}.
+\end{fcvref}
 
 \begin{listing}[tb]
 \begin{adjustwidth}{10pt}{5pt}
 \footnotesize
+\begin{fcvlabel}[ln:toolsoftrade:Finite Load Fusing]
 \renewcommand{\myfvline}{A\arabic{FancyVerbLine}}
-\begin{VerbatimT}
-while (!nonvolatile_atomic_load(need_to_stop))
-	do_something_quickly();
+\begin{VerbatimT}[commandchars=\\\[\]]
+while (!nonvolatile_atomic_load(need_to_stop))  \lnlbl[A1]
+	do_something_quickly();			\lnlbl[A2]
 \end{VerbatimT}
 Might be transformed to:
 \renewcommand{\myfvline}{B\arabic{FancyVerbLine}}
-\begin{VerbatimT}
-if (!nonvolatile_atomic_load(need_to_stop))
-	for (;;) {
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-		do_something_quickly();
-	}
+\begin{VerbatimT}[commandchars=\\\[\]]
+if (!nonvolatile_atomic_load(need_to_stop))	\lnlbl[B1]
+	for (;;) {				\lnlbl[B2]
+		do_something_quickly();		\lnlbl[B3]
+		do_something_quickly();		\lnlbl[B4]
+		do_something_quickly();		\lnlbl[B5]
+		do_something_quickly();		\lnlbl[B6]
+	}					\lnlbl[B7]
 \end{VerbatimT}
 In the absence of ordering in \co{do_something_quickly()}, the compiler is
 permitted to do finite load fusing, in this case combining four adjacent
@@ -1740,10 +1769,11 @@ might result in a failure to meet loop-exit latency constraints after
 some other thread stores to \co{need_to_stop}.
 Prevent this by using \co{READ_ONCE()} as follows:
 \renewcommand{\myfvline}{C\arabic{FancyVerbLine}}
-\begin{VerbatimT}
-while (!READ_ONCE(need_to_stop))
-	do_something_quickly();
+\begin{VerbatimT}[commandchars=\\\[\]]
+while (!READ_ONCE(need_to_stop))	\lnlbl[C1]
+	do_something_quickly();		\lnlbl[C2]
 \end{VerbatimT}
+\end{fcvlabel}
 \end{adjustwidth}
 \caption{Finite Load Fusing}
 \label{lst:toolsoftrade:Finite Load Fusing}
@@ -1754,14 +1784,17 @@ language's non-volatile atomics, which often provide a nice compromise
 between reasonable guarantees and decent optimization.
 These optimizations can be especially effective when
 \co{do_something_quickly()} is an inline function.
+\begin{fcvref}[ln:toolsoftrade:Finite Load Fusing]
+\setlnpref{A}
 Because the C language provides only volatile atomic operations,
-line~A1 of
+\clnref{A1} of
 \cref{lst:toolsoftrade:Finite Load Fusing}
 indicates this with the mythical \co{nonvolatile_atomic_load()} operation.
 
+\setlnpref{B}
 However, those working on real-time code must take care because finite
 load fusing is permitted, which can lead to finite loop unrolling,
-as as exemplified by the four-way unrolling on lines~B1-B7 of
+as as exemplified by the four-way unrolling on \clnrefrange{B1}{B7} of
 the listing.
 Although this loop unrolling does not cause a functional failure, the
 unrolled loop might cause the \co{do_something_quickly()} function to be
@@ -1770,8 +1803,10 @@ a non-zero value to \co{need_to_stop} and the time that the loop exits.
 These additional executions of \co{do_something_quickly()} might result
 in failures to meet loop-exit latency constraints, especially given that
 the value of ``finite'' can be extremely large.
+\setlnpref{C}
 Prevent this latency-degrading unrolling by using \co{READ_ONCE()}
-as shown on line~C1.
+as shown on \clnref{C1}.
+\end{fcvref}
 
 \QuickQuiz{
 	Why does it matter whether \co{do_something_quickly()} in
@@ -1783,11 +1818,14 @@ as shown on line~C1.
 	would have to assume that this function might change the value
 	of \co{need_to_stop}.  Or that this function might include
 	ordering constraints and accesses to other shared variables.
+	\begin{fcvref}[ln:toolsoftrade:Finite Load Fusing]
+	\setlnpref{A}
 	These possibilities would force the compiler to reload
-	\co{need_to_stop} on each pass through the loop on lines~A1--A2,
+	\co{need_to_stop} on each pass through the loop on \clnrefrange{A1}{A2},
 	thus preventing the compiler from unrolling the loop, or,
 	alternatively, from omitting the load and test when unrolling
 	the loop.
+	\end{fcvref}
 	The compiler's ignorance, coupled with the fact that the compiler
 	understood that it was ignorant, would force the per-iteration
 	reload from \co{need_to_stop}, which would in turn prevent the
@@ -2301,10 +2339,14 @@ complex, and are left aside for the time being.
 
 So how does \apic{volatile} stack up against the earlier examples?
 
-Using \apik{READ_ONCE()} on line~A1 of
+\begin{fcvref}[ln:toolsoftrade:Living Dangerously Early 1990s Style]
+\setlnpref{A}
+Using \apik{READ_ONCE()} on \clnref{A1} of
 \cref{lst:toolsoftrade:Living Dangerously Early 1990s Style}
 avoids invented loads,
-resulting in the code shown on lines~C1--C3.
+\setlnpref{C}
+resulting in the code shown on \clnrefrange{C1}{C3}.
+\end{fcvref}
 
 \begin{listing}
 \begin{fcvlabel}[ln:toolsoftrade:Preventing Load Fusing]
