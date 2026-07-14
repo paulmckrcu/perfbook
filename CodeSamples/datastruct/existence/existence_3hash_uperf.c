@@ -45,6 +45,12 @@ int nreaders = 0;
 int nupdaters = 1;
 int updatewait = -1;
 long updatespacing = 32;
+/*
+ * Objects per existence group, and thus per atomic commit.  Must be a
+ * non-negative multiple of 3.  Zero, the default, commits the whole rotation
+ * as a single group, which is the historical behavior.
+ */
+long groupobjs = 0;
 int cpustride = 1;
 long duration = 10; /* in milliseconds. */
 long dump_procon_stats = 0;
@@ -83,26 +89,35 @@ void hash_rotate(struct hashtab *htp[],
 		 struct hash_exists *hei[], struct hash_exists *heo[])
 {
 	struct existence_group *egp;
+	int nres = 3 * nobjects;
+	int chunk = groupobjs > 0 ? (int)groupobjs : nres;
+	int base;
 	int i;
 
-	egp = existence_group__procon_alloc();
-	BUG_ON(!egp);
-	existence_group_init(egp);
-	rcu_read_lock();
-	for (i = 0; i < 3 * nobjects; i += 3) {
-		heo[i + 0] = hash_exists_alloc(egp, htp[0], hei[i + 2]->he_kv,
-					       ~0, ~0);
-		heo[i + 1] = hash_exists_alloc(egp, htp[1], hei[i + 0]->he_kv,
-					       ~0, ~0);
-		heo[i + 2] = hash_exists_alloc(egp, htp[2], hei[i + 1]->he_kv,
-					       ~0, ~0);
-		BUG_ON(existence_head_set_outgoing(&hei[i + 0]->he_eh, egp));
-		BUG_ON(existence_head_set_outgoing(&hei[i + 1]->he_eh, egp));
-		BUG_ON(existence_head_set_outgoing(&hei[i + 2]->he_eh, egp));
+	for (base = 0; base < nres; base += chunk) {
+		int end = base + chunk;
+
+		if (end > nres)
+			end = nres;
+		egp = existence_group__procon_alloc();
+		BUG_ON(!egp);
+		existence_group_init(egp);
+		rcu_read_lock();
+		for (i = base; i < end; i += 3) {
+			heo[i + 0] = hash_exists_alloc(egp, htp[0], hei[i + 2]->he_kv,
+						       ~0, ~0);
+			heo[i + 1] = hash_exists_alloc(egp, htp[1], hei[i + 0]->he_kv,
+						       ~0, ~0);
+			heo[i + 2] = hash_exists_alloc(egp, htp[2], hei[i + 1]->he_kv,
+						       ~0, ~0);
+			BUG_ON(existence_head_set_outgoing(&hei[i + 0]->he_eh, egp));
+			BUG_ON(existence_head_set_outgoing(&hei[i + 1]->he_eh, egp));
+			BUG_ON(existence_head_set_outgoing(&hei[i + 2]->he_eh, egp));
+		}
+		rcu_read_unlock();
+		existence_flip(egp);
+		call_rcu(&egp->eg_rh, existence_group_rcu_cb);
 	}
-	rcu_read_unlock();
-	existence_flip(egp);
-	call_rcu(&egp->eg_rh, existence_group_rcu_cb);
 #if 0
 	if (atomic_read(&heo[0]->he_kv->refcnt) > 10000)
 		poll(NULL, 0, 1);
@@ -264,6 +279,11 @@ void usage(char *progname, const char *format, ...)
 	fprintf(stderr, "\t--updatespacing\n");
 	fprintf(stderr, "\t\tKey values between successive updaters,\n");
 	fprintf(stderr, "\t\tdefaults to 32.  Must be greater than 19.\n");
+	fprintf(stderr, "\t--groupobjs\n");
+	fprintf(stderr, "\t\tObjects per existence group, and thus per\n");
+	fprintf(stderr, "\t\tatomic commit.  Defaults to 0, which commits\n");
+	fprintf(stderr, "\t\tthe whole rotation as one group.  Must be a\n");
+	fprintf(stderr, "\t\tnon-negative multiple of 3.\n");
 	fprintf(stderr, "\t--cpustride\n");
 	fprintf(stderr, "\t\tStride when spreading threads across CPUs,\n");
 	fprintf(stderr, "\t\tdefaults to 1.\n");
@@ -297,6 +317,12 @@ int main(int argc, char *argv[])
 			if (nreaders != 0)
 				usage(argv[0],
 				      "%s: reader threads are not implemented\n",
+				      argv[i - 1]);
+		} else if (strcmp(argv[i], "--groupobjs") == 0) {
+			groupobjs = strtol(argv[++i], NULL, 0);
+			if (groupobjs < 0 || groupobjs % 3 != 0)
+				usage(argv[0],
+				      "%s must be a non-negative multiple of 3\n",
 				      argv[i - 1]);
 		} else if (strcmp(argv[i], "--nupdaters") == 0) {
 			nupdaters = strtol(argv[++i], NULL, 0);
