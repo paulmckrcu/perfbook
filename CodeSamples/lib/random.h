@@ -26,6 +26,7 @@
 #define random myrandom
 
 void setrandom(unsigned int seed);
+void setrandom_thread(unsigned int id);
 u_long myrandom(void);
 
 #endif /* #ifndef _RANDOM_H */

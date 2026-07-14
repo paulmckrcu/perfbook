@@ -65,6 +65,26 @@ setrandom(unsigned int seed)
 }
 
 /*
+ * Seed the current thread from a thread ID, so that each thread draws its
+ * own sequence.  randseed is __thread: seeding one thread does not seed the
+ * others, so every thread that draws must call this (or setrandom()) itself.
+ *
+ * Scale the ID by a large odd constant rather than using it directly.  All
+ * seeds lie on the same Park-Miller cycle, so seeding only chooses a starting
+ * offset, and adjacent offsets are not as independent as they look: 16807 *
+ * even is even, and callers such as random_level() in skiplist.h count
+ * trailing 1-bits, so consecutive IDs would hand every even-numbered thread
+ * the same parity on its first draw.
+ *
+ * The seed depends only on the ID, so a run remains reproducible.
+ */
+void
+setrandom_thread(unsigned int id)
+{
+	setrandom(2654435761U * (id + 1));
+}
+
+/*
  * Pseudo-random number generator for randomizing the profiling clock,
  * and whatever else we might use it for.  The result is uniform on
  * [1, 2^31 - 2].
