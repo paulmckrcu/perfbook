@@ -38,6 +38,20 @@
 #include "keyvalue.h"
 #include "hash_exists.h"
 
+#ifdef USE_JEMALLOC
+/*
+ * jemalloc reads this application-defined symbol at startup, so simply
+ * linking against jemalloc is enough to select per-CPU arenas: a thread
+ * then allocates from the arena of the CPU it is currently running on,
+ * rather than from an arena it was assigned at birth and keeps for life.
+ * That is the arrangement the per-CPU caches of tcmalloc, which these
+ * tests used to link against, were providing here.  Setting MALLOC_CONF
+ * in the environment still overrides this, for example to measure the
+ * difference: MALLOC_CONF=percpu_arena:disabled.
+ */
+const char *malloc_conf = "percpu_arena:percpu";
+#endif /* #ifdef USE_JEMALLOC */
+
 /* Parameters for performance test. */
 int nbuckets = 4096;
 int nobjects;

@@ -33,17 +33,27 @@ LURCU_SIG := $(shell pkg-config --libs liburcu-signal 2>/dev/null)
 
 all: $(PROGS)
 
-# NOTE:  For decent scalability on update-side tests as of early 2015,
-#	 use something like jemalloc() instead of glibc malloc().
-#	 If you install jemalloc at /home/paulmck/jemalloc, you will
-#	 need the following additional arguments to cc:
-#		-I/home/paulmck/jemalloc/include
-#		-L/home/paulmck/jemalloc/lib
-#		-Wl,--rpath,/home/paulmck/jemalloc/lib
-#		-DUSE_JEMALLOC
-#	 Verify by using the nm command and searching output for malloc.
+# NOTE:  The two *_uperf tests need a scalable allocator: they allocate and
+#	 free an existence group, and the keys and elements it commits, on
+#	 every rotation on every updater thread, so glibc malloc's arena
+#	 contention limits them well before the technique under test does.
+#	 These targets therefore link against jemalloc when it is installed,
+#	 and define USE_JEMALLOC, which selects per-CPU arenas (see the
+#	 comment on malloc_conf in existence_3hash_uperf.c).
 #
-#	So it is quite a bit easier to just use the default locations.  ;-)
+#	 If jemalloc is not installed, they fall back to glibc malloc, which
+#	 builds and runs but does not scale on the update side.  Override
+#	 MALLOC to pick another allocator, or to force the fallback:
+#
+#		make MALLOC=-ltcmalloc	# what these targets used to hardcode
+#		make MALLOC=		# glibc malloc
+#
+#	 Verify by using the nm or ldd command and searching output for malloc.
+MALLOC ?= $(shell pkg-config --libs jemalloc 2>/dev/null)
+MALLOC_CFLAGS = $(if $(findstring jemalloc,$(MALLOC)),-DUSE_JEMALLOC)
+ifeq ($(strip $(MALLOC)),)
+MALLOC_NOTE = @echo 'NOTE: no jemalloc, using glibc malloc: this will not scale.'
+endif
 
 existence_test: existence.h existence_test.c procon.h
 	cc $(GCC_ARGS) -o existence_test existence_test.c -lpthread -lurcu $(LURCU_SIG)
@@ -52,16 +62,18 @@ existence_3hash_test: existence.h hash_exists.h keyvalue.h existence_3hash_test.
 	cc $(GCC_ARGS) -o existence_3hash_test existence_3hash_test.c -lpthread -lurcu $(LURCU_SIG)
 
 existence_3hash_uperf: existence.h hash_exists.h keyvalue.h existence_3hash_uperf.c procon.h
-	# cc -O0 -Wall -ggdb -fno-inline -o existence_3hash_uperf existence_3hash_uperf.c -ltcmalloc -lpthread -lurcu $(LURCU_SIG)
-	cc $(GCC_ARGS) -o existence_3hash_uperf existence_3hash_uperf.c -ltcmalloc -lpthread -lurcu $(LURCU_SIG)
+	# cc -O0 -Wall -ggdb -fno-inline $(MALLOC_CFLAGS) -o existence_3hash_uperf existence_3hash_uperf.c $(MALLOC) -lpthread -lurcu $(LURCU_SIG)
+	$(MALLOC_NOTE)
+	cc $(GCC_ARGS) $(MALLOC_CFLAGS) -o existence_3hash_uperf existence_3hash_uperf.c $(MALLOC) -lpthread -lurcu $(LURCU_SIG)
 
 existence_3skiplist_test: existence.h skiplist_exists.h keyvalue.h existence_3skiplist_test.c procon.h
 	cc -g -O0 -o existence_3skiplist_test existence_3skiplist_test.c $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
 	# cc $(GCC_ARGS) -o existence_3skiplist_test existence_3skiplist_test.c $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
 
 existence_3skiplist_uperf: existence.h hash_exists.h keyvalue.h existence_3skiplist_uperf.c procon.h
-	# cc -O0 -Wall -ggdb -fno-inline -o existence_3skiplist_uperf existence_3skiplist_uperf.c -ltcmalloc $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
-	cc $(GCC_ARGS) -o existence_3skiplist_uperf existence_3skiplist_uperf.c -ltcmalloc $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
+	# cc -O0 -Wall -ggdb -fno-inline $(MALLOC_CFLAGS) -o existence_3skiplist_uperf existence_3skiplist_uperf.c $(MALLOC) $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
+	$(MALLOC_NOTE)
+	cc $(GCC_ARGS) $(MALLOC_CFLAGS) -o existence_3skiplist_uperf existence_3skiplist_uperf.c $(MALLOC) $(LIB)/random.c -lpthread -lurcu $(LURCU_SIG)
 
 kaleidoscope_test: kaleidoscope.h kaleidoscope_test.c procon.h
 	cc $(GCC_ARGS) -o kaleidoscope_test kaleidoscope_test.c -lpthread -lurcu $(LURCU_SIG)
