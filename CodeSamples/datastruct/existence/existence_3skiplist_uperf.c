@@ -89,7 +89,7 @@ void skiplist_rotate(struct skiplist slp[], struct skiplist_exists *sei[],
 	BUG_ON(!egp);
 	existence_group_init(egp);
 	rcu_read_lock();
-	for (i = 0; i < nobjects; i += 3) {
+	for (i = 0; i < 3 * nobjects; i += 3) {
 		seo[i + 0] = skiplist_exists_alloc(egp, &slp[0],
 						   sei[i + 2]->se_kv, ~0, ~0);
 		seo[i + 1] = skiplist_exists_alloc(egp, &slp[1],

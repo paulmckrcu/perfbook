@@ -89,7 +89,7 @@ void hash_rotate(struct hashtab *htp[],
 	BUG_ON(!egp);
 	existence_group_init(egp);
 	rcu_read_lock();
-	for (i = 0; i < nobjects; i += 3) {
+	for (i = 0; i < 3 * nobjects; i += 3) {
 		heo[i + 0] = hash_exists_alloc(egp, htp[0], hei[i + 2]->he_kv,
 					       ~0, ~0);
 		heo[i + 1] = hash_exists_alloc(egp, htp[1], hei[i + 0]->he_kv,
