@@ -42,13 +42,17 @@
  */
 
 #include <sys/types.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 /*
- * Zero is the absorbing state of the Park-Miller recurrence below,
- * so default each thread to the canonical seed of 1 rather than
- * relying on zero-initialized TLS.
+ * Park-Miller state for this thread.  The valid states are [1, 2^31 - 2]:
+ * zero is the recurrence's absorbing state, and 2^31 - 1 is a fixed point.
+ * Leave this zero-initialized, so that a thread that never seeds itself is
+ * caught by myrandom() below rather than silently drawing the same sequence
+ * as every other unseeded thread.
  */
-static u_long __thread randseed = 1;
+static u_long __thread randseed;
 
 /*
  * Set the seed for the current thread.  Seeds congruent to zero
@@ -93,6 +97,23 @@ u_long
 myrandom(void)
 {
 	register long x, hi, lo, t;
+
+	/*
+	 * Catch an unseeded thread (randseed == 0, the absorbing state),
+	 * 2^31 - 1 (a fixed point), and anything else outside the
+	 * recurrence's state space.  Each of these degrades the generator
+	 * silently rather than failing: an unseeded thread draws in lockstep
+	 * with every other unseeded thread, and a fixed point returns the
+	 * same value forever.
+	 */
+	if (randseed == 0 || randseed > 0x7ffffffe) {
+		fprintf(stderr,
+			"myrandom(): randseed %#lx is outside [1, 2^31 - 2].\n"
+			"Each thread must seed itself, for example with "
+			"setrandom_thread(): randseed is __thread, so seeding "
+			"one thread does not seed the others.\n", randseed);
+		abort();
+	}
 
 	/*
 	 * Compute x[n + 1] = (7^5 * x[n]) mod (2^31 - 1).
