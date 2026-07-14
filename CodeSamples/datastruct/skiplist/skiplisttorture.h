@@ -592,6 +592,13 @@ void *stresstest_reader(void *arg)
 	run_on(pap->mycpu);
 	rcu_register_thread();
 
+	/*
+	 * randseed is __thread, so this thread must seed itself: readers and
+	 * updaters number themselves separately, so offset the updaters past
+	 * the readers to keep every thread's stream distinct.
+	 */
+	setrandom_thread(pap->myid);
+
 	/* Warm up cache. */
 	for (i = 0; i < valsperupdater * nupdaters; i++) {
 		stresstest_lookup(i);
@@ -658,6 +665,13 @@ void *stresstest_updater(void *arg)
 	}
 	run_on(pap->mycpu);
 	rcu_register_thread();
+
+	/*
+	 * randseed is __thread, so this thread must seed itself: readers and
+	 * updaters number themselves separately, so offset the updaters past
+	 * the readers to keep every thread's stream distinct.
+	 */
+	setrandom_thread(nreaders + pap->myid);
 
 	/* Start with some random half of the elements in the hash table. */
 	for (i = 0; i < elperupdater / 2; i++) {
