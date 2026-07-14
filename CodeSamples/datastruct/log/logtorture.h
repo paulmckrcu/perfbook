@@ -167,6 +167,13 @@ void *stresstest_reader(void *arg)
 
 	run_on(pap->mycpu);
 
+	/*
+	 * randseed is __thread, so this thread must seed itself: readers and
+	 * updaters number themselves separately, so offset the updaters past
+	 * the readers to keep every thread's stream distinct.
+	 */
+	setrandom_thread(pap->myid);
+
 	/* Record our presence. */
 	atomic_inc(&nthreads_running);
 
@@ -209,6 +216,13 @@ void *stresstest_updater(void *arg)
 	unsigned long val;
 
 	run_on(pap->mycpu);
+
+	/*
+	 * randseed is __thread, so this thread must seed itself: readers and
+	 * updaters number themselves separately, so offset the updaters past
+	 * the readers to keep every thread's stream distinct.
+	 */
+	setrandom_thread(nreaders + pap->myid);
 
 	/* Announce our presence and enter the test loop. */
 	atomic_inc(&nthreads_running);
