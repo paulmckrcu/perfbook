@@ -105,6 +105,13 @@ void *singleton_updater(void *arg)
 	int a;
 	int b;
 
+	/*
+	 * randseed is __thread and nothing in this program seeds it, so
+	 * without this the sole updater would draw from an unseeded
+	 * generator.
+	 */
+	setrandom_thread(0);
+
 	while (READ_ONCE(goflag)) {
 		a = random() & 0xff;
 		b = a * a;
