@@ -100,6 +100,12 @@ void *perftest_reader(void *arg)
 	long long nlookupfails = 0;
 
 	run_on(pap->mycpu);
+
+	/*
+	 * randseed is __thread, so this thread must seed itself; nothing
+	 * else in this program seeds anything.
+	 */
+	setrandom_thread(pap->myid);
 	route_register_thread();
 
 	/* Announce our presence and enter the test loop. */
@@ -213,6 +219,12 @@ void *stresstest_updater(void *arg)
 	long long ndelfails = 0;
 
 	run_on(pap->mycpu);
+
+	/*
+	 * randseed is __thread, so this thread must seed itself; nothing
+	 * else in this program seeds anything.
+	 */
+	setrandom_thread(pap->myid);
 	route_register_thread();
 
 	/* Start with some random half of the elements in the route table. */
