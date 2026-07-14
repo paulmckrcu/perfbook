@@ -121,6 +121,15 @@ void *perftest_child(void *arg)
 
 	rcu_register_thread();
 	run_on(childp->mycpu);
+
+	/*
+	 * randseed is __thread and defaults to the same value in every
+	 * thread, so without this each updater would replay the same
+	 * sequence, and they would all build their towers to the same
+	 * heights at the same time.
+	 */
+	setrandom_thread(childp->myid);
+
 	crdp = create_call_rcu_data(URCU_CALL_RCU_RT, childp->mycpu);
 	set_thread_call_rcu_data(crdp);
 	keyvalue__procon_init();
