@@ -294,9 +294,10 @@ int main(int argc, char *argv[])
 				      "%s must be >= 0\n", argv[i - 1]);
 		} else if (strcmp(argv[i], "--nreaders") == 0) {
 			nreaders = strtol(argv[++i], NULL, 0);
-			if (nreaders < 0)
+			if (nreaders != 0)
 				usage(argv[0],
-				      "%s must be >= 0\n", argv[i - 1]);
+				      "%s: reader threads are not implemented\n",
+				      argv[i - 1]);
 		} else if (strcmp(argv[i], "--nupdaters") == 0) {
 			nupdaters = strtol(argv[++i], NULL, 0);
 			if (nupdaters < 1)
