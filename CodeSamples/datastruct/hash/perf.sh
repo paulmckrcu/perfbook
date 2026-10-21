@@ -36,6 +36,12 @@ nbuckets=$((lastcpu*5*100))
 nbuckets=`power2up $nbuckets`
 epw=$nbuckets
 
+if test $hash != hash_global
+then
+	maxtestcpu=$lastcpu
+else
+	maxtestcpu=$smallncpus
+fi
 for ((i = 0; i < $nsamples; i++))
 do
 	for hash in hash_bkt hash_bkt_hazptr hash_bkt_qsbr hash_bkt_rcu hash_global hash_unsync
@@ -43,18 +49,18 @@ do
 
 		# Simple hash tables.
 		ncpu=1
-		while test $ncpu -le $lastcpu && (test $hash != hash_global || test $ncpu -le $smallncpus)
+		while test $ncpu -le $maxtestcpu
 		do
 			echo $hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw '#' A
 			./$hash --perftest --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
 			sleep 0.1
-			incr=`power2inc $ncpu $cpusperpwr2`
+			incr=`power2inc $ncpu $cpusperpwr2 $maxtestcpu`
 			ncpu=$((ncpu + incr))
 		done
 
 		# Schroedinger hash tables, read-only.
 		ncpu=1
-		while test $ncpu -le $lastcpu && (test $hash != hash_global || test $ncpu -le $smallncpus)
+		while test $ncpu -le $maxtestcpu
 		do
 			echo $hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw '#' B
 			./$hash --schroedinger --nreaders $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
@@ -66,7 +72,7 @@ do
 				./$hash --schroedinger --nreaders $ncpu --nbuckets $bkts --duration 1000 --updatewait 0 --elems/writer $epw
 				sleep 0.1
 			done
-			incr=`power2inc $ncpu $cpusperpwr2`
+			incr=`power2inc $ncpu $cpusperpwr2 $maxtestcpu`
 			ncpu=$((ncpu + incr))
 		done
 
@@ -80,7 +86,7 @@ do
 			echo $hash --schroedinger --nreaders $smallncpus --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw '#' D
 			./$hash --schroedinger --nreaders $smallncpus --ncats $ncpu --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
 			sleep 0.1
-			incr=`power2inc $ncpu $cpusperpwr2`
+			incr=`power2inc $ncpu $cpusperpwr2 $smallncpus`
 			ncpu=$((ncpu + incr))
 		done
 
@@ -90,7 +96,7 @@ do
 		./$hash --schroedinger --nreaders $nread --nupdaters 1 --duration 1000 --updatewait 0 --nbuckets $nbuckets --elems/writer $epw
 		sleep 0.1
 		nupd=1
-		while test $nupd -le $lastcpu && (test $hash != hash_global || test $nupd -le $smallncpus) && test $hash != hash_unsync
+		while test $nupd -le $maxtestcpu && test $hash != hash_unsync
 		do
 			epwu=$((epw/nupd))
 			if test $hash != hash_global
@@ -102,7 +108,7 @@ do
 			echo $hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epwu '#' F
 			./$hash --schroedinger --nreaders $nread --nupdaters $nupd --duration 1000 --updatewait 1 --nbuckets $nbuckets --elems/writer $epwu
 			sleep 0.1
-			incr=`power2inc $nupd $cpusperpwr2`
+			incr=`power2inc $nupd $cpusperpwr2 $maxtestcpu`
 			nupd=$((nupd + incr))
 		done
 
@@ -129,7 +135,7 @@ do
 			echo $hash --schroedinger --nreaders $lastcpu --duration 1000 --updatewait 0 --nbuckets $curepw --elems/writer $curepw '#' H
 			./$hash --schroedinger --nreaders $lastcpu --duration 1000 --updatewait 0 --nbuckets $curepw --elems/writer $curepw
 			sleep 0.1
-			incr=`power2inc $curepw 1`
+			incr=`power2inc $curepw 1 $maxepw`
 			curepw=$((curepw + incr))
 		done
 	done

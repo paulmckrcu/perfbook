@@ -30,6 +30,7 @@ nbucketshi=$((nbucketslo*2))
 for ((i = 0; i < $nsamples; i++))
 do
 	ncpu=1
+	maxtestcpu=$lastcpu
 	while test $ncpu -le $lastcpu
 	do
 		for epwmult in '' '*8'
@@ -54,7 +55,7 @@ do
 		./hash_bkt_rcu --perftest --nreaders $ncpu --nbuckets $epw --elems/writer $epw --duration 1000 --updatewait 0
 		sleep 0.1
 
-		incr=`power2inc $ncpu 8`
+		incr=`power2inc $ncpu 8 $maxtestcpu`
 		ncpu=$((ncpu + incr))
 	done
 done

@@ -29,7 +29,8 @@ csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
 for ((i = 0; i < $nsamples; i++))
 do
 	ncpu=1
-	while test $ncpu -le $((lastcpu - 2))
+	maxtestcpu=$((lastcpu - 2))
+	while test $ncpu -le ${maxtestcpu}
 	do
 		for count in count_atomic count_end count_end_rcu count_lim count_lim_app count_lim_atomic count_lim_sig count_limd count_nonatomic count_stat count_stat_atomic count_stat_eventual
 		do
@@ -40,7 +41,7 @@ do
 			./$count $ncpu uperf
 			sleep 0.1
 		done
-		incr=`power2inc $ncpu $cpusperpwr2`
+		incr=`power2inc $ncpu $cpusperpwr2 $maxtestcpu`
 		ncpu=$((ncpu + incr))
 	done
 done

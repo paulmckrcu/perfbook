@@ -51,17 +51,21 @@ power2up() {
 	}'
 }
 
-# Iteration increment given last number used and divisor (which should
-# be a power of two).  If the result would be fractional, it is rounded up
-# to 1.  So "power2inc 64 1" will give 64 (one sample per power of two),
-# and "power2inc 64 8" will give 8 (eight samples per power of two).
+# Iteration increment given last number used, the divisor (which should
+# be a power of two), and the maximum number of CPUs.  If the result would
+# be fractional, it is rounded up to 1.  So "power2inc 64 1" will give 64
+# (one sample per power of two), and "power2inc 64 8" will give 8 (eight
+# samples per power of two).
 power2inc() {
-	awk -v iter=$1 -v p2div=$2 -v p2raw="`power2down $1`" < /dev/null '
+	awk -v iter=$1 -v p2div=$2 -v p2raw="`power2down $1`" -v itermax=$3 < /dev/null '
 	BEGIN {
 		if (p2raw <= p2div)
-			print 1;
+			ret = 1;
 		else
-			print p2raw / p2div;
+			ret = p2raw / p2div;
+		if (iter < itermax && iter + ret > itermax)
+			ret = itermax - iter;
+		print ret;
 	}'
 }
 
