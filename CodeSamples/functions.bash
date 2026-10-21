@@ -70,8 +70,7 @@ power2inc() {
 }
 
 # Get CPU numbers
-maxcpu="`grep '^processor' /proc/cpuinfo | tail -1 | awk '{ print $3 }'`"
-maxcpu=$((maxcpu + 1))
+maxcpu="`lscpu | grep '^CPU(s):' | awk '{ print $2 - 1 }'`"
 lastcpu=${1-$maxcpu}
 if test $lastcpu -gt $maxcpu
 then
