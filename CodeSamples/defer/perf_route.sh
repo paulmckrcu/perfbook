@@ -21,15 +21,23 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
-for i in 1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
+
+maxtestcpu=$((lastcpu - 1)) # Leave two housekeeping CPUs
+cpusperpwr2=4 # Coarser sampling than the default.
+for ((i = 1; i <= 30; i++))
 do
 	for routetype in route_hazptr route_rcu route_rcu_qsbr route_refcnt route_seq route_seqlock
 	do
-		for ncpu in 1 2 3 4 5 6 7 8 10 12 14 16 20 24 28 32 40 48 56 64 80 96 112 128 160 192 224 256 320 384 420
+		ncpu=1
+		while test $ncpu -le ${maxtestcpu}
 		do
 			echo $routetype --perftest --nreaders $ncpu --duration 100 --nelems 10
 			./$routetype --perftest --nreaders $ncpu --duration 100 --nelems 10
 			sleep 0.1
+			incr=`power2inc $ncpu $cpusperpwr2 $maxtestcpu`
+			ncpu=$((ncpu + incr))
 		done
 	done
 done
