@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+# OBSOLETE? @@@
+#
 # Runs read-only and update-only performance tests.
 #
 # This program is free software; you can redistribute it and/or modify
