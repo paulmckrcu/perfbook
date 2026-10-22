@@ -49,12 +49,19 @@ trap 'rm -f $T' 0 2
 
 lastdelay=${1-30}
 shift > /dev/null 2>&1
-maxcpu="`grep '^processor' /proc/cpuinfo | tail -1 | awk '{ print $3 }'`"
-if test -z "$1"
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
+if test -n "$1"
 then
-	cpus=$((maxcpu + 1))
-else
 	cpus=$*
+else
+	ccpu=1
+	cpus=""
+	while ((ccpu < maxcpu + 1))
+	do
+		cpus="$cpus $ccpu"
+		ccpu=$((ccpu * 10))
+	done
 fi
 primlist="`grep '\.name[ 	]*=' kernel/rcu/refperf*.c |
 	   sed -e 's/^[^"]*"//' -e 's/".*$//'`"
