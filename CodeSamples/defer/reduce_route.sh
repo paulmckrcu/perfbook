@@ -8,6 +8,8 @@
 #	for example, count_nonatomic:r.<tag>.dat.  The output files are
 #	formatted for use as gnuplot data files.
 #
+#	Run this in the directory you want the output files to be in.
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
