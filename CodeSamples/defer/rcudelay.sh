@@ -2,12 +2,11 @@
 #
 # rcudelay.sh: Run a series of RCU, refcount, and rwlock reader-delay tests
 #
-# Usage: bash rcudelay.sh [ lastdelay [ ncpus [ ncpus ... ] ] ]
+# Usage: bash rcudelay.sh /Linux/repo [ lastdelay [ ncpus [ ncpus ... ] ] ]
 #
-# Run this in a recent Linux-kernel source tree.  On large systems,
-# it may be necessary to adjust this script, for example, the
-# taskset CPU list and the --cpus argument.  (If for no other reason
-# than kernel build times can be very long when restricted to a
+# On large systems, it may be necessary to adjust this script, for
+# example, the taskset CPU list and the --cpus argument.  (If for no other
+# reason than kernel build times can be very long when restricted to a
 # single CPU.)
 #
 # Note: "lastdelay" is in nanoseconds.  The script starts at 100ns
@@ -29,6 +28,55 @@
 #
 # Copyright (c) 2020 Paul E. McKenney, Facebook.
 
+lkpath=${1}
+if test -d "${lkpath}"
+then
+	:
+else
+	echo ${lkpath}: Not a directory, need Linux kernel source tree.
+	exit 2
+fi
+set --
+
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
+
+T=/tmp/rcudelay.sh.$$
+trap 'rm -f $T' 0 2
+
+shift > /dev/null 2>&1
+lastdelay=${1-200}
+shift > /dev/null 2>&1
+if test -n "$1"
+then
+	cpus=$*
+else
+	ccpu=1
+	cpus=""
+	while ((ccpu < maxcpu + 1))
+	do
+		cpus="$cpus $ccpu"
+		ccpu=$((ccpu * 10))
+	done
+fi
+
+cd $lkpath
+
+if test -r kernel/rcu/refscale.c > /dev/null 2>&1
+then
+	:
+else
+	echo No 'refscale.c': Need recent Linux kernel source tree.
+	exit 2
+fi
+if test -x tools/testing/selftests/rcutorture/bin/kvm-recheck-refscale*.sh > /dev/null 2>&1
+then
+	:
+else
+	echo No 'kvm-recheck-refscale*.c': Need recent Linux kernel source tree.
+	exit 1
+fi
+
 if test -r kernel/rcu/refscale*.c > /dev/null 2>&1
 then
 	:
@@ -42,26 +90,6 @@ then
 else
 	echo No 'kvm-recheck-rcuperf*.c': Need recent Linux kernel source tree.
 	exit 1
-fi
-
-T=/tmp/rcudelay.sh.$$
-trap 'rm -f $T' 0 2
-
-lastdelay=${1-30}
-shift > /dev/null 2>&1
-csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
-. $csdir/functions.bash
-if test -n "$1"
-then
-	cpus=$*
-else
-	ccpu=1
-	cpus=""
-	while ((ccpu < maxcpu + 1))
-	do
-		cpus="$cpus $ccpu"
-		ccpu=$((ccpu * 10))
-	done
 fi
 primlist="rcu rwlock refcnt"
 
