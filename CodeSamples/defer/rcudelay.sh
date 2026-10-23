@@ -45,7 +45,7 @@ T=/tmp/rcudelay.sh.$$
 trap 'rm -f $T' 0 2
 
 shift > /dev/null 2>&1
-lastdelay=${1-200}
+lastdelay=${1-20000}
 shift > /dev/null 2>&1
 if test -n "$1"
 then
@@ -93,6 +93,16 @@ else
 fi
 primlist="rcu rwlock refcnt"
 
+# Build.
+tools/testing/selftests/rcutorture/bin/kvm.sh --cpus $((maxcpu + 1)) --duration 10 --torture refscale --configs NOPREEMPT --kconfig "CONFIG_NR_CPUS=$((maxcpu + 1))" --trust-make --build-only > $T 2>&1
+ret=$?
+builddir="`grep -m 1 '^Results directory: ' $T | sed -e 's/^Results directory: *//'`"
+if test "$ret" != 0
+then
+	echo "Build FAILED exit code $ret, results directory $T"
+	exit 2
+fi
+
 incr=1
 for ncpus in $cpus
 do
@@ -118,7 +128,7 @@ do
 	do
 		for prim in $primlist
 		do
-			taskset -c $cpulist tools/testing/selftests/rcutorture/bin/kvm.sh --cpus $ncpus --duration 10 --torture refscale --configs NOPREEMPT --bootargs "refscale.perf_type=$prim refscale.nreaders=$ncpus refscale.loops=10000 refscale.holdoff=$holdoff refscale.readdelay=$curdelay" --kconfig "CONFIG_NR_CPUS=$((maxcpu + 1))" --trust-make > $T 2>&1
+			taskset -c $cpulist tools/testing/selftests/rcutorture/bin/kvm-again.sh "$builddir" --duration 10 --bootargs "refscale.perf_type=$prim refscale.nreaders=$ncpus refscale.loops=10000 refscale.holdoff=$holdoff refscale.readdelay=$curdelay" > $T 2>&1
 			ret=$?
 			fstr=""
 			resdir="`grep -m 1 '^Results directory: ' $T | sed -e 's/^Results directory: *//'`"
