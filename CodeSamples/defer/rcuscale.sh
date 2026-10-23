@@ -2,11 +2,10 @@
 #
 # rcuscale.sh: Run a series of RCU, refcount, and rwlock scalability tests
 #
-# Usage: bash rcuscale.sh [ lastcpu ]
+# Usage: bash rcuscale.sh /path/to/Linux/repo
 #
-# Run this in a recent Linux-kernel source tree.  On large systems,
-# it may be necessary to adjust this script, for example, the
-# taskset CPU list and the --cpus argument.
+# On large systems, it may be necessary to adjust this script, for
+# example, the taskset CPU list and the --cpus argument.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,28 +23,40 @@
 #
 # Copyright (c) 2020 Paul E. McKenney, Facebook.
 
+lkpath=${1}
+if test -d "${lkpath}"
+then
+	:
+else
+	echo ${lkpath}: Not a directory, need Linux kernel source tree.
+	exit 2
+fi
+set --
+
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
+
+cd $lkpath
+
 if test -r kernel/rcu/refscale.c > /dev/null 2>&1
 then
 	:
 else
 	echo No 'refscale.c': Need recent Linux kernel source tree.
-	exit 1
+	exit 2
 fi
 if test -x tools/testing/selftests/rcutorture/bin/kvm-recheck-refscale*.sh > /dev/null 2>&1
 then
 	:
 else
-	echo No 'kvm-recheck-rcuscale*.c': Need recent Linux kernel source tree.
+	echo No 'kvm-recheck-refscale*.c': Need recent Linux kernel source tree.
 	exit 1
 fi
 
 T=/tmp/rcuscale.sh.$$
 trap 'rm -f $T' 0 2
 
-maxcpu="`grep '^processor' /proc/cpuinfo | tail -1 | awk '{ print $3 }'`"
-lastcpu=${1-$maxcpu}
-primlist="`grep '\.name[ 	]*=' kernel/rcu/refscale*.c |
-	   sed -e 's/^[^"]*"//' -e 's/".*$//'`"
+primlist="rcu rwlock refcnt"
 if ((lastcpu > 100))
 then
 	holdoff=20
@@ -68,7 +79,10 @@ then
 fi
 
 incr=1
-for ((ncpus = 1; ncpus <= lastcpu + 1; ncpus += incr))
+ncpus=1
+maxtestcpu=$((lastcpu - 1)) # Leave two housekeeping CPUs
+cpusperpwr2=4 # Coarser sampling than the default.
+while test $ncpus -le $maxtestcpu
 do
 	endcpu=$((ncpus - 1))
 	if test "$endcpu" -le 0
@@ -95,20 +109,6 @@ do
 		echo Run for $prim with $ncpus CPUs$fstr
 		grep -E '^Points: | reader duration:' $T
 	done
-	if ((ncpus >= 128))
-	then
-		incr=32
-	elif ((ncpus >= 64))
-	then
-		incr=16
-	elif ((ncpus >= 32))
-	then
-		incr=8
-	elif ((ncpus >= 16))
-	then
-		incr=4
-	elif ((ncpus >= 8))
-	then
-		incr=2
-	fi
+	incr=`power2inc $ncpus $cpusperpwr2 $maxtestcpu`
+	ncpus=$((ncpus + incr))
 done
