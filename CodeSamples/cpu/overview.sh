@@ -3,7 +3,7 @@
 # Gather and plot an overview of cache behavior from the viewpoint
 # of CPU 0.
 #
-# Usage: bash reduce.sh [ destdir [ tag ] ]
+# Usage: bash overview.sh [ destdir [ tag ] ]
 #
 #	The "destdir" is the destination directory, defaulting to "data"
 #	in the temporary directory, which will be created if it does not
