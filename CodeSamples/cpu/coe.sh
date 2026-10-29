@@ -26,7 +26,17 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
-./temporal --coe --nthreads ${1-15} |
+arg1="$1"
+
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
+
+if test -n "$arg1"
+then
+	lastcpu="$arg1"
+fi
+
+./temporal --coe --nthreads ${lastcpu} |
 awk '
 BEGIN {
 	lastentry = "";
