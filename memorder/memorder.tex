@@ -2953,185 +2953,6 @@ to have executed at an earlier time than did the load.
 This means that carefully constructed programs can rely on the
 passage of time itself as a memory-ordering operation.
 
-\QuickQuiz{
-	Why don't we just stick to sanely ordered CPU families like x86,
-	so that time will \emph{always} be on our side???
-}\QuickQuizAnswer{
-	Sorry to be the one to break it to you, but x86 CPUs have
-	store buffers and they are not afraid to use them.
-
-	The data shown in
-	\crefrange{fig:memorder:x86 CPUs Can Disagree}{fig:memorder:Store-to-Load is Temporal on x86}
-	was obtained from a series of torture tests
-	(\path{perftemporal.sh}) running on a two-socket x86 system
-	having a total of 80 hardware
-	threads.\footnote{
-		\co{Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz},
-		for those wanting more details.}
-
-\begin{figure}
-\centering
-\resizebox{\twocolumnwidth}{!}{\includegraphics{CodeSamples/cpu/data/coe-nvals}}
-\caption{x86 CPUs Can Disagree}
-\label{fig:memorder:x86 CPUs Can Disagree}
-\end{figure}
-
-	\Cref{fig:memorder:x86 CPUs Can Disagree}
-	is from a torture-test run similar to the one that generated
-	\cref{fig:memorder:A Variable With More Simultaneous Values}
-	on
-	\cpageref{fig:memorder:A Variable With More Simultaneous Values},
-	but showing the number of distinct opinions per unit time, where
-	each timestamp period is 0.5~nanoseconds.\footnote{
-		Recall that each CPU writes its own number to a single
-		shared variable, which each CPU repeatedly polls,
-		recording time and value at each change in value.}
-	As you can see, there is a significant period of time during
-	which there are more than 40 distinct opinions as to the value
-	of a single shared variable.
-	Even on x86.
-
-\begin{figure}
-\centering
-\resizebox{.85\twocolumnwidth}{!}{\includegraphics{memorder/co-hopes}}
-\caption{Is Store-to-Store Counter-Temporal on x86?}
-\label{fig:memorder:Is Store-to-Store Counter-Temporal on x86?}
-\end{figure}
-
-	But perhaps we might hope that on x86, the last CPU to execute its
-	store in global time order would ``win'', that is, the final value
-	of the shared variable would be that of that last store.
-	If so, any store starting after the ``winning'' store finished would
-	overwrite the winning store.
-	In contrast, we know that on weakly ordered systems, a
-	counter-intuitive store such as that shown at the bottom of
-	\cref{fig:memorder:Is Store-to-Store Counter-Temporal on x86?}
-	could be overwritten by the old value, despite the fact that it
-	started $t$ timestamp periods after the winning store completed,
-	as depicted in the figure by the time interval that is labelled
-	$-t$.\footnote{
-		That is completed from the viewpoint of the instruction
-		stream containing that store.
-		The value stored might well remain in the store buffer
-		long afterwards.}
-
-\begin{figure}
-\centering
-\resizebox{\twocolumnwidth}{!}{\includegraphics{CodeSamples/cpu/data/coe}}
-\caption{Store-to-Store is Counter-Temporal on x86}
-\label{fig:memorder:Store-to-Store is Counter-Temporal on x86}
-\end{figure}
-
-	However,
-	\cref{fig:memorder:Store-to-Store is Counter-Temporal on x86}
-	dashes any fond hope of x86 refusing to indulge in
-	counter-intuitive counter-temporal stores.
-	The data in this figure summarizes the results from 79,000
-	torture-test runs of the type that generated
-	\cref{fig:memorder:x86 CPUs Can Disagree},
-	and is a histogram of the minimum time elapsed between the start of
-	a non-winning CPU's store and the end of the winning CPU's store.
-	Of course, if this value is negative, the winning store completed
-	(though its value might not have propagated past the store buffer)
-	before the other store even started.
-	And the negative-time data points in that figure show that this
-	counter-temporal behavior really can be made to happen most of
-	the time, even on x86.
-
-\begin{figure}
-\centering
-\resizebox{.6\twocolumnwidth}{!}{\includegraphics{memorder/fr-hopes}}
-\caption{Is Load-to-Store Counter-Temporal on x86?}
-\label{fig:memorder:Is Load-to-Store Counter-Temporal on x86?}
-\end{figure}
-
-	But perhaps we could instead hope that once a store had
-	executed, any future load from that same variable might
-	be guaranteed to return the new value.
-	In contrast, we know that on weakly ordered systems, a
-	counter-intuitive load such as that shown at the bottom
-	of
-	\cref{fig:memorder:Is Load-to-Store Counter-Temporal on x86?}
-	could return the old value, despite having started $t$
-	timestamp periods after the end of the store, again, as
-	depicted in the figure by the $-t$.
-
-\begin{figure}
-\centering
-\resizebox{\twocolumnwidth}{!}{\includegraphics{CodeSamples/cpu/data/fre}}
-\caption{Load-to-Store is Counter-Temporal on x86}
-\label{fig:memorder:Load-to-Store is Counter-Temporal on x86}
-\end{figure}
-
-	However,
-	\cref{fig:memorder:Load-to-Store is Counter-Temporal on x86}
-	dashes any fond hopes that loads executing after a given store
-	would see that store's value (or some later value).
-	This data is generated by 1,000 runs of a program in which the
-	parent thread spawns the children, each of which polls a shared
-	variable.
-	After all the children are running, the parent writes a new
-	value to the shared variable.
-	The quantity histogrammed in the figure is the time from just
-	after the store until just before the last load of the old value.
-	And most of these data points lie on the negative x~axis,
-	clearly demonstrating that a torture test can easily provoke
-	the counter-temporal nature of cross-thread load-to-store.
-
-\begin{figure}
-\centering
-\resizebox{\twocolumnwidth}{!}{\includegraphics{memorder/rf-hopes}}
-\caption{Is Store-to-Load Counter-Temporal on x86?}
-\label{fig:memorder:Is Store-to-Load Counter-Temporal on x86?}
-\end{figure}
-
-\begin{figure}
-\centering
-\resizebox{\twocolumnwidth}{!}{\includegraphics{CodeSamples/cpu/data/rfe}}
-\caption{Store-to-Load is Temporal on x86}
-\label{fig:memorder:Store-to-Load is Temporal on x86}
-\end{figure}
-
-	It is only reasonable to assume that a load that ends before
-	a store starts will be unable to load that store's value,
-	as shown in
-	\cref{fig:memorder:Is Store-to-Load Counter-Temporal on x86?},
-	even on weakly ordered systems.
-	And the data points from all 1,000 runs shown in
-	\cref{fig:memorder:Store-to-Load is Temporal on x86},
-	lie on the positive x~axis, so in at least this case, our temporal
-	intuitions, hopes, and dreams have been fulfilled.
-
-	These results should be no surprise.
-	Even on x86, the cache line shuttles between cores and sockets, and
-	\cref{fig:memorder:x86 CPUs Can Disagree}
-	indicates that a given store can remain in its CPU's store buffer
-	for more than a microsecond, which is quite enough time for
-	today's multi-GHz CPUs to detect the resulting counter-temporal
-	behavior.
-
-	However, for the store-to-load case, the laws of physics
-	guarantee temporal ordering because the finite speed of light
-	and the non-zero size of atoms work together to guarantee that
-	some time will pass between a store on one CPU and a load of
-	that store's value on some other CPU.
-
-	Alert readers may have noticed that the distribution shown in
-	\cref{fig:memorder:Store-to-Store is Counter-Temporal on x86}
-	is nearly monomodal, which those in
-	\cref{fig:memorder:Load-to-Store is Counter-Temporal on x86}
-	and
-	\cref{fig:memorder:Store-to-Load is Temporal on x86}
-	are decidedly trimodal.
-	Such readers are encouraged to consider why that might be,
-	perhaps referring to \path{CodeSamples/cpu/perftemporal.sh} and
-	the scripts and programs that it invokes.
-
-	And all readers are encouraged to note that even on relatively
-	strongly ordered CPUs such as x86, store-to-store and
-	load-to-store IPC links can be strongly counter-temporal.
-}\QuickQuizEnd
-
 \begin{figure}
 \centering
 \resizebox{\twocolumnwidth}{!}{\includegraphics{memorder/rf}}
@@ -3145,8 +2966,7 @@ passage of time itself as a memory-ordering operation.
 \label{lst:memorder:LB Litmus Test With One Acquire}
 \end{listing}
 
-Of course, just the passage of time by itself is not enough, as
-was seen in
+Of course, the mere passage of time is not sufficient, as was seen in
 \cref{lst:memorder:Load-Buffering Litmus Test (No Ordering)}
 on
 \cpageref{lst:memorder:Load-Buffering Litmus Test (No Ordering)},
@@ -3180,8 +3000,232 @@ suffice to prevent the \co{exists} clause from triggering.
 \end{listing}
 }\QuickQuizEnd
 
-An important use of time for ordering memory accesses is covered in the
-next section.
+One might hope that when using strongly ordered CPU families like x86,
+time would always being on our side.
+The problem with such hopes is that x86 CPUs have store buffers and are
+not afraid to use them, as can be seen in
+\crefrange{fig:memorder:x86 CPUs Can Disagree}{fig:memorder:Store-to-Load is Temporal on x86},
+which were obtained from a series of torture tests
+(\path{perftemporal.sh}) running on a two-socket x86 system
+having a 80~hardware
+threads.\footnote{
+	\co{Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz},
+	for those wanting more details.}
+
+\begin{figure}
+\centering
+\resizebox{\twocolumnwidth}{!}{\includegraphics{CodeSamples/cpu/data/coe-nvals}}
+\caption{x86 CPUs Can Disagree}
+\label{fig:memorder:x86 CPUs Can Disagree}
+\end{figure}
+
+\Cref{fig:memorder:x86 CPUs Can Disagree}
+is from a torture-test run similar to the one that generated
+\cref{fig:memorder:A Variable With More Simultaneous Values}
+on
+\cpageref{fig:memorder:A Variable With More Simultaneous Values},
+but showing the number of distinct opinions per unit time, where
+each timestamp period is 0.5~nanoseconds.\footnote{
+	Recall that each CPU writes its own number to a single
+	shared variable, which each CPU repeatedly polls,
+	recording time and value at each change in value.}
+As you can see, there is a significant period of time during
+which there are more than 40 distinct opinions as to the value
+of a single shared variable.
+Even on x86.
+
+\begin{figure}
+\centering
+\resizebox{.85\twocolumnwidth}{!}{\includegraphics{memorder/co-hopes}}
+\caption{Is Store-to-Store Counter-Temporal on x86?}
+\label{fig:memorder:Is Store-to-Store Counter-Temporal on x86?}
+\end{figure}
+
+But perhaps we might hope that on x86, the last CPU to execute its
+store in global time order would ``win'', that is, the final value
+of the shared variable would be that of that last store.
+If so, any store starting after the ``winning'' store finished would
+overwrite the winning store.
+In contrast, we know that on weakly ordered systems, a
+counter-intuitive store such as that shown at the bottom of
+\cref{fig:memorder:Is Store-to-Store Counter-Temporal on x86?}
+could be overwritten by the old value, despite the fact that it
+started $t$ timestamp periods after the winning store completed,
+as depicted in the figure by the time interval that is labelled
+$-t$.\footnote{
+	That is, completed from the viewpoint of the instruction
+	stream containing that store.
+	The value stored might well remain in the store buffer
+	long afterwards.}
+
+\begin{figure}
+\centering
+\resizebox{\twocolumnwidth}{!}{\includegraphics{CodeSamples/cpu/data/coe}}
+\caption{Store-to-Store is Counter-Temporal on x86}
+\label{fig:memorder:Store-to-Store is Counter-Temporal on x86}
+\end{figure}
+
+However,
+\cref{fig:memorder:Store-to-Store is Counter-Temporal on x86}
+dashes any fond hope that x86 might refuse to indulge in counter-intuitive
+counter-temporal stores.
+The data in this figure summarizes the results from 79,000
+torture-test runs of the type that generated
+\cref{fig:memorder:x86 CPUs Can Disagree},
+and is a histogram of the minimum time elapsed between the start of
+a non-winning CPU's store and the end of the winning CPU's store.
+Of course, if this value is negative, the winning store completed
+(though its value might not have propagated past the store buffer)
+before the other store even started.
+And the negative-time data points in that figure show that this
+counter-temporal behavior really can be made to happen most of
+the time, even on x86.
+
+\QuickQuiz{
+	\Cref{fig:memorder:Store-to-Store is Counter-Temporal on x86}
+	has almost all of it data points on the negative x-axis.
+	Do x86 CPUs really get things backwards that often???
+}\QuickQuizAnswer{
+	Please keep in mind that this x86 system has 80~CPUs, which means
+	a negative-x-axis data point requires only one of those 80~CPUs
+	to get things backwards.
+
+	Interested readers are encouraged to experiment to see whether
+	the negative-x-axis fraction is a function of numbers of CPUs.
+}\QuickQuizEnd
+
+\begin{figure}
+\centering
+\resizebox{.6\twocolumnwidth}{!}{\includegraphics{memorder/fr-hopes}}
+\caption{Is Load-to-Store Counter-Temporal on x86?}
+\label{fig:memorder:Is Load-to-Store Counter-Temporal on x86?}
+\end{figure}
+
+But perhaps one could instead hope that once an x86 had executed a store,
+any future load from that same variable might be guaranteed to return
+the new value.
+In contrast, we know that on weakly ordered systems, a
+counter-intuitive load such as that shown at the bottom
+of
+\cref{fig:memorder:Is Load-to-Store Counter-Temporal on x86?}
+could return the old value, despite having started $t$
+timestamp periods after the end of the store, again, as
+depicted in the figure by the $-t$.
+
+\begin{figure}
+\centering
+\resizebox{\twocolumnwidth}{!}{\includegraphics{CodeSamples/cpu/data/fre}}
+\caption{Load-to-Store is Counter-Temporal on x86}
+\label{fig:memorder:Load-to-Store is Counter-Temporal on x86}
+\end{figure}
+
+However,
+\cref{fig:memorder:Load-to-Store is Counter-Temporal on x86}
+dashes any fond hopes that loads executing after a given store would
+see that store's value (or some later value), even on x86.
+This data is generated by 1,000 runs of a program in which the
+parent thread spawns the children, each of which polls a shared
+variable.
+After all the children are running, the parent writes a new
+value to the shared variable.
+The quantity histogrammed in the figure is the time from just
+after the store until just before the last load of the old value.
+And most of these data points lie on the negative x~axis,
+clearly demonstrating that a torture test can easily provoke
+the counter-temporal nature of cross-thread load-to-store.
+
+\begin{figure}
+\centering
+\resizebox{\twocolumnwidth}{!}{\includegraphics{memorder/rf-hopes}}
+\caption{Is Store-to-Load Counter-Temporal on x86?}
+\label{fig:memorder:Is Store-to-Load Counter-Temporal on x86?}
+\end{figure}
+
+\begin{figure}
+\centering
+\resizebox{\twocolumnwidth}{!}{\includegraphics{CodeSamples/cpu/data/rfe}}
+\caption{Store-to-Load is Temporal on x86}
+\label{fig:memorder:Store-to-Load is Temporal on x86}
+\end{figure}
+
+Given the finite speed of light and atomic nature of matter
+discussed in
+\cref{sec:cpu:Hardware Optimizations},
+it is only reasonable to assume that a load that ends before
+a store starts will be unable to load that store's value,
+as shown in
+\cref{fig:memorder:Is Store-to-Load Counter-Temporal on x86?},
+even on weakly ordered systems.
+And the data points from all 1,000 runs shown in
+\cref{fig:memorder:Store-to-Load is Temporal on x86},
+lie on the positive x~axis.
+Which means that in at least this case, our temporal intuitions, hopes,
+and dreams have all been fulfilled.
+
+These results should be no surprise.
+Even on x86, the cache line shuttles between cores and sockets, and
+\cref{fig:memorder:x86 CPUs Can Disagree}
+indicates that a given store can remain in its CPU's store buffer
+for more than a microsecond, which is quite enough time for
+today's multi-GHz CPUs to detect the resulting counter-temporal
+behavior.
+
+However, for the store-to-load case, the laws of physics
+guarantee temporal ordering because the finite speed of light
+and the non-zero size of atoms work together to guarantee that
+some time will pass between a store on one CPU and a load of
+that store's value on some other CPU.
+
+\QuickQuiz{
+	Why are the distributions shown in
+	\cref{fig:memorder:Load-to-Store is Counter-Temporal on x86}
+	and
+	\cref{fig:memorder:Store-to-Load is Temporal on x86}
+	trimodal, given that
+	\cref{fig:memorder:Store-to-Store is Counter-Temporal on x86}
+	is nearly monomodal?
+}\QuickQuizAnswer{
+	The trimodal natures of
+	\cref{fig:memorder:Load-to-Store is Counter-Temporal on x86}
+	and
+	\cref{fig:memorder:Store-to-Load is Temporal on x86}
+	are due to the electrical structure of the system under test.
+	One mode corresponds to a pair of CPUs in a core, another to
+	CPUs in different cores in the same socket, and the third to
+	CPUs on different sockets.
+
+	As for
+	\cref{fig:memorder:Store-to-Store is Counter-Temporal on x86},
+	note also that its data extends much further along the x-axis
+	than that of the other two plots.
+	This greater negativity is due to the fact that the worst
+	counter-temporal store is selected on each run, which will
+	almost always be on the other socket.
+	In contrast, all loads are counted, regardless of their location.
+
+	The reason for this difference is that each load can be associated
+	with the store whose value it loaded, which means that each
+	load provides meaningful data.
+	In contrast, the code generating
+	\cref{fig:memorder:Store-to-Store is Counter-Temporal on x86}
+	consists solely of stores.
+	The only store whose order can be determined is the last store,
+	so only that one store generates useful data.
+	And that store will almost always be on some other stocket,
+	hence the monomodal distribution.
+
+	Interested and energetic readers are referred to
+	\path{CodeSamples/cpu/perftemporal.sh} and
+	the scripts and programs that it invokes.
+}\QuickQuizEnd
+
+In short, even on relatively strongly ordered CPUs such as x86,
+store-to-store and load-to-store IPC links can be strongly
+counter-temporal.
+
+In contrast, store-to-load IPC links are always temporal.
+This enables an important memory-ordering use case, which is covered in
+the next section.
 
 \subsubsection{Release-Acquire Chains}
 \label{sec:memorder:Release-Acquire Chains}
