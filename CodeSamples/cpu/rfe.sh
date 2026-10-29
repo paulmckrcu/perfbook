@@ -22,7 +22,17 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
-./temporal --rfe --nthreads ${1-15} |
+arg1="$1"
+
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
+
+if test -n "$arg1"
+then
+	lastcpu="$arg1"
+fi
+
+./temporal --rfe --nthreads ${lastcpu} |
 awk '
 /^Write/ {
 	print $0;
