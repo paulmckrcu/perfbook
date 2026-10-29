@@ -46,7 +46,17 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
-./temporal --fre --nthreads ${1-15} |
+arg1="$1"
+
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
+
+if test -n "$arg1"
+then
+	lastcpu="$arg1"
+fi
+
+./temporal --fre --nthreads ${lastcpu} |
 awk '
 /^Write/ {
 	et = $4;
