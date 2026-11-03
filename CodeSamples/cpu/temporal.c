@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
 				usage(argv[0], "%s: --duration argument must be positive integer.\n", argv[i]);
 			++i;
 		} else {
-			usage(argv[0], "Unrecognized argument: %s\n");
+			usage(argv[0], "Unrecognized argument: %s\n", argv[i]);
 		}
 	}
 	if (coe + fre + rfe == 0)
