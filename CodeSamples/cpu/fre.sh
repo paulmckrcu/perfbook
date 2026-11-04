@@ -55,6 +55,7 @@ if test -n "$arg1"
 then
 	lastcpu="$arg1"
 fi
+validate_lastcpu "${lastcpu}"
 
 ./temporal --fre --nthreads ${lastcpu} |
 awk '

@@ -106,6 +106,7 @@ fi
 incr=1
 for ncpus in $cpus
 do
+	validate_lastcpu ${ncpus}
 	if ((ncpus > 100))
 	then
 		holdoff=20

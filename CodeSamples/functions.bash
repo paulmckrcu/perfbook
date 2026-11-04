@@ -69,12 +69,17 @@ power2inc() {
 	}'
 }
 
+validate_lastcpu() {
+	local lastcpu="$1"
+
+	if test $lastcpu -gt $maxcpu
+	then
+		echo $0: Specified $lastcpu CPUs, only $maxcpu available!!!
+		exit
+	fi
+}
+
 # Get CPU numbers
 maxcpu="`lscpu | grep '^CPU(s):' | awk '{ print $2 - 1 }'`"
-lastcpu=${1-$maxcpu}
-if test $lastcpu -gt $maxcpu
-then
-	echo $0: Specified $lastcpu CPUs, only $maxcpu available!!!
-	exit
-fi
+lastcpu=${maxcpu}
 cpusperpwr2=8
