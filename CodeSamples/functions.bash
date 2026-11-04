@@ -14,6 +14,30 @@
 #
 # Authors: Paul E. McKenney <paulmck@kernel.org>
 
+# checkarg --argname argtype $# arg mustmatch cannotmatch
+#
+# Checks the specified argument "arg" against the mustmatch and cannotmatch
+# patterns.
+checkarg () {
+	if test $3 -le 1
+	then
+		echo $1 needs argument $2 matching \"$5\"
+		usage
+	fi
+	if echo "$4" | grep -q -e "$5"
+	then
+		:
+	else
+		echo $1 $2 \"$4\" must match \"$5\"
+		usage
+	fi
+	if echo "$4" | grep -q -e "$6"
+	then
+		echo $1 $2 \"$4\" must not match \"$6\"
+		usage
+	fi
+}
+
 # There are about five buckets per 64-byte cache line, and up to about
 # 448 CPUs.  Giving each CPU its own cache line in a deterministic workload
 # requires 448*5=2240 cache lines.  But in this case, there is a very high

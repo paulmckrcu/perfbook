@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Usage: trimplot.sh [ %peak [ %delta [ divisor ] ] ]
+# Usage: trimplot.sh [ --pctpeak N ] [ --pctdelta N ] [ --divisor N ]
 #
 # Find the peak of the histogram (all values assumed positive).
 # Find the most extreme buckets having at least %peak times this
@@ -15,14 +15,57 @@
 # Round the %delta-extended ranges outwards by the result returned by
 #	the round_up_125().
 #
+# Outputs a line containing the timestamp range, for example:
+#	-2000 500
+#
 # This is of course empirical in nature.  If it fails, the %peak search
 # could use digital filtering, which likely allows smaller values of %peak
 # to decrease.  Combinations of methods could be used for the %peak
 # search.  But start simply!
 
-pctpeak=${1-10}
-pctdelta=${2-10}
-divisor=${3-5}
+pctpeak=10
+pctdelta=10
+divisor=5
+
+csdir="`pwd | sed -e 's,CodeSamples.*$,CodeSamples,'`"
+. $csdir/functions.bash
+
+usage () {
+	echo "Usage: $scriptname optional arguments:"
+	echo "       --divisor full-range-divisor ($divisor)"
+	echo "       --pctdelta percent-range-extension ($pctdelta)"
+	echo "       --pctpeak percent-of-peak-cutoff ($pctpeak)"
+	exit 1
+}
+
+while test $# -gt 0
+do
+	case "$1" in
+	--divisor)
+		checkarg --divisor "(divisor for timestamp range)" "$#" "$2" '^[0-9]*$' '^--'
+		divisor=$2
+		shift
+		;;
+	--pctdelta)
+		checkarg --pctdelta "(percent extension for range)" "$#" "$2" '^[0-9]*$' '^--'
+		pctdelta=$2
+		shift
+		;;
+	--pctpeak)
+		checkarg --pctpeak "(percent of peak exclusion)" "$#" "$2" '^[0-9]*$' '^--'
+		pctpeak=$2
+		shift
+		;;
+	"")
+		# Ignore empty arguments.
+		;;
+	*)
+		echo Unknown argument $1
+		usage
+		;;
+	esac
+	shift
+done
 
 awk -v pctpeak="$pctpeak" -v pctdelta="$pctdelta" -v divisor="$divisor" '
 
@@ -119,8 +162,5 @@ END {
 	high125ts = roundby(highdeltats, rangets125, 1);
 	# print "low125ts = " low125ts " high125ts = " high125ts; # @@@
 
-	# Dump the data that is in range.
-	for (i = 1; i <= NR; i++)
-		if (ts[i] >= low125ts && ts[i] <= high125ts)
-			print ts[i], pdf[i];
+	print low125ts, high125ts
 }'
