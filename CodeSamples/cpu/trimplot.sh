@@ -155,7 +155,6 @@ BEGIN {
 {
 	sum += $2;
 	pdf[NR] = $2;
-	cdf[NR] = sum;
 	ts[NR] = $1;
 	if (peak < $2)
 		peak = $2;
