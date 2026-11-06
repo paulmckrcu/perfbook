@@ -39,6 +39,8 @@
 # look at spacing between timestamps, looking for the minimum spacing,
 # and finding the nearest larger gaps in both directions.  And we could
 # adjust the default values of the parameters based on analysis of the data.
+# Plus we could pick the peak, expand in both directions from there, pick
+# the next peak, and so on, taking the union of the regions selected.
 # Combinations of methods could of course be used.  But start simply!
 
 # Parameter defaults
@@ -107,6 +109,28 @@ do
 done
 
 awk -v pctpeak="$pctpeak" -v pctdelta="$pctdelta" -v divisor="$divisor" -v debugtp=$debugtp -v pctpeakfilt="$pctpeakfilt" '
+
+# bucket_value(i) returns value at bucket adjusted for ts gaps on either
+# side of that bucket.
+function bucket_value(i,  curgap, nsides)
+{
+	curgap = 0.0;
+	nsides = 0.0;
+
+	# Gap below?
+	if (i > 1) {
+		curgap += ts[i] - ts[i - 1];
+		nsides++;
+	}
+
+	# Gap above?
+	if (i < NR) {
+		curgap = ts[i + 1] - ts[i];
+		nsides++;
+	}
+
+	return (pdf[i] * nsides) / curgap;
+}
 
 # round_up_125(v) returns:
 # 	v if exact power of ten, 
@@ -189,16 +213,18 @@ END {
 
 	# Find the most extreme buckets containing at least the cutoff
 	# value (after digital filtering).
-	curval = pdf[1];
+	curval = bucket_value(1);
 	for (lownr = 2; curval < cutoff && lownr <= NR; lownr++) {
-		curpoint = pdf[lownr] * mintsdelta / (ts[lownr] - ts[lownr - 1]);
+		curpoint = bucket_value(lownr) * mintsdelta;
 		curval = (curpoint * pctpeakfilt + curval * (100 - pctpeakfilt)) / 100;
 	}
-	curval = pdf[NR];
+	curval = bucket_value(NR);
 	for (highnr = NR - 1; curval < cutoff && highnr >= 1; highnr--) {
-		curpoint = pdf[highnr] * mintsdelta / (ts[highnr + 1] - ts[highnr]);
+		curpoint = bucket_value(highnr) * mintsdelta;
 		curval = (curpoint * pctpeakfilt + curval * (100 - pctpeakfilt)) / 100;
 	}
+	if (debugtp)
+		print "lownr = " lownr " highnr = " highnr;
 
 	# Convert from buckets to the corresponding timestamp values.
 	lowts = ts[lownr];
