@@ -275,5 +275,26 @@ END {
 	if (debugtp)
 		print "After range check: low125ts = " low125ts " high125ts = " high125ts;
 
-	print low125ts, high125ts
+	# Accumulate statistics.
+	for (i = 1; i <= NR; i++)
+		if (ts[i] >= low125ts) {
+			low125nr = i;
+			break;
+		}
+	low125ignored = 0;
+	for (i = 1; i < low125nr; i++)
+		low125ignored += pdf[i];
+	for (i = NR; i >= 1; i--)
+		if (ts[i] <= high125ts) {
+			high125nr = i;
+			break;
+		}
+	high125ignored = 0;
+	for (i = NR; i >= high125nr; i--)
+		high125ignored += pdf[i];
+	if (debugtp)
+		print "NR = " NR " low125nr = " low125nr " high125nr = " high125nr " ts[1] = " ts[1] " ts[NR] = " ts[NR];
+
+	# Print result and diagnostics.
+	print low125ts, high125ts, "# Ignored: Buckets: " low125nr - 1 "+" NR - high125nr "=" NR - high125nr + low125nr - 1 " of " NR " Counts: " low125ignored "+" high125ignored "=" low125ignored + high125ignored " of " sum;
 }'
