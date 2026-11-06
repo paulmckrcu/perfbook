@@ -180,8 +180,6 @@ BEGIN {
 	sum += $2;
 	pdf[NR] = $2;
 	ts[NR] = $1;
-	if (peak < $2)
-		peak = $2;
 }
 END {
 	# Dump arguments if debugging.
@@ -193,6 +191,14 @@ END {
 	if (NR == 1) {
 		print ts[1], ts[1];
 		exit 0;
+	}
+
+	# Find the peak based on bucket_value().
+	peak = bucket_value(1);
+	for (i = 2; i <= NR; i++) {
+		curval = bucket_value(i);
+		if (curval > peak)
+			peak = curval;
 	}
 
 	# Find the smallest delta between consecutive timestamps.
@@ -215,12 +221,12 @@ END {
 	# value (after digital filtering).
 	curval = bucket_value(1);
 	for (lownr = 2; curval < cutoff && lownr <= NR; lownr++) {
-		curpoint = bucket_value(lownr) * mintsdelta;
+		curpoint = bucket_value(lownr);
 		curval = (curpoint * pctpeakfilt + curval * (100 - pctpeakfilt)) / 100;
 	}
 	curval = bucket_value(NR);
 	for (highnr = NR - 1; curval < cutoff && highnr >= 1; highnr--) {
-		curpoint = bucket_value(highnr) * mintsdelta;
+		curpoint = bucket_value(highnr);
 		curval = (curpoint * pctpeakfilt + curval * (100 - pctpeakfilt)) / 100;
 	}
 	if (debugtp)
