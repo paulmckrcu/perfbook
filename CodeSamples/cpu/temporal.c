@@ -139,7 +139,14 @@ void collect_data(struct sample_data *sdp)
 // Generic child thread, with ->sd_func to invoke.  Or not.
 void *child_thread(void *args)
 {
+	cpu_set_t cset;
 	struct sample_data *sdp = args;
+
+	// Bind to corresponding CPU, but forgive failure.
+	CPU_ZERO(&cset);
+	CPU_SET(sdp->sd_me + 1, &cset);
+	if (sched_setaffinity(0, sizeof(cpu_set_t), &cset) != 0)
+		fprintf(stderr, "child_thread() CPU %d sched_setaffinity() failed.\n", sdp->sd_me + 1);
 
 	WRITE_ONCE(sdp->sd_started, 1);
 	while (READ_ONCE(goflag) == GOFLAG_INIT)
