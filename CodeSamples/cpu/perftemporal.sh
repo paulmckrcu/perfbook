@@ -35,7 +35,11 @@ then
 	echo $0: Need tag path to place data, giving up.
 	exit 1
 fi
-tag="$1.`date '+%Y.%m.%d-%H.%M.%S'`"
+if echo $1 | grep -q '[0-9][0-9][0-9][0-9]\.[0-9][0-9]\.[0-9][0-9]'
+	tag="$1"
+else
+	tag="$1.`date '+%Y.%m.%d-%H.%M.%S'`"
+fi
 if ! mkdir -p $tag
 then
 	echo $0: Cannot create $tag, giving up.
