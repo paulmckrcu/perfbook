@@ -5,12 +5,12 @@
 #
 # Usage: bash perftemporal.sh tag [ [ reps ] nthreads ]
 #
-# The "tag" parameter is pathname (relative or absolute) at
-# which to place the data.  A date/time stamp will be added
-# to this name of the form "2024.01.17-13.19.34".
-# The "reps" parameter gives the number of data points to collect
-# (default 10) and the "nthreads" parameter gives the number of
-# CPUs to use (default one less than the number available).
+# The "tag" parameter is pathname (relative or absolute) at which to
+# place the data.  If a date stamp is not already present, a date/time stamp
+# will be added to this name of the form "2024.01.17-13.19.34".  The "reps"
+# parameter gives the number of data points to collect (default 10) and the
+# "nthreads" parameter gives the number of CPUs to use (default one less
+# than the number available).
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
