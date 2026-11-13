@@ -39,6 +39,7 @@ then
 	exit 1
 fi
 if echo $1 | grep -q '[0-9][0-9][0-9][0-9]\.[0-9][0-9]\.[0-9][0-9]'
+then
 	tag="$1"
 else
 	tag="$1.`date '+%Y.%m.%d-%H.%M.%S'`"
@@ -124,10 +125,9 @@ cp "$T/coe-nvals.dat.${maxnvalsidx}" "${tag}/coe-nvals.dat"
 
 # Reduce the data for the temporal diameter: (1) Sort ascending,
 # (2) Compute the fractional increase for each data point,
-# (3) Start at the 10th percentile and increase until the
-# percent increase exceeds 5%, and take the previous data point.
+# (3) Find the relative maximum likelihood estimate.
 sort -k1n "${tag}/temporal-diameter.dat" > "${tag}/temporal-diameter.dat.sort"
 awk < "${tag}/temporal-diameter.dat.sort" > "${tag}/temporal-diameter.dat.reduce" '{ print $1, ($1 - last) / $1, last; last = $1; }'
-awk < "${tag}/temporal-diameter.dat.reduce" > "${tag}/temporal-diameter.est" 'NR < 10 { next; } { if ($2 > 0.05 && cutoff == "") cutoff = $3; } END { print cutoff; }'
+./findmeasrun.sh < "${tag}/temporal-diameter.dat.sort" > "${tag}/temporal-diameter.est"
 
 exit 0
